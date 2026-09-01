@@ -18,9 +18,9 @@ import {
   loadMinimumMarketVolume,
   loadLiquidationWarning,
   loadQuickOrder,
-  loadTradeSoundsEnabled,
+  loadTradeSoundPreferences,
   saveQuickOrder,
-  saveTradeSoundsEnabled,
+  saveTradeSoundPreferences,
   saveChartView,
   saveChartOptions,
   saveHeaderProfitVisibility,
@@ -120,11 +120,24 @@ describe("trade sounds", () => {
     const mine = await insertUser(database)
     const theirs = await insertUser(database)
 
-    expect(await loadTradeSoundsEnabled(mine.id, database)).toBe(false)
-    await saveTradeSoundsEnabled(mine.id, true, database)
+    expect(await loadTradeSoundPreferences(mine.id, database)).toEqual({
+      fillsAndStops: false,
+      alerts: false,
+    })
+    await saveTradeSoundPreferences(
+      mine.id,
+      { fillsAndStops: true, alerts: false },
+      database
+    )
 
-    expect(await loadTradeSoundsEnabled(mine.id, database)).toBe(true)
-    expect(await loadTradeSoundsEnabled(theirs.id, database)).toBe(false)
+    expect(await loadTradeSoundPreferences(mine.id, database)).toEqual({
+      fillsAndStops: true,
+      alerts: false,
+    })
+    expect(await loadTradeSoundPreferences(theirs.id, database)).toEqual({
+      fillsAndStops: false,
+      alerts: false,
+    })
   })
 })
 
@@ -211,6 +224,7 @@ describe("the trading dashboard arrangement", () => {
 
 describe("the remembered trade panel layouts", () => {
   const horizontal = { markets: 20, chart: 58, "smart-orders": 22 }
+  const marketColumn = { folders: 68, alerts: 32 }
   const vertical = { workspace: 72, activity: 28 }
   const scope = { protocol: "hyperliquid", network: "mainnet" } as const
 
@@ -233,6 +247,12 @@ describe("the remembered trade panel layouts", () => {
     )
     await saveTradePanelLayout(
       id,
+      tradePanelLayoutKey.workspaceMarketColumn,
+      marketColumn,
+      database
+    )
+    await saveTradePanelLayout(
+      id,
       tradePanelLayoutKey.workspaceVertical,
       vertical,
       database
@@ -242,6 +262,7 @@ describe("the remembered trade panel layouts", () => {
       legacyImported: true,
       current: {
         [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+        [tradePanelLayoutKey.workspaceMarketColumn]: marketColumn,
         [tradePanelLayoutKey.workspaceVertical]: vertical,
       },
     })
@@ -321,6 +342,7 @@ describe("the remembered trade panel layouts", () => {
       {
         name: "Reading",
         horizontal,
+        marketColumn,
         vertical,
         scope,
         openMarketRowId: "watched",
@@ -342,10 +364,17 @@ describe("the remembered trade panel layouts", () => {
       "smart-orders": 10,
     }
     const overwrittenVertical = { workspace: 60, activity: 40 }
+    const overwrittenMarketColumn = { folders: 55, alerts: 45 }
     await saveTradePanelLayout(
       id,
       tradePanelLayoutKey.workspaceHorizontal,
       overwrittenHorizontal,
+      database
+    )
+    await saveTradePanelLayout(
+      id,
+      tradePanelLayoutKey.workspaceMarketColumn,
+      overwrittenMarketColumn,
       database
     )
     await saveTradePanelLayout(
@@ -361,6 +390,7 @@ describe("the remembered trade panel layouts", () => {
     expect(automaticallySaved.named[0]).toMatchObject({
       id: named!.id,
       horizontal: overwrittenHorizontal,
+      marketColumn: overwrittenMarketColumn,
       vertical: overwrittenVertical,
       openMarketRows: { "hyperliquid:mainnet": null },
       headerProfitVisible: true,
@@ -374,6 +404,9 @@ describe("the remembered trade panel layouts", () => {
     )
     expect(applied.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
       overwrittenHorizontal
+    )
+    expect(applied.current[tradePanelLayoutKey.workspaceMarketColumn]).toEqual(
+      overwrittenMarketColumn
     )
     expect(applied.current[tradePanelLayoutKey.workspaceVertical]).toEqual(
       overwrittenVertical
@@ -394,6 +427,7 @@ describe("the remembered trade panel layouts", () => {
       {
         name: "Reading",
         horizontal,
+        marketColumn,
         vertical,
         scope,
         openMarketRowId: "watched",
@@ -418,6 +452,7 @@ describe("the remembered trade panel layouts", () => {
       {
         name: "Reading",
         horizontal,
+        marketColumn,
         vertical,
         scope,
         openMarketRowId: "watched",
@@ -431,6 +466,7 @@ describe("the remembered trade panel layouts", () => {
         {
           name: "reading",
           horizontal,
+          marketColumn,
           vertical,
           scope,
           openMarketRowId: "watched",
@@ -446,6 +482,7 @@ describe("the remembered trade panel layouts", () => {
         {
           name,
           horizontal,
+          marketColumn,
           vertical,
           scope,
           openMarketRowId: "watched",
@@ -460,6 +497,7 @@ describe("the remembered trade panel layouts", () => {
         {
           name: "Six",
           horizontal,
+          marketColumn,
           vertical,
           scope,
           openMarketRowId: "watched",

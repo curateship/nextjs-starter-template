@@ -163,10 +163,15 @@ grid hands the trade-lines layer a map of its right-edge chips
 they already slide left of each other. Both stay readable, and the pill keeps
 its ×, gear and drag reachable.
 
+Price alerts use this same bar and layout instead of a separate chart control.
+The alert bar is purple and carries the same dotted drag grip, price tag and X
+as an order bar. Alert bars enter the shared layout first. A trading bar at the
+same price paints later, and the layout moves their pills apart so both controls
+stay reachable.
+
 The render order is the backstop for anything the map does not cover:
-indicators, then paint tools, then ladders and grids, then the position's own
-lines, then journal marks — so a residual overlap still leaves the pills, the
-lines a hand acts on, on top.
+indicators, then paint tools, then ladders and grids, then the shared alert and
+trade bars, then journal marks.
 
 Right-clicking an arrow from a finished trade opens a small dropdown beside it
 with one **Remove trade** row. Pressing it acts at once. The complete trade

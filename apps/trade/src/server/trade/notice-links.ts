@@ -52,7 +52,7 @@ export async function tradeNoticeLinksFor(
   )
 }
 
-/** New fill and stop notices after one browser tab's last answer. */
+/** New audible trade notices after one browser tab's last answer. */
 export async function tradeSoundEventsAfter(
   userId: string,
   cursor: TradeSoundCursor

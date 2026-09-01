@@ -35,6 +35,7 @@ import type { GridParams } from "@/lib/trade/grid"
 import type { MarketPanelRows } from "@/lib/trade/market-folders"
 import type { OrderStyle } from "@/lib/trade/order-style"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
+import type { PriceAlertDirection } from "@/lib/trade/price-alerts"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -264,6 +265,10 @@ export const tradePrefs = pgTable("trade_prefs", {
   liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
   /** One account-wide choice for the fill and stop sounds. Off until chosen. */
   tradeSoundsEnabled: boolean("trade_sounds_enabled").notNull().default(false),
+  /** Price alerts have their own account-wide sound choice. */
+  tradeAlertSoundsEnabled: boolean("trade_alert_sounds_enabled")
+    .notNull()
+    .default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -582,6 +587,42 @@ export const tradeChartDrawings = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.id] }),
     index("trade_chart_drawings_market_idx").on(table.userId, table.marketKey),
+  ]
+)
+
+/** One account-owned price line, kept after firing as the once-only record. */
+export const tradePriceAlerts = pgTable(
+  "trade_price_alerts",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    id: varchar("id", { length: 36 }).notNull(),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
+    marketKey: varchar("market_key", { length: 180 }).notNull(),
+    price: doublePrecision("price").notNull(),
+    direction: varchar("direction", { length: 5 })
+      .$type<PriceAlertDirection>()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    firedAt: timestamp("fired_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    check(
+      "trade_price_alerts_direction_check",
+      sql`${table.direction} in ('above', 'below')`
+    ),
+    check("trade_price_alerts_price_check", sql`${table.price} > 0`),
+    index("trade_price_alerts_armed_user_idx")
+      .on(table.userId, table.createdAt)
+      .where(sql`${table.firedAt} is null`),
+    index("trade_price_alerts_armed_market_idx")
+      .on(table.marketKey)
+      .where(sql`${table.firedAt} is null`),
   ]
 )
 
@@ -1355,5 +1396,7 @@ export const tradeNoticeLinks = pgTable("trade_notice_links", {
     .references(() => customShellAnnouncements.id, { onDelete: "cascade" }),
   href: text("href"),
   /** Which bundled sound an open trading screen may play for this notice. */
-  soundKind: varchar("sound_kind", { length: 8 }).$type<"fill" | "stop">(),
+  soundKind: varchar("sound_kind", { length: 8 }).$type<
+    "fill" | "stop" | "alert"
+  >(),
 })

@@ -48,8 +48,10 @@ screen: anything not written there has not been agreed yet.
 - `notices.md` — the bell notices: one per fill, a second when a stop or target
   fires, what a flow says when it stops or goes quiet on its own, and where
   clicking one takes you.
-- `sounds.md` — the optional sounds for fills and stops, what collapses a
-  burst, and when a browser stays silent.
+- `sounds.md` — the separate optional sounds for fills and stops, and for price
+  alerts, what collapses a burst, and when a browser stays silent.
+- `price-alerts.md` — one-use chart price lines, the Alerts panel, engine
+  firing, notices, sounds, deletion, and the account cap.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
 

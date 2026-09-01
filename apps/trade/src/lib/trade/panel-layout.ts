@@ -34,6 +34,8 @@ export type NamedPanelLayout = {
   id: string
   name: string
   horizontal: Layout
+  /** Older named layouts leave the Folders/Alerts split where it is. */
+  marketColumn?: Layout
   vertical: Layout
   /** The folder row this layout opens on each exchange where it was saved. */
   openMarketRows: OpenMarketRows
@@ -295,6 +297,10 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
     record.vertical,
     tradePanelIds[tradePanelLayoutKey.workspaceVertical]
   )
+  const marketColumn = matchingPanelLayout(
+    record.marketColumn,
+    tradePanelIds[tradePanelLayoutKey.workspaceMarketColumn]
+  )
   if (
     typeof record.id !== "string" ||
     record.id.length === 0 ||
@@ -302,7 +308,8 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
     name.length === 0 ||
     name.length > 32 ||
     !horizontal ||
-    !vertical
+    !vertical ||
+    (record.marketColumn !== undefined && !marketColumn)
   ) {
     return null
   }
@@ -316,6 +323,7 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
   if (typeof record.headerProfitVisible === "boolean") {
     layout.headerProfitVisible = record.headerProfitVisible
   }
+  if (marketColumn) layout.marketColumn = marketColumn
   return layout
 }
 
@@ -348,7 +356,7 @@ export function readOpenMarketRows(value: unknown): OpenMarketRows {
   return rows
 }
 
-/** Read all six old browser keys for the one-time account import. */
+/** Read all seven old browser keys for the one-time account import. */
 export function readLegacyTradePanelLayouts(
   storage: Pick<Storage, "getItem">
 ): TradePanelLayouts["current"] {
@@ -361,7 +369,7 @@ export function readLegacyTradePanelLayouts(
         : null
       if (layout) current[key] = layout
     } catch {
-      // One blocked or malformed browser value does not hide the other five.
+      // One blocked or malformed browser value does not hide the other six.
     }
   }
   return current

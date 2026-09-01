@@ -23,19 +23,19 @@ a time. Two rules from that model shape everything here:
 
 What Trade has added to the shell, and what each piece is for:
 
-| Where | What |
-| --- | --- |
+| Where                                            | What                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`, `kucoin`, `aster`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's, because a saved home setting or a bookmark may still point there. |
-| `src/components/trade/` | The workspace and its panels. Draw only — no exchange code, no database. |
-| `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
-| `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |
-| `src/lib/protocols/contracts.ts` | The shapes screens and exchanges agree on, including each market's quote token. Browser-safe. |
-| `src/lib/api/trade/` | Trade's guarded server calls, including markets, charts, wallets, orders, backtests and workers. The root of `src/lib/api/` stays the shell's. |
-| `src/server/protocols/` | The exchange side: the registry, and one folder per exchange. |
-| `src/server/trade/` | Trade's own tables and the code that touches them. |
-| `drizzle/0100_…` | Trade's own migrations, numbered from 0100. |
-| `workspace/docs/screens/`, `charts/`, `orders/` | The approved look and behaviour of every screen, one file per part. |
-| `workspace/tasks/Platform/` | The task files, where decisions are recorded. |
+| `src/components/trade/`                          | The workspace and its panels. Draw only — no exchange code, no database.                                                                                                                                                                                                      |
+| `src/components/trade/paint/`                    | The paint tools: the rail, the layer the lines are drawn on, and their state.                                                                                                                                                                                                 |
+| `src/lib/trade/`                                 | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths.                                                                                                                                                                                         |
+| `src/lib/protocols/contracts.ts`                 | The shapes screens and exchanges agree on, including each market's quote token. Browser-safe.                                                                                                                                                                                 |
+| `src/lib/api/trade/`                             | Trade's guarded server calls, including markets, charts, wallets, orders, backtests and workers. The root of `src/lib/api/` stays the shell's.                                                                                                                                |
+| `src/server/protocols/`                          | The exchange side: the registry, and one folder per exchange.                                                                                                                                                                                                                 |
+| `src/server/trade/`                              | Trade's own tables and the code that touches them.                                                                                                                                                                                                                            |
+| `drizzle/0100_…`                                 | Trade's own migrations, numbered from 0100.                                                                                                                                                                                                                                   |
+| `workspace/docs/screens/`, `charts/`, `orders/`  | The approved look and behaviour of every screen, one file per part.                                                                                                                                                                                                           |
+| `workspace/tasks/Platform/`                      | The task files, where decisions are recorded.                                                                                                                                                                                                                                 |
 
 ## The protocol layer
 
@@ -107,11 +107,11 @@ The same idea one layer up: **the chart never learns what a line means.**
   again, plus the plot area's size;
 - an `overlay` slot, drawn over the candles and handed that surface.
 
-Everything else is a consumer. The paint tools are the first one: they own
-what a shape is, how it is picked up, where it is kept and what it looks like.
-An alert on a drawn line attaches the same way later, without `price-chart.tsx`
-hearing the word "alert" — which is what kept the old app's chart from being
-3,961 lines.
+Everything else is a consumer. Paint tools own their shapes. Price alerts join
+orders in the shared trade-line bar renderer, which owns their grip, label,
+price tag and close control. Both attach through the overlay without
+`price-chart.tsx` hearing what either means. The boundary kept the old app's
+chart from becoming 3,961 lines. See `../screens/price-alerts.md`.
 
 Two things that make the surface work and are easy to break:
 
@@ -150,7 +150,7 @@ the panel a hundred times per gesture to tell it what it is already showing.
 
 About 550 lines all in — 163 of them tests and roughly 200 of them comments, so
 around **200 lines of working code**, in five small files and one database
-column. Small. But three of those places are working *around* the chart library
+column. Small. But three of those places are working _around_ the chart library
 rather than with it, and one is a timing guess. Anyone changing this should
 know which is which.
 
@@ -177,7 +177,7 @@ complexity nobody asked for: two clamps added defensively — "do not scroll pas
 here", "do not zoom in further than this market has candles". Both quietly
 overrode what the user had set, and one of them fed its own clamped answer back
 into the saved value, so it compounded. Deleting them made the code shorter
-*and* correct. The guard rails were the bug.
+_and_ correct. The guard rails were the bug.
 
 **What an unfinished exchange may leave out.** The registry's optional blocks
 say which parts of a venue are not ready yet. A venue with no pushed-price feed
@@ -327,11 +327,8 @@ the recovery view (`recovery-tools.md`), and automations trading real money.
 
 ## Deliberately not built yet
 
-- **Price alerts on drawn lines.** When they arrive they attach to a drawn
-  line through the chart's surface, not through the chart. The market list's
-  Watch tab is already used by markets with active smart orders. Notices about
-  things that already happened — a fill, a stop firing, a flow stopping on its
-  own — exist now; see `screens/notices.md`.
+- **Alerts attached to drawings.** Price alerts use their own fixed lines.
+  Following a drawn line or an indicator remains outside the alert system.
 - **The Canvas and the Backtest stay outside this app's exchange boundary.**
   The Canvas will hand an automation to the Backtest or to a Bot tab through a
   door, not run either itself — decided in

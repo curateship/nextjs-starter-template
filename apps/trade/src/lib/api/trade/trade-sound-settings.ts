@@ -3,31 +3,41 @@ import { z } from "zod"
 
 import { createErrorMessage } from "@/lib/api/error-message"
 import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
+import type { TradeSoundSettings } from "@/lib/trade/trade-sounds"
 import { userGet, userPost } from "@/server/guards"
 import {
-  loadTradeSoundsEnabled,
-  saveTradeSoundsEnabled,
+  loadTradeSoundPreferences,
+  saveTradeSoundPreferences,
 } from "@/server/trade/prefs"
+
+const tradeSoundSettingsSchema = z.object({
+  fillsAndStops: z.boolean(),
+  alerts: z.boolean(),
+})
 
 const loadTradeSoundSettingsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => ({
-    enabled: await loadTradeSoundsEnabled(context.user.id),
-  }))
+  .handler(async ({ context }) =>
+    tradeSoundSettingsSchema.parse(
+      await loadTradeSoundPreferences(context.user.id)
+    )
+  )
 
 const saveTradeSoundSettingsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.boolean())
-  .handler(async ({ data, context }) => ({
-    enabled: await saveTradeSoundsEnabled(context.user.id, data),
-  }))
+  .inputValidator(tradeSoundSettingsSchema)
+  .handler(async ({ data, context }) =>
+    tradeSoundSettingsSchema.parse(
+      await saveTradeSoundPreferences(context.user.id, data)
+    )
+  )
 
 export function loadTradeSoundSettings() {
   return loadTradeSoundSettingsFn()
 }
 
-export async function saveTradeSoundSettings(enabled: boolean) {
-  const answer = await saveTradeSoundSettingsFn({ data: enabled })
+export async function saveTradeSoundSettings(settings: TradeSoundSettings) {
+  const answer = await saveTradeSoundSettingsFn({ data: settings })
   invalidateDashboardBootstrap()
   return answer
 }

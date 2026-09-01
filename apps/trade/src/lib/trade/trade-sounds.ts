@@ -1,4 +1,14 @@
-export type TradeSoundKind = "fill" | "stop"
+export type TradeSoundKind = "fill" | "stop" | "alert"
+
+export type TradeSoundSettings = {
+  fillsAndStops: boolean
+  alerts: boolean
+}
+
+export const TRADE_SOUNDS_OFF: TradeSoundSettings = {
+  fillsAndStops: false,
+  alerts: false,
+}
 
 export type TradeSoundEvent = {
   id: string
@@ -20,17 +30,18 @@ export const TRADE_SOUND_SETTINGS_CHANNEL = "trade-sound-settings"
 export const TRADE_SOUND_FILES: Record<TradeSoundKind, string> = {
   fill: "/sounds/trade-fill.wav",
   stop: "/sounds/trade-stop.wav",
+  alert: "/sounds/trade-alert.wav",
 }
 
 type TradeSoundAudio = Pick<HTMLAudioElement, "play"> &
   Partial<Pick<HTMLAudioElement, "currentTime" | "pause" | "volume">>
 
-let rememberedSetting: boolean | undefined
-let settingLoad: Promise<boolean> | null = null
+let rememberedSetting: TradeSoundSettings | undefined
+let settingLoad: Promise<TradeSoundSettings> | null = null
 const settingListeners = new Set<() => void>()
 
 export type TradeSoundBootstrap = {
-  enabled: boolean
+  settings: TradeSoundSettings
   events: TradeSoundEvent[]
   cursor: TradeSoundCursor
   error: string | null
@@ -49,7 +60,7 @@ export function seedTradeSounds(answer: TradeSoundBootstrap) {
   seededSoundAnswer = answer
   openingSoundAnswer = answer
   if (answer.error === null && rememberedSetting === undefined) {
-    rememberTradeSoundSetting(answer.enabled)
+    rememberTradeSoundSetting(answer.settings)
   }
 }
 
@@ -66,9 +77,16 @@ export function readRememberedTradeSoundSetting() {
   return rememberedSetting
 }
 
-export function rememberTradeSoundSetting(enabled: boolean | undefined) {
-  if (rememberedSetting === enabled) return
-  rememberedSetting = enabled
+export function rememberTradeSoundSetting(
+  settings: TradeSoundSettings | undefined
+) {
+  if (
+    rememberedSetting?.fillsAndStops === settings?.fillsAndStops &&
+    rememberedSetting?.alerts === settings?.alerts
+  ) {
+    return
+  }
+  rememberedSetting = settings
   for (const listener of settingListeners) listener()
 }
 
@@ -81,7 +99,7 @@ export function subscribeToTradeSoundSetting(listener: () => void) {
 
 /** Shares one in-flight read between the listener and the Settings card. */
 export function ensureTradeSoundSetting(
-  load: () => Promise<{ enabled: boolean }>
+  load: () => Promise<TradeSoundSettings>
 ) {
   if (rememberedSetting !== undefined) {
     return Promise.resolve(rememberedSetting)
@@ -89,11 +107,11 @@ export function ensureTradeSoundSetting(
   if (settingLoad) return settingLoad
 
   settingLoad = load()
-    .then((answer) => {
+    .then((settings) => {
       if (rememberedSetting === undefined) {
-        rememberTradeSoundSetting(answer.enabled)
+        rememberTradeSoundSetting(settings)
       }
-      return rememberedSetting ?? answer.enabled
+      return rememberedSetting ?? settings
     })
     .finally(() => {
       settingLoad = null
@@ -212,4 +230,10 @@ export function playTradeSound(
 export function primeTradeSounds() {
   browserPlayer ??= createTradeSoundPlayer()
   return browserPlayer.prime()
+}
+
+/** The alert toggle's audible preview, made during that switch click. */
+export function previewPriceAlertSound() {
+  browserPlayer ??= createTradeSoundPlayer()
+  return browserPlayer("alert", true, false)
 }

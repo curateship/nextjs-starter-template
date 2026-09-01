@@ -302,6 +302,7 @@ const busyWalletStartedAt = new Map<
 let lastStuckWalletError: string | null = null
 let flowScanning = false
 let cleaningFlows = false
+let checkingPriceAlerts = false
 let flowScanStartedAt = 0
 let lastFlowScanAt = 0
 
@@ -365,6 +366,7 @@ export function resetLadderPassState(): void {
   lastStuckWalletError = null
   flowScanning = false
   cleaningFlows = false
+  checkingPriceAlerts = false
   flowScanStartedAt = 0
   lastFlowScanAt = 0
 }
@@ -567,13 +569,29 @@ export async function advanceWorkingLadders(): Promise<void> {
       { pushedMarks },
       { advanceRunningFlows },
       { checkLiquidationWarnings },
+      { checkPriceAlerts },
     ] = await Promise.all([
       import("@/server/trade/paper"),
       import("@/server/trade/live-smart-orders"),
       import("@/server/trade/live-marks"),
       import("@/server/trade/flow-run"),
       import("@/server/trade/liquidation-warning"),
+      import("@/server/trade/price-alerts"),
     ])
+
+    // Alerts belong to accounts and markets, not wallets. Start their one
+    // armed-row read alongside wallet work, so a slow notice can never hold up
+    // an order, and skip a new turn while the previous alert check is alive.
+    if (!checkingPriceAlerts) {
+      checkingPriceAlerts = true
+      started.push(
+        checkPriceAlerts({ pushedMarks })
+          .catch((error) => console.error("Price alert pass failed", error))
+          .finally(() => {
+            checkingPriceAlerts = false
+          })
+      )
+    }
 
     // Switched-on flows get their coins looked at first, so a ladder placed
     // this pass is worked by the same pass rather than waiting a second.

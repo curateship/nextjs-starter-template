@@ -3,12 +3,13 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import type { PriceAlert } from "@/lib/trade/price-alerts"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -23,6 +24,7 @@ const colors: ChartColors = {
   up: "theme-up",
   down: "theme-down",
   warning: "theme-warning",
+  alert: "theme-purple",
   neutral: "theme-neutral",
   badgeText: "theme-badge-text",
   upSoft: "theme-up-soft",
@@ -38,6 +40,15 @@ const surface: ChartSurface = {
   barAt: () => 0,
   yOf: (price) => 200 - price,
   priceAt: (y) => 200 - y,
+}
+const alert: PriceAlert = {
+  id: "00000000-0000-4000-8000-000000000001",
+  protocol: "hyperliquid",
+  network: "mainnet",
+  marketKey: MARKET,
+  price: 100,
+  direction: "above",
+  createdAt: 1,
 }
 
 function position(kind: "target" | "stop"): TradePosition {
@@ -141,6 +152,90 @@ function lineLabel(html: string, startsWith: string): Element {
 }
 
 describe("chart bracket lines", () => {
+  it("draws an alert with the existing purple draggable bar and close control", () => {
+    const html = renderToStaticMarkup(
+      <TradeLinesLayer
+        surface={surface}
+        colors={colors}
+        marketKey={MARKET}
+        currentPx={100}
+        positions={[]}
+        orders={[]}
+        alerts={[alert]}
+        walletName={() => "Wallet"}
+        tool={null}
+        onMoveAlert={() => undefined}
+        onDeleteAlert={() => undefined}
+        onMoveOrder={() => undefined}
+        onCancelOrder={() => undefined}
+        onSetBrackets={() => undefined}
+      />
+    )
+
+    expect(html).toContain('data-chart-alert="true"')
+    expect(html).toContain("theme-purple")
+    expect(html).toContain("stroke-width:44px")
+    expect(html).toContain("Alert at $100")
+    expect(html).toContain("Remove alert")
+  })
+
+  it("moves and closes an alert from its chart bar", async () => {
+    const onMove = vi.fn()
+    const onDelete = vi.fn()
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[]}
+          alerts={[alert]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveAlert={onMove}
+          onDeleteAlert={onDelete}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+
+    const drag = host.querySelector<SVGLineElement>(
+      '[aria-label="Alert at $100"]'
+    )
+    expect(drag).not.toBeNull()
+    Object.assign(drag!, {
+      setPointerCapture: () => undefined,
+      hasPointerCapture: () => false,
+      releasePointerCapture: () => undefined,
+    })
+    await act(async () => {
+      drag!.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      )
+    })
+    await act(async () => {
+      drag!.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 120 })
+      )
+    })
+    expect(onMove).toHaveBeenCalledWith(alert.id, 80)
+
+    const close = host.querySelector<SVGGElement>('[aria-label="Remove alert"]')
+    await act(async () => {
+      close?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+    expect(onDelete).toHaveBeenCalledWith(alert.id)
+    await act(async () => root.unmount())
+  })
+
   it("gives a movable line a finger-sized touch target", () => {
     const html = render("target")
 

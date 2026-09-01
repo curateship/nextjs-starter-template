@@ -14,6 +14,7 @@ import {
   type TradeOrder,
   type TradePosition,
 } from "@/lib/trade/paper"
+import type { PriceAlert } from "@/lib/trade/price-alerts"
 
 /**
  * What you are holding, drawn over the candles.
@@ -73,6 +74,7 @@ type Grab = {
 }
 
 type LineKind =
+  | "alert"
   | "entry"
   | "take_profit"
   | "stop_loss"
@@ -126,6 +128,7 @@ export type EntryBadge = {
 
 /** One theme colour per meaning, shared with candles, grids and ladders. */
 function colorOf(kind: LineKind, colors: ChartColors): string {
+  if (kind === "alert") return colors.alert
   if (kind === "entry") return "#2962ff"
   if (kind === "take_profit" || kind === "order_take_profit") return colors.up
   if (kind === "stop_loss" || kind === "order_stop_loss") return colors.down
@@ -142,6 +145,7 @@ function moneyColor(value: number, colors: ChartColors, fallback: string) {
 
 /** A finer dash on the two that have not started yet — they are a plan, not a fact. */
 const DASHED: Record<LineKind, string | undefined> = {
+  alert: "5 4",
   entry: undefined,
   take_profit: "6 4",
   stop_loss: "6 4",
@@ -199,15 +203,18 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   currentPx,
   positions,
   orders,
+  alerts,
   walletName,
   tool,
   entryBadge,
   feesPaidFor,
   obstacles,
   onMoveOrder,
+  onMoveAlert,
   onMoveOrderStop,
   onMoveOrderTarget,
   onCancelOrder,
+  onDeleteAlert,
   onClosePosition,
   onEditOrder,
   onSetBrackets,
@@ -221,6 +228,8 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   currentPx: number | null
   positions: readonly TradePosition[]
   orders: readonly TradeOrder[]
+  /** Active account alerts; only rows for the market on screen are drawn. */
+  alerts?: readonly PriceAlert[]
   /** Names a wallet, for when this market holds more than one wallet's lines. */
   walletName: (walletId: string) => string
   /**
@@ -242,6 +251,8 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
    */
   obstacles?: readonly { top: number; bottom: number; width: number }[]
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
+  /** Dragging an alert hands its new price back to the chart owner. */
+  onMoveAlert?: (id: string, price: number) => void
   /**
    * Dragging a waiting order's stop, which changes how much the order is for.
    *
@@ -253,6 +264,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   /** Dragging a waiting order's target. The amount is left alone. */
   onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
   onCancelOrder: (order: TradeOrder) => void
+  onDeleteAlert?: (id: string) => void
   /**
    * The × on a position's Entry line. Closing costs real money, so it asks
    * first — the panel owns that question, the same one the Positions table
@@ -318,7 +330,21 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   const whose = (walletId: string) =>
     involved.size > 1 ? ` · ${walletName(walletId)}` : ""
 
-  const lines: Line[] = []
+  // Alerts use this same bar renderer instead of carrying a second chart UI.
+  // They go down first so a trading control wins the final paint order when
+  // both prices match, while the shared pill layout still keeps both readable.
+  const lines: Line[] = (alerts ?? [])
+    .filter((alert) => alert.marketKey === marketKey)
+    .map((alert) => ({
+      id: `alert:${alert.id}`,
+      kind: "alert" as const,
+      price: alert.price,
+      label: () => "Alert",
+      onMove: onMoveAlert
+        ? (price: number) => onMoveAlert(alert.id, price)
+        : undefined,
+      onRemove: onDeleteAlert ? () => onDeleteAlert(alert.id) : undefined,
+    }))
 
   for (const position of held) {
     if (!marketKey) break
@@ -788,7 +814,10 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
           const color = colorOf(line.kind, colors)
 
           return (
-            <g key={line.id}>
+            <g
+              key={line.id}
+              data-chart-alert={line.kind === "alert" ? "true" : undefined}
+            >
               {/* Stops at the pill rather than running under it, so the words
                 are read against the chart and not against their own line. */}
               <line

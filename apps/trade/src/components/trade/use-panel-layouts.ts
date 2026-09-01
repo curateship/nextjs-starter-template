@@ -153,6 +153,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     async (
       name: string,
       horizontal: Layout,
+      marketColumn: Layout,
       vertical: Layout,
       scope: MarketPanelScope,
       openMarketRowId: string | null,
@@ -162,6 +163,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
         createNamedPanelLayout({
           name,
           horizontal,
+          marketColumn,
           vertical,
           scope,
           openMarketRowId,
@@ -199,6 +201,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
             currentVersions.current,
             [
               tradePanelLayoutKey.workspaceHorizontal,
+              tradePanelLayoutKey.workspaceMarketColumn,
               tradePanelLayoutKey.workspaceVertical,
             ]
           ),

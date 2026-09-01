@@ -13,7 +13,11 @@ import {
   useDashboardMarkets,
   type DashboardMarkets,
 } from "@/components/trade/use-dashboard-markets"
-import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import {
+  marketChartHref,
+  type NetworkId,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import {
   loadDashboardCore,
   loadDashboardExchange,
@@ -98,8 +102,9 @@ function coreUnanswered(): DashboardCore {
       error: RUNNING_BOTS_READ_ERROR,
     },
     drawings: { marketKey: null, rows: [], error: null },
+    priceAlerts: { rows: [], error: null },
     tradeSounds: {
-      enabled: false,
+      settings: { fillsAndStops: false, alerts: false },
       events: [],
       cursor: { afterAt: Date.now(), afterId: "" },
       error: "Trade sounds could not be read.",
@@ -308,6 +313,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialChartView={core.chartView}
       initialChart={initialChart}
       initialDrawings={core.drawings}
+      initialPriceAlerts={core.priceAlerts}
       initialChartOptions={core.chartOptions}
       initialIndicators={core.indicators}
       initialCardFolds={core.cardFolds}
@@ -316,12 +322,10 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialRunningBots={core.runningBots}
       initialWallets={wallets}
       selectedKey={selectedKey}
-      onSelectMarket={(key) =>
-        void navigate({
-          to: ".",
-          search: (current) => ({ ...current, market: key }),
-        })
-      }
+      onSelectMarket={(key) => {
+        const href = marketChartHref(key)
+        if (href) void navigate({ href })
+      }}
       onRetryMarkets={onRetryMarkets}
     />
   )

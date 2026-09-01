@@ -17,18 +17,41 @@ function draw({
   return renderToStaticMarkup(
     <ChartOrderMenu
       menu={{ price: 100, x: 20, y: 20 }}
+      orders
       smartOrders={smartOrders}
       recentOrderTypes={recentOrderTypes}
       onPick={() => {}}
       onPickSmart={() => {}}
       onPickTakeProfit={target ? () => {} : null}
       onPickStopLoss={stop ? () => {} : null}
+      onPickAlert={() => {}}
       onClose={() => {}}
     />
   )
 }
 
 describe("the chart order menu's position exits", () => {
+  it("keeps the alert row when no wallet can place an order", () => {
+    const html = renderToStaticMarkup(
+      <ChartOrderMenu
+        menu={{ price: 3_600, x: 20, y: 20 }}
+        orders={false}
+        smartOrders={false}
+        recentOrderTypes={["buy", "grid"]}
+        onPick={() => {}}
+        onPickSmart={() => {}}
+        onPickTakeProfit={null}
+        onPickStopLoss={null}
+        onPickAlert={() => {}}
+        onClose={() => {}}
+      />
+    )
+
+    expect(html).toContain("Alert at $3,600")
+    expect(html).not.toContain("Buy limit")
+    expect(html).not.toContain("Smart order")
+  })
+
   it("offers stop loss when the clicked level can set one", () => {
     const html = draw({ stop: true })
 
@@ -48,7 +71,9 @@ describe("the chart order menu's position exits", () => {
 
     expect(html).toContain("Take profit")
     expect(html).toContain("Stop loss")
-    expect(html.match(/border-t/g)).toHaveLength(1)
+    // One divider closes the exit group; the other keeps alerts separate from
+    // actions that place or change an order.
+    expect(html.match(/border-t/g)).toHaveLength(2)
   })
 })
 

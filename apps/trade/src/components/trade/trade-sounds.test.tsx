@@ -54,7 +54,7 @@ function Harness() {
 beforeEach(() => {
   rememberTradeSoundSetting(undefined)
   seedTradeSounds({
-    enabled: false,
+    settings: { fillsAndStops: false, alerts: false },
     events: [],
     cursor: { afterAt: 0, afterId: "" },
     error: "No dashboard answer in this test.",
@@ -76,7 +76,7 @@ describe("the open Trade screen's sound listener", () => {
   it("starts from the dashboard answer and closes the stream connection gap", async () => {
     vi.useFakeTimers()
     seedTradeSounds({
-      enabled: true,
+      settings: { fillsAndStops: true, alerts: false },
       events: [],
       cursor: { afterAt: 10_000, afterId: "notice-0" },
       error: null,
@@ -104,7 +104,7 @@ describe("the open Trade screen's sound listener", () => {
   })
 
   it("opens no connection while the account switch is off", async () => {
-    api.loadSettings.mockResolvedValue({ enabled: false })
+    api.loadSettings.mockResolvedValue({ fillsAndStops: false, alerts: false })
     const host = document.createElement("div")
     const root = createRoot(host)
 
@@ -115,7 +115,7 @@ describe("the open Trade screen's sound listener", () => {
   })
 
   it("remembers the account switch when the screen is opened again", async () => {
-    api.loadSettings.mockResolvedValue({ enabled: false })
+    api.loadSettings.mockResolvedValue({ fillsAndStops: false, alerts: false })
     const firstHost = document.createElement("div")
     const firstRoot = createRoot(firstHost)
 
@@ -132,7 +132,7 @@ describe("the open Trade screen's sound listener", () => {
 
   it("plays a fill as soon as the live notice pings the open screen", async () => {
     vi.useFakeTimers()
-    api.loadSettings.mockResolvedValue({ enabled: true })
+    api.loadSettings.mockResolvedValue({ fillsAndStops: true, alerts: false })
     api.loadEvents.mockResolvedValue({
       events: [{ id: "notice-1", kind: "fill", createdAt: 10_001 }],
       cursor: { afterAt: 10_001, afterId: "notice-1" },
@@ -155,9 +155,32 @@ describe("the open Trade screen's sound listener", () => {
     await act(async () => root.unmount())
   })
 
+  it("plays an alert without turning fill sounds on", async () => {
+    vi.useFakeTimers()
+    api.loadSettings.mockResolvedValue({ fillsAndStops: false, alerts: true })
+    api.loadEvents.mockResolvedValue({
+      events: [{ id: "notice-alert", kind: "alert", createdAt: 10_001 }],
+      cursor: { afterAt: 10_001, afterId: "notice-alert" },
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => root.render(<Harness />))
+    window.dispatchEvent(new Event("pointerdown"))
+    await act(async () => {
+      FakeEventSource.instances[0].onmessage?.()
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    expect(FakeAudio.instances.map((audio) => audio.src)).toEqual([
+      "/sounds/trade-alert.wav",
+    ])
+    await act(async () => root.unmount())
+  })
+
   it("does not check every two seconds while it waits for a live notice", async () => {
     vi.useFakeTimers()
-    api.loadSettings.mockResolvedValue({ enabled: true })
+    api.loadSettings.mockResolvedValue({ fillsAndStops: true, alerts: false })
     const host = document.createElement("div")
     const root = createRoot(host)
 
@@ -171,7 +194,7 @@ describe("the open Trade screen's sound listener", () => {
   })
 
   it("keeps listening while hidden and closes when the screen leaves", async () => {
-    api.loadSettings.mockResolvedValue({ enabled: true })
+    api.loadSettings.mockResolvedValue({ fillsAndStops: true, alerts: false })
     const host = document.createElement("div")
     const root = createRoot(host)
 

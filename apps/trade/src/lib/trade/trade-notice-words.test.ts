@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { fillNoticeWords, triggerNoticeWords } from "./trade-notice-words"
+import {
+  fillNoticeWords,
+  priceAlertNoticeWords,
+  triggerNoticeWords,
+} from "./trade-notice-words"
 
 /**
  * The bell's sentences about trades. What matters here is the reading: the
@@ -9,6 +13,22 @@ import { fillNoticeWords, triggerNoticeWords } from "./trade-notice-words"
  */
 
 const wallet = { walletLabel: "Hyperliquid main", practice: false }
+
+describe("a price alert's notice", () => {
+  it("says which way the price was moving", () => {
+    expect(
+      priceAlertNoticeWords({
+        marketKey: "hyperliquid:mainnet:ETH",
+        price: 3_600,
+        direction: "above",
+      })
+    ).toEqual({
+      title: "ETH reached $3,600 (was rising)",
+      body: "The price alert fired once and is now retired.",
+      level: "info",
+    })
+  })
+})
 
 describe("a fill's notice", () => {
   it("says a buy in dollars, at its price, with the wallet's label", () => {

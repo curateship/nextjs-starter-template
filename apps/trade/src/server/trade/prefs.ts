@@ -19,6 +19,7 @@ import {
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
 import { readOrderStyle, type OrderStyle } from "@/lib/trade/order-style"
+import type { TradeSoundSettings } from "@/lib/trade/trade-sounds"
 import {
   emptyTradePanelLayouts,
   marketPanelScopeKey,
@@ -55,6 +56,7 @@ export type DashboardPrefs = {
   lastMarketKey: string | null
   minimumMarketVolumeUsd: number
   tradeSoundsEnabled: boolean
+  tradeAlertSoundsEnabled: boolean
   chartView: ChartView | null
   chartOptions: ChartOptions
   indicators: IndicatorSettings
@@ -88,6 +90,7 @@ export async function loadDashboardPrefs(
       lastMarketKeys: tradePrefs.lastMarketKeys,
       minimumMarketVolumeUsd: tradePrefs.minimumMarketVolumeUsd,
       tradeSoundsEnabled: tradePrefs.tradeSoundsEnabled,
+      tradeAlertSoundsEnabled: tradePrefs.tradeAlertSoundsEnabled,
       chartView: tradePrefs.chartView,
       chartOptions: tradePrefs.chartOptions,
       indicators: tradePrefs.indicators,
@@ -112,6 +115,7 @@ export async function loadDashboardPrefs(
       found?.minimumMarketVolumeUsd
     ),
     tradeSoundsEnabled: found?.tradeSoundsEnabled ?? false,
+    tradeAlertSoundsEnabled: found?.tradeAlertSoundsEnabled ?? false,
     chartView: readChartView(found?.chartView ?? null),
     chartOptions: readChartOptions(found?.chartOptions ?? null),
     indicators: readIndicatorSettings(found?.indicators ?? null),
@@ -261,33 +265,45 @@ export async function saveLiquidationWarning(
   return warning
 }
 
-/** Whether this account hears fill and stop sounds on an open trading screen. */
-export async function loadTradeSoundsEnabled(
+/** Which account-owned events make a sound on an open trading screen. */
+export async function loadTradeSoundPreferences(
   userId: string,
   database: CustomShellDb = db
-): Promise<boolean> {
+): Promise<TradeSoundSettings> {
   const [row] = await database
-    .select({ enabled: tradePrefs.tradeSoundsEnabled })
+    .select({
+      fillsAndStops: tradePrefs.tradeSoundsEnabled,
+      alerts: tradePrefs.tradeAlertSoundsEnabled,
+    })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  return row?.enabled ?? false
+  return row ?? { fillsAndStops: false, alerts: false }
 }
 
-/** Remember the account-wide sound choice. */
-export async function saveTradeSoundsEnabled(
+/** Remember both independent account-wide sound choices. */
+export async function saveTradeSoundPreferences(
   userId: string,
-  enabled: boolean,
+  settings: TradeSoundSettings,
   database: CustomShellDb = db
-): Promise<boolean> {
+): Promise<TradeSoundSettings> {
   await database
     .insert(tradePrefs)
-    .values({ userId, tradeSoundsEnabled: enabled, updatedAt: new Date() })
+    .values({
+      userId,
+      tradeSoundsEnabled: settings.fillsAndStops,
+      tradeAlertSoundsEnabled: settings.alerts,
+      updatedAt: new Date(),
+    })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { tradeSoundsEnabled: enabled, updatedAt: new Date() },
+      set: {
+        tradeSoundsEnabled: settings.fillsAndStops,
+        tradeAlertSoundsEnabled: settings.alerts,
+        updatedAt: new Date(),
+      },
     })
-  return enabled
+  return settings
 }
 
 /**
@@ -666,6 +682,12 @@ function namedLayoutPanelChange(
       horizontal: layout,
     }))
   }
+  if (key === tradePanelLayoutKey.workspaceMarketColumn) {
+    return updateActiveNamedLayout(layouts, (named) => ({
+      ...named,
+      marketColumn: layout,
+    }))
+  }
   if (key === tradePanelLayoutKey.workspaceVertical) {
     return updateActiveNamedLayout(layouts, (named) => ({
       ...named,
@@ -776,6 +798,7 @@ export async function createNamedTradePanelLayout(
   input: {
     name: string
     horizontal: unknown
+    marketColumn: unknown
     vertical: unknown
     scope: MarketPanelScope
     openMarketRowId: unknown
@@ -792,11 +815,16 @@ export async function createNamedTradePanelLayout(
     input.vertical,
     tradePanelIds[tradePanelLayoutKey.workspaceVertical]
   )
+  const marketColumn = matchingPanelLayout(
+    input.marketColumn,
+    tradePanelIds[tradePanelLayoutKey.workspaceMarketColumn]
+  )
   if (
     !name ||
     name.length > 32 ||
     !horizontal ||
     !vertical ||
+    !marketColumn ||
     typeof input.headerProfitVisible !== "boolean"
   ) {
     throw new Error("PANEL_LAYOUT_INVALID")
@@ -837,6 +865,7 @@ export async function createNamedTradePanelLayout(
       current: {
         ...layouts.current,
         [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+        [tradePanelLayoutKey.workspaceMarketColumn]: marketColumn,
         [tradePanelLayoutKey.workspaceVertical]: vertical,
       },
       openMarketRows,
@@ -848,6 +877,7 @@ export async function createNamedTradePanelLayout(
           id,
           name,
           horizontal,
+          marketColumn,
           vertical,
           openMarketRows: { [scopeKey]: openMarketRowId },
           headerProfitVisible: input.headerProfitVisible,
@@ -883,6 +913,11 @@ export async function applyNamedTradePanelLayout(
       current: {
         ...layouts.current,
         [tradePanelLayoutKey.workspaceHorizontal]: named.horizontal,
+        ...(named.marketColumn
+          ? {
+              [tradePanelLayoutKey.workspaceMarketColumn]: named.marketColumn,
+            }
+          : {}),
         [tradePanelLayoutKey.workspaceVertical]: named.vertical,
       },
       openMarketRows: hasOpenRow

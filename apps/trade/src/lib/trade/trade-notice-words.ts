@@ -12,6 +12,21 @@ import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 
 export type TradeNoticeLevel = "info" | "warning" | "critical"
 
+/** One price alert, using the direction fixed when the line was placed. */
+export function priceAlertNoticeWords(input: {
+  marketKey: string
+  price: number
+  direction: "above" | "below"
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const movement = input.direction === "above" ? "rising" : "falling"
+  return {
+    title: `${coin} reached ${formatPrice(input.price)} (was ${movement})`,
+    body: "The price alert fired once and is now retired.",
+    level: "info",
+  }
+}
+
 /** "(Main wallet)" — with the word practice added when the money is not real. */
 function walletTag(walletLabel: string, practice: boolean): string {
   return practice ? `(${walletLabel}, practice)` : `(${walletLabel})`

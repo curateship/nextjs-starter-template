@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  BellRingIcon,
   Grid2x2Icon,
   LayersIcon,
   ShieldAlertIcon,
@@ -11,6 +12,7 @@ import {
 import type { TradeSide } from "@/lib/trade/paper"
 import { LOST_MONEY, MADE_MONEY } from "@/lib/trade/money-tone"
 import type { RecentOrderType } from "@/lib/trade/recent-order-types"
+import { formatPrice } from "@/lib/trade/format"
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { cn } from "@/lib/utils"
 
@@ -25,10 +27,9 @@ import { cn } from "@/lib/utils"
  * put that exit where the pointer is. The target appears on the winning side
  * of the entry and the stop appears on the losing side.
  *
- * The price is not printed on the rows. Every row uses the level the pointer
- * is on, so copies of it would say nothing the crosshair and price axis were
- * not already saying beside the menu. The window each row opens shows the
- * price it is working from, which is where it can still be changed.
+ * Order rows leave the price to the crosshair and axis beside the menu. The
+ * alert row names the price because picking it saves that exact line without
+ * opening a window where it can still be changed.
  */
 
 export type ChartMenuState = { price: number; x: number; y: number }
@@ -42,17 +43,21 @@ const EDGE = 8
 export function ChartOrderMenu({
   menu,
   wide = true,
+  orders,
   smartOrders,
   recentOrderTypes,
   onPick,
   onPickSmart,
   onPickTakeProfit,
   onPickStopLoss,
+  onPickAlert,
   onClose,
 }: {
   menu: ChartMenuState
   /** The chart passes the shell's 1280px layout answer. Tests default wide. */
   wide?: boolean
+  /** No wallet means the chart still offers alerts, but no order rows. */
+  orders: boolean
   /** Whether the smart-order presets apply to the active wallet at all. */
   smartOrders: boolean
   /** Unique kinds actually placed by this account, newest first. */
@@ -70,6 +75,7 @@ export function ChartOrderMenu({
    * is nothing to put one on.
    */
   onPickStopLoss: (() => void) | null
+  onPickAlert: () => void
   onClose: () => void
 }) {
   React.useEffect(() => {
@@ -102,19 +108,23 @@ export function ChartOrderMenu({
   }, [
     menu.x,
     menu.y,
+    orders,
     smartOrders,
     recentOrderTypes.length,
     onPickTakeProfit,
     onPickStopLoss,
   ])
 
-  const recent = recentOrderTypes.filter(
-    (orderType) => smartOrders || orderType === "buy" || orderType === "sell"
-  )
+  const recent = orders
+    ? recentOrderTypes.filter(
+        (orderType) =>
+          smartOrders || orderType === "buy" || orderType === "sell"
+      )
+    : []
 
   return (
     <TouchOrderFrame
-      label="Order at this price"
+      label="Actions at this price"
       wide={wide}
       role="menu"
       desktopRef={boxRef}
@@ -126,24 +136,24 @@ export function ChartOrderMenu({
       desktopStyle={{ left: at.left, top: at.top }}
       onClose={onClose}
     >
-      {onPickTakeProfit ? (
+      {orders && onPickTakeProfit ? (
         <IconRow
           label="Take profit"
           icon={<TargetIcon className={cn("size-4", MADE_MONEY)} />}
           onPick={onPickTakeProfit}
         />
       ) : null}
-      {onPickStopLoss ? (
+      {orders && onPickStopLoss ? (
         <IconRow
           label="Stop loss"
           icon={<ShieldAlertIcon className={cn("size-4", LOST_MONEY)} />}
           onPick={onPickStopLoss}
         />
       ) : null}
-      {onPickTakeProfit || onPickStopLoss ? (
+      {orders && (onPickTakeProfit || onPickStopLoss) ? (
         <div role="presentation" className="my-1 border-t" />
       ) : null}
-      {recent.length > 0 ? (
+      {orders && recent.length > 0 ? (
         <>
           <div role="group" aria-label="Recent">
             <p
@@ -164,9 +174,13 @@ export function ChartOrderMenu({
           <div role="presentation" className="my-1 border-t" />
         </>
       ) : null}
-      <MenuRow side="buy" onPick={() => onPick("buy")} />
-      <MenuRow side="sell" onPick={() => onPick("sell")} />
-      {smartOrders ? (
+      {orders ? (
+        <>
+          <MenuRow side="buy" onPick={() => onPick("buy")} />
+          <MenuRow side="sell" onPick={() => onPick("sell")} />
+        </>
+      ) : null}
+      {orders && smartOrders ? (
         <>
           <div role="presentation" className="my-1 border-t" />
           {/* A labelled group, not a stray heading: everything inside a menu
@@ -191,6 +205,12 @@ export function ChartOrderMenu({
           </div>
         </>
       ) : null}
+      {orders ? <div role="presentation" className="my-1 border-t" /> : null}
+      <IconRow
+        label={`Alert at ${formatPrice(menu.price)}`}
+        icon={<BellRingIcon className="size-4 text-muted-foreground" />}
+        onPick={onPickAlert}
+      />
     </TouchOrderFrame>
   )
 }

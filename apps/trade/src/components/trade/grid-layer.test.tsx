@@ -23,6 +23,7 @@ const colors: ChartColors = {
   up: "theme-up",
   down: "theme-down",
   warning: "theme-warning",
+  alert: "theme-purple",
   neutral: "theme-neutral",
   badgeText: "theme-badge-text",
   upSoft: "theme-up-soft",

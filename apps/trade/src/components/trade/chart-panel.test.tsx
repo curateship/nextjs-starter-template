@@ -24,6 +24,7 @@ vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
 })
 
 vi.mock("@/lib/trade/live-market", () => ({
+  liveMarkOf: vi.fn(() => null),
   watchLiveCandle: vi.fn(() => () => {}),
   useLiveCatchUp: vi.fn(),
 }))
@@ -83,6 +84,7 @@ vi.mock("@/components/trade/price-chart", async () => {
     up: "#0a0",
     down: "#a00",
     warning: "#aa0",
+    alert: "#70c",
     neutral: "#777",
     badgeText: "#fff",
     upSoft: "#afa",
@@ -364,6 +366,65 @@ describe("the chart candle request", () => {
 })
 
 describe("the chart paint tools", () => {
+  it("offers and creates an alert when no wallet is selected", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    const createAlert = vi.fn()
+    const marketKey = "hyperliquid:mainnet:BTC"
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey={marketKey}
+          interval="15m"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          priceAlerts={[]}
+          onCreatePriceAlert={createAlert}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={{ key: marketKey, price: 105 } as never}
+          trading={trading}
+          free={0}
+          equity={0}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    const plot = host.firstElementChild
+    await act(async () => {
+      plot?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+    const items = Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+    expect(items.map((item) => item.textContent)).toContain("Alert at $90")
+    expect(items.map((item) => item.textContent)).not.toContain("Buy limit")
+
+    await act(async () =>
+      items.find((item) => item.textContent === "Alert at $90")?.click()
+    )
+    expect(createAlert).toHaveBeenCalledWith({
+      marketKey,
+      price: 90,
+      currentPrice: 105,
+    })
+  })
+
   it("puts the held tool down on right-click without opening a menu", async () => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockResolvedValue({

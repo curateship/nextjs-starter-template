@@ -39,6 +39,7 @@ const control = vi.hoisted(() => ({
   scanCleared: 0,
 }))
 const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0, removals: 0 }))
+const alertWork = vi.hoisted(() => ({ checks: 0 }))
 const walletReads = vi.hoisted(() => ({ calls: 0, keys: 0 }))
 
 vi.mock("@/server/db", () => ({
@@ -144,6 +145,12 @@ vi.mock("@/server/trade/flow-run", () => ({
   },
 }))
 
+vi.mock("@/server/trade/price-alerts", () => ({
+  checkPriceAlerts: async () => {
+    alertWork.checks += 1
+  },
+}))
+
 const { advanceWorkingLadders, lastPass, resetLadderPassState } =
   await import("@/server/trade/ladder-worker")
 
@@ -159,6 +166,7 @@ describe("the server's ladder job", () => {
     flowWork.scans = 0
     flowWork.stops = 0
     flowWork.removals = 0
+    alertWork.checks = 0
     walletReads.calls = 0
     walletReads.keys = 0
     control.scanCleared = 0
@@ -190,6 +198,16 @@ describe("the server's ladder job", () => {
     ]
     await advanceWorkingLadders()
     expect(settled.count).toBe(2)
+  })
+
+  it("checks account alerts even when no wallet has work", async () => {
+    walletRows.value = []
+    flowRows.value = []
+
+    await advanceWorkingLadders()
+
+    expect(alertWork.checks).toBe(1)
+    expect(settled.count).toBe(0)
   })
 
   it("reads twenty wallets in one batch", async () => {

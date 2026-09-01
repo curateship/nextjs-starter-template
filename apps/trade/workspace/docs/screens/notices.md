@@ -12,7 +12,7 @@ finishes first.
 Every notice above points at the page it happened on, and pressing it goes
 there.
 
-- **A fill, a stop, a target or a liquidation warning opens that coin's chart**
+- **A fill, a stop, a target, a price alert or a liquidation warning opens that coin's chart**
   on the exchange it happened on. The chart, not the Journal: a stop that fired
   at 3am is a thing to look at and decide about, and the Journal is where it is
   read back later. The market key carries its own exchange and network, so a
@@ -52,6 +52,18 @@ notice opens nothing.
 Asking for somebody else's notice comes back empty. The read joins through the
 notice's own recipient, so a guessed id is not that reader's notice and is not
 in the answer.
+
+## When a price alert fires
+
+A price alert writes one `info` notice when a fresh pushed price reaches or
+passes its line. The title names the coin, saved price and original direction,
+for example, "ETH reached $3,600 (was rising)." Pressing the notice opens that
+coin's chart.
+
+The engine first changes the alert from active to fired with a conditional
+database update. Only the engine process that changed the row writes the
+notice, so another process checking the same price cannot announce it again.
+A stale or missing price writes nothing and leaves the alert waiting.
 
 ## When an order fills
 

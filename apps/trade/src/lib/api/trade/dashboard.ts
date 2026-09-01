@@ -22,6 +22,7 @@ import type { DcaParams } from "@/lib/trade/dca"
 import type { GridParams } from "@/lib/trade/grid"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
+import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
 import type { Drawing } from "@/lib/trade/drawings"
 import {
@@ -32,6 +33,7 @@ import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
 import type {
   TradeSoundCursor,
   TradeSoundEvent,
+  TradeSoundSettings,
 } from "@/lib/trade/trade-sounds"
 import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 import { userGet } from "@/server/guards"
@@ -42,6 +44,7 @@ import { loadProtocolCandles } from "@/server/trade/candles"
 import { loadChartDrawings } from "@/server/trade/drawings"
 import { loadMarketFolders } from "@/server/trade/market-folders"
 import { tradeSoundEventsAfter } from "@/server/trade/notice-links"
+import { loadArmedPriceAlerts } from "@/server/trade/price-alerts"
 import { loadDashboardPrefs, loadLastWalletIds } from "@/server/trade/prefs"
 import { listRunningBots } from "@/server/trade/running-bots"
 import { loadWalletSummaries } from "@/server/trade/wallets"
@@ -54,9 +57,9 @@ import { getMarketsErrorMessage } from "./markets"
  * leave together.
  *
  * The first, `loadDashboardCore`, is database reads only — preferences,
- * folders, bots, drawings, the sound cursor. The route loader awaits it, so
- * the document goes out as soon as the database answers and the page paints
- * in its saved arrangement.
+ * folders, bots, drawings, price alerts and the sound cursor. The route loader
+ * awaits it, so the document goes out as soon as the database answers and the
+ * page paints in its saved arrangement.
  *
  * The second, `loadDashboardExchange`, is everything that has to ask the
  * exchange over the internet — the market catalogue, the first chart slice,
@@ -96,9 +99,11 @@ export type DashboardCore = {
     rows: Drawing[]
     error: string | null
   }
-  /** The account switch and the opening cursor for fill and stop sounds. */
+  /** Every armed line, shared by the panel and whichever chart is open. */
+  priceAlerts: { rows: PriceAlert[]; error: string | null }
+  /** The account switches and opening cursor for trade sounds. */
   tradeSounds: {
-    enabled: boolean
+    settings: TradeSoundSettings
     events: TradeSoundEvent[]
     cursor: TradeSoundCursor
     error: string | null
@@ -206,44 +211,61 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
         })
       )
     })
-    const [prefs, folders, runningBots, drawings, tradeSounds, lastWalletIds] =
-      await Promise.all([
+    const [
+      prefs,
+      folders,
+      runningBots,
+      drawings,
+      priceAlerts,
+      tradeSounds,
+      lastWalletIds,
+    ] = await Promise.all([
+      prefsPromise,
+      // Losing folders must not keep the rest of the dashboard from opening.
+      loadMarketFolders(context.user.id, data.protocol, data.network).catch(
+        () => [] as MarketFolder[]
+      ),
+      // The bot list must not take the trading screen down. Its own tab says
+      // when this read failed and can retry it without reloading the page.
+      listRunningBots(context.user.id, data.protocol).then(
+        (rows) => ({ rows, error: null as string | null }),
+        () => ({
+          rows: [] as RunningBot[],
+          error: RUNNING_BOTS_READ_ERROR,
+        })
+      ),
+      drawingsPromise,
+      loadArmedPriceAlerts(context.user.id).then(
+        (rows) => ({ rows, error: null as string | null }),
+        () => ({
+          rows: [] as PriceAlert[],
+          error: "Your price alerts could not be loaded.",
+        })
+      ),
+      Promise.all([
         prefsPromise,
-        // Losing folders must not keep the rest of the dashboard from opening.
-        loadMarketFolders(context.user.id, data.protocol, data.network).catch(
-          () => [] as MarketFolder[]
-        ),
-        // The bot list must not take the trading screen down. Its own tab says
-        // when this read failed and can retry it without reloading the page.
-        listRunningBots(context.user.id, data.protocol).then(
-          (rows) => ({ rows, error: null as string | null }),
-          () => ({
-            rows: [] as RunningBot[],
-            error: RUNNING_BOTS_READ_ERROR,
-          })
-        ),
-        drawingsPromise,
-        Promise.all([
-          prefsPromise,
-          tradeSoundEventsAfter(context.user.id, soundCursor),
-        ]).then(
-          ([soundPrefs, soundEvents]) => ({
-            enabled: soundPrefs.tradeSoundsEnabled,
-            ...soundEvents,
-            error: null as string | null,
-          }),
-          () => ({
-            enabled: false,
-            events: [] as TradeSoundEvent[],
-            cursor: soundCursor,
-            error: "Trade sounds could not be read.",
-          })
-        ),
-        // Losing the remembered wallet choice only costs the memory.
-        loadLastWalletIds(context.user.id).catch(
-          () => ({}) as Record<string, string>
-        ),
-      ])
+        tradeSoundEventsAfter(context.user.id, soundCursor),
+      ]).then(
+        ([soundPrefs, soundEvents]) => ({
+          settings: {
+            fillsAndStops: soundPrefs.tradeSoundsEnabled,
+            alerts: soundPrefs.tradeAlertSoundsEnabled,
+          },
+          ...soundEvents,
+          error: null as string | null,
+        }),
+        () => ({
+          settings: { fillsAndStops: false, alerts: false },
+          events: [] as TradeSoundEvent[],
+          cursor: soundCursor,
+          error: "Trade sounds could not be read.",
+        })
+      ),
+      // Losing the remembered wallet choice only costs the memory.
+      loadLastWalletIds(context.user.id).catch(
+        () => ({}) as Record<string, string>
+      ),
+    ])
     return {
       folders,
       panelRows: prefs.marketPanelRows,
@@ -258,6 +280,7 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       smartGrid: prefs.smartGrid,
       runningBots,
       drawings,
+      priceAlerts,
       tradeSounds,
       lastWalletIds,
     }

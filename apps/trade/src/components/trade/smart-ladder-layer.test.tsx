@@ -17,6 +17,7 @@ const colors: ChartColors = {
   up: "#0a0",
   down: "#a00",
   warning: "#aa0",
+  alert: "#70c",
   neutral: "#777",
   badgeText: "#fff",
   upSoft: "#afa",

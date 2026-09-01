@@ -181,6 +181,7 @@ vi.mock("@/lib/trade/live-market", () => ({
 }))
 vi.mock("@/lib/layout/panel-collapse", () => ({
   useBlankSpaceDoubleClick: () => vi.fn(),
+  usePanelCollapsed: () => ({ collapsed: false, onResize: vi.fn() }),
   usePanelToggle: () => vi.fn(),
 }))
 vi.mock("@/lib/remembered-choice", () => ({
@@ -198,12 +199,7 @@ vi.mock("@/lib/trade/market-volume", () => ({
 }))
 vi.mock("@/lib/layout/wide-screen", () => ({ useWideScreen: () => true }))
 
-function MockPanelGroup({
-  orientation,
-  groupRef,
-  onLayoutChanged,
-  children,
-}: {
+function MockPanelGroup(props: {
   orientation: "horizontal" | "vertical"
   groupRef: (handle: unknown) => void
   onLayoutChanged: (
@@ -211,13 +207,18 @@ function MockPanelGroup({
     meta: { isUserInteraction: boolean }
   ) => void
   children: React.ReactNode
+  "data-panel-group"?: string
 }) {
+  const { orientation, groupRef, onLayoutChanged, children } = props
+  const groupName = props["data-panel-group"] ?? orientation
   const opening = React.useMemo<Record<string, number>>(
     (): Record<string, number> =>
-      orientation === "horizontal"
-        ? { markets: 20, chart: 58, "smart-orders": 22 }
-        : { workspace: 72, activity: 28 },
-    [orientation]
+      groupName === "market-column"
+        ? { folders: 68, alerts: 32 }
+        : orientation === "horizontal"
+          ? { markets: 20, chart: 58, "smart-orders": 22 }
+          : { workspace: 72, activity: 28 },
+    [groupName, orientation]
   )
   const [layout, setLayout] = React.useState<Record<string, number>>(opening)
   const layoutRef = React.useRef<Record<string, number>>(opening)
@@ -247,14 +248,17 @@ function MockPanelGroup({
   return (
     <div
       data-testid={`${orientation}-group`}
+      data-panel-group={groupName}
       data-layout={JSON.stringify(layout)}
     >
       <button
         type="button"
-        aria-label={`Resize ${orientation} group`}
+        aria-label={`Resize ${groupName} group`}
         onClick={() => {
           let next: Record<string, number>
-          if (orientation === "horizontal") {
+          if (groupName === "market-column") {
+            next = { folders: 55, alerts: 45 }
+          } else if (orientation === "horizontal") {
             next = { markets: 25, chart: 50, "smart-orders": 25 }
           } else {
             next = { workspace: 60, activity: 40 }
@@ -342,6 +346,10 @@ describe("the trade workspace chart full screen", () => {
                   chart: 58,
                   "smart-orders": 22,
                 },
+                "trade-workspace-market-column": {
+                  folders: 68,
+                  alerts: 32,
+                },
                 "trade-workspace-vertical": { workspace: 72, activity: 28 },
               },
               openMarketRows: {},
@@ -372,6 +380,7 @@ describe("the trade workspace chart full screen", () => {
       "smart-orders": 22,
     })
     expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
+    expect(layoutOf("market-column")).toEqual({ folders: 68, alerts: 32 })
 
     await act(async () => clickButton("Show chart full screen"))
     expect(
@@ -432,6 +441,7 @@ describe("the trade workspace chart full screen", () => {
     expect(createNamedLayout).toHaveBeenCalledWith(
       "Eye layout",
       { markets: 20, chart: 58, "smart-orders": 22 },
+      { folders: 68, alerts: 32 },
       { workspace: 72, activity: 28 },
       { protocol: "hyperliquid", network: "mainnet" },
       "watched",
@@ -443,12 +453,18 @@ describe("the trade workspace chart full screen", () => {
       workspace: 60,
       activity: 40,
     })
+
+    await act(async () => clickButton("Resize market-column group"))
+    expect(rememberedLayouts).toHaveBeenCalledWith(
+      "trade-workspace-market-column",
+      { folders: 55, alerts: 45 }
+    )
   })
 })
 
-function layoutOf(orientation: "horizontal" | "vertical") {
+function layoutOf(group: "horizontal" | "vertical" | "market-column") {
   const value = host
-    .querySelector(`[data-testid="${orientation}-group"]`)
+    .querySelector(`[data-panel-group="${group}"]`)
     ?.getAttribute("data-layout")
   return value ? JSON.parse(value) : null
 }

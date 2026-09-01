@@ -108,6 +108,7 @@ import {
 } from "@/lib/trade/recent-order-types"
 import type { Drawing } from "@/lib/trade/drawings"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import {
   indicatorPaint,
@@ -121,6 +122,8 @@ import {
 
 const CANDLE_LOAD_SETTLE_MS = 250
 const ORB_SOURCE_INTERVAL: CandleInterval = "15m"
+const NO_PRICE_ALERTS: readonly PriceAlert[] = []
+const IGNORE_PRICE_ALERT = () => {}
 
 const GridOrderDialog = React.lazy(() =>
   import("@/components/trade/grid-order-dialog").then((module) => ({
@@ -234,6 +237,10 @@ export function ChartPanel({
   initialChart,
   initialDrawings,
   initialQuickOrder,
+  priceAlerts = NO_PRICE_ALERTS,
+  onCreatePriceAlert = IGNORE_PRICE_ALERT,
+  onMovePriceAlert = IGNORE_PRICE_ALERT,
+  onDeletePriceAlert = IGNORE_PRICE_ALERT,
   recentOrderScope = null,
   options,
   indicators,
@@ -267,6 +274,19 @@ export function ChartPanel({
    * arrive too late to be any use to somebody already typing.
    */
   initialQuickOrder: QuickOrderPrefs
+  /** One shared list behind the chart and the left-side Alerts panel. */
+  priceAlerts?: readonly PriceAlert[]
+  onCreatePriceAlert?: (input: {
+    marketKey: string
+    price: number
+    currentPrice: number
+  }) => void
+  onMovePriceAlert?: (input: {
+    id: string
+    price: number
+    currentPrice: number
+  }) => void
+  onDeletePriceAlert?: (id: string) => void
   /** The signed-in account used to keep this browser's recent kinds separate. */
   recentOrderScope?: string | null
   /** Which supporting parts of the chart are visible. */
@@ -542,7 +562,7 @@ export function ChartPanel({
   const openMenu = (point: { clientX: number; clientY: number }) => {
     // A tool in hand is drawing, not trading. Right-click puts it down in the
     // handler below, and a touch long-press has no order menu to offer.
-    if (paintTool || !trading.wallet || !market) return false
+    if (paintTool || !market) return false
     const surface = surfaceRef.current
     const box = plotRef.current?.getBoundingClientRect()
     if (!surface || !box) return false
@@ -551,8 +571,10 @@ export function ChartPanel({
     // Asked for the moment the menu opens, so by the time a preset is picked
     // the base the ladder hangs from and both windows' saved settings are
     // usually already in hand.
-    prefetchLadderBase(market.key)
-    prefetchSmartPrefs()
+    if (trading.wallet) {
+      prefetchLadderBase(market.key)
+      prefetchSmartPrefs()
+    }
     setQuick(null)
     setSmart(null)
     setMenu({ price, x: point.clientX, y: point.clientY })
@@ -926,8 +948,7 @@ export function ChartPanel({
     () =>
       new Map(
         trading.grids.map(
-          (grid) =>
-            [grid.id, gridHoldingFees(trading.fills, grid)] as const
+          (grid) => [grid.id, gridHoldingFees(trading.fills, grid)] as const
         )
       ),
     [trading.fills, trading.grids]
@@ -1318,11 +1339,21 @@ export function ChartPanel({
           // below is a link to its own market, and it would be a dead end if
           // the chart then showed nothing.
           positions={linePositions}
+          alerts={priceAlerts}
           feesPaidFor={feesPaidForPosition}
           onClosePosition={setClosingPosition}
           orders={looseOrders}
           walletName={walletNameOf}
           onMoveOrder={onMoveOrder}
+          onMoveAlert={(id, price) => {
+            if (!selectedKey || currentMarketPx === null) return
+            onMovePriceAlert({
+              id,
+              price,
+              currentPrice: liveMarkOf(selectedKey) ?? currentMarketPx,
+            })
+          }}
+          onDeleteAlert={onDeletePriceAlert}
           onCancelOrder={onCancelOrder}
           // Dragging a waiting order's stop resizes the order so it still
           // risks the same money. Worked out from the order in front of you
@@ -1369,6 +1400,9 @@ export function ChartPanel({
       paint.move,
       paint.remove,
       paintTool,
+      priceAlerts,
+      onMovePriceAlert,
+      onDeletePriceAlert,
       selectedKey,
       linePositions,
       looseOrders,
@@ -1494,6 +1528,7 @@ export function ChartPanel({
         <ChartOrderMenu
           menu={menu}
           wide={wide}
+          orders={trading.wallet !== null}
           smartOrders={trading.wallet !== null}
           recentOrderTypes={recentOrderTypes}
           onClose={() => setMenu(null)}
@@ -1546,6 +1581,15 @@ export function ChartPanel({
                 }
               : null
           }
+          onPickAlert={() => {
+            if (!market) return
+            onCreatePriceAlert({
+              marketKey: market.key,
+              price: menu.price,
+              currentPrice: liveMarkOf(market.key) ?? market.price,
+            })
+            setMenu(null)
+          }}
         />
       ) : null}
       {quick && market ? (

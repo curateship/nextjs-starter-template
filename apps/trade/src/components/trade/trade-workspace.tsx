@@ -38,6 +38,8 @@ import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { PriceAlertsPanel } from "@/components/trade/price-alerts-panel"
+import { usePriceAlerts } from "@/components/trade/use-price-alerts"
 import { PanelLayoutsMenu } from "@/components/trade/panel-layouts-menu"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -82,6 +84,7 @@ import { useRememberedChoice } from "@/lib/remembered-choice"
 import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { usePanelFit } from "@/lib/trade/panel-fit"
@@ -130,6 +133,11 @@ type SideSheet = {
 
 type WorkspaceMarketSelection =
   MarketSelection | { kind: "none" } | { kind: "missing"; marketId: string }
+
+const NO_INITIAL_PRICE_ALERTS: DashboardBootstrap["priceAlerts"] = {
+  rows: [],
+  error: null,
+}
 
 /**
  * What the picked key means against the full exchange answer and the visible
@@ -183,6 +191,7 @@ export function TradeWorkspace({
   initialChartView,
   initialChart,
   initialDrawings,
+  initialPriceAlerts = NO_INITIAL_PRICE_ALERTS,
   initialChartOptions,
   initialIndicators,
   initialCardFolds,
@@ -220,6 +229,8 @@ export function TradeWorkspace({
   initialChart: DashboardBootstrap["initialChart"]
   /** The remembered chart's lines, carried by the route answer. */
   initialDrawings: DashboardBootstrap["drawings"]
+  /** Armed lines from the same opening database answer. */
+  initialPriceAlerts?: DashboardBootstrap["priceAlerts"]
   /** Which supporting parts of the chart this account has visible. */
   initialChartOptions: ChartOptions
   /** Which indicators this account has on, and what each is set to. */
@@ -462,6 +473,7 @@ export function TradeWorkspace({
   // the zoom — an indicator is how you read a chart, not a fact about a coin.
   const indicators = useChartIndicators(initialIndicators)
   const chartOptions = useChartOptions(initialChartOptions)
+  const priceAlerts = usePriceAlerts(initialPriceAlerts)
 
   // The live feed: one watch per catalog, torn down with the page. When the
   // feed recovers from a gap it refetches the loader's snapshot, so figures
@@ -472,8 +484,11 @@ export function TradeWorkspace({
   )
 
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const alertsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const smartOrdersPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const { collapsed: alertsCollapsed, onResize: onAlertsResize } =
+    usePanelCollapsed(alertsPanelRef)
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
   const verticalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
@@ -501,6 +516,7 @@ export function TradeWorkspace({
     ? (panelLayouts.layouts.openMarketRows[marketPanelScopeId] ?? null)
     : WATCHED_ROW
   const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
+  const marketColumnKey = tradePanelLayoutKey.workspaceMarketColumn
   const verticalKey = tradePanelLayoutKey.workspaceVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
     tradePanelIds[horizontalKey],
@@ -511,6 +527,11 @@ export function TradeWorkspace({
     tradePanelIds[verticalKey],
     panelLayouts.layouts.current[verticalKey],
     (layout) => panelLayouts.remember(verticalKey, layout)
+  )
+  const marketColumnLayout = useRememberedPanelLayoutInPlace(
+    tradePanelIds[marketColumnKey],
+    panelLayouts.layouts.current[marketColumnKey],
+    (layout) => panelLayouts.remember(marketColumnKey, layout)
   )
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayouts = React.useRef<{
@@ -611,11 +632,15 @@ export function TradeWorkspace({
   const createNamedLayout = React.useCallback(
     async (name: string) => {
       const horizontal = horizontalLayout.getLayout()
+      const marketColumn = marketColumnLayout.getLayout()
       const vertical = verticalLayout.getLayout()
-      if (!horizontal || !vertical) throw new Error("PANEL_LAYOUT_INVALID")
+      if (!horizontal || !marketColumn || !vertical) {
+        throw new Error("PANEL_LAYOUT_INVALID")
+      }
       await panelLayouts.createNamed(
         name,
         horizontal,
+        marketColumn,
         vertical,
         marketPanelScope,
         expandedMarketRowId,
@@ -625,6 +650,7 @@ export function TradeWorkspace({
     [
       expandedMarketRowId,
       horizontalLayout,
+      marketColumnLayout,
       marketPanelScope,
       panelLayouts,
       verticalLayout,
@@ -652,6 +678,17 @@ export function TradeWorkspace({
     toggleSmartOrdersPanel()
     horizontalLayout.rememberLayout()
   }, [horizontalLayout, toggleSmartOrdersPanel])
+  const toggleAlertsPanel = usePanelToggle(alertsPanelRef)
+  const toggleAlerts = React.useCallback(() => {
+    toggleAlertsPanel()
+    marketColumnLayout.rememberLayout()
+  }, [marketColumnLayout, toggleAlertsPanel])
+  const expandAlerts = React.useCallback(() => {
+    const panel = alertsPanelRef.current
+    if (!panel || !panel.isCollapsed()) return
+    panel.expand()
+    marketColumnLayout.rememberLayout()
+  }, [marketColumnLayout])
   // Double-clicking the bottom panel's blank space shuts it, and this is the
   // one panel where that has to be spelled out rather than handed to
   // `usePanelToggle`.
@@ -678,6 +715,7 @@ export function TradeWorkspace({
   const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
   const smartOrdersDoubleClick = useBlankSpaceDoubleClick(toggleSmartOrders)
   const activityDoubleClick = useBlankSpaceDoubleClick(toggleActivity)
+  const alertsDoubleClick = useBlankSpaceDoubleClick(toggleAlerts)
 
   // A slid-open panel belongs to the narrow layout, so crossing the width
   // boundary shuts it. Widening otherwise leaves the sheet sitting over the
@@ -790,54 +828,92 @@ export function TradeWorkspace({
     [trading.walletNames, account.wallets]
   )
 
-  // One panel now, not a market list above a folders panel: Watched is the
-  // combined panel's first row and All markets its last (decided 23 Aug
-  // 2026), so the column no longer splits vertically.
+  // Folders stays one panel rather than splitting folders and markets again:
+  // Watched is its first row and All markets its last (decided 23 Aug 2026).
+  // Alerts has its own remembered split below it.
   const marketColumn = (
-    <WorkspacePanel
-      collapsed={marketsCollapsed}
-      onDoubleClick={marketsDoubleClick}
-      className="flex min-h-0 flex-1 flex-col"
+    <ResizablePanelGroup
+      data-panel-group="market-column"
+      groupRef={marketColumnLayout.groupRef}
+      orientation="vertical"
+      className="min-h-0 flex-1"
+      onLayoutChanged={marketColumnLayout.onLayoutChanged}
     >
-      <MarketFoldersPanel
-        folders={folders}
-        protocol={protocol}
-        network={network}
-        catalogs={catalogs}
-        marketsError={marketsError}
-        marketsPending={marketsPending}
-        // The same list the chart draws its waiting lines from and the Open
-        // orders tab lists, so the row can never disagree with either.
-        watchedOrders={{
-          rows: trading.watchOrders,
-          // The account and the exchange together, so one person's levels
-          // never flash up for the next person to sign in on this machine,
-          // and one exchange's never flash up on another's page.
-          cacheScope: `${user.id}:${protocol}`,
-          // NOT `trading.loading`: that turns false when the practice half
-          // lands on its own, and a screen whose waiting levels are all on
-          // real wallets would say "nothing is waiting" until the exchange
-          // answered.
-          settled: trading.settled,
-          failed: trading.failed,
-          // Why a level has not fired. See `RefusalNote` — without it a level
-          // the exchange keeps refusing reads as one quietly waiting.
-          refusals: trading.refusals,
-          onRetry: trading.retry,
-        }}
-        walletName={walletNameOf}
-        expandedId={expandedMarketRowId}
-        selectedMarketKey={selectedKey}
-        panelRows={panelRows}
-        onFoldersChange={setFolders}
-        onPanelRowsChange={setPanelRows}
-        onExpandedIdChange={(id) =>
-          panelLayouts.rememberOpenMarketRow(marketPanelScope, id)
-        }
-        onSelectMarket={onSelectMarket}
-        onRetryMarkets={onRetryMarkets}
-      />
-    </WorkspacePanel>
+      <ResizablePanel id="folders" defaultSize="68%" minSize="8.5rem">
+        <WorkspacePanel
+          collapsed={marketsCollapsed}
+          onDoubleClick={marketsDoubleClick}
+          className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
+        >
+          <MarketFoldersPanel
+            folders={folders}
+            protocol={protocol}
+            network={network}
+            catalogs={catalogs}
+            marketsError={marketsError}
+            marketsPending={marketsPending}
+            // The same list the chart draws its waiting lines from and the Open
+            // orders tab lists, so the row can never disagree with either.
+            watchedOrders={{
+              rows: trading.watchOrders,
+              // The account and the exchange together, so one person's levels
+              // never flash up for the next person to sign in on this machine,
+              // and one exchange's never flash up on another's page.
+              cacheScope: `${user.id}:${protocol}`,
+              // NOT `trading.loading`: that turns false when the practice half
+              // lands on its own, and a screen whose waiting levels are all on
+              // real wallets would say "nothing is waiting" until the exchange
+              // answered.
+              settled: trading.settled,
+              failed: trading.failed,
+              // Why a level has not fired. See `RefusalNote` — without it a level
+              // the exchange keeps refusing reads as one quietly waiting.
+              refusals: trading.refusals,
+              onRetry: trading.retry,
+            }}
+            walletName={walletNameOf}
+            expandedId={expandedMarketRowId}
+            selectedMarketKey={selectedKey}
+            panelRows={panelRows}
+            onFoldersChange={setFolders}
+            onPanelRowsChange={setPanelRows}
+            onExpandedIdChange={(id) =>
+              panelLayouts.rememberOpenMarketRow(marketPanelScope, id)
+            }
+            onSelectMarket={onSelectMarket}
+            onRetryMarkets={onRetryMarkets}
+          />
+        </WorkspacePanel>
+      </ResizablePanel>
+      <ResizableHandle gap className={NO_RING} />
+      <ResizablePanel
+        id="alerts"
+        panelRef={alertsPanelRef}
+        defaultSize="32%"
+        minSize="8.5rem"
+        groupResizeBehavior="preserve-pixel-size"
+        collapsible
+        collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+        onResize={onAlertsResize}
+      >
+        <WorkspacePanel
+          collapsed={marketsCollapsed}
+          headerOnly={alertsCollapsed}
+          onDoubleClick={alertsDoubleClick}
+          className="flex w-full min-w-0 flex-col"
+        >
+          <PriceAlertsPanel
+            alerts={priceAlerts.alerts}
+            error={priceAlerts.error}
+            collapsed={alertsCollapsed}
+            onRetry={() => void priceAlerts.refresh()}
+            onExpand={expandAlerts}
+            onSelectMarket={onSelectMarket}
+            onDelete={priceAlerts.remove}
+          />
+        </WorkspacePanel>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   )
 
   // Memoised for the same reason: a new array here re-sorted the whole
@@ -956,6 +1032,10 @@ export function TradeWorkspace({
             initialChartView={initialChartView}
             initialChart={initialChart}
             initialDrawings={initialDrawings}
+            priceAlerts={priceAlerts.alerts}
+            onCreatePriceAlert={priceAlerts.create}
+            onMovePriceAlert={priceAlerts.move}
+            onDeletePriceAlert={priceAlerts.remove}
             initialQuickOrder={initialQuickOrder}
             recentOrderScope={user.id}
             options={chartOptions.options}

@@ -30,13 +30,15 @@ describe("trade sound playback", () => {
     now += 1_000
     await expect(play("fill", true)).resolves.toBe(false)
     await expect(play("stop", true)).resolves.toBe(true)
+    await expect(play("alert", true)).resolves.toBe(true)
     now += 1_000
     await expect(play("fill", true)).resolves.toBe(true)
 
     expect(audio).toHaveBeenNthCalledWith(1, TRADE_SOUND_FILES.fill)
     expect(audio).toHaveBeenNthCalledWith(2, TRADE_SOUND_FILES.stop)
-    expect(audio).toHaveBeenCalledTimes(2)
-    expect(playAudio).toHaveBeenCalledTimes(3)
+    expect(audio).toHaveBeenNthCalledWith(3, TRADE_SOUND_FILES.alert)
+    expect(audio).toHaveBeenCalledTimes(3)
+    expect(playAudio).toHaveBeenCalledTimes(4)
   })
 
   it("reuses the same audio element and lets a refused sound retry", async () => {
@@ -105,7 +107,7 @@ describe("trade sound playback", () => {
 describe("the remembered sound setting", () => {
   it("offers one cached dashboard answer to one screen mount", () => {
     const answer = {
-      enabled: true,
+      settings: { fillsAndStops: true, alerts: false },
       events: [{ id: "fill-1", kind: "fill" as const, createdAt: 1_000 }],
       cursor: { afterAt: 1_000, afterId: "fill-1" },
       error: null,
@@ -124,7 +126,9 @@ describe("the remembered sound setting", () => {
 
   it("keeps a newer tab update when the first database read finishes", async () => {
     rememberTradeSoundSetting(undefined)
-    let finishLoad: ((answer: { enabled: boolean }) => void) | undefined
+    let finishLoad:
+      | ((answer: { fillsAndStops: boolean; alerts: boolean }) => void)
+      | undefined
     const loading = ensureTradeSoundSetting(
       () =>
         new Promise((resolve) => {
@@ -132,10 +136,16 @@ describe("the remembered sound setting", () => {
         })
     )
 
-    rememberTradeSoundSetting(true)
-    finishLoad?.({ enabled: false })
+    rememberTradeSoundSetting({ fillsAndStops: true, alerts: false })
+    finishLoad?.({ fillsAndStops: false, alerts: false })
 
-    await expect(loading).resolves.toBe(true)
-    expect(readRememberedTradeSoundSetting()).toBe(true)
+    await expect(loading).resolves.toEqual({
+      fillsAndStops: true,
+      alerts: false,
+    })
+    expect(readRememberedTradeSoundSetting()).toEqual({
+      fillsAndStops: true,
+      alerts: false,
+    })
   })
 })

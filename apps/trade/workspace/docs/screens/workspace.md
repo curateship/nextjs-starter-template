@@ -7,8 +7,8 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 ┌────────────┬─────────────────────┬────────────┐
 │ Folders    │ MARKET HEADER       │ Account    │
 │  Watched   │ ─────────────────── ├────────────┤
-│  Fav …     │ Chart               │ Order      │
-│  All       │                     │            │
+├────────────┤ Chart               │ Order      │
+│ Alerts     │                     │            │
 ├────────────┴─────────────────────┴────────────┤
 │ Positions | Open orders | Fills                │
 └───────────────────────────────────────────────┘
@@ -19,6 +19,9 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   in place: **Watched first** — it lists orders rather than markets, see "The
   Watched row" below — then the saved folders, then **All markets** last with
   its sort headers. Live exchange data. The panel opens on Watched.
+- **Left, below Folders, Alerts.** The divider between the two panels drags up
+  and down. Alerts can collapse to their header, and the account remembers the
+  divider position with the other workspace panels.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, and on
@@ -162,7 +165,7 @@ the chart as the page with the side panels behind the header's two buttons.
 Divider positions and shut panels belong to the account. The trade workspace,
 backtest screen and live-run screen all read them with the preference row their
 opening request already needs. A first visit after migration brings valid
-positions from the six old browser keys across once. A layout whose panel names
+positions from the seven old browser keys across once. A layout whose panel names
 no longer match the screen is ignored, so a redesigned screen opens at its
 defaults.
 

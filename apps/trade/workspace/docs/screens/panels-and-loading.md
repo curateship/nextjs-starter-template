@@ -17,11 +17,11 @@ fixed in one is fixed in both.
   is left opens it again. A double-click on a button, a box or a word is that
   control's, never the panel's.
 - **Sizes and shut panels follow the account.** The trade workspace, backtest
-  run and live-run screens keep their six divider arrangements in
+  run and live-run screens keep their seven divider arrangements in
   `trade_prefs`. A drag or collapse therefore returns after a reload and on a
   second browser signed into the same account.
 - **An old browser layout crosses over once.** The first browser with one of
-  the six earlier local-storage answers sends every valid answer it has to the
+  the seven earlier local-storage answers sends every valid answer it has to the
   account. The app then removes those browser copies and never uses them as a
   second source of truth. An account layout saved on another browser wins over
   a later old-browser import.

@@ -196,7 +196,7 @@ describe("where a trade notice leads", () => {
 })
 
 describe("the sounds behind trade notices", () => {
-  it("returns new fill and stop sounds in order without exposing another account", async () => {
+  it("returns new fill, stop and alert sounds without exposing another account", async () => {
     const mine = await makePerson()
     const theirs = await makePerson()
     await writeTradeNotice({
@@ -206,6 +206,15 @@ describe("the sounds behind trade notices", () => {
       level: "info",
       soundKind: "fill",
       createdAt: new Date(1_001),
+      database,
+    })
+    await writeTradeNotice({
+      userId: mine,
+      title: "BTC reached $100",
+      body: "One alert.",
+      level: "info",
+      soundKind: "alert",
+      createdAt: new Date(1_004),
       database,
     })
     await writeTradeNotice({
@@ -231,10 +240,14 @@ describe("the sounds behind trade notices", () => {
       afterAt: 1_000,
       afterId: "",
     })
-    expect(answer.events.map((event) => event.kind)).toEqual(["fill", "stop"])
+    expect(answer.events.map((event) => event.kind)).toEqual([
+      "fill",
+      "stop",
+      "alert",
+    ])
     expect(answer.cursor).toEqual({
-      afterAt: 1_003,
-      afterId: answer.events[1].id,
+      afterAt: 1_004,
+      afterId: answer.events[2].id,
     })
     await expect(tradeSoundEventsAfter(mine, answer.cursor)).resolves.toEqual({
       events: [],

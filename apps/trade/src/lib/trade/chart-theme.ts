@@ -23,6 +23,8 @@ export type ChartColors = {
   up: string
   down: string
   warning: string
+  /** Price alerts, kept purple so they cannot be mistaken for an order. */
+  alert: string
   /** A neutral order line, readable against the chart in either theme. */
   neutral: string
   /** Text drawn on a solid chart badge. */
@@ -53,6 +55,7 @@ export function readChartColors(host: HTMLElement): ChartColors {
     up,
     down,
     warning: resolve("text-amber-600 dark:text-amber-400"),
+    alert: resolve("text-violet-600 dark:text-violet-400"),
     // Waiting orders are chart marks, not divider chrome. The border token is
     // deliberately faint and made their line, label, and controls disappear.
     neutral: text,

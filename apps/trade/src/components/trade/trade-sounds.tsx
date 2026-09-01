@@ -11,7 +11,10 @@ import {
   rememberTradeSoundSetting,
   subscribeToTradeSoundSetting,
   TRADE_SOUND_SETTINGS_CHANNEL,
+  TRADE_SOUNDS_OFF,
+  type TradeSoundKind,
   type TradeSoundCursor,
+  type TradeSoundSettings,
 } from "@/lib/trade/trade-sounds"
 
 const STREAM_PATH = "/api/v1/notifications/stream"
@@ -26,11 +29,12 @@ export function useRememberedTradeSoundSetting() {
   )
 }
 
-/** Fill and stop sounds for one open Trade screen. */
+/** Fill, stop and price-alert sounds for one open Trade screen. */
 export function useTradeSounds() {
   const [opening] = React.useState(readTradeSoundBootstrap)
   const rememberedSetting = useRememberedTradeSoundSetting()
-  const enabled = rememberedSetting ?? false
+  const settings = rememberedSetting ?? TRADE_SOUNDS_OFF
+  const anyEnabled = settings.fillsAndStops || settings.alerts
   const cursor = React.useRef<TradeSoundCursor | null>(
     opening?.error === null ? opening.cursor : null
   )
@@ -49,14 +53,12 @@ export function useTradeSounds() {
         // Off is the safe answer when the preference read fails.
       })
     }
-    if (
-      !playedOpeningEvents.current &&
-      opening?.error === null &&
-      opening.enabled
-    ) {
+    if (!playedOpeningEvents.current && opening?.error === null) {
       playedOpeningEvents.current = true
       for (const event of opening.events) {
-        void playTradeSound(event.kind, interacted.current)
+        if (soundEnabled(event.kind, opening.settings)) {
+          void playTradeSound(event.kind, interacted.current)
+        }
       }
     }
   }, [opening, rememberedSetting])
@@ -65,9 +67,8 @@ export function useTradeSounds() {
     if (typeof BroadcastChannel === "undefined") return
     const channel = new BroadcastChannel(TRADE_SOUND_SETTINGS_CHANNEL)
     channel.onmessage = (event: MessageEvent<unknown>) => {
-      if (typeof event.data === "boolean") {
-        rememberTradeSoundSetting(event.data)
-      }
+      const settings = readSoundSettings(event.data)
+      if (settings) rememberTradeSoundSetting(settings)
     }
     return () => channel.close()
   }, [])
@@ -85,26 +86,28 @@ export function useTradeSounds() {
   }, [])
 
   const sync = React.useCallback(async () => {
-    if (!enabled || reading.current || cursor.current === null) return
+    if (!anyEnabled || reading.current || cursor.current === null) return
     reading.current = true
     try {
       const answer = await loadTradeSoundEvents(cursor.current)
       cursor.current = answer.cursor
       for (const event of answer.events) {
-        void playTradeSound(event.kind, interacted.current)
+        if (soundEnabled(event.kind, settings)) {
+          void playTradeSound(event.kind, interacted.current)
+        }
       }
     } catch {
       // The notice is already in the bell. A sound read must not add an error.
     } finally {
       reading.current = false
     }
-  }, [enabled])
+  }, [anyEnabled, settings])
 
   // This connection stays open while the tab is hidden. The bell's shared
   // stream closes then to save a browser connection, but hearing a fill while
   // looking at another window is the reason this listener exists.
   React.useEffect(() => {
-    if (!enabled) return
+    if (!anyEnabled) return
     const source = new EventSource(STREAM_PATH)
     let debounce: ReturnType<typeof setTimeout> | null = null
     const ask = () => {
@@ -126,5 +129,18 @@ export function useTradeSounds() {
       window.clearInterval(poll)
       if (debounce) clearTimeout(debounce)
     }
-  }, [enabled, opening, sync])
+  }, [anyEnabled, opening, sync])
+}
+
+function soundEnabled(kind: TradeSoundKind, settings: TradeSoundSettings) {
+  return kind === "alert" ? settings.alerts : settings.fillsAndStops
+}
+
+function readSoundSettings(value: unknown): TradeSoundSettings | null {
+  if (!value || typeof value !== "object") return null
+  const record = value as Record<string, unknown>
+  return typeof record.fillsAndStops === "boolean" &&
+    typeof record.alerts === "boolean"
+    ? { fillsAndStops: record.fillsAndStops, alerts: record.alerts }
+    : null
 }

@@ -22,18 +22,21 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ensureTradeSoundSetting,
   primeTradeSounds,
+  previewPriceAlertSound,
   rememberTradeSoundSetting,
   TRADE_SOUND_SETTINGS_CHANNEL,
+  TRADE_SOUNDS_OFF,
+  type TradeSoundSettings,
 } from "@/lib/trade/trade-sounds"
 
 export default function TradeSoundSettings() {
   useTradePageTitle("Settings")
   const mounted = React.useRef(false)
   const rememberedSetting = useRememberedTradeSoundSetting()
-  const enabled = rememberedSetting ?? false
+  const settings = rememberedSetting ?? TRADE_SOUNDS_OFF
   const loaded = rememberedSetting !== undefined
   const [loadFailed, setLoadFailed] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
+  const [busy, setBusy] = React.useState<keyof TradeSoundSettings | null>(null)
 
   const load = React.useCallback(() => {
     void ensureTradeSoundSetting(loadTradeSoundSettings)
@@ -56,39 +59,48 @@ export default function TradeSoundSettings() {
     }
   }, [load])
 
-  const change = async (next: boolean) => {
+  const change = async (kind: keyof TradeSoundSettings, next: boolean) => {
     if (busy) return
-    const previous = enabled
-    // Start both audio elements inside the switch click. Some browsers grant
-    // permission to one element at a time, not to the whole page.
-    const preview = next ? primeTradeSounds() : null
-    rememberTradeSoundSetting(next)
-    setBusy(true)
+    const previous = settings
+    const changed = { ...settings, [kind]: next }
+    // Start the relevant audio elements inside the switch click, when the
+    // browser is allowed to grant playback permission.
+    const preview = next
+      ? kind === "alerts"
+        ? previewPriceAlertSound()
+        : primeTradeSounds()
+      : null
+    rememberTradeSoundSetting(changed)
+    setBusy(kind)
     try {
-      const answer = await saveTradeSoundSettings(next)
-      rememberTradeSoundSetting(answer.enabled)
+      const answer = await saveTradeSoundSettings(changed)
+      rememberTradeSoundSetting(answer)
       if (typeof BroadcastChannel !== "undefined") {
         const channel = new BroadcastChannel(TRADE_SOUND_SETTINGS_CHANNEL)
-        channel.postMessage(answer.enabled)
+        channel.postMessage(answer)
         channel.close()
       }
       const previewPlayed = preview ? await preview : true
-      if (answer.enabled && !previewPlayed) {
+      if (next && !previewPlayed) {
         toast.warning(
           "Trade sounds are on, but the test sound could not play. Allow sound for this site, then switch sounds off and on again."
         )
       } else {
         toast.success(
-          answer.enabled
-            ? "Trade sounds are on. That was the fill sound."
-            : "Trade sounds are off."
+          next
+            ? kind === "alerts"
+              ? "Price alert sounds are on. That was the alert sound."
+              : "Fill and stop sounds are on. That was the fill sound."
+            : kind === "alerts"
+              ? "Price alert sounds are off."
+              : "Fill and stop sounds are off."
         )
       }
     } catch (error) {
       rememberTradeSoundSetting(previous)
       showErrorToast(getTradeSoundSettingsSaveErrorMessage(error))
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
@@ -97,7 +109,7 @@ export default function TradeSoundSettings() {
       <CardHeader>
         <CardTitle>Trade sounds</CardTitle>
         <CardDescription>
-          Hear an open trading screen when money moves.
+          Choose which events an open trading screen plays out loud.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -122,23 +134,59 @@ export default function TradeSoundSettings() {
             ) : null}
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-4">
-            <label htmlFor="trade-sounds" className="min-w-0">
-              <span className="block text-sm font-medium">Fills and stops</span>
-              <span className="mt-1 block text-sm text-muted-foreground">
-                Fills use a short high sound. Stops and targets use a lower
-                warning sound. Turning this on plays the fill sound once.
-              </span>
-            </label>
-            <Switch
+          <div className="grid gap-4">
+            <SoundSettingRow
               id="trade-sounds"
-              checked={enabled}
-              disabled={!loaded || busy}
-              onCheckedChange={(checked) => void change(checked)}
+              label="Fills and stops"
+              description="Fills use a short high sound. Stops and targets use a lower warning sound. Turning this on plays the fill sound once."
+              checked={settings.fillsAndStops}
+              disabled={!loaded || busy !== null}
+              onChange={(checked) => void change("fillsAndStops", checked)}
+            />
+            <SoundSettingRow
+              id="price-alert-sounds"
+              label="Price alerts"
+              description="A crossed price line uses its own alert sound. Turning this on plays that sound once."
+              checked={settings.alerts}
+              disabled={!loaded || busy !== null}
+              onChange={(checked) => void change("alerts", checked)}
             />
           </div>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function SoundSettingRow({
+  id,
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  id: string
+  label: string
+  description: string
+  checked: boolean
+  disabled: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <label htmlFor={id} className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="mt-1 block text-sm text-muted-foreground">
+          {description}
+        </span>
+      </label>
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+      />
+    </div>
   )
 }
