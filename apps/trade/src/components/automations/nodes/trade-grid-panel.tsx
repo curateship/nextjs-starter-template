@@ -31,7 +31,6 @@ import {
   GRID_SPACING_LABELS,
   GRID_SPACINGS,
   gridEvenRungPcts,
-  gridRungPctsFit,
   gridRungPctsSum,
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
@@ -256,17 +255,12 @@ export default function TradeGridFields({
                 </Button>
               </div>
             ))}
+            {/* Information, not a rule: the grid uses whatever the rows add
+                up to. Tyler's rule, 1 Sep 2026. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Adds up to</span>
-              <span
-                className={
-                  gridRungPctsFit(rungPcts)
-                    ? "text-muted-foreground tabular-nums"
-                    : "text-destructive tabular-nums"
-                }
-              >
+              <span className="text-muted-foreground tabular-nums">
                 {Math.round(rungSum * 100) / 100}%
-                {gridRungPctsFit(rungPcts) ? "" : " · needs 100%"}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">

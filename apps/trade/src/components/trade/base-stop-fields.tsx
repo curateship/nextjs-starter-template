@@ -1,4 +1,4 @@
-import { OptionCard } from "@/components/trade/option-card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { badBaseReclaimDays, badBaseUnderPct } from "@/lib/trade/base-stop"
@@ -12,6 +12,10 @@ import { BASE_STOP_INTERVAL } from "@/lib/trade/dca"
  * place a ladder and a grid, the two that edit a live one's exits, and the
  * automation panel — and the words are the difficult part. A rule explained
  * two ways is a rule nobody trusts.
+ *
+ * A plain checkbox row, not a card of its own — Tyler's ask, 1 Sep 2026: it
+ * sits inside the Stop loss card already, and a card in a card read as a
+ * second window. Its two boxes appear under the row while it is on.
  *
  * **The level has two sides.** A buying plan rests under a confirmed floor,
  * which this app calls a base. A selling grid rests above a confirmed ceiling,
@@ -53,63 +57,68 @@ export function BaseStopFields({
 }) {
   const short = direction === "short"
   return (
-    <OptionCard
-      id="base-stop-on"
-      title={short ? "Stop above resistance" : "Stop under the base"}
-      defaultOpen={on}
-      hint={
-        short
-          ? `The stop moves onto the ${BASE_STOP_INTERVAL} resistance once one confirms above your sell; the percent above stands until then, so set it to 100 for no stop before that. If it fires, the whole short is bought back and the grid is over.`
-          : `The stop moves onto the ${BASE_STOP_INTERVAL} base once one confirms below your buy; the percent above stands until then, so set it to 100 for no stop before that. If it fires, everything sells and the next rung down goes on with a fresh stop — until the rungs run out, which ends the ladder for good.`
-      }
-      toggle={{ checked: on, disabled, onChange: onOn }}
-    >
-      <div className="grid gap-2">
+    <>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="base-stop-on"
+          checked={on}
+          disabled={disabled}
+          onCheckedChange={(next) => onOn(next === true)}
+        />
         <FieldLabel
-          htmlFor="base-stop-under"
+          htmlFor="base-stop-on"
           hint={
             short
-              ? "0 rests it on the resistance itself. Raise it to sit clear of the level so a poke through does not take you out."
-              : "0 rests it on the base itself, which is the setup this was measured on. Raise it to sit clear of the level so a poke through does not take you out."
+              ? `The stop moves onto the ${BASE_STOP_INTERVAL} resistance once one confirms above your short. Until then the percent above stands — 100 means no stop before it.`
+              : `The stop moves onto the ${BASE_STOP_INTERVAL} base once one confirms below your buy. Until then the percent above stands — 100 means no stop before it.`
           }
         >
-          {short ? "Percent above resistance" : "Percent under the base"}
+          {short ? "Stop above resistance" : "Stop under the base"}
         </FieldLabel>
-        <Input
-          id="base-stop-under"
-          inputMode="decimal"
-          value={underPct}
-          disabled={disabled || !on}
-          // Only while the box is being used. A switched-off base stop keeps
-          // whatever was last typed in it, and outlining a box nothing is
-          // reading points at a problem that is not there.
-          aria-invalid={showErrors && on && badBaseUnderPct(underPct)}
-          onChange={(event) => onUnderPct(event.target.value)}
-          onBlur={onBlur}
-        />
       </div>
+      {on ? (
+        <>
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="base-stop-under"
+              hint="0 rests it on the level itself. Raise it to sit clear, so a poke through does not take you out."
+            >
+              {short ? "Percent above resistance" : "Percent under the base"}
+            </FieldLabel>
+            <Input
+              id="base-stop-under"
+              inputMode="decimal"
+              value={underPct}
+              disabled={disabled}
+              aria-invalid={showErrors && badBaseUnderPct(underPct)}
+              onChange={(event) => onUnderPct(event.target.value)}
+              onBlur={onBlur}
+            />
+          </div>
 
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="base-stop-reclaim"
-          hint={
-            short
-              ? "Price closing back under where you were cut, and holding under it this long, puts the same level back for the same money. A close above starts the wait again."
-              : "Price closing back above where you were cut, and holding above it this long, puts the same rung back for the same money. A close under starts the wait again."
-          }
-        >
-          {short ? "Sell again after (days)" : "Buy back after (days)"}
-        </FieldLabel>
-        <Input
-          id="base-stop-reclaim"
-          inputMode="decimal"
-          value={reclaimDays}
-          disabled={disabled || !on}
-          aria-invalid={showErrors && on && badBaseReclaimDays(reclaimDays)}
-          onChange={(event) => onReclaimDays(event.target.value)}
-          onBlur={onBlur}
-        />
-      </div>
-    </OptionCard>
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="base-stop-reclaim"
+              hint={
+                short
+                  ? "Price closing back under where you were cut, and holding this long, puts the level back for the same money."
+                  : "Price closing back above where you were cut, and holding this long, puts the rung back for the same money."
+              }
+            >
+              {short ? "Sell again after (days)" : "Buy back after (days)"}
+            </FieldLabel>
+            <Input
+              id="base-stop-reclaim"
+              inputMode="decimal"
+              value={reclaimDays}
+              disabled={disabled}
+              aria-invalid={showErrors && badBaseReclaimDays(reclaimDays)}
+              onChange={(event) => onReclaimDays(event.target.value)}
+              onBlur={onBlur}
+            />
+          </div>
+        </>
+      ) : null}
+    </>
   )
 }

@@ -97,7 +97,6 @@ describe("the DCA ladder window", () => {
           <SmartOrderDialog
             state={{ px: 105, x: 20, y: 20 }}
             market={market}
-            wallet="Practice"
             equity={10_000}
             free={10_000}
             interval="15m"
@@ -112,6 +111,14 @@ describe("the DCA ladder window", () => {
       )
       await Promise.resolve()
     })
+
+    // The window follows the grid window's rules: its own ×, no wallet name,
+    // and the entries are called longs — Tyler's word for them.
+    expect(
+      host.querySelector('button[aria-label="Close the window"]')
+    ).not.toBeNull()
+    expect(host.textContent).toMatch(/Place \d+ longs/)
+    expect(host.textContent).not.toMatch(/Place \d+ buys/)
 
     expect(host.textContent).not.toContain("Hangs from")
     expect(host.querySelector('[aria-label="Show Stop loss"]')).toBeNull()
@@ -150,7 +157,6 @@ describe("the DCA ladder window", () => {
           <SmartOrderDialog
             state={{ px: 105, x: 20, y: 20 }}
             market={market}
-            wallet="Practice"
             equity={10_000}
             free={1}
             interval="15m"
@@ -189,7 +195,6 @@ describe("the DCA ladder window", () => {
           <SmartOrderDialog
             state={{ px: 105, x: 20, y: 20 }}
             market={market}
-            wallet="Practice"
             equity={10_000}
             free={10_000}
             interval="15m"
@@ -237,7 +242,6 @@ describe("the DCA ladder window", () => {
           <SmartOrderDialog
             state={{ px: 105, x: 20, y: 20 }}
             market={market}
-            wallet="Practice"
             equity={10_000}
             free={10_000}
             interval="15m"

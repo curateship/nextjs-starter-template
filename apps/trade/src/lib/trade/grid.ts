@@ -86,13 +86,13 @@ export type GridDirection = (typeof GRID_DIRECTIONS)[number]
  */
 export const GRID_DIRECTION_LABELS: Record<GridDirection, string> = {
   long: "Buy the dips",
-  short: "Sell the rallies",
+  short: "Short the rallies",
 }
 
 /**
  * What each direction is called on the control that picks it. One word,
  * because a pair of choices side by side reads as a pair only when both are
- * the same shape, and "Long" against "Sell the rallies" is not a pair.
+ * the same shape, and "Long" against "Short the rallies" is not a pair.
  */
 export const GRID_DIRECTION_PICKER_LABELS: Record<GridDirection, string> = {
   long: "Long",
@@ -101,9 +101,20 @@ export const GRID_DIRECTION_PICKER_LABELS: Record<GridDirection, string> = {
 
 /** What each direction means, for the tooltip beside the control. */
 export const GRID_DIRECTION_HINTS: Record<GridDirection, string> = {
-  long: "Buy the dips. The grid buys at each level and sells one step above it, so it earns while a coin chops sideways or drifts up.",
+  long: "Buy the dips: buy at each level, sell one step above it. Earns while a coin chops or drifts up.",
   short:
-    "Sell the rallies. The grid sells at each level and buys back one step below it, so it earns while a coin chops sideways or drifts down. Selling a coin you do not own means borrowing it from the exchange and buying it back later, and keeping the difference if it got cheaper.",
+    "Short the rallies: short at each level, buy back one step below it. Earns while a coin chops or drifts down.",
+}
+
+/**
+ * What the windows and the chart CALL one of the grid's entry orders.
+ *
+ * `entrySide` stays the exchange's word — a short grid's entries really are
+ * sells on the book — but on screen Tyler's word for them is "short", so the
+ * naming lives here once instead of half the labels saying each.
+ */
+export function entryWord(direction: GridDirection): "buy" | "short" {
+  return direction === "long" ? "buy" : "short"
 }
 
 /**
@@ -229,7 +240,7 @@ export const GRID_SPACING_LABELS: Record<GridSpacing, string> = {
 }
 
 export const GRID_SPACING_HINT =
-  "At $100, the same dollars apart could place levels at $100, $90 and $80. The same percent apart at 10% places them at $100, $90 and $81. Dollar spacing makes equal gaps on the chart. Percent spacing gives every cycle the same percentage move."
+  "Dollars apart: $100, $90, $80 — equal gaps on the chart. Percent apart at 10%: $100, $90, $81 — every cycle the same % move."
 
 /**
  * How the pot is divided between the levels.
@@ -280,15 +291,15 @@ export const GRID_ANCHOR_HINTS: Record<
 > = {
   long: {
     price:
-      "The range opens above and below today's price. Placing buys nothing. Every level waits until price reaches its own buy.",
+      "The range opens around today's price. Placing buys nothing — each level waits for its own price.",
     click:
-      "The price you right-clicked becomes the top buy, and the whole grid hangs under it. Nothing is bought at market — every level waits for price to fall to it.",
+      "Your right-click becomes the top buy and the grid hangs under it. Each level waits for its own price.",
   },
   short: {
     price:
-      "The range opens above and below today's price. Placing sells nothing. Every level waits until price reaches its own sell.",
+      "The range opens around today's price. Placing shorts nothing — each level waits for its own price.",
     click:
-      "The price you right-clicked becomes the lowest sell, and the whole grid sits above it. Nothing is sold at market — every level waits for price to rise to it.",
+      "Your right-click becomes the lowest short and the grid sits above it. Each level waits for its own price.",
   },
 }
 
@@ -805,25 +816,16 @@ export function gridShares(count: number, sizing: GridSizing): number[] {
 // ----- Splitting the pot by hand -------------------------------------------
 
 /**
- * How far off 100 the typed rung percentages may land and still be taken.
+ * What a set of typed rung percentages adds up to.
  *
- * Three equal rungs are 33.33, 33.33 and 33.34, and a card that refused those
- * would be a card nobody could use. A tenth of a percent of a $2,000 grid is
- * $2, less than the rounding the market's own size step does to every order.
- *
- * Not exported: every caller asks `gridRungPctsFit` instead, so the limit is
- * never restated anywhere it could drift from this one.
+ * The sum is free — Tyler's rule, 1 Sep 2026: "There's no need for the rungs
+ * to be at 100% combined. It can be whatever I put." Each rung takes its
+ * typed share of the pot, so rows summing to 65 simply use 65% of it and
+ * rows summing past 100 use more than one pot's worth. The sum is shown, in
+ * percent and in dollars, and never enforced.
  */
-const GRID_RUNG_SUM_SLACK = 0.1
-
-/** What a set of typed rung percentages adds up to. */
 export function gridRungPctsSum(pcts: number[]): number {
   return pcts.reduce((sum, pct) => sum + pct, 0)
-}
-
-/** Do the typed percentages use the whole pot, give or take the slack? */
-export function gridRungPctsFit(pcts: number[]): boolean {
-  return Math.abs(gridRungPctsSum(pcts) - 100) <= GRID_RUNG_SUM_SLACK
 }
 
 /**

@@ -53,7 +53,7 @@ or live flow, including custom rung shares and both following switches. The
 result chart draws the saved EMA, and selling-grid cycles appear as Short rows
 whose exit is the buy-back.
 
-## Buy the dips, or sell the rallies
+## Buy the dips, or short the rallies
 
 Two boxes, **Long** and **Short**, sit side by side at the top of the Range
 card. They are the first thing the window asks, because every label under them
@@ -64,14 +64,21 @@ on does nothing, so a grid can never be left with no direction at all.
 the window opens on. It buys at each level and sells one step above it, and
 earns while a coin chops sideways or drifts up.
 
-**Short** sells at each level and buys back one step below it. It earns while a
-coin chops sideways or drifts down. Selling a coin you do not own means
+**Short** shorts at each level and buys back one step below it. It earns while
+a coin chops sideways or drifts down. Shorting a coin you do not own means
 borrowing it from the exchange, selling it, and buying it back later. You keep
 the difference if it got cheaper.
 
-Elsewhere the two are called **Buy the dips** and **Sell the rallies** — on the
-chart's badge and in the running grid's window, which are explaining rather
-than asking, and have room for the phrase.
+**A short grid's entries are called shorts, never sells** — "Place 5 shorts"
+on the button, "RUNG 5 SHORTS" on the chart — Tyler's rule, so the word on the
+screen is the word in his head. The buy-backs that close each rung keep the
+words "buys back", because that is what they do. Picking Short also turns the
+window's own Grid label and its Place button red, so the window agrees with
+the chart about which way the money points.
+
+Elsewhere the two are called **Buy the dips** and **Short the rallies** — on
+the chart's badge and in the running grid's window, which are explaining
+rather than asking, and have room for the phrase.
 
 A coin that has run up and is now chopping under a ceiling is the case for
 selling the rallies. A buying grid there keeps buying dips in something that is
@@ -138,6 +145,45 @@ version reads. `../rules/trading-rules.md` carries the rule this comes from.
 small payment every few hours from the people who are long. Nothing in the
 practice engine models that, so a practice selling grid reads slightly worse
 than the real one would.
+
+## The placement window stays open while the grid is shaped on the chart
+
+The window is not a dialog that owns the screen. It sits over a live chart,
+nothing outside it closes it, and it goes away only from the × in its own top
+right corner or the Escape key. That is what lets the grid be shaped by hand
+before any money moves:
+
+- **The preview's edges can be dragged, and only the dragged edge moves.**
+  The upper and lower price, End Grid and the stop each carry a grip while
+  the window is open. Around today's price, a drop rewrites that edge's own
+  percent field. On a click-hung range the two edges share one depth field —
+  writing it moves both — so a drop there becomes a hand-set range in plain
+  prices instead: the dragged edge lands under the hand, the other stays
+  put, the Range card says "The range is where you dragged it", and typing
+  a percent takes the range back. Prices are what placing sends anyway, so
+  what is drawn is exactly what is placed. Tyler's rule, decided 1 Sep 2026
+  after the first version kept the clicked price pinned to its own rung and
+  dragging one edge visibly moved the whole grid. A drop that would turn
+  the range inside out changes nothing.
+- **The money is on the chart before placing.** Every rung carries the chip a
+  placed level gets, saying what that rung puts in. The stop line says what
+  firing it would cost if every rung had opened first — the worst case, which
+  is what a stop is for, before fees. With borrowing above 1×, a dashed
+  LIQUIDATION line shows where the exchange would take the whole trade and
+  the margin that would be gone.
+The window itself is dragged by its header wherever it is wanted. A "Pin to
+top corner" switch was built on 1 Sep 2026 and removed the same day on
+Tyler's call — "not very useful" — since the window already drags anywhere.
+
+**A card's whole header folds it, not only the chevron.** Clicking anywhere
+on the "Range −6%" strip opens or closes the card; the checkbox, the hint and
+a switch-card's own label keep their own jobs. This lives in the shared
+`OptionCard`, so the DCA window's cards behave the same way.
+
+The window's header says "Grid" and the free cash — "$8,569.15 free". The
+wallet name came off on Tyler's instruction; the free figure came off with it
+and went back the same day when he asked for it. The Smart order menu's DCA ladder and Grid icons are grey like the
+menu's other icons, for the same reason: the green is kept for money made.
 
 ## Where the range sits
 
@@ -241,11 +287,22 @@ then divides that money between its levels, and there are two ways it can:
 equally, which is what it does by default, or by hand.
 
 **By hand is the Rungs card.** Switching it on lists one row per rung, each
-holding a percentage of the money Share of account % set aside. The rows have to
-add up to 100, so the whole share is always used. The card says what they
-currently add up to, and refuses to place anything until it is 100. A grid on
-20% of a $10,000 account has $2,000 behind it, and four rungs at 10/20/30/40
-give the levels $200, $400, $600 and $800.
+holding a percentage of the money Share of account % set aside, shown the way
+the DCA ladder's rows are: the typed %, then the dollars it comes to. The
+price is on the chart, where prices live. A grid on 20% of a $10,000 account
+has $2,000 behind it, and four rungs at 10/20/30/40 give the levels $200,
+$400, $600 and $800.
+
+**The rows can add up to whatever is typed.** Tyler's rule, 1 Sep 2026:
+"There's no need for the rungs to be at 100% combined. It can be whatever I
+put." Rows summing to 65 use 65% of the money set aside; rows summing past
+100 use more than one share's worth. The card says what they add up to, in
+percent and in dollars, and never refuses over it. Until that day the card
+demanded exactly 100 and blocked placing on anything else.
+
+**The window's tooltips are one or two short sentences.** Tyler, 1 Sep 2026:
+"the tooltips are way too long. Condense them." The long explanations live in
+this doc instead.
 
 **A selling grid's rungs run backwards down the chart from a buying grid's.**
 Tyler, 29 Aug 2026: _"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2, 1"_.
@@ -512,9 +569,10 @@ Two ways to trigger it:
   sold at market and where the two new lines go. Hand reversals chain: a grid
   that came out of a reversal reverses back the same way, as many times as you
   like.
-- **On its own**, when the stop fires, if **Reverse when stopped** is ticked —
+- **On its own**, when the stop fires, if **Reverse on stop loss** is ticked —
   it sits in the Stop loss card of the placement window and of the running
-  grid's window, off by default. The switch never carries onto the grid a
+  grid's window, off by default. (Called "Reverse when stopped" until
+  1 Sep 2026; renamed to Tyler's words, the switch itself is unchanged.) The switch never carries onto the grid a
   reversal creates, so a whipsaw market cannot flip the account back and forth
   unattended; ticking it again on the new grid is one click, and that click is
   a person deciding.

@@ -33,16 +33,14 @@ import { formatPrice, formatUsd } from "@/lib/trade/format"
 import {
   DEFAULT_GRID_TAKE_PROFIT_PCT,
   DEFAULT_GRID_STOP_UNDER_PCT,
-  entrySide,
+  entryWord,
   exitSide,
   gridEndPx,
   gridEvenRungPcts,
   gridLevelPctsFromRows,
   gridRowPctsFromLevels,
   gridRangeReshapable,
-  gridRowLevelIndex,
   gridRowRungNumber,
-  gridRungPctsFit,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridStopBeyond,
@@ -53,10 +51,8 @@ import {
   type GridPlan,
   type GridStop,
 } from "@/lib/trade/grid"
-import { LOST_MONEY } from "@/lib/trade/money-tone"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 /** One row of the Rungs card. Its id is minted once — see the placement window. */
 type Rung = { id: string; value: string }
@@ -307,8 +303,7 @@ function StopForm({
   )
   const badRungCount =
     rungs.length < MIN_GRID_LEVELS || rungs.length > MAX_GRID_LEVELS
-  const badRungs =
-    manualOn && (badRung !== -1 || badRungCount || !gridRungPctsFit(rungPcts))
+  const badRungs = manualOn && (badRung !== -1 || badRungCount)
   // The card's rows go to the server as they are; level order is that list
   // read backwards, which is what the running grid is compared against.
   const levelPcts = gridLevelPctsFromRows(rungPcts)
@@ -408,9 +403,7 @@ function StopForm({
           ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a share above zero.`
           : manualOn && badRungCount
             ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
-            : badRungs
-              ? `The rungs add up to ${Math.round(rungSum * 100) / 100}%, and they have to add up to 100% so the whole share of the account is used.`
-              : badEnd
+            : badEnd
                 ? "Above price or range % has to be a number above zero and no more than 999."
                 : badUnder
                   ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
@@ -522,12 +515,9 @@ function StopForm({
             summary={`${sliceCount} levels`}
           >
             <div className="grid gap-2">
-              {manualOn ? (
-                <p className="text-xs text-muted-foreground">
-                  Split by the Rungs card: {rungs.length} rung
-                  {rungs.length === 1 ? "" : "s"}.
-                </p>
-              ) : (
+              {/* The Rungs card's own header counts its rungs, so nothing is
+                  said here while it is on. */}
+              {manualOn ? null : (
                 <>
                   <FieldLabel
                     htmlFor="grid-edit-levels"
@@ -662,16 +652,11 @@ function StopForm({
             }
             hint={
               canReshape
-                ? `Give each ${entrySide(plan.direction)} its own share of the money instead of splitting it equally. The shares are percentages of Share of account %, and they add up to 100. Rung 1 is the first ${entrySide(plan.direction)} the grid makes, which is the ${plan.direction === "long" ? "top" : "bottom"} of the range.`
-                : "The split can change only while the grid holds no coin. Coins already bought sell one step above the price they were bought at, and re-sizing a level under them would leave it selling coins it never paid that price for."
+                ? `Each rung takes its own share of the money, as a percent of Share of account %. The total is whatever you type. Rung 1 is the first ${entryWord(plan.direction)}.`
+                : "The split can change only while the grid holds no coin — re-sizing under held coins would mis-price their sells."
             }
           >
             {rungs.map((rung, index) => {
-              // Rows read top of the range first; levels read bottom first.
-              const level =
-                rungs.length === plan.levels.length
-                  ? plan.levels[gridRowLevelIndex(index, rungs.length)]
-                  : undefined
               // The rows run down the range; the NUMBER counts outward from
               // the market, so it runs the other way on a selling grid.
               const number = gridRowRungNumber(
@@ -687,19 +672,23 @@ function StopForm({
                   <span className="w-4 text-right text-xs text-muted-foreground">
                     {number}
                   </span>
-                  <Input
-                    id={`grid-edit-rung-${number}`}
-                    inputMode="decimal"
-                    value={rung.value}
-                    disabled={busy || !canReshape}
-                    aria-label={`Rung ${number}, percent of the grid's money`}
-                    aria-invalid={showValidation && !(pct > 0 && pct <= 100)}
-                    onChange={(event) => setRung(rung.id, event.target.value)}
-                    onBlur={() => setShowValidation(true)}
-                    className="w-16 bg-background"
-                  />
+                  <div className="flex w-24 items-center gap-2">
+                    <Input
+                      id={`grid-edit-rung-${number}`}
+                      inputMode="decimal"
+                      value={rung.value}
+                      disabled={busy || !canReshape}
+                      aria-label={`Rung ${number}, percent of the grid's money`}
+                      aria-invalid={showValidation && !(pct > 0 && pct <= 100)}
+                      onChange={(event) => setRung(rung.id, event.target.value)}
+                      onBlur={() => setShowValidation(true)}
+                      className="min-w-0 bg-background"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                  {/* The money, the way the DCA ladder's rows say it. The
+                      price is on the chart, where prices live. */}
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
-                    {level ? `${formatPrice(level.buyPx)} · ` : ""}
                     {dollars === null ? "—" : formatUsd(dollars)}
                   </span>
                   <Button
@@ -718,17 +707,14 @@ function StopForm({
                 </div>
               )
             })}
+            {/* The total is information, not a rule: the rows can add up to
+                whatever was typed, and the grid uses exactly that share of
+                the money. Tyler's rule, 1 Sep 2026. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Adds up to</span>
-              <span
-                className={cn(
-                  "tabular-nums",
-                  gridRungPctsFit(rungPcts)
-                    ? "text-muted-foreground"
-                    : LOST_MONEY
-                )}
-              >
+              <span className="tabular-nums text-muted-foreground">
                 {Math.round(rungSum * 100) / 100}%
+                {` · ${formatUsd((potNow * rungSum) / 100)}`}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -911,7 +897,7 @@ function StopForm({
                   htmlFor="grid-stop-reverse"
                   hint="When the stop fires, a grid running the other way is placed over the same range: its stop on the End Grid line, its End Grid the same distance past the fired stop as the stop sits past the range. The new grid starts with this switch off. Needs End Grid switched on."
                 >
-                  Reverse when stopped
+                  Reverse on stop loss
                 </FieldLabel>
               </div>
               <BaseStopFields

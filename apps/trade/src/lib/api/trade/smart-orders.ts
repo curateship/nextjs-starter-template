@@ -1059,10 +1059,6 @@ export function getSmartOrderErrorMessage(error: unknown): string {
   if (tooSmall) return tooSmall[1].trim()
   // A hand-set grid's refusals name the ROW that was typed, which a fixed
   // sentence cannot do.
-  const rungSum = message.match(/SMART_GRID_RUNG_SUM:([\d.]+)/)
-  if (rungSum) {
-    return `The rungs add up to ${rungSum[1]}%, and they have to add up to 100% so the whole share of the account is used. Nothing was placed.`
-  }
   const rungTooSmall = message.match(/SMART_GRID_RUNG_TOO_SMALL:(\d+)/)
   if (rungTooSmall) {
     return `Rung ${rungTooSmall[1]} is too small to be an order on this market, so nothing was placed. Give it a bigger share, or raise the share of the account the whole grid uses.`

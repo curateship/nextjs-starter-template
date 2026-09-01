@@ -6,7 +6,10 @@ import {
   XIcon,
 } from "lucide-react"
 
-import type { GridPreview } from "@/components/trade/grid-order-dialog"
+import type {
+  GridPreview,
+  GridPreviewDragKind,
+} from "@/components/trade/grid-order-dialog"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
@@ -16,6 +19,7 @@ import {
 } from "@/lib/trade/format"
 import {
   entrySide,
+  entryWord,
   exitSide,
   gridEndAfterRangeMove,
   gridLevels,
@@ -138,6 +142,51 @@ export const GridLayer = React.memo(function GridLayer({
   // pointed at.
   const layerRef = React.useRef<HTMLDivElement | null>(null)
 
+  /**
+   * A preview line mid-drag, following the pointer, by its index in the
+   * preview's own list. Only the drop is told to the window — the window
+   * re-derives every level from the dropped field, and doing that on every
+   * pixel would re-plan the grid a hundred times per drag.
+   */
+  const [previewDrag, setPreviewDrag] = React.useState<{
+    index: number
+    px: number
+  } | null>(null)
+
+  const startPreviewDrag =
+    (index: number, kind: GridPreviewDragKind, from: number) =>
+    (event: React.PointerEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      // Measured once per drag, the same rule the placed grid's drag follows.
+      const top = layerRef.current?.getBoundingClientRect().top ?? null
+      if (top === null) return
+      let frame = 0
+      let lastY = event.clientY
+      const onMove = (move: PointerEvent) => {
+        lastY = move.clientY
+        if (frame) return
+        frame = requestAnimationFrame(() => {
+          frame = 0
+          const px = surface.priceAt(lastY - top)
+          if (px !== null && px > 0) setPreviewDrag({ index, px })
+        })
+      }
+      const onUp = (up: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        if (frame) cancelAnimationFrame(frame)
+        const px = surface.priceAt(up.clientY - top)
+        setPreviewDrag(null)
+        if (px === null || !(px > 0)) return
+        // A drag that ends where it started is a click, not a move.
+        if (Math.abs(from - px) < 1e-9) return
+        preview?.onMoveLine?.(kind, px)
+      }
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+    }
+
   return (
     <div
       ref={layerRef}
@@ -158,7 +207,12 @@ export const GridLayer = React.memo(function GridLayer({
         />
       ) : null}
       {preview?.lines.map((line, index) => {
-        const y = yFor(line.px)
+        // The line being dragged follows the pointer; the rest hold still.
+        const shownPx =
+          previewDrag !== null && previewDrag.index === index
+            ? previewDrag.px
+            : line.px
+        const y = yFor(shownPx)
         if (y === null) return null
         const look = lineLook(
           line.kind,
@@ -166,14 +220,36 @@ export const GridLayer = React.memo(function GridLayer({
           preview.direction,
           preview.levelCount
         )
+        const draggable =
+          line.grip === true &&
+          line.kind !== "level" &&
+          line.kind !== "liquidation" &&
+          preview.onMoveLine !== undefined &&
+          tool === null
         return (
           <ChartLine
             key={`grid-preview-${index}`}
             y={y}
+            usd={line.usd}
             colour={look.colour}
-            name={look.name}
+            name={line.label ?? look.name}
             dashed={look.dashed}
             faded
+            grip={draggable}
+            onGripDown={
+              draggable
+                ? startPreviewDrag(
+                    index,
+                    line.kind as GridPreviewDragKind,
+                    line.px
+                  )
+                : undefined
+            }
+            title={
+              draggable
+                ? "Drag to move this line. Dropping it rewrites the window's own fields, so the grid you see is the grid you place."
+                : undefined
+            }
           />
         )
       })}
@@ -268,8 +344,8 @@ function edgeTitle(
     return `The ${where} of the range is an open entry, so it stays fixed. Drag the other edge instead.`
   }
   return movable
-    ? `The ${where} of the range, and its deepest ${entrySide(direction)}. Drag to move it.`
-    : `The ${where} of the range, and its deepest ${entrySide(direction)}. It is fixed because more than one entry is open, or an older range still holds coin.`
+    ? `The ${where} of the range, and its deepest ${entryWord(direction)}. Drag to move it.`
+    : `The ${where} of the range, and its deepest ${entryWord(direction)}. It is fixed because more than one entry is open, or an older range still holds coin.`
 }
 
 /** What one level line says on hover, in the words of the grid it belongs to. */
@@ -279,7 +355,7 @@ function levelTitle(
   holding: boolean
 ): string {
   const price = formatPrice(at.px)
-  const opens = entrySide(direction)
+  const opens = entryWord(direction)
   const closes = exitSide(direction)
   // Where this level's way out sits: one step up on a buying grid, one step
   // down on a selling one.
@@ -722,7 +798,7 @@ function GridLines({
                 at.entry !== null ? (
                   <button
                     type="button"
-                    aria-label={`Cancel the ${entrySide(direction)} at ${formatPrice(at.px)}`}
+                    aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(at.px)}`}
                     className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                     style={{ pointerEvents: controls }}
                     onClick={() =>
@@ -759,7 +835,7 @@ function GridLines({
             bottomLevel?.entry != null ? (
               <button
                 type="button"
-                aria-label={`Cancel the ${entrySide(direction)} at ${formatPrice(plan.bottomPx)}`}
+                aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(plan.bottomPx)}`}
                 className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 style={{ pointerEvents: controls }}
                 onClick={() =>
@@ -791,7 +867,7 @@ function GridLines({
               {topLevel?.entry != null ? (
                 <button
                   type="button"
-                  aria-label={`Cancel the ${entrySide(direction)} at ${formatPrice(plan.topPx)}`}
+                  aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(plan.topPx)}`}
                   className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                   style={{ pointerEvents: controls }}
                   onClick={() =>
@@ -854,7 +930,7 @@ function GridLines({
                 {waiting > 0 ? (
                   <button
                     type="button"
-                    aria-label={`Stop the grid trading — cancel every waiting ${entrySide(direction)}`}
+                    aria-label={`Stop the grid trading — cancel every waiting ${entryWord(direction)}`}
                     className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
                     onClick={() => onCancelGrid(grid)}
                   >
@@ -918,7 +994,7 @@ function gridBoundaryName(
       : `${edge} PRICE · RUNG ${levelCount} BUYS`
   }
   return end === "top"
-    ? `${edge} PRICE · RUNG ${levelCount} SELLS`
+    ? `${edge} PRICE · RUNG ${levelCount} SHORTS`
     : `${edge} PRICE · RUNG 1 BUYS BACK`
 }
 
@@ -948,6 +1024,11 @@ function lineLook(
   }
   if (kind === "stopLoss") {
     return { colour: colors.down, name: "STOP LOSS", dashed: false }
+  }
+  // Where the exchange would take the whole trade. Dashed, because it is not
+  // an order anybody placed — it is what the borrowing costs if it all fills.
+  if (kind === "liquidation") {
+    return { colour: colors.down, name: "LIQUIDATION", dashed: true }
   }
   // A level, in the colour of the trade it would open with.
   return {

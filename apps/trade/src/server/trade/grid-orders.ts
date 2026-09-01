@@ -19,8 +19,6 @@ import {
   gridRangeReshapable,
   gridRowPctsFromLevels,
   gridRungNumber,
-  gridRungPctsFit,
-  gridRungPctsSum,
   gridStepPct,
   gridStopBeyond,
   gridStopPx,
@@ -157,23 +155,16 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   }
   const range = { topPx, bottomPx }
 
-  // A hand-set grid: one typed percentage per level, using the whole pot.
-  //
-  // Checked here rather than in the schema because `placeGridParamsSchema` has
-  // to stay a plain object — the API layer reads `.shape` off it — and because
-  // this is the one door every grid goes through, placed or reshaped, practice
-  // or real. The sum is checked before anything is drawn: a grid missing a
-  // tenth of its money is a grid nobody asked for.
+  // A hand-set grid: one typed percentage per level, each its own share of
+  // the pot. The COUNT is checked — a list whose length drifted from the
+  // level count would guess order sizes — but the SUM is free: Tyler's rule,
+  // rows adding to 65 use 65% of the pot, and that is what was asked for.
   if (params.manualSizing) {
     if (
       params.manualRungPcts === null ||
       params.manualRungPcts.length !== params.levels
     ) {
       throw new Error("SMART_GRID_RUNG_COUNT")
-    }
-    if (!gridRungPctsFit(params.manualRungPcts)) {
-      const sum = Math.round(gridRungPctsSum(params.manualRungPcts) * 100) / 100
-      throw new Error(`SMART_GRID_RUNG_SUM:${sum}`)
     }
   }
 

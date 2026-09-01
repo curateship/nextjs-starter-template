@@ -19,7 +19,6 @@ import {
   gridRowPctsFromLevels,
   gridRowRungNumber,
   gridRungNumber,
-  gridRungPctsFit,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridShares,
@@ -781,15 +780,7 @@ describe("splitting the pot by hand", () => {
       const pcts = gridEvenRungPcts(count)
       expect(pcts).toHaveLength(count)
       expect(gridRungPctsSum(pcts)).toBeCloseTo(100, 9)
-      expect(gridRungPctsFit(pcts)).toBe(true)
     }
-  })
-
-  it("takes rounding slack but not a real miss", () => {
-    expect(gridRungPctsFit([33.33, 33.33, 33.34])).toBe(true)
-    expect(gridRungPctsFit([50, 50])).toBe(true)
-    expect(gridRungPctsFit([45, 45])).toBe(false)
-    expect(gridRungPctsFit([60, 60])).toBe(false)
   })
 
   it("is remembered and read back with the rest of the settings", () => {
@@ -932,6 +923,7 @@ describe("gridRangeFromClick", () => {
     ).toBeNull()
   })
 })
+
 
 describe("gridShiftAway", () => {
   const range = {

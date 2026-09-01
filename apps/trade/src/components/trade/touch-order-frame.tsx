@@ -24,6 +24,7 @@ export function TouchOrderFrame({
   desktopRef,
   sheetScrollable = false,
   allowOutsideControl = false,
+  persistent = false,
   onClose,
   children,
 }: {
@@ -37,13 +38,23 @@ export function TouchOrderFrame({
   sheetScrollable?: boolean
   /** Let marked chart handles and portalled menus work outside the desktop frame. */
   allowOutsideControl?: boolean
+  /**
+   * Nothing outside the desktop frame closes it — no backdrop at all, so the
+   * chart underneath stays fully live and its preview lines can be dragged
+   * while the window is open. The window then needs its own close button;
+   * Escape still works. The narrow-screen sheet keeps its backdrop, because a
+   * phone has no chart to drag under a sheet.
+   */
+  persistent?: boolean
   onClose: () => void
   children: React.ReactNode
 }) {
   const ownDesktopRef = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
-    if (!wide || !allowOutsideControl) return
+    // A persistent frame ignores the outside entirely — its own × closes it —
+    // so the outside-control close must not fire either.
+    if (!wide || !allowOutsideControl || persistent) return
 
     const outside = (event: PointerEvent) => {
       const target = event.target
@@ -63,7 +74,7 @@ export function TouchOrderFrame({
     }
     document.addEventListener("pointerdown", outside, true)
     return () => document.removeEventListener("pointerdown", outside, true)
-  }, [allowOutsideControl, onClose, wide])
+  }, [allowOutsideControl, persistent, onClose, wide])
 
   if (!wide) {
     return (
@@ -97,17 +108,19 @@ export function TouchOrderFrame({
 
   return (
     <>
-      <div
-        className={cn(
-          "fixed inset-0 z-40",
-          allowOutsideControl && "pointer-events-none"
-        )}
-        onPointerDown={onClose}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onClose()
-        }}
-      />
+      {persistent ? null : (
+        <div
+          className={cn(
+            "fixed inset-0 z-40",
+            allowOutsideControl && "pointer-events-none"
+          )}
+          onPointerDown={onClose}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            onClose()
+          }}
+        />
+      )}
       <div
         // The measured context menu uses `desktopRef`; DCA uses the local ref
         // only for its outside-control exception. No frame needs both jobs.

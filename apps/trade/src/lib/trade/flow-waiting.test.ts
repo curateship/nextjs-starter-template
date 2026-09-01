@@ -44,8 +44,6 @@ describe("which refusals are the strategy working", () => {
   })
 
   it("explains custom Grid rung mistakes as something to correct", () => {
-    expect(flowWaitIsProblem("SMART_GRID_RUNG_SUM:99.5")).toBe(true)
-    expect(flowWaitWords("SMART_GRID_RUNG_SUM:99.5")).toContain("add up to 100")
     expect(flowWaitWords("SMART_GRID_RUNG_COUNT")).toContain("set the rungs")
     expect(flowWaitWords("SMART_GRID_RUNG_TOO_SMALL:4")).toContain(
       "custom rung comes out too small"
@@ -69,9 +67,6 @@ describe("what gets stored from an error", () => {
     expect(flowWaitCode(new Error("LIVE_WALLET_KEY"))).toBe("LIVE_WALLET_KEY")
     expect(flowWaitCode(new Error("SMART_RUNG_TOO_SMALL:2"))).toBe(
       "SMART_RUNG_TOO_SMALL:2"
-    )
-    expect(flowWaitCode(new Error("SMART_GRID_RUNG_SUM:99.5"))).toBe(
-      "SMART_GRID_RUNG_SUM:99.5"
     )
   })
 

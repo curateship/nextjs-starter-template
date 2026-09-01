@@ -68,7 +68,23 @@ export function OptionCard({
       onOpenChange={setOpen}
       className="grid gap-4 rounded-lg border bg-muted/30 p-3"
     >
-      <div className="flex items-center gap-2">
+      <div
+        className={cn("flex items-center gap-2", canFold && "cursor-pointer")}
+        /**
+         * The whole header folds the card, not only the chevron — a strip
+         * that says "Range −6%" reads as one control, and a click on it that
+         * does nothing reads as broken. The real controls keep their own
+         * jobs: a click that lands on the checkbox, the hint, the chevron —
+         * or, on a card with a switch, its label — is theirs alone.
+         */
+        onClick={(event) => {
+          if (!canFold) return
+          const target = event.target as Element
+          if (target.closest("button, input, [role='checkbox']")) return
+          if (toggle && target.closest("label")) return
+          setOpen(!open)
+        }}
+      >
         {toggle ? (
           <Checkbox
             id={id}

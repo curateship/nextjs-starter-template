@@ -194,12 +194,12 @@ export function ChartOrderMenu({
             </p>
             <IconRow
               label="DCA ladder"
-              icon={<LayersIcon className={cn("size-4", MADE_MONEY)} />}
+              icon={<LayersIcon className="size-4 text-muted-foreground" />}
               onPick={() => onPickSmart("dca")}
             />
             <IconRow
               label="Grid"
-              icon={<Grid2x2Icon className={cn("size-4", MADE_MONEY)} />}
+              icon={<Grid2x2Icon className="size-4 text-muted-foreground" />}
               onPick={() => onPickSmart("grid")}
             />
           </div>
@@ -231,7 +231,7 @@ function OrderTypeRow({
     return (
       <IconRow
         label="DCA ladder"
-        icon={<LayersIcon className={cn("size-4", MADE_MONEY)} />}
+        icon={<LayersIcon className="size-4 text-muted-foreground" />}
         onPick={() => onPickSmart("dca")}
       />
     )
@@ -239,7 +239,7 @@ function OrderTypeRow({
   return (
     <IconRow
       label="Grid"
-      icon={<Grid2x2Icon className={cn("size-4", MADE_MONEY)} />}
+      icon={<Grid2x2Icon className="size-4 text-muted-foreground" />}
       onPick={() => onPickSmart("grid")}
     />
   )

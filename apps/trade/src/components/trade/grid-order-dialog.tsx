@@ -36,9 +36,9 @@ import {
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
-import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { marketLeverageLimit } from "@/lib/trade/leverage"
-import { BUY_BUTTON, LOST_MONEY } from "@/lib/trade/money-tone"
+import { BUY_BUTTON, LOST_MONEY, SELL_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -46,7 +46,7 @@ import {
   DEFAULT_GRID_BELOW_PCT,
   DEFAULT_GRID_TAKE_PROFIT_PCT,
   defaultGridParams,
-  entrySide,
+  entryWord,
   gridEndPx,
   gridEvenRungPcts,
   gridLiquidationPx,
@@ -56,12 +56,10 @@ import {
   gridRowLevelIndex,
   gridRowRungNumber,
   gridRungNumber,
-  gridRungPctsFit,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridStopBeyond,
   reachedEntry,
-  readyWhen,
   GRID_ANCHOR_HINTS,
   GRID_ANCHOR_LABELS,
   GRID_ANCHORS,
@@ -106,8 +104,17 @@ export type GridOrderState = { px: number; x: number; y: number }
 export type GridPreviewLine = {
   px: number
   /** What this line is, which decides its colour and its name. */
-  kind: "level" | "upper" | "lower" | "takeProfit" | "stopLoss"
+  kind: "level" | "upper" | "lower" | "takeProfit" | "stopLoss" | "liquidation"
+  /** What this rung puts in, in dollars, shown as the chip a placed level gets. */
+  usd?: number
+  /** Words for the line's badge when the kind's own name is not enough. */
+  label?: string
+  /** This line can be dragged, and dropping it rewrites the window's fields. */
+  grip?: boolean
 }
+
+/** The preview lines a drag may move. A level's own price is not one of them. */
+export type GridPreviewDragKind = "upper" | "lower" | "takeProfit" | "stopLoss"
 
 /**
  * The whole preview: the lines, and which way round the grid being set up
@@ -122,6 +129,8 @@ export type GridPreview = {
   /** The rung number printed on each end of the range. */
   levelCount: number
   lines: GridPreviewLine[]
+  /** A gripped line was dropped at a price; the window rewrites its fields. */
+  onMoveLine?: (kind: GridPreviewDragKind, px: number) => void
 }
 
 /**
@@ -147,7 +156,6 @@ export function GridOrderDialog({
   state,
   wide = true,
   market,
-  wallet,
   equity,
   free,
   takerFeeRate,
@@ -162,11 +170,9 @@ export function GridOrderDialog({
   state: GridOrderState
   wide?: boolean
   market: MarketRow
-  /** The wallet this grid will live in. */
-  wallet: string
   /** What the account is worth — the pot the share is cut from. */
   equity: number
-  /** Cash not already behind something — what the grid must fit inside. */
+  /** Cash not already behind something, said in the header. */
   free: number
   /** One side of a round trip, for the "does the step clear the fee" check. */
   takerFeeRate: number
@@ -375,7 +381,23 @@ export function GridOrderDialog({
   // selling grid reaches UP.
   const clickDepth = direction === "long" ? below : above
 
-  const range = React.useMemo(() => {
+  /**
+   * A range set by dragging an edge on the chart, in plain prices.
+   *
+   * Tyler's rule: dragging an edge moves THAT edge, one for one, and nothing
+   * else. A click-hung range cannot say that in its one depth field — its
+   * other edge is solved from the depth, so writing the depth moves both —
+   * and "around today's price" cannot hold a range sitting entirely under
+   * the price at all. Prices can, and prices are what placing actually
+   * sends; the percent fields only seed the next window. Typing in the
+   * Range card takes the range back from the drag.
+   */
+  const [draggedRange, setDraggedRange] = React.useState<{
+    topPx: number
+    bottomPx: number
+  } | null>(null)
+
+  const typedRange = React.useMemo(() => {
     // Hanging off the click solves the far edge BACKWARDS from it, so the
     // clicked price gets its own level. `gridRangeFromClick` owns that
     // algebra, and the reason it is not simply "edge = click" is written there.
@@ -407,8 +429,17 @@ export function GridOrderDialog({
     market.price,
   ])
 
+  const range = draggedRange ?? typedRange
   const top = range?.topPx ?? null
   const bottom = range?.bottomPx ?? null
+
+  /** Typing into a range field takes the range back from a chart drag. */
+  const typeRange =
+    (set: (value: string) => void) =>
+    (value: string) => {
+      setDraggedRange(null)
+      set(value)
+    }
 
   const params = React.useMemo((): PlaceGridParams | null => {
     const candidate: PlaceGridParams = {
@@ -503,12 +534,6 @@ export function GridOrderDialog({
   // The preview dies with the window, whichever way it closes.
   React.useEffect(() => () => onPreview(null), [onPreview])
 
-  // Levels price has not passed yet. They trade nothing now: each one waits for
-  // price to go by and come back, and then opens at its own price.
-  const dormant =
-    plan?.levels.filter((one) => !readyWhen(direction, market.price, one.buyPx))
-      .length ?? 0
-
   const takeProfitPct = parsed(tpPct)
   const takeProfitPx =
     tpOn &&
@@ -535,6 +560,100 @@ export function GridOrderDialog({
         )
       : null
 
+  /**
+   * A preview line was dragged and dropped on the chart. The drop rewrites
+   * what the line came from — a percent field, or the hand-set range — so
+   * the window and the chart never say two different grids.
+   */
+  const onMoveLine = React.useCallback(
+    (kind: GridPreviewDragKind, px: number) => {
+      if (busy || !(px > 0)) return
+      const pct = (value: number) => String(Math.round(value * 100) / 100)
+      if (top === null || bottom === null) return
+      /**
+       * Dragging an edge moves THAT edge, one for one, and nothing else —
+       * Tyler's rule. Around today's price that is what the two fields
+       * already mean, so the drop writes the field. A click-hung range
+       * cannot say it in its one depth — its other edge is solved from the
+       * depth — so the drop becomes a hand-set range in plain prices, which
+       * is what placing sends anyway. A drop that would turn the range
+       * inside out changes nothing.
+       */
+      if (kind === "upper") {
+        if (!(px > bottom)) return
+        if (anchor === "click") {
+          touched(setDraggedRange)({ topPx: px, bottomPx: bottom })
+          return
+        }
+        const value = (px / market.price - 1) * 100
+        if (value > 0) touched(setAbovePct)(pct(value))
+        return
+      }
+      if (kind === "lower") {
+        if (!(px < top)) return
+        if (anchor === "click") {
+          touched(setDraggedRange)({ topPx: top, bottomPx: px })
+          return
+        }
+        const value = (1 - px / market.price) * 100
+        if (value > 0) touched(setBelowPct)(pct(value))
+        return
+      }
+      if (kind === "takeProfit") {
+        // `gridEndPx` at zero percent IS the edge it measures from, so the
+        // dropped price inverts against the same base the placement uses.
+        const from = gridEndPx(
+          direction,
+          { topPx: top, bottomPx: bottom },
+          market.price,
+          0
+        )
+        const value =
+          direction === "long" ? (px / from - 1) * 100 : (1 - px / from) * 100
+        if (value > 0) touched(setTpPct)(pct(value))
+        return
+      }
+      const edge = direction === "long" ? bottom : top
+      const value =
+        direction === "long" ? (1 - px / edge) * 100 : (px / edge - 1) * 100
+      if (value > 0) touched(setSlUnderPct)(pct(value))
+    },
+    [busy, anchor, market.price, direction, top, bottom, touched, setDraggedRange]
+  )
+
+  /**
+   * What firing the stop would cost if every level had opened first — the
+   * worst case, which is the one a stop exists for. Fees are not in it; they
+   * are unknowable before the fills.
+   */
+  const stopResultUsd =
+    plan && stopPx !== null
+      ? plan.levels.reduce(
+          (sum, level) =>
+            sum +
+            (stopPx - level.buyPx) *
+              level.sz *
+              (direction === "long" ? 1 : -1),
+          0
+        )
+      : null
+
+  // Where the exchange would take the whole trade, with every level open, and
+  // the margin that would be gone. Null when borrowing cannot reach it.
+  const liquidationPx =
+    plan && borrowing !== null && !borrowingInvalid
+      ? gridLiquidationPx({
+          direction,
+          levels: plan.levels,
+          leverage: borrowing,
+          maxLeverage: market.maxLeverage ?? 1,
+        })
+      : null
+  const liquidationUsd =
+    plan && borrowing !== null && borrowing > 0
+      ? plan.totalCost / borrowing
+      : null
+
   React.useEffect(() => {
     if (!plan) {
       onPreview(null)
@@ -544,17 +663,80 @@ export function GridOrderDialog({
     // ways out. One end of the range IS the deepest level's own price — the
     // bottom on a buying grid, the top on a selling one — so that one is drawn
     // once, as the range. Levels are ordered lowest price first either way.
+    // Each level carries its dollars, so the grid can be read before it is
+    // placed the way a placed one is read.
     const skip = direction === "long" ? 0 : plan.levels.length - 1
     const lines: GridPreviewLine[] = plan.levels
       .filter((_, index) => index !== skip)
-      .map((level) => ({ px: level.buyPx, kind: "level" as const }))
-    if (top !== null) lines.push({ px: top, kind: "upper" })
-    if (bottom !== null) lines.push({ px: bottom, kind: "lower" })
+      .map((level) => ({
+        px: level.buyPx,
+        kind: "level" as const,
+        usd: level.dollars,
+      }))
+    const deepUsd = plan.levels[skip]?.dollars
+    // Both edges drag, whatever the anchor. On a click-hung range the
+    // worked-out edge's drop is turned back into the one depth that puts it
+    // there — see `onMoveLine`.
+    if (top !== null) {
+      lines.push({
+        px: top,
+        kind: "upper",
+        grip: !busy,
+        usd: direction === "short" ? deepUsd : undefined,
+      })
+    }
+    if (bottom !== null) {
+      lines.push({
+        px: bottom,
+        kind: "lower",
+        grip: !busy,
+        usd: direction === "long" ? deepUsd : undefined,
+      })
+    }
     if (takeProfitPx !== null)
-      lines.push({ px: takeProfitPx, kind: "takeProfit" })
-    if (stopPx !== null) lines.push({ px: stopPx, kind: "stopLoss" })
-    onPreview({ direction, levelCount: plan.levels.length, lines })
-  }, [plan, direction, onPreview, top, bottom, takeProfitPx, stopPx])
+      lines.push({ px: takeProfitPx, kind: "takeProfit", grip: !busy })
+    if (stopPx !== null) {
+      lines.push({
+        px: stopPx,
+        kind: "stopLoss",
+        grip: !busy,
+        label:
+          stopResultUsd === null
+            ? undefined
+            : `STOP LOSS ${formatSignedUsd(stopResultUsd)}`,
+      })
+    }
+    if (liquidationPx !== null) {
+      lines.push({
+        px: liquidationPx,
+        kind: "liquidation",
+        label:
+          liquidationUsd === null
+            ? "LIQUIDATION"
+            : `LIQUIDATION ${formatSignedUsd(-liquidationUsd)}`,
+      })
+    }
+    onPreview({
+      direction,
+      levelCount: plan.levels.length,
+      lines,
+      onMoveLine,
+    })
+  }, [
+    plan,
+    direction,
+    onPreview,
+    top,
+    bottom,
+    takeProfitPx,
+    stopPx,
+    stopResultUsd,
+    liquidationPx,
+    liquidationUsd,
+    anchor,
+    busy,
+    onMoveLine,
+  ])
 
   /**
    * Would the exchange close this short out before the stop was reached?
@@ -565,18 +747,9 @@ export function GridOrderDialog({
    */
   const stopPastLiquidation =
     direction === "short" &&
-    plan !== null &&
     stopPx !== null &&
-    borrowing !== null &&
-    (() => {
-      const liq = gridLiquidationPx({
-        direction,
-        levels: plan.levels,
-        leverage: borrowing,
-        maxLeverage: market.maxLeverage ?? 1,
-      })
-      return liq !== null && reachedEntry(direction, stopPx, liq)
-    })()
+    liquidationPx !== null &&
+    reachedEntry(direction, stopPx, liquidationPx)
 
   // Every refusal the server would give, in the same order and wording as the
   // server. It appears after a bad field loses focus or Place is pressed.
@@ -593,9 +766,7 @@ export function GridOrderDialog({
             ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a share above zero.`
             : manualOn && !rungsUsable
               ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
-              : manualOn && !gridRungPctsFit(rungPcts)
-                ? `The rungs add up to ${Math.round(rungSum * 100) / 100}%, and they have to add up to 100% so the whole share of the account is used.`
-                : !params
+              : !params
                   ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
                   : plan &&
                       plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
@@ -701,8 +872,14 @@ export function GridOrderDialog({
       height={ORDER_WINDOW_HEIGHT}
       minimumHeight={MIN_ORDER_WINDOW_HEIGHT}
       title="Grid"
-      wallet={wallet}
+      // Red the moment the grid is a short, so the window and its button
+      // agree with the chart about which way the money points.
+      titleClassName={direction === "short" ? LOST_MONEY : undefined}
+      // Open while the rungs on the chart are dragged into place: nothing
+      // outside closes it, and its own × does. The header carries the free
+      // cash — Tyler asked for it back — but not the wallet name.
       free={free}
+      persistent
       onClose={onClose}
     >
       <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
@@ -712,21 +889,23 @@ export function GridOrderDialog({
             title="Range"
             hint={
               direction === "long"
-                ? "Where the grid works, and how many buys it is split into. Each buy sells one step above itself."
-                : "Where the grid works, and how many sells it is split into. Each sell buys back one step below itself."
+                ? "Where the grid works. Each buy sells one step above itself."
+                : "Where the grid works. Each short buys back one step below itself."
             }
             summary={
-              anchor === "click"
-                ? clickDepth === null
-                  ? "—"
-                  : direction === "long"
-                    ? `−${belowPct}%`
-                    : `+${abovePct}%`
-                : above === null || below === null
-                  ? "—"
-                  : above === below
-                    ? `±${belowPct}%`
-                    : `+${abovePct}% / −${belowPct}%`
+              draggedRange
+                ? `${formatPrice(draggedRange.bottomPx)} – ${formatPrice(draggedRange.topPx)}`
+                : anchor === "click"
+                  ? clickDepth === null
+                    ? "—"
+                    : direction === "long"
+                      ? `−${belowPct}%`
+                      : `+${abovePct}%`
+                  : above === null || below === null
+                    ? "—"
+                    : above === below
+                      ? `±${belowPct}%`
+                      : `+${abovePct}% / −${belowPct}%`
             }
           >
             {/* Which way round the grid runs. The first thing the card asks,
@@ -765,9 +944,11 @@ export function GridOrderDialog({
               <Select
                 value={anchor}
                 disabled={busy}
-                onValueChange={touched((next: string) =>
+                onValueChange={touched((next: string) => {
+                  // A new anchor speaks for the range again.
+                  setDraggedRange(null)
                   setAnchor(next as GridAnchor)
-                )}
+                })}
               >
                 <SelectTrigger
                   id="grid-anchor"
@@ -795,7 +976,7 @@ export function GridOrderDialog({
                   hint={
                     direction === "long"
                       ? "How far under the price you clicked the deepest buy sits."
-                      : "How far over the price you clicked the deepest sell sits."
+                      : "How far over the price you clicked the deepest short sits."
                   }
                 >
                   {direction === "long" ? "How far below %" : "How far above %"}
@@ -807,9 +988,11 @@ export function GridOrderDialog({
                   disabled={busy}
                   aria-invalid={showValidation && clickDepth === null}
                   onChange={(event) =>
-                    touched(direction === "long" ? setBelowPct : setAbovePct)(
-                      event.target.value
-                    )
+                    touched(
+                      typeRange(
+                        direction === "long" ? setBelowPct : setAbovePct
+                      )
+                    )(event.target.value)
                   }
                   onBlur={() => setShowValidation(true)}
                   className="bg-background"
@@ -828,7 +1011,7 @@ export function GridOrderDialog({
                     disabled={busy}
                     aria-invalid={showValidation && above === null}
                     onChange={(event) =>
-                      touched(setAbovePct)(event.target.value)
+                      touched(typeRange(setAbovePct))(event.target.value)
                     }
                     onBlur={() => setShowValidation(true)}
                     className="bg-background"
@@ -845,7 +1028,7 @@ export function GridOrderDialog({
                     disabled={busy}
                     aria-invalid={showValidation && below === null}
                     onChange={(event) =>
-                      touched(setBelowPct)(event.target.value)
+                      touched(typeRange(setBelowPct))(event.target.value)
                     }
                     onBlur={() => setShowValidation(true)}
                     className="bg-background"
@@ -853,20 +1036,25 @@ export function GridOrderDialog({
                 </div>
               </div>
             )}
+            {/* Said out loud, or the depth box above reads as the range while
+                the chart shows something else. */}
+            {draggedRange ? (
+              <p className="text-xs text-muted-foreground">
+                The range is where you dragged it:{" "}
+                {formatPrice(draggedRange.bottomPx)} to{" "}
+                {formatPrice(draggedRange.topPx)}. Typing a percent takes it
+                back.
+              </p>
+            ) : null}
             {/* The Rungs card counts the levels once it is on, so the box that
                 counts them here would be a second answer to one question.
-                Hidden rather than greyed out: a disabled box still showing a
-                number nothing is reading is a box that lies. */}
-            {manualOn ? (
-              <p className="text-xs text-muted-foreground">
-                Split by the Rungs card: {rungs.length} rung
-                {rungs.length === 1 ? "" : "s"}.
-              </p>
-            ) : (
+                Hidden entirely — the Rungs card's own header already says how
+                many rungs there are. */}
+            {manualOn ? null : (
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="grid-levels"
-                  hint={`How many ${entrySide(direction)}s the range is split into. Each one watches its own price, so ${MAX_GRID_LEVELS} is the most.`}
+                  hint={`How many ${entryWord(direction)}s the range is split into. ${MAX_GRID_LEVELS} is the most.`}
                 >
                   Levels
                 </FieldLabel>
@@ -904,34 +1092,27 @@ export function GridOrderDialog({
                 className="bg-background"
               />
             </div>
-            {/* A straddling grid still trades nothing at placement. Name the
-                  dormant levels so that waiting state is not mistaken for an
-                  immediate trade. */}
-            {dormant > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {dormant} level{dormant === 1 ? "" : "s"} sit{" "}
-                {direction === "long" ? "above" : "below"} the price. Placing
-                this {entrySide(direction)}s nothing: each level waits for price
-                to reach it and then {entrySide(direction)}s at its own price.
-              </p>
-            ) : null}
             {/* What each level puts up and what the whole grid costs.
 
                 A hand-set grid's levels are deliberately different sizes, so
                 one figure for "each" would be a figure that is true of no
                 level. It names the two ends instead, and every row in the
-                Rungs card says its own. */}
-            <div className="grid gap-1 text-xs text-muted-foreground">
+                Rungs card says its own.
+
+                On its own white surface — Tyler's ask — so the money reads
+                as the card's answer rather than more prose. bg-background is
+                the same surface the inputs above it sit on. */}
+            <div className="grid gap-1 rounded-lg border bg-background p-3 text-xs text-muted-foreground">
               {manualOn ? (
                 <>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span>Smallest {entrySide(direction)} controls</span>
+                    <span>Smallest {entryWord(direction)} controls</span>
                     <span className="tabular-nums">
                       {smallestUsd === null ? "—" : formatUsd(smallestUsd)}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span>Biggest {entrySide(direction)} controls</span>
+                    <span>Biggest {entryWord(direction)} controls</span>
                     <span className="tabular-nums">
                       {largestUsd === null ? "—" : formatUsd(largestUsd)}
                     </span>
@@ -940,13 +1121,13 @@ export function GridOrderDialog({
               ) : (
                 <>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span>Each {entrySide(direction)} controls</span>
+                    <span>Each {entryWord(direction)} controls</span>
                     <span className="tabular-nums">
                       {deepestUsd === null ? "—" : formatUsd(deepestUsd)}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span>Margin per {entrySide(direction)}</span>
+                    <span>Margin per {entryWord(direction)}</span>
                     <span className="tabular-nums">
                       {deepestMargin === null ? "—" : formatUsd(deepestMargin)}
                     </span>
@@ -978,7 +1159,7 @@ export function GridOrderDialog({
                 ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
                 : null
             }
-            hint={`Give each ${entrySide(direction)} its own share of the money instead of splitting it equally. The shares are percentages of Share of account %, and they add up to 100. Rung 1 is the first ${entrySide(direction)} the grid makes, which is the ${direction === "long" ? "top" : "bottom"} of the range — a ${direction === "long" ? "buying grid is reached on the way down" : "selling grid is reached on the way up"} — so the rows run ${direction === "long" ? "down" : "up"} the chart from there.`}
+            hint={`Each rung takes its own share of the money, as a percent of Share of account %. The total is whatever you type. Rung 1 is the first ${entryWord(direction)}.`}
           >
             {rungs.map((rung, index) => {
               // Rows read top of the range first; levels read bottom first.
@@ -992,23 +1173,28 @@ export function GridOrderDialog({
                   <span className="w-4 text-right text-xs text-muted-foreground">
                     {number}
                   </span>
-                  <Input
-                    id={`grid-rung-${number}`}
-                    inputMode="decimal"
-                    value={rung.value}
-                    disabled={busy}
-                    aria-label={`Rung ${number}, percent of the grid's money`}
-                    aria-invalid={showValidation && parsed(rung.value) === null}
-                    onChange={(event) =>
-                      touched(setRung)(rung.id, event.target.value)
-                    }
-                    onBlur={() => setShowValidation(true)}
-                    className="w-16 bg-background"
-                  />
+                  <div className="flex w-24 items-center gap-2">
+                    <Input
+                      id={`grid-rung-${number}`}
+                      inputMode="decimal"
+                      value={rung.value}
+                      disabled={busy}
+                      aria-label={`Rung ${number}, percent of the grid's money`}
+                      aria-invalid={
+                        showValidation && parsed(rung.value) === null
+                      }
+                      onChange={(event) =>
+                        touched(setRung)(rung.id, event.target.value)
+                      }
+                      onBlur={() => setShowValidation(true)}
+                      className="min-w-0 bg-background"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                  {/* The money, the way the DCA ladder's rows say it. The
+                      price is on the chart, where prices live. */}
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
-                    {level
-                      ? `${formatPrice(level.buyPx)} · ${formatUsd(level.dollars)}`
-                      : "—"}
+                    {level ? formatUsd(level.dollars) : "—"}
                   </span>
                   <Button
                     type="button"
@@ -1024,19 +1210,14 @@ export function GridOrderDialog({
                 </div>
               )
             })}
-            {/* Said out loud, because the whole rule of the card is that the
-                rows use the whole pot. */}
+            {/* The total is information, not a rule: the rows can add up to
+                whatever was typed, and the grid uses exactly that share of
+                the money. Tyler's rule, 1 Sep 2026. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Adds up to</span>
-              <span
-                className={cn(
-                  "tabular-nums",
-                  gridRungPctsFit(rungPcts)
-                    ? "text-muted-foreground"
-                    : LOST_MONEY
-                )}
-              >
+              <span className="tabular-nums text-muted-foreground">
                 {Math.round(rungSum * 100) / 100}%
+                {plan === null ? "" : ` · ${formatUsd(plan.totalCost)}`}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -1075,8 +1256,8 @@ export function GridOrderDialog({
             }
             hint={
               direction === "long"
-                ? "A fixed line above the range. The grid may keep following price up, but reaching this line closes it. The line usually sells nothing because every level has already sold by then. Without the line the grid keeps working until you stop it or its stop loss is hit."
-                : "A fixed line below the range. The grid may keep following price down, but reaching this line closes it. The line usually buys nothing because every level has already bought back by then. Without the line the grid keeps working until you stop it or its stop loss is hit."
+                ? "A fixed line above the range. Reaching it closes the grid. Without it the grid runs until you stop it or the stop loss fires."
+                : "A fixed line below the range. Reaching it closes the grid. Without it the grid runs until you stop it or the stop loss fires."
             }
             foldWhenOff={false}
             toggle={{
@@ -1131,8 +1312,8 @@ export function GridOrderDialog({
             }
             hint={
               direction === "long"
-                ? "A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
-                : "A stop above the top of the range. If price cuts through it, the whole short is bought back and the grid is over. It hangs off the range, not off your average sell price — an average that moves as the grid recycles would drag the stop down into the range."
+                ? "A stop below the range. Price cutting through it sells everything held and ends the grid."
+                : "A stop above the range. Price cutting through it buys the whole short back and ends the grid."
             }
           >
             <>
@@ -1179,9 +1360,9 @@ export function GridOrderDialog({
                 />
                 <FieldLabel
                   htmlFor="grid-reverse-on"
-                  hint="When the stop fires, everything it sold stays sold, and a grid running the other way is placed over the same range: its stop on the End Grid line, its End Grid the same distance past the fired stop as this stop sits past the range. The new grid starts with this switch off, so one bad afternoon cannot flip the account back and forth on its own. Needs End Grid switched on."
+                  hint="When the stop fires, a grid running the other way is placed over the same range, with its stop on the End Grid line. The new grid starts with this off. Needs End Grid on."
                 >
-                  Reverse when stopped
+                  Reverse on stop loss
                 </FieldLabel>
               </div>
               <BaseStopFields
@@ -1217,10 +1398,10 @@ export function GridOrderDialog({
                 htmlFor="grid-leverage"
                 hint={
                   fixedLeverage === null
-                    ? "How many dollars of coin each dollar behind the grid buys. 1 is cash. A higher choice lets the exchange close the position if it falls far enough."
+                    ? "Dollars of coin per dollar behind the grid. 1 is cash; higher risks the exchange closing the position."
                     : positionLeverage !== null
-                      ? "The position already held in this wallet fixed the borrowing for this coin. Grid buys add to the same position, so they must use the same number."
-                      : "The DCA ladder already fixed the borrowing for this coin. The grid shares the same exchange position, so both must use the same number."
+                      ? "Fixed by the position already held on this coin — one position, one borrowing."
+                      : "Fixed by the DCA ladder on this coin — one position, one borrowing."
                 }
               >
                 Borrowing ×
@@ -1251,8 +1432,8 @@ export function GridOrderDialog({
                 htmlFor="grid-follow"
                 hint={
                   direction === "long"
-                    ? "When price climbs past the top, the range slides up behind it. End Grid stays fixed and closes the grid when price reaches it. Levels the same dollars apart stop following once a round trip no longer clears the fee."
-                    : "Careful: this walks a selling grid towards its loss. When price climbs past the top, the range adds one new higher sell per pass. Levels already sold keep their buy-back prices, and the stop stays where it was set."
+                    ? "Price past the top slides the range up behind it. End Grid stays fixed."
+                    : "Careful: walks the grid towards its loss, adding one higher short per pass. Sold levels keep their buy-backs."
                 }
               >
                 Follow price up
@@ -1271,8 +1452,8 @@ export function GridOrderDialog({
                 htmlFor="grid-follow-down"
                 hint={
                   direction === "long"
-                    ? "Careful: this walks a buying grid towards its loss. When price falls through the bottom, the range adds one new lower buy per pass. Filled levels above it keep their sell prices, and the stop stays where it was set."
-                    : "When price falls past the bottom, the range slides down behind it. End Grid stays fixed and closes the grid when price reaches it. Levels the same dollars apart stop following once a round trip no longer clears the fee."
+                    ? "Careful: walks the grid towards its loss, adding one lower buy per pass. Filled levels keep their sells."
+                    : "Price past the bottom slides the range down behind it. End Grid stays fixed."
                 }
               >
                 Follow price down
@@ -1307,7 +1488,7 @@ export function GridOrderDialog({
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-vol-pct"
-                hint="No single buy bigger than this share of the coin's last-24-hours volume, so thin coins get small orders. 0 turns it off."
+                hint="Caps each buy at this share of the coin's daily volume. 0 turns it off."
               >
                 Liquidity guard %
               </FieldLabel>
@@ -1350,10 +1531,15 @@ export function GridOrderDialog({
             showValidation && refusal ? "grid-refusal" : undefined
           }
           disabled={busy}
-          className={cn("w-full", BUY_BUTTON)}
+          // Green places buys, red places shorts — the button agrees with the
+          // window's own label about which way the money points.
+          className={cn(
+            "w-full",
+            direction === "long" ? BUY_BUTTON : SELL_BUTTON
+          )}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-          {`Place${plan ? ` ${plan.levels.length}` : ""} ${entrySide(direction)}${
+          {`Place${plan ? ` ${plan.levels.length}` : ""} ${entryWord(direction)}${
             plan && plan.levels.length === 1 ? "" : "s"
           }`}
         </Button>

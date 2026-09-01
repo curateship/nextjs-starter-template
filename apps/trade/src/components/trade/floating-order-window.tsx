@@ -1,5 +1,5 @@
 import * as React from "react"
-import { GripVerticalIcon } from "lucide-react"
+import { GripVerticalIcon, XIcon } from "lucide-react"
 
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { formatUsd } from "@/lib/trade/format"
@@ -36,6 +36,7 @@ export function FloatingOrderWindow({
   wallet,
   free,
   chartPreviewControls = false,
+  persistent = false,
   onClose,
   children,
 }: {
@@ -49,10 +50,16 @@ export function FloatingOrderWindow({
   minimumHeight?: number
   title: string
   titleClassName?: string
-  wallet: string
+  wallet?: string
   free?: number
   /** Let marked chart-preview handles work outside this desktop frame. */
   chartPreviewControls?: boolean
+  /**
+   * Keep the window open when the chart is clicked: no backdrop, so the chart
+   * stays live underneath. The header then carries its own × — see
+   * `closeButton`, which this switches on by itself.
+   */
+  persistent?: boolean
   onClose: () => void
   children: React.ReactNode
 }) {
@@ -135,6 +142,7 @@ export function FloatingOrderWindow({
       }}
       sheetScrollable={!longForm}
       allowOutsideControl={chartPreviewControls}
+      persistent={persistent}
       onClose={onClose}
     >
       <div
@@ -148,20 +156,43 @@ export function FloatingOrderWindow({
       >
         <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
         <span
-          className={cn("text-sm font-semibold", MADE_MONEY, titleClassName)}
+          // The green is only the default. A caller's own colour replaces it
+          // outright — merged, the default's dark-mode half survived and a
+          // red title flipped back to green on a dark screen.
+          className={cn("text-sm font-semibold", titleClassName ?? MADE_MONEY)}
         >
           {title}
         </span>
-        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate font-medium text-foreground">
-            {wallet}
+        {wallet || free !== undefined ? (
+          <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            {wallet ? (
+              <span className="min-w-0 truncate font-medium text-foreground">
+                {wallet}
+              </span>
+            ) : null}
+            {free === undefined ? null : (
+              <span className="shrink-0 tabular-nums">
+                {wallet ? "· " : null}
+                {formatUsd(free)} free
+              </span>
+            )}
           </span>
-          {free === undefined ? null : (
-            <span className="shrink-0 tabular-nums">
-              · {formatUsd(free)} free
-            </span>
-          )}
-        </span>
+        ) : null}
+        {/* A window nothing outside can close carries its own way out. */}
+        {persistent ? (
+          <button
+            type="button"
+            aria-label="Close the window"
+            className={cn(
+              "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none",
+              !(wallet || free !== undefined) && "ml-auto"
+            )}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onClose}
+          >
+            <XIcon className="size-4" />
+          </button>
+        ) : null}
       </div>
 
       {children}

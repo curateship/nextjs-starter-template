@@ -76,7 +76,6 @@ export function SmartOrderDialog({
   state,
   wide = true,
   market,
-  wallet,
   equity,
   free,
   interval,
@@ -89,8 +88,6 @@ export function SmartOrderDialog({
   state: SmartOrderState
   wide?: boolean
   market: MarketRow
-  /** The wallet this ladder will live in. */
-  wallet: string
   /** What the account is worth — the pot the shares are cut from. */
   equity: number
   /** Cash not already behind something — what the ladder must fit inside. */
@@ -371,9 +368,12 @@ export function SmartOrderDialog({
       height={ORDER_WINDOW_HEIGHT}
       minimumHeight={MIN_ORDER_WINDOW_HEIGHT}
       title="DCA ladder"
-      wallet={wallet}
+      // The free cash and no wallet name, the grid window's header rule.
       free={free}
       chartPreviewControls
+      // Open while the ladder's handles are dragged on the chart: nothing
+      // outside closes it, and its own × does.
+      persistent
       onClose={onClose}
     >
       <ScrollArea className="h-full">
@@ -418,7 +418,9 @@ export function SmartOrderDialog({
           className={cn("w-full", BUY_BUTTON)}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-          {`Place${plan ? ` ${plan.rungs.length}` : ""} buy${
+          {/* "Long", not "buy" — Tyler's word for it, the way a short
+              grid's entries are "shorts". */}
+          {`Place${plan ? ` ${plan.rungs.length}` : ""} long${
             plan && plan.rungs.length === 1 ? "" : "s"
           }`}
         </Button>

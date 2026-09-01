@@ -178,8 +178,6 @@ const NEEDS_A_PERSON: Record<string, string> = {
     "A custom rung comes out too small to be an order — give it a bigger share or give the grid more money",
   SMART_GRID_RUNG_COUNT:
     "The custom rung shares no longer match the number of rungs — open Grid and set the rungs again",
-  SMART_GRID_RUNG_SUM:
-    "The custom rung shares do not add up to 100 — open Grid and correct the shares",
   SMART_GRID_TARGET_PASSED:
     "End Grid is already behind the current price — move the line farther away",
   LIVE_GRID_STOP_CANCEL:
@@ -233,9 +231,8 @@ export function flowWaitCode(error: unknown): string {
   // so the ones worth naming are recognised here. Everything else still falls
   // through to "no words for it" and is written to the log to be named later.
   if (/insufficient margin/i.test(message)) return "EXCHANGE_NO_MARGIN"
-  // `SMART_RUNG_TOO_SMALL:3` names a rung, while
-  // `SMART_GRID_RUNG_SUM:99.5` names a safe numeric total. Those figures are
-  // worth keeping, but free-form error text is still thrown away.
+  // `SMART_RUNG_TOO_SMALL:3` names a rung, and figures like it are worth
+  // keeping, but free-form error text is still thrown away.
   return /^[A-Z][A-Z0-9_]*(?::\d+(?:\.\d+)?)?$/.test(message)
     ? message
     : "FLOW_UNKNOWN"

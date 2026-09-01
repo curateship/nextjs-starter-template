@@ -1615,8 +1615,16 @@ export function ChartPanel({
           }}
           onPickSmart={(preset) => {
             const at = { px: menu.price, x: menu.x, y: menu.y }
-            if (preset === "grid") setGrid(at)
-            else setSmart(at)
+            // One smart window at a time. Both stay open through outside
+            // clicks now, so without this the two could stack and one
+            // Escape would close the pair.
+            if (preset === "grid") {
+              setSmart(null)
+              setGrid(at)
+            } else {
+              setGrid(null)
+              setSmart(at)
+            }
             setMenu(null)
           }}
           // Only when the click is on the winning side of the entry — a
@@ -1706,7 +1714,9 @@ export function ChartPanel({
             <LazyOrderWindowFallback
               state={smart}
               wide={wide}
-              wallet={trading.wallet?.label ?? ""}
+              // The DCA window's header carries the free cash but no wallet
+              // name, so the loading frame matches.
+              wallet=""
               free={free}
               title="DCA order"
               onClose={() => setSmart(null)}
@@ -1717,7 +1727,6 @@ export function ChartPanel({
             state={smart}
             wide={wide}
             market={market}
-            wallet={trading.wallet?.label ?? ""}
             equity={equity}
             free={free}
             interval={interval}
@@ -1747,7 +1756,9 @@ export function ChartPanel({
             <LazyOrderWindowFallback
               state={grid}
               wide={wide}
-              wallet={trading.wallet?.label ?? ""}
+              // The grid window's header carries the free cash but no wallet
+              // name, so the loading frame matches.
+              wallet=""
               free={free}
               title="Grid order"
               onClose={() => setGrid(null)}
@@ -1758,7 +1769,6 @@ export function ChartPanel({
             state={grid}
             wide={wide}
             market={market}
-            wallet={trading.wallet?.label ?? ""}
             equity={equity}
             free={free}
             takerFeeRate={TAKER_FEE_RATE}

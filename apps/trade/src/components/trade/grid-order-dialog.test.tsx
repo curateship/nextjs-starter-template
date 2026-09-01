@@ -74,8 +74,7 @@ describe("the grid window's saved settings", () => {
     >["onPlace"] = async () => false,
     onPreview: React.ComponentProps<typeof GridOrderDialog>["onPreview"] = () =>
       undefined,
-    positionLeverage: number | null = null,
-    free = 1_000
+    positionLeverage: number | null = null
   ) => {
     await act(async () => {
       root.render(
@@ -83,9 +82,8 @@ describe("the grid window's saved settings", () => {
           <GridOrderDialog
             state={{ px: 80, x: 20, y: 20 }}
             market={market}
-            wallet="Practice"
             equity={1_000}
-            free={free}
+            free={800}
             takerFeeRate={0.00045}
             busy={false}
             positionLeverage={positionLeverage}
@@ -182,8 +180,8 @@ describe("the grid window's saved settings", () => {
       await Promise.resolve()
     })
 
-    expect(document.body.textContent).toContain("$100, $90 and $80")
-    expect(document.body.textContent).toContain("$100, $90 and $81")
+    expect(document.body.textContent).toContain("$100, $90, $80")
+    expect(document.body.textContent).toContain("$100, $90, $81")
   })
 
   it("keeps follow settings inside Advanced without a folded summary", async () => {
@@ -222,6 +220,16 @@ describe("the grid window's saved settings", () => {
     expect(directionBox("short")?.getAttribute("data-state")).toBe("unchecked")
     expect(host.textContent).toContain("Below the bottom %")
     expect(host.textContent).toContain("Stop under the base")
+    // The level stop is a plain checkbox row, not a card of its own: no fold
+    // chevron, and its two boxes only exist while it is ticked.
+    expect(
+      host.querySelector('button[aria-label="Show Stop under the base"]')
+    ).toBeNull()
+    expect(host.querySelector("#base-stop-under")).toBeNull()
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("#base-stop-on")?.click()
+    )
+    expect(host.querySelector("#base-stop-under")).not.toBeNull()
   })
 
   it("never leaves the grid with no direction at all", async () => {
@@ -257,12 +265,117 @@ describe("the grid window's saved settings", () => {
     // And the 4h level the stop can ride is a ceiling, not a floor.
     expect(host.textContent).toContain("Stop above resistance")
     expect(host.textContent).not.toContain("Stop under the base")
-    // And the button says what it will actually do.
+    // And the button says what it will actually do, in Tyler's word for it.
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.includes("Place")
     )
-    expect(place?.textContent).toContain("sells")
+    expect(place?.textContent).toContain("shorts")
   })
+
+  it("turns the window red the moment the grid is a short", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    const title = [...host.querySelectorAll<HTMLSpanElement>("span")].find(
+      (span) => span.textContent === "Grid"
+    )
+    const placeButton = () =>
+      [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+        button.textContent?.includes("Place")
+      )
+    // A buying grid is green, like every made-money figure.
+    expect(title?.className).toContain("emerald")
+    expect(placeButton()?.className).toContain("emerald")
+
+    await sellTheRallies()
+    expect(title?.className).toContain("destructive")
+    // The green must go completely — a merged dark-mode leftover flipped a
+    // red title back to green on a dark screen.
+    expect(title?.className).not.toContain("emerald")
+    expect(placeButton()?.className).toContain("destructive")
+  }, 15_000)
+
+  it("stays open on its own and closes from its own ×", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    // No backdrop: the chart underneath stays live for dragging the rungs.
+    expect(host.querySelector(".fixed.inset-0")).toBeNull()
+    // The way out is the header's own ×.
+    expect(
+      host.querySelector('button[aria-label="Close the window"]')
+    ).not.toBeNull()
+    // The header says the free cash — Tyler asked for it back — but never
+    // the wallet's name.
+    expect(host.textContent).toContain("$800.00 free")
+  }, 15_000)
+
+  it("hands the chart draggable edges and the money on every rung", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    let last: GridPreview | null = null
+    await renderDialog(undefined, (preview) => {
+      last = preview
+    })
+
+    const preview = last as GridPreview | null
+    expect(preview).not.toBeNull()
+    // The ends and both exits can be dragged before anything is placed…
+    const upper = preview?.lines.find((one) => one.kind === "upper")
+    const stop = preview?.lines.find((one) => one.kind === "stopLoss")
+    expect(upper?.grip).toBe(true)
+    expect(stop?.grip).toBe(true)
+    expect(preview?.onMoveLine).toBeTypeOf("function")
+    // …every rung says what it puts in…
+    const level = preview?.lines.find((one) => one.kind === "level")
+    expect(level?.usd ?? 0).toBeGreaterThan(0)
+    // …and the stop says what firing it would cost.
+    expect(stop?.label).toMatch(/^STOP LOSS -\$/)
+  }, 15_000)
+
+  it("moves only the dragged edge of a click-hung range", async () => {
+    // Tyler's rule: dragging an edge moves THAT edge, one for one. The
+    // click-hung range cannot say that in its one depth field, so the drop
+    // becomes a hand-set range in plain prices, and the window says so.
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), anchor: "click" },
+    })
+    let last: GridPreview | null = null
+    await renderDialog(undefined, (preview) => {
+      last = preview
+    })
+    await act(async () => Promise.resolve())
+
+    let preview = last as GridPreview | null
+    const upper = preview?.lines.find((one) => one.kind === "upper")
+    const lowerBefore = preview?.lines.find((one) => one.kind === "lower")
+    expect(upper?.grip).toBe(true)
+    expect(lowerBefore?.grip).toBe(true)
+
+    const dropPx = (upper?.px ?? 0) * 1.04
+    await act(async () => preview?.onMoveLine?.("upper", dropPx))
+
+    preview = last as GridPreview | null
+    const upperAfter = preview?.lines.find((one) => one.kind === "upper")
+    const lowerAfter = preview?.lines.find((one) => one.kind === "lower")
+    // The dragged edge lands where it was dropped; the other does not move.
+    expect(upperAfter?.px).toBeCloseTo(dropPx, 9)
+    expect(lowerAfter?.px).toBeCloseTo(lowerBefore?.px ?? 0, 9)
+    // The window says the range is hand-set now.
+    expect(host.textContent).toContain("The range is where you dragged it")
+
+    // Typing a depth takes the range back from the drag.
+    const depth = host.querySelector<HTMLInputElement>("#grid-click-depth")
+    expect(depth).not.toBeNull()
+    await act(async () => {
+      // Through the native setter, or React's controlled input ignores it.
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(depth, "12")
+      depth!.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(host.textContent).not.toContain("The range is where you dragged it")
+  }, 15_000)
 
   it("sends the chosen direction with the grid", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
@@ -283,9 +396,11 @@ describe("the grid window's saved settings", () => {
   })
 
   it("places a watched grid without reserving its levels from today's free cash", async () => {
+    // The window no longer even hears about free cash — it sizes from the
+    // account's worth alone, which is this test's whole point.
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     const onPlace = vi.fn(async () => true)
-    await renderDialog(onPlace, undefined, null, 1)
+    await renderDialog(onPlace)
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.startsWith("Place")
@@ -656,11 +771,15 @@ describe("the grid window's saved settings", () => {
       ])
     })
 
-    it("refuses rows that do not add up to 100", async () => {
+    it("takes rows adding to any total, and says the money it comes to", async () => {
+      // Tyler's rule, 1 Sep 2026: "There's no need for the rungs to be at
+      // 100% combined. It can be whatever I put." Rows summing to 80 use
+      // 80% of the pot, and the card says so instead of refusing.
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: { ...defaultGridParams(), levels: 4 },
       })
-      await renderDialog()
+      const onPlace = vi.fn(async () => true)
+      await renderDialog(onPlace)
       await act(async () => Promise.resolve())
       await switchOn()
 
@@ -669,19 +788,32 @@ describe("the grid window's saved settings", () => {
       await typeInto(rungBoxes()[2], "30")
       await typeInto(rungBoxes()[3], "20")
 
-      // The card says the running total the moment it is off.
-      expect(host.textContent).toContain("Adds up to80%")
+      // The running total, in percent and in dollars, never in red.
+      expect(host.textContent).toContain("Adds up to80% · $")
+      expect(host.textContent).not.toContain("have to add up to 100%")
 
-      // And pressing Place says why, rather than placing four fifths of a grid.
-      const onPlace = vi.fn(async () => false)
+      // And pressing Place places it.
       const place = [
         ...host.querySelectorAll<HTMLButtonElement>("button"),
       ].find((button) => button.textContent?.includes("Place"))
       await act(async () => place?.click())
-      expect(onPlace).not.toHaveBeenCalled()
-      expect(host.textContent).toContain(
-        "The rungs add up to 80%, and they have to add up to 100%"
-      )
+      expect(onPlace).toHaveBeenCalledOnce()
+    })
+
+    it("shows each rung as a share and its money, without the price", async () => {
+      // The row reads like the DCA ladder's: the typed %, then the dollars.
+      // The prices live on the chart.
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 4 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      const row = rungBoxes()[0]?.closest("div")?.parentElement
+      expect(row?.textContent).toContain("%")
+      expect(row?.textContent).toContain("$")
+      expect(row?.textContent).not.toMatch(/\$[\d,.]+ · \$/)
     })
   })
 

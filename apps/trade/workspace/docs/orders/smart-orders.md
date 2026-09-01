@@ -279,6 +279,13 @@ The ladder has been on watched levels since 14 Aug 2026. Placing one sends
 nothing anywhere, and each rung fires at market the moment the live price
 crosses it, checked every second, the same as the grid.
 
+**The ladder's window follows the grid window's rules**, on Tyler's ask,
+1 Sep 2026. Nothing outside it closes it — the chart stays live for dragging
+the ladder's handles — and it closes from the × in its header or Escape. The
+header says "DCA ladder" and the free cash, never the wallet's name. The
+button says "Place 4 longs": the ladder's entries are longs, the way a short
+grid's entries are shorts.
+
 The one place a resting rung still exists is inside a backtest. The replay's own
 book models a watched level as an order the bar's wick fills, so crash-day
 results stay comparable with everything measured before. On a real book there
