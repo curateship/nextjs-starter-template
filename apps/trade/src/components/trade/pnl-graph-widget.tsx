@@ -60,7 +60,7 @@ const WALLET_COLORS = [
   "var(--chart-5)",
 ] as const
 
-const RANGE_PRESETS = ["1w", "1m", "3m", "6m", "all"] as const
+const RANGE_PRESETS = ["1d", "1w", "1m", "3m", "6m", "all"] as const
 type RangePreset = (typeof RANGE_PRESETS)[number]
 type ProfitRange = {
   preset: RangePreset | "custom"
@@ -69,6 +69,7 @@ type ProfitRange = {
 }
 
 const RANGE_LABELS: Record<RangePreset, string> = {
+  "1d": "1D",
   "1w": "1W",
   "1m": "1M",
   "3m": "3M",
@@ -159,6 +160,13 @@ function profitRangeDates(
     return {
       from: range.from ?? firstAt,
       to: range.to ?? lastAt,
+    }
+  }
+  if (range.preset === "1d") {
+    const today = new Date()
+    return {
+      from: firstAt === undefined ? undefined : startOfDay(today).getTime(),
+      to: lastAt === undefined ? undefined : endOfDay(today).getTime(),
     }
   }
   const presetFrom =

@@ -49,8 +49,9 @@ stay at the bottom when sorting by money. The last sort is remembered in this
 browser.
 
 The graph records results from midnight on 20 August 2026 in Toronto through
-the latest account read. Controls in the card's top-right space show one week,
-one month, three months, six months, or all recorded results. The two calendar
+the latest account read. Controls in the card's top-right space show today, one
+week, one month, three months, six months, or all recorded results. Today means
+the current calendar day from midnight, not the last 24 hours. The two calendar
 fields set an exact start and end date, and Reset returns to All. Every wallet
 line changes together. Filtering crops the graph without changing the current
 account and wallet figures. Dates outside recorded history show that no results

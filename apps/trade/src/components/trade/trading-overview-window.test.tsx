@@ -133,9 +133,32 @@ describe("what the widgets say about when they started", () => {
     expect(header?.className).toContain("border-b-0")
     expect(shown).not.toContain("since 4 days ago")
     expect(shown).not.toContain("made or lost ·")
-    expect(shown).toContain("1W1M3M6MAll")
+    expect(shown).toContain("1D1W1M3M6MAll")
     expect(shown).toContain("Reset")
     expect(shown).not.toContain("Total balance")
+  })
+
+  it("filters 1D to today", async () => {
+    show("2026-08-24T16:00:00.000Z")
+    const today = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent === "1D"
+    )
+
+    await act(async () => {
+      today?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, button: 0 })
+      )
+    })
+
+    expect(
+      host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
+    ).toBe("1D")
+    expect(host.querySelector("#pnl-from-date")?.textContent).toContain(
+      "August 24th, 2026"
+    )
+    expect(host.querySelector("#pnl-to-date")?.textContent).toContain(
+      "August 24th, 2026"
+    )
   })
 
   it("selects All wallets first and lets another wallet be selected", () => {
