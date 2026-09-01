@@ -82,6 +82,7 @@ const updateSchema = z.object({
   walletId: z.string().max(36),
   orderId: z.string().max(36),
   sz: z.number().positive().finite(),
+  leverage: z.number().min(1).max(100),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
 })

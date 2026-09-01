@@ -35,6 +35,7 @@ import {
   cancelFlowLadderRest,
   cancelSignalRest,
   cancelWatchOrder,
+  editWatchOrder,
   listActiveSmartOrders,
   listActiveSmartOrdersIfChanged,
   placeDcaLadder,
@@ -711,6 +712,104 @@ describe("cancelling a watched order", () => {
     await expect(
       cancelWatchOrder(userId, wallet.id, watch.id)
     ).resolves.toEqual({ cancelled: true })
+  })
+})
+
+describe("editing a watched order", () => {
+  it("changes a stop loss without adding a take profit", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await editWatchOrder(userId, wallet.id, watch.id, {
+      sz: 1.5,
+      leverage: 3,
+      tpPx: null,
+      slPx: 88,
+    })
+
+    const [edited] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!edited || edited.kind !== "watch") throw new Error("expected watch")
+    expect(edited.plan).toMatchObject({
+      sz: 1.5,
+      leverage: 3,
+      tpPx: null,
+      slPx: 88,
+    })
+  })
+
+  it("refuses changes after the watched order starts taking", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: 88,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+    await saveLadderPlan(
+      userId,
+      watch.id,
+      {
+        ...watch.plan,
+        phase: "taking",
+        sent: true,
+        orderId: "resting-1",
+      },
+      "active"
+    )
+
+    await expect(
+      editWatchOrder(userId, wallet.id, watch.id, {
+        sz: 1,
+        leverage: 1,
+        tpPx: null,
+        slPx: 87,
+      })
+    ).rejects.toThrow("SMART_WATCH_TAKING")
+  })
+
+  it("refuses leverage above the watched market maximum", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await expect(
+      editWatchOrder(userId, wallet.id, watch.id, {
+        sz: 1,
+        leverage: 51,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_LEVERAGE")
+
+    const [unchanged] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!unchanged || unchanged.kind !== "watch") {
+      throw new Error("expected watch")
+    }
+    expect(unchanged.plan.leverage).toBe(1)
   })
 })
 

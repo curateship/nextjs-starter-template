@@ -613,6 +613,106 @@ describe("the chart stop-loss shortcut", () => {
     expect(setBrackets).not.toHaveBeenCalled()
     expect(host.textContent).not.toContain("Stop loss")
   })
+
+  it("offers the clicked stop for a manual order that is still waiting", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    const editOrder = vi.fn(async () => true)
+    const dragBrackets = vi.fn(async () => undefined)
+    const watched = {
+      id: "watch-1",
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:BTC",
+      side: "buy" as const,
+      px: 100,
+      sz: 2,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: 120,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true as const,
+    }
+    const oneTrading = {
+      ...trading,
+      wallet: { id: "wallet-1" },
+      positions: [
+        {
+          id: "another-position",
+          walletId: "wallet-1",
+          marketKey: "hyperliquid:BTC",
+          szi: 1,
+          entryPx: 100,
+          leverage: 1,
+          maxLeverage: 50,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          feesPaid: 0,
+          updatedAt: 1,
+        },
+      ],
+      watchOrders: [watched],
+      walletNames: new Map([["wallet-1", "Practice"]]),
+      editOrder,
+      dragBrackets,
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="hyperliquid:BTC"
+          interval="15m"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={{ key: "hyperliquid:BTC" } as never}
+          trading={oneTrading}
+          free={1000}
+          equity={1000}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    const plot = host.firstElementChild
+    await act(async () => {
+      plot?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+    const stop = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent === "Stop loss"
+    )
+    expect(stop).toBeDefined()
+    await act(async () => stop?.click())
+
+    expect(editOrder).toHaveBeenCalledWith("wallet-1", "watch-1", {
+      sz: 2,
+      leverage: 1,
+      tpPx: 120,
+      slPx: 90,
+    })
+    expect(dragBrackets).not.toHaveBeenCalled()
+  })
 })
 
 describe("the chart take-profit shortcut", () => {

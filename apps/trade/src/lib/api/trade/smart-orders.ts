@@ -432,12 +432,13 @@ const cancelWatchFn = createServerFn({ method: "POST" })
     return await cancelWatchRow(context.user.id, data.walletId, data.ladderId)
   })
 
-/** Changes a watched price's size, stop and target, while it is still watching. */
+/** Changes a watched price's size, leverage, stop and target while it waits. */
 const editWatchFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     ladderSchema.extend({
       sz: z.number().positive().finite(),
+      leverage: z.number().min(1).max(100),
       tpPx: z.number().positive().finite().nullable(),
       slPx: z.number().positive().finite().nullable(),
     })
@@ -446,6 +447,7 @@ const editWatchFn = createServerFn({ method: "POST" })
     await tradingWallet(context.user.id, data.walletId)
     return await editWatchRow(context.user.id, data.walletId, data.ladderId, {
       sz: data.sz,
+      leverage: data.leverage,
       tpPx: data.tpPx,
       slPx: data.slPx,
     })
@@ -560,6 +562,7 @@ export function editWatch(input: {
   walletId: string
   ladderId: string
   sz: number
+  leverage: number
   tpPx: number | null
   slPx: number | null
 }) {

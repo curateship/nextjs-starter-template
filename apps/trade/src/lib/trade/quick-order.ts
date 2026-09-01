@@ -18,7 +18,15 @@ export const quickOrderPrefsSchema = z.object({
   /** The number typed beside it, kept as typed so it comes back the same. */
   size: z.string().max(24),
   leverage: z.number().int().min(1).max(100),
+  /** The old combined switch. True still means both lines are on. */
   bracketOn: z.boolean(),
+  /** Independent switches added after the combined bracket control. */
+  stopOn: z.boolean().default(false),
+  targetOn: z.boolean().default(false),
+  /** Whether the stop box holds a distance or the exact losing price. */
+  stopUnit: z.enum(["pct", "price"]).default("pct"),
+  /** The exact stop price, kept separately from the old percent value. */
+  stopPrice: z.string().max(24).default(""),
   stopPct: z.string().max(12),
   targetPct: z.string().max(12),
 })
@@ -31,6 +39,10 @@ export const DEFAULT_QUICK_ORDER: QuickOrderPrefs = {
   size: "",
   leverage: 1,
   bracketOn: false,
+  stopOn: false,
+  targetOn: false,
+  stopUnit: "pct",
+  stopPrice: "",
   stopPct: "2",
   targetPct: "5",
 }

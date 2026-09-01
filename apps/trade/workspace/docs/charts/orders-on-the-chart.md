@@ -62,12 +62,17 @@ does not close the position immediately.
 - **A waiting order shows its stop and its target too**, in the same green and
   red as a position's but in a finer dash — they are where the trade will get
   out once the order fills, which is a plan rather than a fact. The bar says
-  what each would pay in dollars if it got there. Neither can be dragged: they
-  hang off the order's price, so the order's own window is where they change.
+  what each would pay in dollars if it got there. Either line can be dragged,
+  and the order's own window can change both together.
 - **Pressing a waiting order's bar opens that window** — how much the order is
-  for, and where it gets out. Not its price: the price is the line, and you
-  drag it. The window shows what the size costs in dollars and how much of your
-  own cash is behind it, and the same window is what the ⚙ on the bar means.
+  for, the leverage it will use, and where it gets out. Not its price: the
+  price is the line, and you drag it. The bar carries the same 12px settings
+  cog as the Grid bar and other editable orders, tucked directly after the
+  order label with the Grid bar's small gap. Its compact settings window opens
+  beside that cog and leaves the chart visible; it is not a page modal. Its
+  header only says Order settings, without repeating a long wallet name. The
+  window's leverage slider changes both the saved order and the amount of your
+  own cash shown under its size.
 - **Placing an order does not wait for the exchange.** The window shuts on the
   press and the order is drawn on the chart at once, labelled "sending". A
   "sending" line has no × and cannot be dragged; there is nothing on the

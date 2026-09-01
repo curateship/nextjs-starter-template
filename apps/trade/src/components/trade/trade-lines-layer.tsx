@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SettingsIcon } from "lucide-react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { ChartColors } from "@/lib/trade/chart-theme"
@@ -159,6 +160,8 @@ const DASHED: Record<LineKind, string | undefined> = {
 const PILL_HEIGHT = 22
 /** Roughly how wide the label text runs, for sizing its pill. */
 const CHAR_WIDTH = 6.4
+/** The exact font used by the SVG label, for measuring its rendered width. */
+const LABEL_FONT = "600 11px Inter, ui-sans-serif, system-ui, sans-serif"
 /** The × sits inside the pill, to the right of the words. */
 const CLOSE_WIDTH = 16
 /** The grip's dots, and the room they take at the pill's left edge. */
@@ -169,6 +172,24 @@ const BADGE_GAP = 4
 const PILL_GAP = 6
 /** How round both the pill and the price badge are. */
 const PILL_RADIUS = 8
+
+let labelMeasureContext: OffscreenCanvasRenderingContext2D | null = null
+
+/**
+ * Measure the label in the same font the SVG draws. A character count leaves a
+ * large hole after narrow letters such as the ones in "Sell". The fallback is
+ * for test and server runtimes without a browser canvas.
+ */
+function labelWidth(text: string): number {
+  if (typeof OffscreenCanvas === "undefined") return text.length * CHAR_WIDTH
+  labelMeasureContext ??= new OffscreenCanvas(1, 1).getContext("2d")
+  if (!labelMeasureContext) return text.length * CHAR_WIDTH
+  labelMeasureContext.font = LABEL_FONT
+  return (
+    labelMeasureContext.measureText(text).width +
+    Math.max(0, text.length - 1) * 0.3
+  )
+}
 
 /**
  * The grip: two columns of three dots, drawn only where a line can be dragged.
@@ -275,7 +296,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
    * Pressing a waiting order's bar: its size and where it gets out. Only the
    * order's id — the window reads the row itself, which carries its wallet.
    */
-  onEditOrder?: (orderId: string) => void
+  onEditOrder?: (orderId: string, anchor: Element) => void
   onSetBrackets: (
     position: TradePosition,
     brackets: {
@@ -517,11 +538,11 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       szi: order.side === "buy" ? order.sz : -order.sz,
       entryPx: order.px,
     }
-    // A real resting order can neither be dragged to a new price nor changed
-    // in place yet — both are the edit-orders task. Its × still cancels.
+    // A real resting order cannot be changed here. Practice and watched
+    // orders both belong to this app, so their line opens the edit window.
     const edit =
-      settled && !order.live && !order.watched && onEditOrder
-        ? () => onEditOrder(order.id)
+      settled && !order.live && onEditOrder
+        ? (anchor: Element) => onEditOrder(order.id, anchor)
         : undefined
 
     const spare = extraLeg(order)
@@ -559,7 +580,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       onRemove: settled ? () => onCancelOrder(order) : undefined,
       onSettings: edit,
       hint: edit
-        ? "Change how much this order is for, and where it gets out once it fills."
+        ? "Change this order's size, leverage, stop loss, and take profit."
         : undefined,
     })
 
@@ -702,13 +723,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     // it, while the price — the one figure that has to be found at a glance —
     // keeps the colour to itself.
     const grip = line.onMove ? GRIP_WIDTH : 0
-    // 20 of padding, plus room for the grip and for whichever controls the
-    // line carries — with a gap of its own before them, so the words never
-    // butt straight up against the gear.
+    // Ten pixels at the left, plus room for the grip and controls. A controlled
+    // pill needs seven more pixels for the small text-to-cog gap and its right
+    // edge. A plain label keeps ten pixels at both ends.
     const controls =
       (line.onRemove ? CLOSE_WIDTH : 0) + (line.onSettings ? CLOSE_WIDTH : 0)
     const pillWidth =
-      label.length * CHAR_WIDTH + 20 + grip + (controls > 0 ? controls + 4 : 0)
+      labelWidth(label) + 10 + grip + (controls > 0 ? controls + 7 : 10)
     const badgeWidth = Math.max(
       surface.axisWidth,
       priceText.length * CHAR_WIDTH + 12
@@ -812,6 +833,12 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
           // callback now sits under a helper that reads them.
           const dragging = grab?.id === line.id
           const color = colorOf(line.kind, colors)
+          const settingsCenterX =
+            pillX +
+            pillWidth -
+            (line.onRemove ? CLOSE_WIDTH : 0) -
+            CLOSE_WIDTH / 2 -
+            6
 
           return (
             <g
@@ -984,24 +1011,19 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
               ) : null}
 
               {line.onSettings ? (
-                // Just the glyph — the whole pill above is the press target, so
-                // a second button here would only fight it for the pointer.
-                <text
-                  x={
-                    pillX +
-                    pillWidth -
-                    (line.onRemove ? CLOSE_WIDTH : 0) -
-                    CLOSE_WIDTH / 2 -
-                    6
-                  }
-                  y={y + 5}
-                  textAnchor="middle"
-                  fill={color}
-                  fillOpacity={0.9}
-                  style={{ fontSize: 15, pointerEvents: "none" }}
-                >
-                  ⚙
-                </text>
+                // The 12px Settings icon used by the grid's chart order bar.
+                // The whole pill above remains the press target, so this glyph
+                // never fights it for the pointer.
+                <SettingsIcon
+                  data-order-settings-icon
+                  x={settingsCenterX - 6}
+                  y={y - 6}
+                  width={12}
+                  height={12}
+                  stroke={color}
+                  opacity={0.9}
+                  style={{ pointerEvents: "none" }}
+                />
               ) : null}
 
               {line.onRemove && !tool ? (

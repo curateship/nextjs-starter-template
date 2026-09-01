@@ -1484,15 +1484,20 @@ export async function cancelWatchOrder(
 }
 
 /**
- * Changes what a watched price is for — its size, stop and target — while it
- * is still watching. The drag on the chart resizes a stop the same way a
- * practice order's does, so the trade keeps risking the same money.
+ * Changes what a watched price is for — its size, leverage, stop and target —
+ * while it is still watching. The drag on the chart resizes a stop the same
+ * way a practice order's does, so the trade keeps risking the same money.
  */
 export async function editWatchOrder(
   userId: string,
   walletId: string,
   watchId: string,
-  changes: { sz: number; tpPx: number | null; slPx: number | null }
+  changes: {
+    sz: number
+    leverage: number
+    tpPx: number | null
+    slPx: number | null
+  }
 ): Promise<{ saved: true }> {
   if (!(changes.sz > 0)) throw new Error("SMART_ORDER_PRICE")
   const [row] = await db
@@ -1513,10 +1518,19 @@ export async function editWatchOrder(
   if (plan.phase !== "waiting" || plan.orderId !== null) {
     throw new Error("SMART_WATCH_TAKING")
   }
+  if (changes.leverage < 1 || changes.leverage > plan.maxLeverage) {
+    throw new Error("PAPER_LEVERAGE")
+  }
   await db
     .update(tradeSmartLadders)
     .set({
-      plan: { ...plan, sz: changes.sz, tpPx: changes.tpPx, slPx: changes.slPx },
+      plan: {
+        ...plan,
+        sz: changes.sz,
+        leverage: changes.leverage,
+        tpPx: changes.tpPx,
+        slPx: changes.slPx,
+      },
       updatedAt: new Date(),
     })
     .where(

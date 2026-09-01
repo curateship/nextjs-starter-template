@@ -152,6 +152,64 @@ function lineLabel(html: string, startsWith: string): Element {
 }
 
 describe("chart bracket lines", () => {
+  it("opens the settings window from a watched manual order", async () => {
+    const onEditOrder = vi.fn()
+    const watched: TradeOrder = {
+      id: "watch-1",
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px: 100,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[watched]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onEditOrder={onEditOrder}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+
+    const settings = host.querySelector<SVGGElement>(
+      `[aria-label="Change this order's size, leverage, stop loss, and take profit."]`
+    )
+    expect(settings).not.toBeNull()
+    const cog = settings?.parentElement?.querySelector(
+      "[data-order-settings-icon]"
+    )
+    expect(cog).not.toBeNull()
+    expect(cog?.getAttribute("width")).toBe("12")
+    expect(cog?.getAttribute("height")).toBe("12")
+    await act(async () => {
+      settings?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+    expect(onEditOrder).toHaveBeenCalledWith("watch-1", settings)
+    await act(async () => root.unmount())
+  })
+
   it("draws an alert with the existing purple draggable bar and close control", () => {
     const html = renderToStaticMarkup(
       <TradeLinesLayer

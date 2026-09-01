@@ -334,16 +334,16 @@ describe("a price being watched", () => {
     expect((await row()).status).toBe("done")
   })
 
-  it("hands the position the stop and target it was set with", async () => {
-    // They were chosen when the level was, and nothing else remembers them:
-    // the order that fills carries no brackets of its own.
-    await watchAt({ tpPx: 110, slPx: 88 })
+  it("hands the position a stop loss without inventing a take profit", async () => {
+    // It was chosen when the level was, and nothing else remembers it: the
+    // order that fills carries no protection of its own.
+    await watchAt({ tpPx: null, slPx: 88 })
     await priceTo(95)
     vi.setSystemTime(new Date(Date.now() + CHASE_EVERY_MS + 1_000))
     await priceTo(90)
 
     const [held] = await positions()
-    expect(held.tpPx).toBe(110)
+    expect(held.tpPx).toBeNull()
     expect(held.slPx).toBe(88)
   })
 

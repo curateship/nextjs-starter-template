@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChartQuickOrder } from "@/components/trade/chart-quick-order"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
+import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 
 Object.assign(globalThis, {
   IS_REACT_ACT_ENVIRONMENT: true,
@@ -37,11 +38,15 @@ const market = {
   openInterestUsd: null,
 } satisfies MarketRow
 
-const prefs = {
-  sizeUnit: "usd" as const,
+const prefs: QuickOrderPrefs = {
+  sizeUnit: "usd",
   size: "100",
   leverage: 1,
   bracketOn: false,
+  stopOn: false,
+  targetOn: false,
+  stopUnit: "pct",
+  stopPrice: "",
   stopPct: "2",
   targetPct: "5",
 }
@@ -60,8 +65,15 @@ afterEach(async () => {
   host.remove()
 })
 
-async function draw({ side = "buy" }: { side?: "buy" | "sell" }) {
+async function draw({
+  side = "buy",
+  initialPrefs = prefs,
+}: {
+  side?: "buy" | "sell"
+  initialPrefs?: typeof prefs
+}) {
   const onPlace = vi.fn()
+  const onRemember = vi.fn()
   await act(async () =>
     root.render(
       <TooltipProvider>
@@ -77,26 +89,43 @@ async function draw({ side = "buy" }: { side?: "buy" | "sell" }) {
           addingTo={null}
           free={10_000}
           equity={10_000}
-          prefs={prefs}
+          prefs={initialPrefs}
           onPlace={onPlace}
-          onRemember={() => {}}
+          onRemember={onRemember}
           onClose={() => {}}
         />
       </TooltipProvider>
     )
   )
-  return onPlace
+  return { onPlace, onRemember }
+}
+
+async function type(selector: string, value: string) {
+  const input = host.querySelector<HTMLInputElement>(selector)
+  if (!input) throw new Error(`no ${selector}`)
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value"
+  )?.set
+  await act(async () => {
+    setter?.call(input, value)
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+}
+
+async function place() {
+  await act(async () => {
+    host.querySelector<HTMLButtonElement>("button.w-full")?.click()
+  })
 }
 
 describe("the chart's Long, Short and Market window", () => {
   it("keeps a Long at the clicked level even when it starts above the market", async () => {
-    const onPlace = await draw({})
+    const { onPlace } = await draw({})
 
     expect(host.textContent).toContain("Long")
     expect(host.textContent).not.toContain("Fills straight away")
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>("button.w-full")?.click()
-    })
+    await place()
 
     expect(onPlace).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -109,16 +138,14 @@ describe("the chart's Long, Short and Market window", () => {
   })
 
   it("keeps a Short below market waiting while Market is clear", async () => {
-    const onPlace = await draw({ side: "sell" })
+    const { onPlace } = await draw({ side: "sell" })
 
     expect(
       host
         .querySelector<HTMLElement>("#quick-market")
         ?.getAttribute("data-state")
     ).toBe("unchecked")
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>("button.w-full")?.click()
-    })
+    await place()
 
     expect(onPlace).toHaveBeenCalledWith(
       expect.objectContaining({ side: "sell", px: 90, market: false })
@@ -126,18 +153,131 @@ describe("the chart's Long, Short and Market window", () => {
   })
 
   it("market-shorts now when Market is checked inside the Short window", async () => {
-    const onPlace = await draw({ side: "sell" })
+    const { onPlace } = await draw({ side: "sell" })
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>("#quick-market")?.click()
     })
     expect(host.textContent).toContain("Market short BTC")
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>("button.w-full")?.click()
-    })
+    await place()
 
     expect(onPlace).toHaveBeenCalledWith(
       expect.objectContaining({ side: "sell", px: 100, market: true })
     )
+  })
+
+  it("places a stop loss by itself and accepts a trailing percent sign", async () => {
+    const { onPlace, onRemember } = await draw({})
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#quick-stop-on")?.click()
+    })
+    await type("#quick-stop", "2%")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ slPx: 107.8, tpPx: null })
+    )
+    expect(onRemember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bracketOn: false,
+        stopOn: true,
+        targetOn: false,
+        stopPct: "2%",
+      })
+    )
+  })
+
+  it("places a take profit without inventing a stop loss", async () => {
+    const { onPlace } = await draw({})
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#quick-target-on")?.click()
+    })
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ slPx: null, tpPx: 115.5 })
+    )
+  })
+
+  it("uses the old combined switch as both protection lines", async () => {
+    const { onPlace } = await draw({
+      initialPrefs: { ...prefs, bracketOn: true },
+    })
+
+    expect(
+      host
+        .querySelector<HTMLElement>("#quick-stop-on")
+        ?.getAttribute("data-state")
+    ).toBe("checked")
+    expect(
+      host
+        .querySelector<HTMLElement>("#quick-target-on")
+        ?.getAttribute("data-state")
+    ).toBe("checked")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ slPx: 107.8, tpPx: 115.5 })
+    )
+  })
+
+  it("requires a stop loss for Risk size without requiring a take profit", async () => {
+    const { onPlace } = await draw({
+      initialPrefs: { ...prefs, sizeUnit: "risk", size: "1" },
+    })
+
+    expect(
+      host.querySelector<HTMLButtonElement>("#quick-stop-on")?.disabled
+    ).toBe(true)
+    expect(
+      host
+        .querySelector<HTMLElement>("#quick-target-on")
+        ?.getAttribute("data-state")
+    ).toBe("unchecked")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ slPx: 107.8, tpPx: null })
+    )
+  })
+
+  it("uses an absolute stop price when that form was remembered", async () => {
+    const { onPlace } = await draw({
+      initialPrefs: {
+        ...prefs,
+        stopOn: true,
+        stopUnit: "price",
+        stopPrice: "108",
+      },
+    })
+
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ slPx: 108, tpPx: null })
+    )
+  })
+
+  it("names the stop loss when an absolute price is on the wrong side", async () => {
+    const { onPlace } = await draw({
+      initialPrefs: {
+        ...prefs,
+        stopOn: true,
+        stopUnit: "price",
+        stopPrice: "115",
+      },
+    })
+
+    await place()
+
+    expect(onPlace).not.toHaveBeenCalled()
+    expect(host.textContent).toContain("Stop loss price")
+    expect(
+      host
+        .querySelector<HTMLInputElement>("#quick-stop")
+        ?.getAttribute("aria-invalid")
+    ).toBe("true")
   })
 })

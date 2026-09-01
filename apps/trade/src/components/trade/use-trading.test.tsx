@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   hidePaperTrade: vi.fn(),
   flattenWalletApi: vi.fn(),
   cancelLadderRest: vi.fn(),
+  editWatch: vi.fn(),
   moveGridRange: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
   showErrorToast: vi.fn(),
@@ -66,7 +67,7 @@ vi.mock("@/lib/api/trade/smart-orders", () => ({
   cancelLadderRung: vi.fn(),
   cancelWatch: vi.fn(),
   closePartOfPosition: vi.fn(),
-  editWatch: vi.fn(),
+  editWatch: api.editWatch,
   flattenWalletApi: api.flattenWalletApi,
   getSmartOrderErrorMessage: (error: unknown) =>
     error instanceof Error && error.message === "SMART_GRID_FINISHED"
@@ -92,6 +93,7 @@ vi.mock("@/lib/toast/error-toast", () => ({
 }))
 
 import { useTrading, type Trading } from "@/components/trade/use-trading"
+import { readWatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 
 const wallet: TradeWallet = {
@@ -169,6 +171,7 @@ beforeEach(() => {
     sellRefused: [],
   })
   api.cancelLadderRest.mockReset()
+  api.editWatch.mockReset().mockResolvedValue({ saved: true })
   api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
   api.showErrorToast.mockReset()
@@ -538,5 +541,64 @@ describe("a grid edit that finishes before it saves", () => {
     expect(api.showErrorToast).toHaveBeenCalledWith(
       "That grid has already finished, so nothing was changed."
     )
+  })
+})
+
+describe("editing a watched order", () => {
+  it("shows the saved values when the window is reopened before the next read", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 95,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: 88,
+      phase: "waiting",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [
+        {
+          id: "watch-1",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          kind: "watch",
+          status: "active",
+          flowRunId: null,
+          createdAt: 1,
+          updatedAt: 1,
+          plan,
+        },
+      ],
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.editOrder(wallet.id, "watch-1", {
+        sz: 2,
+        leverage: 3,
+        tpPx: 110,
+        slPx: 85,
+      })
+    })
+
+    expect(api.editWatch).toHaveBeenCalledWith({
+      walletId: wallet.id,
+      ladderId: "watch-1",
+      sz: 2,
+      leverage: 3,
+      tpPx: 110,
+      slPx: 85,
+    })
+    expect(latest?.watchOrders[0]).toMatchObject({
+      sz: 2,
+      leverage: 3,
+      tpPx: 110,
+      slPx: 85,
+    })
   })
 })

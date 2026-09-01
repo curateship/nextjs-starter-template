@@ -67,6 +67,21 @@ add up to.
   fill now.** It sits inside the Long and Short window. When checked, the order
   uses the venue's current price, pays the taker fee, does not become a watched
   level and ignores the account's Watch or Rest choice.
+- **A watched order may carry a stop loss without a take profit, or a take
+  profit without a stop loss.** The stop can be its exact losing price or a
+  percent away from entry. The chosen line stays with the watched level and is
+  put on the position as soon as the entry fills.
+- **A waiting manual order can gain its stop from the chart.** Right-clicking a
+  losing-side price offers Stop loss for the active wallet's one eligible
+  stopless watch, even when it also has a position on the same market.
+  If several eligible watches make the target ambiguous, the shortcut stays
+  hidden and the exact order line opens the edit window instead.
+- **A waiting order edits beside its chart bar.** Its bar uses the standard
+  12px settings cog used by the Grid bar, and the editor opens beside it like
+  the other chart-order editors. It does not cover the workspace with a modal.
+- Tyler, 1 Sep 2026: **"there is no leverage option in edit."** A waiting
+  manual order's edit window has the same leverage slider used when the order
+  is placed. The chosen number stays on the order and is used when it fills.
 - **A plain order is a watched trigger by default.** The level stays in this
   app, invisible to the book, spending nothing until it fires. Resting on the
   exchange remains a choice in Settings → Trading engine, and its honest cost

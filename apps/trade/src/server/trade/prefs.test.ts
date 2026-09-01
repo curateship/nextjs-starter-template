@@ -173,11 +173,37 @@ describe("the remembered order window", () => {
       size: "25",
       leverage: 3,
       bracketOn: true,
+      stopOn: true,
+      targetOn: true,
+      stopUnit: "price" as const,
+      stopPrice: "91",
       stopPct: "4",
       targetPct: "9",
     }
     await saveQuickOrder(id, prefs)
     expect(await loadQuickOrder(id)).toEqual(prefs)
+  })
+
+  it("loads the old combined switch as both protection lines", async () => {
+    const { id } = await insertUser(database)
+    await saveQuickOrder(id, DEFAULT_QUICK_ORDER)
+    const oldPrefs = {
+      sizeUnit: "pct" as const,
+      size: "25",
+      leverage: 3,
+      bracketOn: true,
+      stopPct: "4",
+      targetPct: "9",
+    }
+    await database
+      .update(tradePrefs)
+      .set({ quickOrder: oldPrefs as never })
+      .where(eq(tradePrefs.userId, id))
+
+    expect(await loadQuickOrder(id)).toEqual({
+      ...DEFAULT_QUICK_ORDER,
+      ...oldPrefs,
+    })
   })
 
   it("falls back to the defaults on a value it cannot read", async () => {

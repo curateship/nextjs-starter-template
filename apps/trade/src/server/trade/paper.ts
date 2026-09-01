@@ -1232,8 +1232,8 @@ export async function movePaperOrder(
 }
 
 /**
- * Changing a waiting order without moving it: how much it is for, and where it
- * gets out once it fills.
+ * Changing a waiting order without moving it: how much it is for, its
+ * leverage, and where it gets out once it fills.
  *
  * Its price is not touched here — that is the drag on the chart — which is what
  * makes this safe to check against `order.px`: an order that is still waiting
@@ -1247,6 +1247,7 @@ export async function updatePaperOrder(
   input: {
     orderId: string
     sz: number
+    leverage: number
     tpPx: number | null
     slPx: number | null
   }
@@ -1268,13 +1269,16 @@ export async function updatePaperOrder(
   if (!(sz > 0) || order.px * sz < MIN_ORDER_VALUE_USD) {
     throw new Error("PAPER_SIZE")
   }
+  if (input.leverage < 1 || input.leverage > order.maxLeverage) {
+    throw new Error("PAPER_LEVERAGE")
+  }
 
   const held = book.positions.get(order.marketKey) ?? null
   if (order.reduceOnly) {
     const reducible = capReduceOnly(held, order.side, sz)
     if (reducible === null || reducible <= 0)
       throw new Error("PAPER_REDUCE_ONLY")
-  } else if ((order.px * sz) / order.leverage > freeCash(book)) {
+  } else if ((order.px * sz) / input.leverage > freeCash(book)) {
     // Waiting orders hold no margin aside, so what this one has to fit inside
     // is the cash free right now — not what was free when it was placed.
     throw new Error("PAPER_MARGIN")
@@ -1307,7 +1311,7 @@ export async function updatePaperOrder(
     .update(tradePaperOrders)
     // The stamp matters: a bar that opened before this edit no longer applies
     // to the order, the same rule a drag obeys — see `settleMarket`.
-    .set({ sz, tpPx, slPx, updatedAt: new Date() })
+    .set({ sz, leverage: input.leverage, tpPx, slPx, updatedAt: new Date() })
     .where(
       and(
         eq(tradePaperOrders.userId, userId),

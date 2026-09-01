@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  absoluteStopPrice,
   bracketPercent,
   bracketPrice,
   bracketTyped,
@@ -37,6 +38,17 @@ describe("bracketPrice", () => {
     ).toBe(102)
   })
 
+  it("accepts the percent sign people naturally type", () => {
+    expect(
+      bracketPrice({
+        entryPx: 100,
+        percent: " 2% ",
+        long: true,
+        winning: false,
+      })
+    ).toBe(98)
+  })
+
   it("refuses a distance that takes the price through zero", () => {
     // A long's stop is the side that can: 120% below the entry is nowhere.
     expect(
@@ -53,6 +65,29 @@ describe("bracketPrice", () => {
       expect(
         bracketPrice({ entryPx: 100, percent, long: true, winning: true })
       ).toBeNull()
+    }
+  })
+})
+
+describe("absoluteStopPrice", () => {
+  it("accepts only the losing side of a long or short entry", () => {
+    expect(absoluteStopPrice({ entryPx: 100, price: "95", long: true })).toBe(
+      95
+    )
+    expect(absoluteStopPrice({ entryPx: 100, price: "105", long: false })).toBe(
+      105
+    )
+    expect(
+      absoluteStopPrice({ entryPx: 100, price: "105", long: true })
+    ).toBeNull()
+    expect(
+      absoluteStopPrice({ entryPx: 100, price: "95", long: false })
+    ).toBeNull()
+  })
+
+  it("refuses an empty, invalid, or zero price", () => {
+    for (const price of ["", "nope", "0", "-1"]) {
+      expect(absoluteStopPrice({ entryPx: 100, price, long: true })).toBeNull()
     }
   })
 })

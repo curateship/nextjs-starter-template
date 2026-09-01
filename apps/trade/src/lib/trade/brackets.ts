@@ -4,8 +4,8 @@
  *
  * That is how the decision is actually made — "I'll risk two percent to make
  * five" — and a percentage means the same thing on a $118,000 coin as on a
- * $0.02 one. Every window that offers a stop and a target does it this way, so
- * the arithmetic lives here once instead of three times.
+ * $0.02 one. Every percent-based stop and target uses this arithmetic, so it
+ * lives here once instead of three times.
  *
  * Which way a percentage moves the price depends on two things at once: which
  * way the trade is pointing, and which of the two lines is being worked out. A
@@ -37,13 +37,31 @@ export function bracketPrice(input: {
   /** The winning side — the target — rather than the stop. */
   winning: boolean
 }): number | null {
-  const percent = Number(input.percent.trim())
-  if (input.percent.trim() === "" || !Number.isFinite(percent) || percent <= 0) {
+  const typed = input.percent.trim()
+  const withoutSign = typed.endsWith("%") ? typed.slice(0, -1).trim() : typed
+  const percent = Number(withoutSign)
+  if (withoutSign === "" || !Number.isFinite(percent) || percent <= 0) {
     return null
   }
   const up = input.winning === input.long
   const px = input.entryPx * (up ? 1 + percent / 100 : 1 - percent / 100)
   return px > 0 ? px : null
+}
+
+/**
+ * Reads an exact stop price and keeps it only when it is on the losing side of
+ * the entry. A long loses below its entry; a short loses above it.
+ */
+export function absoluteStopPrice(input: {
+  entryPx: number
+  price: string
+  long: boolean
+}): number | null {
+  const typed = input.price.trim()
+  const price = Number(typed)
+  if (typed === "" || !Number.isFinite(price) || price <= 0) return null
+  const losing = input.long ? price < input.entryPx : price > input.entryPx
+  return losing ? price : null
 }
 
 /** Something was typed in the box and it does not work out to a price. */

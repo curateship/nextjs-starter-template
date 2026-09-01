@@ -40,7 +40,8 @@ below the market becomes a market sell. Deploy the trading engine first and the
 web app second. Never expose the new window while the old engine still owns the
 trading lock.
 
-The watch keeps the chosen leverage while it waits. DCA ladders start at 1×
+The watch keeps the chosen leverage while it waits. Its settings window can
+change that leverage until the watch starts taking. DCA ladders start at 1×
 and use a higher number only when somebody chooses it. Aster still reads the
 wallet's current margin choice when the order fires, so Settings remains the
 only place that controls Aster margin mode.
@@ -85,8 +86,9 @@ When the market reaches a watched buy:
    chase a signal trade uses — re-resting a little off the price each time.
 3. **"How far it may follow"** is on the order: zero waits at the level for as
    long as it takes; a percent gives up once price has run that far past it.
-4. The stop and target typed on the order ride along and are handed to the
-   position the moment it opens.
+4. Any stop loss or take profit chosen on the order rides along and is handed
+   to the position the moment it opens. Either line can travel without the
+   other.
 
 A watched Long or Short always enters through this post-only chase. The side of
 the level decides what the touch means: a Long or Short placed above the market
@@ -101,6 +103,25 @@ local watch, because the unchecked box means it may not take the market. With
 the box checked, the chosen side uses the venue's fresh current price, pays the
 taker fee and never creates a watched row. A checked Market box works the same
 whether the account setting is Watch or Rest.
+
+Stop loss and Take profit are separate checkboxes in the same window. A watched
+order may carry either one, both, or neither. The stop loss accepts either its
+exact losing price or a percent away from the entry. A long stop must sit below
+the entry, while a short stop must sit above it. A percent may include the `%`
+sign. The price worked out from either form stays under the box so the line can
+be checked before the order is placed.
+
+The window remembers the two switches and the stop's price-or-percent choice
+after a successful order. Saved settings from before the switches were split
+still mean what they meant then: the old combined switch turns both lines on.
+
+A stop can also be added after a manual watched order is placed. Right-click a
+price on the losing side of a stopless waiting order and choose **Stop loss**;
+the clicked price is saved on that watch without adding a target. The shortcut
+prefers the active wallet's waiting order over a position on the same market.
+When more than one stopless manual order is waiting on that market in the active
+wallet, the shortcut stays hidden because the intended order would be
+ambiguous. Press the exact waiting order line instead to open its edit window.
 
 The DCA ladder's rungs work the same way on real and practice wallets, and the
 grid always has. In a backtest a rung is modelled as a resting order the
@@ -150,6 +171,17 @@ message says why.
 - **A practice order**: re-prices its row, same as ever.
 - A waiting order's **stop** drags too, and the order resizes so it still
   risks the same money. Its **target** drags without touching the size.
+
+The order bar uses the same 12px settings cog as the Grid bar. Pressing it opens
+a compact settings window beside the bar, like the DCA and Grid editors, rather
+than a page modal. Its size, leverage, stop loss and take profit can still
+change there, including adding a stop without adding a target. Once the level
+has been hit and the order has started chasing, the same edit is refused
+because the order is already in flight.
+
+After Save succeeds, the changed size, leverage, stop loss and take profit stay
+on the chart while the next account read confirms them. Reopening the window in
+that gap shows the saved values, not the copy from before Save was pressed.
 
 ## Where they are on screen
 

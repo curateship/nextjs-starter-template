@@ -349,13 +349,19 @@ export type Trading = {
   move: (walletId: string, orderId: string, px: number) => Promise<void>
   cancel: (order: TradeOrder) => Promise<void>
   /**
-   * From the order window: how much a waiting order is for, and where it gets
-   * out once it fills. Its price is not here — that is the drag on the chart.
+   * From the order window: how much a waiting order is for, its leverage, and
+   * where it gets out once it fills. Its price is not here — that is the drag
+   * on the chart.
    */
   editOrder: (
     walletId: string,
     orderId: string,
-    changes: { sz: number; tpPx: number | null; slPx: number | null }
+    changes: {
+      sz: number
+      leverage: number
+      tpPx: number | null
+      slPx: number | null
+    }
   ) => Promise<boolean>
   /** From the edit window: says so when it saves, and reports a refusal. */
   setBrackets: (
@@ -1637,17 +1643,49 @@ export function useTrading(
         return false
       }
       if (order?.watched) {
-        // A watched price is a row of ours — its size, stop and target change
-        // in the row, and nothing goes near the exchange until it fires.
-        return await run(() =>
+        // A watched price is a row of ours — its size, leverage, stop and
+        // target change in the row, and nothing goes near the exchange until
+        // it fires.
+        const watch = smartOrders.find(
+          (one) => one.kind === "watch" && one.id === orderId
+        )
+        const saved = await run(() =>
           editWatch({ walletId, ladderId: orderId, ...changes })
         )
+        if (saved && watch?.kind === "watch") {
+          // The write has landed. Keep the edited copy on screen until a read
+          // carries it back, so reopening the window cannot show the values
+          // from before Save was pressed.
+          holdSmart({
+            ...watch,
+            plan: { ...watch.plan, ...changes },
+            updatedAt: Date.now(),
+          })
+        }
+        return saved
       }
-      return await run(() =>
+      const saved = await run(() =>
         updatePaperOrder({ walletId, orderId, ...changes })
       )
+      if (saved) {
+        // Practice orders are ordinary rows rather than smart-order plans.
+        // Update the copy already on screen while the post-save read lands.
+        setPaperAnswer((answer) =>
+          answer
+            ? {
+                ...answer,
+                orders: answer.orders.map((one) =>
+                  one.walletId === walletId && one.id === orderId
+                    ? { ...one, ...changes, updatedAt: Date.now() }
+                    : one
+                ),
+              }
+            : answer
+        )
+      }
+      return saved
     },
-    [run, findOrder]
+    [run, findOrder, smartOrders, holdSmart]
   )
 
   const move: Trading["move"] = React.useCallback(

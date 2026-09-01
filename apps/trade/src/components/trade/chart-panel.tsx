@@ -20,7 +20,7 @@ import {
 } from "@/components/trade/chart-take-profit"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
-import { OrderEditDialog } from "@/components/trade/order-edit-dialog"
+import { OrderEditWindow } from "@/components/trade/order-edit-window"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
@@ -474,8 +474,9 @@ export function ChartPanel({
   // A ladder that has started asks before its remaining buys are called off.
   // An empty ladder can go at once because it holds nothing.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
-  // The waiting order opened from its own bar on the chart.
+  // The waiting order and chart cog that opened its settings window.
   const [editing, setEditing] = React.useState<TradeOrder | null>(null)
+  const [editingAnchor, setEditingAnchor] = React.useState<Element | null>(null)
   const plotRef = React.useRef<HTMLDivElement | null>(null)
   const surfaceRef = React.useRef<ChartSurface | null>(null)
   const readSurface = React.useCallback((next: ChartSurface) => {
@@ -506,6 +507,7 @@ export function ChartPanel({
     setSettingsAnchor(null)
     setCancelFor(null)
     setEditing(null)
+    setEditingAnchor(null)
   }
 
   /**
@@ -651,10 +653,59 @@ export function ChartPanel({
       held.find((one) => one.walletId === trading.wallet?.id) ?? held[0] ?? null
     )
   }, [trading.positions, trading.wallet?.id, selectedKey])
+  // A manual watched order has no position yet, but it still needs the same
+  // right-click shortcut while it waits. Keep the choice unambiguous: prefer
+  // the active wallet and offer the row only when one stopless order matches.
+  const bareWatchedStop = React.useMemo(() => {
+    const waiting = trading.watchOrders.filter(
+      (one) =>
+        one.walletId === trading.wallet?.id &&
+        one.marketKey === selectedKey &&
+        !one.reduceOnly &&
+        one.slPx === null
+    )
+    return waiting.length === 1 ? waiting[0] : null
+  }, [trading.watchOrders, trading.wallet?.id, selectedKey])
   const takeProfitPosition = takeProfit
     ? (trading.positions.find((one) => one.id === takeProfit.positionId) ??
       null)
     : null
+  const positionStopShortcut =
+    menu &&
+    bareStop &&
+    (bareStop.szi > 0
+      ? menu.price < bareStop.entryPx
+      : menu.price > bareStop.entryPx)
+      ? () => {
+          // Draw the position stop from local state now. The wallet save and
+          // account refresh continue behind it, through the drag path.
+          void trading.dragBrackets(
+            bareStop,
+            bracketsWithStopAt(bareStop, menu.price)
+          )
+          setMenu(null)
+        }
+      : null
+  const watchedStopShortcut =
+    menu &&
+    bareWatchedStop &&
+    (bareWatchedStop.side === "buy"
+      ? menu.price < bareWatchedStop.px
+      : menu.price > bareWatchedStop.px)
+      ? () => {
+          void trading.editOrder(bareWatchedStop.walletId, bareWatchedStop.id, {
+            sz: bareWatchedStop.sz,
+            leverage: bareWatchedStop.leverage,
+            tpPx: bareWatchedStop.tpPx,
+            slPx: menu.price,
+          })
+          setMenu(null)
+        }
+      : null
+  // The newly placed waiting order is the chart action this shortcut belongs
+  // to, so it wins when a position also shares this losing-side price. Its own
+  // line still identifies the exact watch when more than one is waiting.
+  const stopLossShortcut = watchedStopShortcut ?? positionStopShortcut
 
   const looseOrders = React.useMemo(
     () => [
@@ -698,7 +749,9 @@ export function ChartPanel({
   // window standing on what it last saw rather than vanishing mid-typing.
   // Pressing Save then says so plainly, which is the server's own answer.
   const polled = editing
-    ? (trading.orders.find((one) => one.id === editing.id) ?? null)
+    ? (trading.orders.find((one) => one.id === editing.id) ??
+      trading.watchOrders.find((one) => one.id === editing.id) ??
+      null)
     : null
   if (
     polled &&
@@ -785,6 +838,7 @@ export function ChartPanel({
       if (!order) return
       void tradingEditOrder(walletId, orderId, {
         sz: order.sz,
+        leverage: order.leverage,
         tpPx: price,
         slPx: order.slPx,
       })
@@ -810,6 +864,7 @@ export function ChartPanel({
           }),
           sizeDecimals
         ),
+        leverage: order.leverage,
         tpPx: order.tpPx,
         slPx: price,
       })
@@ -817,9 +872,15 @@ export function ChartPanel({
     [tradingOrders, tradingWatchOrders, tradingEditOrder, sizeDecimals]
   )
   const onEditOrder = React.useCallback(
-    (orderId: string) =>
-      setEditing(tradingOrders.find((one) => one.id === orderId) ?? null),
-    [tradingOrders]
+    (orderId: string, anchor: Element) => {
+      const order =
+        tradingOrders.find((one) => one.id === orderId) ??
+        tradingWatchOrders.find((one) => one.id === orderId) ??
+        null
+      setEditing(order)
+      setEditingAnchor(order ? anchor : null)
+    },
+    [tradingOrders, tradingWatchOrders]
   )
   const tradingCancelLadder = trading.cancelLadder
   const onCancelLadder = React.useCallback(
@@ -1580,23 +1641,7 @@ export function ChartPanel({
           // The losing side of the entry is the matching stop-loss shortcut.
           // A trailing stop beyond entry is still edited from the position's
           // existing stop line, where the current price can also be enforced.
-          onPickStopLoss={
-            bareStop &&
-            (bareStop.szi > 0
-              ? menu.price < bareStop.entryPx
-              : menu.price > bareStop.entryPx)
-              ? () => {
-                  // Draw the stop from local state now. The wallet save and
-                  // account refresh continue behind it, through the same path
-                  // used when a stop line is dragged.
-                  void trading.dragBrackets(
-                    bareStop,
-                    bracketsWithStopAt(bareStop, menu.price)
-                  )
-                  setMenu(null)
-                }
-              : null
-          }
+          onPickStopLoss={stopLossShortcut}
           onPickAlert={() => {
             if (!market) return
             onCreatePriceAlert({
@@ -1630,11 +1675,16 @@ export function ChartPanel({
           }}
         />
       ) : null}
-      <OrderEditDialog
+      <OrderEditWindow
         order={editing}
+        anchor={editingAnchor}
+        wide={wide}
         busy={trading.busy}
         onSave={trading.editOrder}
-        onClose={() => setEditing(null)}
+        onClose={() => {
+          setEditing(null)
+          setEditingAnchor(null)
+        }}
       />
       {takeProfit && takeProfitPosition ? (
         <ChartTakeProfit

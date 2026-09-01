@@ -766,12 +766,14 @@ describe("managing what is open", () => {
     await updatePaperOrder(userId, wallet, {
       orderId: waiting.id,
       sz: 2,
+      leverage: 10,
       tpPx: 120,
       slPx: 85,
     })
 
     const [changed] = await orders()
     expect(changed.sz).toBe(2)
+    expect(changed.leverage).toBe(10)
     expect(changed.tpPx).toBe(120)
     expect(changed.slPx).toBe(85)
     // The price is the chart's to change, never this window's.
@@ -795,11 +797,37 @@ describe("managing what is open", () => {
       updatePaperOrder(userId, wallet, {
         orderId: waiting.id,
         sz: 1_000,
+        leverage: 5,
         tpPx: null,
         slPx: null,
       })
     ).rejects.toThrow("PAPER_MARGIN")
     expect((await orders())[0].sz).toBe(1)
+  })
+
+  it("refuses leverage above the market maximum", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 90,
+      sz: 1,
+      leverage: 5,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [waiting] = await orders()
+
+    await expect(
+      updatePaperOrder(userId, wallet, {
+        orderId: waiting.id,
+        sz: 1,
+        leverage: 51,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_LEVERAGE")
+    expect((await orders())[0].leverage).toBe(5)
   })
 
   it("refuses a target and a stop on the wrong side of the order's price", async () => {
@@ -818,6 +846,7 @@ describe("managing what is open", () => {
       updatePaperOrder(userId, wallet, {
         orderId: waiting.id,
         sz: 1,
+        leverage: 5,
         tpPx: 80,
         slPx: null,
       })
@@ -826,6 +855,7 @@ describe("managing what is open", () => {
       updatePaperOrder(userId, wallet, {
         orderId: waiting.id,
         sz: 1,
+        leverage: 5,
         tpPx: null,
         slPx: 95,
       })
@@ -850,6 +880,7 @@ describe("managing what is open", () => {
       updatePaperOrder(userId, wallet, {
         orderId: waiting.id,
         sz: 2,
+        leverage: 5,
         tpPx: null,
         slPx: null,
       })
