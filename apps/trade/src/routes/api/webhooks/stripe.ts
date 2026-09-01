@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { applyStripeEvent, stripe } from "@/server/billing/stripe"
+import {
+  applyStripeEvent,
+  billingEnabled,
+  invoiceCustomerId,
+  stripe,
+} from "@/server/billing/stripe"
+import { reconcilePendingUsageForCustomer } from "@/server/billing/usage"
 import { getActiveStripeConfig } from "@/server/billing/settings"
+import { applyReferralStripeEvent } from "@/server/billing/referrals"
 
 /**
  * Stripe webhook receiver.
@@ -36,7 +43,13 @@ export const Route = createFileRoute("/api/webhooks/stripe")({
 
         try {
           const applied = await applyStripeEvent(event)
-          return Response.json({ received: true, applied })
+          const referral = await applyReferralStripeEvent(event)
+          const customerId = invoiceCustomerId(event)
+          const usage =
+            customerId && billingEnabled()
+              ? await reconcilePendingUsageForCustomer(customerId)
+              : { reported: 0, failed: 0 }
+          return Response.json({ received: true, applied, referral, usage })
         } catch {
           // Ask Stripe to retry rather than swallowing a failed sync.
           return Response.json(

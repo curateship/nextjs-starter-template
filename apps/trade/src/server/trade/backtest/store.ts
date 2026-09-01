@@ -26,12 +26,12 @@ import type {
   BacktestSummary,
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
-import { walletCostRates } from "@/lib/automations/nodes/trade-wallet"
+import { walletCostRates } from "@/lib/recipes/trade-wallet"
 import {
   chosenWindow,
   windowDays,
   type MarketWindowDates,
-} from "@/lib/automations/nodes/trade-markets"
+} from "@/lib/recipes/trade-markets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
@@ -154,6 +154,8 @@ export async function createBacktest(
   input: {
     automationId: string
     automationName: string
+    /** One browser press. The unique index makes retrying that press safe. */
+    idempotencyKey?: string | null
     spec: BacktestSpec
     now: number
   },
@@ -185,27 +187,30 @@ export async function createBacktest(
   }
 
   const groupId = randomUUID()
-  await database.insert(tradeBacktestGroups).values({
-    userId,
-    id: groupId,
-    automationId: input.automationId,
-    automationName: input.automationName,
-    spec: snapshotOf(input.spec, window),
-    createdAt: new Date(input.now),
-  })
-
-  // Alphabetical here as well as inside the engine, so the list on screen is
-  // the order the run works in.
-  await database.insert(tradeBacktests).values(
-    keys.map((marketKey) => ({
+  await database.transaction(async (tx) => {
+    await tx.insert(tradeBacktestGroups).values({
       userId,
-      id: randomUUID(),
-      groupId,
-      marketKey,
-      symbol: parseMarketKey(marketKey)?.marketId ?? marketKey,
+      id: groupId,
+      automationId: input.automationId,
+      automationName: input.automationName,
+      automationRunId: input.idempotencyKey ?? null,
+      spec: snapshotOf(input.spec, window),
       createdAt: new Date(input.now),
-    }))
-  )
+    })
+
+    // Alphabetical here as well as inside the engine, so the list on screen is
+    // the order the run works in.
+    await tx.insert(tradeBacktests).values(
+      keys.map((marketKey) => ({
+        userId,
+        id: randomUUID(),
+        groupId,
+        marketKey,
+        symbol: parseMarketKey(marketKey)?.marketId ?? marketKey,
+        createdAt: new Date(input.now),
+      }))
+    )
+  })
 
   return { groupId, coins: keys.length }
 }

@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
 import { dcaParamsSchema } from "@/lib/trade/dca"
-import { tradeGridSettingsSchema } from "@/lib/automations/nodes/trade-grid"
+import { tradeGridSettingsSchema } from "@/lib/recipes/trade-grid"
 import { flowWaitWords } from "@/lib/trade/flow-waiting"
 import { indicatorSettingsSchema } from "@/lib/trade/indicators/registry"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"

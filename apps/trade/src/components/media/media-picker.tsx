@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
@@ -150,6 +150,11 @@ function MediaPickerSession({
       .then((next) => {
         if (!active) return
         setData(next)
+        setSelectedMedia((current) =>
+          current && !next.media.some((item) => item.id === current.id)
+            ? null
+            : current
+        )
         setPlayingId(null)
         setError(null)
       })
@@ -189,10 +194,11 @@ function MediaPickerSession({
     })
   }, [currentMediaUrl, data?.media])
 
-  const activeSelectedMedia =
-    selectedMedia ??
-    mediaItems.find((item) => item.url === currentMediaUrl) ??
-    null
+  const activeSelectedMedia = loading
+    ? null
+    : mediaItems.find((item) => item.id === selectedMedia?.id) ??
+      mediaItems.find((item) => item.url === currentMediaUrl) ??
+      null
 
   function clearUpload() {
     setUpload(null)
@@ -355,13 +361,6 @@ function MediaPickerSession({
                   </Button>
                 </div>
 
-                {visibleError ? (
-                  <ErrorBanner
-                    message={visibleError}
-                    onRetry={() => setReloads((count) => count + 1)}
-                  />
-                ) : null}
-
                 {upload ? (
                   <form
                     onSubmit={(event) => {
@@ -434,7 +433,13 @@ function MediaPickerSession({
                 {/* No scroll box of its own: the dialog body is already a
                 ScrollArea, and a second one would trap the wheel. */}
                 <div className="min-h-64 rounded-lg border p-3">
-                  {loading ? (
+                  {visibleError ? (
+                    <ErrorRow
+                      message={visibleError}
+                      onRetry={() => setReloads((count) => count + 1)}
+                      className="min-h-56"
+                    />
+                  ) : loading ? (
                     <LoadingRow label="Loading…" className="min-h-56" />
                   ) : mediaItems.length === 0 ? (
                     <EmptyRow className="grid min-h-56 place-items-center">
@@ -524,7 +529,6 @@ function MediaPickerSession({
               </Button>
               <Button
                 type="button"
-                aria-invalid={!activeSelectedMedia || undefined}
                 onClick={() => {
                   if (!activeSelectedMedia) {
                     showErrorToast("Choose a file before selecting it.")

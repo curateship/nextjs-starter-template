@@ -4,26 +4,34 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   getAuthErrorMessage,
   loadCurrentUser,
+  loadSignInOptions,
   resendVerification,
   verifyEmail,
 } from "@/lib/api/auth/auth"
+import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: z.object({ token: z.string().optional() }),
   loader: async () => {
-    const user = await loadCurrentUser()
+    const [user, options] = await Promise.all([
+      loadCurrentUser(),
+      loadSignInOptions(),
+    ])
     if (user) {
       throw redirect({ to: "/home", replace: true })
     }
+    return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: VerifyEmailRoute,
 })
 
@@ -98,6 +106,7 @@ function VerifyEmailRoute() {
  * where it gets one.
  */
 function RequestNewLink() {
+  const { linkExpiry } = Route.useLoaderData()
   const [email, setEmail] = React.useState("")
   const [sent, setSent] = React.useState(false)
   const [run, sending] = useAsyncAction(getAuthErrorMessage)
@@ -128,8 +137,9 @@ function RequestNewLink() {
       }
     >
       <p className="text-sm text-muted-foreground">
-        Verification links expire after 24 hours and can only be used once.
-        Enter your email and we will send you a fresh one.
+        Verification links expire after{" "}
+        {authTokenExpiryText("verify_email", linkExpiry)} and can only be used
+        once. Enter your email and we will send you a fresh one.
       </p>
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>

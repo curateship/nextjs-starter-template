@@ -294,8 +294,8 @@ export function BacktestChartPanel({
                 was a second way to do the same thing, from a shorter list. */}
             <Button asChild type="button" variant="outline">
               <Link
-                to="/admin/automations/$automationId"
-                params={{ automationId }}
+                to="/admin/recipes/$recipeId"
+                params={{ recipeId: automationId }}
                 search={{
                   node:
                     spec.strategy.kind === "dca"

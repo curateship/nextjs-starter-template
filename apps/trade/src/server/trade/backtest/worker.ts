@@ -25,7 +25,7 @@ import {
   BASE_STOP_INTERVAL,
   dcaParamsSchema,
 } from "@/lib/trade/dca"
-import { tradeGridSettingsSchema } from "@/lib/automations/nodes/trade-grid"
+import { tradeGridSettingsSchema } from "@/lib/recipes/trade-grid"
 import { EMA_GRID_HISTORY_BARS } from "@/lib/trade/ema-grid"
 import {
   indicatorSettingsSchema,

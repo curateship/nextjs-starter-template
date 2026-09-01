@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter, useRouterState } from "@tanstack/react-router"
 import {
   ListFilterIcon,
   Loader2Icon,
@@ -10,9 +10,15 @@ import {
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type TableHeaderColumn,
+} from "@/components/shared/sortable-table-header"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
 import {
   DashboardToolbarButton,
@@ -45,9 +51,7 @@ import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import {
   deleteContacts,
@@ -97,8 +101,79 @@ const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
 /** One shared empty list, so "no filters" is the same object every render. */
 const EMPTY_RULES: SegmentRules = { conditions: [] }
 
+const CONTACT_COLUMNS: TableHeaderColumn<ContactSortColumn>[] = [
+  { key: "email", label: "Email", column: "main" },
+  {
+    key: "name",
+    label: "Name",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  // Tags are a list, so there is no single value to order by.
+  {
+    key: "tags",
+    label: "Tags",
+    sortable: false,
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  { key: "status", label: "Status", column: "meta" },
+  {
+    key: "emailed",
+    label: "Last emailed",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+  {
+    key: "created",
+    label: "Added",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
+
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
+}
+
+function ContactStatusButton({
+  contact,
+  onChanged,
+}: {
+  contact: ContactItem
+  onChanged: () => Promise<void>
+}) {
+  const [runStatus, changingStatus] = useAsyncAction(getContactErrorMessage)
+
+  const handleToggleStatus = async () => {
+    if (changingStatus) return
+    const next =
+      contact.status === "subscribed" ? "unsubscribed" : "subscribed"
+    await runStatus(async () => {
+      await setContactsStatus([contact.id], next)
+      toast.success(
+        next === "unsubscribed"
+          ? `${contact.email} will not get any more.`
+          : `${contact.email} is back on the list.`
+      )
+      await onChanged()
+    })
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={changingStatus}
+      onClick={() => void handleToggleStatus()}
+    >
+      {changingStatus ? (
+        <Loader2Icon className="size-4 animate-spin" />
+      ) : null}
+      {contact.status === "subscribed" ? "Take off" : "Put back"}
+    </Button>
+  )
 }
 
 /**
@@ -113,6 +188,7 @@ function fullName(contact: ContactItem) {
  */
 export function ContactsPage({ data }: { data: ContactsPageData }) {
   const router = useRouter()
+  const routeLoading = useRouterState({ select: (state) => state.isLoading })
   const navigate = useNavigate()
   const listSearch = contactsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
@@ -241,6 +317,8 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
     lastName: "",
     tags: "",
   })
+  const [emailTouched, setEmailTouched] = React.useState(false)
+  const [addAttempted, setAddAttempted] = React.useState(false)
   /** Anything typed into the add form, which closing would throw away. */
   const formDirty = Object.values(form).some((value) => value.trim())
   const [deleteTarget, setDeleteTarget] = React.useState<ContactItem | null>(
@@ -344,6 +422,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
 
   const handleAdd = async () => {
     if (saving) return
+    setAddAttempted(true)
     if (!form.email.trim()) {
       showErrorToast("Email address is required.")
       return
@@ -360,24 +439,10 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
       })
       setAddOpen(false)
       setForm({ email: "", firstName: "", lastName: "", tags: "" })
+      setEmailTouched(false)
+      setAddAttempted(false)
       await refresh()
     }, `Added ${form.email.trim()}.`)
-  }
-
-  const handleToggleStatus = async (contact: ContactItem) => {
-    const next = contact.status === "subscribed" ? "unsubscribed" : "subscribed"
-    try {
-      await setContactsStatus([contact.id], next)
-      dismissErrorToast()
-      toast.success(
-        next === "unsubscribed"
-          ? `${contact.email} will not get any more.`
-          : `${contact.email} is back on the list.`
-      )
-      await refresh()
-    } catch (error) {
-      showErrorToast(getContactErrorMessage(error))
-    }
   }
 
   /**
@@ -433,6 +498,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
    */
   const removeContacts = async (
     remove: () => Promise<{ deleted: number }>,
+    requested: number,
     done: () => void
   ) => {
     if (deleting) return
@@ -440,7 +506,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
       const { deleted } = await remove()
       clearSelection()
       toast.success(
-        `Deleted ${deleted.toLocaleString()} ${plural(deleted, "contact", "contacts")}.`
+        describeBulkResult({
+          done: deleted,
+          kept: Math.max(0, requested - deleted),
+          one: "contact",
+          many: "contacts",
+          verb: "deleted",
+        })
       )
       done()
       await refresh()
@@ -460,6 +532,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   return (
     <>
       <DashboardTable
+        busy={routeLoading}
         title="Contacts"
         icon={<UsersIcon />}
         count={data.total}
@@ -555,7 +628,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                 Save as segment
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarButton onClick={() => setAddOpen(true)}>
+            <DashboardToolbarButton
+              onClick={() => {
+                setEmailTouched(false)
+                setAddAttempted(false)
+                setAddOpen(true)
+              }}
+            >
               <PlusIcon className="size-4" />
               Add someone
             </DashboardToolbarButton>
@@ -599,73 +678,23 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
           ) : null
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => {
-                    // Same rule as a single row: touching the ticks is what
-                    // ends "everyone matching".
-                    setMatchingList(null)
-                    selection.toggleVisible(visibleIds)
-                  }}
-                  aria-label="Select the contacts on this page"
-                />
-              </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "email"}
-                  direction={direction}
-                  onClick={() => toggleSort("email")}
-                >
-                  Email
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              {/* Tags are a list, so there is no single value to order by. */}
-              <TableHead column="meta" className="hidden md:table-cell">Tags</TableHead>
-              {/* Status and Added used to hide at different widths in the
-                  heading and in the rows, so a narrow screen labelled the
-                  status badges "Added". Each pair now hides together. */}
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "emailed"}
-                  direction={direction}
-                  onClick={() => toggleSort("emailed")}
-                >
-                  Last emailed
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "created"}
-                  direction={direction}
-                  onClick={() => toggleSort("created")}
-                >
-                  Added
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={CONTACT_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="contacts"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => {
+                  setMatchingList(null)
+                  selection.toggleVisible(visibleIds)
+                }}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={data.contacts.length === 0}
         emptyText={
@@ -771,15 +800,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               {formatDate(contact.created_at)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void handleToggleStatus(contact)}
-                >
-                  {contact.status === "subscribed" ? "Take off" : "Put back"}
-                </Button>
+                <ContactStatusButton contact={contact} onChanged={refresh} />
                 <Button
                   type="button"
                   variant="ghost"
@@ -789,7 +810,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -801,7 +821,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         open={addOpen}
         dirty={formDirty}
         busy={saving}
-        onClose={() => setAddOpen(false)}
+        onClose={() => {
+          setEmailTouched(false)
+          setAddAttempted(false)
+          setAddOpen(false)
+        }}
       >
         {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
@@ -829,7 +853,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                     type="email"
                     autoFocus
                     value={form.email}
-                    aria-invalid={!form.email.trim() || undefined}
+                    aria-invalid={
+                      (!form.email.trim() &&
+                        (emailTouched || addAttempted)) ||
+                      undefined
+                    }
                     placeholder="ada@example.com"
                     onChange={(event) =>
                       setForm((current) => ({
@@ -837,6 +865,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                         email: event.target.value,
                       }))
                     }
+                    onBlur={() => setEmailTouched(true)}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -931,6 +960,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
           const { id } = deleteTarget
           void removeContacts(
             () => deleteContacts([id]),
+            1,
             () => setDeleteTarget(null)
           )
         }}
@@ -957,6 +987,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               allMatching
                 ? deleteMatchingContacts(currentFilter)
                 : deleteContacts([...selection.selected]),
+            selectedCount,
             () => setMassDeleteOpen(false)
           )
         }}

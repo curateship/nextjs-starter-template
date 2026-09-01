@@ -21,7 +21,7 @@ let currentErrorToastId: string | number | null = null
 export function showErrorToast(
   message: React.ReactNode,
   action?: { label: string; onClick: () => void }
-): string | number {
+) {
   if (currentErrorToastId !== null) {
     toast.dismiss(currentErrorToastId)
   }
@@ -37,12 +37,39 @@ export function showErrorToast(
         }
       : undefined,
   })
-  return currentErrorToastId
+}
+
+/** Raises the shared error toast from error state without drawing a second UI. */
+export function useErrorToast(
+  message: React.ReactNode | null | undefined,
+  onRetry?: () => void
+) {
+  const retryRef = React.useRef(onRetry)
+  const lastMessageRef = React.useRef<React.ReactNode>(undefined)
+
+  React.useEffect(() => {
+    retryRef.current = onRetry
+  }, [onRetry])
+
+  React.useEffect(() => {
+    if (message === null || message === undefined) {
+      lastMessageRef.current = undefined
+      return
+    }
+    if (Object.is(lastMessageRef.current, message)) return
+    lastMessageRef.current = message
+
+    showErrorToast(
+      message,
+      onRetry
+        ? { label: "Try again", onClick: () => retryRef.current?.() }
+        : undefined
+    )
+  }, [message, onRetry])
 }
 
 /** Call when a new attempt starts so a stale failure never outlives its retry. */
-export function dismissErrorToast(expectedId?: string | number) {
-  if (expectedId !== undefined && currentErrorToastId !== expectedId) return
+export function dismissErrorToast() {
   if (currentErrorToastId !== null) {
     toast.dismiss(currentErrorToastId)
     currentErrorToastId = null

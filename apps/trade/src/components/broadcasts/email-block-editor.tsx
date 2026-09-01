@@ -46,6 +46,7 @@ import {
   panelLayoutKey,
   useRememberedPanelLayout,
 } from "@/lib/layout/panel-layout"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
@@ -157,7 +158,7 @@ export function EmailBlockEditor({
   settingsExtra?: React.ReactNode
   /** Top-right of the canvas. Given a flush, so it can save before it acts. */
   headerAction?: (saveNow: () => Promise<boolean>) => React.ReactNode
-  bottomPanel: React.ReactNode
+  bottomPanel: React.ReactNode | ((active: boolean) => React.ReactNode)
   layout?: "broadcast" | "systemEmail" | "automationEmail"
   onSave: (fields: EmailEditableFields) => Promise<void | boolean>
 }) {
@@ -499,6 +500,7 @@ export function EmailBlockEditor({
       width={previewWidth}
       selectedBlockId={previewBlock ? null : selectedBlockId}
       disabled={!editable}
+      renderStyle={layout === "systemEmail" ? "system" : "standard"}
       onSelect={selectBlock}
       onOpenSettings={() => selectBlock(null)}
       onReorder={(blocks) =>
@@ -639,7 +641,7 @@ export function EmailBlockEditor({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+      style={{ gap: pageGutter }}
     >
       {/* No bar of its own. The three panels and the bar along the bottom are
           the whole screen — the way back out is the sidebar, and the name of
@@ -673,7 +675,9 @@ export function EmailBlockEditor({
               onDoubleClick={bottomDoubleClick}
               headerOnly={bottomShut.collapsed}
             >
-              {bottomPanel}
+              {typeof bottomPanel === "function"
+                ? bottomPanel(!bottomShut.collapsed)
+                : bottomPanel}
             </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>

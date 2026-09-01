@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -154,7 +155,10 @@ export function GeneralSettings({
               })
             }
           >
-            <SelectTrigger id="dashboard-rows-per-page" className="w-32">
+            <SelectTrigger
+              id="dashboard-rows-per-page"
+              className="w-full sm:w-fit"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -183,7 +187,10 @@ export function GeneralSettings({
               })
             }
           >
-            <SelectTrigger id="top-left-nav-limit" className="w-32">
+            <SelectTrigger
+              id="top-left-nav-limit"
+              className="w-full sm:w-fit"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -196,7 +203,17 @@ export function GeneralSettings({
           </Select>
         </div>
 
-        <ToastSecondsField config={config} onConfigChange={onConfigChange} />
+        <NumberField
+          id="toast-seconds"
+          label="Toast message duration (seconds)"
+          hint={`How long a success message stays on screen, from ${MIN_TOAST_SECONDS} to ${MAX_TOAST_SECONDS} seconds. Failures are not affected — they stay until you dismiss them.`}
+          value={config.toastSeconds}
+          min={MIN_TOAST_SECONDS}
+          max={MAX_TOAST_SECONDS}
+          onChange={(toastSeconds) =>
+            onConfigChange({ ...config, toastSeconds })
+          }
+        />
 
         {/* The app's pictures sit together: they are all small, so a row of
             them is shorter than a stack and reads as one decision. */}
@@ -345,71 +362,5 @@ function MaintenanceSettingsCard({
         }}
       />
     </CollapsibleSettingsCard>
-  )
-}
-
-/**
- * Seconds a success message stays on screen. Kept as its own draft string so a
- * half-typed or out-of-range value is reported instead of being written to
- * the config — writing a clamped number back mid-keystroke would rewrite "9"
- * to "60" while the user was still typing "90".
- */
-function ToastSecondsField({ config, onConfigChange }: GeneralSettingsProps) {
-  const [draft, setDraft] = React.useState(() => String(config.toastSeconds))
-  const [lastSaved, setLastSaved] = React.useState(config.toastSeconds)
-
-  // Follow the saved value when something else changes it (a workspace switch,
-  // or "Reset all to defaults" on the Sidebar tab). Adjusted during render
-  // rather than in an effect so the field never paints the stale number first.
-  if (lastSaved !== config.toastSeconds) {
-    setLastSaved(config.toastSeconds)
-    setDraft(String(config.toastSeconds))
-  }
-
-  const parsed = Number(draft)
-  const valid =
-    draft.trim() !== "" &&
-    Number.isInteger(parsed) &&
-    parsed >= MIN_TOAST_SECONDS &&
-    parsed <= MAX_TOAST_SECONDS
-
-  return (
-    <div className="grid gap-2">
-      <FieldLabel
-        htmlFor="toast-seconds"
-        hint={`How long a success message stays on screen, from ${MIN_TOAST_SECONDS} to ${MAX_TOAST_SECONDS} seconds. Failures are not affected — they stay until you dismiss them.`}
-      >
-        Toast message duration (seconds)
-      </FieldLabel>
-      <Input
-        id="toast-seconds"
-        type="number"
-        inputMode="numeric"
-        min={MIN_TOAST_SECONDS}
-        max={MAX_TOAST_SECONDS}
-        value={draft}
-        onChange={(event) => {
-          const next = event.target.value
-          setDraft(next)
-          const seconds = Number(next)
-          if (
-            next.trim() !== "" &&
-            Number.isInteger(seconds) &&
-            seconds >= MIN_TOAST_SECONDS &&
-            seconds <= MAX_TOAST_SECONDS
-          ) {
-            onConfigChange({ ...config, toastSeconds: seconds })
-          }
-        }}
-        aria-invalid={!valid || undefined}
-        onBlur={() => {
-          if (!valid) {
-            showErrorToast(
-              `Enter a whole number of seconds between ${MIN_TOAST_SECONDS} and ${MAX_TOAST_SECONDS}. The last valid value is still in use.`
-            )
-          }
-        }}
-      />
-    </div>
   )
 }

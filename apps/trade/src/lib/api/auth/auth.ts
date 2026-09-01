@@ -2,19 +2,23 @@ import { createServerFn } from "@tanstack/react-start"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
-import {
-  ACCOUNT_RESTORE_DAYS,
-  isPendingDeletion,
-} from "@/lib/account-deletion"
+import { ACCOUNT_RESTORE_DAYS, isPendingDeletion } from "@/lib/account-deletion"
 import { describeDevice } from "@/lib/format/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import {
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
+import {
+  authTokenExpiryText,
+  type AuthLinkExpiry,
+} from "@/lib/email/auth-token-expiry"
 import {
   closeAccounts,
   purgeExpiredDeletions,
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
 import { notifyAppAuthEvent } from "@/server/app-options"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { db } from "@/server/db"
@@ -32,18 +36,28 @@ import { enforceDeliverableEmail } from "@/server/email/deliverability"
 import { mayHaveWorkspace } from "@/lib/app-options"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
+import { enforceLoginRateLimit } from "@/server/auth/login-lockout"
 import { googleSignInEnabled } from "@/server/auth/google"
 import {
   customShellSessions,
   customShellUsers,
   type CustomShellUser,
 } from "@/server/schema"
-import { consumeSignInLink, createSignInLinkToken } from "@/server/auth/sign-in-link"
-import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
+import {
+  consumeSignInLink,
+  createSignInLinkToken,
+} from "@/server/auth/sign-in-link"
+import {
+  enforceHumanCheck,
+  getHumanCheckSiteKey,
+} from "@/server/auth/turnstile"
+import {
+  REPORTABLE_AUTH_PURPOSES,
+  reportUnwantedAuthRequest,
+} from "@/server/auth/unwanted-request"
 import {
   clearSessionCookie,
   consumeAuthToken,
-  createAuthToken,
   deleteOtherSessions,
   deleteUserSession,
   describeRequestOrigin,
@@ -52,6 +66,7 @@ import {
   getSessionToken,
   hashPassword,
   hashSessionToken,
+  isActiveAccount,
   listUserSessions,
   now,
   requireOwnAccount,
@@ -62,12 +77,27 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  getAuthLinkContext,
+  getAuthLinkExpiry,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
 import { requestIp, requireAppOrigin } from "@/server/auth/origin"
+import {
+  visitorWorkspaceId,
+  workspaceIdForRequest,
+} from "@/server/workspaces/for-request"
 import {
   alertEmailChanged,
   alertPasswordChanged,
   startSessionWithAlert,
 } from "@/server/auth/security-alerts"
+import {
+  markReferralJoined,
+  recordReferralRegistration,
+  validateReferralRegistration,
+} from "@/server/billing/referrals"
 
 export type AuthUser = {
   id: string
@@ -122,6 +152,7 @@ const registerSchema = z.object({
   password: passwordSchema,
   name: nameSchema,
   humanCheckToken: humanCheckTokenSchema,
+  referralCode: z.string().trim().toLowerCase().length(32).optional(),
 })
 const loginSchema = z.object({
   email: emailSchema,
@@ -183,7 +214,9 @@ const authErrorMessages: Record<string, string> = {
   AUTH_REQUIRED: "Please sign in again.",
   FORBIDDEN: "You do not have access to that.",
   EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
-  EMAIL_DELIVERY_FAILED: "We could not send that email. Please try again.",
+  [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+    "We could not send that email. Please try again.",
+  [EMAIL_DELIVERY_RETRYABLE]: "We could not send that email. Please try again.",
   LAST_ADMIN: "There has to be at least one other admin first.",
   SESSION_NOT_FOUND: "That device is already signed out.",
   PASSWORD_BREACHED:
@@ -216,6 +249,9 @@ const authErrorMessages: Record<string, string> = {
   PASSKEY_NOT_FOUND: "That passkey is already removed.",
   SUBSCRIPTION_CANCEL_FAILED:
     "We could not cancel your paid plan, so your account was not deleted. Please try again in a moment.",
+  REFERRAL_NOT_FOUND:
+    "This invite link is no longer valid. Ask the person who invited you for a new link.",
+  SELF_REFERRAL: "You cannot use your own invite link.",
 }
 
 /**
@@ -229,6 +265,8 @@ export const SIGN_IN_ERROR_CODES = [
   "ACCOUNT_SUSPENDED",
   "ACCOUNT_PENDING_DELETION",
   "RATE_LIMITED",
+  "REFERRAL_NOT_FOUND",
+  "SELF_REFERRAL",
 ] as const
 
 export function getAuthErrorMessage(error: unknown) {
@@ -268,6 +306,7 @@ const loadSignInOptionsFn = createServerFn({ method: "GET" }).handler(
   async () => ({
     siteKey: getHumanCheckSiteKey(),
     google: googleSignInEnabled(),
+    linkExpiry: await getAuthLinkExpiry(await visitorWorkspaceId()),
   })
 )
 
@@ -293,6 +332,10 @@ const registerFn = createServerFn({ method: "POST" })
     // the moment that account is really gone.
     await purgeExpiredDeletions()
 
+    if (data.referralCode) {
+      await validateReferralRegistration(data.referralCode, data.email)
+    }
+
     const [existing] = await db
       .select({ id: customShellUsers.id })
       .from(customShellUsers)
@@ -304,10 +347,11 @@ const registerFn = createServerFn({ method: "POST" })
     }
 
     await enforcePasswordNotBreached(data.password)
+    const linkContext = await getAuthLinkContext()
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
-    const { userId, token } = await db.transaction(async (tx) => {
+    const { user, token } = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(customShellUsers)
         .values({
@@ -320,20 +364,40 @@ const registerFn = createServerFn({ method: "POST" })
           createdAt,
           updatedAt: createdAt,
         })
-        .returning({ id: customShellUsers.id })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
 
-      return {
-        userId: user.id,
-        token: await createAuthToken(user.id, "verify_email", tx),
+      const token = await createWorkspaceAuthToken(
+        user.id,
+        "verify_email",
+        tx,
+        {
+          context: linkContext,
+        }
+      )
+      await emitMemberEvent("registered", user, tx)
+      if (data.referralCode) {
+        await recordReferralRegistration(
+          data.referralCode,
+          { ...user, emailVerifiedAt: null },
+          tx,
+          createdAt
+        )
       }
+
+      return { user, token }
     })
 
     // Told here rather than at the first sign-in because this is the only
     // moment the request that made the account is still in hand, and no
     // session exists yet to carry it — verification comes first.
-    await notifyAppAuthEvent({ kind: "register", userId })
+    await notifyAppAuthEvent({ kind: "register", userId: user.id })
 
-    await sendVerificationEmail(data.email, token)
+    await sendVerificationEmail(data.email, token, data.name, linkContext)
     return { ok: true }
   })
 
@@ -351,10 +415,21 @@ const verifyEmailFn = createServerFn({ method: "POST" })
         timestamp
       )
 
-      await tx
+      const [verified] = await tx
         .update(customShellUsers)
         .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
         .where(eq(customShellUsers.id, consumed.userId))
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      if (verified) {
+        await markReferralJoined(verified.id, tx, timestamp)
+        await emitMemberEvent("verified", verified, tx)
+      }
     })
 
     return { ok: true }
@@ -372,9 +447,17 @@ const resendVerificationFn = createServerFn({ method: "POST" })
     const user = await findUserByEmail(data.email)
     // Always reports success so this cannot be used to discover which emails
     // have accounts.
-    if (user && !user.emailVerifiedAt) {
-      const token = await createAuthToken(user.id, "verify_email")
-      await sendVerificationEmail(user.email, token)
+    if (isActiveAccount(user) && !user.emailVerifiedAt) {
+      const linkContext = await getAuthLinkContext()
+      const token = await createWorkspaceAuthToken(
+        user.id,
+        "verify_email",
+        db,
+        {
+          context: linkContext,
+        }
+      )
+      await sendVerificationEmail(user.email, token, user.name, linkContext)
     }
 
     return { ok: true }
@@ -385,11 +468,10 @@ const loginFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
 
-    const rateLimitKey = `login:${requestIp()}:${data.email}`
-    await enforceRateLimit(rateLimitKey, {
-      maxAttempts: 5,
-      windowSeconds: 15 * 60,
-    })
+    const origin = describeRequestOrigin()
+    const visitorIp = requestIp()
+    const rateLimitKey = `login:${visitorIp}:${data.email}`
+    await enforceLoginRateLimit(data.email, visitorIp, origin)
 
     const found = await findUserByEmail(data.email)
     if (!found || !(await verifyPassword(found.passwordHash, data.password))) {
@@ -420,7 +502,7 @@ const loginFn = createServerFn({ method: "POST" })
     // the two places it happens; there is no background job in this app.
     await purgeExpiredDeletions()
 
-    const token = await startSessionWithAlert(user, describeRequestOrigin())
+    const token = await startSessionWithAlert(user, origin)
     await startWorkspaceFor(user)
 
     setSessionCookie(token)
@@ -456,16 +538,22 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
     // other people's inboxes.
     await enforceHumanCheck(data.humanCheckToken)
 
-    const link = await createSignInLinkToken(data.email)
+    const linkContext = await getAuthLinkContext()
+    const link = await createSignInLinkToken(data.email, db, linkContext)
     // Always reports success so this cannot be used to discover which emails
     // have accounts.
     if (link) {
       await sendAuthEmail({
         kind: "sign-in-link",
         to: link.email,
-        tokens: { minutes: String(SIGN_IN_LINK_MINUTES) },
+        recipientName: link.name,
+        workspaceId: linkContext.workspaceId ?? undefined,
+        linkExpiry: linkContext.expiry,
         actionUrl: appUrlFor(
           `/sign-in-link?token=${encodeURIComponent(link.token)}`
+        ),
+        reportUrl: appUrlFor(
+          `/report-unwanted-sign-in?token=${encodeURIComponent(link.token)}&purpose=login`
         ),
       })
     }
@@ -520,13 +608,25 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
     await enforceHumanCheck(data.humanCheckToken)
 
     const user = await findUserByEmail(data.email)
-    if (user) {
-      const token = await createAuthToken(user.id, "reset_password")
+    if (isActiveAccount(user)) {
+      const linkContext = await getAuthLinkContext()
+      const token = await createWorkspaceAuthToken(
+        user.id,
+        "reset_password",
+        db,
+        { context: linkContext }
+      )
       await sendAuthEmail({
         kind: "password-reset",
         to: user.email,
+        recipientName: user.name,
+        workspaceId: linkContext.workspaceId ?? undefined,
+        linkExpiry: linkContext.expiry,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
+        ),
+        reportUrl: appUrlFor(
+          `/report-unwanted-sign-in?token=${encodeURIComponent(token)}&purpose=reset_password`
         ),
       })
     }
@@ -561,6 +661,12 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         timestamp
       )
 
+      const [before] = await tx
+        .select({ emailVerifiedAt: customShellUsers.emailVerifiedAt })
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, consumed.userId))
+        .limit(1)
+
       const [account] = await tx
         .update(customShellUsers)
         .set({
@@ -570,7 +676,17 @@ const resetPasswordFn = createServerFn({ method: "POST" })
           updatedAt: timestamp,
         })
         .where(eq(customShellUsers.id, consumed.userId))
-        .returning({ email: customShellUsers.email })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      if (account && !before?.emailVerifiedAt) {
+        await markReferralJoined(account.id, tx, timestamp)
+        await emitMemberEvent("verified", account, tx)
+      }
 
       // Anyone signed in with the old password is signed out.
       await tx
@@ -586,7 +702,11 @@ const resetPasswordFn = createServerFn({ method: "POST" })
     // because the one somebody did not do is the one worth hearing about, and
     // a reset is the easier of the two to do to somebody else.
     if (changed) {
-      await alertPasswordChanged(changed.email, describeRequestOrigin())
+      await alertPasswordChanged(
+        changed.email,
+        describeRequestOrigin(),
+        changed.name
+      )
     }
     return { ok: true }
   })
@@ -645,7 +765,7 @@ const changePasswordFn = createServerFn({ method: "POST" })
 
     // Keep this session, drop every other one.
     await deleteOtherSessions(user.id, getSessionToken())
-    await alertPasswordChanged(user.email, describeRequestOrigin())
+    await alertPasswordChanged(user.email, describeRequestOrigin(), user.name)
     return { ok: true }
   })
 
@@ -653,14 +773,17 @@ const changePasswordFn = createServerFn({ method: "POST" })
 export type EmailChangeState = {
   pendingEmail: string | null
   expiresAt: string | null
+  expiresIn: string
 }
 
 function describePendingChange(
-  pending: PendingEmailChange | null
+  pending: PendingEmailChange | null,
+  expiry: AuthLinkExpiry
 ): EmailChangeState {
   return {
     pendingEmail: pending?.newEmail ?? null,
     expiresAt: pending?.expiresAt.toISOString() ?? null,
+    expiresIn: authTokenExpiryText("change_email", expiry),
   }
 }
 
@@ -671,7 +794,11 @@ function describePendingChange(
 const loadEmailChangeFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<EmailChangeState> => {
     const user = await requireUser()
-    return describePendingChange(await findPendingEmailChange(user.id))
+    const workspaceId = await workspaceIdForRequest(user.id)
+    return describePendingChange(
+      await findPendingEmailChange(user.id),
+      await getAuthLinkExpiry(workspaceId)
+    )
   }
 )
 
@@ -687,7 +814,12 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
   .inputValidator(changeEmailSchema)
   .handler(async ({ data }): Promise<EmailChangeState> => {
     requireAppOrigin()
+    // `requireOwnAccount` resolves the session through `isActiveAccount`, so a
+    // suspended or closing account is refused before either email-change token
+    // is created or either address is mailed.
     const user = await requireOwnAccount()
+    const workspaceId = await workspaceIdForRequest(user.id)
+    const linkContext = await getAuthLinkContext(db, workspaceId)
 
     // Keyed on the account rather than the address: what this endpoint can be
     // abused for is mailing strangers, and the account is who would be doing it.
@@ -715,36 +847,59 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       throw new Error("INVALID_CREDENTIALS")
     }
 
-    const token = await createEmailChangeToken(user, data.newEmail)
-    const revokeToken = await createEmailChangeRevokeToken(user.id)
+    const token = await createEmailChangeToken(
+      user,
+      data.newEmail,
+      db,
+      linkContext
+    )
+    const revokeToken = await createEmailChangeRevokeToken(
+      user.id,
+      db,
+      linkContext
+    )
 
     try {
-      await sendAuthEmail({
-        kind: "email-change",
-        to: data.newEmail,
-        tokens: {
-          old_email: user.email,
-          hours: String(EMAIL_CHANGE_HOURS),
+      await sendAuthEmail(
+        {
+          kind: "email-change",
+          to: data.newEmail,
+          recipientName: user.name,
+          workspaceId,
+          linkExpiry: linkContext.expiry,
+          tokens: {
+            old_email: user.email,
+          },
+          actionUrl: appUrlFor(
+            `/change-email?token=${encodeURIComponent(token)}`
+          ),
         },
-        actionUrl: appUrlFor(`/change-email?token=${encodeURIComponent(token)}`),
-      })
+        // This flow cancels both links when either message fails. A queued copy
+        // would arrive later with a link the cancellation deliberately erased.
+        { retryOnFailure: false }
+      )
 
       // The old address hears about it too, and gets the one thing it needs:
       // a way to stop this without signing in. For an account with no password
       // — Google, a passkey — the check above did not run at all, so this
       // warning is the only thing standing between a stolen session and the
       // account.
-      await sendAuthEmail({
-        kind: "email-change-warning",
-        to: user.email,
-        tokens: {
-          new_email: data.newEmail,
-          hours: String(EMAIL_CHANGE_HOURS),
+      await sendAuthEmail(
+        {
+          kind: "email-change-warning",
+          to: user.email,
+          recipientName: user.name,
+          workspaceId,
+          linkExpiry: linkContext.expiry,
+          tokens: {
+            new_email: data.newEmail,
+          },
+          actionUrl: appUrlFor(
+            `/revoke-email-change?token=${encodeURIComponent(revokeToken)}`
+          ),
         },
-        actionUrl: appUrlFor(
-          `/revoke-email-change?token=${encodeURIComponent(revokeToken)}`
-        ),
-      })
+        { retryOnFailure: false }
+      )
     } catch (deliveryError) {
       // Both tokens are dropped rather than left behind. This is the one link
       // whose existence is shown to the person who asked for it, so a mail that
@@ -757,7 +912,10 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
 
     // Read back rather than assembled here, so the tab shows the row the
     // server actually holds — including its exact expiry.
-    return describePendingChange(await findPendingEmailChange(user.id))
+    return describePendingChange(
+      await findPendingEmailChange(user.id),
+      await getAuthLinkExpiry(workspaceId)
+    )
   })
 
 const cancelEmailChangeFn = createServerFn({ method: "POST" }).handler(
@@ -793,7 +951,7 @@ const confirmEmailChangeFn = createServerFn({ method: "POST" })
     // The last thing that address will ever hear from the app, and the reason
     // it is worth sending: somebody who missed the warning still learns the
     // account is gone, and that support is now the only way back.
-    await alertEmailChanged(previousEmail, user.email)
+    await alertEmailChanged(previousEmail, user.email, user.name)
 
     return { email: user.email }
   })
@@ -826,10 +984,50 @@ const revokeEmailChangeFn = createServerFn({ method: "POST" })
     return result
   })
 
+/**
+ * Stops one unwanted reset or sign-in link without changing the account.
+ *
+ * An invalid, expired or already-used token gets the same answer as a real
+ * report. That keeps this public endpoint from confirming whether the token or
+ * its account ever existed.
+ */
+const reportUnwantedAuthRequestFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      token: tokenSchema,
+      purpose: z.enum(REPORTABLE_AUTH_PURPOSES),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const rateLimitKey = `unwanted-auth-request:${requestIp()}`
+    await enforceRateLimit(rateLimitKey, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    try {
+      await reportUnwantedAuthRequest(data.token, data.purpose)
+      await clearRateLimit(rateLimitKey)
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== "INVALID_OR_EXPIRED_TOKEN"
+      ) {
+        throw error
+      }
+    }
+
+    return { ok: true }
+  })
+
 /** The devices signed in to this account, for the Security tab's list. */
 const loadSessionsFn = createServerFn({ method: "GET" }).handler(async () => {
   const owner = await requireSessionOwner()
-  const { sessions, total } = await listUserSessions(owner.id, getSessionToken())
+  const { sessions, total } = await listUserSessions(
+    owner.id,
+    getSessionToken()
+  )
 
   return {
     total,
@@ -974,6 +1172,13 @@ export function revokePendingEmailChange(token: string) {
   return revokeEmailChangeFn({ data: { token } })
 }
 
+export function reportUnwantedSignIn(
+  token: string,
+  purpose: (typeof REPORTABLE_AUTH_PURPOSES)[number]
+) {
+  return reportUnwantedAuthRequestFn({ data: { token, purpose } })
+}
+
 export function loadSessions() {
   return loadSessionsFn()
 }
@@ -1053,9 +1258,8 @@ export async function startWorkspaceFor(
   // Inside a handler it would be stripped; out here it is not.
   if (!mayHaveWorkspace(user)) return
 
-  const { startWorkspaceFor: start, pointAtWorkspaceForHost } = await import(
-    "@/server/people/workspaces"
-  )
+  const { startWorkspaceFor: start, pointAtWorkspaceForHost } =
+    await import("@/server/people/workspaces")
   await start(user.id)
 
   // Signing in on a workspace's own domain puts you in that workspace. Somebody
@@ -1065,10 +1269,18 @@ export async function startWorkspaceFor(
   await pointAtWorkspaceForHost(user.id)
 }
 
-function sendVerificationEmail(email: string, token: string) {
+function sendVerificationEmail(
+  email: string,
+  token: string,
+  name: string,
+  linkContext: AuthLinkContext
+) {
   return sendAuthEmail({
     kind: "verify-email",
     to: email,
+    recipientName: name,
+    workspaceId: linkContext.workspaceId ?? undefined,
+    linkExpiry: linkContext.expiry,
     actionUrl: appUrlFor(`/verify-email?token=${encodeURIComponent(token)}`),
   })
 }

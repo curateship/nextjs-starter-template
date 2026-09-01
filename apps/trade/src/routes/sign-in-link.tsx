@@ -4,6 +4,8 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
+import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import {
   HumanCheck,
   type HumanCheckHandle,
@@ -20,7 +22,7 @@ import {
   signInWithLink,
 } from "@/lib/api/auth/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 
 /**
  * One page for both halves of a sign-in link: with no token it asks for the
@@ -41,6 +43,7 @@ export const Route = createFileRoute("/sign-in-link")({
     }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: SignInLinkRoute,
 })
 
@@ -50,7 +53,7 @@ function SignInLinkRoute() {
 }
 
 function RequestSignInLink() {
-  const { siteKey } = Route.useLoaderData()
+  const { siteKey, linkExpiry } = Route.useLoaderData()
   const [email, setEmail] = React.useState("")
   const [sent, setSent] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
@@ -94,7 +97,7 @@ function RequestSignInLink() {
       description="No password needed. We will email you a link that signs you in."
       notice={
         sent
-          ? `If that email has an account, a sign-in link is on its way. The link works once and expires in ${SIGN_IN_LINK_MINUTES} minutes.`
+          ? `If that email has an account, a sign-in link is on its way. The link works once and expires in ${authTokenExpiryText("login", linkExpiry)}.`
           : null
       }
       onSubmit={handleSubmit}
@@ -117,6 +120,7 @@ function RequestSignInLink() {
           onChange={(event) => setEmail(event.target.value)}
           required
         />
+        <EmailDomainSuggestion email={email} onAccept={setEmail} />
       </div>
       <HumanCheck ref={humanCheckRef} siteKey={siteKey} />
       <Button type="submit" className="w-full" disabled={loading}>
@@ -138,6 +142,7 @@ function RequestSignInLink() {
 }
 
 function UseSignInLink({ token }: { token: string }) {
+  const { linkExpiry } = Route.useLoaderData()
   const navigate = useNavigate()
   const [failed, setFailed] = React.useState(false)
   // The link a browser has already tried. A link is single-use, so a second
@@ -192,8 +197,8 @@ function UseSignInLink({ token }: { token: string }) {
         }
       >
         <p className="text-sm text-muted-foreground">
-          Sign-in links work once and expire after {SIGN_IN_LINK_MINUTES}{" "}
-          minutes.
+          Sign-in links work once and expire after{" "}
+          {authTokenExpiryText("login", linkExpiry)}.
         </p>
       </AuthShell>
     )

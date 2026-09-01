@@ -127,10 +127,13 @@ import {
   createSignInLinkToken,
 } from "@/server/auth/sign-in-link"
 import { describeDevice } from "@/lib/format/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenTtlMs,
+} from "@/lib/email/auth-token-expiry"
 import {
   addAutomationTemplatesLink,
+  addMeteredUsageLink,
   addNewsletterLink,
   addOverviewLink,
   addPagesLink,
@@ -298,7 +301,7 @@ describe("magic-link sign-in", () => {
     expect(row.tokenHash).toBe(hashToken(link!.token))
     expect(row.tokenHash).not.toBe(link!.token)
     expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
-      SIGN_IN_LINK_MINUTES * 60 * 1000
+      authTokenTtlMs("login", DEFAULT_AUTH_LINK_EXPIRY)
     )
   })
 
@@ -741,7 +744,7 @@ describe("self-serve email change", () => {
     expect(row.tokenHash).toBe(hashToken(token))
     expect(row.tokenHash).not.toBe(token)
     expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
-      EMAIL_CHANGE_HOURS * 60 * 60 * 1000
+      authTokenTtlMs("change_email", DEFAULT_AUTH_LINK_EXPIRY)
     )
 
     // Nothing about the account moves until the link is opened.
@@ -1185,6 +1188,7 @@ describe("custom shell workspaces", () => {
           { label: "Feedback", href: "/admin/feedback" },
           { label: "Users", href: "/admin/users" },
           { label: "Plans", href: "/admin/plans" },
+          { label: "Metered usage", href: "/admin/ai-usage" },
         ],
       },
       {
@@ -1717,7 +1721,8 @@ describe("membership section", () => {
     // Newsletter next — this saved sidebar has no Automations link and no
     // Platform Settings section, so it falls back to the end of the only
     // section there is — Membership folded into the Overview, and the Pages
-    // link handed out after Traffic last.
+    // link handed out after Traffic. Metered usage joins the Overview's
+    // children last so the shell can draw it in the top-left menu.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
@@ -1733,6 +1738,7 @@ describe("membership section", () => {
     expect(overview.children?.map((child) => child.id)).toEqual([
       "item-admin-users",
       "item-admin-plans",
+      "item-admin-metered-usage",
     ])
     expect(overview.children?.[0].label).toBe("People")
 
@@ -1764,8 +1770,8 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The AI usage, Traffic, Pages and Newsletter links stay: all were handed
-    // out by the same upgrade, and none is what was deleted.
+    // AI usage, Traffic, Pages and Newsletter stay. Metered usage was a child
+    // of the Overview, so deleting that group removes its menu entry too.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
@@ -2017,9 +2023,9 @@ describe("overview link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
-      // navVersions 8, 9 and 17 hand the AI usage, Traffic and Pages links to
-      // every older workspace. Membership is not on the list: navVersion 14
-      // folds it into the Overview after those have used it as their anchor.
+      // Navigation upgrades hand the usage, Traffic and Pages links to every
+      // older workspace. Membership is not on the list: navVersion 14 folds it
+      // into the Overview after those have used it as their anchor.
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -2055,6 +2061,189 @@ describe("overview link", () => {
       "item-admin-traffic",
       "item-admin-pages",
     ])
+  })
+})
+
+describe("metered usage link", () => {
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-overview",
+            label: "Overview",
+            href: "/admin/dashboard",
+            icon: "layoutDashboard",
+            visible: true,
+            children: [
+              {
+                id: "item-admin-plans",
+                label: "Plans",
+                href: "/admin/plans",
+              },
+            ],
+          },
+          {
+            type: "item",
+            id: "item-admin-ai-usage",
+            label: "AI usage",
+            href: "/admin/ai",
+            icon: "sparkles",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  it("puts Metered usage in the dashboard group that supplies the top-left menu", () => {
+    const sections = addMeteredUsageLink(savedSections())
+
+    expect(sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-ai-usage",
+    ])
+    expect((sections[0].entries[0] as ShellItem).children).toMatchObject([
+      {
+        id: "item-admin-plans",
+        href: "/admin/plans",
+      },
+      {
+        id: "item-admin-metered-usage",
+        label: "Metered usage",
+        href: "/admin/ai-usage",
+        icon: "barChart3",
+        roles: ["admin"],
+      },
+    ])
+  })
+
+  it("repairs an absolute saved child and removes the duplicate standalone link", () => {
+    const sections = savedSections()
+    const overview = sections[0].entries[0] as ShellItem
+    overview.children?.push({
+      id: "my-metered-usage",
+      label: "Metered usage",
+      href: "http://localhost:3002/admin/ai-usage",
+      icon: "barChart3",
+      roles: ["admin"],
+    })
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-metered-usage",
+      label: "Metered usage",
+      href: "/admin/ai-usage",
+      icon: "barChart3",
+      visible: true,
+    })
+
+    const upgraded = addMeteredUsageLink(sections)
+    const upgradedOverview = upgraded[0].entries[0] as ShellItem
+
+    expect(upgraded[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-ai-usage",
+    ])
+    expect(
+      upgradedOverview.children?.filter(
+        (child) => child.href === "/admin/ai-usage"
+      )
+    ).toHaveLength(1)
+  })
+
+  it("moves a saved child from another group into the dashboard group", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-tools",
+      label: "Tools",
+      href: "/admin/tools",
+      icon: "wrench",
+      visible: true,
+      children: [
+        {
+          id: "my-metered-usage",
+          label: "Metered usage",
+          href: "/admin/ai-usage",
+          icon: "barChart3",
+        },
+      ],
+    })
+
+    const upgraded = addMeteredUsageLink(sections)
+    const overview = upgraded[0].entries[0] as ShellItem
+    const tools = upgraded[0].entries[2] as ShellItem
+
+    expect(overview.children?.at(-1)?.href).toBe("/admin/ai-usage")
+    expect(tools.children).toEqual([])
+  })
+
+  it("does not double a link already saved under another id", () => {
+    const sections = savedSections()
+    const overview = sections[0].entries[0] as ShellItem
+    overview.children?.push({
+      id: "my-metered-usage",
+      label: "Usage billing",
+      href: "/admin/ai-usage",
+      icon: "barChart3",
+    })
+
+    const upgraded = addMeteredUsageLink(sections)
+    expect(
+      (upgraded[0].entries[0] as ShellItem).children?.filter(
+        (child) => child.href === "/admin/ai-usage"
+      )
+    ).toHaveLength(1)
+  })
+
+  it("brings a version-18 sidebar forward once", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "metered-usage@example.com",
+      name: "Metered Usage Admin",
+      passwordHash: "hash",
+      role: "admin",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Saved",
+      settings: {
+        icon: "briefcaseBusiness",
+        navVersion: 18,
+        sections: savedSections(),
+      },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await startWorkspaceFor(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-ai-usage",
+    ])
+    expect(
+      (upgraded.sections[0].entries[0] as ShellItem).children?.map(
+        (child) => child.id
+      )
+    ).toEqual(["item-admin-plans", "item-admin-metered-usage"])
   })
 })
 
@@ -2231,6 +2420,7 @@ describe("traffic link", () => {
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
+      "item-admin-metered-usage",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -2263,6 +2453,7 @@ describe("traffic link", () => {
     expect(idsIn(reloaded.sections, 0)).toEqual([
       "item-admin-ai-usage",
       "item-admin-pages",
+      "item-admin-metered-usage",
     ])
   })
 })
@@ -2854,6 +3045,7 @@ describe("revenue folds into membership", () => {
       "item-admin-traffic",
       "item-admin-pages",
       "item-newsletter",
+      "item-admin-metered-usage",
     ])
 
     // Somebody making their own link to the old address afterwards keeps it —
@@ -3614,6 +3806,7 @@ describe("feeds section", () => {
       "item-notifications",
       "item-changelog",
       "item-admin-users",
+      "item-admin-metered-usage",
     ])
 
     // Delete the Overview the way Settings → Sidebar would, then load again.
@@ -3862,6 +4055,7 @@ describe("feeds section", () => {
       "item-notifications",
       "item-changelog",
       "item-feedback",
+      "item-admin-metered-usage",
     ])
     expect(allLinkIds(upgraded.sections)).not.toContain("item-admin-feeds")
     expect(allLinkIds(upgraded.sections)).not.toContain(
@@ -5450,7 +5644,7 @@ describe("custom shell feedback notifications", () => {
         workspaceId,
         userId: recipientId,
         type: "suggestion",
-        message: `Feedback ${index}`,
+        message: ["Zulu feedback", "Feedback 1", "Alpha feedback"][index],
         createdAt,
         updatedAt: createdAt,
       }))
@@ -5500,11 +5694,11 @@ describe("custom shell feedback notifications", () => {
       notificationIds[1],
     ])
 
-    const byActor = await list({ sort: "activity", direction: "asc" })
-    expect(byActor.notifications.map((item) => item.actor_name)).toEqual([
-      "Buried Person",
-      "Middle Person",
-      "Recent Person",
+    const byActivity = await list({ sort: "activity", direction: "asc" })
+    expect(byActivity.notifications.map((item) => item.id)).toEqual([
+      notificationIds[2],
+      notificationIds[1],
+      notificationIds[0],
     ])
 
     // Type sorts by the words on screen: "Comment" before "Thumbs up".
@@ -6608,6 +6802,10 @@ describe("custom shell announcements", () => {
     await createAnnouncement(
       workspaceId,
       baseInput({ audience: "everyone", startsOn: dayField(7) }),
+      db
+    )
+    await createAnnouncement(workspaceId,
+      baseInput({ audience: "everyone", showBanner: false, notify: true }),
       db
     )
     await createAnnouncement(

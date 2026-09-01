@@ -4,7 +4,13 @@ import { z } from "zod"
 import { createErrorMessage } from "../error-message"
 
 import {
+  CANCELLATION_FEEDBACK_MAX_LENGTH,
+  CANCELLATION_REASONS,
+  type CancellationReason,
+} from "@/lib/billing/cancellation"
+import {
   billingEnabled,
+  cancelSubscriptionByMember,
   createCheckoutSession,
   createPortalSession,
   findExpiringCard,
@@ -15,10 +21,13 @@ import {
   type CardExpiryWarning,
 } from "@/server/billing/stripe"
 import { loadEntitlements } from "@/server/billing/entitlements"
+import { listMemberSubscriptionEvents } from "@/server/billing/subscription-events"
+import { loadMemberUsage, type MemberUsageSummary } from "@/server/billing/usage"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/billing/plans"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
+import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 import { userGet, userPost } from "@/server/guards"
 
 export type PlanOption = {
@@ -29,9 +38,12 @@ export type PlanOption = {
   priceMonthlyCents: number
   priceYearlyCents: number
   currency: string
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   canCheckoutMonthly: boolean
   canCheckoutYearly: boolean
 }
@@ -76,11 +88,13 @@ const billingErrorMessages = {
     "This plan was granted by an admin and is not billed, so there is nothing to pause.",
   CANNOT_PAUSE_TRIAL:
     "You are on a free trial, so nothing is being billed yet. There is nothing to pause.",
+  CANNOT_CANCEL_GRANT:
+    "This plan was granted by an admin and is not billed, so there is no subscription to cancel.",
   ALREADY_ENDING:
     "Your plan is already set to end when the period you paid for runs out.",
   AUTH_REQUIRED: "Please sign in again.",
   RATE_LIMITED:
-    "Too many checkout attempts. Please wait a few minutes and try again.",
+    "Too many billing requests. Please wait a few minutes and try again.",
 }
 
 /**
@@ -205,6 +219,37 @@ const setOwnPauseFn = createServerFn({ method: "POST" })
     return setSubscriptionPaused(context.user.id, data.paused, "member")
   })
 
+const cancelOwnSubscriptionFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .validator(
+    z.object({
+      // An outdated or altered answer is treated as a skip. Survey data must
+      // never become the rule that prevents somebody from cancelling.
+      reason: z
+        .string()
+        .nullable()
+        .transform((value): CancellationReason | null =>
+          value && CANCELLATION_REASONS.includes(value as CancellationReason)
+            ? (value as CancellationReason)
+            : null
+        ),
+      feedback: z
+        .string()
+        .nullable()
+        .transform(
+          (value) =>
+            value?.trim().slice(0, CANCELLATION_FEEDBACK_MAX_LENGTH) || null
+        ),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    await enforceRateLimit(`subscription-cancel:${context.user.id}`, {
+      maxAttempts: 5,
+      windowSeconds: 15 * 60,
+    })
+    return cancelSubscriptionByMember(context.user.id, data)
+  })
+
 /**
  * Billing page data in one request: the overview, any Stripe invoices, and a
  * warning when the saved card runs out before the next renewal.
@@ -218,8 +263,16 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
       overview: BillingOverview
       invoices: BillingInvoice[]
       cardWarning: CardExpiryWarning | null
+      billingHistory: MemberSubscriptionEvent[]
+      usage: MemberUsageSummary
     }> => {
-      const { overview, subscription } = await buildBillingOverview(context.user)
+      // No account id comes from the browser. The session supplies the only id
+      // used for this history read, so another member's events are unreachable.
+      const [{ overview, subscription }, billingHistory, usage] = await Promise.all([
+        buildBillingOverview(context.user),
+        listMemberSubscriptionEvents(context.user.id),
+        loadMemberUsage(context.user.id),
+      ])
 
       // Both of these are calls out to Stripe, so make them at the same time
       // rather than leaving the reader waiting through one and then the other.
@@ -235,7 +288,7 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
           : null,
       ])
 
-      return { overview, invoices, cardWarning }
+      return { overview, invoices, cardWarning, billingHistory, usage }
     }
   )
 
@@ -253,6 +306,13 @@ export function openBillingPortal() {
 
 export function setOwnPlanPaused(paused: boolean) {
   return setOwnPauseFn({ data: { paused } })
+}
+
+export function cancelOwnSubscription(
+  reason: CancellationReason | null,
+  feedback: string | null
+) {
+  return cancelOwnSubscriptionFn({ data: { reason, feedback } })
 }
 
 /**
@@ -283,7 +343,7 @@ export function loadBillingPage() {
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
-export type { BillingInvoice, CardExpiryWarning }
+export type { BillingInvoice, CardExpiryWarning, MemberUsageSummary }
 
 function toPlanOption(plan: {
   id: string
@@ -293,9 +353,12 @@ function toPlanOption(plan: {
   priceMonthlyCents: number
   priceYearlyCents: number
   currency: string
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
 }): PlanOption {
@@ -307,9 +370,12 @@ function toPlanOption(plan: {
     priceMonthlyCents: plan.priceMonthlyCents,
     priceYearlyCents: plan.priceYearlyCents,
     currency: plan.currency,
+    usageMeter: plan.usageMeter,
     trialDays: plan.trialDays,
     features: plan.features ?? {},
     isDefault: plan.isDefault,
+    highlightBadgeText: plan.highlightBadgeText,
+    checkoutButtonText: plan.checkoutButtonText,
     canCheckoutMonthly:
       plan.priceMonthlyCents > 0 && Boolean(plan.stripePriceIdMonthly),
     canCheckoutYearly:

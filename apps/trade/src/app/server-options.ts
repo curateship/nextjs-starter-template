@@ -1,12 +1,5 @@
-import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
-import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
-import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
-import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
-import { tradeGridNode } from "@/lib/automations/nodes/trade-grid"
-import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import type { AppServerOptions } from "@/server/app-options"
 import { backtestTick } from "@/server/trade/backtest/worker"
-import { runTradeFlow } from "@/server/trade/flow-start"
 import { monitorTradingEngine } from "@/server/trade/engine-health"
 import {
   ensureLadderLoop,
@@ -34,61 +27,6 @@ import {
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
-  automations: {
-    executors: {
-      /**
-       * The wallet and the coins carry on. Neither does anything by itself —
-       * everything they hold is read off the saved flow when the ladder step
-       * starts the run — so all they do here is say what they are set to, which
-       * is what the run history is for.
-       */
-      [tradeWalletNode.kind]: async ({ settings }) => ({
-        type: "next",
-        summary: tradeWalletNode.description(
-          settings as AutomationNodeSettings
-        ),
-      }),
-      [tradeMarketsNode.kind]: async ({ settings }) => ({
-        type: "next",
-        summary: tradeMarketsNode.description(
-          settings as AutomationNodeSettings
-        ),
-      }),
-
-      /**
-       * The ladder step is the end of the flow, and where it actually does
-       * something — one of two things.
-       *
-       * It hands over only which run this is; the starter re-reads the saved
-       * flow and works the rest out from all three steps. No wallet named and
-       * that is a backtest, exactly as before. A wallet named and there is
-       * nothing to test, so the flow is switched on to trade instead. Either
-       * way a flow that cannot do it completes with the plain sentence saying
-       * why, rather than failing as broken.
-       */
-      [tradeDcaNode.kind]: async ({ run, now }) => {
-        const outcome = await runTradeFlow(run, now().getTime())
-        return { type: "complete", summary: outcome.summary }
-      },
-
-      /**
-       * The other strategy, and the identical hand-over.
-       *
-       * `runTradeFlow` re-reads the saved flow and works out which strategy it
-       * holds from the steps themselves, so this does not need to say. Written
-       * as its own entry rather than sharing one, because the executor table is
-       * keyed by kind and a kind with no entry fails the run as broken.
-       */
-      [tradeSignalsNode.kind]: async ({ run, now }) => {
-        const outcome = await runTradeFlow(run, now().getTime())
-        return { type: "complete", summary: outcome.summary }
-      },
-      [tradeGridNode.kind]: async ({ run, now }) => {
-        const outcome = await runTradeFlow(run, now().getTime())
-        return { type: "complete", summary: outcome.summary }
-      },
-    },
-  },
   background: {
     workers: [
       {

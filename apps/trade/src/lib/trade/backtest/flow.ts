@@ -4,7 +4,7 @@ import {
   tradeDcaNode,
   tradeDcaSettingsSchema,
   type TradeDcaSettings,
-} from "@/lib/automations/nodes/trade-dca"
+} from "@/lib/recipes/trade-dca"
 import {
   candlesPerCoin,
   coinsAllowedFor,
@@ -14,24 +14,24 @@ import {
   windowDays,
   windowProblem,
   type TradeMarketsSettings,
-} from "@/lib/automations/nodes/trade-markets"
+} from "@/lib/recipes/trade-markets"
 import {
   tradeSignalsNode,
   tradeSignalsSettingsSchema,
   type TradeSignalsSettings,
-} from "@/lib/automations/nodes/trade-signals"
+} from "@/lib/recipes/trade-signals"
 import {
   tradeGridNode,
   tradeGridSettingsSchema,
   type TradeGridSettings,
-} from "@/lib/automations/nodes/trade-grid"
+} from "@/lib/recipes/trade-grid"
 import {
   chosenWallet,
   tradeWalletNode,
   tradeWalletSettingsSchema,
   walletMoneyWords,
   type TradeWalletSettings,
-} from "@/lib/automations/nodes/trade-wallet"
+} from "@/lib/recipes/trade-wallet"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import type { MarketFolder } from "@/lib/trade/market-folders"
 

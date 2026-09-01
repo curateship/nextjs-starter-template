@@ -16,7 +16,7 @@ import {
   type WalletAccountSummary,
   type WalletKind,
 } from "@/lib/trade/wallets"
-import { db } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import {
   accountOf,
@@ -98,20 +98,18 @@ const publicWalletSelection = {
   keyValidUntil: tradeWallets.agentValidUntil,
 }
 
-function selectedWallet(
-  row: {
-    id: string
-    label: string
-    kind: TradeWallet["kind"]
-    status: TradeWallet["status"]
-    protocol: TradeWallet["protocol"]
-    network: TradeWallet["network"]
-    startingBalance: number
-    address: string | null
-    hasKey: boolean
-    keyValidUntil: Date | null
-  }
-): TradeWallet {
+function selectedWallet(row: {
+  id: string
+  label: string
+  kind: TradeWallet["kind"]
+  status: TradeWallet["status"]
+  protocol: TradeWallet["protocol"]
+  network: TradeWallet["network"]
+  startingBalance: number
+  address: string | null
+  hasKey: boolean
+  keyValidUntil: Date | null
+}): TradeWallet {
   return {
     id: row.id,
     label: row.label,
@@ -159,9 +157,10 @@ export async function listWalletsWithCredentials(userId: string): Promise<{
  */
 export async function findWallet(
   userId: string,
-  id: string
+  id: string,
+  database: CustomShellDb = db
 ): Promise<TradeWallet | null> {
-  const rows = await db
+  const rows = await database
     .select(publicWalletSelection)
     .from(tradeWallets)
     .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))

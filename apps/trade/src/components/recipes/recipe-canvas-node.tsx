@@ -1,0 +1,177 @@
+/**
+ * Deliberate Trade-owned fork of the shell canvas node. It draws only recipe
+ * descriptors and keeps unsupported saved steps removable.
+ */
+import * as React from "react"
+import { AlertCircleIcon } from "lucide-react"
+
+import type {
+  AutomationNode,
+  AutomationSourcePort,
+} from "@/lib/automations/graph"
+import {
+  recipeNodeDescription,
+  recipeNodeHasInput,
+  recipeNodeIcon,
+  recipeNodeName,
+  recipeNodeIsSupported,
+} from "@/lib/recipes/registry"
+import { cn } from "@/lib/utils"
+import { focusRing } from "@/lib/layout/focus-ring"
+
+import { RecipeNodeIcon } from "./recipe-node-icon"
+import {
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  nodeOutputPorts,
+  portOut,
+} from "./canvas-model"
+
+export function RecipeCanvasNode({
+  node,
+  selected,
+  invalid,
+  connecting,
+  onSelect,
+  onMoveStart,
+  onConnectStart,
+  onConnectFinish,
+}: {
+  node: AutomationNode
+  selected: boolean
+  invalid: boolean
+  connecting: boolean
+  onSelect: () => void
+  onMoveStart: (event: React.PointerEvent) => void
+  onConnectStart: (sourcePort: AutomationSourcePort) => void
+  onConnectFinish: () => void
+}) {
+  const ports = nodeOutputPorts(node)
+  const hasInput = recipeNodeHasInput(node)
+  // A saved node whose kind this app doesn't know renders as an inert card
+  // instead of crashing the editor. It can still be selected and deleted.
+  const unsupported = !recipeNodeIsSupported(node)
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      data-node-id={node.id}
+      aria-label={`${recipeNodeName(node)} node`}
+      aria-invalid={invalid || undefined}
+      onFocus={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.stopPropagation()
+        event.preventDefault()
+        event.currentTarget.focus({ preventScroll: true })
+        onSelect()
+        onMoveStart(event)
+      }}
+      className={cn(
+        "pointer-events-auto absolute top-0 left-0 box-border cursor-grab rounded-lg border bg-card shadow-sm active:cursor-grabbing",
+        focusRing,
+        unsupported && "border-dashed border-muted-foreground/40 bg-muted/40",
+        selected && "border-primary ring-3 ring-primary/15",
+        invalid && "border-destructive"
+      )}
+      style={{
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        transform: `translate(${node.x}px, ${node.y}px)`,
+      }}
+    >
+      <div
+        className={cn(
+          "flex h-full items-center gap-2 pl-3",
+          ports.length > 0 ? "pr-20" : "pr-3"
+        )}
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <RecipeNodeIcon icon={recipeNodeIcon(node)} className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1 overflow-hidden">
+          <span className="flex items-center gap-1.5 text-xs font-semibold">
+            <span className="truncate" title={recipeNodeName(node)}>
+              {recipeNodeName(node)}
+            </span>
+            {invalid ? (
+              <AlertCircleIcon
+                aria-label="Node has a validation error"
+                className="size-3.5 shrink-0 text-destructive"
+              />
+            ) : null}
+          </span>
+          <span
+            className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground"
+            title={recipeNodeDescription(node)}
+          >
+            {recipeNodeDescription(node)}
+          </span>
+        </span>
+      </div>
+
+      {hasInput ? (
+        <button
+          type="button"
+          data-port="input"
+          aria-label={`Connect to ${recipeNodeName(node)}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => {
+            event.stopPropagation()
+            onConnectFinish()
+          }}
+          onClick={(event) => {
+            event.stopPropagation()
+            onConnectFinish()
+          }}
+          className={cn(
+            "absolute -left-2 size-4 rounded-full border-2 bg-card transition-transform hover:scale-125",
+            focusRing,
+            connecting ? "border-primary" : "border-muted-foreground/60"
+          )}
+          style={{ top: NODE_HEIGHT / 2 - 8 }}
+        />
+      ) : null}
+
+      {ports.map((port) => {
+        const centerY = portOut(node, port.id).y - node.y
+        return (
+          <React.Fragment key={port.id}>
+            <span
+              aria-hidden="true"
+              className="absolute right-4 text-[9px] font-semibold tracking-wide text-muted-foreground uppercase"
+              style={{ top: centerY - 6 }}
+            >
+              {port.label}
+            </span>
+            <button
+              type="button"
+              data-port={port.id}
+              aria-label={`Connect from ${recipeNodeName(node)} ${port.label}`}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                event.preventDefault()
+                onConnectStart(port.id)
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+                onConnectStart(port.id)
+              }}
+              className={cn(
+                "absolute -right-2 size-4 rounded-full border-2 border-muted-foreground/60 bg-card transition-transform hover:scale-125 focus-visible:border-primary",
+                focusRing
+              )}
+              style={{ top: centerY - 8 }}
+            />
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+}

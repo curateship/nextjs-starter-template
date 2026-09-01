@@ -7,7 +7,7 @@ import {
   ChevronsUpDownIcon,
 } from "lucide-react"
 
-import { focusRingInset } from "@/lib/layout/focus-ring"
+import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
@@ -224,13 +224,21 @@ function TableSortButton({
   children,
   className,
   direction,
+  "aria-label": ariaLabel,
   ...props
 }: TableSortButtonProps) {
   return (
     <button
       type="button"
+      aria-label={
+        ariaLabel ??
+        (active && typeof children === "string"
+          ? `${children}, sorted ${direction === "asc" ? "ascending" : "descending"}`
+          : undefined)
+      }
       className={cn(
         "group/sort flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-inherit outline-none transition-colors hover:text-foreground sm:text-sm",
+        focusRing,
         className
       )}
       {...props}
@@ -251,7 +259,7 @@ function TableSortButton({
   )
 }
 
-function TableCell({ className, column, ...props }: TableCellProps) {
+function TableCell({ className, column, children, ...props }: TableCellProps) {
   return (
     <td
       data-slot="table-cell"
@@ -271,7 +279,13 @@ function TableCell({ className, column, ...props }: TableCellProps) {
         className
       )}
       {...props}
-    />
+    >
+      {column === "actions" ? (
+        <div className="flex items-center gap-1">{children}</div>
+      ) : (
+        children
+      )}
+    </td>
   )
 }
 

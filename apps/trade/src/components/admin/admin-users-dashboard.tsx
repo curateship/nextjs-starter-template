@@ -17,6 +17,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type TableHeaderColumn,
+} from "@/components/shared/sortable-table-header"
+import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
@@ -40,9 +45,7 @@ import {
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import {
   deleteAccountAsAdmin,
@@ -81,7 +84,26 @@ const usersRoute = getRouteApi("/_authenticated/admin/users")
  */
 type SortColumn = (typeof USER_SORT_COLUMNS)[number]
 
-
+const ACCOUNT_COLUMNS: TableHeaderColumn<SortColumn>[] = [
+  { key: "name", label: "Name", column: "main" },
+  { key: "email", label: "Email", column: "meta" },
+  { key: "role", label: "Role", column: "meta" },
+  { key: "status", label: "Status", column: "meta" },
+  {
+    key: "tags",
+    label: "Tags",
+    sortable: false,
+    column: "meta",
+    className: "hidden xl:table-cell",
+  },
+  { key: "plan", label: "Plan", column: "meta" },
+  {
+    key: "created",
+    label: "Joined",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
 
 /**
  * What deleting these accounts did, said plainly. The same button both marks an
@@ -217,7 +239,9 @@ export function AdminUsersDashboard({
   const [error, setError] = React.useState<string | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [adding, setAdding] = React.useState(false)
-  const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(
+    null
+  )
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
@@ -228,7 +252,9 @@ export function AdminUsersDashboard({
   // restore are separate actions, so neither may grey the other out.
   const [restoring, setRestoring] = React.useState(false)
   const [massRestoring, setMassRestoring] = React.useState(false)
-  const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(null)
+  const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(
+    null
+  )
   const [startingViewAs, setStartingViewAs] = React.useState(false)
 
   const refresh = React.useCallback(async () => {
@@ -269,9 +295,8 @@ export function AdminUsersDashboard({
     `${search}|${role}|${status}|${sort}|${direction}|${page}|${pageSize}`
   )
 
-  const toggleSort = useListSort<SortColumn>(
-    { sort, direction },
-    (column) => (column === "created" ? "desc" : "asc")
+  const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) =>
+    column === "created" ? "desc" : "asc"
   )
 
   const runAction = React.useCallback(
@@ -359,7 +384,7 @@ export function AdminUsersDashboard({
     const ok = await runAction(
       () => restoreAccountsAsAdmin(selectedDeletedIds),
       ({ restored }) =>
-        `${restored} ${plural(restored, "account", "accounts")} restored.`
+        `${restored} ${plural(restored, "account", "accounts")} restored. In-app notices were created and emails were attempted.`
     )
     setMassRestoring(false)
     if (ok) setSelectedIds(new Set())
@@ -421,9 +446,7 @@ export function AdminUsersDashboard({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Filter by role"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Filter by role">
                 <SelectValue placeholder="Role" />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -441,14 +464,13 @@ export function AdminUsersDashboard({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Filter by status"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Filter by status">
                 <SelectValue placeholder="Status" />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All accounts</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="unverified">Not verified</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
                 <SelectItem value="pending_deletion">
                   Scheduled for deletion
@@ -456,85 +478,36 @@ export function AdminUsersDashboard({
                 <SelectItem value="locked_out">Locked out</SelectItem>
               </SelectContent>
             </Select>
-            <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
+            <DashboardToolbarButton
+              type="button"
+              onClick={() => setAdding(true)}
+            >
               <PlusIcon className="size-4" />
               Add account
             </DashboardToolbarButton>
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
-                  aria-label="Select visible accounts"
-                />
-              </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "email"}
-                  direction={direction}
-                  onClick={() => toggleSort("email")}
-                >
-                  Email
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "role"}
-                  direction={direction}
-                  onClick={() => toggleSort("role")}
-                >
-                  Role
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "plan"}
-                  direction={direction}
-                  onClick={() => toggleSort("plan")}
-                >
-                  Plan
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "created"}
-                  direction={direction}
-                  onClick={() => toggleSort("created")}
-                >
-                  Joined
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={ACCOUNT_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="accounts"
+                checked={
+                  allSelected ? true : someSelected ? "indeterminate" : false
+                }
+                onCheckedChange={toggleVisibleSelection}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={!loading && accounts.length === 0}
         emptyText="No accounts match those filters."
-        emptyColSpan={8}
+        emptyColSpan={9}
         footer={{
           type: "pagination",
           page,
@@ -585,6 +558,25 @@ export function AdminUsersDashboard({
             <TableCell column="meta">
               <AccountStatusBadge account={account} />
             </TableCell>
+            <TableCell column="meta" className="hidden max-w-56 xl:table-cell">
+              {account.tags.length ? (
+                <div
+                  className="flex flex-wrap gap-1"
+                  title={account.tags.join(", ")}
+                >
+                  {account.tags.slice(0, 2).map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {account.tags.length > 2 ? (
+                    <Badge variant="outline">+{account.tags.length - 2}</Badge>
+                  ) : null}
+                </div>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </TableCell>
             {/* Just the plan's name: whether it was granted or is already
                 ending lives in the account window, not as extra badges. A
                 paused plan says so in the same one badge rather than adding a
@@ -599,7 +591,6 @@ export function AdminUsersDashboard({
               {formatDate(account.createdAt)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <DisabledReason
                   disabled={
                     account.role === "admin" || account.status !== "active"
@@ -665,7 +656,6 @@ export function AdminUsersDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -706,7 +696,9 @@ export function AdminUsersDashboard({
             ? "Delete this account for good?"
             : "Delete this account?"
         }
-        description={deleteTarget ? describeAccountDeletion(deleteTarget) : null}
+        description={
+          deleteTarget ? describeAccountDeletion(deleteTarget) : null
+        }
         confirmLabel="Delete account"
         loading={deleting}
         onConfirm={async () => {
@@ -730,7 +722,7 @@ export function AdminUsersDashboard({
         title="Restore this account?"
         description={
           restoreTarget
-            ? `${restoreTarget.name} (${restoreTarget.email}) becomes active again and can sign in. Nothing was deleted, so everything they own comes back with them.`
+            ? `${restoreTarget.name} (${restoreTarget.email}) becomes active again and can sign in. Nothing was deleted, so everything they own comes back with them. They will be told by email and in the app.`
             : null
         }
         confirmLabel="Restore account"

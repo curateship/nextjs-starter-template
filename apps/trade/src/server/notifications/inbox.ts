@@ -30,9 +30,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/auth/security"
-import {
-  type NotificationItem,
-} from "@/lib/api/notification"
+import { type NotificationItem } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
   createDefaultNotificationTypeVisibility,
@@ -59,7 +57,7 @@ export type AdminNotificationQuery = {
   type: "all" | NotificationType
   page: number
   pageSize: number
-  sort: "activity" | "feedback" | "recipient" | "type" | "status" | "created"
+  sort: "activity" | "recipient" | "type" | "status" | "created"
   direction: "asc" | "desc"
 }
 
@@ -78,6 +76,7 @@ const recipientUsers = alias(customShellUsers, "recipient_users")
  * about for the rest. Mirrors `notificationSubject` on the page.
  */
 const subjectExpression = sql<string>`case
+  when ${customShellNotifications.type} in ('account_update', 'system_email_failed') then coalesce(${customShellNotifications.message}, '')
   when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
   when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
   when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')
@@ -151,8 +150,7 @@ export async function listAdminNotifications(
   const where = filters.length ? and(...filters) : undefined
   const direction = query.direction === "asc" ? asc : desc
   const sortExpression = {
-    activity: sql`coalesce(${actorUsers.name}, '')`,
-    feedback: subjectExpression,
+    activity: subjectExpression,
     recipient: recipientUsers.name,
     type: typeLabelExpression,
     status: sql`case when ${customShellNotifications.readAt} is null then 0 else 1 end`,
@@ -194,40 +192,45 @@ export async function listAdminNotifications(
  * show.
  */
 function joinNotificationSources<T extends PgSelect>(query: T) {
-  return query
-    .innerJoin(
-      recipientUsers,
-      eq(recipientUsers.id, customShellNotifications.recipientUserId)
-    )
-    .leftJoin(
-      actorUsers,
-      eq(actorUsers.id, customShellNotifications.actorUserId)
-    )
-    .leftJoin(
-      customShellFeedback,
-      eq(customShellFeedback.id, customShellNotifications.feedbackId)
-    )
-    .leftJoin(
-      customShellChangelogEntries,
-      eq(
-        customShellChangelogEntries.id,
-        customShellNotifications.changelogEntryId
+  return (
+    query
+      .innerJoin(
+        recipientUsers,
+        eq(recipientUsers.id, customShellNotifications.recipientUserId)
       )
-    )
-    .leftJoin(
-      customShellAnnouncements,
-      eq(customShellAnnouncements.id, customShellNotifications.announcementId)
-    )
-    // Two hops, because the notice points at the run and the words it needs
-    // are the flow's name.
-    .leftJoin(
-      customShellAutomationRuns,
-      eq(customShellAutomationRuns.id, customShellNotifications.automationRunId)
-    )
-    .leftJoin(
-      customShellAutomations,
-      eq(customShellAutomations.id, customShellAutomationRuns.automationId)
-    )
+      .leftJoin(
+        actorUsers,
+        eq(actorUsers.id, customShellNotifications.actorUserId)
+      )
+      .leftJoin(
+        customShellFeedback,
+        eq(customShellFeedback.id, customShellNotifications.feedbackId)
+      )
+      .leftJoin(
+        customShellChangelogEntries,
+        eq(
+          customShellChangelogEntries.id,
+          customShellNotifications.changelogEntryId
+        )
+      )
+      .leftJoin(
+        customShellAnnouncements,
+        eq(customShellAnnouncements.id, customShellNotifications.announcementId)
+      )
+      // Two hops, because the notice points at the run and the words it needs
+      // are the flow's name.
+      .leftJoin(
+        customShellAutomationRuns,
+        eq(
+          customShellAutomationRuns.id,
+          customShellNotifications.automationRunId
+        )
+      )
+      .leftJoin(
+        customShellAutomations,
+        eq(customShellAutomations.id, customShellAutomationRuns.automationId)
+      )
+  )
 }
 
 /**
@@ -246,8 +249,7 @@ function joinNotificationSources<T extends PgSelect>(query: T) {
 export async function countUnreadNotifications(
   userId: string,
   database: CustomShellDb = db,
-  notificationTypes: NotificationTypeVisibility =
-    createDefaultNotificationTypeVisibility()
+  notificationTypes: NotificationTypeVisibility = createDefaultNotificationTypeVisibility()
 ): Promise<number> {
   const shownTypes = visibleNotificationTypes(notificationTypes)
   const [row] = await database
@@ -462,11 +464,15 @@ export async function serializeNotificationRows(
   )
   const changelogIds = Array.from(
     new Set(
-      rows.flatMap((row) => (row.changelogEntryId ? [row.changelogEntryId] : []))
+      rows.flatMap((row) =>
+        row.changelogEntryId ? [row.changelogEntryId] : []
+      )
     )
   )
   const announcementIds = Array.from(
-    new Set(rows.flatMap((row) => (row.announcementId ? [row.announcementId] : [])))
+    new Set(
+      rows.flatMap((row) => (row.announcementId ? [row.announcementId] : []))
+    )
   )
   const automationRunIds = Array.from(
     new Set(
@@ -481,64 +487,64 @@ export async function serializeNotificationRows(
     announcementRows,
     automationRunRows,
   ] = await Promise.all([
-      database
-        .select({
-          id: customShellUsers.id,
-          name: customShellUsers.name,
-          avatarUrl: customShellUsers.avatarUrl,
-        })
-        .from(customShellUsers)
-        .where(inArray(customShellUsers.id, userIds)),
-      feedbackIds.length
-        ? database
-            .select({
-              id: customShellFeedback.id,
-              message: customShellFeedback.message,
-            })
-            .from(customShellFeedback)
-            .where(inArray(customShellFeedback.id, feedbackIds))
-        : [],
-      changelogIds.length
-        ? database
-            .select({
-              id: customShellChangelogEntries.id,
-              title: customShellChangelogEntries.title,
-            })
-            .from(customShellChangelogEntries)
-            .where(inArray(customShellChangelogEntries.id, changelogIds))
-        : [],
-      announcementIds.length
-        ? database
-            .select({
-              id: customShellAnnouncements.id,
-              title: customShellAnnouncements.title,
-              body: customShellAnnouncements.body,
-            })
-            .from(customShellAnnouncements)
-            .where(inArray(customShellAnnouncements.id, announcementIds))
-        : [],
-      automationRunIds.length
-        ? database
-            .select({
-              id: customShellAutomationRuns.id,
-              automationId: customShellAutomations.id,
-              automationName: customShellAutomations.name,
-              approvalSummary: customShellAutomationRuns.approvalSummary,
-              currentNodeId: customShellAutomationRuns.currentNodeId,
-              configSnapshot: customShellAutomationRuns.configSnapshot,
-              error: customShellAutomationRuns.error,
-            })
-            .from(customShellAutomationRuns)
-            .innerJoin(
-              customShellAutomations,
-              eq(
-                customShellAutomations.id,
-                customShellAutomationRuns.automationId
-              )
+    database
+      .select({
+        id: customShellUsers.id,
+        name: customShellUsers.name,
+        avatarUrl: customShellUsers.avatarUrl,
+      })
+      .from(customShellUsers)
+      .where(inArray(customShellUsers.id, userIds)),
+    feedbackIds.length
+      ? database
+          .select({
+            id: customShellFeedback.id,
+            message: customShellFeedback.message,
+          })
+          .from(customShellFeedback)
+          .where(inArray(customShellFeedback.id, feedbackIds))
+      : [],
+    changelogIds.length
+      ? database
+          .select({
+            id: customShellChangelogEntries.id,
+            title: customShellChangelogEntries.title,
+          })
+          .from(customShellChangelogEntries)
+          .where(inArray(customShellChangelogEntries.id, changelogIds))
+      : [],
+    announcementIds.length
+      ? database
+          .select({
+            id: customShellAnnouncements.id,
+            title: customShellAnnouncements.title,
+            body: customShellAnnouncements.body,
+          })
+          .from(customShellAnnouncements)
+          .where(inArray(customShellAnnouncements.id, announcementIds))
+      : [],
+    automationRunIds.length
+      ? database
+          .select({
+            id: customShellAutomationRuns.id,
+            automationId: customShellAutomations.id,
+            automationName: customShellAutomations.name,
+            approvalSummary: customShellAutomationRuns.approvalSummary,
+            currentNodeId: customShellAutomationRuns.currentNodeId,
+            configSnapshot: customShellAutomationRuns.configSnapshot,
+            error: customShellAutomationRuns.error,
+          })
+          .from(customShellAutomationRuns)
+          .innerJoin(
+            customShellAutomations,
+            eq(
+              customShellAutomations.id,
+              customShellAutomationRuns.automationId
             )
-            .where(inArray(customShellAutomationRuns.id, automationRunIds))
-        : [],
-    ])
+          )
+          .where(inArray(customShellAutomationRuns.id, automationRunIds))
+      : [],
+  ])
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
   const userAvatars = new Map(userRows.map((row) => [row.id, row.avatarUrl]))
@@ -548,12 +554,8 @@ export async function serializeNotificationRows(
   const changelogTitles = new Map(
     changelogRows.map((row) => [row.id, row.title])
   )
-  const announcements = new Map(
-    announcementRows.map((row) => [row.id, row])
-  )
-  const automations = new Map(
-    automationRunRows.map((row) => [row.id, row])
-  )
+  const announcements = new Map(announcementRows.map((row) => [row.id, row]))
+  const automations = new Map(automationRunRows.map((row) => [row.id, row]))
 
   return rows.map((row) => ({
     id: row.id,
@@ -611,6 +613,8 @@ export async function serializeNotificationRows(
             automations.get(row.automationRunId ?? "")?.error ?? null
           )
         : null,
+    message: row.message,
+    detail: row.detail,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   }))

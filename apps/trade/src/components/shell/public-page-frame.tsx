@@ -1,11 +1,12 @@
 import * as React from "react"
-import { MenuIcon, SearchIcon } from "lucide-react"
+import { Link, useLocation } from "@tanstack/react-router"
+import { MenuIcon } from "lucide-react"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { BrandLogo } from "@/components/shell/brand-logo"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,8 @@ import {
   type VisitorAnnouncement,
 } from "@/lib/announcement"
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { cn } from "@/lib/utils"
 
 /**
@@ -52,12 +55,14 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const pathname = useLocation({ select: (location) => location.pathname })
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
     VisitorAnnouncement[]
   >([])
   const [dismissedVisitorIds, setDismissedVisitorIds] = React.useState<
     Set<string>
   >(() => new Set())
+  const [siteSearch, setSiteSearch] = React.useState("")
 
   React.useEffect(() => {
     let active = true
@@ -123,28 +128,33 @@ export function PublicPageFrame({
       {hasSiteFrame ? (
         <header className="border-b bg-background">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
-          <a href="/" className="flex min-w-0 items-center gap-2">
+          <Link
+            to="/"
+            className={cn(
+              "flex min-w-0 items-center gap-2 rounded-md",
+              focusRing
+            )}
+          >
             <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
             <span className="truncate text-sm font-medium text-foreground">
               {appName}
             </span>
-          </a>
-          <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
-            <div className="relative">
-              <SearchIcon
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
+          </Link>
+          {pathname === "/search" ? null : (
+            <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
+              <DashboardToolbarSearch
+                className="min-w-0 flex-1 sm:flex-1"
+                inputClassName="sm:w-full lg:w-full"
                 name="q"
                 type="search"
                 aria-label="Search this site"
                 placeholder="Search this site"
                 maxLength={120}
-                className="pl-8"
+                value={siteSearch}
+                onChange={(event) => setSiteSearch(event.target.value)}
               />
-            </div>
-          </SiteSearchForm>
+            </SiteSearchForm>
+          )}
           {navigation.length ? (
             <>
               <nav aria-label="Main navigation" className="hidden md:block">
@@ -174,7 +184,7 @@ export function PublicPageFrame({
                       key={`${link.label}-${link.href}-${index}`}
                       asChild
                     >
-                      <a href={link.href}>{link.label}</a>
+                      <PublicLink link={link} />
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -229,17 +239,33 @@ export function PublicPageFrame({
 function PublicLink({
   link,
   className,
+  ...props
 }: {
   link: PublicNavigationLink
-  className?: string
-}) {
+} & Omit<React.ComponentProps<"a">, "href">) {
+  const linkClassName = cn(
+    "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground",
+    focusRing,
+    className
+  )
+
+  if (isInternalHref(link.href)) {
+    return (
+      <Link
+        {...props}
+        {...toLinkProps(link.href)}
+        className={linkClassName}
+      >
+        {link.label}
+      </Link>
+    )
+  }
+
   return (
     <a
+      {...props}
       href={link.href}
-      className={cn(
-        "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        className
-      )}
+      className={linkClassName}
     >
       {link.label}
     </a>

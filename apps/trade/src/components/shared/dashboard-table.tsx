@@ -14,7 +14,7 @@ import {
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
 } from "@/components/shared/dashboard-toolbar"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -56,15 +56,6 @@ type DashboardTableFooter =
       pageSizeOptions?: number[]
     }
   | {
-      type: "loadMore"
-      count: number
-      hasMore: boolean
-      loading?: boolean
-      onLoadMore?: () => void
-      label?: string
-      actionLabel?: string
-    }
-  | {
       type: "summary"
       count: number
       label?: string
@@ -78,6 +69,7 @@ type DashboardTableFooter =
 
 type DashboardTableBaseProps = {
   title: string
+  titleAs?: "h2" | "h3" | "h4" | "h5" | "h6"
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode
@@ -136,28 +128,30 @@ type DashboardTableBaseProps = {
   fillHeight?: boolean
 }
 
-type DashboardTableProps = DashboardTableBaseProps & (
-  | {
-      header: React.ReactNode
-      children: React.ReactNode
-      isEmpty: boolean
-      emptyText: string
-      emptyColSpan: number
-      content?: never
-    }
-  | {
-      content: React.ReactNode
-      header?: never
-      children?: never
-      isEmpty?: never
-      emptyText?: never
-      emptyColSpan?: never
-    }
-)
+type DashboardTableProps = DashboardTableBaseProps &
+  (
+    | {
+        header: React.ReactNode
+        children: React.ReactNode
+        isEmpty: boolean
+        emptyText: string
+        emptyColSpan: number
+        content?: never
+      }
+    | {
+        content: React.ReactNode
+        header?: never
+        children?: never
+        isEmpty?: never
+        emptyText?: never
+        emptyColSpan?: never
+      }
+  )
 
 export function DashboardTable(props: DashboardTableProps) {
   const {
     title,
+    titleAs: Title = "h2",
     icon,
     count,
     controls,
@@ -192,7 +186,7 @@ export function DashboardTable(props: DashboardTableProps) {
               {icon}
             </span>
           ) : null}
-          <span className="text-sm font-medium sm:text-base">{title}</span>
+          <Title className="text-sm font-medium sm:text-base">{title}</Title>
           <Badge variant="secondary">
             {countsPending ? "—" : count.toLocaleString()}
           </Badge>
@@ -219,14 +213,14 @@ export function DashboardTable(props: DashboardTableProps) {
         </div>
       ) : null}
 
-      {error ? (
-        <ErrorBanner message={error.message} onRetry={error.onRetry} />
-      ) : null}
-
       {"content" in props ? (
-        <div aria-busy={busy || undefined} className={busyClassName}>
-          {props.content}
-        </div>
+        error ? (
+          <ErrorRow message={error.message} onRetry={error.onRetry} />
+        ) : (
+          <div aria-busy={busy || undefined} className={busyClassName}>
+            {props.content}
+          </div>
+        )
       ) : (
         <TableRows fill={fillHeight}>
           <Table
@@ -247,7 +241,13 @@ export function DashboardTable(props: DashboardTableProps) {
           >
             {props.header}
             <TableBody aria-busy={busy || undefined} className={busyClassName}>
-              {props.isEmpty ? (
+              {error ? (
+                <TableRow>
+                  <TableCell colSpan={props.emptyColSpan} className="p-0">
+                    <ErrorRow message={error.message} onRetry={error.onRetry} />
+                  </TableCell>
+                </TableRow>
+              ) : props.isEmpty ? (
                 <TableRow>
                   <TableCell
                     colSpan={props.emptyColSpan}
@@ -391,24 +391,6 @@ function DashboardTableFooter({
     )
   }
 
-  if (footer.type === "loadMore") {
-    const pageSize = footer.count || defaultPageSizeOptions[0]
-
-    return (
-      <DashboardTablePaginationFooter
-        pageSize={pageSize}
-        pageSizeOptions={[pageSize]}
-        rangeText={`${footer.count ? `1-${footer.count.toLocaleString()}` : "0"} of ${footer.count.toLocaleString()}${footer.hasMore ? "+" : ""}`}
-        firstDisabled
-        previousDisabled
-        nextDisabled={!footer.hasMore || Boolean(footer.loading)}
-        lastDisabled
-        onNext={footer.onLoadMore}
-        nextIcon={undefined}
-      />
-    )
-  }
-
   // A summary footer counts rows; it has no pages. Rendering the pagination
   // control here showed a dead "Rows per page" select set to the row count.
   // Call sites pass the plural ("workspaces"), so drop the "s" for a single row.
@@ -442,7 +424,6 @@ function DashboardTablePaginationFooter({
   onPrevious,
   onNext,
   onLast,
-  nextIcon,
 }: {
   pageSize: number
   pageSizeOptions: number[]
@@ -456,11 +437,10 @@ function DashboardTablePaginationFooter({
   onPrevious?: () => void
   onNext?: () => void
   onLast?: () => void
-  nextIcon?: React.ReactNode
 }) {
-  // A single option is not a choice. Surfaces with a fixed page size (the media
-  // picker, the load-more footer) showed a dropdown that could only reopen on
-  // the value it already had, so they get the range on its own.
+  // A single option is not a choice. The media picker has a fixed page size,
+  // so it gets the range on its own instead of a dropdown that can only reopen
+  // on the value it already had.
   const canChangePageSize = pageSizeOptions.length > 1
   const pageSizeId = React.useId()
 
@@ -472,10 +452,7 @@ function DashboardTablePaginationFooter({
       <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
         {canChangePageSize ? (
           <>
-            <label
-              htmlFor={pageSizeId}
-              className="sr-only sm:not-sr-only"
-            >
+            <label htmlFor={pageSizeId} className="sr-only sm:not-sr-only">
               Rows per page:
             </label>
             <Select
@@ -500,16 +477,32 @@ function DashboardTablePaginationFooter({
       </div>
 
       <div className="flex items-center gap-1">
-        <PageButton label="Go to first page" disabled={firstDisabled} onClick={onFirst}>
+        <PageButton
+          label="Go to first page"
+          disabled={firstDisabled}
+          onClick={onFirst}
+        >
           <ChevronsLeftIcon className="size-4" />
         </PageButton>
-        <PageButton label="Go to previous page" disabled={previousDisabled} onClick={onPrevious}>
+        <PageButton
+          label="Go to previous page"
+          disabled={previousDisabled}
+          onClick={onPrevious}
+        >
           <ChevronLeftIcon className="size-4" />
         </PageButton>
-        <PageButton label="Go to next page" disabled={nextDisabled} onClick={onNext}>
-          {nextIcon ?? <ChevronRightIcon className="size-4" />}
+        <PageButton
+          label="Go to next page"
+          disabled={nextDisabled}
+          onClick={onNext}
+        >
+          <ChevronRightIcon className="size-4" />
         </PageButton>
-        <PageButton label="Go to last page" disabled={lastDisabled} onClick={onLast}>
+        <PageButton
+          label="Go to last page"
+          disabled={lastDisabled}
+          onClick={onLast}
+        >
           <ChevronsRightIcon className="size-4" />
         </PageButton>
       </div>

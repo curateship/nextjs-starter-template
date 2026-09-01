@@ -140,18 +140,21 @@ export function CardHeaderRow({
 export function EmptyRow({
   children,
   className,
+  action,
 }: {
   children: React.ReactNode
   className?: string
+  action?: React.ReactNode
 }) {
   return (
-    <p
+    <div
       className={cn(
-        "px-4 py-8 text-center text-sm text-muted-foreground sm:px-5",
+        "grid justify-items-center gap-3 px-4 py-8 text-center text-sm text-muted-foreground sm:px-5",
         className
       )}
     >
       {children}
-    </p>
+      {action}
+    </div>
   )
 }

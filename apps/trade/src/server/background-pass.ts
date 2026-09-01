@@ -27,12 +27,17 @@ export async function runBackgroundPass(): Promise<BackgroundPassResult> {
   // nothing until the whole server was restarted, which is a miserable way to
   // work and easy to mistake for the edit not working. Asking for them here
   // gets whatever the module graph holds right now.
-  const [{ runAutomationTick }, { processDueBroadcasts }, { appBackgroundWorkers }] =
-    await Promise.all([
-      import("@/server/automations/engine"),
-      import("@/server/email/broadcast-send"),
-      import("@/server/app-options"),
-    ])
+  const [
+    { runAutomationTick },
+    { processDueBroadcasts },
+    { processPendingEmailRetries },
+    { appBackgroundWorkers },
+  ] = await Promise.all([
+    import("@/server/automations/engine"),
+    import("@/server/email/broadcast-send"),
+    import("@/server/email/retry"),
+    import("@/server/app-options"),
+  ])
 
   let failed = 0
   // The jobs return summaries of their own that nothing here reads — a pass
@@ -46,6 +51,7 @@ export async function runBackgroundPass(): Promise<BackgroundPassResult> {
   await Promise.all([
     run("Automation tick", runAutomationTick),
     run("Broadcast tick", processDueBroadcasts),
+    run("Account-email retry tick", processPendingEmailRetries),
     // The app's own workers ride the same pass, each as isolated as the two
     // jobs above. Read inside the pass, never at module top level — the app's
     // answers may still be loading while this module is first imported.

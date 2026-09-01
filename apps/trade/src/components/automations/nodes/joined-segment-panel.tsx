@@ -5,7 +5,7 @@ import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
@@ -77,7 +77,10 @@ export default function JoinedSegmentFields({
             })
           }}
         >
-          <SelectTrigger id={`joined-segment-${node.id}`} className="w-full">
+          <SelectTrigger
+            id={`joined-segment-${node.id}`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue
               placeholder={
                 segments === null ? "Loading segments…" : "Choose a segment"
@@ -98,7 +101,7 @@ export default function JoinedSegmentFields({
           </SelectContent>
         </Select>
         {loadError ? (
-          <ErrorBanner
+          <ErrorRow
             message={loadError}
             onRetry={() => {
               setSegments(null)

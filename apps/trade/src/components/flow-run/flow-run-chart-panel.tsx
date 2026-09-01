@@ -159,8 +159,8 @@ export function FlowRunChartPanel({
                 changes nothing here until it is switched off and on again. */}
             <Button asChild type="button" variant="outline">
               <Link
-                to="/admin/automations/$automationId"
-                params={{ automationId }}
+                to="/admin/recipes/$recipeId"
+                params={{ recipeId: automationId }}
               >
                 <SlidersHorizontalIcon className="size-4" />
                 Canvas

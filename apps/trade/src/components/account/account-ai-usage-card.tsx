@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -79,18 +79,18 @@ export function AccountAiUsageCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI usage</CardTitle>
+        <CardTitle as="h3">AI usage</CardTitle>
         <CardDescription>
           What your account has used this month. The counter starts fresh on
           the 1st.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/* The banner only when there is nothing else to show: once `lastUsage`
+        {/* The error only when there is nothing else to show: once `lastUsage`
             is filled, a refresh that fails leaves last time's figures standing
             rather than replacing them with an error. */}
         {error && !usage ? (
-          <ErrorBanner
+          <ErrorRow
             message={error}
             onRetry={() => {
               setError(null)

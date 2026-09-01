@@ -4,7 +4,7 @@ import type {
   ProtocolId,
 } from "@/lib/protocols/contracts"
 import type { DcaParams } from "@/lib/trade/dca"
-import type { TradeGridSettings } from "@/lib/automations/nodes/trade-grid"
+import type { TradeGridSettings } from "@/lib/recipes/trade-grid"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 
 /**

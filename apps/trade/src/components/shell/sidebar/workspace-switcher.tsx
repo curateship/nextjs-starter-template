@@ -37,6 +37,7 @@ import type {
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { capitalise, workspaceWord } from "@/lib/app-options"
+import { workspaceListedAddress } from "@/lib/workspaces/addresses"
 
 const subscribeToBrowserOrigin = () => () => {}
 
@@ -62,7 +63,7 @@ export function WorkspaceSwitcher({
   baseDomain?: string
   copyChoices?: WorkspaceCopyChoice[]
 }) {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
   // Read here rather than at the top of the module: an app's options file can
@@ -76,18 +77,10 @@ export function WorkspaceSwitcher({
     () => ""
   )
 
-  /**
-   * What a site answers on. Its own domain when it has one, otherwise its name
-   * in front of the deployment's base domain — the same wording the address
-   * field previews while it is being typed.
-   *
-   * Falls back to the site's name where no base domain is configured, because
-   * on an app that is one site there is no address to show and repeating the
-   * name reads better than an empty line.
-   */
+  // The rule for what a workspace answers on lives in one place, because the
+  // workspaces table prints the same thing.
   const addressOf = (workspace: WorkspaceItem) =>
-    workspace.customDomain ||
-    (baseDomain ? `${workspace.subdomain}.${baseDomain}` : workspace.name)
+    workspaceListedAddress(workspace, baseDomain).text
   const publicUrlOf = (workspace: WorkspaceItem) => {
     const address = addressOf(workspace)
     if (!baseDomain && !workspace.customDomain) return "/"
@@ -112,7 +105,11 @@ export function WorkspaceSwitcher({
     return null
   }
 
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false)
+  }
   const handleSwitch = async (workspaceId: string) => {
+    closeMobileSidebar()
     if (workspaceId === activeWorkspace.id) return
     await switchToWorkspace(workspaceId)
   }
@@ -124,6 +121,7 @@ export function WorkspaceSwitcher({
           <div className="flex min-h-8 items-center gap-2 py-2">
             <Link
               to="/home"
+              onClick={closeMobileSidebar}
               className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center"
             >
               <WorkspaceLogo
@@ -135,6 +133,7 @@ export function WorkspaceSwitcher({
             <div className="flex min-w-0 flex-1 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
               <Link
                 to="/home"
+                onClick={closeMobileSidebar}
                 className="grid min-w-0 flex-1 text-left text-sm leading-tight"
               >
                 <span className="truncate font-medium">
@@ -208,6 +207,7 @@ export function WorkspaceSwitcher({
                                 target="_blank"
                                 rel="noreferrer"
                                 aria-label={`Open ${displayName} site in a new tab`}
+                                onClick={closeMobileSidebar}
                               >
                                 <ExternalLinkIcon className="size-4" />
                               </a>
@@ -222,12 +222,16 @@ export function WorkspaceSwitcher({
                   })}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className="gap-2 p-2">
-                    <Link to="/workspaces" search={{ open: undefined }}>
+                    <Link
+                      to="/workspaces"
+                      search={{ open: undefined }}
+                      onClick={closeMobileSidebar}
+                    >
                       <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
                         {renderShellIcon("settings")}
                       </div>
                       <div className="font-medium text-muted-foreground">
-                        Manage workspaces
+                        Manage {word.many}
                       </div>
                     </Link>
                   </DropdownMenuItem>

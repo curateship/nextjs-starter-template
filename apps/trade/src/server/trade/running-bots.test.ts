@@ -1,10 +1,9 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { defaultTradeGridSettings } from "@/lib/automations/nodes/trade-grid"
+import { defaultTradeGridSettings } from "@/lib/recipes/trade-grid"
 import { defaultDcaParams } from "@/lib/trade/dca"
 import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
-import { customShellAutomations } from "@/server/schema"
 import type { CustomShellDb } from "@/server/db"
 import {
   createTestDatabase,
@@ -12,7 +11,11 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { listRunningBots } from "@/server/trade/running-bots"
-import { tradeFlowRuns, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeFlowRuns,
+  tradeRecipes,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 const NOW = 1_700_000_000_000
 
@@ -50,7 +53,7 @@ describe("the exchange dashboard's running bots", () => {
     const workspace = await insertWorkspace(database)
     const strangerWorkspace = await insertWorkspace(database)
 
-    await database.insert(customShellAutomations).values([
+    await database.insert(tradeRecipes).values([
       {
         id: "flow-hyperliquid",
         userId: person.id,
@@ -76,6 +79,16 @@ describe("the exchange dashboard's running bots", () => {
         userId: person.id,
         workspaceId: workspace.id,
         name: "Stopped bot",
+        graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+        compiledConfig: null,
+        createdAt: new Date(NOW),
+        updatedAt: new Date(NOW),
+      },
+      {
+        id: "flow-shared",
+        userId: stranger.id,
+        workspaceId: workspace.id,
+        name: "Shared workspace bot",
         graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
         compiledConfig: null,
         createdAt: new Date(NOW),
@@ -185,7 +198,7 @@ describe("the exchange dashboard's running bots", () => {
         userId: person.id,
         id: "run-cross-user-name",
         walletId: "cross-user-name-wallet",
-        automationId: "flow-stranger",
+        automationId: "flow-shared",
         status: "running",
         spec: {
           ...spec("hyperliquid", ["hyperliquid:mainnet:SOL"]),
@@ -205,8 +218,8 @@ describe("the exchange dashboard's running bots", () => {
     ).resolves.toEqual([
       {
         runId: "run-cross-user-name",
-        automationId: "flow-stranger",
-        name: "This flow has been deleted",
+        automationId: "flow-shared",
+        name: "Shared workspace bot",
         strategy: "Grid",
         marketCount: 1,
         workingCount: 0,

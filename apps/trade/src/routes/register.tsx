@@ -3,6 +3,8 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
+import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import { GoogleSignIn } from "@/components/shell/google-sign-in"
 import {
   HumanCheck,
@@ -21,24 +23,42 @@ import {
   PASSWORD_RULE_HINT,
   register,
 } from "@/lib/api/auth/auth"
+import { loadPublicPricing } from "@/lib/api/billing/billing"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { readRegistrationChoice } from "@/lib/billing/pricing-choice"
+import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 
 export const Route = createFileRoute("/register")({
-  loader: async () => {
-    const [user, options] = await Promise.all([
+  validateSearch: readRegistrationChoice,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ deps }) => {
+    const [user, options, pricing] = await Promise.all([
       loadCurrentUser(),
       loadSignInOptions(),
+      deps.plan ? loadPublicPricing() : null,
     ])
     if (user) {
       throw redirect({ to: "/home", replace: true })
     }
+    if (deps.invalidReferral) {
+      throw new Error("REFERRAL_NOT_FOUND")
+    }
+    if (deps.plan && !pricing?.plans.some((plan) => plan.slug === deps.plan)) {
+      throw redirect({
+        to: "/register",
+        search: { interval: deps.interval, ref: deps.ref },
+        replace: true,
+      })
+    }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: RegisterRoute,
 })
 
 function RegisterRoute() {
-  const { siteKey, google } = Route.useLoaderData()
+  const { siteKey, google, linkExpiry } = Route.useLoaderData()
+  const { ref: referralCode } = Route.useSearch()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -69,6 +89,7 @@ function RegisterRoute() {
           email,
           password,
           humanCheckToken: humanCheckToken ?? undefined,
+          referralCode,
         })
         setRegistered(true)
       } catch (registerError) {
@@ -80,7 +101,7 @@ function RegisterRoute() {
         setLoading(false)
       }
     },
-    [email, name, password, siteKey]
+    [email, name, password, referralCode, siteKey]
   )
 
   if (registered) {
@@ -97,8 +118,9 @@ function RegisterRoute() {
         }
       >
         <p className="text-sm text-muted-foreground">
-          The link expires in 24 hours. If it does not arrive, you can request a
-          new one from the sign-in page.
+          The link expires in {authTokenExpiryText("verify_email", linkExpiry)}.
+          If it does not arrive, you can request a new one from the sign-in
+          page.
         </p>
       </AuthShell>
     )
@@ -139,6 +161,7 @@ function RegisterRoute() {
           onChange={(event) => setEmail(event.target.value)}
           required
         />
+        <EmailDomainSuggestion email={email} onAccept={setEmail} />
       </div>
       <div className="grid gap-2">
         <FieldLabel htmlFor="password" hint={PASSWORD_RULE_HINT}>
@@ -164,7 +187,12 @@ function RegisterRoute() {
           "Create account"
         )}
       </Button>
-      {google ? <GoogleSignIn label="Continue with Google" /> : null}
+      {google ? (
+        <GoogleSignIn
+          label="Continue with Google"
+          referralCode={referralCode}
+        />
+      ) : null}
     </AuthShell>
   )
 }

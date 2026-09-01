@@ -23,6 +23,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
+import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getContactErrorMessage,
@@ -442,7 +443,7 @@ function HistoryRow({ delivery }: { delivery: ContactDelivery }) {
         {delivery.broadcastId ? "" : " · that newsletter has since been deleted"}
       </span>
       {delivery.status === "failed" && delivery.error ? (
-        <span className="text-xs text-destructive">{delivery.error}</span>
+        <InlineError>{delivery.error}</InlineError>
       ) : null}
     </li>
   )

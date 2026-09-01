@@ -21,6 +21,7 @@ import { SendEmailEditor } from "@/components/automations/nodes/send-email-edito
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -58,6 +59,7 @@ import {
   type AutomationDetail,
 } from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useLastValue } from "@/lib/hooks/use-last-value"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
@@ -67,6 +69,7 @@ import {
   panelLayoutKey,
   useRememberedPanelLayout,
 } from "@/lib/layout/panel-layout"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
@@ -147,6 +150,13 @@ export function AutomationEditor({
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(
     null
   )
+  const [deleteTarget, setDeleteTarget] = React.useState<{
+    nodeId: string
+    name: string
+    connectionCount: number
+  } | null>(null)
+  const deleteConfirmedRef = React.useRef(false)
+  const closingDeleteTarget = useLastValue(deleteTarget)
   const [canvasSize, setCanvasSize] = React.useState<CanvasSize>({
     width: 0,
     height: 0,
@@ -468,6 +478,26 @@ export function AutomationEditor({
     [changeGraph, previewNode?.id]
   )
 
+  const requestDeleteNode = React.useCallback(
+    (nodeId: string) => {
+      if (nodeId === previewNode?.id) {
+        deleteNode(nodeId)
+        return
+      }
+      const node = graphRef.current.nodes.find((item) => item.id === nodeId)
+      if (!node) return
+      setDeleteTarget({
+        nodeId,
+        name: automationNodeName(node),
+        connectionCount: graphRef.current.edges.filter(
+          (edge) => edge.from === nodeId || edge.to === nodeId
+        ).length,
+      })
+      deleteConfirmedRef.current = false
+    },
+    [deleteNode, previewNode?.id]
+  )
+
   const createNode = React.useCallback(
     (key: string) =>
       createAutomationNode(key, {
@@ -566,18 +596,21 @@ export function AutomationEditor({
           : undefined
       }
       onAddNode={previewNode ? placeNode : undefined}
-      onDeleteNode={deleteNode}
+      onDeleteNode={requestDeleteNode}
     />
   )
 
   const runsPanel =
     !templateMode && initialRuns ? (
-      <AutomationRunsPanel
-        key={`${initial.id}:${openRunId ?? "runs"}`}
-        automationId={initial.id}
-        initial={initialRuns}
-        openRunId={openRunId}
-      />
+      (active: boolean) => (
+        <AutomationRunsPanel
+          key={`${initial.id}:${openRunId ?? "runs"}`}
+          automationId={initial.id}
+          initial={initialRuns}
+          openRunId={openRunId}
+          active={active}
+        />
+      )
     ) : null
   const editingEmailNode = editingEmailNodeId
     ? (graph.nodes.find((node) => node.id === editingEmailNodeId) ?? null)
@@ -610,6 +643,7 @@ export function AutomationEditor({
       onGraphChange={handleCanvasGraphChange}
       onSelectNode={selectCanvasNode}
       onSelectEdge={setSelectedEdgeId}
+      onDeleteNode={requestDeleteNode}
       onSizeChange={setCanvasSize}
       onDropNode={
         draggedNodeKey
@@ -844,7 +878,7 @@ export function AutomationEditor({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+      style={{ gap: pageGutter }}
       onKeyDown={(event) => {
         // Escape backs out of a node picked in the palette but not yet added.
         // It calls what the panel's Cancel button calls, so there is one way to
@@ -892,7 +926,7 @@ export function AutomationEditor({
                 onDoubleClick={runsDoubleClick}
                 headerOnly={runsShut.collapsed}
               >
-                {runsPanel}
+                {runsPanel?.(!runsShut.collapsed)}
               </WorkspacePanel>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -919,6 +953,39 @@ export function AutomationEditor({
           />
         </>
       ) : null}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title={
+          closingDeleteTarget
+            ? `Delete “${closingDeleteTarget.name}”?`
+            : "Delete this step?"
+        }
+        description={
+          closingDeleteTarget
+            ? closingDeleteTarget.connectionCount === 1
+              ? "Its 1 connection goes with it. This cannot be undone."
+              : `Its ${closingDeleteTarget.connectionCount} connections go with it. This cannot be undone.`
+            : "Its connections go with it. This cannot be undone."
+        }
+        confirmLabel="Delete step"
+        onCloseAutoFocus={(event) => {
+          if (!deleteConfirmedRef.current) return
+          event.preventDefault()
+          deleteConfirmedRef.current = false
+          document
+            .querySelector<HTMLElement>('[aria-label="Automation canvas"]')
+            ?.focus()
+        }}
+        onConfirm={() => {
+          if (!deleteTarget) return
+          deleteConfirmedRef.current = true
+          deleteNode(deleteTarget.nodeId)
+          setDeleteTarget(null)
+        }}
+      />
     </div>
   )
 }

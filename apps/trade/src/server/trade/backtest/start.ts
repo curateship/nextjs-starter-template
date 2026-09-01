@@ -1,81 +1,65 @@
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 import { backtestSpecFromFlow } from "@/lib/trade/backtest/flow"
-import { db } from "@/server/db"
-import {
-  customShellAutomations,
-  type CustomShellAutomationRun,
-} from "@/server/schema"
+import type { RecipeCompiledConfig } from "@/lib/recipes/compile"
+import { db, type CustomShellDb } from "@/server/db"
 import { createBacktest } from "@/server/trade/backtest/store"
 import { tradeBacktestGroups } from "@/server/trade/schema"
 import { marketFolderForRun } from "@/server/trade/market-folders"
 import {
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
-} from "@/lib/automations/nodes/trade-markets"
+} from "@/lib/recipes/trade-markets"
 
 /**
- * Turning a press of Run into a backtest waiting to be worked on.
+ * Turning a recipe press into a backtest waiting to be worked on.
  *
- * **The flow is re-read here, from the database.** The step could have handed
- * its own settings across, and that would be one fewer read and quietly wrong:
- * a backtest is about the whole flow — the pot, the coins and the ladder
- * together — and a step only knows its own third of that. Reading the saved
- * flow is also what makes "change the flow and press Run" do what it looks like
- * it does, because Run saves the editor's pending edit before it starts
- * anything.
+ * The recipe runner re-reads the saved compiled copy before calling this. A
+ * backtest therefore uses the Wallet, Markets and strategy settings that the
+ * server compiled from the saved drawing, not settings sent by the browser.
  *
  * Nothing is run here either. The row goes down and the background pass picks
  * it up, so pressing Run comes back straight away however many coins are named.
  */
 export type StartOutcome =
-  | { started: true; groupId: string; coins: number; problem: null }
+  | {
+      started: true
+      alreadyStarted: boolean
+      groupId: string
+      coins: number
+      problem: null
+    }
   | { started: false; groupId: string | null; coins: 0; problem: string }
 
-export async function startBacktestForRun(
-  run: CustomShellAutomationRun,
-  now: number
-): Promise<StartOutcome> {
-  if (!run.userId) {
-    return {
-      started: false,
-      groupId: null,
-      coins: 0,
-      problem:
-        "This flow has no owner any more, so there is nobody to save a backtest for.",
-    }
-  }
+export type RecipeBacktestInput = {
+  recipeId: string
+  recipeName: string
+  compiledConfig: RecipeCompiledConfig
+  idempotencyKey: string
+}
 
-  // Already done. A step the engine picked up twice — after a restart, or a
-  // wobble mid-write — must not leave two identical backtests behind.
-  const [existing] = await db
+/** Starts one saved recipe backtest, once for each browser press. */
+export async function startBacktestForRecipe(
+  userId: string,
+  input: RecipeBacktestInput,
+  now: number,
+  database: CustomShellDb = db
+): Promise<StartOutcome> {
+  const [existing] = await database
     .select({ id: tradeBacktestGroups.id })
     .from(tradeBacktestGroups)
-    .where(eq(tradeBacktestGroups.automationRunId, run.id))
+    .where(eq(tradeBacktestGroups.automationRunId, input.idempotencyKey))
   if (existing) {
-    return { started: true, groupId: existing.id, coins: 0, problem: null }
-  }
-
-  const [flow] = await db
-    .select({
-      id: customShellAutomations.id,
-      name: customShellAutomations.name,
-      compiledConfig: customShellAutomations.compiledConfig,
-    })
-    .from(customShellAutomations)
-    .where(eq(customShellAutomations.id, run.automationId))
-
-  if (!flow?.compiledConfig) {
     return {
-      started: false,
-      groupId: null,
+      started: true,
+      alreadyStarted: true,
+      groupId: existing.id,
       coins: 0,
-      problem:
-        "This flow has a step with something wrong in it, so there is nothing to test. Fix the steps marked in red and press Run again.",
+      problem: null,
     }
   }
 
-  const marketsStep = Object.values(flow.compiledConfig.nodes).find(
+  const marketsStep = Object.values(input.compiledConfig.nodes).find(
     (node) => node.kind === tradeMarketsNode.kind
   )
   const marketSettings = marketsStep
@@ -85,8 +69,9 @@ export async function startBacktestForRun(
   if (marketSettings?.success && marketSettings.data.folderId) {
     try {
       resolvedFolder = await marketFolderForRun(
-        run.userId,
-        marketSettings.data.folderId
+        userId,
+        marketSettings.data.folderId,
+        database
       )
     } catch {
       return {
@@ -97,25 +82,30 @@ export async function startBacktestForRun(
       }
     }
   }
-  const read = backtestSpecFromFlow(flow.compiledConfig, resolvedFolder)
+  const read = backtestSpecFromFlow(input.compiledConfig, resolvedFolder)
   if (!read.spec) {
     return { started: false, groupId: null, coins: 0, problem: read.problem }
   }
 
-  // Every other way this can go wrong comes back as a sentence written on the
-  // step, so this one has to as well. The store refuses a window with nothing
-  // left in it once the far end is cut back to now — two dates that have not
-  // happened yet — and it refuses by throwing, the way it refuses a mixed-up
-  // list of coins. Thrown from here that would reach the person as an engine
-  // error rather than as something they could act on.
-  let created
   try {
-    created = await createBacktest(run.userId, {
-      automationId: run.automationId,
-      automationName: flow.name,
-      spec: read.spec,
-      now,
-    })
+    const created = await createBacktest(
+      userId,
+      {
+        automationId: input.recipeId,
+        automationName: input.recipeName,
+        idempotencyKey: input.idempotencyKey,
+        spec: read.spec,
+        now,
+      },
+      database
+    )
+    return {
+      started: true,
+      alreadyStarted: false,
+      groupId: created.groupId,
+      coins: created.coins,
+      problem: null,
+    }
   } catch (error) {
     if (error instanceof Error && error.message === "BACKTEST_WINDOW") {
       return {
@@ -126,23 +116,39 @@ export async function startBacktestForRun(
           "Those dates have not happened yet, so there are no prices to test against. Pick a window that has already been and gone.",
       }
     }
+    if (isUniqueViolation(error)) {
+      const [duplicate] = await database
+        .select({ id: tradeBacktestGroups.id })
+        .from(tradeBacktestGroups)
+        .where(eq(tradeBacktestGroups.automationRunId, input.idempotencyKey))
+      if (duplicate) {
+        return {
+          started: true,
+          alreadyStarted: true,
+          groupId: duplicate.id,
+          coins: 0,
+          problem: null,
+        }
+      }
+    }
     throw error
   }
+}
 
-  await db
-    .update(tradeBacktestGroups)
-    .set({ automationRunId: run.id })
-    .where(
-      and(
-        eq(tradeBacktestGroups.userId, run.userId),
-        eq(tradeBacktestGroups.id, created.groupId)
-      )
-    )
-
-  return {
-    started: true,
-    groupId: created.groupId,
-    coins: created.coins,
-    problem: null,
+function isUniqueViolation(error: unknown): boolean {
+  let current = error
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (
+      typeof current === "object" &&
+      "code" in current &&
+      (current as { code?: string }).code === "23505"
+    ) {
+      return true
+    }
+    current =
+      typeof current === "object" && "cause" in current
+        ? (current as { cause?: unknown }).cause
+        : null
   }
+  return false
 }

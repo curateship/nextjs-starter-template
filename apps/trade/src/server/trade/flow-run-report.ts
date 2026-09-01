@@ -29,7 +29,6 @@ import {
 import type { TradePosition } from "@/lib/trade/paper"
 import { venueLabel, type TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
-import { customShellAutomations } from "@/server/schema"
 import { loadLiveHistory } from "@/server/trade/live-fills"
 import { loadLivePortfolio } from "@/server/trade/live-orders"
 import { flowStopCounts } from "@/server/trade/flow-run"
@@ -42,6 +41,7 @@ import {
 import {
   tradeFlowRunOrders,
   tradeFlowRuns,
+  tradeRecipes,
   tradeSmartLadders,
 } from "@/server/trade/schema"
 import type { LadderPlan } from "@/lib/trade/dca"
@@ -128,7 +128,7 @@ export type FlowRunTrade = {
 export type FlowRunHead = {
   id: string
   automationId: string
-  /** The flow's name now, or what it was called if the flow has been deleted. */
+  /** The recipe's current name. */
   automationName: string
   walletId: string
   walletLabel: string
@@ -399,25 +399,20 @@ export async function listFlowRuns(
   const walletIds = [...new Set(rows.map((row) => row.walletId))]
   const involved = wallets.filter((wallet) => walletIds.includes(wallet.id))
   const marketKeys = [
-    ...new Set(
-      rows.flatMap((row) => [...row.spec.marketKeys, ...row.placed])
-    ),
+    ...new Set(rows.flatMap((row) => [...row.spec.marketKeys, ...row.placed])),
   ]
 
   const [names, ladders, owners, history] = await Promise.all([
     db
       .select({
-        id: customShellAutomations.id,
-        name: customShellAutomations.name,
+        id: tradeRecipes.id,
+        name: tradeRecipes.name,
       })
-      .from(customShellAutomations)
+      .from(tradeRecipes)
       .where(
-        and(
-          eq(customShellAutomations.userId, userId),
-          inArray(
-            customShellAutomations.id,
-            rows.map((row) => row.automationId)
-          )
+        inArray(
+          tradeRecipes.id,
+          rows.map((row) => row.automationId)
         )
       ),
     // Only active rows placed by the runs on this page are read. PostgreSQL
@@ -444,6 +439,11 @@ export async function listFlowRuns(
   ])
 
   const nameOf = new Map(names.map((one) => [one.id, one.name]))
+  const recipeName = (recipeId: string) => {
+    const name = nameOf.get(recipeId)
+    if (!name) throw new Error("FLOW_RECIPE_NOT_FOUND")
+    return name
+  }
   // A finished run works nothing, whatever is still on its wallet: what is
   // left there is either somebody else's or a position it deliberately left
   // holding, and neither is this run looking for coins.
@@ -498,13 +498,7 @@ export async function listFlowRuns(
     const working = stoppingCounts.get(row.id) ?? workingCount(row)
     const waiting = runWaiting(row)
     return {
-      ...headOf(
-        row,
-        wallet,
-        nameOf.get(row.automationId) ?? "This flow has been deleted",
-        working,
-        now
-      ),
+      ...headOf(row, wallet, recipeName(row.automationId), working, now),
       netUsd: mine.reduce((sum, trade) => sum + trade.pnl, 0),
       tradesClosed: mine.length,
       holdingCoins: heldByRun.get(row.id)?.size ?? 0,
@@ -568,14 +562,9 @@ export async function readFlowRun(
         }
       })(),
       db
-        .select({ name: customShellAutomations.name })
-        .from(customShellAutomations)
-        .where(
-          and(
-            eq(customShellAutomations.userId, userId),
-            eq(customShellAutomations.id, row.automationId)
-          )
-        )
+        .select({ name: tradeRecipes.name })
+        .from(tradeRecipes)
+        .where(eq(tradeRecipes.id, row.automationId))
         .limit(1),
       // A stopped flow cannot still be placing rungs. Active rows left behind
       // by its final cancel, or orders placed by hand on the same wallet and
@@ -590,6 +579,7 @@ export async function readFlowRun(
       orderOwners(userId, [row.walletId]),
     ])
   const stoppingCount = stops ? stops.remaining : null
+  if (!named) throw new Error("FLOW_RECIPE_NOT_FOUND")
   let history: { fills: LiveFill[]; trades: LiveTrade[] } = written
 
   // **A stopped run can still be holding coins.** Stopping calls off the
@@ -703,7 +693,7 @@ export async function readFlowRun(
     head: headOf(
       row,
       wallet,
-      named?.name ?? "This flow has been deleted",
+      named.name,
       stoppingCount ?? workingCoins.size,
       now
     ),

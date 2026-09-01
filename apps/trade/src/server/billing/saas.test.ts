@@ -26,6 +26,7 @@ import {
 import {
   applyStripeEvent,
   cancelSubscriptionByAdmin,
+  cancelSubscriptionByMember,
   findExpiringCard,
   setSubscriptionPaused,
   trialDaysFor,
@@ -49,10 +50,12 @@ import {
   findPlanByStripePrice,
   getDefaultPlan,
   getPlanBySlug,
+  updatePlan,
   type PlanInput,
 } from "@/server/billing/plans"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { listSubscriptionEvents } from "@/server/billing/subscription-events"
+import { listScheduledCancellations } from "@/server/billing/cancellations"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
   consumeAuthToken,
@@ -67,6 +70,8 @@ import {
 } from "@/server/auth/security"
 import {
   customShellAuthTokens,
+  customShellCancellations,
+  customShellNotifications,
   customShellPlans,
   customShellSessions,
   customShellSubscriptions,
@@ -489,6 +494,65 @@ describe("plans", () => {
         database
       )
     ).rejects.toThrow("PLAN_STRIPE_PRICE_REQUIRED")
+  })
+
+  it("allows one highlighted plan at a time and names the one already highlighted", async () => {
+    const popular = await createPlan(
+      planInput({
+        slug: "popular",
+        name: "Popular",
+        highlightBadgeText: "Most popular",
+      }),
+      database
+    )
+
+    await expect(
+      createPlan(
+        planInput({
+          slug: "second",
+          name: "Second",
+          stripePriceIdMonthly: "price_second_monthly",
+          highlightBadgeText: "Recommended",
+        }),
+        database
+      )
+    ).rejects.toThrow("PLAN_HIGHLIGHT_ALREADY_SET:Popular")
+
+    const databaseGuard = await createPlan(
+      planInput({
+        slug: "database-guard",
+        stripePriceIdMonthly: "price_database_guard_monthly",
+      }),
+      database
+    )
+    await expect(
+      database
+        .update(customShellPlans)
+        .set({ highlightBadgeText: "Recommended" })
+        .where(eq(customShellPlans.id, databaseGuard.id))
+    ).rejects.toThrow()
+
+    await updatePlan(
+      popular.id,
+      planInput({
+        slug: "popular",
+        name: "Popular",
+        highlightBadgeText: null,
+      }),
+      database
+    )
+
+    await expect(
+      createPlan(
+        planInput({
+          slug: "second",
+          name: "Second",
+          stripePriceIdMonthly: "price_second_monthly",
+          highlightBadgeText: "Recommended",
+        }),
+        database
+      )
+    ).resolves.toMatchObject({ highlightBadgeText: "Recommended" })
   })
 
   it("finds a plan by its Stripe price and refuses to archive the default", async () => {
@@ -981,6 +1045,158 @@ describe("admin cancels subscriptions", () => {
     await expect(
       cancelSubscriptionByAdmin(user.id, "immediate", database, neverCallsStripe)
     ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+  })
+})
+
+describe("members cancel subscriptions", () => {
+  it("stops renewal, stores the optional answer, and shows it to admins", async () => {
+    const user = await createUser({ name: "Leaving Member" })
+    await seedStripeSubscription(user.id)
+
+    const result = await cancelSubscriptionByMember(
+      user.id,
+      {
+        reason: "too_expensive",
+        feedback: "I cannot justify it right now.",
+      },
+      database,
+      {
+        ...neverCallsStripe,
+        stopRenewal: async () => stripeAnswer(),
+      }
+    )
+
+    expect(result.endsAt).toBe(new Date("2027-01-01").toISOString())
+    const [answer] = await database
+      .select()
+      .from(customShellCancellations)
+      .where(eq(customShellCancellations.userId, user.id))
+    expect(answer.reason).toBe("too_expensive")
+    expect(answer.feedback).toBe("I cannot justify it right now.")
+
+    const leaving = await listScheduledCancellations(5, database)
+    expect(leaving).toEqual([
+      expect.objectContaining({
+        userId: user.id,
+        name: "Leaving Member",
+        planName: "Pro",
+        reason: "too_expensive",
+        feedback: "I cannot justify it right now.",
+        endsAt: new Date("2027-01-01").toISOString(),
+      }),
+    ])
+  })
+
+  it("cancels without an answer and records that it was skipped", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+
+    await cancelSubscriptionByMember(
+      user.id,
+      { reason: null, feedback: null },
+      database,
+      {
+        ...neverCallsStripe,
+        stopRenewal: async () => stripeAnswer(),
+      }
+    )
+
+    const [answer] = await database
+      .select()
+      .from(customShellCancellations)
+      .where(eq(customShellCancellations.userId, user.id))
+    expect(answer.reason).toBeNull()
+    expect(answer.feedback).toBeNull()
+  })
+
+  it("keeps the cancellation when the optional survey cannot be saved", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {})
+    const surveyFailureDatabase = new Proxy(database, {
+      get(target, property) {
+        if (property === "insert") {
+          return (table: unknown) => {
+            if (table === customShellCancellations) {
+              throw new Error("survey storage failed")
+            }
+            return target.insert(table as never)
+          }
+        }
+        const value = Reflect.get(target, property)
+        return typeof value === "function" ? value.bind(target) : value
+      },
+    }) as CustomShellDb
+
+    await expect(
+      cancelSubscriptionByMember(
+        user.id,
+        { reason: "other", feedback: "Optional answer" },
+        surveyFailureDatabase,
+        {
+          ...neverCallsStripe,
+          stopRenewal: async () => stripeAnswer(),
+        }
+      )
+    ).resolves.toEqual({
+      mode: "period_end",
+      endsAt: new Date("2027-01-01").toISOString(),
+    })
+
+    expect((await loadEntitlements(user.id, database)).entitlements.cancelAtPeriodEnd).toBe(true)
+    expect(reported).toHaveBeenCalledWith(
+      "Cancellation survey could not be recorded"
+    )
+    reported.mockRestore()
+  })
+
+  it("does not attach an old answer to a later cancellation", async () => {
+    const user = await createUser()
+    const subscription = await seedStripeSubscription(user.id, {
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: new Date("2027-02-01"),
+    })
+    const plan = await getPlanBySlug("pro", database)
+    await database.insert(customShellCancellations).values({
+      id: uuid(),
+      userId: user.id,
+      planId: plan!.id,
+      planName: plan!.name,
+      reason: "missing_features",
+      feedback: "From the earlier subscription.",
+      endsAt: new Date("2027-01-01"),
+      createdAt: subscription.createdAt,
+    })
+
+    const [leaving] = await listScheduledCancellations(5, database)
+    expect(leaving.reason).toBeNull()
+    expect(leaving.feedback).toBeNull()
+  })
+
+  it("refuses a granted plan and a second cancellation", async () => {
+    const grantedUser = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(grantedUser.id, plan!.id, null, database)
+
+    await expect(
+      cancelSubscriptionByMember(
+        grantedUser.id,
+        { reason: null, feedback: null },
+        database,
+        neverCallsStripe
+      )
+    ).rejects.toThrow("CANNOT_CANCEL_GRANT")
+
+    const endingUser = await createUser()
+    await seedStripeSubscription(endingUser.id, { cancelAtPeriodEnd: true })
+    await expect(
+      cancelSubscriptionByMember(
+        endingUser.id,
+        { reason: null, feedback: null },
+        database,
+        neverCallsStripe
+      )
+    ).rejects.toThrow("ALREADY_ENDING")
   })
 })
 
@@ -1817,6 +2033,12 @@ describe("admin account management", () => {
       .where(eq(customShellSystemEmailSends.toEmail, member.email))
     expect(sends).toHaveLength(1)
     expect(sends[0].kind).toBe("account-closed")
+    expect(
+      await database
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.recipientUserId, member.id))
+    ).toHaveLength(0)
   })
 
   it("deletes nothing when Stripe will not cancel the plan", async () => {

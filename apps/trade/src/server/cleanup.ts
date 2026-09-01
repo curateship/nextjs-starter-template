@@ -1,18 +1,21 @@
-import { and, inArray, isNull, lte, or, type SQL } from "drizzle-orm"
+import { and, eq, inArray, isNull, lte, or, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 
 import {
   CLEANUP_BATCH_LIMIT,
   EMAIL_SEND_KEEP_DAYS,
   LINK_KEEP_DAYS,
+  PENDING_EMAIL_KEEP_DAYS,
   READ_NOTICE_KEEP_DAYS,
   THROTTLE_KEEP_HOURS,
   type CleanupCounts,
 } from "@/lib/data-cleanup"
 import { db, type CustomShellDb } from "@/server/db"
+import { sendDueVerificationReminders } from "@/server/auth/verification-reminders"
 import {
   customShellAuthTokens,
   customShellNotifications,
+  customShellPendingEmailSends,
   customShellRateLimits,
   customShellSystemEmailSends,
 } from "@/server/schema"
@@ -47,6 +50,7 @@ export async function cleanUpOldData(
     throttles: await purgeFinishedThrottles(database, at),
     notifications: await purgeOldReadNotices(database, at),
     emailSends: await purgeOldEmailSends(database, at),
+    pendingEmails: await purgeOldPendingEmails(database, at),
   }
 }
 
@@ -123,6 +127,21 @@ async function purgeOldEmailSends(database: CustomShellDb, at: Date) {
   )
 }
 
+/** Failed emails kept long enough for an admin to investigate, then removed. */
+async function purgeOldPendingEmails(database: CustomShellDb, at: Date) {
+  const cutoff = new Date(at.getTime() - PENDING_EMAIL_KEEP_DAYS * DAY_MS)
+
+  return deleteCapped(
+    database,
+    customShellPendingEmailSends,
+    customShellPendingEmailSends.id,
+    and(
+      eq(customShellPendingEmailSends.status, "exhausted"),
+      lte(customShellPendingEmailSends.updatedAt, cutoff)
+    )
+  )
+}
+
 /**
  * One capped delete: pick at most `CLEANUP_BATCH_LIMIT` keys, then delete
  * exactly those. Postgres has no `limit` on a delete, and the cap is the whole
@@ -156,10 +175,10 @@ export function resetCleanupSweepForTests() {
 }
 
 /**
- * The opportunistic run. Sweeps at most once a day per process, off the first
- * admin read of the day (see `server/guards.ts`), and never lets its own
- * failure become the failure of the request it is riding on — there is nothing
- * an admin could do about it and nothing was lost.
+ * The opportunistic housekeeping run. At most once a day per process, off the
+ * first admin read of the day (see `server/guards.ts`), it clears old data and
+ * sends any due verification reminders. Neither job can break the page it is
+ * riding on, and one failing does not stop the other.
  */
 export async function maybeCleanUpOldData(
   database: CustomShellDb = db,
@@ -176,5 +195,11 @@ export async function maybeCleanUpOldData(
     await cleanUpOldData(database, at)
   } catch (error) {
     console.error("Old-data cleanup failed", error)
+  }
+
+  try {
+    await sendDueVerificationReminders(database, at)
+  } catch (error) {
+    console.error("Verification reminder sweep failed", error)
   }
 }

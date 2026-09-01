@@ -8,6 +8,7 @@ import {
 import { and, eq } from "drizzle-orm"
 
 import { isPendingDeletion } from "@/lib/account-deletion"
+import { readReferralCode } from "@/lib/billing/referrals"
 import { safeRedirectPath } from "@/lib/nav/redirect-path"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
@@ -17,6 +18,12 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { startSessionWithAlert } from "@/server/auth/security-alerts"
+import { emitMemberEvent } from "@/server/automations/member-events"
+import {
+  markReferralJoined,
+  recordReferralRegistration,
+  validateReferralRegistration,
+} from "@/server/billing/referrals"
 import {
   findUserByEmail,
   now,
@@ -142,16 +149,20 @@ export type GoogleHandshakeState = {
   verifier: string
   /** Where to land afterwards, already checked by `safeRedirectPath`. */
   redirect?: string
+  /** The invite code carried from a registration page, already validated. */
+  referralCode?: string
 }
 
 export function rememberGoogleHandshake(
   handshake: GoogleHandshake,
-  redirectTo: string | undefined
+  redirectTo: string | undefined,
+  referralCode?: string
 ) {
   const remembered: GoogleHandshakeState = {
     state: handshake.state,
     verifier: handshake.verifier,
     ...(redirectTo ? { redirect: redirectTo } : {}),
+    ...(referralCode ? { referralCode } : {}),
   }
 
   setCookie(HANDSHAKE_COOKIE, JSON.stringify(remembered), {
@@ -184,10 +195,12 @@ export function takeGoogleHandshake(): GoogleHandshakeState | null {
     // Checked again on the way out: the value has been to the browser and back,
     // and this is the last point before it becomes a redirect.
     const redirect = safeRedirectPath(parsed.redirect)
+    const referralCode = readReferralCode(parsed.referralCode)
     return {
       state: parsed.state,
       verifier: parsed.verifier,
       ...(redirect ? { redirect } : {}),
+      ...(referralCode ? { referralCode } : {}),
     }
   } catch {
     return null
@@ -330,7 +343,8 @@ function readIdToken(idToken: string | undefined): GoogleClaims | null {
 export async function signInWithGoogle(
   identity: GoogleIdentity,
   origin: SessionOrigin,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  referralCode?: string
 ): Promise<{ user: CustomShellUser; sessionToken: string }> {
   if (!identity.emailVerified) {
     throw new Error("PROVIDER_EMAIL_UNVERIFIED")
@@ -346,10 +360,17 @@ export async function signInWithGoogle(
   if (account && isPendingDeletion(account)) {
     throw new Error("ACCOUNT_PENDING_DELETION")
   }
+  // An invite belongs only to a new registration. A person who already has an
+  // account still signs in normally, even if they arrived through their own or
+  // an expired invite link; the link must neither create a second attribution
+  // nor lock them out of the account they already have.
+  if (!account && referralCode) {
+    await validateReferralRegistration(referralCode, identity.email, database)
+  }
 
   const user = account
     ? await confirmEmail(account, timestamp, database)
-    : await createGoogleUser(identity, timestamp, database)
+    : await createGoogleUser(identity, timestamp, database, referralCode)
 
   if (!linked) {
     await database
@@ -406,13 +427,16 @@ async function confirmEmail(
     return account
   }
 
-  const [updated] = await database
-    .update(customShellUsers)
-    .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
-    .where(eq(customShellUsers.id, account.id))
-    .returning()
-
-  return updated
+  return database.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customShellUsers)
+      .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
+      .where(eq(customShellUsers.id, account.id))
+      .returning()
+    await markReferralJoined(updated.id, tx, timestamp)
+    await emitMemberEvent("verified", updated, tx)
+    return updated
+  })
 }
 
 /**
@@ -423,27 +447,37 @@ async function confirmEmail(
 async function createGoogleUser(
   identity: GoogleIdentity,
   timestamp: Date,
-  database: CustomShellDb
+  database: CustomShellDb,
+  referralCode?: string
 ) {
-  const [created] = await database
-    .insert(customShellUsers)
-    .values({
-      id: uuid(),
-      email: identity.email,
-      name: identity.name ?? identity.email.split("@")[0],
-      role: "member",
-      status: "active",
-      passwordHash: null,
-      emailVerifiedAt: timestamp,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    // Two first sign-ins racing each other: the loser reads the row the winner
-    // wrote instead of failing on the email's unique index.
-    .onConflictDoNothing()
-    .returning()
+  return database.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(customShellUsers)
+      .values({
+        id: uuid(),
+        email: identity.email,
+        name: identity.name ?? identity.email.split("@")[0],
+        role: "member",
+        status: "active",
+        passwordHash: null,
+        emailVerifiedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      // Two first sign-ins from the same address: the loser reads the row the
+      // winner wrote instead of failing on the email's unique index.
+      .onConflictDoNothing()
+      .returning()
 
-  return created ?? (await requireUserByEmail(identity.email, database))
+    if (!created) return requireUserByEmail(identity.email, tx)
+
+    await emitMemberEvent("registered", created, tx)
+    await emitMemberEvent("verified", created, tx)
+    if (referralCode) {
+      await recordReferralRegistration(referralCode, created, tx, timestamp)
+    }
+    return created
+  })
 }
 
 async function requireUserByEmail(email: string, database: CustomShellDb) {

@@ -1,6 +1,6 @@
-# The Grid automation step
+# The Grid recipe step
 
-A trading flow can end with Grid after Wallet and Markets. Grid follows one
+A trading recipe can end with Grid after Wallet and Markets. Grid follows one
 exponential moving average, or EMA, on closed 4-hour candles. The step decides
 the grid direction. The person drawing the flow decides how long price must
 stay clear and how the grid spends its money.
@@ -90,8 +90,8 @@ coin also stays in place with its emergency stop.
 
 ## Backtesting it
 
-A Grid flow whose Wallet step uses pretend money has the Backtest panel and
-button on the automation canvas. The replay always walks 4-hour candles because
+A Grid recipe whose Wallet step uses pretend money has the Backtest panel and
+button on the Recipes canvas. The replay always walks 4-hour candles because
 that is the EMA Grid's clock. It loads 600 candles before the chosen window so
 the first candle in the result can have a real EMA 200 answer; those warm-up
 candles are context and cannot trade.

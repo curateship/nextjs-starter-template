@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { emaGridCleanHours } from "@/lib/automations/nodes/trade-grid"
+import { emaGridCleanHours } from "@/lib/recipes/trade-grid"
 import type {
   BacktestResult,
   BacktestSpecSnapshot,

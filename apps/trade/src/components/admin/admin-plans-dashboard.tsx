@@ -1,6 +1,8 @@
 import * as React from "react"
-import { getRouteApi, useNavigate } from "@tanstack/react-router"
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
 import {
+  GaugeIcon,
+  GiftIcon,
   Loader2Icon,
   PackageIcon,
   PlusIcon,
@@ -42,6 +44,7 @@ import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -74,11 +77,16 @@ const plansRoute = getRouteApi("/_authenticated/admin/plans")
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
 
 const PLAN_COLUMNS: SortableColumn<PlanSortColumn>[] = [
-  { key: "name", label: "Plan", column: "main" },
-  { key: "monthly", label: "Monthly", column: "meta" },
-  { key: "yearly", label: "Yearly", column: "meta" },
-  { key: "stripe", label: "Stripe", column: "meta" },
-  { key: "visibility", label: "Visibility", column: "meta" },
+  {
+    key: "name",
+    label: "Plan",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "monthly", label: "Monthly", column: "preview" },
+  { key: "yearly", label: "Yearly", column: "preview" },
+  { key: "stripe", label: "Stripe", column: "preview" },
+  { key: "visibility", label: "Visibility", column: "preview" },
 ]
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
@@ -97,6 +105,12 @@ function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   }
 }
 
+function planArchiveReason(plan: AdminPlan) {
+  return plan.isDefault
+    ? "This is the default plan, which everyone falls back to. Make another plan the default first."
+    : "This plan is already archived."
+}
+
 type PlanDraft = {
   slug: string
   name: string
@@ -106,6 +120,7 @@ type PlanDraft = {
   currency: string
   stripePriceIdMonthly: string
   stripePriceIdYearly: string
+  usageMeter: string
   trialDays: string
   /** Dollars of AI a month, its own field so nobody has to hand-edit JSON. */
   aiDollars: string
@@ -113,6 +128,8 @@ type PlanDraft = {
   isDefault: boolean
   isPublic: boolean
   sortOrder: string
+  highlightBadgeText: string
+  checkoutButtonText: string
   active: boolean
 }
 
@@ -125,12 +142,15 @@ const emptyDraft: PlanDraft = {
   currency: "usd",
   stripePriceIdMonthly: "",
   stripePriceIdYearly: "",
+  usageMeter: "",
   trialDays: "0",
   aiDollars: "",
   features: "{}",
   isDefault: false,
   isPublic: true,
   sortOrder: "0",
+  highlightBadgeText: "",
+  checkoutButtonText: "",
   active: true,
 }
 
@@ -301,6 +321,18 @@ export function AdminPlansDashboard({
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
+            <DashboardToolbarButton asChild type="button" variant="outline">
+              <Link to="/admin/referrals">
+                <GiftIcon className="size-4" />
+                Referrals
+              </Link>
+            </DashboardToolbarButton>
+            <DashboardToolbarButton asChild type="button" variant="outline">
+              <Link to="/admin/ai-usage">
+                <GaugeIcon className="size-4" />
+                Metered usage
+              </Link>
+            </DashboardToolbarButton>
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New plan
@@ -313,15 +345,7 @@ export function AdminPlansDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(archivableIds)}
-                  onCheckedChange={() => selection.toggleVisible(archivableIds)}
-                  aria-label="Select archivable plans"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="plans" checked={selection.selectAllState(archivableIds)} onCheckedChange={() => selection.toggleVisible(archivableIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -353,14 +377,19 @@ export function AdminPlansDashboard({
             rowAction={() => openPlan(plan)}
           >
             <TableCell column="select">
-              <Checkbox
-                checked={selectedIds.has(plan.id)}
-                onCheckedChange={() => selection.toggle(plan.id)}
+              <DisabledReason
                 disabled={plan.isDefault || !plan.active}
-                aria-label={`Select ${plan.name}`}
-              />
+                reason={planArchiveReason(plan)}
+              >
+                <Checkbox
+                  checked={selectedIds.has(plan.id)}
+                  onCheckedChange={() => selection.toggle(plan.id)}
+                  disabled={plan.isDefault || !plan.active}
+                  aria-label={`Select ${plan.name}`}
+                />
+              </DisabledReason>
             </TableCell>
-            <TableCell column="main">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
               <button
                 type="button"
                 className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
@@ -370,34 +399,43 @@ export function AdminPlansDashboard({
                 {plan.name}
               </button>
               <span
-                className="ml-2 inline-block max-w-96 truncate align-bottom text-xs text-muted-foreground"
+                className="hidden max-w-full truncate text-xs text-muted-foreground md:ml-2 md:inline-block md:max-w-96 md:align-bottom"
                 title={plan.slug}
               >
                 {plan.slug}
               </span>
+              <span className="block text-xs text-muted-foreground md:hidden">
+                {formatPlanPrice(
+                  plan.priceMonthlyCents,
+                  plan.priceYearlyCents,
+                  plan.currency
+                )}
+              </span>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {formatPlanPrice(
                 plan.priceMonthlyCents,
                 plan.priceYearlyCents,
                 plan.currency
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {formatPlanPrice(
                 plan.priceYearlyCents,
                 plan.priceMonthlyCents,
                 plan.currency
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {plan.stripePriceIdMonthly || plan.stripePriceIdYearly ? (
-                <Badge variant="secondary">Connected</Badge>
+                <Badge variant="secondary">
+                  {plan.usageMeter ? "Metered" : "Connected"}
+                </Badge>
               ) : (
                 <Badge variant="outline">Not connected</Badge>
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               <div className="flex flex-wrap gap-1.5">
                 {plan.isDefault ? <Badge>Default</Badge> : null}
                 {plan.isPublic ? null : <Badge variant="outline">Hidden</Badge>}
@@ -405,7 +443,6 @@ export function AdminPlansDashboard({
               </div>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -418,11 +455,7 @@ export function AdminPlansDashboard({
                 </Button>
                 <DisabledReason
                   disabled={plan.isDefault || !plan.active}
-                  reason={
-                    plan.isDefault
-                      ? "This is the default plan, which everyone falls back to. Make another plan the default first."
-                      : "This plan is already archived."
-                  }
+                  reason={planArchiveReason(plan)}
                 >
                   <Button
                     type="button"
@@ -436,7 +469,6 @@ export function AdminPlansDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -517,6 +549,9 @@ function PlanDialog({
     plan ? toDraft(plan) : emptyDraft
   )
   const [saving, setSaving] = React.useState(false)
+  const [nameTouched, setNameTouched] = React.useState(false)
+  const [slugTouched, setSlugTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const nameInputRef = React.useRef<HTMLInputElement>(null)
 
   // What the window opened with, so closing it can tell real edits from a
@@ -535,6 +570,7 @@ function PlanDialog({
 
   const handleSave = React.useCallback(async () => {
     dismissErrorToast()
+    setAttempted(true)
 
     if (!draft.name.trim()) {
       showErrorToast("Plan name is required.")
@@ -575,11 +611,14 @@ function PlanDialog({
       currency: draft.currency,
       stripePriceIdMonthly: draft.stripePriceIdMonthly.trim() || null,
       stripePriceIdYearly: draft.stripePriceIdYearly.trim() || null,
+      usageMeter: draft.usageMeter.trim() || null,
       trialDays: Number.parseInt(draft.trialDays || "0", 10) || 0,
       features,
       isDefault: draft.isDefault,
       isPublic: draft.isPublic,
       sortOrder: Number.parseInt(draft.sortOrder || "0", 10) || 0,
+      highlightBadgeText: draft.highlightBadgeText.trim() || null,
+      checkoutButtonText: draft.checkoutButtonText.trim() || null,
       active: draft.active,
     }
 
@@ -635,6 +674,48 @@ function PlanDialog({
           <DialogBody>
             <Card size="sm">
               <CardHeader>
+                <CardTitle>Pricing page</CardTitle>
+                <CardDescription>
+                  Highlight one plan to help people choose. Leave either field empty
+                  to keep the usual pricing card.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Highlight badge"
+                  htmlFor="plan-highlight-badge"
+                  help="Only one plan can have a badge at a time. For example: Most popular."
+                >
+                  <Input
+                    id="plan-highlight-badge"
+                    maxLength={50}
+                    placeholder="Most popular"
+                    value={draft.highlightBadgeText}
+                    onChange={(event) =>
+                      update("highlightBadgeText", event.target.value)
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Checkout button text"
+                  htmlFor="plan-checkout-button-text"
+                  help="Shown only on this plan's available checkout button."
+                >
+                  <Input
+                    id="plan-checkout-button-text"
+                    maxLength={60}
+                    placeholder="Use the usual button text"
+                    value={draft.checkoutButtonText}
+                    onChange={(event) =>
+                      update("checkoutButtonText", event.target.value)
+                    }
+                  />
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
                 <CardTitle>Basics</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
@@ -645,7 +726,11 @@ function PlanDialog({
                       ref={nameInputRef}
                       value={draft.name}
                       onChange={(event) => update("name", event.target.value)}
-                      aria-invalid={!draft.name.trim() || undefined}
+                      onBlur={() => setNameTouched(true)}
+                      aria-invalid={
+                        (!draft.name.trim() && (nameTouched || attempted)) ||
+                        undefined
+                      }
                     />
                   </Field>
                   <Field
@@ -657,7 +742,11 @@ function PlanDialog({
                       id="plan-slug"
                       value={draft.slug}
                       onChange={(event) => update("slug", event.target.value)}
-                      aria-invalid={!draft.slug.trim() || undefined}
+                      onBlur={() => setSlugTouched(true)}
+                      aria-invalid={
+                        (!draft.slug.trim() && (slugTouched || attempted)) ||
+                        undefined
+                      }
                     />
                   </Field>
                 </div>
@@ -738,6 +827,18 @@ function PlanDialog({
                     />
                   </Field>
                 </div>
+                <Field
+                  label="Stripe meter event name"
+                  htmlFor="plan-usage-meter"
+                  help="Leave empty for a fixed recurring price. For usage pricing, copy the event name from Stripe and keep its default customer and value payload keys."
+                >
+                  <Input
+                    id="plan-usage-meter"
+                    placeholder="api_requests"
+                    value={draft.usageMeter}
+                    onChange={(event) => update("usageMeter", event.target.value)}
+                  />
+                </Field>
                 <Field
                   label="Free trial days"
                   htmlFor="plan-trial"
@@ -903,6 +1004,7 @@ function toDraft(plan: AdminPlan): PlanDraft {
     currency: plan.currency,
     stripePriceIdMonthly: plan.stripePriceIdMonthly ?? "",
     stripePriceIdYearly: plan.stripePriceIdYearly ?? "",
+    usageMeter: plan.usageMeter ?? "",
     trialDays: plan.trialDays.toString(),
     aiDollars: aiIsNumber ? aiValue.toString() : "",
     features: JSON.stringify(
@@ -913,6 +1015,8 @@ function toDraft(plan: AdminPlan): PlanDraft {
     isDefault: plan.isDefault,
     isPublic: plan.isPublic,
     sortOrder: plan.sortOrder.toString(),
+    highlightBadgeText: plan.highlightBadgeText ?? "",
+    checkoutButtonText: plan.checkoutButtonText ?? "",
     active: plan.active,
   }
 }

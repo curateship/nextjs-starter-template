@@ -1,5 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   CLEANUP_BATCH_LIMIT,
@@ -15,9 +16,11 @@ import { type CustomShellDb } from "@/server/db"
 import {
   customShellAuthTokens,
   customShellNotifications,
+  customShellPendingEmailSends,
   customShellRateLimits,
   customShellSessions,
   customShellSystemEmailSends,
+  customShellUsers,
 } from "@/server/schema"
 import { setSessionPolicy } from "@/server/auth/session-policy"
 import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
@@ -37,6 +40,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await client.close()
 })
 
@@ -132,11 +136,40 @@ async function addNotice(
   return id
 }
 
+async function addPendingEmail(
+  overrides: Partial<typeof customShellPendingEmailSends.$inferInsert> = {}
+) {
+  const id = uuid()
+  await database.insert(customShellPendingEmailSends).values({
+    id,
+    workspaceId: site,
+    kind: "password-reset",
+    toEmail: "ada@example.test",
+    encryptedPayload: "encrypted-for-cleanup-test",
+    status: "exhausted",
+    attempts: 5,
+    nextAttemptAt: ago(40 * DAY),
+    lastError: "Stopped retrying.",
+    createdAt: ago(40 * DAY),
+    updatedAt: ago(40 * DAY),
+    ...overrides,
+  })
+  return id
+}
+
 /** The ids still in a table after a run, so a test can name what survived. */
 async function remaining<T extends { id: unknown }>(
   rows: Promise<T[]>
 ): Promise<unknown[]> {
   return (await rows).map((row) => row.id)
+}
+
+async function reminderSentAt(userId: string) {
+  const [user] = await database
+    .select({ sentAt: customShellUsers.verificationReminderSentAt })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+  return user?.sentAt ?? null
 }
 
 describe("cleanUpOldData", () => {
@@ -235,6 +268,27 @@ describe("cleanUpOldData", () => {
     ).toEqual([lastWeek, justInside].sort())
   })
 
+  it("deletes old exhausted emails and keeps pending or recent ones", async () => {
+    await addPendingEmail()
+    const recent = await addPendingEmail({
+      createdAt: ago(2 * DAY),
+      updatedAt: ago(2 * DAY),
+    })
+    const waiting = await addPendingEmail({
+      status: "pending",
+      attempts: 2,
+    })
+
+    const counts = await cleanUpOldData(database, NOW)
+
+    expect(counts.pendingEmails).toBe(1)
+    expect(
+      (
+        await remaining(database.select().from(customShellPendingEmailSends))
+      ).sort()
+    ).toEqual([recent, waiting].sort())
+  })
+
   it("finds nothing to do on a database with nothing old in it", async () => {
     const user = await insertUser(database)
     await addSession(user.id)
@@ -249,6 +303,7 @@ describe("cleanUpOldData", () => {
       throttles: 0,
       notifications: 0,
       emailSends: 0,
+      pendingEmails: 0,
     })
   })
 
@@ -276,18 +331,32 @@ describe("maybeCleanUpOldData", () => {
   it("sweeps once a day and not on every request after that", async () => {
     const user = await insertUser(database)
     await addSession(user.id, { expiresAt: ago(DAY) })
+    const firstReminder = await insertUser(database, {
+      emailVerifiedAt: null,
+      createdAt: ago(4 * DAY),
+    })
+    vi.spyOn(console, "info").mockImplementation(() => undefined)
 
     await maybeCleanUpOldData(database, NOW)
     expect(await database.select().from(customShellSessions)).toEqual([])
+    expect(await reminderSentAt(firstReminder.id)).toEqual(NOW)
 
     // A second expired session on the same day is left for tomorrow's sweep —
-    // that is the whole point of the once-a-day latch.
+    // and so is a reminder that became due after the run. That is the whole
+    // point of the once-a-day latch.
     await addSession(user.id, { expiresAt: ago(DAY) })
+    const secondReminder = await insertUser(database, {
+      emailVerifiedAt: null,
+      createdAt: ago(4 * DAY),
+    })
     await maybeCleanUpOldData(database, NOW)
     expect(await database.select().from(customShellSessions)).toHaveLength(1)
+    expect(await reminderSentAt(secondReminder.id)).toBeNull()
 
-    await maybeCleanUpOldData(database, new Date(NOW.getTime() + DAY))
+    const tomorrow = new Date(NOW.getTime() + DAY)
+    await maybeCleanUpOldData(database, tomorrow)
     expect(await database.select().from(customShellSessions)).toEqual([])
+    expect(await reminderSentAt(secondReminder.id)).toEqual(tomorrow)
   })
 
   it("swallows a failure instead of breaking the page it rode in on", async () => {
@@ -307,6 +376,7 @@ describe("describeCleanupResult", () => {
     throttles: 0,
     notifications: 0,
     emailSends: 0,
+    pendingEmails: 0,
   }
 
   it("says so plainly when there was nothing to delete", () => {
@@ -324,6 +394,9 @@ describe("describeCleanupResult", () => {
     ).toBe("Deleted 2 expired sign-ins and 5 notices read over 90 days ago.")
     expect(describeCleanupResult({ ...nothing, emailSends: 3 })).toBe(
       "Deleted 3 email records over 90 days old."
+    )
+    expect(describeCleanupResult({ ...nothing, pendingEmails: 2 })).toBe(
+      "Deleted 2 failed emails over 30 days old."
     )
   })
 

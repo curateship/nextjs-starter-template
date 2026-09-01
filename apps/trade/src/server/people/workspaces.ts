@@ -7,6 +7,7 @@ import {
   normalizeStyling,
   type IconKey,
   type ShellChildItem,
+  type ShellEntry,
   type ShellItem,
   type ShellSection,
   type ShellStyling,
@@ -184,6 +185,31 @@ function aiUsageLink(): ShellItem {
     label: "AI usage",
     href: AI_USAGE_HREF,
     icon: "sparkles",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
+const METERED_USAGE_LINK_ID = "item-admin-metered-usage"
+const METERED_USAGE_HREF = "/admin/ai-usage"
+
+function meteredUsageChildLink(): ShellChildItem {
+  return {
+    id: METERED_USAGE_LINK_ID,
+    label: "Metered usage",
+    href: METERED_USAGE_HREF,
+    icon: "barChart3",
+    roles: ["admin"],
+  }
+}
+
+function meteredUsageLink(): ShellItem {
+  return {
+    type: "item",
+    id: METERED_USAGE_LINK_ID,
+    label: "Metered usage",
+    href: METERED_USAGE_HREF,
+    icon: "barChart3",
     visible: true,
     roles: ["admin"],
   }
@@ -403,7 +429,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 18
+export const NAVIGATION_VERSION = 19
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1148,6 +1174,9 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 18) {
     sections = addAutomationTemplatesLink(sections)
   }
+  if (settings.navVersion < 19) {
+    sections = addMeteredUsageLink(sections)
+  }
 
   const [updated] = await database
     .update(customShellWorkspaces)
@@ -1540,6 +1569,130 @@ export function addAiUsageLink(sections: ShellSection[]): ShellSection[] {
       0,
       aiUsageLink()
     )
+    return { ...section, entries }
+  })
+}
+
+/** Adds Metered usage to the group that supplies the shell's top-left menu. */
+export function addMeteredUsageLink(
+  sections: ShellSection[]
+): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isMeteredUsage = (link: {
+    id: string
+    label?: string
+    href?: string
+  }) => {
+    if (
+      link.id === METERED_USAGE_LINK_ID ||
+      link.href === METERED_USAGE_HREF
+    ) {
+      return true
+    }
+
+    if (link.label?.trim().toLowerCase() !== "metered usage" || !link.href) {
+      return false
+    }
+
+    try {
+      return new URL(link.href).pathname === METERED_USAGE_HREF
+    } catch {
+      return false
+    }
+  }
+
+  let savedChild:
+    | { sectionIndex: number; entryIndex: number; child: ShellChildItem }
+    | undefined
+  let savedTopLevel: ShellItem | undefined
+  let overview:
+    | { sectionIndex: number; entryIndex: number; item: ShellItem }
+    | undefined
+
+  sections.forEach((section, sectionIndex) => {
+    section.entries.forEach((entry, entryIndex) => {
+      if (!isShellItem(entry)) return
+
+      if (!savedTopLevel && isMeteredUsage(entry)) {
+        savedTopLevel = entry
+      }
+      if (
+        !overview &&
+        (entry.id === OVERVIEW_LINK_ID || entry.href === OVERVIEW_HREF)
+      ) {
+        overview = { sectionIndex, entryIndex, item: entry }
+      }
+      const child = entry.children?.find(isMeteredUsage)
+      if (!savedChild && child) {
+        savedChild = { sectionIndex, entryIndex, child }
+      }
+    })
+  })
+
+  // A saved copy elsewhere supplies its label and icon, but the Overview is
+  // still the destination whenever it exists because that group draws the
+  // top-left menu on admin pages.
+  const target = overview ?? savedChild
+  if (target) {
+    const child: ShellChildItem = savedChild
+      ? { ...savedChild.child, href: METERED_USAGE_HREF }
+      : savedTopLevel
+        ? {
+            id: savedTopLevel.id,
+            label: savedTopLevel.label,
+            href: METERED_USAGE_HREF,
+            icon: savedTopLevel.icon,
+            roles: savedTopLevel.roles,
+          }
+        : meteredUsageChildLink()
+
+    return sections.map((section, sectionIndex) => ({
+      ...section,
+      entries: section.entries.flatMap<ShellEntry>((entry, entryIndex) => {
+        if (isMeteredUsage(entry)) return []
+        if (!isShellItem(entry)) return [entry]
+
+        const children = (entry.children ?? []).filter(
+          (candidate) => !isMeteredUsage(candidate)
+        )
+        if (
+          sectionIndex !== target.sectionIndex ||
+          entryIndex !== target.entryIndex
+        ) {
+          return [
+            children.length === (entry.children ?? []).length
+              ? entry
+              : { ...entry, children },
+          ]
+        }
+
+        const plansAt = children.findIndex(
+          (candidate) =>
+            candidate.id === "item-admin-plans" ||
+            candidate.href === "/admin/plans"
+        )
+        const nextChildren = [...children]
+        nextChildren.splice(plansAt >= 0 ? plansAt + 1 : children.length, 0, child)
+        return [{ ...entry, children: nextChildren }]
+      }),
+    }))
+  }
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(isMeteredUsage)
+  )
+  if (alreadyThere) return sections
+
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  const index = Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const entries = [...section.entries]
+    entries.push(meteredUsageLink())
     return { ...section, entries }
   })
 }
@@ -2060,8 +2213,8 @@ export function removeAuditLinks(sections: ShellSection[]): ShellSection[] {
  * Takes the Revenue link out wherever it sits.
  *
  * Its page was folded into the Membership page directly above it — same tables,
- * same numbers — and `/admin/billing` now only redirects there. Two sidebar
- * links landing on one screen is worse than one, so the link goes.
+ * same numbers — and the old `/admin/billing` address is retired. A saved
+ * sidebar link to that address has to go with it.
  *
  * Matched by id or by address, and inside children as well as at the top level,
  * so a hand-rebuilt link is caught too. Runs once per workspace on the
@@ -2510,7 +2663,11 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         // order `foldMembershipIntoOverview` leaves them for a sidebar that
         // still had the Membership parent when it was last saved — so a new
         // workspace and an upgraded one read the same.
-        overviewLink([...feedsChildLinks(), ...membershipChildLinks()]),
+        overviewLink([
+          ...feedsChildLinks(),
+          ...membershipChildLinks(),
+          meteredUsageChildLink(),
+        ]),
         aiUsageLink(),
         trafficLink(),
         pagesLink(),

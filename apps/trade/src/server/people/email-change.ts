@@ -9,11 +9,14 @@ import {
 } from "@/server/schema"
 import {
   consumeAuthToken,
-  createAuthToken,
   deleteOtherSessions,
   findUserByEmail,
   now,
 } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
 
 /**
  * Changing the email address on an account, without asking anybody for help.
@@ -62,7 +65,9 @@ export async function findPendingEmailChange(
 
   // `newEmail` is nullable on the table but never null on a change_email row —
   // the check constraint sees to that. The guard is for the type only.
-  return row?.newEmail ? { newEmail: row.newEmail, expiresAt: row.expiresAt } : null
+  return row?.newEmail
+    ? { newEmail: row.newEmail, expiresAt: row.expiresAt }
+    : null
 }
 
 /**
@@ -76,7 +81,8 @@ export async function findPendingEmailChange(
 export async function createEmailChangeToken(
   user: Pick<CustomShellUser, "id" | "email">,
   newEmail: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  linkContext?: AuthLinkContext
 ) {
   if (newEmail === user.email.toLowerCase()) {
     throw new Error("EMAIL_UNCHANGED")
@@ -92,7 +98,10 @@ export async function createEmailChangeToken(
   // account to could be different ones.
   await cancelEmailChange(user.id, database)
 
-  return createAuthToken(user.id, "change_email", database, newEmail)
+  return createWorkspaceAuthToken(user.id, "change_email", database, {
+    newEmail,
+    context: linkContext,
+  })
 }
 
 /**
@@ -105,9 +114,12 @@ export async function createEmailChangeToken(
  */
 export function createEmailChangeRevokeToken(
   userId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  linkContext?: AuthLinkContext
 ) {
-  return createAuthToken(userId, "revoke_email_change", database)
+  return createWorkspaceAuthToken(userId, "revoke_email_change", database, {
+    context: linkContext,
+  })
 }
 
 /**

@@ -2,8 +2,8 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { defaultSignalIndicators } from "@/lib/automations/nodes/trade-signals"
-import { defaultTradeGridSettings } from "@/lib/automations/nodes/trade-grid"
+import { defaultSignalIndicators } from "@/lib/recipes/trade-signals"
+import { defaultTradeGridSettings } from "@/lib/recipes/trade-grid"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultDcaParams } from "@/lib/trade/dca"
 import { defaultGridParams } from "@/lib/trade/grid"
@@ -17,11 +17,11 @@ import {
 } from "@/server/test-support"
 import {
   customShellAnnouncements,
-  customShellAutomations,
   customShellNotifications,
 } from "@/server/schema"
 import {
   tradeFlowRuns,
+  tradeRecipes,
   tradeSmartLadders,
   tradeWallets,
   tradeWorkerControls,
@@ -201,7 +201,7 @@ beforeEach(async () => {
   // hang its announcement row on — the way a real account always does.
   const workspace = await insertWorkspace(db, { userId })
   for (const id of ["flow-1", "flow-2"]) {
-    await db.insert(customShellAutomations).values({
+    await db.insert(tradeRecipes).values({
       id,
       userId,
       workspaceId: workspace.id,

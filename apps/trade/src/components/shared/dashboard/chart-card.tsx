@@ -57,7 +57,7 @@ export function ChartCard({
           <span className="truncate">{title}</span>
         </CardTitle>
         {meta || legend || control ? (
-          <CardAction className="col-start-1 row-start-2 flex min-w-0 items-center gap-3 self-center justify-self-start sm:col-start-2 sm:row-start-1 sm:justify-self-end sm:gap-4">
+          <CardAction className="col-start-1 row-span-1 row-start-2 flex min-w-0 items-center gap-3 self-center justify-self-start sm:col-start-2 sm:row-start-1 sm:justify-self-end sm:gap-4">
             {meta ? (
               <span className="min-w-0 truncate text-xs font-normal text-muted-foreground">
                 {meta}

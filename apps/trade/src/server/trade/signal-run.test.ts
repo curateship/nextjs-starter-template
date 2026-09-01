@@ -8,7 +8,6 @@ import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
-import { customShellAutomations } from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -17,6 +16,7 @@ import {
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import {
   tradeFlowRuns,
+  tradeRecipes,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -189,7 +189,7 @@ beforeEach(async () => {
 
   userId = (await insertUser(database)).id
   const workspace = await insertWorkspace(database)
-  await database.insert(customShellAutomations).values({
+  await database.insert(tradeRecipes).values({
     id: "flow-1",
     userId,
     workspaceId: workspace.id,

@@ -115,7 +115,7 @@ export function RunningBotsWidget({
         <div className="flex flex-col items-center justify-center gap-3">
           <p className="text-sm text-muted-foreground">No running bots.</p>
           <Button asChild variant="outline">
-            <Link to="/admin/automations">Open the canvas</Link>
+            <Link to="/admin/recipes">Open recipes</Link>
           </Button>
         </div>
       }

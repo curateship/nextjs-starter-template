@@ -19,6 +19,11 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
@@ -48,8 +53,6 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   TableCell,
   TableHead,
-  TableHeader,
-  TableSortButton,
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
@@ -98,6 +101,31 @@ const feedbackRoute = getRouteApi("/_authenticated/admin/feedback")
  * Status header sorted by date instead and nothing said so.
  */
 type FeedbackSortColumn = (typeof FEEDBACK_SORT_COLUMNS)[number]
+
+const FEEDBACK_COLUMNS: SortableColumn<FeedbackSortColumn>[] = [
+  { key: "message", label: "Feedback", column: "main" },
+  { key: "type", label: "Type", column: "meta" },
+  {
+    key: "status",
+    label: "Status",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "author",
+    label: "Author",
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  {
+    key: "created",
+    label: "Created",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+  { key: "comments", label: "Comments", column: "meta" },
+  { key: "votes", label: "Votes", column: "meta" },
+]
 
 type FeedbackDashboardProps = {
   refreshToken: number
@@ -414,87 +442,26 @@ export function FeedbackDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={
-                    visibleSelected
-                      ? true
-                      : visiblePartiallySelected
-                        ? "indeterminate"
-                        : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
-                  aria-label="Select visible feedback"
-                />
-              </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sortColumn === "message"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("message")}
-                >
-                  Feedback
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sortColumn === "type"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("type")}
-                >
-                  Type
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sortColumn === "status"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden md:table-cell">
-                <TableSortButton
-                  active={sortColumn === "author"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("author")}
-                >
-                  Author
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sortColumn === "created"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("created")}
-                >
-                  Created
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sortColumn === "comments"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("comments")}
-                >
-                  Comments
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sortColumn === "votes"}
-                  direction={sortDirection}
-                  onClick={() => toggleSort("votes")}
-                >
-                  Votes
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={FEEDBACK_COLUMNS}
+            sort={sortColumn}
+            direction={sortDirection}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="feedback"
+                checked={
+                  visibleSelected
+                    ? true
+                    : visiblePartiallySelected
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={toggleVisibleSelection}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={!loading && paginatedFeedback.length === 0}
         emptyText="No feedback found matching your filters."
@@ -589,7 +556,6 @@ export function FeedbackDashboard({
               </Badge>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -623,7 +589,6 @@ export function FeedbackDashboard({
                   <Trash2Icon className="h-4 w-4" />
                   <span className="sr-only">Delete feedback</span>
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -1028,7 +993,7 @@ function MergeFeedbackDialog({
                   onValueChange={setTargetId}
                   disabled={merging || targets.length === 0}
                 >
-                  <SelectTrigger id="merge-target" className="w-full">
+                  <SelectTrigger id="merge-target" className="w-full sm:w-fit">
                     <SelectValue
                       placeholder={
                         targets.length

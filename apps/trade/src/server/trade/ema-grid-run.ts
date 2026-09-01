@@ -4,7 +4,7 @@ import { parseMarketKey, marketSymbol } from "@/lib/protocols/contracts"
 import {
   emaGridCleanBars,
   type TradeGridSettings,
-} from "@/lib/automations/nodes/trade-grid"
+} from "@/lib/recipes/trade-grid"
 import { ladderHeldSz } from "@/lib/trade/dca"
 import {
   EMA_GRID_HISTORY_BARS,

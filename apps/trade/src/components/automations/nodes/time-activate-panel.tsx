@@ -4,6 +4,7 @@ import {
 } from "@/components/automations/inspector-card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -57,7 +58,10 @@ export default function TimeActivateFields({
             )
           }
         >
-          <SelectTrigger id={`time-${node.id}-frequency`} className="w-full">
+          <SelectTrigger
+            id={`time-${node.id}-frequency`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -129,7 +133,10 @@ export default function TimeActivateFields({
               setSchedule({ ...schedule, dayOfWeek: Number(value) })
             }
           >
-            <SelectTrigger id={`time-${node.id}-weekday`} className="w-full">
+            <SelectTrigger
+              id={`time-${node.id}-weekday`}
+              className="w-full sm:w-fit"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -144,28 +151,17 @@ export default function TimeActivateFields({
       ) : null}
 
       {schedule.frequency === "monthly" ? (
-        <div className="grid gap-1.5">
-          <FieldLabel
-            htmlFor={`time-${node.id}-month-day`}
-            className="text-xs"
-            hint="Shorter months use their final day."
-          >
-            Day of month
-          </FieldLabel>
-          <Input
-            id={`time-${node.id}-month-day`}
-            type="number"
-            min={1}
-            max={31}
-            value={schedule.dayOfMonth}
-            onChange={(event) =>
-              setSchedule({
-                ...schedule,
-                dayOfMonth: Number(event.target.value),
-              })
-            }
-          />
-        </div>
+        <NumberField
+          id={`time-${node.id}-month-day`}
+          label="Day of month"
+          labelClassName="text-xs"
+          hint="Shorter months use their final day."
+          value={schedule.dayOfMonth}
+          min={1}
+          max={31}
+          className="gap-1.5"
+          onChange={(dayOfMonth) => setSchedule({ ...schedule, dayOfMonth })}
+        />
       ) : null}
 
       <div className="grid gap-1.5">
@@ -184,7 +180,10 @@ export default function TimeActivateFields({
             }
           }}
         >
-          <SelectTrigger id={`time-${node.id}-timezone`} className="w-full">
+          <SelectTrigger
+            id={`time-${node.id}-timezone`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

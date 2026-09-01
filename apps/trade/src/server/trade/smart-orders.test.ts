@@ -18,7 +18,6 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { customShellAutomations } from "@/server/schema"
 import { draftGridOrder } from "@/server/trade/grid-orders"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import { mayOpenCoin } from "@/server/trade/smart-ladders"
@@ -52,6 +51,7 @@ import {
   tradePaperPositions,
   tradePrefs,
   tradeSmartLadders,
+  tradeRecipes,
   tradeFlowRuns,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -212,7 +212,7 @@ async function place(over: Partial<DcaParams> = {}, clickPx = 110) {
 }
 
 async function insertRunningFlow(id = "run-1"): Promise<void> {
-  await database.insert(customShellAutomations).values({
+  await database.insert(tradeRecipes).values({
     id: `flow-${id}`,
     userId,
     workspaceId: workspace.id,
@@ -822,7 +822,7 @@ describe("who placed a smart order", () => {
     await place()
     const ladder = await onlyLadder()
 
-    await database.insert(customShellAutomations).values({
+    await database.insert(tradeRecipes).values({
       id: "flow-1",
       userId,
       workspaceId: workspace.id,
@@ -907,7 +907,7 @@ describe("who placed a smart order", () => {
   it("never credits a run with an order older than itself", async () => {
     await place()
     const ladder = await onlyLadder()
-    await database.insert(customShellAutomations).values({
+    await database.insert(tradeRecipes).values({
       id: "flow-2",
       userId,
       workspaceId: workspace.id,

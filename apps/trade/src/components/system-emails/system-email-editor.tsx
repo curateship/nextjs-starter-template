@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SendIcon } from "lucide-react"
+import { Loader2Icon, RotateCcwIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -10,8 +10,16 @@ import {
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { SystemEmailSendsPanel } from "@/components/system-emails/system-email-sends-panel"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   getSystemEmailErrorMessage,
+  resetSystemEmail,
   sendSystemEmailTest,
   updateSystemEmail,
   type SystemEmailDetail,
@@ -35,13 +43,17 @@ export function SystemEmailEditor({
   initial: SystemEmailDetail
   initialBlockDefaults: BroadcastBlockDefaults
 }) {
-  const [fields] = React.useState<EmailEditableFields>({
+  const [fields, setFields] = React.useState<EmailEditableFields>({
     subject: initial.subject,
     preheader: initial.preheader,
     fromName: initial.fromName ?? "",
     blocks: initial.blocks,
   })
   const [testing, setTesting] = React.useState(false)
+  const [resetOpen, setResetOpen] = React.useState(false)
+  const [resetting, setResetting] = React.useState(false)
+  const [fieldsVersion, setFieldsVersion] = React.useState(0)
+  const saveBeforeResetRef = React.useRef<(() => Promise<boolean>) | null>(null)
   // Bumped after a test send so the panel below picks the new attempt up.
   const [sendsVersion, setSendsVersion] = React.useState(0)
 
@@ -80,43 +92,130 @@ export function SystemEmailEditor({
     }
   }
 
+  const reset = async () => {
+    setResetting(true)
+    try {
+      const saveBeforeReset = saveBeforeResetRef.current
+      if (saveBeforeReset && !(await saveBeforeReset())) return
+      const restored = await resetSystemEmail(initial.kind)
+      setFields({
+        subject: restored.subject,
+        preheader: restored.preheader,
+        fromName: restored.fromName ?? "",
+        blocks: restored.blocks,
+      })
+      setFieldsVersion((current) => current + 1)
+      setResetOpen(false)
+      toast.success(`${meta.name} is back to its built-in wording.`)
+    } catch (error) {
+      showErrorToast(getSystemEmailErrorMessage(error))
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
-    <EmailBlockEditor
-      title={meta.name}
-      fields={fields}
-      initialBlockDefaults={initialBlockDefaults}
-      editable
-      lockedButtonUrl
-      layout="systemEmail"
-      onSave={save}
-      settingsExtra={
-        <InspectorCard title="When it goes out">
-          <p className="text-[15px] leading-relaxed">{meta.whenSent}</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Nobody sends this one — the app does. There is nobody to pick and
-            nothing to schedule.
-          </p>
-        </InspectorCard>
-      }
-      headerAction={(saveNow) => (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8"
-          disabled={testing}
-          onClick={() => void sendTest(saveNow)}
-        >
-          <SendIcon className="size-3.5" />
-          {testing ? "Sending…" : "Send myself a test"}
-        </Button>
-      )}
-      bottomPanel={
-        <SystemEmailSendsPanel
-          kind={initial.kind}
-          refreshToken={sendsVersion}
-        />
-      }
-    />
+    <>
+      <EmailBlockEditor
+        title={meta.name}
+        fields={fields}
+        fieldsVersion={fieldsVersion}
+        initialBlockDefaults={initialBlockDefaults}
+        editable
+        lockedButtonUrl
+        layout="systemEmail"
+        onSave={save}
+        settingsExtra={
+          <InspectorCard title="When it goes out">
+            <p className="text-[15px] leading-relaxed">{meta.whenSent}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Nobody sends this one — the app does. There is nobody to pick and
+              nothing to schedule.
+            </p>
+          </InspectorCard>
+        }
+        headerAction={(saveNow) => (
+          <>
+            <DisabledReason
+              disabled={testing || resetting}
+              reason={
+                testing
+                  ? "Wait for the test send to finish."
+                  : "The reset is already running."
+              }
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-7 px-0 sm:w-auto sm:px-3"
+                    disabled={testing || resetting}
+                    onClick={() => {
+                      saveBeforeResetRef.current = saveNow
+                      setResetOpen(true)
+                    }}
+                  >
+                    <RotateCcwIcon className="size-3.5" />
+                    <span className="sr-only sm:not-sr-only">Reset</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reset</TooltipContent>
+              </Tooltip>
+            </DisabledReason>
+            <DisabledReason
+              disabled={testing || resetting}
+              reason={
+                testing
+                  ? "Sending test email…"
+                  : "Wait for the reset to finish."
+              }
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-7 px-0 sm:w-auto sm:px-3"
+                    disabled={testing || resetting}
+                    onClick={() => void sendTest(saveNow)}
+                  >
+                    {testing ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : (
+                      <SendIcon className="size-3.5" />
+                    )}
+                    <span className="sr-only sm:not-sr-only">
+                      {testing ? "Sending…" : "Send myself a test"}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {testing ? "Sending test email…" : "Send myself a test"}
+                </TooltipContent>
+              </Tooltip>
+            </DisabledReason>
+          </>
+        )}
+        bottomPanel={
+          <SystemEmailSendsPanel
+            kind={initial.kind}
+            refreshToken={sendsVersion}
+          />
+        }
+      />
+
+      <ConfirmDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        title={`Reset ${meta.name}?`}
+        description="Your saved wording and layout are deleted. This email returns to the wording built into the app and your current default email styling."
+        confirmLabel="Reset"
+        loading={resetting}
+        onConfirm={() => void reset()}
+      />
+    </>
   )
 }

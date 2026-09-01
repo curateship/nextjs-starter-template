@@ -3,6 +3,7 @@ import * as ResizablePrimitive from "react-resizable-panels"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { DASHBOARD_CARD_COLLAPSED_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 function ResizablePanelGroup({
@@ -30,6 +31,7 @@ function ResizableHandle({
   gap,
   collapsed,
   className,
+  style,
   ...props
 }: ResizablePrimitive.SeparatorProps & {
   withHandle?: boolean
@@ -53,11 +55,17 @@ function ResizableHandle({
           // Gap between full-screen workspace panels tracks the content-spacing
           // setting. The transparent after-strip stays as the drag hit area so
           // panels remain draggable even when the gutter is 0 (flat mode).
-          "w-[var(--shell-gutter,0.75rem)] bg-transparent aria-[orientation=horizontal]:h-[var(--shell-gutter,0.75rem)] aria-[orientation=horizontal]:w-full",
+          "w-[var(--resizable-handle-size)] bg-transparent aria-[orientation=horizontal]:h-[var(--resizable-handle-size)] aria-[orientation=horizontal]:w-full",
         collapsed && "w-0 bg-transparent aria-[orientation=horizontal]:h-0",
         className
       )}
       {...props}
+      style={
+        {
+          ...style,
+          "--resizable-handle-size": pageGutter,
+        } as React.CSSProperties
+      }
     >
       {withHandle && !collapsed && (
         <div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-border" />

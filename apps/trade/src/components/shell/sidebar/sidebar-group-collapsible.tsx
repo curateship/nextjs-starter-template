@@ -122,6 +122,10 @@ function SidebarCollapsibleItem({
             asChild
             tooltip={entry.label}
             isActive={entry.active}
+            isCurrent={
+              entry.active &&
+              (!hasActiveChild || !open || state === "collapsed")
+            }
             className="flex-1 hover:bg-transparent active:bg-transparent data-active:bg-transparent data-open:hover:bg-transparent"
           >
             <a {...getNavLinkProps(entry.href, onNavClick, onNavigate)}>
@@ -147,7 +151,11 @@ function SidebarCollapsibleItem({
             <SidebarMenuSub>
               {entry.children?.map((child) => (
                 <SidebarMenuSubItem key={child.id}>
-                  <SidebarMenuSubButton asChild isActive={child.active}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={child.active}
+                    isCurrent={open && state === "expanded" && child.active}
+                  >
                     <a {...getNavLinkProps(child.href, onNavClick, onNavigate)}>
                       {child.icon}
                       <span>{child.label}</span>

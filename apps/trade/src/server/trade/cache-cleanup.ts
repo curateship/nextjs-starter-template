@@ -1,7 +1,7 @@
 import { inArray, lt, sql, type SQL } from "drizzle-orm"
 import type { PgTable } from "drizzle-orm/pg-core"
 
-import { MAX_BACKTEST_DAYS } from "@/lib/automations/nodes/trade-markets"
+import { MAX_BACKTEST_DAYS } from "@/lib/recipes/trade-markets"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   tradeBacktests,

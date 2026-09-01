@@ -22,16 +22,19 @@ export type AdminPlan = {
   currency: string
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
   isPublic: boolean
   sortOrder: number
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   active: boolean
   createdAt: string
 }
 
-export const getPlanErrorMessage = createErrorMessage(
+const getPlanErrorMessageForCode = createErrorMessage(
   {
     PLAN_NOT_FOUND: "That plan no longer exists.",
     PLAN_SLUG_REQUIRED: "Give the plan a short id, like `pro`.",
@@ -44,11 +47,22 @@ export const getPlanErrorMessage = createErrorMessage(
       "Add the Stripe price id for the monthly price, or set the monthly price to 0.",
     PLAN_YEARLY_PRICE_REQUIRED:
       "Add the Stripe price id for the yearly price, or set the yearly price to 0.",
+    PLAN_USAGE_METER_INVALID:
+      "Use the exact Stripe meter event name, without spaces.",
     FEATURES_INVALID: "Features must be valid JSON, like {\"seats\": 3}.",
-    duplicate: "Another plan already uses that id or Stripe price.",
+    duplicate: "Another plan already uses that id, Stripe price, or pricing-page highlight.",
   },
   "We could not save that plan. Please try again."
 )
+
+export function getPlanErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const match = message.match(/^PLAN_HIGHLIGHT_ALREADY_SET:(.+)$/)
+
+  return match
+    ? `${match[1]} is already highlighted on the pricing page. Clear its badge before highlighting another plan.`
+    : getPlanErrorMessageForCode(error)
+}
 
 const planInputSchema = z.object({
   slug: z
@@ -64,6 +78,7 @@ const planInputSchema = z.object({
   currency: z.string().trim().min(1).max(10).default("usd"),
   stripePriceIdMonthly: z.string().trim().max(120).nullable().default(null),
   stripePriceIdYearly: z.string().trim().max(120).nullable().default(null),
+  usageMeter: z.string().trim().max(100).nullable().default(null),
   trialDays: z.number().int().min(0).max(365).default(0),
   features: z
     .record(
@@ -74,6 +89,8 @@ const planInputSchema = z.object({
   isDefault: z.boolean().default(false),
   isPublic: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(999).default(0),
+  highlightBadgeText: z.string().trim().max(50).nullable().default(null),
+  checkoutButtonText: z.string().trim().max(60).nullable().default(null),
   active: z.boolean().default(true),
 })
 
@@ -151,11 +168,14 @@ function serializePlan(plan: {
   currency: string
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
   isPublic: boolean
   sortOrder: number
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   active: boolean
   createdAt: Date
 }): AdminPlan {
@@ -169,11 +189,14 @@ function serializePlan(plan: {
     currency: plan.currency,
     stripePriceIdMonthly: plan.stripePriceIdMonthly,
     stripePriceIdYearly: plan.stripePriceIdYearly,
+    usageMeter: plan.usageMeter,
     trialDays: plan.trialDays,
     features: plan.features ?? {},
     isDefault: plan.isDefault,
     isPublic: plan.isPublic,
     sortOrder: plan.sortOrder,
+    highlightBadgeText: plan.highlightBadgeText,
+    checkoutButtonText: plan.checkoutButtonText,
     active: plan.active,
     createdAt: plan.createdAt.toISOString(),
   }

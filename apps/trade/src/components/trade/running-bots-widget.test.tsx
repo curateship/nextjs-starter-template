@@ -104,8 +104,8 @@ describe("the running bots widget", () => {
     )
 
     expect(html).toContain("No running bots.")
-    expect(html).toContain('href="/admin/automations"')
-    expect(html).toContain("Open the canvas")
+    expect(html).toContain('href="/admin/recipes"')
+    expect(html).toContain("Open recipes")
   })
 
   it("uses the same row typography as Active Trades", () => {

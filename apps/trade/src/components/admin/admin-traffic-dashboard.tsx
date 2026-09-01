@@ -7,9 +7,17 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { chartHeightClassName, ChartCard, EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
+import {
+  chartHeightClassName,
+  ChartCard,
+  EmptyChart,
+  LegendDot,
+} from "@/components/shared/dashboard/chart-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { StatStrip, type StatFigure } from "@/components/shared/dashboard/stat-strip"
+import {
+  StatStrip,
+  type StatFigure,
+} from "@/components/shared/dashboard/stat-strip"
 import {
   ChartContainer,
   ChartTooltip,
@@ -59,6 +67,7 @@ export function AdminTrafficDashboard({
   range: TrafficRange
 }) {
   const navigate = useListSearchNavigate()
+  const rangeLabel = TRAFFIC_RANGE_LABELS[range]
 
   const figures: StatFigure[] = [
     {
@@ -77,7 +86,7 @@ export function AdminTrafficDashboard({
       label: "Unique visitors",
       value: data.totals.uniqueVisitors.toLocaleString(),
       // Shared and rotating internet connections blur the count either way.
-      footer: "approximate — each day counted on its own",
+      footer: `approximate — each day counted on its own · ${rangeLabel}`,
     },
     {
       key: "today",
@@ -89,7 +98,7 @@ export function AdminTrafficDashboard({
       key: "memberShare",
       label: "Member share",
       value: formatSharePercent(data.totals.memberViews, data.totals.views),
-      footer: "of views by signed-in members",
+      footer: `of views by signed-in members · ${rangeLabel}`,
     },
   ]
 
@@ -118,7 +127,7 @@ export function AdminTrafficDashboard({
                 navigate({ days: value === "30" ? undefined : Number(value) })
               }
             >
-              <TabsList className="h-8 p-[3px]">
+              <TabsList>
                 {TRAFFIC_RANGES.map((key) => (
                   <TabsTrigger key={key} value={String(key)} className="h-full">
                     {TRAFFIC_RANGE_LABELS[key]}
@@ -135,7 +144,11 @@ export function AdminTrafficDashboard({
           )}
         </ChartCard>
 
-        <DeviceCard devices={data.devices} totalViews={data.totals.views} />
+        <DeviceCard
+          devices={data.devices}
+          totalViews={data.totals.views}
+          rangeLabel={rangeLabel}
+        />
       </div>
 
       <div
@@ -149,6 +162,7 @@ export function AdminTrafficDashboard({
           countLabel="pages"
           rows={data.topPages}
           emptyText="No pages have been viewed yet."
+          rangeLabel={rangeLabel}
         />
         <TopTable
           title="Top referrers"
@@ -157,6 +171,7 @@ export function AdminTrafficDashboard({
           countLabel="referrer sites"
           rows={data.topReferrers}
           emptyText="No visits have been counted yet."
+          rangeLabel={rangeLabel}
         />
       </div>
     </div>
@@ -224,9 +239,11 @@ const DEVICE_LABELS: Record<string, string> = {
 function DeviceCard({
   devices,
   totalViews,
+  rangeLabel,
 }: {
   devices: TrafficKeyCount[]
   totalViews: number
+  rangeLabel: string
 }) {
   const config: ChartConfig = {
     views: { label: "Views", color: "var(--primary)" },
@@ -237,7 +254,7 @@ function DeviceCard({
   }))
 
   return (
-    <ChartCard icon={MonitorSmartphoneIcon} title="Devices">
+    <ChartCard icon={MonitorSmartphoneIcon} title="Devices" meta={rangeLabel}>
       {totalViews === 0 ? (
         <EmptyChart message="No visits have been counted yet." />
       ) : (
@@ -283,7 +300,8 @@ function DeviceCard({
 type TopSort = "name" | "views"
 
 /** Views read as a number, so that column starts biggest-first. */
-const topSortDirection = (column: TopSort) => (column === "name" ? "asc" : "desc")
+const topSortDirection = (column: TopSort) =>
+  column === "name" ? "asc" : "desc"
 
 function TopTable({
   title,
@@ -292,6 +310,7 @@ function TopTable({
   countLabel,
   rows,
   emptyText,
+  rangeLabel,
 }: {
   title: string
   icon: React.ReactNode
@@ -299,6 +318,7 @@ function TopTable({
   countLabel: string
   rows: TrafficKeyCount[]
   emptyText: string
+  rangeLabel: string
 }) {
   const { sort, direction, toggleSort } = useTableSort<TopSort>(
     "views",
@@ -316,13 +336,18 @@ function TopTable({
   }, [rows, sort, direction])
 
   const columns: SortableColumn<TopSort>[] = [
-    { key: "name", label: nameLabel, column: "main" },
+    {
+      key: "name",
+      label: nameLabel,
+      column: "main",
+      className: "min-w-0",
+    },
     { key: "views", label: "Views", column: "meta" },
   ]
 
   return (
     <DashboardTable
-      title={title}
+      title={`${title} (${rangeLabel})`}
       icon={icon}
       count={sorted.length}
       header={
@@ -331,7 +356,6 @@ function TopTable({
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          withAriaSort
         />
       }
       isEmpty={sorted.length === 0}
@@ -341,7 +365,7 @@ function TopTable({
     >
       {sorted.map((row) => (
         <TableRow key={row.key}>
-          <TableCell column="main">
+          <TableCell column="main" className="min-w-0">
             <span
               className="block max-w-full truncate text-sm font-medium"
               title={row.key}

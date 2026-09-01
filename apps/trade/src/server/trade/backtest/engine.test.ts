@@ -5,7 +5,7 @@ import { defaultDcaParams, type DcaParams } from "@/lib/trade/dca"
 import {
   defaultTradeGridSettings,
   emaGridCleanBars,
-} from "@/lib/automations/nodes/trade-grid"
+} from "@/lib/recipes/trade-grid"
 import { emaGridStances } from "@/lib/trade/ema-grid"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultPaperCosts, type PaperCosts } from "@/lib/trade/paper"

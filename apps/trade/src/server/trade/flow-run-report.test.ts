@@ -15,11 +15,11 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { customShellAutomations } from "@/server/schema"
 import {
   tradeFlowRunOrders,
   tradeFlowRuns,
   tradePaperJournal,
+  tradeRecipes,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -163,7 +163,7 @@ beforeEach(async () => {
   userId = (await insertUser(db)).id
   workspaceId = (await insertWorkspace(db)).id
 
-  await db.insert(customShellAutomations).values({
+  await db.insert(tradeRecipes).values({
     id: "flow-1",
     userId,
     workspaceId,
@@ -365,29 +365,17 @@ describe("readFlowRun", () => {
     expect(await readFlowRun(stranger.id, "run-1")).toBeNull()
   })
 
-  it("does not borrow another account's flow name", async () => {
-    const stranger = await insertUser(db)
-    const strangerWorkspace = await insertWorkspace(db)
-    await db.insert(customShellAutomations).values({
-      id: "stranger-flow",
-      userId: stranger.id,
-      workspaceId: strangerWorkspace.id,
-      name: "Somebody else's bot",
-      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-      compiledConfig: null,
-      createdAt: new Date(NOW),
-      updatedAt: new Date(NOW),
-    })
+  it("keeps the recipe name after its creator is removed", async () => {
     await db
-      .update(tradeFlowRuns)
-      .set({ automationId: "stranger-flow" })
-      .where(eq(tradeFlowRuns.id, "run-1"))
+      .update(tradeRecipes)
+      .set({ userId: null })
+      .where(eq(tradeRecipes.id, "flow-1"))
 
     const report = await readFlowRun(userId, "run-1", NOW)
     const rows = await listFlowRuns(userId, NOW)
 
-    expect(report?.head.automationName).toBe("This flow has been deleted")
-    expect(rows[0].automationName).toBe("This flow has been deleted")
+    expect(report?.head.automationName).toBe("Ladder every coin")
+    expect(rows[0].automationName).toBe("Ladder every coin")
   })
 })
 
@@ -605,7 +593,7 @@ describe("listFlowRuns", () => {
   })
 
   it("finds each automation beyond the history page's 200-run cap", async () => {
-    await db.insert(customShellAutomations).values({
+    await db.insert(tradeRecipes).values({
       id: "busy-flow",
       userId,
       workspaceId,

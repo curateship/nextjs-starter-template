@@ -1,17 +1,20 @@
 import Stripe from "stripe"
 import { and, eq, inArray, isNull } from "drizzle-orm"
 
+import type { CancellationReason } from "@/lib/billing/cancellation"
 import {
   billingMomentNode,
   isBillingMoment,
 } from "@/lib/automations/nodes/billing-moment"
 import { formatMoney } from "@/lib/format/money"
+import { formatUtcDate } from "@/lib/format/format-time"
 import { appUrlFor } from "@/server/app-url"
 import {
   automationSubjectLabel,
   fireAutomationTrigger,
   type AutomationTriggerEvent,
 } from "@/server/automations/triggers"
+import { emitMemberEventForUser } from "@/server/automations/member-events"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   findSubscription,
@@ -27,12 +30,17 @@ import {
 } from "@/server/billing/plans"
 import {
   customShellBillingEvents,
+  customShellCancellations,
   customShellSubscriptions,
   customShellUsers,
   type CustomShellPlan,
   type CustomShellSubscription,
   type CustomShellUser,
 } from "@/server/schema"
+import {
+  recordAdminAccountAction,
+  sendAdminAccountAction,
+} from "@/server/people/admin-action-notifications"
 import { now, uuid } from "@/server/auth/security"
 import { getActiveStripeConfig } from "@/server/billing/settings"
 import {
@@ -120,9 +128,13 @@ export async function createCheckoutSession(
 
   const subscription = await findSubscription(user.id, database)
   const trialDays = trialDaysFor(user, plan)
-  const session = await (await stripe()).checkout.sessions.create({
+  const session = await (
+    await stripe()
+  ).checkout.sessions.create({
     mode: "subscription",
-    line_items: [{ price, quantity: 1 }],
+    // Stripe rejects a quantity on metered prices. Licensed recurring prices
+    // keep the ordinary quantity of one.
+    line_items: [plan.usageMeter ? { price } : { price, quantity: 1 }],
     customer: subscription?.stripeCustomerId || undefined,
     customer_email: subscription?.stripeCustomerId ? undefined : user.email,
     client_reference_id: user.id,
@@ -155,7 +167,9 @@ export async function createPortalSession(
     throw new Error("SUBSCRIPTION_NOT_FOUND")
   }
 
-  const session = await (await stripe()).billingPortal.sessions.create({
+  const session = await (
+    await stripe()
+  ).billingPortal.sessions.create({
     customer: subscription.stripeCustomerId,
     return_url: appUrlFor("/?account=billing"),
   })
@@ -183,7 +197,9 @@ export async function listCustomerInvoices(
     return []
   }
 
-  const invoices = await (await stripe()).invoices.list({
+  const invoices = await (
+    await stripe()
+  ).invoices.list({
     customer: subscription.stripeCustomerId,
     limit: 24,
   })
@@ -365,6 +381,35 @@ export async function cancelSubscriptionByAdmin(
   database: CustomShellDb = db,
   api: CancelApi = stripeCancelApi
 ) {
+  return cancelSubscription(userId, mode, "admin", database, api)
+}
+
+/** Stops the signed-in member's Stripe plan renewing and records their answer. */
+export async function cancelSubscriptionByMember(
+  userId: string,
+  survey: { reason: CancellationReason | null; feedback: string | null },
+  database: CustomShellDb = db,
+  api: CancelApi = stripeCancelApi
+) {
+  return cancelSubscription(
+    userId,
+    "period_end",
+    "member",
+    database,
+    api,
+    survey
+  )
+}
+
+async function cancelSubscription(
+  userId: string,
+  mode: CancelSubscriptionMode,
+  source: "admin" | "member",
+  database: CustomShellDb,
+  api: CancelApi,
+  survey?: { reason: CancellationReason | null; feedback: string | null },
+  notifyMember = source === "admin"
+) {
   const subscription = await findSubscription(userId, database)
   // Live, not merely entitled: a paused plan buys nothing but Stripe still has
   // it, so it is exactly the thing an admin needs to be able to cancel.
@@ -379,18 +424,37 @@ export async function cancelSubscriptionByAdmin(
     : null
 
   if (subscription.source === "manual") {
-    await database
-      .delete(customShellSubscriptions)
-      .where(eq(customShellSubscriptions.id, subscription.id))
+    if (source === "member") {
+      throw new Error("CANNOT_CANCEL_GRANT")
+    }
+    const result = await database.transaction(async (tx) => {
+      await tx
+        .delete(customShellSubscriptions)
+        .where(eq(customShellSubscriptions.id, subscription.id))
 
-    await recordSubscriptionEvent(database, {
-      userId,
-      kind: "canceled",
-      planName,
-      source: "admin",
+      await recordSubscriptionEvent(tx, {
+        userId,
+        kind: "canceled",
+        planName,
+        source,
+      })
+      await emitMemberEventForUser("canceled", userId, tx)
+
+      const delivery = notifyMember
+        ? await recordAdminAccountAction(
+            userId,
+            {
+              summary: `${planName ?? "Your granted plan"} was removed from your account.`,
+              effect:
+                "Your account is now on the free plan and paid features are no longer available.",
+            },
+            tx
+          )
+        : null
+      return { mode: "immediate" as const, endsAt: null, delivery }
     })
-
-    return { mode: "immediate" as const, endsAt: null }
+    await sendAdminAccountAction(result.delivery)
+    return { mode: result.mode, endsAt: result.endsAt }
   }
 
   if (!subscription.stripeSubscriptionId) {
@@ -406,33 +470,80 @@ export async function cancelSubscriptionByAdmin(
       : await api.stopRenewal(subscription.stripeSubscriptionId)
 
   // Mirror Stripe's answer locally right away. The webhook will repeat it
-  // later, but the admin looking at the table should not have to wait for it.
+  // later, but the caller should not have to wait for it.
   const endsAt = periodEnd(result)
-  await database
-    .update(customShellSubscriptions)
-    .set({
-      status: result.status,
-      cancelAtPeriodEnd: result.cancel_at_period_end,
-      currentPeriodEnd: endsAt,
-      updatedAt: now(),
-    })
-    .where(eq(customShellSubscriptions.id, subscription.id))
+  const cancellation = await database.transaction(async (tx) => {
+    await tx
+      .update(customShellSubscriptions)
+      .set({
+        status: result.status,
+        cancelAtPeriodEnd: result.cancel_at_period_end,
+        currentPeriodEnd: endsAt,
+        updatedAt: now(),
+      })
+      .where(eq(customShellSubscriptions.id, subscription.id))
 
-  // Written here rather than left to the webhook, because the webhook will find
-  // the row already saying what it came to say and so will record nothing — and
-  // because it was an admin who did this, which only this side of it knows.
-  await recordSubscriptionEvent(database, {
-    userId,
-    kind: mode === "immediate" ? "canceled" : "cancel_scheduled",
-    planName,
-    detail: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
-    source: "admin",
+    // Written here rather than left to the webhook, because the webhook will
+    // find the row already saying what it came to say and so will record
+    // nothing. This side also knows whether an admin or the member did it.
+    await recordSubscriptionEvent(tx, {
+      userId,
+      kind: mode === "immediate" ? "canceled" : "cancel_scheduled",
+      planName,
+      detail: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+      source,
+    })
+    await emitMemberEventForUser("canceled", userId, tx)
+
+    const delivery = notifyMember
+      ? await recordAdminAccountAction(
+          userId,
+          mode === "period_end"
+            ? {
+                summary: `${planName ?? "Your paid plan"} was set not to renew.`,
+                effect: endsAt
+                  ? `You keep paid features until ${formatUtcDate(endsAt)}. You will not be charged again after that.`
+                  : "You keep paid features until the current paid period ends and will not be charged again after that.",
+              }
+            : {
+                summary: `${planName ?? "Your paid plan"} was cancelled immediately.`,
+                effect:
+                  "Your account is now on the free plan and paid features are no longer available. This cancellation did not issue a refund.",
+              },
+          tx
+        )
+      : null
+
+    return {
+      mode,
+      endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+      delivery,
+    }
   })
 
-  return {
-    mode,
-    endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+  // The answer is optional in every sense. If this separate write fails, the
+  // Stripe cancellation and its local mirror above remain successful.
+  if (source === "member" && mode === "period_end" && endsAt) {
+    try {
+      await database.insert(customShellCancellations).values({
+        id: uuid(),
+        userId,
+        planId: subscription.planId,
+        planName,
+        reason: survey?.reason ?? null,
+        feedback: survey?.feedback ?? null,
+        endsAt,
+        createdAt: now(),
+      })
+    } catch {
+      // Database errors can include bound values. Do not put somebody's private
+      // exit note into logs while still making the lost answer observable.
+      console.error("Cancellation survey could not be recorded")
+    }
   }
+
+  await sendAdminAccountAction(cancellation.delivery)
+  return { mode: cancellation.mode, endsAt: cancellation.endsAt }
 }
 
 /**
@@ -471,11 +582,14 @@ export async function cancelSubscriptionsForDeletion(
     }
 
     try {
-      await cancelSubscriptionByAdmin(
+      await cancelSubscription(
         subscription.userId,
         "immediate",
+        "admin",
         database,
-        api
+        api,
+        undefined,
+        false
       )
       if (subscription.source !== "manual") {
         paidPlanCancelledUserIds.push(subscription.userId)
@@ -596,7 +710,9 @@ export async function setSubscriptionPaused(
   return { paused: nowPaused, planName }
 }
 
-type SubscriptionLoader = (subscriptionId: string) => Promise<Stripe.Subscription>
+type SubscriptionLoader = (
+  subscriptionId: string
+) => Promise<Stripe.Subscription>
 
 const loadStripeSubscription: SubscriptionLoader = async (subscriptionId) =>
   (await stripe()).subscriptions.retrieve(subscriptionId)
@@ -672,6 +788,12 @@ export async function applyStripeEvent(
           },
           values.insert.updatedAt
         )
+
+        if (values.event.kind === "subscribed") {
+          await emitMemberEventForUser("subscribed", values.insert.userId, tx)
+        } else if (values.memberCancellation) {
+          await emitMemberEventForUser("canceled", values.insert.userId, tx)
+        }
       }
 
       // The free trial is used up the moment one actually starts, which is
@@ -840,13 +962,21 @@ async function buildSubscriptionValues(
     updatedAt: timestamp,
   }
 
+  const event = deriveSubscriptionEvent(
+    before,
+    snapshotOf(update, plan?.name ?? null)
+  )
+
   return {
     insert: { id: uuid(), userId, createdAt: timestamp, ...update },
     update,
-    event: deriveSubscriptionEvent(
-      before,
-      snapshotOf(update, plan?.name ?? null)
-    ),
+    event,
+    // Stopping renewal and ending immediately are member actions. The later
+    // expiry of a plan already set to end is not another cancellation action,
+    // so a flow that was off for the first event must not back-fill then.
+    memberCancellation:
+      event?.kind === "cancel_scheduled" ||
+      (event?.kind === "canceled" && !before?.cancelAtPeriodEnd),
     // Stripe's own record of when the trial began, rather than the moment this
     // event happened to be delivered — a webhook that arrives late still marks
     // the right day.
@@ -897,8 +1027,7 @@ async function resolveUserId(
 // carry it on the subscription itself.
 function periodEnd(subscription: Stripe.Subscription) {
   const item = subscription.items.data[0] as
-    | { current_period_end?: number }
-    | undefined
+    { current_period_end?: number } | undefined
   const seconds =
     item?.current_period_end ??
     (subscription as unknown as { current_period_end?: number })
@@ -910,4 +1039,10 @@ function periodEnd(subscription: Stripe.Subscription) {
 function idOf(value: string | { id: string } | null | undefined) {
   if (!value) return null
   return typeof value === "string" ? value : value.id
+}
+
+/** The customer whose pending meter events an invoice webhook can retry. */
+export function invoiceCustomerId(event: Stripe.Event) {
+  if (event.type !== "invoice.created") return null
+  return idOf((event.data.object as Stripe.Invoice).customer)
 }

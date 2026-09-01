@@ -50,6 +50,14 @@ export const customShellUsers = pgTable(
     avatarUrl: text("avatar_url"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     /**
+     * The one automatic follow-up for a password sign-up that never confirmed
+     * its address. Claimed before delivery so two app processes cannot send it
+     * twice; a failed attempt stays visible in the system-email send history.
+     */
+    verificationReminderSentAt: timestamp("verification_reminder_sent_at", {
+      withTimezone: true,
+    }),
+    /**
      * When this account's first free trial began, and null while it has never
      * had one. Set once by the Stripe webhook the moment a trial actually
      * starts — not at checkout, or an abandoned checkout would burn it — and
@@ -83,10 +91,29 @@ export const customShellUsers = pgTable(
      * until it picks one.
      */
     currentWorkspaceId: varchar("current_workspace_id", { length: 36 }),
+    /**
+     * The stable public code in this account's invite link. Postgres supplies
+     * it for every account creation path, including admin-created accounts and
+     * test fixtures, so no caller can accidentally make an account without one.
+     */
+    referralCode: varchar("referral_code", { length: 32 })
+      .notNull()
+      .default(sql`replace(gen_random_uuid()::text, '-', '')`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    index("ix_users_email").on(table.email),
+    uniqueIndex("ux_users_referral_code").on(table.referralCode),
+    index("ix_users_current_workspace").on(table.currentWorkspaceId),
+    index("ix_users_deleted_at")
+      .on(table.deletedAt)
+      .where(sql`${table.status} = 'pending_deletion'`),
+    index("ix_users_verification_reminder_due")
+      .on(table.createdAt)
+      .where(
+        sql`${table.status} = 'active' and ${table.passwordHash} is not null and ${table.emailVerifiedAt} is null and ${table.verificationReminderSentAt} is null`
+      ),
     check("users_role_check", sql`${table.role} in ('admin', 'member')`),
     check(
       "users_status_check",
@@ -96,6 +123,34 @@ export const customShellUsers = pgTable(
       "users_deleted_at_check",
       sql`(${table.status} = 'pending_deletion') = (${table.deletedAt} is not null)`
     ),
+  ]
+)
+
+/**
+ * Small, searchable labels admins and automations attach to accounts.
+ *
+ * One row per label keeps exact audience lookups indexed and lets the user
+ * foreign key remove every label when the account itself is removed.
+ */
+export const customShellMemberTags = pgTable(
+  "member_tags",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    tag: varchar("tag", { length: 100 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "member_tags_pk",
+      columns: [table.userId, table.tag],
+    }),
+    check(
+      "member_tags_normalized_check",
+      sql`${table.tag} = lower(trim(${table.tag})) and length(${table.tag}) between 1 and 100 and position(',' in ${table.tag}) = 0`
+    ),
+    index("ix_member_tags_tag_user").on(table.tag, table.userId),
   ]
 )
 
@@ -157,9 +212,7 @@ export const customShellSettings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
-    check("settings_default_key", sql`${table.key} = 'default'`),
-  ]
+  (table) => [check("settings_default_key", sql`${table.key} = 'default'`)]
 )
 
 export const customShellWorkspaces = pgTable(
@@ -244,10 +297,9 @@ export const customShellFeedback = pgTable(
      * Deleting that media row only clears this — the feedback survives its
      * picture — while deleting the feedback takes the file with it.
      */
-    attachmentMediaId: varchar("attachment_media_id", { length: 36 }).references(
-      () => customShellMedia.id,
-      { onDelete: "set null" }
-    ),
+    attachmentMediaId: varchar("attachment_media_id", {
+      length: 36,
+    }).references(() => customShellMedia.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -265,7 +317,10 @@ export const customShellFeedback = pgTable(
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
-    index("ix_feedback_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_feedback_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
     index("ix_feedback_workspace_type").on(table.workspaceId, table.type),
     index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
@@ -284,10 +339,7 @@ export const customShellFeedbackVotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("feedback_votes_unique_user").on(
-      table.feedbackId,
-      table.userId
-    ),
+    unique("feedback_votes_unique_user").on(table.feedbackId, table.userId),
     index("ix_feedback_votes_feedback_id").on(table.feedbackId),
     index("ix_feedback_votes_user_id").on(table.userId),
   ]
@@ -332,6 +384,9 @@ export const customShellNotifications = pgTable(
       { onDelete: "cascade" }
     ),
     type: varchar("type", { length: 50 }).notNull(),
+    /** The notice's own words when it is about the recipient's account. */
+    message: text("message"),
+    detail: text("detail"),
     feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
       () => customShellFeedbackVotes.id,
       { onDelete: "cascade" }
@@ -370,7 +425,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -378,9 +433,7 @@ export const customShellNotifications = pgTable(
     ),
     index("ix_notifications_feedback_id").on(table.feedbackId),
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
-    index("ix_notifications_comment_id").on(
-      table.feedbackCommentId
-    ),
+    index("ix_notifications_comment_id").on(table.feedbackCommentId),
     index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
     index("ix_notifications_automation_run_id").on(table.automationRunId),
     // One notice per person per announcement, so a second tab loading at the
@@ -497,6 +550,12 @@ export const customShellMedia = pgTable(
     mimeType: varchar("mime_type", { length: 255 }).notNull(),
     fileType: varchar("file_type", { length: 20 }).notNull(),
     storagePath: text("storage_path").notNull().unique(),
+    /**
+     * Set the first time this picture is used as a logo in an email that is
+     * actually sent. Inbox copies can outlive every record that describes the
+     * email, so the file must stay once this has a value.
+     */
+    emailProtectedAt: timestamp("email_protected_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -550,6 +609,35 @@ export const customShellAuthTokens = pgTable(
 )
 
 /**
+ * A person saying an emailed reset or sign-in link was not theirs.
+ *
+ * The report outlives the one-use token it stopped, so support can still see
+ * the pattern after spent auth links are cleaned up. It deliberately stores no
+ * IP address or raw token; the account, kind and time are enough to act on.
+ */
+export const customShellAuthSecurityReports = pgTable(
+  "auth_security_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    tokenPurpose: varchar("token_purpose", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "auth_security_reports_purpose_check",
+      sql`${table.tokenPurpose} in ('reset_password', 'login')`
+    ),
+    index("ix_auth_security_reports_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
  * One sign-in provider account linked to one account here.
  *
  * Keyed on the provider's own permanent id for the person rather than their
@@ -594,7 +682,10 @@ export const customShellOauthAccounts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("oauth_accounts_provider_check", sql`${table.provider} in ('google')`),
+    check(
+      "oauth_accounts_provider_check",
+      sql`${table.provider} in ('google')`
+    ),
     unique("oauth_accounts_provider_account_unique").on(
       table.provider,
       table.providerAccountId
@@ -625,16 +716,22 @@ export const customShellPlans = pgTable(
     currency: varchar("currency", { length: 10 }).notNull().default("usd"),
     stripePriceIdMonthly: varchar("stripe_price_id_monthly", { length: 120 }),
     stripePriceIdYearly: varchar("stripe_price_id_yearly", { length: 120 }),
+    /**
+     * The Stripe meter event name for usage-priced plans. Null means the plan
+     * uses ordinary fixed recurring prices. Product code records this exact
+     * name through `recordUsage`, so the local total and Stripe receive the
+     * same meter without a second mapping table.
+     */
+    usageMeter: varchar("usage_meter", { length: 100 }),
     trialDays: integer("trial_days").notNull().default(0),
     /** Free-form per-product limits and flags, read through entitlements. */
-    features: jsonb("features")
-      .$type<PlanFeatures>()
-      .notNull()
-      .default({}),
+    features: jsonb("features").$type<PlanFeatures>().notNull().default({}),
     /** The plan everyone without a paid subscription falls back to. */
     isDefault: boolean("is_default").notNull().default(false),
     isPublic: boolean("is_public").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
+    highlightBadgeText: varchar("highlight_badge_text", { length: 50 }),
+    checkoutButtonText: varchar("checkout_button_text", { length: 60 }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -646,6 +743,18 @@ export const customShellPlans = pgTable(
     ),
     check("plans_trial_days_check", sql`${table.trialDays} >= 0`),
     index("ix_plans_sort_order").on(table.sortOrder),
+    uniqueIndex("ux_plans_single_default")
+      .on(table.isDefault)
+      .where(sql`${table.isDefault}`),
+    uniqueIndex("ux_plans_stripe_price_monthly")
+      .on(table.stripePriceIdMonthly)
+      .where(sql`${table.stripePriceIdMonthly} is not null`),
+    uniqueIndex("ux_plans_stripe_price_yearly")
+      .on(table.stripePriceIdYearly)
+      .where(sql`${table.stripePriceIdYearly} is not null`),
+    uniqueIndex("ux_plans_single_highlight")
+      .on(sql`(true)`)
+      .where(sql`${table.highlightBadgeText} is not null`),
   ]
 )
 
@@ -696,11 +805,95 @@ export const customShellSubscriptions = pgTable(
   ]
 )
 
+/** What members optionally tell us when they stop a paid plan renewing. */
+export const customShellCancellations = pgTable(
+  "cancellations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 }).references(
+      () => customShellPlans.id,
+      { onDelete: "set null" }
+    ),
+    planName: varchar("plan_name", { length: 120 }),
+    reason: varchar("reason", { length: 40 }),
+    feedback: varchar("feedback", { length: 500 }),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "cancellations_reason_check",
+      sql`${table.reason} is null or ${table.reason} in ('too_expensive', 'missing_features', 'hard_to_use', 'not_using_enough', 'temporary', 'other')`
+    ),
+    index("ix_cancellations_user_created").on(
+      table.userId,
+      table.createdAt.desc()
+    ),
+    index("ix_cancellations_ends_at").on(table.endsAt),
+  ]
+)
+
 export const customShellBillingEvents = pgTable("billing_events", {
   eventId: varchar("event_id", { length: 120 }).primaryKey(),
   type: varchar("type", { length: 120 }).notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * Product-agnostic billable usage. One row is one measured event, kept locally
+ * before Stripe is called so an unavailable provider cannot lose the charge.
+ *
+ * `stripeCustomerId` is copied at record time. A later plan switch or account
+ * deletion must not send an old event to a different customer. The event id is
+ * also Stripe's identifier, which makes a short retry idempotent.
+ */
+export const customShellUsageEvents = pgTable(
+  "usage_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    meter: varchar("meter", { length: 100 }).notNull(),
+    quantity: bigint("quantity", { mode: "number" }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }),
+    stripeReportStatus: varchar("stripe_report_status", { length: 20 })
+      .notNull()
+      .default("not_applicable"),
+    stripeReportError: varchar("stripe_report_error", { length: 120 }),
+    stripeReportedAt: timestamp("stripe_reported_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("usage_events_quantity_check", sql`${table.quantity} > 0`),
+    check(
+      "usage_events_stripe_status_check",
+      sql`${table.stripeReportStatus} in ('not_applicable', 'pending', 'reported', 'failed')`
+    ),
+    index("ix_usage_events_user_occurred").on(
+      table.userId,
+      table.occurredAt.desc()
+    ),
+    index("ix_usage_events_meter_occurred").on(
+      table.meter,
+      table.occurredAt.desc()
+    ),
+    index("ix_usage_events_occurred").on(table.occurredAt.desc()),
+    index("ix_usage_events_pending_customer")
+      .on(table.stripeCustomerId, table.occurredAt)
+      .where(sql`${table.stripeReportStatus} = 'pending'`),
+    index("ix_usage_events_reports_to_review")
+      .on(table.stripeReportStatus, table.meter)
+      .where(
+        sql`${table.stripeReportStatus} in ('pending', 'failed')`
+      ),
+  ]
+)
 
 /**
  * One member's billing history: trial started, subscribed, plan switched,
@@ -734,6 +927,87 @@ export const customShellSubscriptionEvents = pgTable(
       table.userId,
       table.createdAt.desc()
     ),
+  ]
+)
+
+/**
+ * One person-to-person invite from registration through its first real paid
+ * invoice and any free-month credit earned from it.
+ *
+ * Names and emails are copied at registration so deleting either account does
+ * not erase or damage the other person's reward record. The user references
+ * clear on deletion instead of cascading for the same reason.
+ */
+export const customShellReferrals = pgTable(
+  "referrals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    referrerUserId: varchar("referrer_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    referredUserId: varchar("referred_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    referrerName: varchar("referrer_name", { length: 255 }).notNull(),
+    referrerEmail: varchar("referrer_email", { length: 255 }).notNull(),
+    referredName: varchar("referred_name", { length: 255 }).notNull(),
+    referredEmail: varchar("referred_email", { length: 255 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("invited"),
+    rewardStatus: varchar("reward_status", { length: 20 })
+      .notNull()
+      .default("not_earned"),
+    stripeInvoiceId: varchar("stripe_invoice_id", { length: 120 }).unique(),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 120 }),
+    rewardAmountCents: integer("reward_amount_cents"),
+    rewardCurrency: varchar("reward_currency", { length: 10 }),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }),
+    stripeBalanceTransactionId: varchar("stripe_balance_transaction_id", {
+      length: 120,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    grantedAt: timestamp("granted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "referrals_status_check",
+      sql`${table.status} in ('invited', 'joined', 'converted')`
+    ),
+    check(
+      "referrals_reward_status_check",
+      sql`${table.rewardStatus} in ('not_earned', 'pending', 'granted', 'revoked')`
+    ),
+    check(
+      "referrals_reward_amount_check",
+      sql`${table.rewardAmountCents} is null or ${table.rewardAmountCents} > 0`
+    ),
+    check(
+      "referrals_progress_check",
+      sql`(${table.status} = 'invited' and ${table.joinedAt} is null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'joined' and ${table.joinedAt} is not null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'converted' and ${table.joinedAt} is not null and ${table.convertedAt} is not null and ${table.rewardStatus} in ('pending', 'granted', 'revoked'))`
+    ),
+    check(
+      "referrals_grant_check",
+      sql`${table.rewardStatus} <> 'granted' or (${table.rewardAmountCents} is not null and ${table.rewardCurrency} is not null and ${table.stripeCustomerId} is not null and ${table.stripeBalanceTransactionId} is not null and ${table.grantedAt} is not null)`
+    ),
+    uniqueIndex("ux_referrals_referred_user")
+      .on(table.referredUserId)
+      .where(sql`${table.referredUserId} is not null`),
+    index("ix_referrals_referrer_created").on(
+      table.referrerUserId,
+      table.createdAt.desc()
+    ),
+    index("ix_referrals_reward_status").on(
+      table.rewardStatus,
+      table.convertedAt.desc()
+    ),
+    index("ix_referrals_payment_intent")
+      .on(table.stripePaymentIntentId)
+      .where(sql`${table.stripePaymentIntentId} is not null`),
   ]
 )
 
@@ -799,6 +1073,32 @@ export const customShellAutomations = pgTable(
     index("ix_automations_next_run")
       .on(table.nextRunAt)
       .where(sql`${table.nextRunAt} is not null`),
+    index("ix_automations_enabled")
+      .on(table.enabled)
+      .where(sql`${table.enabled}`),
+  ]
+)
+
+/** Permanent once-per-member memory for member lifecycle flows. */
+export const customShellAutomationMemberEventEnrollments = pgTable(
+  "automation_member_event_enrollments",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    event: varchar("event", { length: 20 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.automationId, table.userId, table.event] }),
+    check(
+      "automation_member_event_enrollments_event_check",
+      sql`${table.event} in ('registered', 'verified', 'subscribed', 'canceled')`
+    ),
+    index("ix_automation_member_event_enrollments_user").on(table.userId),
   ]
 )
 
@@ -900,15 +1200,14 @@ export const customShellAutomationRuns = pgTable(
     approvalDeadlineAt: timestamp("approval_deadline_at", {
       withTimezone: true,
     }),
-    approvalDecision: varchar("approval_decision", { length: 20 }).$type<
-      AutomationApprovalDecision
-    >(),
+    approvalDecision: varchar("approval_decision", {
+      length: 20,
+    }).$type<AutomationApprovalDecision>(),
     approvalDecidedAt: timestamp("approval_decided_at", { withTimezone: true }),
     /** Null when the deadline decided it rather than a person. */
-    approvalDecidedBy: varchar("approval_decided_by", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
+    approvalDecidedBy: varchar("approval_decided_by", {
+      length: 36,
+    }).references(() => customShellUsers.id, { onDelete: "set null" }),
     /**
      * Who the run is about — never the same person as `userId`, which is the
      * admin who owns the flow. Null for a run somebody started by hand.
@@ -953,7 +1252,7 @@ export const customShellAutomationRuns = pgTable(
   (table) => [
     check(
       "automation_runs_status_check",
-      sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected')`
+      sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected', 'canceled')`
     ),
     uniqueIndex("ux_automation_runs_trigger_key")
       .on(table.automationId, table.triggerKey)
@@ -969,6 +1268,10 @@ export const customShellAutomationRuns = pgTable(
       sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectUserId} is not null)`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
+    index("ix_automation_runs_approval_deadline")
+      .on(table.approvalDeadlineAt)
+      .where(sql`${table.status} = 'waiting_approval'`),
+    index("ix_automation_runs_workspace").on(table.workspaceId),
     index("ix_automation_runs_workspace_started").on(
       table.workspaceId,
       table.startedAt
@@ -1440,7 +1743,10 @@ export const customShellContacts = pgTable(
     uniqueIndex("ux_contacts_workspace_user")
       .on(table.workspaceId, table.userId)
       .where(sql`${table.userId} is not null`),
-    index("ix_contacts_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_contacts_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
   ]
 )
 
@@ -1471,10 +1777,16 @@ export const customShellAutomationDeliveries = pgTable(
     ),
     toEmail: varchar("to_email", { length: 255 }).notNull(),
     subject: text("subject").notNull(),
-    /** Resend's id, retained for the later open/click tracking task. */
+    /** Resend's id, used to match later delivery, open and click events. */
     providerMessageId: varchar("provider_message_id", { length: 255 }),
     status: varchar("status", { length: 20 }).notNull(),
     error: text("error"),
+    /** When Resend says the recipient's mail server accepted the message. */
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    /** First open Resend reported. This is an estimate, not proof of reading. */
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    /** First link click Resend reported. */
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
@@ -1485,6 +1797,9 @@ export const customShellAutomationDeliveries = pgTable(
     index("ix_automation_deliveries_run").on(table.runId, table.createdAt),
     index("ix_automation_deliveries_contact").on(table.contactId),
     index("ix_automation_deliveries_user").on(table.userId),
+    index("ix_automation_deliveries_provider_message").on(
+      table.providerMessageId
+    ),
     uniqueIndex("ux_automation_deliveries_run_node_contact")
       .on(table.runId, table.nodeId, table.contactId)
       .where(sql`${table.contactId} is not null`),
@@ -1692,7 +2007,10 @@ export const customShellBroadcasts = pgTable(
       sql`${table.status} in ('draft', 'scheduled', 'sending', 'paused', 'sent')`
     ),
     index("ix_broadcasts_workspace_status").on(table.workspaceId, table.status),
-    index("ix_broadcasts_status_next_batch").on(table.status, table.nextBatchAt),
+    index("ix_broadcasts_status_next_batch").on(
+      table.status,
+      table.nextBatchAt
+    ),
   ]
 )
 
@@ -1762,7 +2080,10 @@ export const customShellDeliveries = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("deliveries_status_check", sql`${table.status} in ('sent', 'failed')`),
+    check(
+      "deliveries_status_check",
+      sql`${table.status} in ('sent', 'failed')`
+    ),
     index("ix_deliveries_workspace_created").on(
       table.workspaceId,
       table.createdAt
@@ -1788,6 +2109,9 @@ export const customShellDeliveries = pgTable(
       table.createdAt
     ),
     index("ix_deliveries_broadcast").on(table.broadcastId),
+    index("ix_deliveries_broadcast_bounced")
+      .on(table.broadcastId)
+      .where(sql`${table.bouncedAt} is not null`),
     uniqueIndex("ux_deliveries_broadcast_contact")
       .on(table.broadcastId, table.contactId)
       .where(sql`${table.broadcastId} is not null`),
@@ -1882,6 +2206,49 @@ export const customShellSystemEmailSends = pgTable(
   ]
 )
 
+/**
+ * An app email that Resend may accept on a later attempt.
+ *
+ * The encrypted payload contains account links, so it is never stored as
+ * readable JSON. A claim prevents two app processes from delivering the same
+ * row together; the id is also Resend's idempotency key for the whole retry
+ * window.
+ */
+export const customShellPendingEmailSends = pgTable(
+  "pending_email_sends",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
+    kind: varchar("kind", { length: 60 }).notNull(),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    encryptedPayload: text("encrypted_payload").notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(1),
+    nextAttemptAt: timestamp("next_attempt_at", {
+      withTimezone: true,
+    }).notNull(),
+    lastError: text("last_error").notNull(),
+    claimToken: varchar("claim_token", { length: 36 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "pending_email_sends_status_check",
+      sql`${table.status} in ('pending', 'exhausted')`
+    ),
+    check(
+      "pending_email_sends_attempts_check",
+      sql`${table.attempts} between 1 and 5`
+    ),
+    index("ix_pending_email_sends_due").on(table.status, table.nextAttemptAt),
+  ]
+)
+
 /** Who a workspace's email comes from, and the key it sends with. */
 export const customShellEmailSettings = pgTable("email_settings", {
   workspaceId: varchar("workspace_id", { length: 36 })
@@ -1894,6 +2261,9 @@ export const customShellEmailSettings = pgTable("email_settings", {
    * complaints back to `/api/webhooks/resend`. Encrypted like the key above.
    */
   resendWebhookSecretEncrypted: text("resend_webhook_secret_encrypted"),
+  /** Sender address for this workspace's sign-in, reset, and security mail. */
+  systemFromEmail: varchar("system_from_email", { length: 255 }),
+  authLinkExpiry: jsonb("auth_link_expiry"),
   fromEmail: varchar("from_email", { length: 255 }),
   fromName: varchar("from_name", { length: 255 }),
   /**
@@ -1954,6 +2324,8 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
+export type CustomShellReferral = typeof customShellReferrals.$inferSelect
+export type CustomShellUsageEvent = typeof customShellUsageEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
 export type CustomShellAutomationRun =
   typeof customShellAutomationRuns.$inferSelect

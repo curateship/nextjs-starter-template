@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
-import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
+import { PricingTable } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { definePublicPage } from "@/lib/app-options"
 import { loadCurrentUser } from "@/lib/api/auth/auth"
@@ -13,9 +13,11 @@ import {
   type PlanOption,
 } from "@/lib/api/billing/billing"
 import { useAppName } from "@/lib/branding"
+import type { BillingInterval } from "@/lib/billing/pricing-choice"
 
 type LandingData = {
   signedIn: boolean
+  userRole: string | null
   plans: PlanOption[]
   billingEnabled: boolean
   trialUsed: boolean
@@ -59,6 +61,7 @@ export const pricingLandingPage = definePublicPage({
 
     return {
       signedIn: Boolean(user),
+      userRole: user?.role ?? null,
       plans: pricing.plans,
       billingEnabled: pricing.billingEnabled,
       trialUsed: Boolean(overview?.trialUsed),
@@ -77,17 +80,27 @@ export const pricingLandingPage = definePublicPage({
 })
 
 function PricingLanding({ data }: { data: LandingData }) {
-  const { signedIn, plans, billingEnabled, trialUsed } = data
+  const { signedIn, userRole, plans, billingEnabled, trialUsed } = data
   const appName = useAppName()
   const navigate = useNavigate()
   const [interval, setInterval] = React.useState<BillingInterval>("monthly")
+  const signedInAction =
+    userRole === "admin"
+      ? ({ to: "/admin/dashboard", label: "Go to overview" } as const)
+      : ({ to: "/home", label: "Go to home" } as const)
 
   // Picking a plan never checks out from here. A visitor has no account to bill
   // yet, and a member's own plan and the Stripe portal both live on /pricing,
   // so this hands off rather than keeping a second copy of that logic.
-  const handleSelect = React.useCallback(async () => {
-    await navigate({ to: signedIn ? "/pricing" : "/register" })
-  }, [navigate, signedIn])
+  const handleSelect = React.useCallback(
+    async (plan: PlanOption, selectedInterval: BillingInterval) => {
+      await navigate({
+        to: signedIn ? "/pricing" : "/register",
+        search: { plan: plan.slug, interval: selectedInterval },
+      })
+    },
+    [navigate, signedIn]
+  )
 
   return (
     <PublicPageFrame>
@@ -101,7 +114,7 @@ function PricingLanding({ data }: { data: LandingData }) {
           <div className="flex flex-wrap justify-center gap-2">
             {signedIn ? (
               <Button asChild>
-                <Link to="/home">Go to dashboard</Link>
+                <Link to={signedInAction.to}>{signedInAction.label}</Link>
               </Button>
             ) : (
               <>

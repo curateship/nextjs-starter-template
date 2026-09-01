@@ -160,6 +160,16 @@ describe("reading rules from a contacts-list link", () => {
     ).toEqual(filter)
   })
 
+  it("carries an in-segment rule through the address unchanged", () => {
+    const filter = {
+      conditions: [{ type: "in" as const, segmentIds: ["vip"] }],
+    }
+
+    expect(
+      readSegmentRulesParam(JSON.parse(JSON.stringify(filter)))
+    ).toEqual(filter)
+  })
+
   it("drops the whole filter when its mode is junk", () => {
     expect(
       readSegmentRulesParam({
@@ -209,10 +219,11 @@ describe("a rule that no longer reads never widens the segment", () => {
 })
 
 describe("a half-finished rule is spotted before it is saved", () => {
-  it("calls an empty tag, source, plan or exclusion unfinished", () => {
+  it("calls an empty tag, source, plan or segment reference unfinished", () => {
     expect(segmentConditionIsComplete(newSegmentCondition("tag"))).toBe(false)
     expect(segmentConditionIsComplete(newSegmentCondition("source"))).toBe(false)
     expect(segmentConditionIsComplete(newSegmentCondition("plan"))).toBe(false)
+    expect(segmentConditionIsComplete(newSegmentCondition("in"))).toBe(false)
     expect(segmentConditionIsComplete(newSegmentCondition("notIn"))).toBe(false)
   })
 
@@ -296,13 +307,23 @@ describe("what a segment says in words", () => {
       )
     ).toBe("not in Staff or Refunded")
   })
+
+  it("names the segments an inclusion points at", () => {
+    expect(
+      describeSegmentRules(
+        { conditions: [{ type: "in", segmentIds: ["a", "b"] }] },
+        { a: "VIPs", b: "Founders" }
+      )
+    ).toBe("in VIPs or Founders")
+  })
 })
 
 describe("finding what a segment points at", () => {
-  it("lists every segment named by an exclusion, with no repeats", () => {
+  it("lists every included or excluded segment, with no repeats", () => {
     expect(
       segmentReferences({
         conditions: [
+          { type: "in", segmentIds: ["a", "b"] },
           { type: "notIn", segmentIds: ["a", "b"] },
           { type: "notIn", segmentIds: ["b", "c"] },
           { type: "account", operator: "has" },

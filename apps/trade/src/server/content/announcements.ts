@@ -67,6 +67,7 @@ export async function loadVisitorAnnouncements(
       and(
         eq(customShellAnnouncements.workspaceId, workspaceId),
         eq(customShellAnnouncements.audience, "everyone"),
+        eq(customShellAnnouncements.showBanner, true),
         lte(customShellAnnouncements.startsAt, timestamp),
         or(
           isNull(customShellAnnouncements.endsAt),

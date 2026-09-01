@@ -11,11 +11,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account/account-profile-page"
 import { AccountBillingPage } from "@/components/account/account-billing-page"
-import { AccountSecurityPage } from "@/components/account/account-security-page"
+import {
+  AccountSecurityPage,
+  type AccountPasswordDraft,
+} from "@/components/account/account-security-page"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import {
   getBillingErrorMessage,
@@ -23,11 +26,19 @@ import {
   type BillingInvoice,
   type BillingOverview,
   type CardExpiryWarning,
+  type MemberUsageSummary,
   type PlanSummary,
 } from "@/lib/api/billing/billing"
+import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 
 export const ACCOUNT_TABS = ["profile", "billing", "security"] as const
 export type AccountTab = (typeof ACCOUNT_TABS)[number]
+
+const EMPTY_PASSWORD_DRAFT: AccountPasswordDraft = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+}
 
 const TAB_LABELS: Record<AccountTab, string> = {
   profile: "Profile",
@@ -91,6 +102,30 @@ export function AccountDialog({
     saved: false,
     dirty: false,
   })
+  const [passwordDraft, setPasswordDraft] =
+    React.useState<AccountPasswordDraft>(EMPTY_PASSWORD_DRAFT)
+  const [passwordStatus, setPasswordStatus] = React.useState({
+    saving: false,
+    dirty: false,
+  })
+
+  const closeAccount = React.useCallback(() => {
+    // Passwords may survive a tab switch, but never a real close.
+    setPasswordDraft(EMPTY_PASSWORD_DRAFT)
+    setPasswordStatus({ saving: false, dirty: false })
+    onClose()
+  }, [onClose])
+
+  React.useEffect(() => {
+    // Browser Back can remove `?account=` without asking this component to
+    // close. Clear the sensitive draft for that path too.
+    if (tab !== null) return
+    const clear = window.setTimeout(() => {
+      setPasswordDraft(EMPTY_PASSWORD_DRAFT)
+      setPasswordStatus({ saving: false, dirty: false })
+    }, 0)
+    return () => window.clearTimeout(clear)
+  }, [tab])
   // The window keeps showing the tab it was on the whole way out.
   //
   // `tab` comes from the URL and is gone the instant `?account=` is dropped,
@@ -104,16 +139,14 @@ export function AccountDialog({
   }
 
   return (
-    // Only the Profile tab holds a form. Its unsaved name or photo is asked
-    // about before the X, the overlay or Escape can drop it, and a save in
-    // flight holds the window open. Profile stays mounted while the window is
-    // open (see the panel below), so the question follows the edits from
-    // whichever tab is on show rather than only from Profile.
+    // Profile and Security both hold typed work. Their unsaved fields are asked
+    // about before the X, the overlay or Escape can drop them, and a save in
+    // flight holds the window open.
     <FormDialog
       open={tab != null}
-      dirty={profileStatus.dirty}
-      busy={profileStatus.saving}
-      onClose={onClose}
+      dirty={profileStatus.dirty || passwordStatus.dirty}
+      busy={profileStatus.saving || passwordStatus.saving}
+      onClose={closeAccount}
     >
       {(requestClose) => (
         <DialogContent
@@ -136,7 +169,11 @@ export function AccountDialog({
                 <DialogTitle>Account</DialogTitle>
                 <TabsList>
                   {ACCOUNT_TABS.map((id) => (
-                    <TabsTrigger key={id} value={id}>
+                    <TabsTrigger
+                      key={id}
+                      value={id}
+                      disabled={profileStatus.saving || passwordStatus.saving}
+                    >
                       {TAB_LABELS[id]}
                     </TabsTrigger>
                   ))}
@@ -150,13 +187,11 @@ export function AccountDialog({
                   device name would then stretch every card in the window past
                   the edge of a phone screen. With it, a wide table stays inside
                   its own surface and scrolls sideways there. */}
-              {/* Profile is the one panel that holds typed work, so it stays
-                  mounted for the life of the window — a trip to Billing and
-                  back leaves a half-typed name exactly where it was. Radix
-                  leaves a force-mounted panel visible, so `hidden` is ours to
-                  set. Billing and Security are left to mount on demand: they
-                  fetch on open, and mounting them here would make every visit
-                  to this window pull billing and device data nobody asked for. */}
+              {/* Profile stays mounted for the life of the window, so its whole
+                  form survives a tab switch. Security keeps only its password
+                  draft above the tabs, so its typed work survives while its
+                  device data still waits until somebody opens the tab. Billing
+                  and Security otherwise mount on demand. */}
               <TabsContent
                 value="profile"
                 className="min-w-0"
@@ -174,10 +209,16 @@ export function AccountDialog({
                 />
               </TabsContent>
               <TabsContent value="billing" className="min-w-0">
-                <BillingTab />
+                <BillingTab key={user.id} userId={user.id} />
               </TabsContent>
               <TabsContent value="security" className="min-w-0">
-                <AccountSecurityPage user={user} isPaid={plan.isPaid} />
+                <AccountSecurityPage
+                  user={user}
+                  isPaid={plan.isPaid}
+                  passwordDraft={passwordDraft}
+                  onPasswordDraftChange={setPasswordDraft}
+                  onPasswordStatusChange={setPasswordStatus}
+                />
               </TabsContent>
             </DialogBody>
 
@@ -198,7 +239,7 @@ export function AccountDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={profileStatus.saving}
+                  disabled={profileStatus.saving || passwordStatus.saving}
                   onClick={requestClose}
                 >
                   Cancel
@@ -217,14 +258,14 @@ export function AccountDialog({
                 </Button>
               </DialogFooter>
             ) : (
-              // Billing and Security save nothing of their own — every action on
-              // them applies as it is clicked. So they end with a single "Done"
-              // and no Cancel, and it leaves by the same path as the X so a
-              // half-typed Profile is still asked about.
+              // Billing and Security do not use the modal footer to save. Their
+              // own buttons apply each action, so the footer only needs Done.
+              // Done leaves by the same path as the X, which protects a typed
+              // password or a half-edited Profile.
               <DialogFooter key="done">
                 <Button
                   type="button"
-                  disabled={profileStatus.saving}
+                  disabled={profileStatus.saving || passwordStatus.saving}
                   onClick={requestClose}
                 >
                   Done
@@ -244,6 +285,8 @@ type BillingTabData = {
   overview: BillingOverview
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
+  billingHistory: MemberSubscriptionEvent[]
+  usage: MemberUsageSummary
 }
 
 /**
@@ -256,11 +299,13 @@ type BillingTabData = {
  * Only ever written from the browser (the load happens in an effect), so this
  * cannot carry one person's billing into another's page on the server.
  */
-let lastBilling: BillingTabData | null = null
+let lastBilling: { userId: string; data: BillingTabData } | null = null
 
 /** Billing data isn't in the shell, so fetch it when the tab first mounts. */
-function BillingTab() {
-  const [data, setData] = React.useState<BillingTabData | null>(lastBilling)
+function BillingTab({ userId }: { userId: string }) {
+  const [data, setData] = React.useState<BillingTabData | null>(
+    lastBilling?.userId === userId ? lastBilling.data : null
+  )
   const [error, setError] = React.useState<string | null>(null)
   // Bumped by "Try again", which re-runs the same load rather than making the
   // reader close the window and come back.
@@ -270,7 +315,7 @@ function BillingTab() {
     let cancelled = false
     loadBillingPage()
       .then((result) => {
-        lastBilling = result
+        lastBilling = { userId, data: result }
         if (!cancelled) setData(result)
       })
       .catch((loadError) => {
@@ -279,14 +324,15 @@ function BillingTab() {
     return () => {
       cancelled = true
     }
-  }, [reloads])
+  }, [reloads, userId])
 
   // Only when there is nothing else to show. Once `lastBilling` is filled, a
   // refresh that fails leaves the cards from last time standing rather than
-  // replacing a working page with a banner.
+  // replacing a working page with an error row.
   if (error && !data) {
     return (
-      <ErrorBanner
+      <ErrorRow
+        className="min-h-56"
         message={error}
         // Clearing the message here rather than in the effect: the loading
         // state is what should show while the second attempt is in the air.
@@ -310,6 +356,8 @@ function BillingTab() {
       overview={data.overview}
       invoices={data.invoices}
       cardWarning={data.cardWarning}
+      billingHistory={data.billingHistory}
+      usage={data.usage}
       // Pausing changes the plan, the badges and the buttons all at once, so
       // the tab re-reads itself rather than trying to patch what it is showing.
       onChanged={() => setReloads((count) => count + 1)}

@@ -14,11 +14,13 @@ import {
   isBillingMoment,
   readTrialDaysBefore,
 } from "@/lib/automations/nodes/billing-moment"
+import type { MemberEvent } from "@/lib/automations/nodes/member-event"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import type { CardExpiryWarning } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAutomationRuns,
+  customShellAutomationMemberEventEnrollments,
   customShellAutomations,
   customShellPlans,
   customShellSubscriptions,
@@ -62,6 +64,10 @@ type WatchingFlow = {
 /** One thing that happened to one member. */
 export type AutomationTriggerEvent = {
   subjectUserId: string
+  /** When known, only flows from the member's own site may see this event. */
+  workspaceId?: string
+  /** Set only for lifecycle events whose once-only memory outlives run history. */
+  memberEvent?: MemberEvent
   /** Name and address as they read today, kept so a deleted account still has a history. */
   subjectLabel: string
   /**
@@ -116,7 +122,8 @@ export function automationSubjectLabel(
 async function listFlowsWatching(
   kind: string,
   matches: (settings: Record<string, unknown>) => boolean,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  workspaceId?: string
 ): Promise<WatchingFlow[]> {
   const rows = await database
     .select({
@@ -129,7 +136,10 @@ async function listFlowsWatching(
     .where(
       and(
         eq(customShellAutomations.enabled, true),
-        isNotNull(customShellAutomations.compiledConfig)
+        isNotNull(customShellAutomations.compiledConfig),
+        workspaceId
+          ? eq(customShellAutomations.workspaceId, workspaceId)
+          : undefined
       )
     )
 
@@ -172,6 +182,22 @@ async function startTriggeredRun(
   database: CustomShellDb = db,
   timestamp: Date = now()
 ): Promise<CustomShellAutomationRun | null> {
+  if (event.memberEvent) {
+    const [enrolled] = await database
+      .insert(customShellAutomationMemberEventEnrollments)
+      .values({
+        automationId: flow.automationId,
+        userId: event.subjectUserId,
+        event: event.memberEvent,
+        startedAt: timestamp,
+      })
+      .onConflictDoNothing()
+      .returning({
+        automationId: customShellAutomationMemberEventEnrollments.automationId,
+      })
+    if (!enrolled) return null
+  }
+
   const [run] = await database
     .insert(customShellAutomationRuns)
     .values({
@@ -221,14 +247,21 @@ export async function fireAutomationTrigger(
   event: AutomationTriggerEvent,
   database: CustomShellDb = db
 ): Promise<number> {
-  if (await readAutomationsPaused(database)) return 0
+  return database.transaction(async (tx) => {
+    if (await readAutomationsPaused(tx)) return 0
 
-  const flows = await listFlowsWatching(kind, matches, database)
-  let started = 0
-  for (const flow of flows) {
-    if (await startTriggeredRun(flow, kind, event, database)) started += 1
-  }
-  return started
+    const flows = await listFlowsWatching(
+      kind,
+      matches,
+      tx,
+      event.workspaceId
+    )
+    let started = 0
+    for (const flow of flows) {
+      if (await startTriggeredRun(flow, kind, event, tx)) started += 1
+    }
+    return started
+  })
 }
 
 /**

@@ -150,8 +150,15 @@ screen: anything not written there has not been agreed yet.
 
 ## automations/
 
-- `grid-step.md` explains how the Grid step reads the 4-hour EMA, places and flips an
-  ordinary grid, shares candle reads with Signals, and stops safely.
+- `grid-step.md` explains how the Grid recipe step reads the 4-hour EMA, places
+  and flips an ordinary grid, shares candle reads with Signals, and stops
+  safely.
+
+## recipes/
+
+- `dashboard.md` explains the admin Recipes table and canvas, what Backtest and
+  Switch on run, the live-run deletion rule, and how saved Trade drawings move
+  out of Automations.
 
 ## engine/ — the server side
 

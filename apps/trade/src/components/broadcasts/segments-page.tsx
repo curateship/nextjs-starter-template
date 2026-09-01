@@ -1,6 +1,11 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
-import { PlusIcon, SettingsIcon, Trash2Icon, UsersRoundIcon } from "lucide-react"
+import {
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+  UsersRoundIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
@@ -11,6 +16,7 @@ import {
   DashboardToolbarSearch,
 } from "@/components/shared/dashboard-toolbar"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -45,10 +51,15 @@ const segmentsRoute = getRouteApi("/_authenticated/admin/segments")
 export type SegmentSortColumn = "name" | "kind" | "people" | "updated"
 
 const SEGMENT_COLUMNS: SortableColumn<SegmentSortColumn>[] = [
-  { key: "name", label: "Segment", column: "main" },
-  { key: "kind", label: "How it is decided", column: "meta" },
-  { key: "people", label: "People", column: "meta" },
-  { key: "updated", label: "Changed", column: "meta" },
+  {
+    key: "name",
+    label: "Segment",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "kind", label: "How it is decided", column: "preview" },
+  { key: "people", label: "People", column: "preview" },
+  { key: "updated", label: "Changed", column: "preview" },
 ]
 
 function compareSegments(
@@ -131,13 +142,12 @@ export function SegmentsPage({
     },
     [setOpenSegment]
   )
-
   const editing = React.useMemo(
     () => initial.segments.find((segment) => segment.id === openId) ?? null,
     [initial.segments, openId]
   )
 
-  /** Names to show wherever one segment leaves another out. */
+  /** Names to show wherever one segment refers to another. */
   const segmentNames = React.useMemo(
     () =>
       Object.fromEntries(
@@ -269,13 +279,11 @@ export function SegmentsPage({
             direction={direction}
             onSort={toggleSort}
             leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select the segments on this page"
-                />
-              </TableHead>
+              <SelectAllTableHead
+                noun="segments"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
             }
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
@@ -314,16 +322,16 @@ export function SegmentsPage({
                 aria-label={`Select ${segment.name}`}
               />
             </TableCell>
-            <TableCell column="main">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
               <button
                 type="button"
-                className="block text-left text-sm font-medium group-hover:underline"
+                className="block max-w-36 truncate text-left text-sm font-medium group-hover:underline sm:max-w-none"
                 onClick={() => openSegment(segment)}
               >
                 {segment.name}
               </button>
               <span
-                className="line-clamp-2 whitespace-normal text-xs text-muted-foreground"
+                className="line-clamp-2 max-w-36 whitespace-normal text-xs text-muted-foreground sm:max-w-none"
                 title={
                   segment.description ||
                   describeSegmentRules(segment.rules, segmentNames)
@@ -335,23 +343,22 @@ export function SegmentsPage({
                     : describeSegmentRules(segment.rules, segmentNames))}
               </span>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               <Badge variant="outline">
                 {segment.kind === "static" ? "Hand-picked" : "Rules"}
               </Badge>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {segment.total === 0 ? (
                 <span className="text-muted-foreground">Nobody yet</span>
               ) : (
                 `${segment.total.toLocaleString()} ${plural(segment.total, "person", "people")}`
               )}
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="preview">
               {formatDate(segment.updated_at)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -372,7 +379,6 @@ export function SegmentsPage({
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -406,8 +412,8 @@ export function SegmentsPage({
         }
         description={
           deleteTargets.length === 1 && deleteTargets[0]
-            ? `${quoteOneLine(deleteTargets[0].name)} goes for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one leaves out cannot be deleted until that one stops pointing at it.`
-            : "They go for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one leaves out cannot be deleted until that one stops pointing at it."
+            ? `${quoteOneLine(deleteTargets[0].name)} goes for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one uses cannot be deleted until that one stops pointing at it.`
+            : "They go for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one uses cannot be deleted until that one stops pointing at it."
         }
         confirmLabel={
           deleteTargets.length === 1 ? "Delete segment" : "Delete segments"
@@ -430,9 +436,9 @@ function describeBlocked(
   }
   if (blocked.length === 1 && blocked[0]) {
     const entry = blocked[0]
-    return `${quoteOneLine(entry.name)} is still being left out by ${entry.usedBy.join(", ")}, so it cannot be deleted yet.`
+    return `${quoteOneLine(entry.name)} is still being used by ${entry.usedBy.join(", ")}, so it cannot be deleted yet.`
   }
-  return `${blocked.length} segments are still being left out by others, so they cannot be deleted yet: ${blocked
+  return `${blocked.length} segments are still being used by others, so they cannot be deleted yet: ${blocked
     .map((entry) => `${entry.name} (used by ${entry.usedBy.join(", ")})`)
     .join("; ")}.`
 }

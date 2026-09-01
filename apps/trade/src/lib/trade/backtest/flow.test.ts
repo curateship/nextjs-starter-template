@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import { automationGraphSchema } from "@/lib/automations/graph"
-import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
-import { tradeGridNode } from "@/lib/automations/nodes/trade-grid"
+import { tradeDcaNode } from "@/lib/recipes/trade-dca"
+import { tradeGridNode } from "@/lib/recipes/trade-grid"
 import {
   candlesPerCoin,
   coinsAllowedFor,
@@ -13,8 +13,8 @@ import {
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
   windowDays,
-} from "@/lib/automations/nodes/trade-markets"
-import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
+} from "@/lib/recipes/trade-markets"
+import { tradeWalletNode } from "@/lib/recipes/trade-wallet"
 import { backtestSpecFromFlow } from "@/lib/trade/backtest/flow"
 
 /**

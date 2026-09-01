@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -25,7 +25,6 @@ import {
   updateProfile,
   type EmailChangeState,
 } from "@/lib/api/auth/auth"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDateTime } from "@/lib/format/format-time"
@@ -84,7 +83,7 @@ export function AccountProfilePage({
     <CardGroup className="w-full">
       <Card>
         <CardHeader>
-          <CardTitle>Account</CardTitle>
+          <CardTitle as="h3">Account</CardTitle>
           <CardDescription>Your profile and current plan.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
@@ -109,7 +108,7 @@ export function AccountProfilePage({
       <Card>
         <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <CardTitle as="h3">Profile</CardTitle>
             <CardDescription>
               This photo and name are how you show up around the app.
             </CardDescription>
@@ -239,7 +238,9 @@ function EmailCard({
 
     try {
       await cancelPendingEmailChange()
-      setChange({ pendingEmail: null, expiresAt: null })
+      setChange((current) =>
+        current ? { ...current, pendingEmail: null, expiresAt: null } : current
+      )
     } catch (cancelError) {
       showErrorToast(getAuthErrorMessage(cancelError))
     } finally {
@@ -250,7 +251,7 @@ function EmailCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email</CardTitle>
+        <CardTitle as="h3">Email</CardTitle>
         <CardDescription>
           The address you sign in with and where account email goes.
         </CardDescription>
@@ -262,7 +263,7 @@ function EmailCard({
         </div>
 
         {loadError ? (
-          <ErrorBanner
+          <ErrorRow
             message={loadError}
             onRetry={() => setReloads((count) => count + 1)}
           />
@@ -297,7 +298,7 @@ function EmailCard({
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="new-email"
-                  hint={`We email a confirmation link to the new address. Nothing changes until you open it, and the link expires after ${EMAIL_CHANGE_HOURS} hours.`}
+                  hint={`We email a confirmation link to the new address. Nothing changes until you open it, and the link expires after ${change.expiresIn}.`}
                 >
                   New email
                 </FieldLabel>

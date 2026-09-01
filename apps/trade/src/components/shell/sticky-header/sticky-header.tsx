@@ -99,8 +99,8 @@ export function StickyHeader({
         className
       )}
     >
-      <div className="flex h-full flex-1 items-center justify-between px-4">
-        <div className="flex items-center gap-2">
+      <div className="flex h-full min-w-0 flex-1 items-center justify-between px-4">
+        <div className="flex min-w-0 items-center gap-2">
           {isMobile ? (
             <Button
               type="button"
@@ -119,7 +119,7 @@ export function StickyHeader({
             <StickyHeaderLeftNav navLinks={navLinks} limit={navLinkLimit} />
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           {viewingAs ? <ViewAsBadge viewingAs={viewingAs} /> : null}
           {maintenanceOn && onTurnOffMaintenance ? (
             <MaintenanceBadge
@@ -389,7 +389,10 @@ function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+      <span
+        role="status"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+      >
         <CheckIcon className="h-4 w-4" />
         Saved
       </span>
@@ -402,7 +405,9 @@ function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
         className="inline-flex items-center gap-1.5 text-sm text-destructive"
       >
         <TriangleAlertIcon className="h-4 w-4" />
-        Not saved — add a workspace name
+        <span className="sr-only sm:not-sr-only">
+          Not saved — add a workspace name
+        </span>
       </span>
     )
   }

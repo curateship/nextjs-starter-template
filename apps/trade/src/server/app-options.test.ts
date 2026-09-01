@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   appAutomationExecutors,
   appBackgroundWorkers,
+  appSitemapChunkFiles,
   appSitemapEntries,
   appSiteSearchResults,
   appTrustsOrigin,
@@ -41,6 +42,10 @@ describe("an option nobody set means what the shell always did", () => {
 
   it("adds no sitemap rows of its own", async () => {
     await expect(appSitemapEntries("site-1", {})).resolves.toEqual([])
+  })
+
+  it("serves no numbered sitemap files, so /sitemap.xml stays one flat file", async () => {
+    await expect(appSitemapChunkFiles("site-1", {})).resolves.toEqual([])
   })
 
   it("adds no search results of its own", async () => {
@@ -104,6 +109,17 @@ describe("an app's answer wins", () => {
       appSitemapEntries("alpha", { sitemap: { extraEntries } })
     ).resolves.toEqual([{ path: "/from-alpha" }])
     expect(extraEntries).toHaveBeenCalledWith("alpha")
+  })
+
+  it("hands the resolved site to the app's chunk-file read", async () => {
+    const chunkFiles = vi.fn(async (workspaceId: string) => [
+      { path: `/${workspaceId}-sitemaps/0` },
+    ])
+
+    await expect(
+      appSitemapChunkFiles("alpha", { sitemap: { chunkFiles } })
+    ).resolves.toEqual([{ path: "/alpha-sitemaps/0" }])
+    expect(chunkFiles).toHaveBeenCalledWith("alpha")
   })
 
   it("hands the resolved site, words and bound to every search source", async () => {

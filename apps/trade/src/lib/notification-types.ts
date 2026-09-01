@@ -18,6 +18,8 @@ export type NotificationType =
   | "ai_limit_reached"
   | "automation_approval"
   | "automation_failed"
+  | "account_update"
+  | "system_email_failed"
 
 export const NOTIFICATION_TYPES = [
   "feedback_vote",
@@ -29,6 +31,8 @@ export const NOTIFICATION_TYPES = [
   "ai_limit_reached",
   "automation_approval",
   "automation_failed",
+  "account_update",
+  "system_email_failed",
 ] as const satisfies readonly NotificationType[]
 
 export type NotificationTypeVisibility = Record<NotificationType, boolean>
@@ -74,6 +78,8 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   ai_limit_reached: "AI limit reached",
   automation_approval: "Approval",
   automation_failed: "Automation failed",
+  account_update: "Account update",
+  system_email_failed: "Email failed",
 }
 
 /**

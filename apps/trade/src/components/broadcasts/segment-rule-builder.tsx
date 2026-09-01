@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -39,6 +41,7 @@ import {
   type SegmentConditionType,
   type SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
+import { MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 
 /**
  * The rule builder, in one place because there are two screens that build the
@@ -70,7 +73,7 @@ export function SegmentRuleBuilder({
   match: "all" | "any"
   onMatchChange: (match: "all" | "any") => void
   options: SegmentRuleOptions
-  /** The segment being edited, which must not be offered as one to leave out. */
+  /** The segment being edited, which must not be offered as a reference. */
   excludeSegmentId?: string
   /** Keeps the two builders' element ids apart when both are on one page. */
   idPrefix?: string
@@ -93,7 +96,7 @@ export function SegmentRuleBuilder({
     "account",
     ...(options.plans.length ? (["plan"] as const) : []),
     ...(options.segments.some((other) => other.id !== excludeSegmentId)
-      ? (["notIn"] as const)
+      ? (["in", "notIn"] as const)
       : []),
   ]
 
@@ -107,30 +110,35 @@ export function SegmentRuleBuilder({
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
           <CardAction>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={conditions.length >= MAX_SEGMENT_CONDITIONS}
-                >
-                  <PlusIcon className="size-4" />
-                  Add a rule
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {availableTypes.map((type) => (
-                  <DropdownMenuItem
-                    key={type}
-                    onSelect={() =>
-                      onChange([...conditions, newSegmentCondition(type)])
-                    }
+            <DisabledReason
+              disabled={conditions.length >= MAX_SEGMENT_CONDITIONS}
+              reason={`A segment can hold up to ${MAX_SEGMENT_CONDITIONS} rules.`}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={conditions.length >= MAX_SEGMENT_CONDITIONS}
                   >
-                    {segmentConditionLabels[type]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <PlusIcon className="size-4" />
+                    Add a rule
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {availableTypes.map((type) => (
+                    <DropdownMenuItem
+                      key={type}
+                      onSelect={() =>
+                        onChange([...conditions, newSegmentCondition(type)])
+                      }
+                    >
+                      {segmentConditionLabels[type]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </DisabledReason>
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -194,6 +202,24 @@ export function SegmentRuleBuilder({
  * The card's title is the rule's visible name; each control inside carries its
  * own accessible name, since "is" and "On the list" mean nothing read alone.
  */
+function TagConditionInput({ condition, index, incomplete, onChange, placeholder }: {
+  condition: Extract<SegmentCondition, { type: "tag" }>
+  index: number
+  incomplete: boolean
+  onChange: (condition: SegmentCondition) => void
+  placeholder: string
+}) {
+  const serializedTags = condition.tags.join(", ")
+  const [draft, setDraft] = React.useState(serializedTags)
+
+  return <Input className="sm:flex-1" value={draft} maxLength={MEMBER_TAG_MAX_LENGTH} placeholder={placeholder} aria-label={`Tags for rule ${index + 1}`} aria-invalid={incomplete || undefined} onChange={(event) => {
+    const nextDraft = event.target.value
+    const tags = nextDraft.split(",").map((tag) => tag.trim()).filter(Boolean)
+    setDraft(nextDraft)
+    onChange({ ...condition, tags })
+  }} />
+}
+
 function ConditionRow({
   index,
   idPrefix,
@@ -249,22 +275,7 @@ function ConditionRow({
                 onChange({ ...condition, operator: operator as "includes" | "excludes" })
               }
             />
-            <Input
-              className="sm:flex-1"
-              value={condition.tags.join(", ")}
-              placeholder={options.tags.slice(0, 2).join(", ")}
-              aria-label={`Tags for rule ${index + 1}`}
-              aria-invalid={incomplete || undefined}
-              onChange={(event) =>
-                onChange({
-                  ...condition,
-                  tags: event.target.value
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
+            <TagConditionInput condition={condition} index={index} placeholder={options.tags.slice(0, 2).join(", ")} incomplete={incomplete} onChange={onChange} />
           </>
         ) : null}
 
@@ -362,6 +373,7 @@ function ConditionRow({
               }
             />
             <DaysInput
+              id={`${id}-days`}
               index={index}
               days={condition.days}
               suffix={condition.operator === "within" ? "days" : "days ago"}
@@ -393,6 +405,7 @@ function ConditionRow({
                 quietly lose it. */}
             {condition.operator === "never" ? null : (
               <DaysInput
+                id={`${id}-days`}
                 index={index}
                 days={condition.days}
                 suffix="days"
@@ -455,7 +468,7 @@ function ConditionRow({
           </>
         ) : null}
 
-        {condition.type === "notIn" ? (
+        {condition.type === "in" || condition.type === "notIn" ? (
           <div className="grid flex-1 gap-2">
             {options.segments
               .filter((other) => other.id !== excludeSegmentId)
@@ -489,15 +502,17 @@ function ConditionRow({
  * The number of days a "when they joined" or "when they were last emailed"
  * rule counts back, with the word after it.
  *
- * Clamped to the same 1–3650 the saved shape allows, so a number nobody could
- * save is one nobody can type either.
+ * Uses the same 1–3650 limits as the saved shape, and only passes a valid whole
+ * number back to the rule.
  */
 function DaysInput({
+  id,
   index,
   days,
   suffix,
   onChange,
 }: {
+  id: string
   index: number
   days: number
   suffix: string
@@ -505,21 +520,16 @@ function DaysInput({
 }) {
   return (
     <div className="flex flex-1 items-center gap-2">
-      <Input
-        type="number"
+      <NumberField
+        id={id}
+        label={`Number of days for rule ${index + 1}`}
+        labelClassName="sr-only"
+        className="w-24 shrink-0 gap-0"
+        inputClassName="w-24"
         min={1}
         max={MAX_RULE_DAYS}
-        className="w-24"
         value={days}
-        aria-label={`Number of days for rule ${index + 1}`}
-        onChange={(event) =>
-          onChange(
-            Math.min(
-              MAX_RULE_DAYS,
-              Math.max(1, Number(event.target.value) || 1)
-            )
-          )
-        }
+        onChange={onChange}
       />
       <span className="text-sm text-muted-foreground">{suffix}</span>
     </div>

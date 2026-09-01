@@ -110,6 +110,7 @@ describe("the pages the app cannot live without", () => {
       "/login",
       "/maintenance",
       "/register",
+      "/report-unwanted-sign-in",
       "/reset-password",
       "/revoke-email-change",
       "/sign-in-link",

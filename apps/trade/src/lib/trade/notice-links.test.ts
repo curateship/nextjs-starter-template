@@ -16,12 +16,12 @@ import {
 describe("the page a flow notice came off", () => {
   it("sends a flow notice to that run, and a refused start to the flow", () => {
     expect(flowRunNoticeHref("run-7")).toBe("/flow-runs/run-7")
-    expect(flowEditorNoticeHref("flow-3")).toBe("/admin/automations/flow-3")
+    expect(flowEditorNoticeHref("flow-3")).toBe("/admin/recipes/flow-3")
   })
 
   it("escapes an id rather than letting it change the address", () => {
     expect(flowRunNoticeHref("a/b?c")).toBe("/flow-runs/a%2Fb%3Fc")
-    expect(flowEditorNoticeHref("a/b")).toBe("/admin/automations/a%2Fb")
+    expect(flowEditorNoticeHref("a/b")).toBe("/admin/recipes/a%2Fb")
   })
 
   it("writes every address it makes as one this app will follow", () => {

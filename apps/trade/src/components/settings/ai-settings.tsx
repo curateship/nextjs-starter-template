@@ -7,9 +7,10 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getAiErrorMessage,
   loadAiKeyStatuses,
@@ -226,14 +227,15 @@ export function AiSettings() {
         contentClassName="space-y-6"
       >
         {loadError ? (
-          <ErrorBanner
+          <ErrorRow
             message={loadError}
             onRetry={() => setReloads((count) => count + 1)}
           />
         ) : !statuses ? (
-          <div className="flex justify-center p-6">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          </div>
+          <LoadingRow
+            label="Loading AI provider keys…"
+            className="min-h-[29.5rem] sm:min-h-[19.5rem]"
+          />
         ) : (
           PROVIDERS.map(({ id, name, hint, placeholder }) => {
             const status = statusById.get(id)

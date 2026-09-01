@@ -87,6 +87,10 @@ const segmentConditionSchema = z.discriminatedUnion("type", [
     planSlug: z.string().trim().min(1).max(50),
   }),
   z.object({
+    type: z.literal("in"),
+    segmentIds: z.array(z.string().min(1).max(36)).min(1).max(25),
+  }),
+  z.object({
     type: z.literal("notIn"),
     segmentIds: z.array(z.string().min(1).max(36)).min(1).max(25),
   }),
@@ -206,6 +210,7 @@ export const segmentConditionLabels: Record<SegmentConditionType, string> = {
   emailed: "When they were last emailed",
   account: "Has an account",
   plan: "Plan",
+  in: "In another segment",
   notIn: "Not in another segment",
 }
 
@@ -238,6 +243,8 @@ export function newSegmentCondition(
       return { type: "account", operator: "has" }
     case "plan":
       return { type: "plan", operator: "is", planSlug: "" }
+    case "in":
+      return { type: "in", segmentIds: [] }
     case "notIn":
       return { type: "notIn", segmentIds: [] }
   }
@@ -292,6 +299,10 @@ export function describeSegmentCondition(
       return condition.operator === "is"
         ? `on the ${condition.planSlug} plan`
         : `not on the ${condition.planSlug} plan`
+    case "in":
+      return `in ${condition.segmentIds
+        .map((id) => segmentNames[id] ?? "a deleted segment")
+        .join(" or ")}`
     case "notIn":
       return `not in ${condition.segmentIds
         .map((id) => segmentNames[id] ?? "a deleted segment")
@@ -318,10 +329,10 @@ export function describeSegmentRules(
 /**
  * Whether a condition is finished enough to save.
  *
- * The builder starts a tag, source, plan or "not in" row empty, and an empty
- * one would either match nobody or — worse — quietly drop out and widen the
- * segment. Saying so before the save is the only place this can be caught while
- * the words are still on screen.
+ * The builder starts a tag, source, plan or segment-reference row empty, and
+ * an empty one would either match nobody or — worse — quietly drop out and
+ * widen the segment. Saying so before the save is the only place this can be
+ * caught while the words are still on screen.
  */
 export function segmentConditionIsComplete(condition: SegmentCondition) {
   switch (condition.type) {
@@ -331,6 +342,7 @@ export function segmentConditionIsComplete(condition: SegmentCondition) {
       return condition.source.trim().length > 0
     case "plan":
       return condition.planSlug.trim().length > 0
+    case "in":
     case "notIn":
       return condition.segmentIds.length > 0
     default:
@@ -355,7 +367,7 @@ export function segmentCountIsNearlyEveryone(
 export function segmentReferences(rules: SegmentRules): string[] {
   const ids = new Set<string>()
   for (const condition of rules.conditions) {
-    if (condition.type === "notIn") {
+    if (condition.type === "in" || condition.type === "notIn") {
       condition.segmentIds.forEach((id) => ids.add(id))
     }
   }

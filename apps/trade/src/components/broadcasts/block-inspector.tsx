@@ -120,7 +120,7 @@ function HeaderFields({
     <>
       <InspectorCard
         title="Logo"
-        description="The picture at the top. It has to be at an address anyone can open, or inboxes cannot load it."
+        description="The picture at the top. After an email uses it, the file stays in the media library so old inbox copies keep working. With no picture, the app name is shown instead."
       >
         {/* The app's standard image field, so a logo is picked from — or
             uploaded straight into — the media library rather than pasted in as

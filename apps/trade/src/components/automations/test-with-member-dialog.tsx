@@ -1,7 +1,8 @@
 import * as React from "react"
-import { CheckIcon, Loader2Icon, SearchIcon } from "lucide-react"
+import { CheckIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -20,7 +21,6 @@ import {
   DialogTitle,
   DialogToolbar,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -120,20 +120,17 @@ export function TestWithMemberDialog({
         <DialogToolbar>
           <div className="grid min-w-0 flex-1 gap-2">
             <Label htmlFor={searchId}>Search members</Label>
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={searchId}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value)
-                  setSelected(null)
-                }}
-                className="pl-8"
-                placeholder="Name or email…"
-                autoComplete="off"
-              />
-            </div>
+            <DashboardToolbarSearch
+              id={searchId}
+              className="min-w-0 flex-1 sm:flex-1"
+              inputClassName="sm:w-full lg:w-full"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setSelected(null)
+              }}
+              placeholder="Name or email…"
+            />
           </div>
         </DialogToolbar>
         <DialogBody>

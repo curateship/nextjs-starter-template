@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -424,7 +424,7 @@ function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
         </CardDescription>
       </CardHeader>
       {state.status === "error" ? (
-        <ErrorBanner message={state.message} onRetry={retry} />
+        <ErrorRow message={state.message} onRetry={retry} />
       ) : null}
     </Card>
   )

@@ -9,9 +9,9 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { customShellAutomations } from "@/server/schema"
 import {
   tradeFlowRuns,
+  tradeRecipes,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -126,7 +126,7 @@ beforeEach(async () => {
   place = async () => {}
 
   const workspace = await insertWorkspace(db)
-  await db.insert(customShellAutomations).values({
+  await db.insert(tradeRecipes).values({
     id: "flow-1",
     userId,
     workspaceId: workspace.id,

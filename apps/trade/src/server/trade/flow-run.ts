@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto"
 import { and, asc, eq, inArray, sql } from "drizzle-orm"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
-import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
-import { tradeDcaSettingsSchema } from "@/lib/automations/nodes/trade-dca"
-import { tradeMarketsSettingsSchema } from "@/lib/automations/nodes/trade-markets"
-import { trimMarketsToFit } from "@/lib/automations/nodes/trade-markets"
-import { tradeSignalsSettingsSchema } from "@/lib/automations/nodes/trade-signals"
-import { tradeGridSettingsSchema } from "@/lib/automations/nodes/trade-grid"
+import { chosenWallet } from "@/lib/recipes/trade-wallet"
+import { tradeDcaSettingsSchema } from "@/lib/recipes/trade-dca"
+import { tradeMarketsSettingsSchema } from "@/lib/recipes/trade-markets"
+import { trimMarketsToFit } from "@/lib/recipes/trade-markets"
+import { tradeSignalsSettingsSchema } from "@/lib/recipes/trade-signals"
+import { tradeGridSettingsSchema } from "@/lib/recipes/trade-grid"
 import type {
   FlowStopOutcome,
   TradeFlowRunSpec,
@@ -51,11 +51,11 @@ import {
   cancelSignalRest,
   placeDcaLadder,
 } from "@/server/trade/smart-orders"
-import { customShellAutomations } from "@/server/schema"
 import { flowRunNoticeHref } from "@/lib/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
 import {
   tradeFlowRuns,
+  tradeRecipes,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -138,12 +138,13 @@ export type FlowNodes = {
  */
 export async function flowRunSpec(
   userId: string,
-  nodes: FlowNodes
+  nodes: FlowNodes,
+  database: CustomShellDb = db
 ): Promise<{ spec: TradeFlowRunSpec; wallet: TradeWallet }> {
   const named = chosenWallet(nodes.wallet)
   if (!named) throw new Error("FLOW_NO_WALLET")
 
-  const wallet = await findWallet(userId, named.id)
+  const wallet = await findWallet(userId, named.id, database)
   if (!wallet) throw new Error("FLOW_WALLET_GONE")
   if (wallet.status !== "active") throw new Error("FLOW_WALLET_INACTIVE")
   if (wallet.kind === "live" && (!wallet.address || !wallet.hasKey)) {
@@ -158,7 +159,7 @@ export async function flowRunSpec(
   if (markets.data.folderId) {
     let folder
     try {
-      folder = await marketFolderForRun(userId, markets.data.folderId)
+      folder = await marketFolderForRun(userId, markets.data.folderId, database)
     } catch {
       throw new Error(
         `FLOW_EMPTY_FOLDER:${markets.data.folderName ?? "That folder"}`
@@ -214,7 +215,7 @@ export async function flowRunSpec(
   // switched on.
   if (wallet.kind === "live") {
     assertRealOrdersAllowed(wallet.network)
-    if (wallet.network !== "testnet") await assertRealMoneySwitchOn()
+    if (wallet.network !== "testnet") await assertRealMoneySwitchOn(database)
   }
 
   return {
@@ -286,7 +287,7 @@ export async function startFlowRun(
   input: { automationId: string; nodes: FlowNodes; now: number },
   database: CustomShellDb = db
 ): Promise<{ id: string; spec: TradeFlowRunSpec }> {
-  const { spec, wallet } = await flowRunSpec(userId, input.nodes)
+  const { spec, wallet } = await flowRunSpec(userId, input.nodes, database)
 
   const activeRuns = await database
     .select({
@@ -355,9 +356,9 @@ export async function flowName(
   database: CustomShellDb
 ): Promise<string> {
   const [row] = await database
-    .select({ name: customShellAutomations.name })
-    .from(customShellAutomations)
-    .where(eq(customShellAutomations.id, automationId))
+    .select({ name: tradeRecipes.name })
+    .from(tradeRecipes)
+    .where(eq(tradeRecipes.id, automationId))
     .limit(1)
   return row?.name ?? "flow"
 }

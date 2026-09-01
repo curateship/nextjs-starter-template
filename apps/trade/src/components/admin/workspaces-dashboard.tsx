@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -36,6 +37,7 @@ import {
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { renderShellIcon } from "@/lib/custom-shell"
+import { workspaceListedAddress } from "@/lib/workspaces/addresses"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -46,7 +48,7 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 
-type WorkspaceSortColumn = "name" | "status"
+type WorkspaceSortColumn = "name" | "address" | "status"
 
 const workspacesRoute = getRouteApi("/_authenticated/workspaces")
 
@@ -102,8 +104,11 @@ export function WorkspacesDashboard({
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [creating, setCreating] = React.useState(false)
   const [run, busy] = useAsyncAction(getWorkspaceErrorMessage)
-  const { sort, direction: sortDirection, toggleSort } =
-    useTableSort<WorkspaceSortColumn>("name")
+  const {
+    sort,
+    direction: sortDirection,
+    toggleSort,
+  } = useTableSort<WorkspaceSortColumn>("name")
   const selection = useSelection()
   // The same act as the sidebar switcher, and deliberately the same code —
   // switching has to throw the page away, and that reasoning lives in one file.
@@ -124,7 +129,8 @@ export function WorkspacesDashboard({
     [navigate]
   )
   const editing = React.useMemo(
-    () => workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,
+    () =>
+      workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,
     [openWorkspaceId, workspaces]
   )
   const formOpen = creating || Boolean(editing)
@@ -136,16 +142,42 @@ export function WorkspacesDashboard({
   // so a memo keyed on it would rebuild every render anyway while looking as
   // though it did not.
   const columns: SortableColumn<WorkspaceSortColumn>[] = [
-    { key: "name", label: capitalise(word.one), column: "main" },
-    { key: "status", label: "Status", column: "meta" },
+    {
+      key: "name",
+      label: capitalise(word.one),
+      column: "main",
+      className: "min-w-0 md:min-w-80",
+    },
+    { key: "address", label: "Address", column: "preview" },
+    { key: "status", label: "Status", column: "preview" },
   ]
+
+  // Worked out once per render and reused by the search, the sort and the cell,
+  // so the three can never disagree about what a row's address is.
+  const addressOf = React.useCallback(
+    (workspace: WorkspaceItem) => workspaceListedAddress(workspace, baseDomain),
+    [baseDomain]
+  )
 
   const sortedWorkspaces = React.useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1
     const query = searchQuery.trim().toLowerCase()
     return workspaces
-      .filter((workspace) => !query || workspace.name.toLowerCase().includes(query))
+      .filter((workspace) => {
+        if (!query) return true
+        return (
+          workspace.name.toLowerCase().includes(query) ||
+          addressOf(workspace).text.toLowerCase().includes(query)
+        )
+      })
       .sort((a, b) => {
+        if (sort === "address") {
+          const gap = addressOf(a).text.localeCompare(addressOf(b).text)
+          // Two rows can share an address only when neither has one to show, so
+          // the name breaks the tie and the order stays the same every render.
+          if (gap !== 0) return gap * direction
+          return a.name.localeCompare(b.name)
+        }
         if (sort === "status") {
           // Sorted by what the column actually shows. It used to sort by which
           // one you were in, which is not what the header says and left the
@@ -156,7 +188,7 @@ export function WorkspacesDashboard({
         }
         return a.name.localeCompare(b.name) * direction
       })
-  }, [searchQuery, sort, sortDirection, workspaces])
+  }, [addressOf, searchQuery, sort, sortDirection, workspaces])
 
   const {
     page: currentPage,
@@ -236,20 +268,29 @@ export function WorkspacesDashboard({
         controls={
           <>
             {selectedIds.size ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
+              <DisabledReason
                 disabled={busy || selectedIds.size >= workspaces.length}
+                reason={
+                  busy
+                    ? "Wait for the delete that is already running to finish."
+                    : `This is your last ${word.one}, and the app needs one. Make another before deleting this.`
+                }
               >
-                <Trash2Icon className="size-4" />
-                Delete ({selectedIds.size})
-              </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setMassDeleteOpen(true)}
+                  disabled={busy || selectedIds.size >= workspaces.length}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete ({selectedIds.size})
+                </DashboardToolbarButton>
+              </DisabledReason>
             ) : null}
             <DashboardToolbarSearch
               name="workspace-search"
-              aria-label={`Search ${word.many}`}
-              placeholder={`Search ${word.many}…`}
+              aria-label={`Search ${word.many} by name or address`}
+              placeholder="Search by name or address…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -266,20 +307,18 @@ export function WorkspacesDashboard({
             direction={sortDirection}
             onSort={toggleSort}
             leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label={`Select visible ${word.many}`}
-                />
-              </TableHead>
+              <SelectAllTableHead
+                noun={word.many}
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
             }
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
         isEmpty={sortedWorkspaces.length === 0}
         emptyText={`No ${word.many} found.`}
-        emptyColSpan={4}
+        emptyColSpan={5}
         footer={footer}
       >
         {paginatedWorkspaces.map((workspace) => (
@@ -295,8 +334,8 @@ export function WorkspacesDashboard({
                 aria-label={`Select ${workspace.name}`}
               />
             </TableCell>
-            <TableCell column="main">
-              <div className="flex items-center gap-3">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
+              <div className="flex max-w-28 items-center gap-3 sm:max-w-none">
                 <span className="flex h-8 min-w-8 shrink-0 items-center justify-center border-border">
                   {workspace.favicon ? (
                     <img
@@ -328,13 +367,39 @@ export function WorkspacesDashboard({
                 </div>
               </div>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
+              {(() => {
+                const address = addressOf(workspace)
+                // A domain of its own is the real address, so it is set in the
+                // ordinary text weight. The fallback subdomain is quieter and
+                // says what it is on hover — the two never rely on colour alone
+                // to be told apart.
+                return (
+                  <span
+                    className={
+                      address.kind === "domain"
+                        ? "block max-w-full truncate font-medium"
+                        : "block max-w-full truncate text-muted-foreground"
+                    }
+                    title={
+                      address.kind === "domain"
+                        ? address.text
+                        : address.kind === "subdomain"
+                          ? `${address.text} — no domain of its own yet.`
+                          : `No address yet: this deployment has no base domain set.`
+                    }
+                  >
+                    {address.text}
+                  </span>
+                )
+              })()}
+            </TableCell>
+            <TableCell column="preview">
               <Badge variant={STATUS_BADGES[workspace.status].variant}>
                 {STATUS_BADGES[workspace.status].label}
               </Badge>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 {/*
                  * Going into a workspace, from the one screen that lists them
                  * all. The sidebar switcher used to be the only way, so this
@@ -387,7 +452,6 @@ export function WorkspacesDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}

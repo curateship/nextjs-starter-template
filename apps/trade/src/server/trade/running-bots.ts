@@ -3,7 +3,6 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 import type { ProtocolId } from "@/lib/protocols/contracts"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellAutomations } from "@/server/schema"
 import { listFlowRuns } from "@/server/trade/flow-run-report"
 import { tradeFlowRuns } from "@/server/trade/schema"
 
@@ -40,24 +39,6 @@ export async function listRunningBots(
 
   const ids = new Set(running.map((run) => run.runId))
   const specs = new Map(running.map((run) => [run.runId, run.spec]))
-  const names = await database
-    .select({
-      id: customShellAutomations.id,
-      name: customShellAutomations.name,
-    })
-    .from(customShellAutomations)
-    .where(
-      and(
-        eq(customShellAutomations.userId, userId),
-        inArray(
-          customShellAutomations.id,
-          running.map((run) => run.automationId)
-        )
-      )
-    )
-  const nameOf = new Map(
-    names.map((automation) => [automation.id, automation.name])
-  )
   return (await listFlowRuns(userId, Date.now(), [...ids]))
     .filter((run) => ids.has(run.id))
     .map((run) => {
@@ -65,7 +46,7 @@ export async function listRunningBots(
       return {
         runId: run.id,
         automationId: run.automationId,
-        name: nameOf.get(run.automationId) ?? "This flow has been deleted",
+        name: run.automationName,
         strategy:
           spec.strategy.kind === "dca"
             ? "DCA ladder"

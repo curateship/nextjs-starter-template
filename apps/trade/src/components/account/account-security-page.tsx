@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -59,13 +59,28 @@ import { useBrowserSupportsWebAuthn } from "@/lib/hooks/use-webauthn-support"
 
 const MISMATCH_MESSAGE = "Those passwords do not match."
 
+export type AccountPasswordDraft = {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export function AccountSecurityPage({
   user,
   isPaid,
+  passwordDraft,
+  onPasswordDraftChange,
+  onPasswordStatusChange,
 }: {
   user: AuthUser
   /** Whether they are on a paid plan, which deleting cancels. */
   isPaid: boolean
+  passwordDraft: AccountPasswordDraft
+  onPasswordDraftChange: (draft: AccountPasswordDraft) => void
+  onPasswordStatusChange: (status: {
+    saving: boolean
+    dirty: boolean
+  }) => void
 }) {
   const router = useRouter()
   // Changing a password signs out every other device, so the list below it has
@@ -76,6 +91,9 @@ export function AccountSecurityPage({
     <CardGroup className="w-full">
       <ChangePasswordCard
         hasPassword={user.hasPassword}
+        draft={passwordDraft}
+        onDraftChange={onPasswordDraftChange}
+        onStatusChange={onPasswordStatusChange}
         onPasswordChanged={() => {
           setDevicesChanged((count) => count + 1)
           // Setting a first password changes what this tab offers, and the
@@ -101,17 +119,27 @@ export function AccountSecurityPage({
  */
 function ChangePasswordCard({
   hasPassword,
+  draft,
+  onDraftChange,
+  onStatusChange,
   onPasswordChanged,
 }: {
   hasPassword: boolean
+  draft: AccountPasswordDraft
+  onDraftChange: (draft: AccountPasswordDraft) => void
+  onStatusChange: (status: { saving: boolean; dirty: boolean }) => void
   onPasswordChanged: () => void
 }) {
-  const [currentPassword, setCurrentPassword] = React.useState("")
-  const [newPassword, setNewPassword] = React.useState("")
-  const [confirmPassword, setConfirmPassword] = React.useState("")
   const [confirmTouched, setConfirmTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
   const [run, saving] = useAsyncAction(getAuthErrorMessage)
+  const { currentPassword, newPassword, confirmPassword } = draft
+  const dirty = Boolean(currentPassword || newPassword || confirmPassword)
+
+  React.useEffect(() => {
+    onStatusChange({ saving, dirty })
+  }, [dirty, onStatusChange, saving])
 
   const confirmMismatches =
     confirmPassword.length > 0 && confirmPassword !== newPassword
@@ -124,6 +152,7 @@ function ChangePasswordCard({
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       setSaved(false)
+      setAttempted(true)
 
       if (hasPassword && !currentPassword) {
         showErrorToast("Current password is required.")
@@ -149,10 +178,13 @@ function ChangePasswordCard({
             hasPassword ? currentPassword : undefined,
             newPassword
           )
-          setCurrentPassword("")
-          setNewPassword("")
-          setConfirmPassword("")
+          onDraftChange({
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+          })
           setConfirmTouched(false)
+          setAttempted(false)
           onPasswordChanged()
         })
       )
@@ -162,6 +194,7 @@ function ChangePasswordCard({
       currentPassword,
       hasPassword,
       newPassword,
+      onDraftChange,
       onPasswordChanged,
       run,
     ]
@@ -171,7 +204,9 @@ function ChangePasswordCard({
     <Card>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <CardHeader>
-          <CardTitle>{hasPassword ? "Password" : "Set a password"}</CardTitle>
+          <CardTitle as="h3">
+            {hasPassword ? "Password" : "Set a password"}
+          </CardTitle>
           <CardDescription>
             {hasPassword
               ? "Changing your password signs out every other device."
@@ -190,9 +225,12 @@ function ChangePasswordCard({
                   // Drop the "Password updated" note the moment a new change
                   // starts, so it cannot be read as the answer to this one.
                   setSaved(false)
-                  setCurrentPassword(event.target.value)
+                  onDraftChange({
+                    ...draft,
+                    currentPassword: event.target.value,
+                  })
                 }}
-                aria-invalid={!currentPassword || undefined}
+                aria-invalid={(attempted && !currentPassword) || undefined}
               />
             </div>
           ) : null}
@@ -207,9 +245,9 @@ function ChangePasswordCard({
               value={newPassword}
               onChange={(event) => {
                 setSaved(false)
-                setNewPassword(event.target.value)
+                onDraftChange({ ...draft, newPassword: event.target.value })
               }}
-              aria-invalid={!newPassword || undefined}
+              aria-invalid={(attempted && !newPassword) || undefined}
             />
           </div>
           <div className="grid gap-2">
@@ -226,7 +264,10 @@ function ChangePasswordCard({
               value={confirmPassword}
               onChange={(event) => {
                 setSaved(false)
-                setConfirmPassword(event.target.value)
+                onDraftChange({
+                  ...draft,
+                  confirmPassword: event.target.value,
+                })
               }}
               onBlur={() => {
                 setConfirmTouched(true)
@@ -234,7 +275,9 @@ function ChangePasswordCard({
                 // every character typed would be unreadable.
                 if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
               }}
-              aria-invalid={!confirmPassword || mismatch || undefined}
+              aria-invalid={
+                (attempted && !confirmPassword) || mismatch || undefined
+              }
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -327,22 +370,22 @@ function PasskeysCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Passkeys</CardTitle>
+        <CardTitle as="h3">Passkeys</CardTitle>
         <CardDescription>
           Sign in with your fingerprint, face, or device PIN instead of typing
           your password. Your password keeps working either way.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {/* The failure is raised outside the surface rather than inside it.
-            The banner is a toast and draws nothing here, so a surface holding
-            only it is an empty box still wearing its one-pixel ring — which
-            paints as a stray hairline, not as nothing. */}
+        {/* The failed list keeps its message and retry inside the same framed
+            region that normally holds its rows. */}
         {loadError ? (
-          <ErrorBanner
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
-          />
+          <TableSurface>
+            <ErrorRow
+              message={loadError}
+              onRetry={() => setReloads((count) => count + 1)}
+            />
+          </TableSurface>
         ) : (
           <TableSurface>
             {!list ? (
@@ -497,6 +540,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
   // all of them grey out. Null means nothing is running.
   const [runningId, setRunningId] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<string | null>(null)
+  const [confirmingAllOthers, setConfirmingAllOthers] = React.useState(false)
 
   // Bumped to ask for the list again — by the retry button, and after anything
   // that ends a session. One counter keeps the fetch in a single place.
@@ -542,20 +586,21 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Devices</CardTitle>
+        <CardTitle as="h3">Devices</CardTitle>
         <CardDescription>
           Where you are signed in. Sign out anything you do not recognise.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {/* Outside the surface, for the reason given on the Passkeys table
-            above: a surface holding only the banner is an empty box wearing a
-            one-pixel ring, and that paints as a stray hairline. */}
+        {/* The failed list keeps its message and retry inside the same framed
+            region that normally holds its rows. */}
         {loadError ? (
-          <ErrorBanner
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
-          />
+          <TableSurface>
+            <ErrorRow
+              message={loadError}
+              onRetry={() => setReloads((count) => count + 1)}
+            />
+          </TableSurface>
         ) : (
           <TableSurface>
             {!list ? (
@@ -650,12 +695,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
             <Button
               variant="outline"
               disabled={working}
-              onClick={() =>
-                void run("all-others", async () => {
-                  const { removed } = await signOutOtherSessions()
-                  return `Signed out ${removed} other ${plural(removed, "device", "devices")}.`
-                })
-              }
+              onClick={() => setConfirmingAllOthers(true)}
             >
               {runningId === "all-others" ? (
                 <Loader2Icon className="size-4 animate-spin" />
@@ -678,6 +718,22 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
           </span>
         ) : null}
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmingAllOthers}
+        onOpenChange={setConfirmingAllOthers}
+        title={`Sign out ${list ? list.total - 1 : 0} other ${plural(list ? list.total - 1 : 0, "device", "devices")}?`}
+        description="Every other phone, tablet and computer signed in to this account will need its password or passkey again. This device stays signed in."
+        confirmLabel="Sign out other devices"
+        loading={runningId === "all-others"}
+        onConfirm={() =>
+          void run("all-others", async () => {
+            const { removed } = await signOutOtherSessions()
+            setConfirmingAllOthers(false)
+            return `Signed out ${removed} other ${plural(removed, "device", "devices")}.`
+          })
+        }
+      />
     </Card>
   )
 }
@@ -717,10 +773,12 @@ function DeleteAccountCard({
 }) {
   const [open, setOpen] = React.useState(false)
   const [confirmation, setConfirmation] = React.useState("")
+  const [attempted, setAttempted] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
 
   const handleDelete = React.useCallback(async () => {
     dismissErrorToast()
+    setAttempted(true)
     if (!confirmation) {
       showErrorToast(
         hasPassword ? "Password is required." : "Email address is required."
@@ -741,14 +799,20 @@ function DeleteAccountCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Delete account</CardTitle>
+        <CardTitle as="h3">Delete account</CardTitle>
         <CardDescription>
           This closes your account. You have {ACCOUNT_RESTORE_DAYS} days to
           change your mind before it and everything in it are gone for good.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button variant="destructive" onClick={() => setOpen(true)}>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setAttempted(false)
+            setOpen(true)
+          }}
+        >
           Delete my account
         </Button>
       </CardContent>
@@ -764,7 +828,7 @@ function DeleteAccountCard({
       >
         <Card size="sm">
           <CardHeader>
-            <CardTitle>Confirm it is you</CardTitle>
+            <CardTitle as="h3">Confirm it is you</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-2">
@@ -778,7 +842,7 @@ function DeleteAccountCard({
                     autoComplete="current-password"
                     value={confirmation}
                     onChange={(event) => setConfirmation(event.target.value)}
-                    aria-invalid={!confirmation || undefined}
+                    aria-invalid={(attempted && !confirmation) || undefined}
                   />
                 </>
               ) : (
@@ -795,7 +859,7 @@ function DeleteAccountCard({
                     autoComplete="email"
                     value={confirmation}
                     onChange={(event) => setConfirmation(event.target.value)}
-                    aria-invalid={!confirmation || undefined}
+                    aria-invalid={(attempted && !confirmation) || undefined}
                   />
                 </>
               )}

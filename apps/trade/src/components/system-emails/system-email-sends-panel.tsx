@@ -1,16 +1,22 @@
 import * as React from "react"
+import { SendIcon } from "lucide-react"
 
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { Button } from "@/components/ui/button"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { EmptyRow } from "@/components/shared/feed-card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
+import { ErrorRow } from "@/components/ui/error-row"
+import { InlineError } from "@/components/ui/inline-error"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getSystemEmailErrorMessage,
   loadSystemEmailSends,
   type SystemEmailSendItem,
 } from "@/lib/api/email/system-emails"
-import { SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
+import {
+  SYSTEM_EMAIL_META,
+  type SystemEmailKind,
+} from "@/lib/system-emails/kinds"
 import { formatDateTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
@@ -39,10 +45,11 @@ export function SystemEmailSendsPanel({
   const [hasMore, setHasMore] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
   const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
 
   const meta = SYSTEM_EMAIL_META[kind]
-  const requestKey = `${kind}:${refreshToken}`
+  const requestKey = `${kind}:${refreshToken}:${reloads}`
   const loading = loadedRequest !== requestKey
   const visibleError = loadedRequest === requestKey ? error : null
 
@@ -68,6 +75,7 @@ export function SystemEmailSendsPanel({
   }, [kind, requestKey])
 
   const loadMore = async () => {
+    if (loadingMore || !hasMore) return
     setLoadingMore(true)
     try {
       const page = await loadSystemEmailSends(kind, {
@@ -94,16 +102,23 @@ export function SystemEmailSendsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <DashboardCardHeader className="gap-3">
-        <span className="text-sm font-medium">Recent sends</span>
-        <span className="truncate text-xs text-muted-foreground">
-          {summary}
-        </span>
-      </DashboardCardHeader>
+      <DashboardCardTitleHeader
+        icon={<SendIcon className="size-4" />}
+        title="Recent sends"
+        meta={summary}
+      />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {visibleError ? <ErrorBanner message={visibleError} /> : null}
+          {visibleError ? (
+            <ErrorRow
+              message={visibleError}
+              onRetry={() => {
+                setError(null)
+                setReloads((count) => count + 1)
+              }}
+            />
+          ) : null}
 
           <div className="grid gap-1.5">
             <p className="text-sm text-muted-foreground">{meta.whenSent}</p>
@@ -130,7 +145,9 @@ export function SystemEmailSendsPanel({
             ) : null}
           </div>
 
-          {!loading && sends.length === 0 ? (
+          {loading && sends.length === 0 ? (
+            <LoadingRow label="Loading recent sends…" />
+          ) : !visibleError && sends.length === 0 ? (
             <EmptyRow>
               Nobody has been sent this yet. Every one that goes out from now on
               shows up here.
@@ -165,23 +182,18 @@ export function SystemEmailSendsPanel({
                       only half the answer; "at 2pm, and here is why" is the
                       other half. */}
                   {send.status === "failed" ? (
-                    <p className="pl-3.5 text-xs text-destructive">
+                    <InlineError className="pl-3.5">
                       {send.error ?? "Did not go through"}
-                    </p>
+                    </InlineError>
                   ) : null}
                 </div>
               ))}
               {hasMore ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <LoadMoreButton
                   className="mt-1 justify-self-start"
-                  disabled={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
-                >
-                  {loadingMore ? "Loading…" : "Show more"}
-                </Button>
+                />
               ) : null}
             </div>
           ) : null}

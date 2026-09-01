@@ -53,9 +53,54 @@ describe("renderBroadcastBlockHtml", () => {
     }
   )
 
-  it("renders nothing inside an empty header", () => {
-    const html = renderBroadcastBlockHtml(block("header"))
+  it("shows the app name when a header has no logo", () => {
+    const html = renderBroadcastBlockHtml(block("header"), {
+      appName: "North Star",
+    })
     expect(html).not.toContain("<img")
+    expect(html).toContain("North Star")
+    expect(html).toContain("color:#111827")
+  })
+
+  it("keeps the app name readable on a dark header", () => {
+    const html = renderBroadcastBlockHtml(
+      block("header", { backgroundColor: "#111111" }),
+      { appName: "North Star" }
+    )
+    expect(html).toContain("color:#f9fafb")
+  })
+
+  it("keeps the app name as text before a labelled logo", () => {
+    const html = renderBroadcastBlockHtml(
+      block("header", { logoUrl: "https://example.com/logo.png" }),
+      { appName: "North & Star" }
+    )
+    expect(html).toContain("North &amp; Star")
+    expect(html).toContain('alt="Logo"')
+    expect(html.indexOf("North &amp; Star")).toBeLessThan(
+      html.indexOf("<img")
+    )
+  })
+
+  it("adds useful fallback text to rich-text images without a description", () => {
+    const missing = renderBroadcastBlockHtml(
+      block("richText", { htmlContent: '<img src="https://x.dev/photo.png">' })
+    )
+    const blank = renderBroadcastBlockHtml(
+      block("richText", {
+        htmlContent: '<img src="https://x.dev/photo.png" alt="">',
+      })
+    )
+    const described = renderBroadcastBlockHtml(
+      block("richText", {
+        htmlContent:
+          '<img src="https://x.dev/photo.png" alt="Two people talking">',
+      })
+    )
+
+    expect(missing).toContain('alt="Email image"')
+    expect(blank).toContain('alt="Email image"')
+    expect(described).toContain('alt="Two people talking"')
   })
 
   it("escapes footer company fields", () => {
@@ -88,6 +133,24 @@ describe("renderBroadcastBlockHtml", () => {
     expect(html).toContain('<h2 style="margin:0 0 16px 0;')
     expect(html).toContain('<p style="margin:0 0 24px 0;">World</p>')
     expect(html).toContain("color:#2563eb")
+  })
+
+  it("matches the compact type and button used by system emails", () => {
+    const copy = renderBroadcastBlockHtml(
+      block("richText", { htmlContent: "<h1>Heading</h1><p>Body</p>" }),
+      { renderStyle: "system" }
+    )
+    const buttonHtml = renderBroadcastBlockHtml(block("button"), {
+      renderStyle: "system",
+    })
+
+    expect(copy).toContain("font-size:14px")
+    expect(copy).toContain("font-size:20px")
+    expect(copy).not.toContain("font-size:32px")
+    expect(copy).toContain("padding:0 20px")
+    expect(buttonHtml).toContain("padding:10px 18px")
+    expect(buttonHtml).toContain("font-size:14px")
+    expect(buttonHtml).toContain("padding:0 20px 24px 20px")
   })
 
   it("renders divider settings", () => {
@@ -185,6 +248,14 @@ describe("renderBroadcastEmailHtml", () => {
     })
     expect(html).toContain("display:none")
     expect(html).toContain("Deals &lt;today&gt;")
+  })
+
+  it("identifies the sender in text when an email has no header block", () => {
+    const html = renderBroadcastEmailHtml([block("richText")], {
+      appName: "North & Star",
+    })
+
+    expect(html).toContain("North &amp; Star")
   })
 })
 

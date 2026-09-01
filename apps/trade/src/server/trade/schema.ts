@@ -23,6 +23,8 @@ import type {
   TakeProfitTarget,
 } from "@/lib/protocols/contracts"
 import type { CardFolds } from "@/lib/trade/card-folds"
+import type { AutomationGraph } from "@/lib/automations/graph"
+import type { RecipeCompiledConfig } from "@/lib/recipes/compile"
 import type { AsterMarginMode } from "@/lib/trade/aster-margin-mode"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
@@ -52,7 +54,11 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import type { WalletKind, WalletStatus } from "@/lib/trade/wallets"
-import { customShellAnnouncements, customShellUsers } from "@/server/schema"
+import {
+  customShellAnnouncements,
+  customShellUsers,
+  customShellWorkspaces,
+} from "@/server/schema"
 
 /**
  * This app's own tables. The shell's `schema.ts` is a shell file and can
@@ -1024,6 +1030,42 @@ export const tradeFundingGaps = pgTable(
  * coin. The frozen spec is here too, for the same reason — the flow that ran is
  * one flow however many coins it touched.
  */
+/**
+ * One saved trading recipe. Recipes belong to a workspace; the user id only
+ * records who last created the row and clears if that account is removed.
+ *
+ * A recipe has no live switch or schedule. Pressing Backtest or Switch on is
+ * an explicit action handled by the trade run path.
+ */
+export const tradeRecipes = pgTable(
+  "trade_recipes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    name: varchar("name", { length: 80 }).notNull(),
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    compiledConfig: jsonb("compiled_config").$type<RecipeCompiledConfig>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_trade_recipes_workspace_name").on(
+      table.workspaceId,
+      table.name
+    ),
+    index("ix_trade_recipes_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
+  ]
+)
+
 export const tradeBacktestGroups = pgTable(
   "trade_backtest_groups",
   {
@@ -1031,15 +1073,14 @@ export const tradeBacktestGroups = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     id: varchar("id", { length: 36 }).notNull(),
-    /** The flow this came from — what "the same flow's next run" means. */
+    /** The recipe this came from. The stored column keeps its old name. */
     automationId: varchar("automation_id", { length: 36 }).notNull(),
     automationName: text("automation_name").notNull(),
     /**
-     * The canvas run that started this one.
+     * The UUID made for one press of the recipe's Backtest button.
      *
-     * Here so pressing Run is safe to retry: a step that ran twice — because
-     * the engine picked it up again after a wobble — finds this row and starts
-     * nothing, rather than leaving two identical backtests behind.
+     * A retried request finds this row and starts nothing, rather than leaving
+     * two identical backtests behind.
      */
     automationRunId: varchar("automation_run_id", { length: 36 }),
     /** Null until somebody names it, which is also what protects it. */
@@ -1077,8 +1118,7 @@ export const tradeBacktestGroups = pgTable(
       table.userId,
       table.automationId
     ),
-    // One backtest per canvas run, which is what makes pressing Run again
-    // after a failure safe.
+    // One backtest per button press, which makes a retried request safe.
     uniqueIndex("trade_backtest_groups_run_unique").on(table.automationRunId),
   ]
 )
@@ -1230,8 +1270,10 @@ export const tradeFlowRuns = pgTable(
   {
     ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
-    /** The flow this came from. Deleting the flow stops it looking for coins. */
-    automationId: varchar("automation_id", { length: 36 }).notNull(),
+    /** The recipe this came from. The stored column keeps its old name. */
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => tradeRecipes.id, { onDelete: "cascade" }),
     status: varchar("status", { length: 8 })
       .$type<TradeFlowRunStatus>()
       .notNull(),

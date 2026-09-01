@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { defaultTradeGridSettings } from "@/lib/automations/nodes/trade-grid"
+import { defaultTradeGridSettings } from "@/lib/recipes/trade-grid"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import {
   EMA_GRID_HISTORY_BARS,

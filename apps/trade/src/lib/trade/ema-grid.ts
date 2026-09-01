@@ -1,5 +1,5 @@
 import type { CandleBar } from "@/lib/protocols/contracts"
-import type { TradeGridSettings } from "@/lib/automations/nodes/trade-grid"
+import type { TradeGridSettings } from "@/lib/recipes/trade-grid"
 import {
   defaultGridParams,
   gridRangeFromClick,

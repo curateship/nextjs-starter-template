@@ -5,8 +5,8 @@ import { automationGraphSchema } from "@/lib/automations/graph"
 import {
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
-} from "@/lib/automations/nodes/trade-markets"
-import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
+} from "@/lib/recipes/trade-markets"
+import { chosenWallet } from "@/lib/recipes/trade-wallet"
 import {
   describeFlowStop,
   isWorkingFlowOrder,
@@ -24,17 +24,13 @@ import {
   flowVenueMismatchProblem,
 } from "@/lib/trade/flow-words"
 import { venueLabel } from "@/lib/trade/wallets"
-import { getWorkspaceAutomation } from "@/server/automations/flows"
 import { adminGet, adminPost } from "@/server/guards"
-import { flowNodesOf } from "@/server/trade/flow-start"
 import { hasWaitingDcaRungSql } from "@/server/trade/flow-order-working"
 import {
   flowStopCounts,
   pauseFlowRun,
   retryFlowRunNow,
-  startFlowRun,
   stopFlowRun,
-  type FlowNodes,
 } from "@/server/trade/flow-run"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { and, eq, inArray } from "drizzle-orm"
@@ -42,6 +38,7 @@ import { db } from "@/server/db"
 import { findWallet } from "@/server/trade/wallets"
 import { marketFolderForRun } from "@/server/trade/market-folders"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { getWorkspaceRecipe } from "@/server/trade/recipes"
 
 import { createErrorMessage, describeAuthError } from "../error-message"
 
@@ -158,7 +155,7 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
     // are independent, so they go out together; the winner is decided below.
     const [row, live] = await Promise.all([
       workspaceIdForRequest(context.user.id).then((workspaceId) =>
-        getWorkspaceAutomation(workspaceId, data.automationId)
+        getWorkspaceRecipe(workspaceId, data.automationId)
       ),
       runningFlow(context.user.id, data.automationId),
     ])
@@ -422,44 +419,6 @@ async function countWorkingLadders(
   ).length
 }
 
-/** The saved drawing's three trade steps, for switching on. */
-async function nodesForFlow(
-  userId: string,
-  automationId: string
-): Promise<FlowNodes | null> {
-  const row = await getWorkspaceAutomation(
-    await workspaceIdForRequest(userId),
-    automationId
-  )
-  const parsed = automationGraphSchema.safeParse(row?.graph)
-  if (!parsed.success) return null
-  return flowNodesOf({
-    nodes: Object.fromEntries(
-      parsed.data.nodes.map((one) => [
-        one.id,
-        { kind: one.kind, settings: one.settings },
-      ])
-    ),
-  })
-}
-
-const startFlowFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(flowSchema)
-  .handler(async ({ data, context }): Promise<{ summary: string }> => {
-    const nodes = await nodesForFlow(context.user.id, data.automationId)
-    if (!nodes) throw new Error("FLOW_NO_WALLET")
-    const started = await startFlowRun(context.user.id, {
-      automationId: data.automationId,
-      nodes,
-      now: Date.now(),
-    })
-    const coins = started.spec.marketKeys.length
-    return {
-      summary: `Switched on — watching ${coins} ${coins === 1 ? "coin" : "coins"} on ${started.spec.walletLabel}.`,
-    }
-  })
-
 const stopFlowFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(flowSchema)
@@ -510,10 +469,6 @@ export function pauseFlow(automationId: string, paused: boolean) {
 
 export function retryFlowNow(automationId: string) {
   return retryFlowFn({ data: { automationId } })
-}
-
-export function startFlow(automationId: string) {
-  return startFlowFn({ data: { automationId } })
 }
 
 export function stopFlow(automationId: string) {

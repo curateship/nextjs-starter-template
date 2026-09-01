@@ -8,7 +8,10 @@ import {
   type AiProvider,
   type AiUsageRange,
 } from "@/lib/ai/ai-models"
+import { type AiLimitNotificationType } from "@/lib/notification-types"
+import { appUrlFor } from "@/server/app-url"
 import { db } from "@/server/db"
+import { sendAuthEmail } from "@/server/email/send"
 import { publishNotificationCreated } from "@/server/notifications/events"
 import { resolveEntitlements } from "@/server/billing/entitlements"
 import { getDefaultPlan } from "@/server/billing/plans"
@@ -369,15 +372,40 @@ async function noteAiAlertOnce(
 
     if (!claimed.length) return
 
+    const notificationType: AiLimitNotificationType =
+      level === "warning" ? "ai_limit_warning" : "ai_limit_reached"
     await db.insert(customShellNotifications).values({
       id: uuid(),
       recipientUserId: userId,
-      type: level === "warning" ? "ai_limit_warning" : "ai_limit_reached",
+      type: notificationType,
       createdAt: now(),
     })
     await publishNotificationCreated(userId)
+    await sendAiAlertEmail(userId, notificationType)
   } catch (error) {
     console.error("AI allowance notice was not recorded", level, error)
+  }
+}
+
+/** Email is best effort: the alert claim still prevents repeated attempts. */
+async function sendAiAlertEmail(userId: string, type: AiLimitNotificationType) {
+  try {
+    const [recipient] = await db
+      .select({ email: customShellUsers.email, name: customShellUsers.name })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+      .limit(1)
+    if (!recipient) return
+
+    await sendAuthEmail({
+      kind:
+        type === "ai_limit_warning" ? "ai-limit-warning" : "ai-limit-reached",
+      to: recipient.email,
+      recipientName: recipient.name,
+      actionUrl: appUrlFor("/home?account=billing"),
+    })
+  } catch (error) {
+    console.error("AI allowance email was not sent", type, error)
   }
 }
 

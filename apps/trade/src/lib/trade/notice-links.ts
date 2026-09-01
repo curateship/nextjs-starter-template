@@ -26,6 +26,6 @@ export function flowRunNoticeHref(runId: string): string {
  * opens the flow itself — the canvas, where the step that refused it is, and
  * where switching it on again is one press.
  */
-export function flowEditorNoticeHref(automationId: string): string {
-  return `/admin/automations/${encodeURIComponent(automationId)}`
+export function flowEditorNoticeHref(recipeId: string): string {
+  return `/admin/recipes/${encodeURIComponent(recipeId)}`
 }

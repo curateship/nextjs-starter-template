@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import type { SegmentCondition } from "@/lib/contacts/contact-segments"
 import { DEFAULT_DRIP_CONFIG, type DripConfig } from "@/lib/broadcasts/drip"
+import { createBroadcastBlock } from "@/lib/broadcasts/blocks"
 import {
   countBroadcastAudience,
   processDueBroadcasts,
@@ -187,6 +188,32 @@ describe("with pacing off, nothing about sending has changed", () => {
     await tick(MORNING)
 
     expect(new Set(sentTo).size).toBe(60 + OWNER)
+  })
+
+  it("pauses before sending when an internal logo file is missing", async () => {
+    const originalPublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = "https://media.example.test"
+    try {
+      await insertContacts(1)
+      const header = createBroadcastBlock("header")
+      if (header.kind !== "header") throw new Error("Expected a header block")
+      header.content.logoUrl =
+        "https://media.example.test/somebody/missing-logo.png"
+      await insertBroadcast({ blocks: [header], renderedHtml: null })
+
+      await tick(MORNING)
+
+      const paused = await readBroadcast()
+      expect(paused.status).toBe("paused")
+      expect(paused.pausedReason).toContain("logo file is missing")
+      expect(sentTo).toHaveLength(0)
+    } finally {
+      if (originalPublicUrl === undefined) {
+        delete process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+      } else {
+        process.env.CUSTOM_SHELL_R2_PUBLIC_URL = originalPublicUrl
+      }
+    }
   })
 })
 

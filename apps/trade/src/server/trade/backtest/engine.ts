@@ -9,7 +9,7 @@ import type { DcaBaseDetection } from "@/lib/trade/dca"
 import {
   emaGridCleanBars,
   type TradeGridSettings,
-} from "@/lib/automations/nodes/trade-grid"
+} from "@/lib/recipes/trade-grid"
 import {
   BASE_STOP_BAR_MS,
   MIN_ORDER_USD,

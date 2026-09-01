@@ -5,16 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   defaultTradeGridSettings,
   emaGridDaysForCleanHours,
-} from "@/lib/automations/nodes/trade-grid"
+} from "@/lib/recipes/trade-grid"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
 import type { GridPlan } from "@/lib/trade/grid"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
-import {
-  customShellAnnouncements,
-  customShellAutomations,
-} from "@/server/schema"
+import { customShellAnnouncements } from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -24,6 +21,7 @@ import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import {
   tradeFlowRuns,
   tradePaperPositions,
+  tradeRecipes,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -49,9 +47,7 @@ const liveRollback = vi.hoisted(() => vi.fn(async () => true))
 const liveHeld = vi.hoisted(() => vi.fn(async () => ({ szi: 10 })))
 const liveReconcile = vi.hoisted(() => vi.fn(async () => undefined))
 const paperClose = vi.hoisted(() => vi.fn(async () => undefined))
-const pairedPlan = vi.hoisted(() =>
-  vi.fn(async (): Promise<unknown> => null)
-)
+const pairedPlan = vi.hoisted(() => vi.fn(async (): Promise<unknown> => null))
 
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -265,7 +261,7 @@ beforeEach(async () => {
 
   userId = (await insertUser(database)).id
   const workspace = await insertWorkspace(database, { userId })
-  await database.insert(customShellAutomations).values({
+  await database.insert(tradeRecipes).values({
     id: "flow-1",
     userId,
     workspaceId: workspace.id,
@@ -316,9 +312,7 @@ afterEach(async () => {
 describe("placing and holding a flow grid", () => {
   it("places after one clean 4-hour candle when the wait is four hours", async () => {
     bars = clean("long").map((bar, index) =>
-      index < 599
-        ? { ...bar, open: 100, high: 101, low: 99, close: 100 }
-        : bar
+      index < 599 ? { ...bar, open: 100, high: 101, low: 99, close: 100 } : bar
     )
 
     expect((await pass()).did).toBe("waiting")
@@ -439,10 +433,10 @@ describe("placing and holding a flow grid", () => {
 
   it("rotates the shared candle read across separate flows", async () => {
     const [firstFlow] = await database
-      .select({ workspaceId: customShellAutomations.workspaceId })
-      .from(customShellAutomations)
-      .where(eq(customShellAutomations.id, "flow-1"))
-    await database.insert(customShellAutomations).values({
+      .select({ workspaceId: tradeRecipes.workspaceId })
+      .from(tradeRecipes)
+      .where(eq(tradeRecipes.id, "flow-1"))
+    await database.insert(tradeRecipes).values({
       id: "flow-2",
       userId,
       workspaceId: firstFlow.workspaceId,
