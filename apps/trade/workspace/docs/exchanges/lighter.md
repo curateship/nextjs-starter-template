@@ -664,6 +664,40 @@ useful thing the app can say about real money and, for the country block, an
 instruction that can never work. The order path now badges them so the reason
 survives to the screen.
 
+## The stop and target riding a position
+
+Lighter keeps a position's stop and target as two ordinary orders of its own,
+reduce-only with a trigger price, status "pending" until the mark reaches the
+trigger. Both the resting-orders list and the `account_all_orders` socket
+include them while they wait — measured on a live account on 1 Sep 2026.
+
+Three things about reading them back were wrong until that day, and together
+they made the stop and target bar vanish from the chart about a minute after
+placing, while both legs stood on the exchange the whole time:
+
+- **The read never pinned the legs onto the position.** Every other venue's
+  read fills the position's own stop and target prices from its waiting legs;
+  Lighter's filled only the order ids. So the bar drawn right after placing
+  was the app's note of what it sent, and the first real answer from Lighter
+  replaced it with a position claiming no stop and no target. The legs are
+  now pinned the way KuCoin's are: sorted by order id, told apart by price
+  against the entry (an exit that wins is a target), and taken out of the
+  plain order list so nothing draws twice. A trigger leg on a market with no
+  position stays listed.
+- **A leg is shown at its trigger price, not its limit.** The limit sits
+  three percent through the trigger so the order fills when it fires; drawn
+  raw it read as a stop three percent from where the stop is.
+- **Order rows arrive in ordinary units.** A $108.63 leg comes as
+  `price: "108.626"`, with Lighter's scaled whole number in a separate
+  `base_price` field. The reader used to divide `price` by the market's
+  decimals as if it were the scaled kind, which put every Lighter resting
+  order at a fraction of its real price, off the bottom of the chart.
+
+Each leg's send is also read back now, the same way an entry's is, because
+Lighter answers 200 and can still cancel in silence — see "The send proves
+nothing". A silently cancelled stop is a position running unprotected while
+the screen says otherwise, and it now comes back as a refusal instead.
+
 ## Grid stops
 
 A Lighter grid stop is a watched price inside Trade. Setting or moving one

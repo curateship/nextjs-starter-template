@@ -343,11 +343,16 @@ describe("moving a Lighter order", () => {
 })
 
 describe("reading Lighter's resting orders", () => {
-  it("turns Lighter's whole numbers back into a price and a size", async () => {
-    // **The bug this pins.** Lighter answers 785841 and 60, meaning
-    // $78,584.10 and 0.0006 BTC. Copied across unscaled they read as a price
-    // ten times over and a size a hundred thousand times over, on a screen
-    // about real money.
+  it("keeps the ordinary-unit price and size Lighter actually answers", async () => {
+    /**
+     * **The bug this pins.** A row's `price` and `remaining_base_amount`
+     * arrive in ordinary units — measured live on 1 Sep 2026, a $108.63 leg
+     * came as `price: "108.626"` with the scaled 108626 in a separate
+     * `base_price` field this reader never touches. These used to be divided
+     * by the market's decimals as if they were the scaled kind, which put
+     * every Lighter resting order at a fraction of its real price, off the
+     * bottom of the chart.
+     */
     privateRead.mockResolvedValue({
       code: 200,
       orders: [
@@ -355,10 +360,12 @@ describe("reading Lighter's resting orders", () => {
           order_index: 991,
           market_index: 1,
           is_ask: false,
-          price: "785841",
-          remaining_base_amount: "60",
+          price: "78584.1",
+          base_price: 785841,
+          remaining_base_amount: "0.0006",
+          base_size: 60,
           reduce_only: false,
-          trigger_price: "0",
+          trigger_price: "0.0",
         },
       ],
     })
@@ -376,6 +383,35 @@ describe("reading Lighter's resting orders", () => {
     expect(resting.marketId).toBe("BTC")
     expect(resting.side).toBe("buy")
     expect(resting.trigger).toBe(false)
+  }, 60_000)
+
+  it("lists a trigger leg at the price that sets it off", async () => {
+    // The leg's limit sits three percent through its trigger so it fills
+    // when it fires. Drawn at the limit it reads as a stop three percent
+    // from where the stop actually is.
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        {
+          order_index: 992,
+          market_index: 1,
+          is_ask: false,
+          price: "108.626",
+          remaining_base_amount: "4.949",
+          reduce_only: true,
+          trigger_price: "105.462",
+        },
+      ],
+    })
+    const portfolio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    // No position on the market, so the leg stays a listed order.
+    expect(portfolio.orders).toHaveLength(1)
+    expect(portfolio.orders[0].px).toBeCloseTo(105.462, 6)
+    expect(portfolio.orders[0].trigger).toBe(true)
   }, 60_000)
 
   it("leaves out a row whose market it cannot name", async () => {
@@ -549,6 +585,28 @@ describe("stops and targets on a Lighter position", () => {
     expect(targetsOnly.slOrderId).toBeNull()
   }, 60_000)
 
+  it("says so when Lighter cancels a leg in silence", async () => {
+    /**
+     * **The send proves nothing.** Lighter answers 200 and can still cancel
+     * the order without a word — the behaviour that killed a real watched
+     * LINK sell on 31 Aug 2026. A stop that quietly never stood is a
+     * position running unprotected, so each leg is read back like an entry.
+     */
+    confirmAnswers({
+      active: [],
+      inactive: [{ client_order_index: 42, status: "canceled" }],
+    })
+    await expect(
+      setLighterBrackets("mainnet", auth(), {
+        marketId: "BTC",
+        position: longPosition,
+        targets: [],
+        slPx: 70_000,
+        slSz: null,
+      })
+    ).rejects.toThrow(/^LIVE_ORDER_REFUSED:.*cancelled/)
+  }, 60_000)
+
   it("refuses to guard a position that is not there", async () => {
     await expect(
       setLighterBrackets("mainnet", auth(), {
@@ -625,6 +683,130 @@ describe("pinning protective orders to their position", () => {
       () => KEY
     )
     expect(folio.positions[0].protectionOrderIds).toEqual(["900"])
+  }, 60_000)
+
+  it("fills in the position's own stop and target from its legs", async () => {
+    /**
+     * **The disappearing bar.** Only the leg ids were pinned; the stop and
+     * target prices stayed null on every read, so the chart's draggable
+     * lines vanished on the first real answer after a placement — while
+     * both legs stood on the exchange as "pending" the whole time. Seen on
+     * a live short on 1 Sep 2026; these rows are that account's real ones.
+     */
+    facts.mockResolvedValue({ accountIndex: 5, apiKeyIndex: 2 })
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        // The stop: buys the short back above the entry.
+        {
+          order_index: 1125898789999244,
+          market_index: 1,
+          is_ask: false,
+          price: "108.626",
+          remaining_base_amount: "4.949",
+          reduce_only: true,
+          trigger_price: "105.462",
+        },
+        // The target below it, for part of the position.
+        {
+          order_index: 1125898789999219,
+          market_index: 1,
+          is_ask: false,
+          price: "92.581",
+          remaining_base_amount: "2.000",
+          reduce_only: true,
+          trigger_price: "89.884",
+        },
+      ],
+    })
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: -4.949,
+          entryPx: 101.025,
+          leverage: 10,
+          marginUsed: 50,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    const folio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    const held = folio.positions[0]
+    // At the trigger prices, which is where each leg actually fires.
+    expect(held.slPx).toBeCloseTo(105.462, 6)
+    expect(held.slOrderId).toBe("1125898789999244")
+    expect(held.tpPx).toBeCloseTo(89.884, 6)
+    expect(held.targets).toHaveLength(1)
+    // A sized target keeps its size; only a whole-position leg reads null.
+    expect(held.targets[0].sz).toBeCloseTo(2, 6)
+    expect(held.protectionOrderIds).toHaveLength(2)
+    // Pinned legs leave the plain list, or each would be drawn twice.
+    expect(folio.orders).toEqual([])
+  }, 60_000)
+
+  it("reads a whole-position leg as the kind that grows with it", async () => {
+    // A leg for everything held reports a null size, so a later replace
+    // sends the whole-position kind again instead of freezing today's size.
+    facts.mockResolvedValue({ accountIndex: 5, apiKeyIndex: 2 })
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        {
+          order_index: 700,
+          market_index: 1,
+          is_ask: true,
+          price: "87.191",
+          remaining_base_amount: "4.949",
+          reduce_only: true,
+          trigger_price: "89.884",
+        },
+      ],
+    })
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 4.949,
+          entryPx: 80,
+          leverage: 10,
+          marginUsed: 40,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    const folio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    // Above a long's entry, so it takes the profit.
+    expect(folio.positions[0].tpPx).toBeCloseTo(89.884, 6)
+    expect(folio.positions[0].tpSz).toBeNull()
+    expect(folio.positions[0].slPx).toBeNull()
   }, 60_000)
 
   it("keeps the position when the resting orders cannot be read", async () => {

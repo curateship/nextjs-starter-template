@@ -13,7 +13,6 @@ import {
   num,
   scaleLighterPrice,
   scaleLighterSize,
-  unscaleLighterNumber,
 } from "@/lib/protocols/lighter/translate"
 import { lighterPrivate, lighterSendTx } from "@/server/protocols/lighter/client"
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
@@ -636,17 +635,62 @@ export async function fetchLighterOrderPortfolio(
    * A reduce-only order waiting on a trigger is a stop or a target and
    * nothing else: an entry is never reduce-only, and a plain resting order
    * has no trigger.
+   *
+   * The legs also fill in the position's OWN stop and target, the way every
+   * other venue's read does. While only the ids were pinned, `slPx` and the
+   * targets stayed null forever, so the chart's draggable stop and target
+   * lines vanished on the first real read after a placement — with both legs
+   * standing on the exchange the whole time (seen live, 1 Sep 2026). Which
+   * side a leg is comes from its price against the entry, the same rule the
+   * chart uses: an exit that wins is a target, one that loses is a stop.
    */
-  const positions = portfolio.positions.map((position) => ({
-    ...position,
-    protectionOrderIds: orders
+  const pinned = new Set<string>()
+  const positions = portfolio.positions.map((position) => {
+    const legs = orders
       .filter(
         (one) =>
           one.marketId === position.marketId && one.reduceOnly && one.trigger
       )
-      .map((one) => one.orderId),
-  }))
-  return { positions, orders }
+      // By id, so a position carrying two stops names the same one on every
+      // read instead of flipping between them.
+      .sort((left, right) => Number(left.orderId) - Number(right.orderId))
+    const long = position.szi > 0
+    const winning = (leg: WalletOpenOrder) =>
+      long ? leg.px > position.entryPx : leg.px < position.entryPx
+    const stop = legs.find((leg) => !winning(leg)) ?? null
+    // A leg for everything held is the whole-position kind, and it is
+    // reported as such (null size) so a later replace keeps sending the kind
+    // that grows with the position instead of freezing it at today's size.
+    const wholeSz = (sz: number) =>
+      sz >= Math.abs(position.szi) * (1 - 1e-6) ? null : sz
+    const targets = legs
+      .filter(winning)
+      .map((leg) => ({ px: leg.px, sz: wholeSz(leg.sz), orderId: leg.orderId }))
+      .sort((left, right) => left.px - right.px)
+    for (const target of targets) pinned.add(target.orderId)
+    if (stop) pinned.add(stop.orderId)
+    return {
+      ...position,
+      targets,
+      tpPx: targets[0]?.px ?? null,
+      tpSz: targets[0]?.sz ?? null,
+      tpOrderId: targets[0]?.orderId ?? null,
+      slPx: stop?.px ?? null,
+      slOrderId: stop?.orderId ?? null,
+      // Every leg, not only the pinned ones, because `setBrackets` has to
+      // cancel all of them or a spare stop sells the position a second time.
+      protectionOrderIds: legs.map((leg) => leg.orderId),
+    }
+  })
+  /**
+   * A pinned leg leaves the plain order list — it is drawn from the position
+   * now, and listed twice it would draw twice. A trigger leg on a market with
+   * no position stays, so it is still seen rather than quietly held.
+   */
+  return {
+    positions,
+    orders: orders.filter((one) => !pinned.has(one.orderId)),
+  }
 }
 
 /**
@@ -714,28 +758,27 @@ async function toLighterOpenOrders(network: NetworkId, raw: readonly unknown[]) 
     const id = row.data.order_index ?? row.data.client_order_index
     if (id === undefined || row.data.market_index === undefined) continue
     /**
-     * **Lighter answers in its own whole numbers.** A price of 785841 is
-     * $78,584.10 and a size of 60 is 0.0006 BTC, so a row copied across
-     * unscaled would show a price ten times over and a size a hundred
-     * thousand times over, on a screen about real money.
+     * **`price` and `remaining_base_amount` arrive in ordinary units.**
+     * Measured on a live account on 1 Sep 2026, from both the REST list and
+     * the socket: a stop leg on a $101 coin came as `price: "108.626"` and
+     * `remaining_base_amount: "4.949"`, with Lighter's scaled whole numbers
+     * in separate `base_price`/`base_size` fields. These fields used to be
+     * unscaled as if they were the whole-number kind, which put every
+     * Lighter resting order at a thousandth of its real price — off the
+     * bottom of the chart, on a screen about real money.
      */
     const market = await lighterMarketByIndex(network, row.data.market_index)
-    if (
-      !market ||
-      market.facts.priceDecimals === null ||
-      market.facts.sizeDecimals === null
-    ) {
-      continue
-    }
-    const px = unscaleLighterNumber(
-      num(row.data.price) ?? 0,
-      market.facts.priceDecimals
-    )
-    const sz = unscaleLighterNumber(
-      num(row.data.remaining_base_amount) ?? 0,
-      market.facts.sizeDecimals
-    )
+    if (!market) continue
     const triggerPx = num(row.data.trigger_price)
+    const trigger = triggerPx !== null && triggerPx !== 0
+    /**
+     * A trigger leg is drawn and judged at the price that sets it off, not
+     * at the limit it fires at — the limit sits three percent through the
+     * trigger so the order actually fills, and shown raw it reads as a stop
+     * three percent from where the stop is.
+     */
+    const px = trigger ? triggerPx : num(row.data.price)
+    const sz = num(row.data.remaining_base_amount)
     if (px === null || sz === null) continue
     rows.push({
       orderId: String(id),
@@ -746,7 +789,7 @@ async function toLighterOpenOrders(network: NetworkId, raw: readonly unknown[]) 
       px,
       sz,
       reduceOnly: isTrue(row.data.reduce_only),
-      trigger: triggerPx !== null && triggerPx !== 0,
+      trigger,
     })
   }
   return rows
@@ -964,5 +1007,14 @@ async function placeTriggerOrder(
     nonce,
   })
   await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
+  /**
+   * The send proves nothing here either. Lighter answers 200 and can still
+   * cancel the order in silence — the same behaviour that killed a real
+   * watched LINK sell on 31 Aug 2026 — and a silently cancelled stop is a
+   * position running unprotected while the screen says otherwise. A pending
+   * trigger leg sits on the same active list an ordinary resting order does
+   * (measured 1 Sep 2026), so the same read-back covers it.
+   */
+  await confirmLighterOrder(network, where, clientOrderIndex)
   return String(clientOrderIndex)
 }
