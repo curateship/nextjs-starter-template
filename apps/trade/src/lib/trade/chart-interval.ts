@@ -8,4 +8,6 @@ import type { CandleInterval } from "@/lib/protocols/contracts"
  * 4h is what a fresh browser opens with: the frame the QFL work settled on.
  */
 export const CHART_INTERVAL_STORAGE_KEY = "trade-chart-interval"
+export const CHART_INTERVAL_FAVORITES_STORAGE_KEY =
+  "trade-chart-interval-favorites"
 export const DEFAULT_CHART_INTERVAL: CandleInterval = "4h"
