@@ -4,6 +4,7 @@ import type {
   HistogramData,
   IChartApi,
   ISeriesApi,
+  LineData,
   Logical,
   TickMarkType,
   Time,
@@ -14,7 +15,8 @@ import { loadChartEngine } from "@/components/trade/chart-engine"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import type { CandleBar } from "@/lib/protocols/contracts"
-import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { ChartOptions, ChartType } from "@/lib/trade/chart-options"
+import { heikinAshiBar, toHeikinAshi } from "@/lib/trade/heikin-ashi"
 import { zoneAxisLabel, zoneCrosshairLabel } from "@/lib/trade/chart-timezone"
 import { barOfTime, timeOfBar } from "@/lib/trade/chart-time"
 import { readChartColors, type ChartColors } from "@/lib/trade/chart-theme"
@@ -30,9 +32,9 @@ import {
 /**
  * The chart, and nothing but the chart.
  *
- * Candles in, candles drawn. It knows no feature: no drawings, no alerts, no
- * orders, no indicators. What it does offer is one small surface — where a
- * time and a price land on screen, and a slot to draw in — and that surface
+ * Candles in, the chosen price shape drawn. It knows no feature: no drawings,
+ * no alerts, no orders, no indicators. What it does offer is one small surface
+ * where a time and a price land on screen, and a slot to draw in. That surface
  * says nothing about what is being drawn. Paint tools consume it today; an
  * alert on a line will consume it later without this file hearing the word
  * "alert". Keeping it blind is what keeps the old app's 3,961-line chart from
@@ -101,6 +103,72 @@ type Viewport = {
   /** The prices at the top and bottom edge: the whole up-and-down mapping. */
   topPrice: number
   bottomPrice: number
+}
+
+type DisplaySeries =
+  | { type: "line"; series: ISeriesApi<"Line"> }
+  | {
+      type: "candles" | "heikin-ashi"
+      series: ISeriesApi<"Candlestick">
+    }
+
+function candleData(bar: CandleBar): CandlestickData {
+  return {
+    time: (bar.openTime / 1000) as UTCTimestamp,
+    open: bar.open,
+    high: bar.high,
+    low: bar.low,
+    close: bar.close,
+  }
+}
+
+function lineData(bar: CandleBar): LineData {
+  return {
+    time: (bar.openTime / 1000) as UTCTimestamp,
+    value: bar.close,
+  }
+}
+
+function setDisplayData(
+  display: DisplaySeries,
+  candles: readonly CandleBar[],
+  heikinAshi: readonly CandleBar[]
+) {
+  if (display.type === "line") {
+    display.series.setData(candles.map(lineData))
+    return
+  }
+  const bars = display.type === "heikin-ashi" ? heikinAshi : candles
+  display.series.setData(bars.map(candleData))
+}
+
+function updateDisplayData(
+  display: DisplaySeries,
+  candle: CandleBar,
+  heikinAshi: CandleBar
+) {
+  if (display.type === "line") {
+    display.series.update(lineData(candle))
+    return
+  }
+  display.series.update(
+    candleData(display.type === "heikin-ashi" ? heikinAshi : candle)
+  )
+}
+
+function applyDisplayColors(display: DisplaySeries, colors: ChartColors) {
+  if (display.type === "line") {
+    display.series.applyOptions({ color: colors.primary })
+    return
+  }
+  display.series.applyOptions({
+    upColor: colors.up,
+    downColor: colors.down,
+    borderUpColor: colors.up,
+    borderDownColor: colors.down,
+    wickUpColor: colors.up,
+    wickDownColor: colors.down,
+  })
 }
 
 function sameViewport(a: Viewport | null, b: Viewport | null): boolean {
@@ -193,7 +261,7 @@ export function PriceChart({
   overlay,
 }: {
   candles: CandleBar[]
-  /** Supporting chart parts that may be shown or hidden. */
+  /** The price shape and supporting chart parts. */
   options: ChartOptions
   /**
    * What these candles are: a market and a timeframe, as one string. The
@@ -244,11 +312,23 @@ export function PriceChart({
   >("loading")
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const chartRef = React.useRef<IChartApi | null>(null)
+  // This invisible copy of the real candles owns the price scale. A line drops
+  // the wicks and Heikin-Ashi smooths them, but neither is allowed to move a
+  // $100 order line away from the place where real candles put $100.
   const priceSeriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null)
+  const displaySeriesRef = React.useRef<DisplaySeries | null>(null)
+  const replaceDisplaySeriesRef = React.useRef<
+    ((type: ChartType) => void) | null
+  >(null)
   const volumeSeriesRef = React.useRef<ISeriesApi<"Histogram"> | null>(null)
   // The candles the chart should be showing, readable by the async setup that
   // may still be importing the library when they change.
   const candlesRef = React.useRef(candles)
+  // The real bars currently in the chart, including a streamed bar that has
+  // not reached the next server answer yet. Type changes redraw from this copy
+  // so the newest tick cannot disappear while the series is swapped.
+  const drawnBarsRef = React.useRef<CandleBar[]>([...candles])
+  const heikinAshiRef = React.useRef<CandleBar[]>([])
   const colorsRef = React.useRef<ChartColors | null>(null)
   const [colors, setColors] = React.useState<ChartColors | null>(null)
   // Every open-time on screen, in order — the candles plus any live bar that
@@ -305,6 +385,7 @@ export function PriceChart({
     // The clock. Applied in place like everything else here — a chart rebuilt
     // to change a label would throw away the zoom somebody set.
     chart.applyOptions(clockOptions(options.zone))
+    replaceDisplaySeriesRef.current?.(options.chartType)
   }, [options])
 
   React.useEffect(() => {
@@ -487,6 +568,7 @@ export function PriceChart({
           createChart,
           CandlestickSeries,
           HistogramSeries,
+          LineSeries,
           CrosshairMode,
         } = await loadChartEngine()
         if (disposed || !containerRef.current) return
@@ -525,13 +607,44 @@ export function PriceChart({
         chart.applyOptions(clockOptions(optionsRef.current.zone))
 
         const price = chart.addSeries(CandlestickSeries, {
-          upColor: colors.up,
-          downColor: colors.down,
-          borderUpColor: colors.up,
-          borderDownColor: colors.down,
-          wickUpColor: colors.up,
-          wickDownColor: colors.down,
+          upColor: "transparent",
+          downColor: "transparent",
+          borderUpColor: "transparent",
+          borderDownColor: "transparent",
+          wickUpColor: "transparent",
+          wickDownColor: "transparent",
+          lastValueVisible: false,
+          priceLineVisible: false,
         })
+
+        function addDisplaySeries(type: ChartType): DisplaySeries {
+          if (type === "line") {
+            return {
+              type,
+              series: chart.addSeries(LineSeries, {
+                color: colorsRef.current?.primary ?? colors.primary,
+                lineWidth: 2,
+                crosshairMarkerVisible: false,
+                autoscaleInfoProvider: () => null,
+              }),
+            }
+          }
+          const currentColors = colorsRef.current ?? colors
+          return {
+            type,
+            series: chart.addSeries(CandlestickSeries, {
+              upColor: currentColors.up,
+              downColor: currentColors.down,
+              borderUpColor: currentColors.up,
+              borderDownColor: currentColors.down,
+              wickUpColor: currentColors.up,
+              wickDownColor: currentColors.down,
+              autoscaleInfoProvider: () => null,
+            }),
+          }
+        }
+
+        const display = addDisplaySeries(optionsRef.current.chartType)
         // Volume lives in the bottom fifth of the same pane, on its own scale,
         // so a huge bar never squashes the candles.
         const volume = chart.addSeries(HistogramSeries, {
@@ -547,10 +660,35 @@ export function PriceChart({
 
         chartRef.current = chart
         priceSeriesRef.current = price
+        displaySeriesRef.current = display
         volumeSeriesRef.current = volume
         colorsRef.current = colors
+        price.setSeriesOrder(0)
+        display.series.setSeriesOrder(1)
+        volume.setSeriesOrder(2)
+        replaceDisplaySeriesRef.current = (type) => {
+          const previous = displaySeriesRef.current
+          if (!previous || previous.type === type) return
+          const visibleRange = chart.timeScale().getVisibleLogicalRange()
+          chart.removeSeries(previous.series)
+          const next = addDisplaySeries(type)
+          next.series.setSeriesOrder(1)
+          volume.setSeriesOrder(2)
+          setDisplayData(next, drawnBarsRef.current, heikinAshiRef.current)
+          displaySeriesRef.current = next
+          if (visibleRange)
+            chart.timeScale().setVisibleLogicalRange(visibleRange)
+          refreshSurface()
+        }
         setColors(colors)
-        applyCandles(price, volume, candlesRef.current, colors)
+        drawnBarsRef.current = [...candlesRef.current]
+        heikinAshiRef.current = applyCandles(
+          price,
+          display,
+          volume,
+          drawnBarsRef.current,
+          colors
+        )
         timesRef.current = candlesRef.current.map((bar) => bar.openTime)
         lastTimeRef.current = candlesRef.current.at(-1)?.openTime ?? 0
         frameChart()
@@ -595,15 +733,16 @@ export function PriceChart({
             rightPriceScale: { borderColor: next.border },
             timeScale: { borderColor: next.border },
           })
-          price.applyOptions({
-            upColor: next.up,
-            downColor: next.down,
-            borderUpColor: next.up,
-            borderDownColor: next.down,
-            wickUpColor: next.up,
-            wickDownColor: next.down,
-          })
-          applyCandles(price, volume, candlesRef.current, next)
+          const currentDisplay = displaySeriesRef.current
+          if (!currentDisplay) return
+          applyDisplayColors(currentDisplay, next)
+          heikinAshiRef.current = applyCandles(
+            price,
+            currentDisplay,
+            volume,
+            drawnBarsRef.current,
+            next
+          )
         })
         for (
           let ancestor: HTMLElement | null = containerRef.current;
@@ -627,6 +766,8 @@ export function PriceChart({
       chartRef.current?.remove()
       chartRef.current = null
       priceSeriesRef.current = null
+      displaySeriesRef.current = null
+      replaceDisplaySeriesRef.current = null
       volumeSeriesRef.current = null
     }
     // Built once per mount; data and theme changes are applied to the live
@@ -643,11 +784,19 @@ export function PriceChart({
     fittedViewRef.current = viewKey
 
     const price = priceSeriesRef.current
+    const display = displaySeriesRef.current
     const volume = volumeSeriesRef.current
-    if (!price || !volume || !containerRef.current) return
+    if (!price || !display || !volume || !containerRef.current) return
     const colors = readChartColors(containerRef.current)
     colorsRef.current = colors
-    applyCandles(price, volume, candles, colors)
+    drawnBarsRef.current = [...candles]
+    heikinAshiRef.current = applyCandles(
+      price,
+      display,
+      volume,
+      drawnBarsRef.current,
+      colors
+    )
     timesRef.current = candles.map((bar) => bar.openTime)
     lastTimeRef.current = candles.at(-1)?.openTime ?? 0
     // These candles replace whatever the feed had added on top of the last
@@ -665,25 +814,31 @@ export function PriceChart({
     if (!liveBars) return
     return liveBars((liveBar) => {
       const price = priceSeriesRef.current
+      const display = displaySeriesRef.current
       const volume = volumeSeriesRef.current
       const colors = colorsRef.current
-      if (!price || !volume || !colors) return
+      if (!price || !display || !volume || !colors) return
       if (liveBar.openTime < lastTimeRef.current) return
-      if (liveBar.openTime > lastTimeRef.current) {
+      const append =
+        timesRef.current.length === 0 || liveBar.openTime > lastTimeRef.current
+      if (append) {
         timesRef.current = [...timesRef.current, liveBar.openTime]
       }
+      const index = timesRef.current.length - 1
       lastTimeRef.current = liveBar.openTime
-      liveBarRef.current = { bar: liveBar, index: timesRef.current.length - 1 }
-      const time = (liveBar.openTime / 1000) as UTCTimestamp
-      price.update({
-        time,
-        open: liveBar.open,
-        high: liveBar.high,
-        low: liveBar.low,
-        close: liveBar.close,
-      })
+      liveBarRef.current = { bar: liveBar, index }
+      drawnBarsRef.current[index] = liveBar
+      drawnBarsRef.current.length = index + 1
+      const heikinAshi = heikinAshiBar(
+        liveBar,
+        heikinAshiRef.current[index - 1] ?? null
+      )
+      heikinAshiRef.current[index] = heikinAshi
+      heikinAshiRef.current.length = index + 1
+      price.update(candleData(liveBar))
+      updateDisplayData(display, liveBar, heikinAshi)
       volume.update({
-        time,
+        time: (liveBar.openTime / 1000) as UTCTimestamp,
         value: liveBar.volume,
         color: liveBar.close >= liveBar.open ? colors.upSoft : colors.downSoft,
       })
@@ -779,19 +934,14 @@ function clockOptions(zone: string) {
 
 function applyCandles(
   price: ISeriesApi<"Candlestick">,
+  display: DisplaySeries,
   volume: ISeriesApi<"Histogram">,
   candles: CandleBar[],
   colors: ChartColors
-) {
-  price.setData(
-    candles.map((bar): CandlestickData => ({
-      time: (bar.openTime / 1000) as UTCTimestamp,
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close,
-    }))
-  )
+): CandleBar[] {
+  const heikinAshi = toHeikinAshi(candles)
+  price.setData(candles.map(candleData))
+  setDisplayData(display, candles, heikinAshi)
   volume.setData(
     candles.map((bar): HistogramData => ({
       time: (bar.openTime / 1000) as UTCTimestamp,
@@ -799,4 +949,5 @@ function applyCandles(
       color: bar.close >= bar.open ? colors.upSoft : colors.downSoft,
     }))
   )
+  return heikinAshi
 }

@@ -61,8 +61,16 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the current sort returns the list to daily volume. Picking a market adds it
   to browser history, so Back returns to the market that was on screen before
   the pick. Below,
-  the real candle chart fills everything, volume tucked into its bottom
-  fifth. Candle green and red are the same colours as the list's pills, read
+  the price chart fills everything, with volume tucked into its bottom fifth.
+  Candles are the default. View options can instead draw a line through each
+  real closing price or Heikin-Ashi candles, which smooth each body using the
+  candle before it. The choice belongs to the account and follows it to every
+  market, timeframe, visit and machine. Changing the type leaves the chart's
+  zoom and position alone. Every type uses the real candles for its price
+  scale, so a stop, target, drawing or indicator at $100 stays at $100 when the
+  visible shape changes. Heikin-Ashi uses the candles already loaded and never
+  asks the exchange for different data.
+  Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Grid levels, ladder rungs and order
   lines read those same theme colours. Neutral waiting orders use the muted
   foreground so their labels and controls remain readable in either theme;
@@ -87,7 +95,8 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   slid back until it touches the data. **Double-clicking the dates along the
   bottom** puts a chart back to its whole history, which is also how the
   remembered view is reset.
-  **The chart is feature-blind by rule:** candles in, candles drawn. Paint
+  **The chart is feature-blind by rule:** candles in, the chosen price shape
+  drawn. Paint
   tools, alerts, indicators and orders arrive as their own modules against a
   small surface the chart offers — the chart never learns what a line means,
   and has never heard the word "indicator".

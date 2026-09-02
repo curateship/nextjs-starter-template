@@ -11,8 +11,8 @@ import type { ChartOptions, ChartOptionToggle } from "@/lib/trade/chart-options"
 const SETTLE_MS = 500
 
 /**
- * How the chart is read — its visible parts and its clock — changed
- * immediately and remembered per account.
+ * How the chart is read, including its price shape, visible parts and clock,
+ * changed immediately and remembered per account.
  */
 export function useChartOptions(initial: ChartOptions) {
   const [options, setOptions] = React.useState(initial)

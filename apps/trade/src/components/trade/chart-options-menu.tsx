@@ -27,6 +27,7 @@ import {
   DEFAULT_CHART_OPTIONS,
   type ChartOptions,
   type ChartOptionToggle,
+  readChartType,
 } from "@/lib/trade/chart-options"
 import { TRADING_ZONES, readTradingZone } from "@/lib/trade/chart-timezone"
 
@@ -136,6 +137,27 @@ export function ChartOptionsMenu({
       </Tooltip>
       <PopoverContent align="end" className="w-72 gap-0 p-2">
         <SectionLabel>Chart</SectionLabel>
+        <div className="grid gap-2 px-2 pb-2">
+          <FieldLabel htmlFor="chart-option-type">Chart type</FieldLabel>
+          <Select
+            value={control.options.chartType}
+            onValueChange={(chartType) =>
+              control.replace({
+                ...control.options,
+                chartType: readChartType(chartType),
+              })
+            }
+          >
+            <SelectTrigger id="chart-option-type" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="candles">Candles</SelectItem>
+              <SelectItem value="line">Line</SelectItem>
+              <SelectItem value="heikin-ashi">Heikin-Ashi</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <ToggleRows
           options={CHART_OPTIONS}
           values={control.options}

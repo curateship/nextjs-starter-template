@@ -13,6 +13,7 @@ describe("chart view options", () => {
   it("reads a complete saved choice", () => {
     expect(
       readChartOptions({
+        chartType: "heikin-ashi",
         grid: false,
         volume: true,
         crosshair: false,
@@ -22,6 +23,7 @@ describe("chart view options", () => {
         zone: "Europe/London",
       })
     ).toEqual({
+      chartType: "heikin-ashi",
       grid: false,
       volume: true,
       crosshair: false,
@@ -38,6 +40,7 @@ describe("chart view options", () => {
     expect(
       readChartOptions({ grid: false, volume: true, crosshair: false })
     ).toEqual({
+      chartType: "candles",
       grid: false,
       volume: true,
       crosshair: false,
@@ -60,5 +63,8 @@ describe("chart view options", () => {
 
   it("does not partly apply an invalid saved choice", () => {
     expect(readChartOptions({ grid: false })).toEqual(DEFAULT_CHART_OPTIONS)
+    expect(
+      readChartOptions({ ...DEFAULT_CHART_OPTIONS, chartType: "mountain" })
+    ).toEqual(DEFAULT_CHART_OPTIONS)
   })
 })

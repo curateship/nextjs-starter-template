@@ -36,7 +36,9 @@ many are switched on.
   small dropdown like the Indicators menu, and every change lands as it is
   made. Chart, Your activity and Timezone are its three sections. The five
   checkboxes show or hide the chart grid, volume bars, crosshair, order arrows
-  and your drawings.
+  and your drawings. The Chart section also chooses candles, a line through
+  the real closing prices, or Heikin-Ashi candles. Candles are the default.
+  The choice follows the account just like the five visibility choices.
   All five start on, and each choice follows the account onto the next market,
   visit and machine. When order arrows are on, **Previous trades** accepts any
   positive whole number for how many finished trades to keep, and an empty
@@ -58,6 +60,10 @@ many are switched on.
 - **Levels are worked out from closed candles only.** The bar the feed is still
   filling in cannot confirm a level anyway, and redoing every level on every
   tick would be work for an answer that cannot have changed.
+- **Chart types never change an indicator's numbers or placement.** Every
+  indicator still reads the real candles, and the chart still places its
+  dollar values on the real-candle price scale. Heikin-Ashi changes only the
+  candles a person sees behind the indicator.
 
 **Base** is the first one, ported from the old Trading app with the same six
 settings. It marks the floors price keeps bouncing off (a teal dash and a green
@@ -70,4 +76,3 @@ Two of its settings only thin out the arrows and never the dashes, which is the
 answer to "why does that level have a dash but no arrow": **Only mark levels
 going the right way** (a base has to be above the base before it) and **Fewest
 candles between arrows**.
-
