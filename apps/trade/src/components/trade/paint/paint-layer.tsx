@@ -654,7 +654,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                   />
                 ))
               : null}
-            {/* The picked-out line's own way out, for a mouse. The rail's bin
+            {/* The picked-out line's own way out, for a mouse. The toolbar's bin
                 clears the whole chart, and Delete only reaches a line the
                 keyboard is on, so without this there is no way to throw away
                 one line with the pointer. It hides while a tool is in hand,

@@ -21,19 +21,21 @@ import {
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { TableSortButton } from "@/components/ui/table"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   marketSymbol,
   type MarketCatalog,
   type MarketRow,
 } from "@/lib/protocols/contracts"
 import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
@@ -71,6 +73,14 @@ function clearHighlight(): void {
   if (typeof window === "undefined") return
   const selection = window.getSelection()
   if (selection && !selection.isCollapsed) selection.removeAllRanges()
+}
+
+type PositionGlanceColumn = "market" | "value" | "profit"
+
+function positionGlanceDefaultDirection(
+  column: PositionGlanceColumn
+): "asc" | "desc" {
+  return column === "market" ? "asc" : "desc"
 }
 
 /**
@@ -376,7 +386,11 @@ export function ActivityPanel({
           </>
         }
       >
-        <PositionsGlance positions={visible} markets={markets}>
+        <PositionsGlance
+          positions={visible}
+          markets={markets}
+          onSelectMarket={onSelectMarket}
+        >
           <DashboardCardTab
             value="positions"
             icon={<LayersIcon className="size-4" />}
@@ -576,62 +590,164 @@ export function ActivityPanel({
  * stake is worth at today's price, and what it is up or down.
  *
  * Prices come from the same live feed the table uses, so the two never
- * disagree. With nothing held there is nothing to say and no tooltip opens.
+ * disagree. Each row chooses its market, so the glance is a popover rather
+ * than a tooltip. With nothing held there is nothing to say and nothing opens.
  */
 function PositionsGlance({
   positions,
   markets,
+  onSelectMarket,
   children,
 }: {
   positions: TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
+  onSelectMarket: (marketKey: string) => void
   children: React.ReactNode
 }) {
   const marks = useLiveMarks(positions.map((one) => one.marketKey))
+  const { sort, direction, toggleSort } = useTableSort<PositionGlanceColumn>(
+    "profit",
+    "desc",
+    positionGlanceDefaultDirection
+  )
+  const rows = positions
+    .map((position) => {
+      const mark =
+        marks.get(position.marketKey) ??
+        markets.get(position.marketKey)?.price ??
+        position.entryPx
+      const profit = positionProfit(position, mark)
+      const value = positionValue(position, mark)
+      return {
+        position,
+        symbol: marketSymbol(position.marketKey),
+        value,
+        valueLabel: formatUsd(value),
+        profit,
+        profitLabel: formatSignedUsd(profit),
+      }
+    })
+    .sort((a, b) => {
+      const compared =
+        sort === "market"
+          ? a.symbol.localeCompare(b.symbol)
+          : sort === "value"
+            ? a.value - b.value
+            : a.profit - b.profit
+      return direction === "asc" ? compared : -compared
+    })
+  const positionIds = positions.map((position) => position.id).join("\u0000")
+  const [openFor, setOpenFor] = React.useState<string | null>(null)
+  const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const open = positions.length > 0 && openFor === positionIds
+
+  const clearHover = React.useCallback(() => {
+    if (hoverTimer.current !== null) clearTimeout(hoverTimer.current)
+    hoverTimer.current = null
+  }, [])
+  const openSoon = React.useCallback(
+    (event: React.PointerEvent) => {
+      if (event.pointerType !== "mouse") return
+      clearHover()
+      hoverTimer.current = setTimeout(() => setOpenFor(positionIds), 120)
+    },
+    [clearHover, positionIds]
+  )
+  const closeSoon = React.useCallback(
+    (event: React.PointerEvent) => {
+      if (event.pointerType !== "mouse") return
+      clearHover()
+      hoverTimer.current = setTimeout(() => setOpenFor(null), 220)
+    },
+    [clearHover]
+  )
+  React.useEffect(() => clearHover, [clearHover])
+
   if (positions.length === 0) return <>{children}</>
 
   return (
-    <Tooltip>
-      {/* A wrapper, NOT `asChild`. The tooltip's trigger writes its own
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        clearHover()
+        setOpenFor(next ? positionIds : null)
+      }}
+    >
+      {/* A wrapper, NOT `asChild`. The popover's trigger writes its own
           `data-state` (open/closed) onto whatever element it becomes — and
           handed the tab itself, that overwrote the tab's own
           `data-state="active"`, so the pill behind the selected tab
           stopped being drawn. Wrapping keeps the two states on two elements. */}
-      <TooltipTrigger asChild>
-        <span className="flex h-full items-center">{children}</span>
-      </TooltipTrigger>
-      <TooltipContent align="start" className="max-w-none p-0">
-        <div className="flex flex-col gap-1 p-2">
-          {positions.map((position) => {
-            const mark =
-              marks.get(position.marketKey) ??
-              markets.get(position.marketKey)?.price ??
-              position.entryPx
-            const profit = positionProfit(position, mark)
+      <PopoverTrigger asChild>
+        <span
+          data-positions-glance-trigger
+          className="flex h-full items-center"
+          onPointerEnter={openSoon}
+          onPointerLeave={closeSoon}
+        >
+          {children}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-80 gap-0 p-0"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onPointerEnter={clearHover}
+        onPointerLeave={closeSoon}
+      >
+        <div className="grid grid-cols-[minmax(0,1fr)_6rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
+          <TableSortButton
+            active={sort === "market"}
+            direction={direction}
+            className="gap-1 text-[11px] sm:text-[11px]"
+            onClick={() => toggleSort("market")}
+          >
+            Ticker
+          </TableSortButton>
+          <TableSortButton
+            active={sort === "value"}
+            direction={direction}
+            className="justify-end gap-1 text-[11px] sm:text-[11px]"
+            onClick={() => toggleSort("value")}
+          >
+            Value
+          </TableSortButton>
+          <TableSortButton
+            active={sort === "profit"}
+            direction={direction}
+            className="justify-end gap-1 text-[11px] sm:text-[11px]"
+            onClick={() => toggleSort("profit")}
+          >
+            Current P&amp;L
+          </TableSortButton>
+        </div>
+        <ScrollArea className="max-h-72" viewportClassName="max-h-72">
+          {rows.map(({ position, symbol, valueLabel, profit, profitLabel }) => {
             return (
-              <div
+              <button
                 key={position.id}
-                className="flex items-center gap-3 text-xs tabular-nums"
+                type="button"
+                aria-label={`Open ${symbol} market, ${valueLabel} value, ${profitLabel} current profit and loss`}
+                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_6rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={() => {
+                  clearHover()
+                  setOpenFor(null)
+                  onSelectMarket(position.marketKey)
+                }}
               >
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {marketSymbol(position.marketKey)}
-                </span>
-                <span className="shrink-0">
-                  {formatUsd(positionValue(position, mark))}
-                </span>
+                <span className="min-w-0 truncate font-medium">{symbol}</span>
+                <span className="text-right">{valueLabel}</span>
                 <span
-                  className={cn(
-                    "w-20 shrink-0 text-right font-medium",
-                    moneyTone(profit)
-                  )}
+                  className={cn("text-right font-medium", moneyTone(profit))}
                 >
-                  {formatSignedUsd(profit)}
+                  {profitLabel}
                 </span>
-              </div>
+              </button>
             )
           })}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }

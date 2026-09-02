@@ -211,6 +211,14 @@ coins a ladder or grid is running as well, so its Positions row can read 5 while
 the tab reads 4, and the list names how many of the five are in the panel on the
 right rather than in this tab.
 
+Hovering over the Positions tab opens a small popover with the ticker, current
+value and current profit or loss for every position in this list. The figures
+use the same live prices as the table. Each row is a button that changes the
+chart to that market and closes the popover. No popover opens when this list has
+no positions. Ticker, Value and Current P&L are sort buttons. Ticker starts
+alphabetically, while the two money columns start with the largest figure;
+pressing the same heading again reverses its order.
+
 ### Close all, and the list it opens
 
 **Close all** is the bottom panel's emergency button. It sits in the tab row,

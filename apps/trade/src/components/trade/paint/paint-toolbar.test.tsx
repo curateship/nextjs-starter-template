@@ -93,7 +93,7 @@ async function draw({
   )
   const toolbarRect = vi
     .spyOn(toolbar, "getBoundingClientRect")
-    .mockReturnValue(rectangle(204, 8, 32, 80))
+    .mockReturnValue(rectangle(156, 8, 80, 28))
   if (savedPosition !== undefined) {
     await act(async () => root.render(render({ ...savedPosition! })))
   }
@@ -101,15 +101,18 @@ async function draw({
 }
 
 describe("the chart drawing toolbar", () => {
-  it("starts on the right with its move handle at the bottom", async () => {
+  it("starts horizontally with its move handle on the right", async () => {
     const { toolbar, handle } = await draw()
 
     expect(toolbar.dataset.position).toBe("top-right")
     expect(toolbar.style.right).toBe("64px")
+    expect(toolbar.className).toContain("flex-row")
+    expect(toolbar.className).not.toContain("flex-col")
     expect(toolbar.className).not.toContain("shadow")
     expect(toolbar.className).toContain("bg-card/45")
     expect(toolbar.className).toContain("backdrop-blur-md")
     expect(toolbar.className).toContain("backdrop-saturate-150")
+    expect(handle.querySelector(".lucide-grip-vertical")).not.toBeNull()
     expect(handle.closest("[data-chart-paint]")).toBe(toolbar)
     expect(handle).toBe(toolbar.lastElementChild)
   })
@@ -119,22 +122,22 @@ describe("the chart drawing toolbar", () => {
     const { toolbar, handle, toolbarRect } = await draw({ onPositionChange })
 
     await act(async () => {
-      handle.dispatchEvent(pointer("pointerdown", 220, 70))
+      handle.dispatchEvent(pointer("pointerdown", 220, 22))
       handle.dispatchEvent(pointer("pointermove", 100, 100))
       handle.dispatchEvent(pointer("pointerup", 100, 100))
     })
     expect(toolbar.dataset.position).toBe("free")
-    expect(toolbar.style.left).toBe("84px")
-    expect(toolbar.style.top).toBe("38px")
+    expect(toolbar.style.left).toBe("36px")
+    expect(toolbar.style.top).toBe("86px")
     expect(onPositionChange).toHaveBeenLastCalledWith({
-      x: 76 / 196,
-      y: 30 / 104,
+      x: 28 / 148,
+      y: 78 / 156,
     })
 
-    toolbarRect.mockReturnValue(rectangle(84, 38, 32, 80))
+    toolbarRect.mockReturnValue(rectangle(36, 86, 80, 28))
     await act(async () => {
       handle.dispatchEvent(pointer("pointerdown", 100, 100))
-      handle.dispatchEvent(pointer("pointermove", 220, 70))
+      handle.dispatchEvent(pointer("pointermove", 220, 22))
     })
     const snapTarget = host.querySelector<HTMLElement>(
       "[data-chart-paint-snap-target]"
@@ -142,10 +145,12 @@ describe("the chart drawing toolbar", () => {
     expect(snapTarget?.dataset.ready).toBe("true")
     expect(snapTarget?.style.top).toBe("8px")
     expect(snapTarget?.style.right).toBe("64px")
+    expect(snapTarget?.style.width).toBe("80px")
+    expect(snapTarget?.style.height).toBe("28px")
     expect(toolbar.className).toContain("ring-2")
 
     await act(async () => {
-      handle.dispatchEvent(pointer("pointerup", 220, 70))
+      handle.dispatchEvent(pointer("pointerup", 220, 22))
     })
     expect(toolbar.dataset.position).toBe("top-right")
     expect(toolbar.style.left).toBe("")
@@ -168,7 +173,7 @@ describe("the chart drawing toolbar", () => {
     const { toolbar, handle } = await draw({ onPositionChange })
 
     await act(async () => {
-      handle.dispatchEvent(pointer("pointerdown", 220, 70))
+      handle.dispatchEvent(pointer("pointerdown", 220, 22))
       handle.dispatchEvent(pointer("pointermove", 100, 100))
     })
     expect(toolbar.dataset.position).toBe("free")
@@ -190,9 +195,9 @@ describe("the chart drawing toolbar", () => {
       )
     })
     expect(toolbar.dataset.position).toBe("free")
-    expect(toolbar.style.left).toBe("196px")
+    expect(toolbar.style.left).toBe("148px")
     expect(onPositionChange).toHaveBeenLastCalledWith({
-      x: 188 / 196,
+      x: 140 / 148,
       y: 0,
     })
 

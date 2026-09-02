@@ -13,18 +13,18 @@ is 44 pixels tall on a touch screen. Dragging that area moves the line and does
 not pan the chart. Placing still takes one press on the order window's Place
 button. Touch adds no second confirmation.
 
-A small rail of tools starts at the top-right corner of the candles, just before
-the chart's price labels, rather than in the header row: the header says which
-market and which timeframe, and the rail says what the pointer is holding. The
-translucent background leaves the candles visible underneath with a moderate
-blur and stronger colour. The border separates the rail without a shadow. Its
-bottom grip moves the rail anywhere inside the candles. A dashed copy marks its
-home while it moves. The copy and the rail brighten inside the snap range, then
-the rail lands eight pixels from both the top and the price-label edge. Arrow
-keys move the focused grip eight pixels at a time, and Home returns it to that
-corner. The account layout remembers the rail's relative place across live,
-backtest and flow-run charts, even when the chart panel changes size. A selected
-named workspace layout remembers the same place.
+A small horizontal toolbar starts at the top-right corner of the candles, just
+before the chart's price labels, rather than in the header row: the header says
+which market and which timeframe, and the toolbar says what the pointer is
+holding. The translucent background leaves the candles visible underneath with
+a moderate blur and stronger colour. The border separates the toolbar without a
+shadow. Its right-hand grip moves the toolbar anywhere inside the candles. A
+dashed copy marks its home while it moves. The copy and the toolbar brighten
+inside the snap range, then the toolbar lands eight pixels from both the top and
+the price-label edge. Arrow keys move the focused grip eight pixels at a time,
+and Home returns it to that corner. The account layout remembers the toolbar's
+relative place across live, backtest and flow-run charts, even when the chart
+panel changes size. A selected named workspace layout remembers the same place.
 
 - **Two tools: a level and a trendline.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into
@@ -60,7 +60,7 @@ named workspace layout remembers the same place.
   middle while it is picked out, or Delete on the keyboard — and it comes back
   with **Undo** in the toast that follows. A marked base is work, and a slip of
   the mouse must not quietly erase it.
-- **The bin in the rail clears the whole chart**, and asks first. It only
+- **The bin in the toolbar clears the whole chart**, and asks first. It only
   appears once there is something to clear, it names how many go, and it takes
   this market's lines only — the others keep theirs. There is no Undo on that
   one; the question is asked before it runs instead.
