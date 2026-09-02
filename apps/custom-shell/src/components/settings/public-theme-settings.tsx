@@ -4,9 +4,11 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -15,7 +17,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  DEFAULT_PUBLIC_MAIN_SPACING,
+  MAX_PUBLIC_MAIN_SPACING,
+  MAX_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_RADIUS,
+  MIN_PUBLIC_PAGE_WIDTH,
   PUBLIC_BRAND_COLOR_PATTERN,
   PUBLIC_THEME_FONTS,
   PUBLIC_THEME_FONT_LABELS,
@@ -43,6 +49,7 @@ export function PublicThemeSettings({
   const update = (patch: Partial<PublicTheme>) =>
     onThemeChange({ ...theme, ...patch })
   const brandColorInvalid = !isPublicBrandColor(theme.brandColor)
+  const canvasColorInvalid = !isPublicBrandColor(theme.canvasColor)
   const colors = brandColorInvalid
     ? null
     : derivePublicBrandColors(theme.brandColor, theme.brandOverrides)
@@ -184,6 +191,114 @@ export function PublicThemeSettings({
             />
           </div>
         ) : null}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-look-page-frame"
+        title="Page frame"
+        description="Set the shared width, canvas, borders, and spacing around every public page."
+        contentClassName="space-y-6"
+      >
+        <SettingsSliderRow
+          label="Page width"
+          value={theme.pageWidth}
+          min={MIN_PUBLIC_PAGE_WIDTH}
+          max={MAX_PUBLIC_PAGE_WIDTH}
+          step={16}
+          valueLabel={`${theme.pageWidth}px`}
+          onChange={(pageWidth) => update({ pageWidth })}
+          help="The widest the public header, page content, and footer can become."
+        />
+
+        <SettingsSliderRow
+          label="Main spacing"
+          value={theme.mainSpacing}
+          min={0}
+          max={MAX_PUBLIC_MAIN_SPACING}
+          step={4}
+          valueLabel={
+            theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
+              ? `${theme.mainSpacing}px · Default`
+              : `${theme.mainSpacing}px`
+          }
+          onChange={(mainSpacing) => update({ mainSpacing })}
+          help="The space above and below the main content on every public page."
+        />
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-theme-canvas-colour"
+            hint="Enter a 6-digit hex colour. Clear it to use the standard muted canvas."
+          >
+            Canvas colour
+          </FieldLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            <ColorSwatch
+              aria-label="Pick canvas colour"
+              value={
+                canvasColorInvalid || !theme.canvasColor
+                  ? "#000000"
+                  : theme.canvasColor
+              }
+              onChange={(event) =>
+                update({ canvasColor: event.target.value })
+              }
+            />
+            <Input
+              id="public-theme-canvas-colour"
+              value={theme.canvasColor}
+              placeholder="Theme default"
+              className="w-full sm:w-40"
+              aria-invalid={canvasColorInvalid || undefined}
+              onBlur={() => {
+                if (canvasColorInvalid) {
+                  showErrorToast(
+                    "Enter a 6-digit canvas colour, like #f3f4f6."
+                  )
+                }
+              }}
+              onChange={(event) =>
+                update({ canvasColor: event.target.value })
+              }
+            />
+            {theme.canvasColor ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => update({ canvasColor: "" })}
+              >
+                Use default
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="public-theme-header-border"
+              checked={theme.headerBorder}
+              onCheckedChange={(checked) =>
+                update({ headerBorder: checked === true })
+              }
+            />
+            <Label htmlFor="public-theme-header-border" className="font-normal">
+              Show the line below the public header
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="public-theme-footer-border"
+              checked={theme.footerBorder}
+              onCheckedChange={(checked) =>
+                update({ footerBorder: checked === true })
+              }
+            />
+            <Label htmlFor="public-theme-footer-border" className="font-normal">
+              Show the line above the public footer
+            </Label>
+          </div>
+        </div>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

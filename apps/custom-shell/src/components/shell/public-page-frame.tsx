@@ -20,6 +20,7 @@ import {
   usePublicFooter,
   usePublicFooterCopyright,
   usePublicNavigation,
+  usePublicTheme,
 } from "@/lib/branding"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
 import {
@@ -30,13 +31,16 @@ import {
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
+import { pageForPath } from "@/lib/pages/page-registry"
+import {
+  DEFAULT_PUBLIC_MAIN_SPACING,
+  DEFAULT_PUBLIC_PAGE_WIDTH,
+} from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
 
 /**
- * The shared frame for every signed-out / public page (auth, pricing): a
- * full-height muted canvas that centers its single child both horizontally and
- * vertically, so public pages are framed identically instead of each
- * hand-rolling its own <main> wrapper.
+ * The shared frame for every signed-out page. Marketing declarations use the
+ * full page width from the top; card pages keep their content centred.
  *
  * It also carries the branding above the content — the admin-set logo, when
  * there is one, and the app name — which is the one place a signed-out visitor
@@ -55,6 +59,7 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const theme = usePublicTheme()
   const pathname = useLocation({ select: (location) => location.pathname })
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
     VisitorAnnouncement[]
@@ -86,24 +91,51 @@ export function PublicPageFrame({
   const hasSiteFrame = Boolean(
     navigation.length || footer.length || footerCopyright
   )
+  const marketing = pageForPath(pathname)?.layout === "marketing"
+  const pageWidthStyle =
+    theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
+      ? undefined
+      : { maxWidth: theme.pageWidth }
+  const mainSpacingStyle =
+    theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
+      ? undefined
+      : { paddingBlock: theme.mainSpacing }
+  const canvasStyle = theme.canvasColor
+    ? { backgroundColor: theme.canvasColor }
+    : undefined
+  const bareFrameStyle =
+    canvasStyle || mainSpacingStyle
+      ? { ...canvasStyle, ...mainSpacingStyle }
+      : undefined
+  const mainLayoutClass = marketing
+    ? "items-start justify-items-center"
+    : "place-items-center"
+  const contentAlignmentClass = marketing ? "items-stretch" : "items-center"
 
   function dismissVisitorAnnouncement(announcement: VisitorAnnouncement) {
     rememberVisitorAnnouncementDismissal(localStorage, announcement)
     setDismissedVisitorIds((current) => new Set(current).add(announcement.id))
   }
 
-  // Empty settings preserve the original markup and classes exactly. Existing
-  // apps therefore keep their centred, bare public frame until an admin adds
-  // something to it.
+  // No navigation or footer means no empty chrome. The canvas, spacing, width,
+  // and declared layout still apply to the bare frame.
   if (!hasSiteFrame && !visibleVisitorAnnouncements.length) {
     return (
       <main
         className={cn(
-          "grid min-h-screen place-items-center bg-muted/60 px-4 py-10",
+          "grid min-h-screen bg-muted/60 px-4 py-10",
+          mainLayoutClass,
           className
         )}
+        style={bareFrameStyle}
       >
-        <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+        <div
+          className={cn(
+            "flex w-full max-w-6xl flex-col gap-2 md:gap-3",
+            contentAlignmentClass
+          )}
+          style={pageWidthStyle}
+        >
           <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
           <p className="text-sm font-medium text-foreground">{appName}</p>
           {children}
@@ -113,7 +145,10 @@ export function PublicPageFrame({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/60">
+    <div
+      className="flex min-h-screen flex-col bg-muted/60"
+      style={canvasStyle}
+    >
       {visibleVisitorAnnouncements.length ? (
         <div className="grid gap-2 px-2 py-2 md:gap-3 md:px-3 md:py-3">
           {visibleVisitorAnnouncements.map((announcement) => (
@@ -126,81 +161,96 @@ export function PublicPageFrame({
         </div>
       ) : null}
       {hasSiteFrame ? (
-        <header className="border-b bg-background">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
-          <Link
-            to="/"
-            className={cn(
-              "flex min-w-0 items-center gap-2 rounded-md",
-              focusRing
-            )}
+        <header
+          className={
+            theme.headerBorder ? "border-b bg-background" : "bg-background"
+          }
+        >
+          <div
+            className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4"
+            style={pageWidthStyle}
           >
-            <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
-            <span className="truncate text-sm font-medium text-foreground">
-              {appName}
-            </span>
-          </Link>
-          {pathname === "/search" ? null : (
-            <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
-              <DashboardToolbarSearch
-                className="min-w-0 flex-1 sm:flex-1"
-                inputClassName="sm:w-full lg:w-full"
-                name="q"
-                type="search"
-                aria-label="Search this site"
-                placeholder="Search this site"
-                maxLength={120}
-                value={siteSearch}
-                onChange={(event) => setSiteSearch(event.target.value)}
-              />
-            </SiteSearchForm>
-          )}
-          {navigation.length ? (
-            <>
-              <nav aria-label="Main navigation" className="hidden md:block">
-                <ul className="flex items-center gap-1">
-                  {navigation.map((link, index) => (
-                    <li key={`${link.label}-${link.href}-${index}`}>
-                      <PublicLink link={link} className="px-2.5 py-1.5" />
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="md:hidden"
-                    aria-label="Open navigation menu"
-                  >
-                    <MenuIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-48">
-                  {navigation.map((link, index) => (
-                    <DropdownMenuItem
-                      key={`${link.label}-${link.href}-${index}`}
-                      asChild
+            <Link
+              to="/"
+              className={cn(
+                "flex min-w-0 items-center gap-2 rounded-md",
+                focusRing
+              )}
+            >
+              <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
+              <span className="truncate text-sm font-medium text-foreground">
+                {appName}
+              </span>
+            </Link>
+            {pathname === "/search" ? null : (
+              <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
+                <DashboardToolbarSearch
+                  className="min-w-0 flex-1 sm:flex-1"
+                  inputClassName="sm:w-full lg:w-full"
+                  name="q"
+                  type="search"
+                  aria-label="Search this site"
+                  placeholder="Search this site"
+                  maxLength={120}
+                  value={siteSearch}
+                  onChange={(event) => setSiteSearch(event.target.value)}
+                />
+              </SiteSearchForm>
+            )}
+            {navigation.length ? (
+              <>
+                <nav aria-label="Main navigation" className="hidden md:block">
+                  <ul className="flex items-center gap-1">
+                    {navigation.map((link, index) => (
+                      <li key={`${link.label}-${link.href}-${index}`}>
+                        <PublicLink link={link} className="px-2.5 py-1.5" />
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="md:hidden"
+                      aria-label="Open navigation menu"
                     >
-                      <PublicLink link={link} />
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : null}
-        </div>
+                      <MenuIcon />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-48">
+                    {navigation.map((link, index) => (
+                      <DropdownMenuItem
+                        key={`${link.label}-${link.href}-${index}`}
+                        asChild
+                      >
+                        <PublicLink link={link} />
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : null}
+          </div>
         </header>
       ) : null}
       <main
         className={cn(
-          "grid flex-1 place-items-center px-4 py-10",
+          "grid flex-1 px-4 py-10",
+          mainLayoutClass,
           className
         )}
+        style={mainSpacingStyle}
       >
-        <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+        <div
+          className={cn(
+            "flex w-full max-w-6xl flex-col gap-2 md:gap-3",
+            contentAlignmentClass
+          )}
+          style={pageWidthStyle}
+        >
           {!hasSiteFrame ? (
             <>
               <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
@@ -211,8 +261,15 @@ export function PublicPageFrame({
         </div>
       </main>
       {hasSiteFrame && (footer.length || footerCopyright) ? (
-        <footer className="border-t bg-background">
-          <div className="mx-auto grid w-full max-w-6xl gap-2 px-3 py-4 md:px-4">
+        <footer
+          className={
+            theme.footerBorder ? "border-t bg-background" : "bg-background"
+          }
+        >
+          <div
+            className="mx-auto grid w-full max-w-6xl gap-2 px-3 py-4 md:px-4"
+            style={pageWidthStyle}
+          >
             {footer.length ? (
               <nav aria-label="Footer navigation">
                 <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">

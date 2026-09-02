@@ -5,7 +5,20 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const router = vi.hoisted(() => ({ navigate: vi.fn() }))
+const router = vi.hoisted(() => ({ navigate: vi.fn(), pathname: "/" }))
+const publicTheme = vi.hoisted(() => ({
+  current: {
+    brandColor: "",
+    brandOverrides: {},
+    canvasColor: "",
+    pageWidth: 1152,
+    mainSpacing: 40,
+    headerBorder: true,
+    footerBorder: true,
+    font: "system" as const,
+    radius: 10,
+  },
+}))
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -38,7 +51,7 @@ vi.mock("@tanstack/react-router", () => ({
     )
   },
   useLocation: ({ select }: { select: (value: { pathname: string }) => string }) =>
-    select({ pathname: "/" }),
+    select({ pathname: router.pathname }),
   useNavigate: () => router.navigate,
 }))
 
@@ -52,6 +65,7 @@ vi.mock("@/lib/branding", () => ({
   ],
   usePublicFooter: () => [{ label: "About", href: "/about?from=footer#team" }],
   usePublicFooterCopyright: () => "Copyright",
+  usePublicTheme: () => publicTheme.current,
 }))
 
 vi.mock("@/lib/api/content/announcements", () => ({
@@ -70,6 +84,18 @@ describe("PublicPageFrame navigation", () => {
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     router.navigate.mockReset()
+    router.pathname = "/"
+    publicTheme.current = {
+      brandColor: "",
+      brandOverrides: {},
+      canvasColor: "",
+      pageWidth: 1152,
+      mainSpacing: 40,
+      headerBorder: true,
+      footerBorder: true,
+      font: "system",
+      radius: 10,
+    }
   })
 
   afterEach(() => {
@@ -99,6 +125,63 @@ describe("PublicPageFrame navigation", () => {
     expect(
       host.querySelector('a[href="https://example.com"][data-router-link]')
     ).toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
+  it("uses the declared marketing layout with the established frame defaults", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const main = host.querySelector("main")
+    expect(main?.className).toContain("items-start")
+    expect(main?.className).not.toContain("place-items-center")
+    expect(main?.getAttribute("style")).toBeNull()
+    expect(host.querySelector("header")?.className).toContain("border-b")
+    expect(host.querySelector("footer")?.className).toContain("border-t")
+
+    await act(async () => root.unmount())
+  })
+
+  it("applies custom frame values while a card page stays centred", async () => {
+    router.pathname = "/login"
+    publicTheme.current = {
+      ...publicTheme.current,
+      canvasColor: "#abcdef",
+      pageWidth: 800,
+      mainSpacing: 24,
+      headerBorder: false,
+      footerBorder: false,
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const frame = host.firstElementChild as HTMLElement | null
+    const main = host.querySelector("main") as HTMLElement | null
+    const widthElements = [
+      host.querySelector<HTMLElement>("header > div"),
+      host.querySelector<HTMLElement>("main > div"),
+      host.querySelector<HTMLElement>("footer > div"),
+    ]
+
+    expect(frame?.style.backgroundColor).toBe("rgb(171, 205, 239)")
+    expect(main?.className).toContain("place-items-center")
+    expect(main?.style.paddingBlock).toBe("24px")
+    expect(
+      widthElements.every((element) => element?.style.maxWidth === "800px")
+    ).toBe(true)
+    expect(host.querySelector("header")?.className).not.toContain("border-b")
+    expect(host.querySelector("footer")?.className).not.toContain("border-t")
 
     await act(async () => root.unmount())
   })

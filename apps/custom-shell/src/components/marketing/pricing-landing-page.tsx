@@ -104,14 +104,14 @@ function PricingLanding({ data }: { data: LandingData }) {
 
   return (
     <PublicPageFrame>
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 md:gap-3">
-        <header className="flex flex-col items-center gap-2 text-center">
+      <div className="flex w-full flex-col gap-2 md:gap-3">
+        <header className="flex flex-col items-start gap-2 text-left">
           <h1 className="text-2xl font-semibold">Get started with {appName}</h1>
           <p className="text-sm text-muted-foreground">
             Accounts, workspaces and billing, ready to run. Start free and move
             up when you need more.
           </p>
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap justify-start gap-2">
             {signedIn ? (
               <Button asChild>
                 <Link to={signedInAction.to}>{signedInAction.label}</Link>

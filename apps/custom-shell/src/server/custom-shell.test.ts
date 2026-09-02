@@ -1142,6 +1142,11 @@ describe("custom shell workspaces", () => {
         publicTheme: {
           brandColor: "#dc2626",
           brandOverrides: { darkColor: "#f87171" },
+          canvasColor: "#f1f5f9",
+          pageWidth: 960,
+          mainSpacing: 24,
+          headerBorder: false,
+          footerBorder: true,
           font: "serif",
           radius: 4,
         },
@@ -1160,6 +1165,11 @@ describe("custom shell workspaces", () => {
       expect(singleSiteConfig.publicTheme).toEqual({
         brandColor: "#dc2626",
         brandOverrides: { darkColor: "#f87171" },
+        canvasColor: "#f1f5f9",
+        pageWidth: 960,
+        mainSpacing: 24,
+        headerBorder: false,
+        footerBorder: true,
         font: "serif",
         radius: 4,
       })
@@ -1172,6 +1182,11 @@ describe("custom shell workspaces", () => {
       expect(multiSiteConfig.publicTheme).toEqual({
         brandColor: "#3b82f6",
         brandOverrides: { hoverColor: "#1d4ed8" },
+        canvasColor: "#f1f5f9",
+        pageWidth: 960,
+        mainSpacing: 24,
+        headerBorder: false,
+        footerBorder: true,
         font: "serif",
         radius: 4,
       })
@@ -1630,6 +1645,11 @@ describe("custom shell workspaces", () => {
     expect(branding.publicTheme).toEqual({
       brandColor: "",
       brandOverrides: {},
+      canvasColor: "",
+      pageWidth: 1152,
+      mainSpacing: 40,
+      headerBorder: true,
+      footerBorder: true,
       font: "system",
       radius: 0,
     })

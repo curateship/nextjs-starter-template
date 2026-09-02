@@ -109,8 +109,8 @@ export function SiteSearchRouteError({ error }: ErrorComponentProps) {
 
 function SiteSearchFrame({ children }: { children: React.ReactNode }) {
   return (
-    <PublicPageFrame className="place-items-start justify-items-center">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 md:gap-3">{children}</div>
+    <PublicPageFrame>
+      <div className="flex w-full flex-col gap-2 md:gap-3">{children}</div>
     </PublicPageFrame>
   )
 }

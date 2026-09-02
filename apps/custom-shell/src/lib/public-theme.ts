@@ -13,6 +13,16 @@ export type PublicTheme = {
   brandColor: string
   /** Optional fixed values. A missing key keeps that value automatic. */
   brandOverrides: PublicBrandColorOverrides
+  /** Public canvas colour. Empty keeps the standard muted canvas. */
+  canvasColor: string
+  /** Widest public header, main area, and footer content in pixels. */
+  pageWidth: number
+  /** Top and bottom padding around public page content in pixels. */
+  mainSpacing: number
+  /** Whether the public header draws its bottom divider. */
+  headerBorder: boolean
+  /** Whether the public footer draws its top divider. */
+  footerBorder: boolean
   font: PublicThemeFont
   radius: number
 }
@@ -40,6 +50,11 @@ export const PUBLIC_THEME_FONT_STACKS: Record<PublicThemeFont, string> = {
 
 export const DEFAULT_PUBLIC_RADIUS = 10
 export const MAX_PUBLIC_RADIUS = 24
+export const MIN_PUBLIC_PAGE_WIDTH = 640
+export const DEFAULT_PUBLIC_PAGE_WIDTH = 1152
+export const MAX_PUBLIC_PAGE_WIDTH = 1600
+export const DEFAULT_PUBLIC_MAIN_SPACING = 40
+export const MAX_PUBLIC_MAIN_SPACING = 96
 export const PUBLIC_BRAND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 export const PUBLIC_BRAND_OVERRIDE_KEYS = [
   "hoverColor",
@@ -52,6 +67,11 @@ export function createDefaultPublicTheme(): PublicTheme {
   return {
     brandColor: "",
     brandOverrides: {},
+    canvasColor: "",
+    pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
+    mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+    headerBorder: true,
+    footerBorder: true,
     font: "system",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
@@ -81,9 +101,10 @@ export function normalizePublicBrandOverrides(
   )
 }
 
-export function isPublicBrandThemeInputValid(theme: PublicBrandTheme) {
+export function isPublicThemeInputValid(theme: PublicTheme) {
   return (
     isPublicBrandColor(theme.brandColor) &&
+    isPublicBrandColor(theme.canvasColor) &&
     PUBLIC_BRAND_OVERRIDE_KEYS.every((key) => {
       if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
         return true
@@ -121,7 +142,7 @@ export function normalizePublicBrandTheme(
 
 /**
  * Public theme values are stored in a JSON settings object that can predate
- * either field here. Normalize both on read before writing them into a page.
+ * fields here. Normalize each one before writing it into a public page.
  */
 export function normalizePublicTheme(value: unknown): PublicTheme {
   const fallback = createDefaultPublicTheme()
@@ -133,14 +154,48 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
   const brandTheme = normalizePublicBrandTheme(theme)
   return {
     ...brandTheme,
+    canvasColor: normalizePublicBrandColor(theme.canvasColor),
+    pageWidth: normalizeWholeNumber(
+      theme.pageWidth,
+      fallback.pageWidth,
+      MIN_PUBLIC_PAGE_WIDTH,
+      MAX_PUBLIC_PAGE_WIDTH
+    ),
+    mainSpacing: normalizeWholeNumber(
+      theme.mainSpacing,
+      fallback.mainSpacing,
+      0,
+      MAX_PUBLIC_MAIN_SPACING
+    ),
+    headerBorder:
+      typeof theme.headerBorder === "boolean"
+        ? theme.headerBorder
+        : fallback.headerBorder,
+    footerBorder:
+      typeof theme.footerBorder === "boolean"
+        ? theme.footerBorder
+        : fallback.footerBorder,
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
-    radius:
-      typeof theme.radius === "number" && Number.isFinite(theme.radius)
-        ? Math.min(MAX_PUBLIC_RADIUS, Math.max(0, Math.round(theme.radius)))
-        : fallback.radius,
+    radius: normalizeWholeNumber(
+      theme.radius,
+      fallback.radius,
+      0,
+      MAX_PUBLIC_RADIUS
+    ),
   }
+}
+
+function normalizeWholeNumber(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number
+) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, Math.round(value)))
+    : fallback
 }
 
 /**
@@ -206,5 +261,12 @@ export function publicThemeStyle(
 }
 
 export function hasCustomPublicTheme(theme: PublicTheme): boolean {
-  return publicThemeStyle(theme) !== undefined
+  return (
+    publicThemeStyle(theme) !== undefined ||
+    theme.canvasColor !== "" ||
+    theme.pageWidth !== DEFAULT_PUBLIC_PAGE_WIDTH ||
+    theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
+    !theme.headerBorder ||
+    !theme.footerBorder
+  )
 }
