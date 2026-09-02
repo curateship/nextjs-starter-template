@@ -29,9 +29,11 @@ The root page load combines the app-wide font and corners with the brand colour
 for the domain being visited. The server writes those values into the first HTML
 response, before the browser paints or React starts. Missing and invalid fields
 use the standard colour, font, and corner values. The brand colour writes the
-shell's primary and focus-ring variables, so public buttons, links, selected
-highlights, and keyboard focus share one colour. Public look settings never
-change the signed-in app, which keeps its own Styling settings.
+shell's primary and focus-ring variables. The shell derives the public button
+hover, selection tint, readable button text, and dark-mode brand from the same
+colour before the first paint. A saved manual override replaces its automatic
+value in both modes until an admin sends it back to automatic. Public look
+settings never change the signed-in app, which keeps its own Styling settings.
 
 Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search

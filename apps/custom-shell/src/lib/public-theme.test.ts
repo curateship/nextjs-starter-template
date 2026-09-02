@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   createDefaultPublicTheme,
   isPublicBrandColor,
+  isPublicBrandThemeInputValid,
   normalizePublicBrandTheme,
+  normalizePublicBrandOverrides,
   normalizePublicTheme,
   publicThemeForAppWideSave,
   publicThemeStyle,
@@ -23,6 +25,7 @@ describe("public theme", () => {
       })
     ).toEqual({
       brandColor: "",
+      brandOverrides: {},
       font: "system",
       radius: 24,
     })
@@ -51,21 +54,73 @@ describe("public theme", () => {
   it("carries an old CMS accent only when no newer brand value exists", () => {
     expect(normalizePublicBrandTheme(undefined, " #123ABC ")).toEqual({
       brandColor: "#123abc",
+      brandOverrides: {},
     })
     expect(
       normalizePublicBrandTheme({ brandColor: "#654321" }, "#123abc")
-    ).toEqual({ brandColor: "#654321" })
+    ).toEqual({ brandColor: "#654321", brandOverrides: {} })
     expect(normalizePublicBrandTheme({ brandColor: "" }, "#123abc")).toEqual({
       brandColor: "",
+      brandOverrides: {},
     })
   })
 
+  it("keeps only valid automatic-colour overrides", () => {
+    expect(
+      normalizePublicBrandTheme({
+        brandColor: "#3b82f6",
+        brandOverrides: {
+          hoverColor: " #112233 ",
+          softColor: "blue",
+          foregroundColor: "#AABBCC",
+        },
+      })
+    ).toEqual({
+      brandColor: "#3b82f6",
+      brandOverrides: {
+        hoverColor: "#112233",
+        foregroundColor: "#aabbcc",
+      },
+    })
+  })
+
+  it("blocks invalid manual colours and can safely return to the app colour", () => {
+    const brandOverrides = {
+      hoverColor: "#112233",
+      softColor: "blue",
+    }
+
+    expect(
+      isPublicBrandThemeInputValid({
+        brandColor: "#3b82f6",
+        brandOverrides,
+      })
+    ).toBe(false)
+    expect(
+      isPublicBrandThemeInputValid({
+        brandColor: "",
+        brandOverrides: normalizePublicBrandOverrides(brandOverrides),
+      })
+    ).toBe(true)
+  })
+
   it("keeps site colours out of a multi-site app's global settings", () => {
-    const next = { brandColor: "#3b82f6", font: "serif", radius: 4 }
-    const current = { brandColor: "#dc2626", font: "system", radius: 10 }
+    const next = {
+      brandColor: "#3b82f6",
+      brandOverrides: { hoverColor: "#112233" },
+      font: "serif",
+      radius: 4,
+    }
+    const current = {
+      brandColor: "#dc2626",
+      brandOverrides: { darkColor: "#f87171" },
+      font: "system",
+      radius: 10,
+    }
 
     expect(publicThemeForAppWideSave(next, current, true)).toEqual({
       brandColor: "#dc2626",
+      brandOverrides: { darkColor: "#f87171" },
       font: "serif",
       radius: 4,
     })
@@ -81,9 +136,10 @@ describe("public theme", () => {
     }) as Record<string, string>
 
     expect(style).toMatchObject({
-      "--shell-primary": "#f8fafc",
-      "--shell-primary-foreground": "#18181b",
-      "--shell-ring": "#f8fafc",
+      "--shell-public-primary-light": "#f8fafc",
+      "--shell-public-primary-dark": "#f8fafc",
+      "--shell-public-primary-foreground-light": "#18181b",
+      "--shell-public-primary-foreground-dark": "#18181b",
       "--radius": "0rem",
       "--radius-sm": "calc(var(--radius) * 0.6)",
       "--radius-xl": "calc(var(--radius) * 1.4)",
@@ -92,5 +148,6 @@ describe("public theme", () => {
       fontFamily: "var(--app-font-sans)",
     })
     expect(style).not.toHaveProperty("--primary")
+    expect(style).not.toHaveProperty("--shell-primary")
   })
 })

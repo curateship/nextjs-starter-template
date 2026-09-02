@@ -1129,7 +1129,10 @@ describe("custom shell workspaces", () => {
       .set({
         settings: {
           ...parseWorkspaceSettings(workspace.settings),
-          publicTheme: { brandColor: "#3b82f6" },
+          publicTheme: {
+            brandColor: "#3b82f6",
+            brandOverrides: { hoverColor: "#1d4ed8" },
+          },
         },
       })
       .where(eq(customShellWorkspaces.id, workspace.id))
@@ -1138,6 +1141,7 @@ describe("custom shell workspaces", () => {
       settings: {
         publicTheme: {
           brandColor: "#dc2626",
+          brandOverrides: { darkColor: "#f87171" },
           font: "serif",
           radius: 4,
         },
@@ -1155,6 +1159,7 @@ describe("custom shell workspaces", () => {
       )
       expect(singleSiteConfig.publicTheme).toEqual({
         brandColor: "#dc2626",
+        brandOverrides: { darkColor: "#f87171" },
         font: "serif",
         radius: 4,
       })
@@ -1166,6 +1171,7 @@ describe("custom shell workspaces", () => {
       )
       expect(multiSiteConfig.publicTheme).toEqual({
         brandColor: "#3b82f6",
+        brandOverrides: { hoverColor: "#1d4ed8" },
         font: "serif",
         radius: 4,
       })
@@ -1623,6 +1629,7 @@ describe("custom shell workspaces", () => {
 
     expect(branding.publicTheme).toEqual({
       brandColor: "",
+      brandOverrides: {},
       font: "system",
       radius: 0,
     })
@@ -1631,13 +1638,13 @@ describe("custom shell workspaces", () => {
   it("reads CMS's old accent only until a public brand choice exists", () => {
     expect(
       parseWorkspaceSettings({ accentColor: " #3B82F6 " }).publicTheme
-    ).toEqual({ brandColor: "#3b82f6" })
+    ).toEqual({ brandColor: "#3b82f6", brandOverrides: {} })
     expect(
       parseWorkspaceSettings({
         accentColor: "#3b82f6",
         publicTheme: { brandColor: "" },
       }).publicTheme
-    ).toEqual({ brandColor: "" })
+    ).toEqual({ brandColor: "", brandOverrides: {} })
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {

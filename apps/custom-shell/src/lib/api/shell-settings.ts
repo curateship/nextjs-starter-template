@@ -23,8 +23,9 @@ import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_RADIUS,
   PUBLIC_BRAND_COLOR_PATTERN,
+  PUBLIC_BRAND_OVERRIDE_KEYS,
   PUBLIC_THEME_FONTS,
-  normalizePublicBrandColor,
+  normalizePublicBrandTheme,
   publicThemeForAppWideSave,
 } from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
@@ -147,11 +148,24 @@ const publicNavigationSchema = z
   .max(MAX_PUBLIC_NAVIGATION_LINKS)
   .transform(cleanPublicNavigationLinks)
 
+const publicBrandOverridesSchema = z.object(
+  Object.fromEntries(
+    PUBLIC_BRAND_OVERRIDE_KEYS.map((key) => [
+      key,
+      z.string().regex(PUBLIC_BRAND_COLOR_PATTERN).optional(),
+    ])
+  ) as Record<
+    (typeof PUBLIC_BRAND_OVERRIDE_KEYS)[number],
+    z.ZodOptional<z.ZodString>
+  >
+)
+
 const publicThemeSchema = z.object({
   brandColor: z.union([
     z.literal(""),
     z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
   ]),
+  brandOverrides: publicBrandOverridesSchema,
   font: z.enum(PUBLIC_THEME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
@@ -256,11 +270,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
-            publicTheme: {
-              brandColor: normalizePublicBrandColor(
-                data.publicTheme.brandColor
-              ),
-            },
+            publicTheme: normalizePublicBrandTheme(data.publicTheme),
             publicNavigation: data.publicNavigation,
             publicFooter: data.publicFooter,
             publicFooterCopyright: data.publicFooterCopyright,

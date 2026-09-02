@@ -60,6 +60,7 @@ describe("public site branding", () => {
       settings: {
         publicTheme: {
           brandColor: "#dc2626",
+          brandOverrides: { darkColor: "#f87171" },
           font: "serif",
           radius: 4,
         },
@@ -70,7 +71,12 @@ describe("public site branding", () => {
     await insertWorkspace(database, {
       name: "Blue site",
       subdomain: "blue",
-      settings: { publicTheme: { brandColor: "#2563eb" } },
+      settings: {
+        publicTheme: {
+          brandColor: "#2563eb",
+          brandOverrides: { hoverColor: "#1d4ed8" },
+        },
+      },
     })
     request.host = "blue.localhost:3002"
 
@@ -78,6 +84,7 @@ describe("public site branding", () => {
 
     expect(branding.publicTheme).toEqual({
       brandColor: "#2563eb",
+      brandOverrides: { hoverColor: "#1d4ed8" },
       font: "serif",
       radius: 4,
     })
