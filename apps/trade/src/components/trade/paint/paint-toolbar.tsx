@@ -1,7 +1,7 @@
 import * as React from "react"
 import type { ReactNode } from "react"
 import {
-  GripHorizontalIcon,
+  GripVerticalIcon,
   MinusIcon,
   SlashIcon,
   Trash2Icon,
@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"
 import type { ChartToolbarPosition } from "@/lib/trade/panel-layout"
 
 /**
- * The tools, as a small rail down the chart's right edge.
+ * The tools, as a small horizontal bar along the chart's top-right edge.
  *
  * On the chart rather than in the panel header because these belong to the
  * drawing surface, not to the market: the header says which market this is
@@ -148,7 +148,7 @@ export function PaintToolbar({
   drawingCount: number
   /** Hidden drawings stay saved, but no paint tool can be picked. */
   drawingsVisible: boolean
-  /** The chart's price labels; the rail stays to their left. */
+  /** The chart's price labels; the toolbar stays to their left. */
   rightInset: number
   /** Its place inside the chart, saved as shares so panel resizing is safe. */
   savedPosition?: ChartToolbarPosition | null
@@ -369,7 +369,7 @@ export function PaintToolbar({
         data-position={atHome ? "top-right" : "free"}
         style={toolbarStyle}
         className={cn(
-          "pointer-events-auto absolute z-20 flex flex-col gap-0.5 rounded-lg border bg-card/45 p-0.5 backdrop-blur-md backdrop-saturate-150",
+          "pointer-events-auto absolute z-20 flex flex-row gap-0.5 rounded-lg border bg-card/45 p-0.5 backdrop-blur-md backdrop-saturate-150",
           snapReady && "ring-2 ring-primary/60"
         )}
       >
@@ -429,7 +429,7 @@ export function PaintToolbar({
                 }}
                 onKeyDown={moveWithKeyboard}
               >
-                <GripHorizontalIcon />
+                <GripVerticalIcon />
               </Button>
             </TooltipTrigger>
             <TooltipContent>

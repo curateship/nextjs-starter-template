@@ -174,8 +174,8 @@ export const tradePrefs = pgTable("trade_prefs", {
   // newest one — the one form of it that means the same thing on every
   // market. `chartViewSchema` is the only way in or out.
   chartView: jsonb("chart_view").$type<ChartView>(),
-  // Which supporting parts of the chart are visible. Kept apart from the
-  // numeric zoom and position because switching one does not move the chart.
+  // The chart's price shape and which supporting parts are visible. Kept
+  // apart from zoom and position because switching one does not move the chart.
   chartOptions: jsonb("chart_options").$type<ChartOptions>(),
   /**
    * The wallet the account panel had active on each exchange, keyed by

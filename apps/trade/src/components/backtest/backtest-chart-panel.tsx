@@ -381,6 +381,7 @@ export function BacktestChartPanel({
                   />
                   <PaintLayer
                     surface={surface}
+                    candles={bars}
                     drawings={paint.drawings}
                     tool={paint.tool}
                     selectedId={paint.selectedId}

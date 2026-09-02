@@ -58,6 +58,7 @@ describe("the remembered chart options", () => {
   it("comes back as the account left it", async () => {
     const { id } = await insertUser(database)
     const options = {
+      chartType: "heikin-ashi" as const,
       grid: false,
       volume: true,
       crosshair: false,
@@ -74,6 +75,7 @@ describe("the remembered chart options", () => {
     const mine = await insertUser(database)
     const theirs = await insertUser(database)
     await saveChartOptions(theirs.id, {
+      chartType: "line",
       grid: false,
       volume: false,
       crosshair: false,

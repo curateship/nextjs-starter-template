@@ -409,7 +409,7 @@ export async function saveChartView(
     })
 }
 
-/** Which supporting chart parts this person chose to show. */
+/** Which price shape and supporting chart parts this person chose. */
 export async function loadChartOptions(userId: string): Promise<ChartOptions> {
   const row = await db
     .select({ chartOptions: tradePrefs.chartOptions })
@@ -419,7 +419,7 @@ export async function loadChartOptions(userId: string): Promise<ChartOptions> {
   return readChartOptions(row[0]?.chartOptions ?? null)
 }
 
-/** Remember the complete choice so the three switches can never drift apart. */
+/** Remember the complete choice in one account-scoped value. */
 export async function saveChartOptions(
   userId: string,
   chartOptions: ChartOptions

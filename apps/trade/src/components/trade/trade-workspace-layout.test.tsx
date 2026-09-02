@@ -109,6 +109,7 @@ vi.mock("@/components/trade/indicators-menu", () => ({
 vi.mock("@/components/trade/use-chart-options", () => ({
   useChartOptions: () => ({
     options: {
+      chartType: "candles",
       grid: true,
       volume: true,
       crosshair: true,
