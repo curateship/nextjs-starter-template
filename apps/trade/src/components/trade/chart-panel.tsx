@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CandlestickChartIcon, ChevronDownIcon } from "lucide-react"
+import { CandlestickChartIcon, ChevronDownIcon, StarIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -45,16 +45,23 @@ import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import { useLongPress } from "@/components/trade/use-long-press"
 import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
-import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { intervalMs, wantsFullHistory } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
@@ -95,6 +102,7 @@ import {
   type RemovableTradeHistory,
 } from "@/lib/trade/live-trades"
 import { positionFees } from "@/lib/trade/position-fees"
+import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
 import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
@@ -113,6 +121,7 @@ import {
   indicatorPaint,
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   liveMarkOf,
   useLiveCatchUp,
@@ -165,10 +174,25 @@ function rememberDrawnChart(key: string, candles: CandleBar[]) {
   }
 }
 
+function readFavoriteIntervals(): CandleInterval[] {
+  try {
+    const stored = window.localStorage.getItem(
+      CHART_INTERVAL_FAVORITES_STORAGE_KEY
+    )
+    if (stored === null) return []
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed)) return []
+    const saved = new Set(parsed)
+    return CANDLE_INTERVALS.filter((option) => saved.has(option))
+  } catch {
+    return []
+  }
+}
+
 /**
- * The timeframe dropdown. It draws in the middle panel's header — the workspace
- * owns the remembered choice and hands it to both this picker and the chart's
- * fetch, so the two can never disagree.
+ * The timeframe shortcuts and dropdown. The workspace owns the current choice
+ * and hands it to both this picker and the chart's fetch, so the two can never
+ * disagree. This browser keeps the starred shortcuts beside that choice.
  */
 export function IntervalPicker({
   value,
@@ -177,33 +201,117 @@ export function IntervalPicker({
   value: CandleInterval
   onChange: (next: CandleInterval) => void
 }) {
+  const [favoriteIntervals, setFavoriteIntervals] = React.useState<
+    CandleInterval[]
+  >([])
+
+  useEffectBeforePaint(() => {
+    setFavoriteIntervals(readFavoriteIntervals())
+  }, [])
+
+  const headerIntervals = CANDLE_INTERVALS.filter(
+    (option) => option === value || favoriteIntervals.includes(option)
+  )
+
+  function toggleFavorite(option: CandleInterval) {
+    const next = favoriteIntervals.includes(option)
+      ? favoriteIntervals.filter((favorite) => favorite !== option)
+      : CANDLE_INTERVALS.filter(
+          (candidate) =>
+            candidate === option || favoriteIntervals.includes(candidate)
+        )
+    try {
+      window.localStorage.setItem(
+        CHART_INTERVAL_FAVORITES_STORAGE_KEY,
+        JSON.stringify(next)
+      )
+      setFavoriteIntervals(next)
+    } catch {
+      showErrorToast(
+        "Trade could not remember that favorite timeframe. Check this browser's storage and try again."
+      )
+    }
+  }
+
+  const menu = (
+    <DropdownMenuContent align="end">
+      {CANDLE_INTERVALS.map((option) => {
+        const favorite = favoriteIntervals.includes(option)
+        return (
+          <div key={option} className="flex items-center gap-0.5">
+            <DropdownMenuCheckboxItem
+              checked={option === value}
+              className="min-w-0 flex-1"
+              onCheckedChange={(checked) => {
+                if (checked) onChange(option)
+              }}
+            >
+              {option}
+            </DropdownMenuCheckboxItem>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuItem
+                  aria-label={`${favorite ? "Remove" : "Add"} ${option} ${favorite ? "from" : "to"} favorite timeframes`}
+                  className="size-7 shrink-0 justify-center p-0"
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    toggleFavorite(option)
+                  }}
+                >
+                  <StarIcon
+                    className={
+                      favorite
+                        ? "fill-current text-amber-500 dark:text-amber-400"
+                        : ""
+                    }
+                  />
+                </DropdownMenuItem>
+              </TooltipTrigger>
+              <TooltipContent>
+                {favorite ? "Remove from favorites" : "Add to favorites"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )
+      })}
+    </DropdownMenuContent>
+  )
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          aria-label="Candle interval"
-          className="min-w-12 bg-muted/60 px-2 dark:bg-muted/60"
-        >
-          {value}
-          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {CANDLE_INTERVALS.map((option) => (
-          <DropdownMenuCheckboxItem
-            key={option}
-            checked={option === value}
-            onCheckedChange={(checked) => {
-              if (checked) onChange(option)
-            }}
-          >
-            {option}
-          </DropdownMenuCheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Tabs
+      value={value}
+      onValueChange={(next) => onChange(next as CandleInterval)}
+      className="gap-0"
+    >
+      <TabsList aria-label="Candle intervals">
+        {headerIntervals.map((option) =>
+          option === value ? (
+            <DropdownMenu key={option}>
+              <DropdownMenuTrigger asChild>
+                <TabsTrigger
+                  value={option}
+                  aria-label={`Show ${option} candles`}
+                  className="px-2"
+                >
+                  {option}
+                  <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+                </TabsTrigger>
+              </DropdownMenuTrigger>
+              {menu}
+            </DropdownMenu>
+          ) : (
+            <TabsTrigger
+              key={option}
+              value={option}
+              aria-label={`Show ${option} candles`}
+              className="hidden md:inline-flex"
+            >
+              {option}
+            </TabsTrigger>
+          )
+        )}
+      </TabsList>
+    </Tabs>
   )
 }
 

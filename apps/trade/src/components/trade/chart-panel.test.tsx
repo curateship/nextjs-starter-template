@@ -12,6 +12,7 @@ import { loadCandles } from "@/lib/api/trade/candles"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
+import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { LiveTrade } from "@/lib/trade/live-trades"
@@ -150,6 +151,7 @@ beforeEach(() => {
   host = document.createElement("div")
   document.body.appendChild(host)
   root = createRoot(host)
+  window.localStorage.clear()
   paint.tool = null
 })
 
@@ -162,7 +164,11 @@ afterEach(async () => {
 
 function Picker() {
   const [interval, setInterval] = React.useState<CandleInterval>("4h")
-  return <IntervalPicker value={interval} onChange={setInterval} />
+  return (
+    <TooltipProvider>
+      <IntervalPicker value={interval} onChange={setInterval} />
+    </TooltipProvider>
+  )
 }
 
 describe("the chart interval picker", () => {
@@ -170,7 +176,7 @@ describe("the chart interval picker", () => {
     await act(async () => root.render(<Picker />))
 
     const trigger = host.querySelector<HTMLElement>(
-      'button[aria-label="Candle interval"]'
+      '[role="tab"][aria-selected="true"]'
     )
     expect(trigger?.textContent).toContain("4h")
     expect(trigger?.getAttribute("aria-haspopup")).toBe("menu")
@@ -193,7 +199,72 @@ describe("the chart interval picker", () => {
     ])
 
     await act(async () => options.at(-1)?.click())
-    expect(trigger?.textContent).toContain("1d")
+    expect(
+      host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
+    ).toContain("1d")
+  })
+
+  it("keeps favorite intervals as header shortcuts", async () => {
+    await act(async () => root.render(<Picker />))
+
+    const trigger = host.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]'
+    )
+    await act(async () => {
+      trigger?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+      )
+    })
+
+    const addOneMinute = document.body.querySelector<HTMLElement>(
+      '[aria-label="Add 1m to favorite timeframes"]'
+    )
+    await act(async () => addOneMinute?.click())
+
+    expect(
+      window.localStorage.getItem(CHART_INTERVAL_FAVORITES_STORAGE_KEY)
+    ).toBe('["1m"]')
+    expect(
+      document.body.querySelector(
+        '[aria-label="Remove 1m from favorite timeframes"]'
+      )
+    ).not.toBeNull()
+    await act(async () => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+
+    const shortcut = host.querySelector<HTMLElement>(
+      '[role="tab"][aria-label="Show 1m candles"]'
+    )
+    expect(
+      host.querySelector('[role="tablist"][aria-label="Candle intervals"]')
+    ).not.toBeNull()
+    expect(shortcut).not.toBeNull()
+    const selected = host.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]'
+    )
+    expect(selected?.querySelector("svg")).not.toBeNull()
+    expect(
+      host.querySelector('button[aria-label="Candle interval"]')
+    ).toBeNull()
+    await act(async () => {
+      shortcut?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, button: 0 })
+      )
+    })
+    expect(
+      host
+        .querySelector('[role="tab"][aria-label="Show 1m candles"]')
+        ?.getAttribute("aria-selected")
+    ).toBe("true")
+
+    await act(async () => root.render(null))
+    await act(async () => root.render(<Picker />))
+    expect(
+      host.querySelector('[role="tab"][aria-label="Show 1m candles"]')
+    ).not.toBeNull()
   })
 })
 
