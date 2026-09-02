@@ -434,7 +434,7 @@ export type ShellConfig = {
   publicFooter: PublicNavigationLink[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
-  /** Font and corner rounding for the app's public frontend. */
+  /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]

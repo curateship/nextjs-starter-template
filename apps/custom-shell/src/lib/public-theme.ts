@@ -4,9 +4,13 @@ export const PUBLIC_THEME_FONTS = ["system", "inter", "serif", "mono"] as const
 export type PublicThemeFont = (typeof PUBLIC_THEME_FONTS)[number]
 
 export type PublicTheme = {
+  /** Buttons, links, and focus rings. Empty keeps the app's normal colour. */
+  brandColor: string
   font: PublicThemeFont
   radius: number
 }
+
+export type PublicBrandTheme = Pick<PublicTheme, "brandColor">
 
 export const PUBLIC_THEME_FONT_LABELS: Record<PublicThemeFont, string> = {
   system: "App default",
@@ -24,12 +28,43 @@ export const PUBLIC_THEME_FONT_STACKS: Record<PublicThemeFont, string> = {
 
 export const DEFAULT_PUBLIC_RADIUS = 10
 export const MAX_PUBLIC_RADIUS = 24
+export const PUBLIC_BRAND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
 export function createDefaultPublicTheme(): PublicTheme {
   return {
+    brandColor: "",
     font: "system",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
+}
+
+export function normalizePublicBrandColor(value: unknown): string {
+  if (typeof value !== "string") return ""
+  const color = value.trim().toLowerCase()
+  return PUBLIC_BRAND_COLOR_PATTERN.test(color) ? color : ""
+}
+
+export function isPublicBrandColor(value: string): boolean {
+  return value === "" || PUBLIC_BRAND_COLOR_PATTERN.test(value)
+}
+
+/**
+ * A site's part of Public Look. The optional fallback carries CMS's old
+ * top-level accent colour until its next shell merge removes that field.
+ * An explicit new value, including an empty one, always wins.
+ */
+export function normalizePublicBrandTheme(
+  value: unknown,
+  fallbackBrandColor?: unknown
+): PublicBrandTheme {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const theme = value as Partial<PublicBrandTheme>
+    if (Object.prototype.hasOwnProperty.call(theme, "brandColor")) {
+      return { brandColor: normalizePublicBrandColor(theme.brandColor) }
+    }
+  }
+
+  return { brandColor: normalizePublicBrandColor(fallbackBrandColor) }
 }
 
 /**
@@ -44,6 +79,7 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
 
   const theme = value as Partial<PublicTheme>
   return {
+    brandColor: normalizePublicBrandColor(theme.brandColor),
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
@@ -55,13 +91,49 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
 }
 
 /**
- * Values placed on the document in the first server render so the chosen font
- * and corners are present before the browser paints.
+ * Multi-site apps save brand colour on the workspace and keep the deployment's
+ * own colour. Single-site apps save the same field app-wide because no public
+ * domain resolves to a workspace.
+ */
+export function publicThemeForAppWideSave(
+  nextValue: unknown,
+  currentValue: unknown,
+  brandColorIsPerSite: boolean
+): PublicTheme {
+  const next = normalizePublicTheme(nextValue)
+  if (!brandColorIsPerSite) return next
+
+  return {
+    ...next,
+    brandColor: normalizePublicTheme(currentValue).brandColor,
+  }
+}
+
+function readablePublicBrandForeground(hex: string) {
+  const red = Number.parseInt(hex.slice(1, 3), 16)
+  const green = Number.parseInt(hex.slice(3, 5), 16)
+  const blue = Number.parseInt(hex.slice(5, 7), 16)
+  return red * 0.299 + green * 0.587 + blue * 0.114 > 150
+    ? "#18181b"
+    : "#fafafa"
+}
+
+/**
+ * Values placed on the document in the first server render so the chosen
+ * colour, font, and corners are present before the browser paints.
  */
 export function publicThemeStyle(
   theme: PublicTheme
 ): CSSProperties | undefined {
   const style: Record<string, string> = {}
+  const brandColor = normalizePublicBrandColor(theme.brandColor)
+
+  if (brandColor) {
+    style["--shell-primary"] = brandColor
+    style["--shell-primary-foreground"] =
+      readablePublicBrandForeground(brandColor)
+    style["--shell-ring"] = brandColor
+  }
 
   if (theme.radius !== DEFAULT_PUBLIC_RADIUS) {
     style["--radius"] = `${theme.radius / 16}rem`

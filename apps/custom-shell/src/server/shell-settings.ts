@@ -29,7 +29,10 @@ import {
   currentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
-import { answerForRequest } from "@/server/workspaces/host"
+import {
+  answerForRequest,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb = db) {
@@ -91,7 +94,7 @@ export async function readBranding(
 }> {
   const globals = await readShellGlobals(database)
   const answer = await answerForRequest(database)
-  const publicTheme = globals.publicTheme
+  const appWidePublicTheme = globals.publicTheme
 
   if (answer.kind !== "workspace") {
     return {
@@ -101,12 +104,18 @@ export async function readBranding(
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
-      ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
+      ...(hasCustomPublicTheme(appWidePublicTheme)
+        ? { publicTheme: appWidePublicTheme }
+        : {}),
       hostIsUnknown: answer.kind === "unknown",
     }
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  const publicTheme = {
+    ...appWidePublicTheme,
+    ...workspaceSettings.publicTheme,
+  }
 
   return {
     appName: answer.workspace.name || globals.appName,
@@ -142,6 +151,9 @@ export async function readShellSettings(
   // workspace yet simply gets the app-wide defaults.
   const workspace = await currentWorkspace(user.id, database)
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
+  const publicTheme = workspaceBaseDomain()
+    ? { ...globals.publicTheme, ...workspaceSettings.publicTheme }
+    : globals.publicTheme
 
   return {
     ...globals,
@@ -153,6 +165,7 @@ export async function readShellSettings(
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicTheme,
     // Same rule as the sidebar below: an admin sees and edits their own row,
     // everybody else gets the one an admin built for them.
     topRightNavigation: isAdmin(user)

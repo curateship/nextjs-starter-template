@@ -1109,6 +1109,75 @@ describe("self-serve email change", () => {
 })
 
 describe("custom shell workspaces", () => {
+  it("uses one app colour unless public domains give each site its own", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const testDb = database as unknown as CustomShellDb
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "public-theme-owner@internal.dev",
+      name: "Public Theme Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    const workspace = await startWorkspaceFor(userId, testDb)
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...parseWorkspaceSettings(workspace.settings),
+          publicTheme: { brandColor: "#3b82f6" },
+        },
+      })
+      .where(eq(customShellWorkspaces.id, workspace.id))
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicTheme: {
+          brandColor: "#dc2626",
+          font: "serif",
+          radius: 4,
+        },
+      },
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+    try {
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+      const singleSiteConfig = await readShellSettings(
+        { id: userId, role: "admin" },
+        testDb
+      )
+      expect(singleSiteConfig.publicTheme).toEqual({
+        brandColor: "#dc2626",
+        font: "serif",
+        radius: 4,
+      })
+
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = "localhost"
+      const multiSiteConfig = await readShellSettings(
+        { id: userId, role: "admin" },
+        testDb
+      )
+      expect(multiSiteConfig.publicTheme).toEqual({
+        brandColor: "#3b82f6",
+        font: "serif",
+        radius: 4,
+      })
+    } finally {
+      if (savedBaseDomain === undefined) {
+        delete process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+      } else {
+        process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = savedBaseDomain
+      }
+    }
+  })
+
   it("creates a default workspace and switches the active workspace", async () => {
     const createdAt = now()
     const userId = uuid()
@@ -1552,7 +1621,23 @@ describe("custom shell workspaces", () => {
 
     const branding = await readBranding(database as unknown as CustomShellDb)
 
-    expect(branding.publicTheme).toEqual({ font: "system", radius: 0 })
+    expect(branding.publicTheme).toEqual({
+      brandColor: "",
+      font: "system",
+      radius: 0,
+    })
+  })
+
+  it("reads CMS's old accent only until a public brand choice exists", () => {
+    expect(
+      parseWorkspaceSettings({ accentColor: " #3B82F6 " }).publicTheme
+    ).toEqual({ brandColor: "#3b82f6" })
+    expect(
+      parseWorkspaceSettings({
+        accentColor: "#3b82f6",
+        publicTheme: { brandColor: "" },
+      }).publicTheme
+    ).toEqual({ brandColor: "" })
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {

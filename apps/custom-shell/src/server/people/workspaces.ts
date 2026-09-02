@@ -47,6 +47,10 @@ import {
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
 import {
+  normalizePublicBrandTheme,
+  type PublicBrandTheme,
+} from "@/lib/public-theme"
+import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
 } from "@/lib/workspaces/status"
@@ -437,6 +441,8 @@ export type WorkspaceSettings = {
   publicNavigation: PublicNavigationLink[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
+  /** The brand colour used by this site's signed-out pages. */
+  publicTheme: PublicBrandTheme
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   /** How far this workspace's saved sidebar has been brought forward. */
@@ -2480,7 +2486,9 @@ export function serializeWorkspace(
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   const fallback = defaultWorkspaceSettings()
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    const settings = value as Partial<WorkspaceSettings>
+    const settings = value as Partial<WorkspaceSettings> & {
+      accentColor?: unknown
+    }
     return {
       icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
       favicon:
@@ -2491,6 +2499,10 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
       publicFooterCopyright: cleanPublicFooterCopyright(
         settings.publicFooterCopyright
+      ),
+      publicTheme: normalizePublicBrandTheme(
+        settings.publicTheme,
+        settings.accentColor
       ),
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
@@ -2544,6 +2556,7 @@ function cleanWorkspaceSettings(
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
+    publicTheme: normalizePublicBrandTheme(settings.publicTheme),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -2634,6 +2647,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     publicNavigation: [],
     publicFooter: [],
     publicFooterCopyright: "",
+    publicTheme: normalizePublicBrandTheme(undefined),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     // The defaults above are already the current shape, so a new workspace has
