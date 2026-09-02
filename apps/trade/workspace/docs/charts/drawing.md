@@ -35,6 +35,11 @@ named workspace layout remembers the same place.
   other**, or a tap at each end, which is the only way there is on a
   touchscreen. Either way a dashed preview shows where the line will land
   before it lands.
+- **Levels and trendline ends snap to candle highs and lows within eight screen
+  pixels as they are drawn or moved.** A small dot marks the wick tip that will
+  take the point. Hold Alt to draw or drag an end exactly under the pointer
+  instead. On touch, hold the first point still for half a second before
+  drawing to skip snapping for the whole line.
 - **A drawing is kept as a time and a price, never as pixels**, so it comes
   back at any zoom and on any timeframe — a base marked on 4h is in the same
   place on 1d.

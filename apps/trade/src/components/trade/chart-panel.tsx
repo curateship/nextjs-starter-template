@@ -1468,6 +1468,8 @@ export function ChartPanel({
         {options.drawings ? (
           <PaintLayer
             surface={surface}
+            candles={current?.candles ?? []}
+            watchLiveBars={liveBars}
             drawings={paint.drawings}
             tool={paintTool}
             selectedId={paint.selectedId}
@@ -1602,6 +1604,8 @@ export function ChartPanel({
     ),
     [
       indicatorPainted,
+      current?.candles,
+      liveBars,
       options.drawings,
       options.orderArrows,
       options.orderArrowTrades,

@@ -3,6 +3,12 @@ import * as React from "react"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { PaintTool } from "@/components/trade/paint/use-drawings"
 import {
+  nearestWickTip,
+  projectCandleWicks,
+  type WickTip,
+} from "@/components/trade/paint/wick-snap"
+import type { CandleBar } from "@/lib/protocols/contracts"
+import {
   describeDrawing,
   moveShape,
   type Drawing,
@@ -27,6 +33,11 @@ import { formatPrice } from "@/lib/trade/format"
 
 /** How far the pointer must travel before a press counts as a drag. */
 const DRAG_SLOP = 3
+/** Candle highs and lows inside this screen-pixel circle take the point. */
+const WICK_SNAP_RADIUS = 8
+/** A still touch held this long switches snapping off for that drawing. */
+const TOUCH_HOLD_MS = 500
+const TOUCH_HOLD_SLOP = 8
 
 type ScreenPoint = { x: number; y: number }
 
@@ -51,19 +62,83 @@ type Grab = {
 type PendingLine = {
   from: DrawingPoint
   to: DrawingPoint
+  /** The real pointer-down pixel, before a nearby wick changes the point. */
+  startedAt: ScreenPoint
   /** The pointer has been let go and the end is waiting for a second click. */
   anchored: boolean
+  /** A long touch at the first end keeps both ends under the finger. */
+  skipSnap: boolean
+}
+
+type PointerReading = {
+  local: ScreenPoint
+  point: DrawingPoint
+  snap: WickTip | null
+}
+
+type TouchHold = {
+  pointerId: number
+  startedAt: ScreenPoint
+  point: DrawingPoint
+  timer: ReturnType<typeof setTimeout> | null
+  skipped: boolean
+}
+
+function useLiveCandleReader(
+  candles: readonly CandleBar[],
+  watchLiveBars?: (onBar: (bar: CandleBar) => void) => () => void
+) {
+  const current = React.useRef<CandleBar | null>(null)
+  React.useEffect(() => {
+    current.current = null
+    if (!watchLiveBars) return
+    let newestTime = candles.at(-1)?.openTime ?? 0
+    return watchLiveBars((bar) => {
+      // The chart rejects out-of-order ticks before drawing them. The snap
+      // reader has to make the same cut or a late bar can offer an invisible
+      // wick that the canvas never accepted.
+      if (bar.openTime < newestTime) return
+      newestTime = bar.openTime
+      // The chart applies this same bar straight to its canvas. Keeping the
+      // latest value outside state gives snapping the wick that is visible
+      // without re-rendering every layer on every market tick.
+      current.current = bar
+    })
+  }, [candles, watchLiveBars])
+  return React.useCallback(() => current.current, [])
 }
 
 /** Where a press landed, in the layer's own pixels. */
 function localPoint(event: React.PointerEvent<SVGElement>): ScreenPoint | null {
   const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
-  return box ? { x: event.clientX - box.left, y: event.clientY - box.top } : null
+  return box
+    ? { x: event.clientX - box.left, y: event.clientY - box.top }
+    : null
 }
 
 /** Far enough apart to have meant a drag rather than a click. */
 function apart(a: ScreenPoint, b: ScreenPoint): boolean {
   return Math.abs(a.x - b.x) > DRAG_SLOP || Math.abs(a.y - b.y) > DRAG_SLOP
+}
+
+function movedPast(a: ScreenPoint, b: ScreenPoint, distance: number): boolean {
+  return Math.hypot(a.x - b.x, a.y - b.y) > distance
+}
+
+function preferredTip(
+  first: WickTip | null,
+  second: WickTip | null,
+  pointer: ScreenPoint
+): WickTip | null {
+  if (!first) return second
+  if (!second) return first
+  const firstVertical = Math.abs(first.y - pointer.y)
+  const secondVertical = Math.abs(second.y - pointer.y)
+  if (secondVertical < firstVertical) return second
+  if (secondVertical > firstVertical) return first
+  return Math.abs(second.x - pointer.x) < Math.abs(first.x - pointer.x)
+    ? second
+    : first
 }
 
 /** Where a picked-up line sits now the pointer has reached this point. */
@@ -160,6 +235,8 @@ function RemoveButton({
 
 export const PaintLayer = React.memo(function PaintLayer({
   surface,
+  candles,
+  watchLiveBars,
   drawings,
   tool,
   selectedId,
@@ -169,6 +246,8 @@ export const PaintLayer = React.memo(function PaintLayer({
   onDelete,
 }: {
   surface: ChartSurface
+  candles: readonly CandleBar[]
+  watchLiveBars?: (onBar: (bar: CandleBar) => void) => () => void
   drawings: Drawing[]
   tool: PaintTool | null
   selectedId: string | null
@@ -180,6 +259,44 @@ export const PaintLayer = React.memo(function PaintLayer({
   const [grab, setGrab] = React.useState<Grab | null>(null)
   const [hover, setHover] = React.useState<ScreenPoint | null>(null)
   const [pending, setPending] = React.useState<PendingLine | null>(null)
+  const [snapTip, setSnapTip] = React.useState<WickTip | null>(null)
+  const [altHeld, setAltHeld] = React.useState(false)
+  const touchHold = React.useRef<TouchHold | null>(null)
+  const readLiveCandle = useLiveCandleReader(candles, watchLiveBars)
+  const wickCandles = React.useMemo(
+    () =>
+      projectCandleWicks(candles, surface, {
+        from: surface.timeAt(-WICK_SNAP_RADIUS),
+        to: surface.timeAt(surface.width + WICK_SNAP_RADIUS),
+      }),
+    [candles, surface]
+  )
+
+  React.useEffect(() => {
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === "Alt") setAltHeld(true)
+    }
+    const keyUp = (event: KeyboardEvent) => {
+      if (event.key === "Alt") setAltHeld(false)
+    }
+    const blur = () => setAltHeld(false)
+    window.addEventListener("keydown", keyDown)
+    window.addEventListener("keyup", keyUp)
+    window.addEventListener("blur", blur)
+    return () => {
+      window.removeEventListener("keydown", keyDown)
+      window.removeEventListener("keyup", keyUp)
+      window.removeEventListener("blur", blur)
+    }
+  }, [])
+
+  const clearTouchHold = React.useCallback(() => {
+    const timer = touchHold.current?.timer
+    if (timer != null) clearTimeout(timer)
+    touchHold.current = null
+  }, [])
+
+  React.useEffect(() => clearTouchHold, [clearTouchHold, tool])
 
   // Changing tools — including putting one down with Escape, and the tool
   // putting itself down once it has drawn something — takes the half-finished
@@ -190,15 +307,81 @@ export const PaintLayer = React.memo(function PaintLayer({
     setLastTool(tool)
     setPending(null)
     setHover(null)
+    setSnapTip(null)
   }
 
-  const marketPoint = (
-    event: React.PointerEvent<SVGElement>
-  ): DrawingPoint | null => {
+  const pointerReading = (
+    event: React.PointerEvent<SVGElement>,
+    skipSnap: boolean
+  ): PointerReading | null => {
     const local = localPoint(event)
     if (!local) return null
     const price = surface.priceAt(local.y)
-    return price === null ? null : { time: surface.timeAt(local.x), price }
+    if (price === null) return null
+    const raw = { time: surface.timeAt(local.x), price }
+    const working = readLiveCandle()
+    const rememberedWicks = working
+      ? wickCandles.filter((candle) => candle.time !== working.openTime)
+      : wickCandles
+    const rememberedSnap = skipSnap
+      ? null
+      : nearestWickTip(rememberedWicks, local.x, local.y, WICK_SNAP_RADIUS)
+    const workingSnap =
+      skipSnap || !working
+        ? null
+        : nearestWickTip(
+            projectCandleWicks([working], surface),
+            local.x,
+            local.y,
+            WICK_SNAP_RADIUS
+          )
+    const snap = preferredTip(rememberedSnap, workingSnap, local)
+    return {
+      local,
+      point: snap ? { time: snap.time, price: snap.price } : raw,
+      snap,
+    }
+  }
+
+  const startTouchHold = (
+    event: React.PointerEvent<SVGElement>,
+    reading: PointerReading
+  ) => {
+    clearTouchHold()
+    if (
+      event.pointerType !== "touch" ||
+      event.isPrimary === false ||
+      pending?.anchored
+    ) {
+      return
+    }
+    const hold: TouchHold = {
+      pointerId: event.pointerId,
+      startedAt: reading.local,
+      point: {
+        time: surface.timeAt(reading.local.x),
+        price: surface.priceAt(reading.local.y) ?? reading.point.price,
+      },
+      timer: null,
+      skipped: false,
+    }
+    hold.timer = setTimeout(() => {
+      if (touchHold.current !== hold) return
+      hold.timer = null
+      hold.skipped = true
+      setSnapTip(null)
+      setPending((current) =>
+        current && !current.anchored
+          ? {
+              ...current,
+              from: hold.point,
+              to: hold.point,
+              skipSnap: true,
+            }
+          : current
+      )
+    }, TOUCH_HOLD_MS)
+    touchHold.current = hold
   }
 
   // ----- Picking a line up and putting it down --------------------------
@@ -211,7 +394,7 @@ export const PaintLayer = React.memo(function PaintLayer({
     // A press with a tool in hand is meant for the sheet above — it is drawing
     // a new line, not taking hold of the one that happens to be under it.
     if (tool) return
-    const at = marketPoint(event)
+    const at = pointerReading(event, true)?.point
     const from = localPoint(event)
     if (!at || !from) return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -229,11 +412,16 @@ export const PaintLayer = React.memo(function PaintLayer({
 
   const continueGrab = (event: React.PointerEvent<SVGElement>) => {
     if (!grab) return
-    const now = marketPoint(event)
-    const local = localPoint(event)
-    if (!now || !local) return
-    if (!grab.moved && !apart(local, grab.from)) return
-    setGrab({ ...grab, shape: dragged(grab, now), moved: true })
+    const canSnap = grab.original.kind === "level" || grab.part !== "body"
+    const reading = pointerReading(event, !canSnap || event.altKey || altHeld)
+    if (!reading) return
+    if (!grab.moved && !apart(reading.local, grab.from)) return
+    const shape =
+      reading.snap && grab.original.kind === "level"
+        ? { kind: "level" as const, price: reading.snap.price }
+        : dragged(grab, reading.point)
+    setSnapTip(reading.snap)
+    setGrab({ ...grab, shape, moved: true })
   }
 
   const endGrab = (event: React.PointerEvent<SVGElement>) => {
@@ -241,32 +429,81 @@ export const PaintLayer = React.memo(function PaintLayer({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
+    const canSnap = grab.original.kind === "level" || grab.part !== "body"
+    const reading =
+      event.type === "pointercancel"
+        ? null
+        : pointerReading(event, !canSnap || event.altKey || altHeld)
+    const moved =
+      grab.moved || (reading !== null && apart(reading.local, grab.from))
+    const shape = reading
+      ? reading.snap && grab.original.kind === "level"
+        ? { kind: "level" as const, price: reading.snap.price }
+        : dragged(grab, reading.point)
+      : grab.shape
     // A press that never travelled was a click to pick the line out, and
     // saving an unchanged line would be a write for nothing.
-    if (grab.moved) onMove(grab.id, grab.shape)
+    if (moved) onMove(grab.id, shape)
     setGrab(null)
+    setSnapTip(null)
   }
 
   // ----- Drawing a new one ----------------------------------------------
 
   const sheetDown = (event: React.PointerEvent<SVGElement>) => {
     if (event.button !== 0) return
+    // The chart's ordinary touch hold opens the order menu. A paint tool owns
+    // the same gesture while its sheet is present.
+    event.stopPropagation()
+    const skipSnap = event.altKey || altHeld || pending?.skipSnap === true
+    const reading = pointerReading(event, skipSnap)
+    if (!reading) return
+    if (tool === "level") {
+      event.currentTarget.setPointerCapture(event.pointerId)
+      setSnapTip(reading.snap)
+      startTouchHold(event, reading)
+      return
+    }
     if (tool !== "trendline") return
-    const point = marketPoint(event)
-    if (!point) return
     if (pending?.anchored) {
-      onCreate({ kind: "trendline", from: pending.from, to: point })
+      onCreate({ kind: "trendline", from: pending.from, to: reading.point })
+      setSnapTip(null)
       return
     }
     event.currentTarget.setPointerCapture(event.pointerId)
-    setPending({ from: point, to: point, anchored: false })
+    setPending({
+      from: reading.point,
+      to: reading.point,
+      startedAt: reading.local,
+      anchored: false,
+      skipSnap: false,
+    })
+    setSnapTip(reading.snap)
+    startTouchHold(event, reading)
   }
 
   const sheetMove = (event: React.PointerEvent<SVGElement>) => {
     const local = localPoint(event)
-    if (local) setHover(local)
-    const point = marketPoint(event)
-    if (point && pending) setPending({ ...pending, to: point })
+    const held = touchHold.current
+    if (
+      local &&
+      held?.pointerId === event.pointerId &&
+      !held.skipped &&
+      movedPast(local, held.startedAt, TOUCH_HOLD_SLOP)
+    ) {
+      clearTouchHold()
+    }
+    const reading = pointerReading(
+      event,
+      event.altKey ||
+        altHeld ||
+        pending?.skipSnap === true ||
+        touchHold.current?.skipped === true
+    )
+    if (!reading) return
+    setHover(reading.local)
+    setSnapTip(reading.snap)
+    if (pending) setPending({ ...pending, to: reading.point })
   }
 
   const sheetUp = (event: React.PointerEvent<SVGElement>) => {
@@ -274,12 +511,17 @@ export const PaintLayer = React.memo(function PaintLayer({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-    const point = marketPoint(event)
-    const local = localPoint(event)
-    if (!point) return
+    const touchSkipped = touchHold.current?.skipped === true
+    const reading = pointerReading(
+      event,
+      event.altKey || altHeld || pending?.skipSnap === true || touchSkipped
+    )
+    clearTouchHold()
+    if (!reading) return
 
     if (tool === "level") {
-      onCreate({ kind: "level", price: point.price })
+      onCreate({ kind: "level", price: reading.point.price })
+      setSnapTip(null)
       return
     }
     if (!pending || pending.anchored) return
@@ -287,14 +529,27 @@ export const PaintLayer = React.memo(function PaintLayer({
     // A drag draws the line in one go; a tap leaves the far end following the
     // pointer until a second tap puts it down, which is the only way there is
     // to draw one on a touchscreen.
-    const startY = surface.yOf(pending.from.price)
-    const start =
-      startY === null ? null : { x: surface.xOf(pending.from.time), y: startY }
-    if (!start || !local || apart(local, start)) {
-      onCreate({ kind: "trendline", from: pending.from, to: point })
+    if (apart(reading.local, pending.startedAt)) {
+      onCreate({
+        kind: "trendline",
+        from: pending.from,
+        to: reading.point,
+      })
+      setSnapTip(null)
     } else {
-      setPending({ ...pending, anchored: true })
+      setPending({
+        ...pending,
+        to: reading.point,
+        anchored: true,
+        skipSnap: pending.skipSnap || touchSkipped,
+      })
     }
+  }
+
+  const cancelSheetPointer = () => {
+    clearTouchHold()
+    setSnapTip(null)
+    setPending((current) => (current?.anchored ? current : null))
   }
 
   // ----- Drawing it all out ----------------------------------------------
@@ -307,8 +562,15 @@ export const PaintLayer = React.memo(function PaintLayer({
         surface
       )
     : tool === "level" && hover
-      ? { x1: 0, y1: hover.y, x2: surface.width, y2: hover.y }
+      ? {
+          x1: 0,
+          y1: !altHeld && snapTip ? snapTip.y : hover.y,
+          x2: surface.width,
+          y2: !altHeld && snapTip ? snapTip.y : hover.y,
+        }
       : null
+
+  const visibleSnap = altHeld ? null : snapTip
 
   return (
     <svg
@@ -418,6 +680,19 @@ export const PaintLayer = React.memo(function PaintLayer({
         />
       ) : null}
 
+      {visibleSnap ? (
+        <circle
+          data-wick-snap
+          aria-hidden
+          cx={visibleSnap.x}
+          cy={visibleSnap.y}
+          r={4}
+          className="fill-primary stroke-background"
+          strokeWidth={2}
+          style={{ pointerEvents: "none" }}
+        />
+      ) : null}
+
       {/* Laid over everything while a tool is in hand, so a new line can start
           anywhere — including on top of one already there — and so the chart
           does not pan out from under the drawing. */}
@@ -428,11 +703,20 @@ export const PaintLayer = React.memo(function PaintLayer({
           width={surface.width}
           height={surface.height}
           fill="transparent"
-          style={{ pointerEvents: "all", cursor: "crosshair" }}
+          style={{
+            pointerEvents: "all",
+            cursor: "crosshair",
+            touchAction: "none",
+          }}
           onPointerDown={sheetDown}
           onPointerMove={sheetMove}
           onPointerUp={sheetUp}
-          onPointerLeave={() => setHover(null)}
+          onPointerCancel={cancelSheetPointer}
+          onPointerLeave={() => {
+            setHover(null)
+            setSnapTip(null)
+          }}
+          onContextMenu={(event) => event.preventDefault()}
         />
       ) : null}
     </svg>
