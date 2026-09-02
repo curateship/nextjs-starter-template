@@ -21,7 +21,10 @@ import {
 } from "@/lib/pages/public-navigation"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
+  MAX_PUBLIC_MAIN_SPACING,
+  MAX_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_RADIUS,
+  MIN_PUBLIC_PAGE_WIDTH,
   PUBLIC_BRAND_COLOR_PATTERN,
   PUBLIC_BRAND_OVERRIDE_KEYS,
   PUBLIC_THEME_FONTS,
@@ -166,6 +169,18 @@ const publicThemeSchema = z.object({
     z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
   ]),
   brandOverrides: publicBrandOverridesSchema,
+  canvasColor: z.union([
+    z.literal(""),
+    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
+  ]),
+  pageWidth: z
+    .number()
+    .int()
+    .min(MIN_PUBLIC_PAGE_WIDTH)
+    .max(MAX_PUBLIC_PAGE_WIDTH),
+  mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
+  headerBorder: z.boolean(),
+  footerBorder: z.boolean(),
   font: z.enum(PUBLIC_THEME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })

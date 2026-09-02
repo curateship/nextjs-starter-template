@@ -11,7 +11,7 @@ The built-in settings groups contain:
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
 - Public Navigation for the signed-out header and footer, plus Public Look for
-  the site's brand colour and the app's font and corner rounding.
+  the site's brand colour and the app's frame, font, and corner rounding.
 
 ## Saving
 
@@ -68,6 +68,17 @@ page text and background pass in both modes by default. A brand link or button
 label that falls below the same line gets a plain warning beside the setting
 for the mode that fails. Contrast warnings update while the admin types and
 never block saving a valid colour.
+
+The Page frame card controls the widest public content width, the canvas
+colour, the space above and below main content, and the divider lines under the
+header and above the footer. These choices are app-wide. Their defaults keep
+the former 1152px width, muted canvas, 40px spacing, and both divider lines.
+Canvas colours use the same 6-digit hex validation as brand colours.
+
+Coded public pages use the layout in their page declaration. Marketing pages
+such as the front page, pricing, and search start at the top, use the shared
+page width, and align their content left. Sign-in pages and written pages keep
+the centred card layout.
 
 Migration `0075_custom_shell_public_brand_color.sql` copies CMS's old
 `accentColor` into `publicTheme.brandColor` only when the new field does not

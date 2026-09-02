@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  DEFAULT_PUBLIC_MAIN_SPACING,
+  DEFAULT_PUBLIC_PAGE_WIDTH,
   createDefaultPublicTheme,
+  hasCustomPublicTheme,
   isPublicBrandColor,
-  isPublicBrandThemeInputValid,
+  isPublicThemeInputValid,
   normalizePublicBrandTheme,
   normalizePublicBrandOverrides,
   normalizePublicTheme,
@@ -14,6 +17,48 @@ import {
 describe("public theme", () => {
   it("adds no document style for an untouched app", () => {
     expect(publicThemeStyle(createDefaultPublicTheme())).toBeUndefined()
+    expect(hasCustomPublicTheme(createDefaultPublicTheme())).toBe(false)
+  })
+
+  it("normalizes the public frame without changing its established defaults", () => {
+    expect(
+      normalizePublicTheme({
+        pageWidth: 9999,
+        canvasColor: " #AABBCC ",
+        headerBorder: false,
+        footerBorder: "no",
+        mainSpacing: -12,
+      })
+    ).toMatchObject({
+      pageWidth: 1600,
+      canvasColor: "#aabbcc",
+      headerBorder: false,
+      footerBorder: true,
+      mainSpacing: 0,
+    })
+
+    expect(createDefaultPublicTheme()).toMatchObject({
+      pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
+      canvasColor: "",
+      headerBorder: true,
+      footerBorder: true,
+      mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+    })
+  })
+
+  it("treats a changed border as a public theme and blocks invalid canvas input", () => {
+    expect(
+      hasCustomPublicTheme({
+        ...createDefaultPublicTheme(),
+        headerBorder: false,
+      })
+    ).toBe(true)
+    expect(
+      isPublicThemeInputValid({
+        ...createDefaultPublicTheme(),
+        canvasColor: "blue",
+      })
+    ).toBe(false)
   })
 
   it("normalizes font and corner values", () => {
@@ -26,6 +71,11 @@ describe("public theme", () => {
     ).toEqual({
       brandColor: "",
       brandOverrides: {},
+      canvasColor: "",
+      pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
+      mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+      headerBorder: true,
+      footerBorder: true,
       font: "system",
       radius: 24,
     })
@@ -91,13 +141,15 @@ describe("public theme", () => {
     }
 
     expect(
-      isPublicBrandThemeInputValid({
+      isPublicThemeInputValid({
+        ...createDefaultPublicTheme(),
         brandColor: "#3b82f6",
         brandOverrides,
       })
     ).toBe(false)
     expect(
-      isPublicBrandThemeInputValid({
+      isPublicThemeInputValid({
+        ...createDefaultPublicTheme(),
         brandColor: "",
         brandOverrides: normalizePublicBrandOverrides(brandOverrides),
       })
@@ -106,23 +158,26 @@ describe("public theme", () => {
 
   it("keeps site colours out of a multi-site app's global settings", () => {
     const next = {
+      ...createDefaultPublicTheme(),
       brandColor: "#3b82f6",
       brandOverrides: { hoverColor: "#112233" },
+      canvasColor: "#f5f5f5",
+      pageWidth: 960,
+      mainSpacing: 24,
+      headerBorder: false,
       font: "serif",
       radius: 4,
     }
     const current = {
+      ...createDefaultPublicTheme(),
       brandColor: "#dc2626",
       brandOverrides: { darkColor: "#f87171" },
-      font: "system",
-      radius: 10,
     }
 
     expect(publicThemeForAppWideSave(next, current, true)).toEqual({
-      brandColor: "#dc2626",
-      brandOverrides: { darkColor: "#f87171" },
-      font: "serif",
-      radius: 4,
+      ...next,
+      brandColor: current.brandColor,
+      brandOverrides: current.brandOverrides,
     })
     expect(publicThemeForAppWideSave(next, current, false)).toEqual(next)
   })

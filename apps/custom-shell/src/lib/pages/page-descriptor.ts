@@ -12,8 +12,8 @@
 /**
  * Which frame the page is drawn in: `"marketing"` for the wide public pages
  * (the front page, pricing), `"card"` for the small centred ones (sign-in and
- * friends). Until the layout task lands this is a label only — it changes
- * nothing about how a page looks.
+ * friends). The public frame reads this value for coded pages; written pages
+ * stay card-shaped until their own per-page choice is added.
  */
 export type PageLayout = "marketing" | "card"
 

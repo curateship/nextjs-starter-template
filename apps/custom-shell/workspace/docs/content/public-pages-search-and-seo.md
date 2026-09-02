@@ -19,11 +19,18 @@ router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
 Settings under Public > Look control the site's brand colour, corner rounding
-from 0 to 24px, and font. The system face, Inter, serif, and mono are available.
-Inter comes from the app; the other choices use fonts already on the visitor's
-device. Public pages never fetch a font from another site. Font and corners are
-app-wide. Apps with public workspace domains keep a brand colour per site. An
-app without those domains uses one brand colour for its public frontend.
+from 0 to 24px, font, canvas colour, content width, vertical spacing, and the
+header and footer divider lines. The system face, Inter, serif, and mono are
+available. Inter comes from the app; the other choices use fonts already on the
+visitor's device. Public pages never fetch a font from another site. Frame,
+font, and corner choices are app-wide. Apps with public workspace domains keep
+a brand colour per site. An app without those domains uses one brand colour for
+its public frontend.
+
+The public frame reads each coded page's layout declaration. The front page,
+pricing, and search use the full shared width from the top and align left. Auth
+pages use the centred card layout. Written pages also stay centred cards until
+their own per-page layout choice is added.
 
 The root page load combines the app-wide font and corners with the brand colour
 for the domain being visited. The server writes those values into the first HTML
