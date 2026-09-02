@@ -322,6 +322,8 @@ export function FlowRunPage({
       error={chartError}
       walletLabel={report.head.walletLabel}
       automationId={report.head.automationId}
+      chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
+      onChartToolbarPositionChange={panelLayouts.rememberChartToolbarPosition}
       onRetry={() => void load()}
     />
   )

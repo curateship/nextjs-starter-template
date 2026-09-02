@@ -7,17 +7,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-const { chartMounts, createNamedLayout, rememberedLayouts, layoutSetEvents } =
-  vi.hoisted(() => ({
-    chartMounts: { count: 0 },
-    createNamedLayout: vi.fn().mockResolvedValue(undefined),
-    rememberedLayouts: vi.fn(),
-    layoutSetEvents: [] as Array<{
-      orientation: "horizontal" | "vertical"
-      fullscreen: boolean
-      layout: Record<string, number>
-    }>,
-  }))
+const {
+  chartMounts,
+  createNamedLayout,
+  rememberedLayouts,
+  rememberedToolbarPosition,
+  layoutSetEvents,
+} = vi.hoisted(() => ({
+  chartMounts: { count: 0 },
+  createNamedLayout: vi.fn().mockResolvedValue(undefined),
+  rememberedLayouts: vi.fn(),
+  rememberedToolbarPosition: vi.fn(),
+  layoutSetEvents: [] as Array<{
+    orientation: "horizontal" | "vertical"
+    fullscreen: boolean
+    layout: Record<string, number>
+  }>,
+}))
 
 vi.mock("@tanstack/react-router", () => ({
   getRouteApi: () => ({
@@ -77,11 +83,23 @@ vi.mock("@/components/trade/chart-options-menu", () => ({
   ChartOptionsMenu: () => null,
 }))
 vi.mock("@/components/trade/chart-panel", () => ({
-  ChartPanel: () => {
+  ChartPanel: ({
+    onChartToolbarPositionChange,
+  }: {
+    onChartToolbarPositionChange?: (position: { x: number; y: number }) => void
+  }) => {
     React.useEffect(() => {
       chartMounts.count += 1
     }, [])
-    return <div data-testid="chart" />
+    return (
+      <div data-testid="chart">
+        <button
+          type="button"
+          aria-label="Move test toolbar"
+          onClick={() => onChartToolbarPositionChange?.({ x: 0.2, y: 0.4 })}
+        />
+      </div>
+    )
   },
   IntervalPicker: () => null,
 }))
@@ -129,6 +147,7 @@ vi.mock("@/components/trade/use-panel-layouts", () => ({
     layouts: initial,
     remember: rememberedLayouts,
     rememberOpenMarketRow: vi.fn(),
+    rememberChartToolbarPosition: rememberedToolbarPosition,
     createNamed: createNamedLayout,
     applyNamed: vi.fn(),
     deleteNamed: vi.fn(),
@@ -292,6 +311,7 @@ beforeEach(() => {
   root = createRoot(host)
   chartMounts.count = 0
   rememberedLayouts.mockClear()
+  rememberedToolbarPosition.mockClear()
   createNamedLayout.mockClear()
   layoutSetEvents.length = 0
 })
@@ -354,6 +374,7 @@ describe("the trade workspace chart full screen", () => {
               },
               openMarketRows: {},
               headerProfitVisible: true,
+              chartToolbarPosition: null,
               activeNamedId: null,
               named: [],
             }}
@@ -445,8 +466,12 @@ describe("the trade workspace chart full screen", () => {
       { workspace: 72, activity: 28 },
       { protocol: "hyperliquid", network: "mainnet" },
       "watched",
-      false
+      false,
+      null
     )
+
+    await act(async () => clickButton("Move test toolbar"))
+    expect(rememberedToolbarPosition).toHaveBeenCalledWith({ x: 0.2, y: 0.4 })
 
     await act(async () => clickButton("Resize vertical group"))
     expect(rememberedLayouts).toHaveBeenCalledWith("trade-workspace-vertical", {

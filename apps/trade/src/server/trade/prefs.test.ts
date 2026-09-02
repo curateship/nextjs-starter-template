@@ -23,6 +23,7 @@ import {
   saveTradeSoundPreferences,
   saveChartView,
   saveChartOptions,
+  saveChartToolbarPosition,
   saveHeaderProfitVisibility,
   saveLastMarketKey,
   saveLastWalletId,
@@ -261,6 +262,7 @@ describe("the remembered trade panel layouts", () => {
       current: {},
       openMarketRows: {},
       headerProfitVisible: true,
+      chartToolbarPosition: null,
       activeNamedId: null,
       named: [],
     })
@@ -373,6 +375,7 @@ describe("the remembered trade panel layouts", () => {
         scope,
         openMarketRowId: "watched",
         headerProfitVisible: false,
+        chartToolbarPosition: { x: 0.25, y: 0.6 },
       },
       database
     )
@@ -380,6 +383,7 @@ describe("the remembered trade panel layouts", () => {
     expect(named?.name).toBe("Reading")
     expect(created.activeNamedId).toBe(named?.id)
     expect(named?.headerProfitVisible).toBe(false)
+    expect(named?.chartToolbarPosition).toEqual({ x: 0.25, y: 0.6 })
     expect(named?.openMarketRows).toEqual({
       "hyperliquid:mainnet": "watched",
     })
@@ -411,6 +415,7 @@ describe("the remembered trade panel layouts", () => {
     )
     await saveOpenMarketRow(id, scope, null, database)
     await saveHeaderProfitVisibility(id, true, database)
+    await saveChartToolbarPosition(id, { x: 0.4, y: 0.7 }, database)
 
     const automaticallySaved = await loadTradePanelLayouts(id, database)
     expect(automaticallySaved.named[0]).toMatchObject({
@@ -420,6 +425,7 @@ describe("the remembered trade panel layouts", () => {
       vertical: overwrittenVertical,
       openMarketRows: { "hyperliquid:mainnet": null },
       headerProfitVisible: true,
+      chartToolbarPosition: { x: 0.4, y: 0.7 },
     })
 
     const applied = await applyNamedTradePanelLayout(
@@ -439,6 +445,7 @@ describe("the remembered trade panel layouts", () => {
     )
     expect(applied.openMarketRows["hyperliquid:mainnet"]).toBeNull()
     expect(applied.headerProfitVisible).toBe(true)
+    expect(applied.chartToolbarPosition).toEqual({ x: 0.4, y: 0.7 })
 
     const deleted = await deleteNamedTradePanelLayout(id, named!.id, database)
     expect(deleted.named).toEqual([])
@@ -458,6 +465,7 @@ describe("the remembered trade panel layouts", () => {
         scope,
         openMarketRowId: "watched",
         headerProfitVisible: true,
+        chartToolbarPosition: null,
       },
       database
     )
@@ -483,6 +491,7 @@ describe("the remembered trade panel layouts", () => {
         scope,
         openMarketRowId: "watched",
         headerProfitVisible: true,
+        chartToolbarPosition: null,
       },
       database
     )
@@ -497,6 +506,7 @@ describe("the remembered trade panel layouts", () => {
           scope,
           openMarketRowId: "watched",
           headerProfitVisible: true,
+          chartToolbarPosition: null,
         },
         database
       )
@@ -513,6 +523,7 @@ describe("the remembered trade panel layouts", () => {
           scope,
           openMarketRowId: "watched",
           headerProfitVisible: true,
+          chartToolbarPosition: null,
         },
         database
       )
@@ -528,6 +539,7 @@ describe("the remembered trade panel layouts", () => {
           scope,
           openMarketRowId: "watched",
           headerProfitVisible: true,
+          chartToolbarPosition: null,
         },
         database
       )

@@ -459,6 +459,8 @@ export function BacktestRunPage({
       error={shownError}
       live={!done}
       automationId={run.automationId}
+      chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
+      onChartToolbarPositionChange={panelLayouts.rememberChartToolbarPosition}
       onRetry={retryChart}
     />
   )

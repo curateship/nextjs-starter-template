@@ -652,7 +652,8 @@ export function TradeWorkspace({
         vertical,
         marketPanelScope,
         expandedMarketRowId,
-        headerProfitVisibleRef.current
+        headerProfitVisibleRef.current,
+        panelLayouts.layouts.chartToolbarPosition
       )
     },
     [
@@ -1039,6 +1040,10 @@ export function TradeWorkspace({
             interval={interval}
             initialChartView={initialChartView}
             initialChart={initialChart}
+            chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
+            onChartToolbarPositionChange={
+              panelLayouts.rememberChartToolbarPosition
+            }
             initialDrawings={initialDrawings}
             priceAlerts={priceAlerts.alerts}
             onCreatePriceAlert={priceAlerts.create}

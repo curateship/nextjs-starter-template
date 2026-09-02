@@ -13,9 +13,17 @@ is 44 pixels tall on a touch screen. Dragging that area moves the line and does
 not pan the chart. Placing still takes one press on the order window's Place
 button. Touch adds no second confirmation.
 
-A small rail of tools sits at the chart's top-left corner, on the candles
-rather than in the header row: the header says which market and which
-timeframe, and the rail says what the pointer is holding.
+A small rail of tools starts at the top-right corner of the candles, just before
+the chart's price labels, rather than in the header row: the header says which
+market and which timeframe, and the rail says what the pointer is holding. Its
+border and translucent background separate it from the candles without a
+shadow. Its bottom grip moves the rail anywhere inside the candles. A dashed
+copy marks its home while it moves. The copy and the rail brighten inside the
+snap range, then the rail lands eight pixels from both the top and the
+price-label edge. Arrow keys move the focused grip eight pixels at a time, and
+Home returns it to that corner. The account layout remembers the rail's relative
+place across live, backtest and flow-run charts, even when the chart panel
+changes size. A selected named workspace layout remembers the same place.
 
 - **Two tools: a level and a trendline.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into
@@ -55,4 +63,3 @@ timeframe, and the rail says what the pointer is holding.
 - Out of scope by the standing decision: alerts on lines and orders on lines.
   Each attaches to the same surface in its own task. Indicators now do —
   see below.
-

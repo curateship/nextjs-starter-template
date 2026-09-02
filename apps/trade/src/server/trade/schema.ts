@@ -238,6 +238,7 @@ export const tradePrefs = pgTable("trade_prefs", {
       current: {},
       openMarketRows: {},
       headerProfitVisible: true,
+      chartToolbarPosition: null,
       activeNamedId: null,
       named: [],
     }),
