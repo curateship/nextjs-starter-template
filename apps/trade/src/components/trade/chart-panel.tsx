@@ -80,6 +80,7 @@ import {
   holdsEntry,
   isGridStopLeg,
   plannedGridReversal,
+  type GridRangeMove,
 } from "@/lib/trade/grid"
 import { prefetchLadderBase } from "@/lib/trade/ladder-base-cache"
 import { prefetchSmartPrefs } from "@/lib/trade/smart-prefs-cache"
@@ -950,7 +951,7 @@ export function ChartPanel({
   )
   const tradingMoveGridRange = trading.moveGridRange
   const onMoveGridRange = React.useCallback(
-    (one: SmartGrid, move: { end: "top" | "bottom"; px: number }) =>
+    (one: SmartGrid, move: GridRangeMove) =>
       tradingMoveGridRange(one.walletId, one.id, move),
     [tradingMoveGridRange]
   )
@@ -1797,13 +1798,21 @@ export function ChartPanel({
               )?.leverage ?? null
             }
             onPreview={setGridPreview}
-            onClose={() => setGrid(null)}
+            onClose={() => {
+              setGridPreview(null)
+              setGrid(null)
+            }}
             onPlace={async (input) => {
               const placed = await trading.placeGrid({
                 marketKey: market.key,
                 ...input,
               })
-              if (placed) rememberRecentOrderType("grid")
+              if (placed) {
+                // The saved grid replaces its preview before the browser can
+                // draw both copies on top of each other for one frame.
+                setGridPreview(null)
+                rememberRecentOrderType("grid")
+              }
               return placed
             }}
           />

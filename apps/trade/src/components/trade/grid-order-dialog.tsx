@@ -131,6 +131,8 @@ export type GridPreview = {
   lines: GridPreviewLine[]
   /** A gripped line was dropped at a price; the window rewrites its fields. */
   onMoveLine?: (kind: GridPreviewDragKind, px: number) => void
+  /** The middle grip moved the full range without changing its width. */
+  onMoveGrid?: (range: { topPx: number; bottomPx: number }) => void
 }
 
 /**
@@ -531,8 +533,9 @@ export function GridOrderDialog({
     [params, top, bottom, equity, market.sizeDecimals, market.volume24hUsd]
   )
 
-  // The preview dies with the window, whichever way it closes.
-  React.useEffect(() => () => onPreview(null), [onPreview])
+  // Remove the preview before the browser paints the closed window. A passive
+  // cleanup left it under the newly saved grid for one frame, which flickered.
+  React.useLayoutEffect(() => () => onPreview(null), [onPreview])
 
   const takeProfitPct = parsed(tpPct)
   const takeProfitPx =
@@ -619,6 +622,22 @@ export function GridOrderDialog({
       if (value > 0) touched(setSlUnderPct)(pct(value))
     },
     [busy, anchor, market.price, direction, top, bottom, touched, setDraggedRange]
+  )
+
+  /**
+   * The middle grip moves both ends by the same amount. Plain prices are the
+   * only honest way to hold that result because a moved range may sit wholly
+   * above or below today's price, where the two percent fields cannot describe
+   * it. Typing either field takes control back, just like an edge drag.
+   */
+  const onMoveGrid = React.useCallback(
+    (moved: { topPx: number; bottomPx: number }) => {
+      if (busy || !(moved.bottomPx > 0) || !(moved.topPx > moved.bottomPx)) {
+        return
+      }
+      touched(setDraggedRange)(moved)
+    },
+    [busy, touched, setDraggedRange]
   )
 
   /**
@@ -721,6 +740,7 @@ export function GridOrderDialog({
       levelCount: plan.levels.length,
       lines,
       onMoveLine,
+      onMoveGrid,
     })
   }, [
     plan,
@@ -736,6 +756,7 @@ export function GridOrderDialog({
     anchor,
     busy,
     onMoveLine,
+    onMoveGrid,
   ])
 
   /**

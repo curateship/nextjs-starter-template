@@ -726,7 +726,7 @@ const reverseGridFn = createServerFn({ method: "POST" })
 const moveGridRangeSchema = z.object({
   walletId: z.string().max(36),
   gridId: z.string().max(36),
-  end: z.enum(["top", "bottom"]),
+  end: z.enum(["top", "bottom", "whole"]),
   px: z.number().positive().finite(),
 })
 
@@ -1038,6 +1038,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "This grid is holding coin, so its level count, account share, borrowing and rung split cannot change. With one open entry, the range lines can still compress or expand around it.",
     SMART_GRID_RANGE_FIXED:
       "That range edge cannot move without moving an entry the grid already opened. If only one entry is open, try the other edge. Otherwise, wait until an open level closes.",
+    SMART_GRID_WHOLE_FIXED:
+      "The whole grid can move once it is holding no coin. An entry that already opened has to stay at the price it actually paid.",
   },
   "That did not go through. Try it again."
 )

@@ -72,7 +72,11 @@ import {
 import type { DcaLadderSettings, DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
-import type { GridStop, PlaceGridParams } from "@/lib/trade/grid"
+import type {
+  GridRangeMove,
+  GridStop,
+  PlaceGridParams,
+} from "@/lib/trade/grid"
 import {
   laddersAndGridsYouPlaced,
   type SmartGrid,
@@ -468,7 +472,7 @@ export type Trading = {
   moveGridRange: (
     walletId: string,
     gridId: string,
-    move: { end: "top" | "bottom"; px: number }
+    move: GridRangeMove
   ) => Promise<boolean>
   /**
    * Re-slice a running grid: how many levels it has, and what share of the
