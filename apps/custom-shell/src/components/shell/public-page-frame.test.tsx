@@ -13,8 +13,10 @@ const publicTheme = vi.hoisted(() => ({
     canvasColor: "",
     pageWidth: 1152,
     mainSpacing: 40,
+    contentAlignment: "center" as "left" | "center" | "right",
     headerBorder: true,
     footerBorder: true,
+    colorScheme: "system" as "system" | "light" | "dark",
     font: "system" as const,
     radius: 10,
   },
@@ -76,6 +78,10 @@ vi.mock("@/components/shell/brand-logo", () => ({
   BrandLogo: () => <span data-brand-logo="" />,
 }))
 
+vi.mock("@/components/shell/theme-toggle", () => ({
+  ThemeToggle: () => <button type="button">Choose colour mode</button>,
+}))
+
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 
 describe("PublicPageFrame navigation", () => {
@@ -91,8 +97,10 @@ describe("PublicPageFrame navigation", () => {
       canvasColor: "",
       pageWidth: 1152,
       mainSpacing: 40,
+      contentAlignment: "center",
       headerBorder: true,
       footerBorder: true,
+      colorScheme: "system",
       font: "system",
       radius: 10,
     }
@@ -141,9 +149,12 @@ describe("PublicPageFrame navigation", () => {
     const main = host.querySelector("main")
     expect(main?.className).toContain("items-start")
     expect(main?.className).not.toContain("place-items-center")
+    expect(main?.firstElementChild?.className).toContain("items-center")
+    expect(main?.firstElementChild?.className).toContain("text-center")
     expect(main?.getAttribute("style")).toBeNull()
     expect(host.querySelector("header")?.className).toContain("border-b")
     expect(host.querySelector("footer")?.className).toContain("border-t")
+    expect(host.textContent).toContain("Choose colour mode")
 
     await act(async () => root.unmount())
   })
@@ -155,8 +166,10 @@ describe("PublicPageFrame navigation", () => {
       canvasColor: "#abcdef",
       pageWidth: 800,
       mainSpacing: 24,
+      contentAlignment: "right",
       headerBorder: false,
       footerBorder: false,
+      colorScheme: "dark",
     }
     const host = document.createElement("div")
     document.body.appendChild(host)
@@ -176,12 +189,15 @@ describe("PublicPageFrame navigation", () => {
 
     expect(frame?.style.backgroundColor).toBe("rgb(171, 205, 239)")
     expect(main?.className).toContain("place-items-center")
+    expect(main?.firstElementChild?.className).toContain("items-end")
+    expect(main?.firstElementChild?.className).toContain("text-right")
     expect(main?.style.paddingBlock).toBe("24px")
     expect(
       widthElements.every((element) => element?.style.maxWidth === "800px")
     ).toBe(true)
     expect(host.querySelector("header")?.className).not.toContain("border-b")
     expect(host.querySelector("footer")?.className).not.toContain("border-t")
+    expect(host.textContent).not.toContain("Choose colour mode")
 
     await act(async () => root.unmount())
   })

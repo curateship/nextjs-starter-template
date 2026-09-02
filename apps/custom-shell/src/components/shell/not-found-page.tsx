@@ -2,6 +2,7 @@ import { getRouteApi, Link, useRouterState } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { useAppName } from "@/lib/branding"
 
@@ -102,7 +103,7 @@ function NotFoundCard({
   other: WayOn
 }) {
   return (
-    <Card className="mx-auto w-full max-w-md">
+    <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>That page does not exist</CardTitle>
       </CardHeader>
@@ -115,7 +116,9 @@ function NotFoundCard({
         {/* Ordinary in-app links. Nothing here is broken — the router simply
             had no route for the address — so there is no state to escape by
             reloading, and a reload would only blank the screen on the way. */}
-        <div className="flex flex-wrap gap-2">
+        <div
+          className={`flex flex-wrap gap-2 ${publicContentAlignmentRowClassName}`}
+        >
           <Button asChild>
             <Link to={home.to}>{home.label}</Link>
           </Button>

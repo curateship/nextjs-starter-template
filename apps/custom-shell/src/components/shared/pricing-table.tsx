@@ -1,5 +1,6 @@
 import { CheckIcon, Loader2Icon } from "lucide-react"
 
+import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -63,7 +64,12 @@ export function PricingTable({
   return (
     <div className="flex w-full flex-col gap-2 md:gap-3">
       {hasYearly ? (
-        <div className="flex justify-center">
+        <div
+          className={cn(
+            "flex justify-center",
+            publicContentAlignmentRowClassName
+          )}
+        >
           <Tabs
             value={interval}
             onValueChange={(value) => onIntervalChange(value as BillingInterval)}

@@ -8,6 +8,13 @@ import {
 export const PUBLIC_THEME_FONTS = ["system", "inter", "serif", "mono"] as const
 export type PublicThemeFont = (typeof PUBLIC_THEME_FONTS)[number]
 
+export const PUBLIC_COLOR_SCHEMES = ["system", "light", "dark"] as const
+export type PublicColorScheme = (typeof PUBLIC_COLOR_SCHEMES)[number]
+
+export const PUBLIC_CONTENT_ALIGNMENTS = ["left", "center", "right"] as const
+export type PublicContentAlignment =
+  (typeof PUBLIC_CONTENT_ALIGNMENTS)[number]
+
 export type PublicTheme = {
   /** Buttons, links, and focus rings. Empty keeps the app's normal colour. */
   brandColor: string
@@ -19,10 +26,14 @@ export type PublicTheme = {
   pageWidth: number
   /** Top and bottom padding around public page content in pixels. */
   mainSpacing: number
+  /** Horizontal alignment for the main content on every public page. */
+  contentAlignment: PublicContentAlignment
   /** Whether the public header draws its bottom divider. */
   headerBorder: boolean
   /** Whether the public footer draws its top divider. */
   footerBorder: boolean
+  /** Whether visitors choose light or dark, or the public site pins one. */
+  colorScheme: PublicColorScheme
   font: PublicThemeFont
   radius: number
 }
@@ -70,8 +81,10 @@ export function createDefaultPublicTheme(): PublicTheme {
     canvasColor: "",
     pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
     mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+    contentAlignment: "center",
     headerBorder: true,
     footerBorder: true,
+    colorScheme: "system",
     font: "system",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
@@ -167,6 +180,11 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
       0,
       MAX_PUBLIC_MAIN_SPACING
     ),
+    contentAlignment: PUBLIC_CONTENT_ALIGNMENTS.includes(
+      theme.contentAlignment as PublicContentAlignment
+    )
+      ? (theme.contentAlignment as PublicContentAlignment)
+      : fallback.contentAlignment,
     headerBorder:
       typeof theme.headerBorder === "boolean"
         ? theme.headerBorder
@@ -175,6 +193,11 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
       typeof theme.footerBorder === "boolean"
         ? theme.footerBorder
         : fallback.footerBorder,
+    colorScheme: PUBLIC_COLOR_SCHEMES.includes(
+      theme.colorScheme as PublicColorScheme
+    )
+      ? (theme.colorScheme as PublicColorScheme)
+      : fallback.colorScheme,
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
@@ -266,7 +289,21 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
     theme.canvasColor !== "" ||
     theme.pageWidth !== DEFAULT_PUBLIC_PAGE_WIDTH ||
     theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
+    theme.contentAlignment !== "center" ||
     !theme.headerBorder ||
-    !theme.footerBorder
+    !theme.footerBorder ||
+    theme.colorScheme !== "system"
   )
+}
+
+/** Chooses the public colour mode before styles load, avoiding a light/dark flash. */
+export function noFlashThemeScript(scheme: PublicColorScheme) {
+  if (scheme === "light") {
+    return "try{document.documentElement.classList.add('light')}catch(e){}"
+  }
+  if (scheme === "dark") {
+    return "try{document.documentElement.classList.add('dark')}catch(e){}"
+  }
+
+  return "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}"
 }

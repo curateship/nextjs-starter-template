@@ -4,6 +4,8 @@ import { MenuIcon } from "lucide-react"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { BrandLogo } from "@/components/shell/brand-logo"
+import { publicContentAlignmentClassNames } from "@/components/shell/public-content-alignment"
+import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
@@ -40,7 +42,8 @@ import { cn } from "@/lib/utils"
 
 /**
  * The shared frame for every signed-out page. Marketing declarations use the
- * full page width from the top; card pages keep their content centred.
+ * full page width from the top; card pages keep their narrower presentation.
+ * The public theme aligns the main content independently of that layout.
  *
  * It also carries the branding above the content — the admin-set logo, when
  * there is one, and the app name — which is the one place a signed-out visitor
@@ -110,16 +113,54 @@ export function PublicPageFrame({
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
-  const contentAlignmentClass = marketing ? "items-stretch" : "items-center"
+  const visitorCanChooseTheme = theme.colorScheme === "system"
 
   function dismissVisitorAnnouncement(announcement: VisitorAnnouncement) {
     rememberVisitorAnnouncementDismissal(localStorage, announcement)
     setDismissedVisitorIds((current) => new Set(current).add(announcement.id))
   }
 
+  const bareContent = (
+    <div
+      className={cn(
+        "group/public-content flex w-full max-w-6xl flex-col gap-2 md:gap-3",
+        publicContentAlignmentClassNames[theme.contentAlignment]
+      )}
+      data-content-alignment={theme.contentAlignment}
+      style={pageWidthStyle}
+    >
+      <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
+      <p className="text-sm font-medium text-foreground">{appName}</p>
+      {children}
+    </div>
+  )
+
   // No navigation or footer means no empty chrome. The canvas, spacing, width,
   // and declared layout still apply to the bare frame.
   if (!hasSiteFrame && !visibleVisitorAnnouncements.length) {
+    if (visitorCanChooseTheme) {
+      return (
+        <div
+          className="flex min-h-screen flex-col bg-muted/60"
+          style={canvasStyle}
+        >
+          <div className="flex justify-end px-2 py-2 md:px-3 md:py-3">
+            <ThemeToggle />
+          </div>
+          <main
+            className={cn(
+              "grid flex-1 px-4 py-10",
+              mainLayoutClass,
+              className
+            )}
+            style={mainSpacingStyle}
+          >
+            {bareContent}
+          </main>
+        </div>
+      )
+    }
+
     return (
       <main
         className={cn(
@@ -129,17 +170,7 @@ export function PublicPageFrame({
         )}
         style={bareFrameStyle}
       >
-        <div
-          className={cn(
-            "flex w-full max-w-6xl flex-col gap-2 md:gap-3",
-            contentAlignmentClass
-          )}
-          style={pageWidthStyle}
-        >
-          <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
-          <p className="text-sm font-medium text-foreground">{appName}</p>
-          {children}
-        </div>
+        {bareContent}
       </main>
     )
   }
@@ -158,6 +189,11 @@ export function PublicPageFrame({
               onDismiss={() => dismissVisitorAnnouncement(announcement)}
             />
           ))}
+        </div>
+      ) : null}
+      {visitorCanChooseTheme && !hasSiteFrame ? (
+        <div className="flex justify-end px-2 py-2 md:px-3 md:py-3">
+          <ThemeToggle />
         </div>
       ) : null}
       {hasSiteFrame ? (
@@ -233,6 +269,7 @@ export function PublicPageFrame({
                 </DropdownMenu>
               </>
             ) : null}
+            {visitorCanChooseTheme ? <ThemeToggle /> : null}
           </div>
         </header>
       ) : null}
@@ -246,9 +283,10 @@ export function PublicPageFrame({
       >
         <div
           className={cn(
-            "flex w-full max-w-6xl flex-col gap-2 md:gap-3",
-            contentAlignmentClass
+            "group/public-content flex w-full max-w-6xl flex-col gap-2 md:gap-3",
+            publicContentAlignmentClassNames[theme.contentAlignment]
           )}
+          data-content-alignment={theme.contentAlignment}
           style={pageWidthStyle}
         >
           {!hasSiteFrame ? (

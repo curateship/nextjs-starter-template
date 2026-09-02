@@ -19,18 +19,27 @@ router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
 Settings under Public > Look control the site's brand colour, corner rounding
-from 0 to 24px, font, canvas colour, content width, vertical spacing, and the
-header and footer divider lines. The system face, Inter, serif, and mono are
-available. Inter comes from the app; the other choices use fonts already on the
-visitor's device. Public pages never fetch a font from another site. Frame,
-font, and corner choices are app-wide. Apps with public workspace domains keep
-a brand colour per site. An app without those domains uses one brand colour for
-its public frontend.
+from 0 to 24px, font, colour mode, canvas colour, content width, content
+alignment, vertical spacing, and the header and footer divider lines. The
+system face, Inter, serif, and mono are available. Inter comes from the app;
+the other choices use fonts already on the visitor's device. Public pages never
+fetch a font from another site. Frame, font, and corner choices are app-wide.
+Apps with public workspace domains keep a brand colour per site. An app without
+those domains uses one brand colour for its public frontend.
+
+The app-wide colour mode follows the visitor's device by default. In that mode,
+the public header or top-right corner offers Light, Dark, and System choices and
+remembers the visitor's choice in the browser. An admin can instead pin the
+public site to light or dark, which hides the visitor menu. The server puts the
+pinned class in the page head before styles load, so a hard reload does not
+briefly paint the other mode. Public settings never override a signed-in
+person's own mode.
 
 The public frame reads each coded page's layout declaration. The front page,
-pricing, and search use the full shared width from the top and align left. Auth
-pages use the centred card layout. Written pages also stay centred cards until
-their own per-page layout choice is added.
+pricing, and search use the full shared width from the top. Auth pages use the
+card layout, and written pages stay cards until
+their own per-page layout choice is added. Main content is centred by default
+in both layouts. The app-wide content alignment can move it left or right.
 
 The root page load combines the app-wide font and corners with the brand colour
 for the domain being visited. The server writes those values into the first HTML

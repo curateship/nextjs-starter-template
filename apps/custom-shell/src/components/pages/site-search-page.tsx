@@ -1,5 +1,6 @@
 import { Link, useRouter, type ErrorComponentProps } from "@tanstack/react-router"
 
+import { publicContentAlignmentGridClassName } from "@/components/shell/public-content-alignment"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
@@ -95,7 +96,9 @@ export function SiteSearchRouteError({ error }: ErrorComponentProps) {
   return (
     <SiteSearchFrame>
       <Card>
-        <CardContent className="grid justify-items-start gap-2">
+        <CardContent
+          className={`grid gap-2 ${publicContentAlignmentGridClassName}`}
+        >
           <h1 className="text-lg font-semibold">Something went wrong</h1>
           <p className="text-sm text-muted-foreground">{getSiteSearchErrorMessage(error)}</p>
           <Button type="button" onClick={() => void router.invalidate()}>

@@ -27,6 +27,8 @@ import {
   MIN_PUBLIC_PAGE_WIDTH,
   PUBLIC_BRAND_COLOR_PATTERN,
   PUBLIC_BRAND_OVERRIDE_KEYS,
+  PUBLIC_COLOR_SCHEMES,
+  PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
   normalizePublicBrandTheme,
   publicThemeForAppWideSave,
@@ -179,8 +181,10 @@ const publicThemeSchema = z.object({
     .min(MIN_PUBLIC_PAGE_WIDTH)
     .max(MAX_PUBLIC_PAGE_WIDTH),
   mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
+  contentAlignment: z.enum(PUBLIC_CONTENT_ALIGNMENTS),
   headerBorder: z.boolean(),
   footerBorder: z.boolean(),
+  colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
   font: z.enum(PUBLIC_THEME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })

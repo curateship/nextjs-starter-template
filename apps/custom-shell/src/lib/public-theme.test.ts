@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest"
 import {
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
+  PUBLIC_COLOR_SCHEMES,
+  PUBLIC_CONTENT_ALIGNMENTS,
   createDefaultPublicTheme,
   hasCustomPublicTheme,
   isPublicBrandColor,
   isPublicThemeInputValid,
+  noFlashThemeScript,
   normalizePublicBrandTheme,
   normalizePublicBrandOverrides,
   normalizePublicTheme,
@@ -20,6 +23,32 @@ describe("public theme", () => {
     expect(hasCustomPublicTheme(createDefaultPublicTheme())).toBe(false)
   })
 
+  it("normalizes the public colour scheme and treats a pin as a custom theme", () => {
+    expect(PUBLIC_COLOR_SCHEMES).toEqual(["system", "light", "dark"])
+    expect(createDefaultPublicTheme().colorScheme).toBe("system")
+    expect(normalizePublicTheme({ colorScheme: "dark" }).colorScheme).toBe(
+      "dark"
+    )
+    expect(normalizePublicTheme({ colorScheme: "sepia" }).colorScheme).toBe(
+      "system"
+    )
+    expect(
+      hasCustomPublicTheme({
+        ...createDefaultPublicTheme(),
+        colorScheme: "light",
+      })
+    ).toBe(true)
+  })
+
+  it("pins a public scheme before paint or follows the saved visitor choice", () => {
+    expect(noFlashThemeScript("dark")).toBe(
+      "try{document.documentElement.classList.add('dark')}catch(e){}"
+    )
+    expect(noFlashThemeScript("system")).toContain(
+      "localStorage.getItem('theme')"
+    )
+  })
+
   it("normalizes the public frame without changing its established defaults", () => {
     expect(
       normalizePublicTheme({
@@ -28,6 +57,7 @@ describe("public theme", () => {
         headerBorder: false,
         footerBorder: "no",
         mainSpacing: -12,
+        contentAlignment: "right",
       })
     ).toMatchObject({
       pageWidth: 1600,
@@ -35,6 +65,7 @@ describe("public theme", () => {
       headerBorder: false,
       footerBorder: true,
       mainSpacing: 0,
+      contentAlignment: "right",
     })
 
     expect(createDefaultPublicTheme()).toMatchObject({
@@ -43,7 +74,25 @@ describe("public theme", () => {
       headerBorder: true,
       footerBorder: true,
       mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+      contentAlignment: "center",
     })
+  })
+
+  it("centres public content by default and normalizes saved alignment", () => {
+    expect(PUBLIC_CONTENT_ALIGNMENTS).toEqual(["left", "center", "right"])
+    expect(createDefaultPublicTheme().contentAlignment).toBe("center")
+    expect(
+      normalizePublicTheme({ contentAlignment: "left" }).contentAlignment
+    ).toBe("left")
+    expect(
+      normalizePublicTheme({ contentAlignment: "middle" }).contentAlignment
+    ).toBe("center")
+    expect(
+      hasCustomPublicTheme({
+        ...createDefaultPublicTheme(),
+        contentAlignment: "right",
+      })
+    ).toBe(true)
   })
 
   it("treats a changed border as a public theme and blocks invalid canvas input", () => {
@@ -76,6 +125,8 @@ describe("public theme", () => {
       mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
       headerBorder: true,
       footerBorder: true,
+      colorScheme: "system",
+      contentAlignment: "center",
       font: "system",
       radius: 24,
     })
@@ -164,7 +215,9 @@ describe("public theme", () => {
       canvasColor: "#f5f5f5",
       pageWidth: 960,
       mainSpacing: 24,
+      contentAlignment: "right",
       headerBorder: false,
+      colorScheme: "dark",
       font: "serif",
       radius: 4,
     }

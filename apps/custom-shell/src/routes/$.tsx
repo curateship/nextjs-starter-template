@@ -91,7 +91,7 @@ function CatchAllRoute() {
 
   return (
     <PublicPageFrame>
-      <Card className="mx-auto w-full max-w-2xl">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>{page.title}</CardTitle>
         </CardHeader>

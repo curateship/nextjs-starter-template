@@ -4,6 +4,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { authLinkClassName } from "@/components/shell/auth-shell"
+import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
@@ -116,7 +117,7 @@ function PricingRoute() {
   return (
     <PublicPageFrame>
       <div className="flex w-full flex-col gap-2 md:gap-3">
-        <header className="flex flex-col items-start gap-2 text-left">
+        <header className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold">Plans</h1>
           <p className="text-sm text-muted-foreground">
             Start free. Move up when you need more.
@@ -151,7 +152,7 @@ function PricingRoute() {
 function PricingFooter({ user }: { user: AuthUser | null }) {
   if (user) {
     return (
-      <div className="flex justify-start">
+      <div className={`flex ${publicContentAlignmentRowClassName}`}>
         <Button asChild variant="outline">
           <Link to="/home" search={{ account: "billing" }}>
             Back to billing
@@ -162,7 +163,7 @@ function PricingFooter({ user }: { user: AuthUser | null }) {
   }
 
   return (
-    <p className="text-left text-sm text-muted-foreground">
+    <p className="text-sm text-muted-foreground">
       Already have an account?{" "}
       <Link to="/login" className={authLinkClassName}>
         Sign in

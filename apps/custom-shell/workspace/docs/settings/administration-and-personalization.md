@@ -72,13 +72,21 @@ never block saving a valid colour.
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the
 header and above the footer. These choices are app-wide. Their defaults keep
-the former 1152px width, muted canvas, 40px spacing, and both divider lines.
-Canvas colours use the same 6-digit hex validation as brand colours.
+the former 1152px width, muted canvas, 40px spacing, both divider lines, and
+content centred. Content alignment can move every public page's main content
+to the left, centre, or right. Canvas colours use the same 6-digit hex
+validation as brand colours.
+
+Colour mode in the same card can follow the visitor's device or pin every
+public page to light or dark. Follow device is the default and shows a public
+mode menu whose Light, Dark, or System choice is remembered in that browser.
+A pinned mode wins over that saved visitor choice and hides the public menu.
+The signed-in app keeps its own saved mode either way.
 
 Coded public pages use the layout in their page declaration. Marketing pages
 such as the front page, pricing, and search start at the top, use the shared
-page width, and align their content left. Sign-in pages and written pages keep
-the centred card layout.
+page width, and use their wider presentation. Sign-in pages and written pages
+keep the card layout. The public content alignment applies to both layouts.
 
 Migration `0075_custom_shell_public_brand_color.sql` copies CMS's old
 `accentColor` into `publicTheme.brandColor` only when the new field does not

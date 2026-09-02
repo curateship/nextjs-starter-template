@@ -23,11 +23,15 @@ import {
   MAX_PUBLIC_RADIUS,
   MIN_PUBLIC_PAGE_WIDTH,
   PUBLIC_BRAND_COLOR_PATTERN,
+  PUBLIC_COLOR_SCHEMES,
+  PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
   PUBLIC_THEME_FONT_LABELS,
   isPublicBrandColor,
   normalizePublicBrandOverrides,
   type PublicBrandOverrideKey,
+  type PublicColorScheme,
+  type PublicContentAlignment,
   type PublicTheme,
   type PublicThemeFont,
 } from "@/lib/public-theme"
@@ -199,6 +203,74 @@ export function PublicThemeSettings({
         description="Set the shared width, canvas, borders, and spacing around every public page."
         contentClassName="space-y-6"
       >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-theme-colour-scheme"
+            hint="Follow device lets visitors choose and remember light or dark. A fixed mode hides their switch."
+          >
+            Colour mode
+          </FieldLabel>
+          <Select
+            value={theme.colorScheme}
+            onValueChange={(colorScheme) =>
+              update({ colorScheme: colorScheme as PublicColorScheme })
+            }
+          >
+            <SelectTrigger
+              id="public-theme-colour-scheme"
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_COLOR_SCHEMES.map((colorScheme) => (
+                <SelectItem key={colorScheme} value={colorScheme}>
+                  {colorScheme === "system"
+                    ? "Follow device"
+                    : colorScheme === "light"
+                      ? "Always light"
+                      : "Always dark"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-theme-content-alignment"
+            hint="Sets the horizontal alignment of the main content on every public page."
+          >
+            Content alignment
+          </FieldLabel>
+          <Select
+            value={theme.contentAlignment}
+            onValueChange={(contentAlignment) =>
+              update({
+                contentAlignment: contentAlignment as PublicContentAlignment,
+              })
+            }
+          >
+            <SelectTrigger
+              id="public-theme-content-alignment"
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_CONTENT_ALIGNMENTS.map((contentAlignment) => (
+                <SelectItem key={contentAlignment} value={contentAlignment}>
+                  {contentAlignment === "center"
+                    ? "Centre"
+                    : contentAlignment === "left"
+                      ? "Left"
+                      : "Right"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <SettingsSliderRow
           label="Page width"
           value={theme.pageWidth}

@@ -18,7 +18,11 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadBranding } from "@/lib/api/shell"
 import { resolveAppName, usePublicTheme } from "@/lib/branding"
-import { publicThemeStyle, type PublicTheme } from "@/lib/public-theme"
+import {
+  noFlashThemeScript,
+  publicThemeStyle,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { routePageTitle } from "@/lib/nav/route-title"
@@ -136,7 +140,14 @@ function RootComponent() {
 
   return (
     <RootDocument publicTheme={publicTheme}>
-      <ThemeProvider>
+      <ThemeProvider
+        forcedTheme={
+          publicTheme?.colorScheme === "light" ||
+          publicTheme?.colorScheme === "dark"
+            ? publicTheme.colorScheme
+            : undefined
+        }
+      >
         <TooltipProvider>
           <div data-slot="app-canvas">
             {hostIsUnknown ? <UnknownHost /> : <Outlet />}
@@ -205,8 +216,9 @@ function RootDocument({
         ) : null}
         <script
           dangerouslySetInnerHTML={{
-            __html:
-              "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}",
+            __html: noFlashThemeScript(
+              publicTheme?.colorScheme ?? "system"
+            ),
           }}
         />
         <script dangerouslySetInnerHTML={{ __html: noFlashCollapseScript }} />

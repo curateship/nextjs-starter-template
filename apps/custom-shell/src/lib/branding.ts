@@ -80,7 +80,7 @@ export function usePublicFooterCopyright() {
   })
 }
 
-/** The app's public font and corners, normalized again at the paint boundary. */
+/** The app's public look, normalized again at the paint boundary. */
 export function usePublicTheme(): PublicTheme {
   const saved = useLoaderData({
     from: rootRouteId,
