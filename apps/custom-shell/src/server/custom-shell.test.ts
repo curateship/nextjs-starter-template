@@ -6573,7 +6573,11 @@ describe("custom shell maintenance mode", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf", adminRoute: "/admin/media" },
+      settings: {
+        appName: "Bookshelf",
+        adminRoute: "/admin/media",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
@@ -6584,6 +6588,10 @@ describe("custom shell maintenance mode", () => {
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.adminRoute).toBe("/admin/media")
     expect(globals.maintenance.enabled).toBe(true)
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("treats a missing or hand-edited value as off", () => {
@@ -6704,7 +6712,10 @@ describe("custom shell session policy", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf" },
+      settings: {
+        appName: "Bookshelf",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
@@ -6714,6 +6725,10 @@ describe("custom shell session policy", () => {
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.sessionPolicy).toEqual({ maxAgeDays: 30, idleMinutes: 60 })
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("creates the settings row when the policy is saved on a fresh install", async () => {

@@ -3,6 +3,7 @@ import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { appPublicTheme } from "@/lib/app-options"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MAX_MAINTENANCE_MESSAGE_LENGTH,
@@ -32,6 +33,7 @@ import {
   PUBLIC_THEME_FONTS,
   normalizePublicBrandTheme,
   publicThemeForAppWideSave,
+  publicThemeOverrides,
 } from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -346,6 +348,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         }
       }
 
+      const nextPublicTheme = publicThemeForAppWideSave(
+        data.publicTheme,
+        existingGlobals.publicTheme,
+        Boolean(workspaceBaseDomain())
+      )
       const globalSettings = {
         // The kill switch is not in this request's shape at all, on purpose:
         // the settings page never sends it, so there is no version of this
@@ -353,13 +360,10 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
-          publicTheme: publicThemeForAppWideSave(
-            data.publicTheme,
-            existingGlobals.publicTheme,
-            Boolean(workspaceBaseDomain())
-          ),
+          publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
         }),
+        publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
           message: data.maintenance.message,

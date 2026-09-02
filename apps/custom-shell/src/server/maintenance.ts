@@ -8,8 +8,8 @@ import { db, type CustomShellDb } from "@/server/db"
 import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
 import { now } from "@/server/auth/security"
 import {
-  parseShellGlobals,
   readShellGlobals,
+  shellGlobalsForWrite,
 } from "@/server/shell-settings"
 
 /**
@@ -50,7 +50,10 @@ export async function setMaintenance(
       .limit(1)
       .for("update")
 
-    const settings = { ...parseShellGlobals(existing?.settings), maintenance }
+    const settings = {
+      ...shellGlobalsForWrite(existing?.settings),
+      maintenance,
+    }
     const timestamp = now()
 
     if (existing) {

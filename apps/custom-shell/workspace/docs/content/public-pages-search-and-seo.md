@@ -41,15 +41,18 @@ card layout, and written pages stay cards until
 their own per-page layout choice is added. Main content is centred by default
 in both layouts. The app-wide content alignment can move it left or right.
 
-The root page load combines the app-wide font and corners with the brand colour
-for the domain being visited. The server writes those values into the first HTML
-response, before the browser paints or React starts. Missing and invalid fields
-use the standard colour, font, and corner values. The brand colour writes the
-shell's primary and focus-ring variables. The shell derives the public button
-hover, selection tint, readable button text, and dark-mode brand from the same
-colour before the first paint. A saved manual override replaces its automatic
-value in both modes until an admin sends it back to automatic. Public look
-settings never change the signed-in app, which keeps its own Styling settings.
+The root page load starts with the app's default public theme, then adds the
+saved app-wide values and the brand colour for the domain being visited. An app
+that supplies no default starts with Custom Shell's built-in look. The server
+writes the resolved values into the first HTML response, before the browser
+paints or React starts. Missing saved fields keep the app default. The resolver
+checks saved values and app defaults before they reach the page. Saved manual
+shades replace only matching app shades, and sending a shade back to automatic
+removes that inherited manual value. The brand colour writes the shell's
+primary and focus-ring variables. The shell derives the public button hover,
+selection tint, readable button text, and dark-mode brand from the same colour
+before the first paint. Public look settings never change the signed-in app,
+which keeps its own Styling settings.
 
 Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search

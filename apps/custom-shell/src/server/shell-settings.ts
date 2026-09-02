@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { appPublicTheme } from "@/lib/app-options"
 import {
   createDefaultMemberSections,
   createDefaultShellConfig,
@@ -15,6 +16,8 @@ import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
   hasCustomPublicTheme,
   normalizePublicTheme,
+  publicThemeForSite,
+  publicThemeOverrides,
   type PublicTheme,
 } from "@/lib/public-theme"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
@@ -112,10 +115,10 @@ export async function readBranding(
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
-  const publicTheme = {
-    ...appWidePublicTheme,
-    ...workspaceSettings.publicTheme,
-  }
+  const publicTheme = publicThemeForSite(
+    appWidePublicTheme,
+    workspaceSettings.publicTheme
+  )
 
   return {
     appName: answer.workspace.name || globals.appName,
@@ -152,7 +155,7 @@ export async function readShellSettings(
   const workspace = await currentWorkspace(user.id, database)
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
   const publicTheme = workspaceBaseDomain()
-    ? { ...globals.publicTheme, ...workspaceSettings.publicTheme }
+    ? publicThemeForSite(globals.publicTheme, workspaceSettings.publicTheme)
     : globals.publicTheme
 
   return {
@@ -181,7 +184,10 @@ export async function readShellSettings(
 }
 
 export function parseShellGlobals(value: unknown) {
-  const fallback = createDefaultShellConfig()
+  const fallback = {
+    ...createDefaultShellConfig(),
+    publicTheme: appPublicTheme(),
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return pickShellGlobals(fallback)
   }
@@ -206,7 +212,10 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
-    publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicTheme: normalizePublicTheme(
+      settings.publicTheme,
+      fallback.publicTheme
+    ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -251,6 +260,15 @@ export function parseShellGlobals(value: unknown) {
     // they did.
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+  }
+}
+
+/** Resolves globals for a write without turning app theme defaults into saves. */
+export function shellGlobalsForWrite(value: unknown) {
+  const settings = parseShellGlobals(value)
+  return {
+    ...settings,
+    publicTheme: publicThemeOverrides(settings.publicTheme, appPublicTheme()),
   }
 }
 

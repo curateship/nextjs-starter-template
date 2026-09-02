@@ -61,6 +61,11 @@ every merge.
 What is on offer today. An option is added when a real app needs it, never on
 the guess that one might:
 
+- `publicTheme` — the public look a fresh install starts with. The app names only
+  the fields it wants to change, saved app-wide values replace matching fields,
+  and anything omitted keeps the shell's built-in look. The settings record
+  keeps only differences from the app default, so an unrelated save does not
+  freeze inherited values.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
 - `automations.nodes` — extra steps in the automation palette, each carrying its
   own icon and a pointer to its settings panel, paired with
@@ -160,6 +165,11 @@ it, it is not an app option.**
   staging and production of the *same* app. Stripe keys, `..._BILLING_ENABLED`.
 - **An app option** — decided once by whoever builds the app, the same on every
   install, and changing it means a code change and a deploy.
+
+An app option may supply the starting value for a runtime setting only when the
+catalogue offers that default explicitly. The public theme does this: the app's
+choice sits under saved site values, while omitted app fields keep the shell's
+built-in look.
 
 ### When an app needs an option that does not exist
 

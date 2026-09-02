@@ -11,7 +11,10 @@ import {
   DEFAULT_SETTINGS_KEY,
 } from "@/server/schema"
 import { now } from "@/server/auth/security"
-import { parseShellGlobals, readShellGlobals } from "@/server/shell-settings"
+import {
+  readShellGlobals,
+  shellGlobalsForWrite,
+} from "@/server/shell-settings"
 
 /**
  * The automations kill switch: one flag that stops every flow at once.
@@ -112,7 +115,7 @@ export async function setAutomationPause(
       .for("update")
 
     const settings = {
-      ...parseShellGlobals(existing?.settings),
+      ...shellGlobalsForWrite(existing?.settings),
       automationPause,
     }
     const timestamp = now()

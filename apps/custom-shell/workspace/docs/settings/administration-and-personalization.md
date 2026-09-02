@@ -54,6 +54,15 @@ before signing in. Font and corners are app-wide. Brand colour belongs to the
 current site when the app gives workspaces their own public domains. An app
 without public workspace domains uses one app-wide brand colour instead.
 
+An app may supply the public look a fresh install starts with through its app
+options. The app names only the fields it wants to change. A value saved in
+Public Look replaces the matching app default, while untouched fields keep the
+app's choice and omitted app fields keep Custom Shell's built-in look. The
+option is code, not another settings record, so changing the app default
+requires a deploy. The settings record keeps only values that differ from the
+app default. Saving another setting does not freeze the inherited public look,
+and a later app default still reaches every value the admin left alone.
+
 Brand colour accepts a 6-digit hex value. The shell uses it for public buttons,
 links, and focus rings. The shell also builds a distinct hover colour, a soft
 selection tint, readable button text, and a brand colour that stays visible in
