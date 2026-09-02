@@ -1,4 +1,5 @@
 import { loadLadderBase } from "@/lib/api/trade/smart-orders"
+import { loadHeldPromise } from "@/lib/protocols/promise-cache"
 
 /**
  * The base price a DCA ladder would hang from, asked for before it is needed.
@@ -29,14 +30,10 @@ export function prefetchLadderBase(marketKey: string): void {
 export function ladderBase(
   marketKey: string
 ): Promise<{ basePx: number | null }> {
-  const found = held.get(marketKey)
-  if (found && Date.now() - found.at < KEEP_MS) return found.answer
-
-  const at = Date.now()
-  const answer = loadLadderBase(marketKey)
-  answer.catch(() => {
-    if (held.get(marketKey)?.at === at) held.delete(marketKey)
-  })
-  held.set(marketKey, { at, answer })
-  return answer
+  return loadHeldPromise(
+    held,
+    marketKey,
+    (at) => Date.now() - at < KEEP_MS,
+    () => loadLadderBase(marketKey)
+  )
 }

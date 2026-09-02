@@ -120,6 +120,9 @@ screen: anything not written there has not been agreed yet.
 
 - `protocol-layer.md` — where the exchange lives in the code, one door per
   venue.
+- `connector-helpers.md` — the shared order, cache, public socket and private
+  order-line rules, including the five-second idle wait and 30-second trust
+  window.
 - `hyperliquid-rate-limits.md` — the cap Hyperliquid puts on requests and how
   this app stays under it.
 - `hyperliquid-refusals.md` — the Hyperliquid refusal phrases seen in the

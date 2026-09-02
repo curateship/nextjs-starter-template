@@ -237,9 +237,9 @@ describe("placing a Lighter order", () => {
         },
       ],
     })
-    await expect(
-      placeLighterOrder("mainnet", auth(), order())
-    ).rejects.toThrow(/^LIVE_ORDER_REFUSED:.*post-only/)
+    await expect(placeLighterOrder("mainnet", auth(), order())).rejects.toThrow(
+      /^LIVE_ORDER_REFUSED:.*post-only/
+    )
   }, 60_000)
 
   it("reports a fill the read-back finds, at Lighter's own price", async () => {
@@ -266,9 +266,9 @@ describe("placing a Lighter order", () => {
     // Both lists answered properly and twice, and the order is nowhere: the
     // transaction itself died, most likely on a spent sequence number.
     confirmAnswers({ active: [], inactive: [] })
-    await expect(
-      placeLighterOrder("mainnet", auth(), order())
-    ).rejects.toThrow(/^LIVE_ORDER_REFUSED:.*never kept/)
+    await expect(placeLighterOrder("mainnet", auth(), order())).rejects.toThrow(
+      /^LIVE_ORDER_REFUSED:.*never kept/
+    )
     expect(vi.mocked(forgetLighterNonce)).toHaveBeenCalledWith("mainnet", 5, 2)
   }, 60_000)
 
@@ -299,6 +299,20 @@ describe("cancelling a Lighter order", () => {
 })
 
 describe("moving a Lighter order", () => {
+  it("refuses an invalid replacement before cancelling the old order", async () => {
+    await expect(
+      modifyLighterOrder("mainnet", auth(), {
+        marketId: "BTC",
+        orderId: "12345",
+        side: "buy",
+        px: -1,
+        sz: 0.0006,
+        reduceOnly: false,
+      })
+    ).rejects.toThrow("LIVE_PRICE")
+    expect(sent).not.toHaveBeenCalled()
+  })
+
   it("cancels the old one before placing the new one", async () => {
     // Lighter has an amend transaction and it is deliberately not used: an
     // amend that half-applies leaves an order at a price nobody chose, and
@@ -419,7 +433,14 @@ describe("reading Lighter's resting orders", () => {
     byIndex.mockResolvedValue(null)
     privateRead.mockResolvedValue({
       code: 200,
-      orders: [{ order_index: 5, market_index: 999, price: "1", remaining_base_amount: "1" }],
+      orders: [
+        {
+          order_index: 5,
+          market_index: 999,
+          price: "1",
+          remaining_base_amount: "1",
+        },
+      ],
     })
     const portfolio = await fetchLighterOrderPortfolio(
       "mainnet",
@@ -437,9 +458,8 @@ describe("closing a Lighter position", () => {
      * refuses "OrderExpiry is invalid" for anything else, so a close built
      * with the usual 28-day default never reached the exchange at all.
      */
-    const { fetchLighterPrices } = await import(
-      "@/server/protocols/lighter/markets"
-    )
+    const { fetchLighterPrices } =
+      await import("@/server/protocols/lighter/markets")
     vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
     await closeLighterPosition("mainnet", auth(), {
       marketId: "BTC",
@@ -456,9 +476,8 @@ describe("closing a Lighter position", () => {
   }, 60_000)
 
   it("buys back to close a short", async () => {
-    const { fetchLighterPrices } = await import(
-      "@/server/protocols/lighter/markets"
-    )
+    const { fetchLighterPrices } =
+      await import("@/server/protocols/lighter/markets")
     vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
     await closeLighterPosition("mainnet", auth(), {
       marketId: "BTC",
@@ -484,6 +503,19 @@ describe("stops and targets on a Lighter position", () => {
       (call) => JSON.parse(String(call[1].txInfo)) as Record<string, unknown>
     )
   }
+
+  it("refuses invalid protection before cancelling the old legs", async () => {
+    await expect(
+      setLighterBrackets("mainnet", auth(), {
+        marketId: "BTC",
+        position: { szi: 0.0006, protectionOrderIds: ["111"] },
+        targets: [{ px: -1, sz: null }],
+        slPx: 70_000,
+        slSz: null,
+      })
+    ).rejects.toThrow("LIVE_PRICE")
+    expect(sent).not.toHaveBeenCalled()
+  })
 
   it("guards a long by selling, reduce-only, at the trigger", async () => {
     await setLighterBrackets("mainnet", auth(), {
@@ -870,9 +902,8 @@ describe("a refused Lighter order says why", () => {
   }, 60_000)
 
   it("badges a refused close, which is where this was found", async () => {
-    const { fetchLighterPrices } = await import(
-      "@/server/protocols/lighter/markets"
-    )
+    const { fetchLighterPrices } =
+      await import("@/server/protocols/lighter/markets")
     vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
     sent.mockRejectedValue(
       new Error("LIGHTER_SIGNER_MISSING:Lighter's signing files are not here.")
@@ -896,9 +927,8 @@ describe("a refusal before anything is sent still says why", () => {
      * not go through. Try it again." with the real reason sitting unread in
      * the Journal.
      */
-    const { fetchLighterPrices } = await import(
-      "@/server/protocols/lighter/markets"
-    )
+    const { fetchLighterPrices } =
+      await import("@/server/protocols/lighter/markets")
     vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
     facts.mockRejectedValue(
       new Error(

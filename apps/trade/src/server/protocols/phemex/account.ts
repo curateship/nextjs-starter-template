@@ -1,10 +1,8 @@
 import { z } from "zod"
 
-import type {
-  NetworkId,
-  WalletAccountFigures,
-} from "@/lib/protocols/contracts"
+import type { NetworkId, WalletAccountFigures } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/phemex/translate"
+import { loadHeldPromise } from "@/server/protocols/connector-helpers"
 import {
   parsePhemexCredential,
   phemexSigned,
@@ -79,24 +77,15 @@ export async function phemexAccountPositions(
   const parsed = parsePhemexCredential(blob)
 
   const key = `${network}:${parsed.keyId}`
-  const cached = accountCache.get(key)
-  if (cached && Date.now() - cached.at < ACCOUNT_GOOD_FOR_MS) return cached.answer
-
-  const at = Date.now()
-  const answer = phemexSigned(
-    network,
-    parsed,
-    "GET",
-    "/g-accounts/positions",
-    { currency: "USDT" }
-  ).then((raw) => answerSchema.parse(raw))
-  // A failed read must not be remembered as an answer, or one refusal would
-  // be handed to every caller for the next two seconds.
-  answer.catch(() => {
-    if (accountCache.get(key)?.at === at) accountCache.delete(key)
-  })
-  accountCache.set(key, { at, answer })
-  return answer
+  return loadHeldPromise(
+    accountCache,
+    key,
+    (at) => Date.now() - at < ACCOUNT_GOOD_FOR_MS,
+    () =>
+      phemexSigned(network, parsed, "GET", "/g-accounts/positions", {
+        currency: "USDT",
+      }).then((raw) => answerSchema.parse(raw))
+  )
 }
 
 export async function fetchPhemexAccount(

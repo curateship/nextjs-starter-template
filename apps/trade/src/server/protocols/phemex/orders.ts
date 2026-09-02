@@ -16,6 +16,14 @@ import type {
 import { num } from "@/lib/protocols/phemex/translate"
 import { snapToTick } from "@/lib/protocols/tick"
 import {
+  assertBracketValues,
+  assertPlaceOrderValues,
+  connectorErrors,
+  decimalString,
+  loadConnectorHeldPromise,
+  orderCredential,
+} from "@/server/protocols/connector-helpers"
+import {
   clearPhemexAccountCache,
   phemexAccountPositions,
 } from "@/server/protocols/phemex/account"
@@ -116,36 +124,10 @@ async function symbolRules(
 
 // ----- Small shared pieces -------------------------------------------------
 
-function auth(orderAuth: OrderAuth): { keyId: string; secret: string } {
-  return parsePhemexCredential(orderAuth.agentKey)
-}
-
-/** An exchange refusal as a thrown, scrubbed, code-prefixed error. */
-function exchangeError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
-  const reason = scrubbedMessage(error)
-  return new Error(`LIVE_EXCHANGE:${phemexRefusalError(reason).message}`)
-}
-
-/** A refusal at the door — nothing was placed. Carries that promise as its code. */
-function refusedError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
-  if (message.startsWith("PHEMEX_")) {
-    const said = scrubbedMessage(error)
-    return new Error(`LIVE_ORDER_REFUSED:${phemexRefusalError(said).message}`)
-  }
-  return exchangeError(error)
-}
-
-/** The exchange's decimal string for a number — never scientific notation. */
-function decimalString(value: number): string {
-  return value.toLocaleString("en-US", {
-    useGrouping: false,
-    maximumFractionDigits: 12,
-  })
-}
+const { exchange: exchangeError, refused: refusedError } = connectorErrors({
+  explain: (reason) => phemexRefusalError(reason).message,
+  refusedWhen: (message) => message.startsWith("PHEMEX_"),
+})
 
 /** Size floored to the market's own step. Zero means "too small to exist". */
 function floorToStep(sz: number, step: number | null): number {
@@ -425,7 +407,8 @@ export async function placePhemexOrder(
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  assertPlaceOrderValues(params)
+  const credential = orderCredential(orderAuth, parsePhemexCredential)
   const rules = await symbolRules(network, params.marketId)
 
   const sz = floorToStep(params.sz, rules.qtyStepSize)
@@ -479,7 +462,9 @@ export async function placePhemexOrder(
     // exchange deliberately.
     const cross = (state.longRr ?? state.shortRr ?? "").startsWith("-")
     const asked = Math.abs(params.leverage)
-    const leverageRr = decimalString(cross ? -asked : asked)
+    const leverageRr = decimalString(cross ? -asked : asked, {
+      allowNegative: true,
+    })
     const bothSides = {
       longLeverageRr:
         forSide === "Long" ? leverageRr : (state.longRr ?? leverageRr),
@@ -509,7 +494,7 @@ export async function placePhemexOrder(
     posSide: posSideFor(mode, params.side, params.reduceOnly),
     ordType: "Limit",
     priceRp: decimalString(px),
-    orderQtyRq: decimalString(sz),
+    orderQtyRq: decimalString(sz, { errorCode: "LIVE_SIZE" }),
     timeInForce:
       params.kind === "market"
         ? "ImmediateOrCancel"
@@ -645,7 +630,7 @@ export async function cancelPhemexOrder(
   try {
     await cancelOne(
       network,
-      auth(orderAuth),
+      orderCredential(orderAuth, parsePhemexCredential),
       orderAuth.agentKey,
       params.marketId,
       params.orderId
@@ -674,17 +659,23 @@ export async function modifyPhemexOrder(
   try {
     // A native amend — the order keeps its place-in-book identity and there
     // is no cancelled-but-not-replaced gap to fall into.
-    await phemexSigned(network, auth(orderAuth), "PUT", "/g-orders/replace", {
-      symbol: params.marketId,
-      orderID: params.orderId,
-      priceRp: decimalString(snapToTick(params.px, rules.tickSize)),
-      orderQtyRq: decimalString(sz),
-      posSide: posSideFor(
-        await posModeOf(network, "", orderAuth.agentKey, params.marketId),
-        params.side,
-        params.reduceOnly
-      ),
-    })
+    await phemexSigned(
+      network,
+      orderCredential(orderAuth, parsePhemexCredential),
+      "PUT",
+      "/g-orders/replace",
+      {
+        symbol: params.marketId,
+        orderID: params.orderId,
+        priceRp: decimalString(snapToTick(params.px, rules.tickSize)),
+        orderQtyRq: decimalString(sz, { errorCode: "LIVE_SIZE" }),
+        posSide: posSideFor(
+          await posModeOf(network, "", orderAuth.agentKey, params.marketId),
+          params.side,
+          params.reduceOnly
+        ),
+      }
+    )
   } catch (error) {
     throw exchangeError(error)
   }
@@ -750,13 +741,15 @@ export async function setPhemexLeverage(
     )
   }
   const cross = current.startsWith("-")
-  const leverageRr = decimalString(cross ? -asked : asked)
+  const leverageRr = decimalString(cross ? -asked : asked, {
+    allowNegative: true,
+  })
   const forSide = params.szi > 0 ? "Long" : "Short"
 
   try {
     await phemexSigned(
       network,
-      auth(orderAuth),
+      orderCredential(orderAuth, parsePhemexCredential),
       "PUT",
       "/g-positions/leverage",
       {
@@ -828,7 +821,7 @@ export async function adjustPhemexMargin(
   try {
     await phemexSigned(
       network,
-      auth(orderAuth),
+      orderCredential(orderAuth, parsePhemexCredential),
       "POST",
       "/g-positions/assign",
       {
@@ -858,6 +851,7 @@ export async function setPhemexBrackets(
   }
 ): Promise<{ slOrderId: string | null }> {
   await assertRealMoneyAllowed(network)
+  assertBracketValues(params)
   // Every stop this file places carries `closeOnTrigger`, and it is not yet
   // proven whether Phemex honours a smaller `orderQtyRq` beside that flag or
   // closes the whole position anyway. Until a real-exchange test answers
@@ -866,7 +860,7 @@ export async function setPhemexBrackets(
   // upstream already keeps grid-above-ladder off Phemex wallets; this is the
   // door bolted from the inside as well.
   if (params.slSz !== null) throw new Error("LIVE_SIZED_STOP_UNSUPPORTED")
-  const credential = auth(orderAuth)
+  const credential = orderCredential(orderAuth, parsePhemexCredential)
   const rules = await symbolRules(network, params.marketId)
   const size = Math.abs(params.position.szi)
   if (!(size > 0)) throw new Error("LIVE_POSITION_GONE")
@@ -892,7 +886,9 @@ export async function setPhemexBrackets(
       posSide: legPosSide,
       ordType: leg.ordType,
       stopPxRp: decimalString(snapToTick(leg.triggerPx, rules.tickSize)),
-      orderQtyRq: decimalString(floorToStep(leg.sz, rules.qtyStepSize)),
+      orderQtyRq: decimalString(floorToStep(leg.sz, rules.qtyStepSize), {
+        errorCode: "LIVE_SIZE",
+      }),
       triggerType: "ByMarkPrice",
       timeInForce: "ImmediateOrCancel",
       reduceOnly: true,
@@ -1064,27 +1060,6 @@ const openOrdersCache = new Map<
  */
 const HOLD_WHILE_QUIET_MS = 2 * 60_000
 
-/**
- * Whether an answer taken at `at` may still be used.
- *
- * Young answers stand on their age alone, the way they always did — that is
- * what collapses the engine's ask and the screen's into one. An older answer
- * stands only while the exchange has told us nothing has happened since it was
- * taken, and never past the ceiling.
- */
-function stillStands(
-  network: NetworkId,
-  keyId: string,
-  credential: () => string | null,
-  at: number,
-  goodForMs: number
-): boolean {
-  const age = Date.now() - at
-  if (age < goodForMs) return true
-  if (age >= HOLD_WHILE_QUIET_MS) return false
-  return phemexQuietSince(network, keyId, credential, at)
-}
-
 async function openOrders(
   network: NetworkId,
   credential: { keyId: string; secret: string },
@@ -1092,29 +1067,23 @@ async function openOrders(
   blob: () => string | null
 ): Promise<OrderRow[]> {
   const key = `${network}:${credential.keyId}`
-  const cached = openOrdersCache.get(key)
-  if (
-    cached &&
-    stillStands(
+  return loadConnectorHeldPromise(
+    openOrdersCache,
+    key,
+    {
       network,
-      credential.keyId,
-      blob,
-      cached.at,
-      OPEN_ORDERS_GOOD_FOR_MS
-    )
-  ) {
-    return cached.answer
-  }
-  const at = Date.now()
-  const answer = orderListPages(network, credential, {
-    currency: "USDT",
-    ordStatus: "1,5,6",
-  })
-  answer.catch(() => {
-    if (openOrdersCache.get(key)?.at === at) openOrdersCache.delete(key)
-  })
-  openOrdersCache.set(key, { at, answer })
-  return answer
+      keyId: credential.keyId,
+      credential: blob,
+      goodForMs: OPEN_ORDERS_GOOD_FOR_MS,
+      maximumMs: HOLD_WHILE_QUIET_MS,
+      quietSince: phemexQuietSince,
+    },
+    () =>
+      orderListPages(network, credential, {
+        currency: "USDT",
+        ordStatus: "1,5,6",
+      })
+  )
 }
 
 export async function fetchPhemexPortfolio(
@@ -1307,24 +1276,22 @@ export async function fetchPhemexOrderFills(
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parsePhemexCredential(blob)
   const key = `${network}:${parsed.keyId}:${Math.floor(since / 60_000)}`
-  const cached = fillsCache.get(key)
   // The expensive one. A sweep is an order list plus a separate read for every
   // coin held, and on an account where nothing has filled it finds nothing,
   // every ten seconds, for ever.
-  if (
-    cached &&
-    stillStands(network, parsed.keyId, credential, cached.at, FILLS_GOOD_FOR_MS)
-  ) {
-    return cached.answer
-  }
-
-  const at = Date.now()
-  const answer = readPhemexFills(network, address, since, credential)
-  answer.catch(() => {
-    if (fillsCache.get(key)?.at === at) fillsCache.delete(key)
-  })
-  fillsCache.set(key, { at, answer })
-  return answer
+  return loadConnectorHeldPromise(
+    fillsCache,
+    key,
+    {
+      network,
+      keyId: parsed.keyId,
+      credential,
+      goodForMs: FILLS_GOOD_FOR_MS,
+      maximumMs: HOLD_WHILE_QUIET_MS,
+      quietSince: phemexQuietSince,
+    },
+    () => readPhemexFills(network, address, since, credential)
+  )
 }
 
 async function readPhemexFills(

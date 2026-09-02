@@ -21,6 +21,14 @@ import {
 } from "@/lib/protocols/kucoin/translate"
 import { snapToTick } from "@/lib/protocols/tick"
 import {
+  assertBracketValues,
+  assertPlaceOrderValues,
+  connectorErrors,
+  decimalString,
+  loadConnectorHeldPromise,
+  orderCredential,
+} from "@/server/protocols/connector-helpers"
+import {
   isKucoinCredentialRefusal,
   kucoinSigned,
   parseKucoinCredential,
@@ -80,38 +88,11 @@ const PLACE_POLL_WAIT_MS = 400
 
 // ----- Small shared pieces -------------------------------------------------
 
-function auth(orderAuth: OrderAuth): KucoinCredential {
-  return parseKucoinCredential(orderAuth.agentKey)
-}
-
-/** An exchange refusal as a thrown, scrubbed, code-prefixed error. */
-function exchangeError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
-  if (isKucoinCredentialRefusal(error)) return new Error("LIVE_WALLET_KEY")
-  const reason = scrubbedMessage(error)
-  return new Error(`LIVE_EXCHANGE:${kucoinRefusalError(reason).message}`)
-}
-
-/** A refusal at the door — nothing was placed. Carries that promise as its code. */
-function refusedError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
-  if (isKucoinCredentialRefusal(error)) return new Error("LIVE_WALLET_KEY")
-  if (message.startsWith("KUCOIN_")) {
-    const reason = scrubbedMessage(error)
-    return new Error(`LIVE_ORDER_REFUSED:${kucoinRefusalError(reason).message}`)
-  }
-  return exchangeError(error)
-}
-
-/** The exchange's decimal string for a number — never scientific notation. */
-function decimalString(value: number): string {
-  return value.toLocaleString("en-US", {
-    useGrouping: false,
-    maximumFractionDigits: 12,
-  })
-}
+const { exchange: exchangeError, refused: refusedError } = connectorErrors({
+  explain: (reason) => kucoinRefusalError(reason).message,
+  refusedWhen: (message) => message.startsWith("KUCOIN_"),
+  credentialRefused: isKucoinCredentialRefusal,
+})
 
 /** The capped price a "market" order is really sent at. */
 function cappedPx(
@@ -457,7 +438,8 @@ export async function placeKucoinOrder(
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  assertPlaceOrderValues(params)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
 
   const lots = lotsOf(params.sz, lot)
@@ -622,7 +604,7 @@ export async function cancelKucoinOrder(
   params: { marketId: string; orderId: string }
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   try {
     await kucoinSigned(
       network,
@@ -670,7 +652,7 @@ export async function modifyKucoinOrder(
   }
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
 
   const lots = lotsOf(params.sz, lot)
@@ -743,7 +725,7 @@ export async function closeKucoinPosition(
   params: { marketId: string; szi: number }
 ): Promise<{ avgPx: number | null; filledSz: number | null }> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   const { lot } = await kucoinMarketRules(network, params.marketId)
 
   // `closeOrder` closes whatever is actually held at the moment it runs,
@@ -790,7 +772,7 @@ export async function setKucoinLeverage(
   params: { marketId: string; leverage: number }
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   if ((await marginModeOf(network, credential, params.marketId)) !== "CROSS") {
     throw exchangeError(new Error("KUCOIN_ISOLATED_LEVERAGE"))
   }
@@ -812,7 +794,7 @@ export async function adjustKucoinMargin(
   if (!Number.isFinite(params.dollars) || params.dollars === 0) {
     throw new Error("LIVE_MARGIN_NOTHING")
   }
-  const credential = auth(orderAuth)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   if (
     (await marginModeOf(network, credential, params.marketId)) !== "ISOLATED"
   ) {
@@ -865,7 +847,8 @@ export async function setKucoinBrackets(
   }
 ): Promise<{ slOrderId: string | null }> {
   await assertRealMoneyAllowed(network)
-  const credential = auth(orderAuth)
+  assertBracketValues(params)
+  const credential = orderCredential(orderAuth, parseKucoinCredential)
   const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
   const size = Math.abs(params.position.szi)
   if (!(size > 0)) throw new Error("LIVE_POSITION_GONE")
@@ -1023,26 +1006,6 @@ const OPEN_ORDERS_GOOD_FOR_MS = 2_000
  */
 const HOLD_WHILE_QUIET_MS = 2 * 60_000
 
-/**
- * Whether an answer taken at `at` may still be used.
- *
- * Young answers stand on their age alone. An older one stands only while the
- * exchange has told us nothing has happened since it was taken, and never past
- * the ceiling.
- */
-function stillStands(
-  network: NetworkId,
-  keyId: string,
-  credential: () => string | null,
-  at: number,
-  goodForMs: number
-): boolean {
-  const age = Date.now() - at
-  if (age < goodForMs) return true
-  if (age >= HOLD_WHILE_QUIET_MS) return false
-  return kucoinQuietSince(network, keyId, credential, at)
-}
-
 const orderBooksCache = new Map<
   string,
   { at: number; answer: Promise<{ active: unknown[]; stops: unknown[] }> }
@@ -1086,33 +1049,27 @@ function orderBooks(
   blob: () => string | null
 ): Promise<{ active: unknown[]; stops: unknown[] }> {
   const key = `${network}:${credential.keyId}`
-  const cached = orderBooksCache.get(key)
-  if (
-    cached &&
-    stillStands(
+  return loadConnectorHeldPromise(
+    orderBooksCache,
+    key,
+    {
       network,
-      credential.keyId,
-      blob,
-      cached.at,
-      OPEN_ORDERS_GOOD_FOR_MS
-    )
-  ) {
-    return cached.answer
-  }
-  const at = Date.now()
-  const answer = Promise.all([
-    pagedItems(network, credential, "/api/v1/orders", { status: "active" }),
-    pagedItems(network, credential, "/api/v1/stopOrders", {
-      status: "active",
-    }),
-  ]).then(([active, stops]) => ({ active, stops }))
-  // A failed read is never remembered as an answer — one refusal would
-  // otherwise be handed to every caller until the ceiling ran out.
-  answer.catch(() => {
-    if (orderBooksCache.get(key)?.at === at) orderBooksCache.delete(key)
-  })
-  orderBooksCache.set(key, { at, answer })
-  return answer
+      keyId: credential.keyId,
+      credential: blob,
+      goodForMs: OPEN_ORDERS_GOOD_FOR_MS,
+      maximumMs: HOLD_WHILE_QUIET_MS,
+      quietSince: kucoinQuietSince,
+    },
+    () =>
+      Promise.all([
+        pagedItems(network, credential, "/api/v1/orders", {
+          status: "active",
+        }),
+        pagedItems(network, credential, "/api/v1/stopOrders", {
+          status: "active",
+        }),
+      ]).then(([active, stops]) => ({ active, stops }))
+  )
 }
 
 export async function fetchKucoinPortfolio(
@@ -1381,20 +1338,19 @@ export async function fetchKucoinOrderFills(
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseKucoinCredential(blob)
   const key = `${network}:${parsed.keyId}:${Math.floor(since / 60_000)}`
-  const cached = fillsCache.get(key)
-  if (
-    cached &&
-    stillStands(network, parsed.keyId, credential, cached.at, FILLS_GOOD_FOR_MS)
-  ) {
-    return cached.answer
-  }
-  const at = Date.now()
-  const answer = readKucoinFills(network, since, parsed)
-  answer.catch(() => {
-    if (fillsCache.get(key)?.at === at) fillsCache.delete(key)
-  })
-  fillsCache.set(key, { at, answer })
-  return answer
+  return loadConnectorHeldPromise(
+    fillsCache,
+    key,
+    {
+      network,
+      keyId: parsed.keyId,
+      credential,
+      goodForMs: FILLS_GOOD_FOR_MS,
+      maximumMs: HOLD_WHILE_QUIET_MS,
+      quietSince: kucoinQuietSince,
+    },
+    () => readKucoinFills(network, since, parsed)
+  )
 }
 
 async function readKucoinFills(

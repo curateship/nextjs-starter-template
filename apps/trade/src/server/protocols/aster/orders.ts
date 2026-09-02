@@ -15,6 +15,13 @@ import type { AsterMarginMode } from "@/lib/trade/aster-margin-mode"
 import { num } from "@/lib/protocols/aster/translate"
 import { snapToTick } from "@/lib/protocols/tick"
 import {
+  assertBracketValues,
+  assertPlaceOrderValues,
+  decimalString as decimal,
+  orderCredential,
+  rememberPromise,
+} from "@/server/protocols/connector-helpers"
+import {
   clearAsterAccountCache,
   fetchAsterPortfolio,
 } from "@/server/protocols/aster/account"
@@ -100,17 +107,6 @@ const PRICE_BAND_SHARE = 0.95
 const ACCOUNT_READ_GOOD_FOR_MS = 15_000
 const ACCOUNT_MODE_GOOD_FOR_MS = 15_000
 
-function decimal(value: number): string {
-  return value.toLocaleString("en-US", {
-    useGrouping: false,
-    maximumFractionDigits: 12,
-  })
-}
-
-function credential(orderAuth: OrderAuth): AsterCredential {
-  return parseAsterCredential(orderAuth.agentKey)
-}
-
 function account(orderAuth: OrderAuth): string {
   if (!orderAuth.accountAddress) throw new Error("LIVE_WALLET_KEY")
   return orderAuth.accountAddress
@@ -153,7 +149,7 @@ async function signed(
   return asterSigned(
     network,
     account(orderAuth),
-    credential(orderAuth),
+    orderCredential(orderAuth, parseAsterCredential),
     method,
     path,
     weight,
@@ -355,7 +351,11 @@ async function placeRaw(
   )
   const parsed = orderSchema.safeParse(answer)
   if (!parsed.success) throw new Error("LIVE_UNREADABLE")
-  clearOrderReads(network, account(orderAuth), credential(orderAuth))
+  clearOrderReads(
+    network,
+    account(orderAuth),
+    orderCredential(orderAuth, parseAsterCredential)
+  )
   return parsed.data
 }
 
@@ -374,7 +374,10 @@ function protectionParams(input: {
     workingType: "MARK_PRICE",
     ...(input.size === null
       ? { closePosition: "true" }
-      : { quantity: decimal(input.size), reduceOnly: "true" }),
+      : {
+          quantity: decimal(input.size, { errorCode: "LIVE_SIZE" }),
+          reduceOnly: "true",
+        }),
   }
 }
 
@@ -429,7 +432,11 @@ export async function setAsterLeverage(
     `${network}:${account(orderAuth).toLowerCase()}:${params.marketId}`
   )
   await setLeverage(network, orderAuth, params.marketId, params.leverage)
-  clearOrderReads(network, account(orderAuth), credential(orderAuth))
+  clearOrderReads(
+    network,
+    account(orderAuth),
+    orderCredential(orderAuth, parseAsterCredential)
+  )
 }
 
 export async function adjustAsterMargin(
@@ -447,7 +454,11 @@ export async function adjustAsterMargin(
     amount: decimal(Math.abs(params.dollars)),
     type: params.dollars > 0 ? 1 : 2,
   })
-  clearOrderReads(network, account(orderAuth), credential(orderAuth))
+  clearOrderReads(
+    network,
+    account(orderAuth),
+    orderCredential(orderAuth, parseAsterCredential)
+  )
 }
 
 export async function placeAsterOrder(
@@ -456,6 +467,7 @@ export async function placeAsterOrder(
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
   await assertRealMoneyAllowed(network)
+  assertPlaceOrderValues(params)
   if (!params.reduceOnly && params.marginMode != null) {
     await changeAsterAccountMarginMode(network, orderAuth, params.marginMode)
   }
@@ -495,7 +507,7 @@ export async function placeAsterOrder(
     symbol: params.marketId,
     side: params.side.toUpperCase(),
     type: "LIMIT",
-    quantity: decimal(params.sz),
+    quantity: decimal(params.sz, { errorCode: "LIVE_SIZE" }),
     reduceOnly: String(params.reduceOnly),
     price: decimal(orderPx),
     timeInForce: params.kind === "postOnly" ? "GTX" : market ? "IOC" : "GTC",
@@ -545,7 +557,11 @@ export async function placeAsterOrder(
   // its fill. Invalidate again at confirmation so that older read cannot put
   // the pre-fill snapshot back in front of the action's immediate refresh.
   if (filled) {
-    clearOrderReads(network, account(orderAuth), credential(orderAuth))
+    clearOrderReads(
+      network,
+      account(orderAuth),
+      orderCredential(orderAuth, parseAsterCredential)
+    )
   }
   return {
     status: filled ? "filled" : "resting",
@@ -567,7 +583,11 @@ export async function cancelAsterOrder(
     symbol: params.marketId,
     orderId: params.orderId,
   })
-  clearOrderReads(network, account(orderAuth), credential(orderAuth))
+  clearOrderReads(
+    network,
+    account(orderAuth),
+    orderCredential(orderAuth, parseAsterCredential)
+  )
 }
 
 export async function modifyAsterOrder(
@@ -587,10 +607,14 @@ export async function modifyAsterOrder(
     await signed(network, orderAuth, "PUT", "/fapi/v3/order", 1, {
       symbol: params.marketId,
       orderId: params.orderId,
-      quantity: decimal(params.sz),
+      quantity: decimal(params.sz, { errorCode: "LIVE_SIZE" }),
       price: decimal(params.px),
     })
-    clearOrderReads(network, account(orderAuth), credential(orderAuth))
+    clearOrderReads(
+      network,
+      account(orderAuth),
+      orderCredential(orderAuth, parseAsterCredential)
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.startsWith("ASTER_ORDER_GONE:")) {
@@ -722,16 +746,13 @@ export async function fetchAsterOrderPortfolio(
     return portfolio
   })
   const held = { at, answer, settled: false, recoveryVersion }
-  answer.catch(() => {
-    if (portfolioCache.get(key) === held) portfolioCache.delete(key)
-  })
+  rememberPromise(portfolioCache, key, held)
   answer.then(
     () => {
       held.settled = true
     },
     () => {}
   )
-  portfolioCache.set(key, held)
   return answer
 }
 
@@ -757,7 +778,7 @@ export async function closeAsterPosition(
     symbol: params.marketId,
     side: side.toUpperCase(),
     type: "LIMIT",
-    quantity: decimal(Math.abs(params.szi)),
+    quantity: decimal(Math.abs(params.szi), { errorCode: "LIVE_SIZE" }),
     reduceOnly: "true",
     price: decimal(
       immediateLimitPrice({
@@ -784,7 +805,7 @@ export async function closeAsterPosition(
     const rows = await openOrders(
       network,
       account(orderAuth),
-      credential(orderAuth),
+      orderCredential(orderAuth, parseAsterCredential),
       params.marketId
     )
     for (const row of rows) {
@@ -813,6 +834,7 @@ export async function setAsterBrackets(
   }
 ): Promise<{ slOrderId: string | null }> {
   await assertRealMoneyAllowed(network)
+  assertBracketValues(params)
   const oldIds = [...new Set(params.position.protectionOrderIds)]
   const long = params.position.szi > 0
   const size = Math.abs(params.position.szi)
@@ -881,7 +903,7 @@ export async function setAsterBrackets(
     const stillOpen = await openOrders(
       network,
       account(orderAuth),
-      credential(orderAuth),
+      orderCredential(orderAuth, parseAsterCredential),
       params.marketId
     )
     const still = stillOpen.filter((row) =>

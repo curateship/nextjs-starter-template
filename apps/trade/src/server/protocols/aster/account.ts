@@ -7,6 +7,7 @@ import type {
   WalletPosition,
 } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/aster/translate"
+import { rememberPromise } from "@/lib/protocols/promise-cache"
 import {
   asterSigned,
   parseAsterCredential,
@@ -221,16 +222,13 @@ async function read(
     return snapshot
   })
   const held = { at, answer, settled: false, recoveryVersion }
-  answer.catch(() => {
-    if (cache.get(key) === held) cache.delete(key)
-  })
+  rememberPromise(cache, key, held)
   answer.then(
     () => {
       held.settled = true
     },
     () => {}
   )
-  cache.set(key, held)
   return answer
 }
 

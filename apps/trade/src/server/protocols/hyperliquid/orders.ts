@@ -19,6 +19,13 @@ import {
   num,
   roundOrderPx,
 } from "@/lib/protocols/hyperliquid/translate"
+import {
+  assertBracketValues,
+  assertPlaceOrderValues,
+  connectorErrors,
+  decimalString,
+  loadHeldPromise,
+} from "@/server/protocols/connector-helpers"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 import {
   fillSchema,
@@ -209,23 +216,7 @@ async function resolveAsset(network: NetworkId, marketId: string) {
  * A number as a plain decimal string. `String(1e-7)` prints an exponent the
  * exchange rejects; this never does.
  */
-export function decimalString(value: number): string {
-  if (!Number.isFinite(value) || value < 0) throw new Error("LIVE_PRICE")
-  const printed = String(value)
-  const exponentAt = printed.search(/e/i)
-  if (exponentAt === -1) return printed
-
-  const coefficient = printed.slice(0, exponentAt)
-  const exponent = Number(printed.slice(exponentAt + 1))
-  const [whole, fraction = ""] = coefficient.split(".")
-  const digits = `${whole}${fraction}`
-  const pointAt = whole.length + exponent
-  if (pointAt <= 0) return `0.${"0".repeat(-pointAt)}${digits}`
-  if (pointAt >= digits.length) {
-    return `${digits}${"0".repeat(pointAt - digits.length)}`
-  }
-  return `${digits.slice(0, pointAt)}.${digits.slice(pointAt)}`
-}
+export { decimalString }
 
 /**
  * A size the exchange will accept: floored to the market's size step — an
@@ -291,11 +282,9 @@ async function exchangeClient(network: NetworkId, auth: OrderAuth) {
   })
 }
 
-/** An exchange refusal as a thrown, scrubbed, code-prefixed error. */
-function exchangeError(error: unknown): Error {
-  const reason = scrubbedMessage(error)
-  return new Error(`LIVE_EXCHANGE:${hyperliquidRefusalError(reason).message}`)
-}
+const { exchange: exchangeError } = connectorErrors({
+  explain: (reason) => hyperliquidRefusalError(reason).message,
+})
 
 // ----- Reading what the exchange says back --------------------------------
 
@@ -356,6 +345,7 @@ export async function placeHyperliquidOrder(
   auth: OrderAuth,
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
+  assertPlaceOrderValues(params)
   // Whatever is cached is about to stop being true. The whole map rather than
   // one wallet, because an order call carries a signing key and not the
   // account address — and a cache of two entries is not worth being clever
@@ -703,6 +693,7 @@ export async function setHyperliquidBrackets(
     slSz: number | null
   }
 ): Promise<{ slOrderId: string | null }> {
+  assertBracketValues(params)
   // A retry must read the orders this replacement leaves behind, not the list
   // its caller just used. This also distrusts every socket snapshot pushed
   // before the mutation.
@@ -836,8 +827,7 @@ export async function setHyperliquidBrackets(
       forgetHyperliquidPortfolios()
       const statuses = response.response.data.statuses as OrderStatus[]
       const failed = cancelErrors(statuses).find(
-        (reason) =>
-          hyperliquidRefusalCode(reason) !== "HYPERLIQUID_ORDER_GONE"
+        (reason) => hyperliquidRefusalCode(reason) !== "HYPERLIQUID_ORDER_GONE"
       )
       if (failed) throw new Error(failed)
     } catch (error) {
@@ -1102,19 +1092,12 @@ export async function fetchHyperliquidPortfolio(
   address: string
 ): Promise<WalletPortfolio> {
   const cacheKey = `${network}:${address.toLowerCase()}`
-  const cached = portfolioCache.get(cacheKey)
-  if (cached && Date.now() - cached.at < PORTFOLIO_CACHE_MS) {
-    return cached.answer
-  }
-  const at = Date.now()
-  const answer = readHyperliquidPortfolio(network, address)
-  // A failed read is never remembered as an answer — one refusal would
-  // otherwise be repeated to every caller for the next two seconds.
-  answer.catch(() => {
-    if (portfolioCache.get(cacheKey)?.at === at) portfolioCache.delete(cacheKey)
-  })
-  portfolioCache.set(cacheKey, { at, answer })
-  return answer
+  return loadHeldPromise(
+    portfolioCache,
+    cacheKey,
+    (at) => Date.now() - at < PORTFOLIO_CACHE_MS,
+    () => readHyperliquidPortfolio(network, address)
+  )
 }
 
 /** Forget every wallet's figures, because something just changed them. */

@@ -1,5 +1,6 @@
 import type { NetworkId, WalletAccountFigures } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/hyperliquid/translate"
+import { loadHeldPromise } from "@/server/protocols/connector-helpers"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
@@ -31,16 +32,12 @@ export function fetchHyperliquidAccount(
   address: string
 ): Promise<WalletAccountFigures> {
   const key = `${network}:${address.toLowerCase()}`
-  const cached = accountCache.get(key)
-  if (cached && Date.now() - cached.at < ACCOUNT_CACHE_MS) return cached.answer
-
-  const at = Date.now()
-  const answer = readHyperliquidAccount(network, address)
-  answer.catch(() => {
-    if (accountCache.get(key)?.at === at) accountCache.delete(key)
-  })
-  accountCache.set(key, { at, answer })
-  return answer
+  return loadHeldPromise(
+    accountCache,
+    key,
+    (at) => Date.now() - at < ACCOUNT_CACHE_MS,
+    () => readHyperliquidAccount(network, address)
+  )
 }
 
 /** Every remembered answer forgotten. For tests, which must not share state. */
@@ -70,7 +67,7 @@ type MarginMode = Awaited<
   ReturnType<ReturnType<typeof infoClient>["userAbstraction"]>
 >
 
-const modeCache = new Map<string, { at: number; mode: Promise<MarginMode> }>()
+const modeCache = new Map<string, { at: number; answer: Promise<MarginMode> }>()
 
 /** Which margin mode this account is in, from the cache when it is warm. */
 function marginModeOf(
@@ -78,17 +75,12 @@ function marginModeOf(
   key: string,
   user: `0x${string}`
 ): Promise<MarginMode> {
-  const cached = modeCache.get(key)
-  if (cached && Date.now() - cached.at < MODE_CACHE_MS) return cached.mode
-
-  const at = Date.now()
-  const mode = client.userAbstraction({ user })
-  // A failed read is never remembered, exactly as everywhere else here.
-  mode.catch(() => {
-    if (modeCache.get(key)?.at === at) modeCache.delete(key)
-  })
-  modeCache.set(key, { at, mode })
-  return mode
+  return loadHeldPromise(
+    modeCache,
+    key,
+    (at) => Date.now() - at < MODE_CACHE_MS,
+    () => client.userAbstraction({ user })
+  )
 }
 
 /**
@@ -132,7 +124,9 @@ async function readHyperliquidAccount(
   for (const { position } of clearinghouse.assetPositions) {
     const positionProfit = num(position.unrealizedPnl)
     if (positionProfit === null) {
-      throw new Error("Hyperliquid answered with figures that could not be read")
+      throw new Error(
+        "Hyperliquid answered with figures that could not be read"
+      )
     }
     openProfit += positionProfit
   }

@@ -2,8 +2,13 @@ import { createHash } from "node:crypto"
 
 import { z } from "zod"
 
+import { rememberPromise } from "@/lib/protocols/promise-cache"
+
 import type { NetworkId } from "@/lib/protocols/contracts"
-import { lighterPublic, parseLighterCredential } from "@/server/protocols/lighter/client"
+import {
+  lighterPublic,
+  parseLighterCredential,
+} from "@/server/protocols/lighter/client"
 import { loadLighterKey } from "@/server/protocols/lighter/signer"
 import { rememberLighterAccountIndex } from "@/server/protocols/lighter/private-feed"
 
@@ -104,9 +109,14 @@ export async function findLighterApiKeyIndex(
   accountIndex: number,
   publicKey: string
 ): Promise<number> {
-  const answer = await lighterPublic(network, "/api/v1/apikeys", UNLISTED_WEIGHT, {
-    account_index: accountIndex,
-  })
+  const answer = await lighterPublic(
+    network,
+    "/api/v1/apikeys",
+    UNLISTED_WEIGHT,
+    {
+      account_index: accountIndex,
+    }
+  )
   const parsed = apiKeysSchema.safeParse(answer)
   const wanted = publicKey.trim().toLowerCase().replace(/^0x/, "")
   const found = parsed.success
@@ -133,7 +143,7 @@ export async function findLighterApiKeyIndex(
  * Held for the same ten minutes as the fuller answer, and by address alone
  * because the number does not depend on which key is in the wallet.
  */
-const heldIndexes = new Map<string, { at: number; load: Promise<number> }>()
+const heldIndexes = new Map<string, { at: number; answer: Promise<number> }>()
 
 export async function lighterAccountIndex(
   network: NetworkId,
@@ -141,7 +151,7 @@ export async function lighterAccountIndex(
 ): Promise<number> {
   const key = `${network}:${address.toLowerCase()}`
   const held = heldIndexes.get(key)
-  if (held && Date.now() - held.at < FACTS_HELD_MS) return held.load
+  if (held && Date.now() - held.at < FACTS_HELD_MS) return held.answer
   const load = fetchLighterAccountIndex(network, address)
   // The socket feed asks its questions by address on a path that cannot wait
   // for an answer, so the number is remembered here, where it is learnt.
@@ -155,11 +165,10 @@ export async function lighterAccountIndex(
     },
     () => {}
   )
-  heldIndexes.set(key, { at: Date.now(), load })
-  load.catch(() => {
-    if (heldIndexes.get(key)?.load === load) heldIndexes.delete(key)
+  return rememberPromise(heldIndexes, key, {
+    at: Date.now(),
+    answer: load,
   })
-  return load
 }
 
 /**
@@ -172,7 +181,7 @@ export async function lighterAccountIndex(
  */
 const FACTS_HELD_MS = 10 * 60_000
 
-type HeldFacts = { at: number; load: Promise<LighterAccountFacts> }
+type HeldFacts = { at: number; answer: Promise<LighterAccountFacts> }
 const heldFacts = new Map<string, HeldFacts>()
 
 export async function lighterAccountFacts(
@@ -195,7 +204,7 @@ export async function lighterAccountFacts(
   const fingerprint = createHash("sha256").update(privateKey).digest("hex")
   const key = `${network}:${address.toLowerCase()}:${fingerprint.slice(0, 16)}`
   const held = heldFacts.get(key)
-  if (held && Date.now() - held.at < FACTS_HELD_MS) return held.load
+  if (held && Date.now() - held.at < FACTS_HELD_MS) return held.answer
 
   const load = (async () => {
     const accountIndex = await fetchLighterAccountIndex(network, address)
@@ -216,11 +225,10 @@ export async function lighterAccountFacts(
     return { accountIndex, apiKeyIndex }
   })()
 
-  heldFacts.set(key, { at: Date.now(), load })
-  load.catch(() => {
-    if (heldFacts.get(key)?.load === load) heldFacts.delete(key)
+  return rememberPromise(heldFacts, key, {
+    at: Date.now(),
+    answer: load,
   })
-  return load
 }
 
 /**

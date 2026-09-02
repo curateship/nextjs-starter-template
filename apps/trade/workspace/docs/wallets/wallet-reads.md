@@ -92,10 +92,11 @@ the REST reader that was always there.
 **Two safeguards, because a socket can lie by going quiet.** A line only
 vouches for a stretch it was watching all the way through: a disconnection, a
 missed heartbeat, or a subscription that has not been acknowledged all mean it
-says nothing and the read happens. And no answer is ever held for more than two
-minutes however silent the exchange is, so if a subscription were ever accepted
-and then quietly starved, the worst case is a two-minute-old answer rather than
-a permanent one.
+says nothing and the read happens. Both lines stop trusting silence after 30
+seconds without any message. No answer is ever held for more than two minutes
+however silent the exchange is, so if a subscription were ever accepted and
+then quietly starved, the worst case is a two-minute-old answer rather than a
+permanent one.
 
 **This app's own orders ring the bell immediately.** A place, a move or a
 cancel counts as a change the moment the request finishes, without waiting for

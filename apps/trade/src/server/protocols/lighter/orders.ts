@@ -14,7 +14,15 @@ import {
   scaleLighterPrice,
   scaleLighterSize,
 } from "@/lib/protocols/lighter/translate"
-import { lighterPrivate, lighterSendTx } from "@/server/protocols/lighter/client"
+import {
+  assertBracketValues,
+  assertOrderValue,
+  assertPlaceOrderValues,
+} from "@/server/protocols/connector-helpers"
+import {
+  lighterPrivate,
+  lighterSendTx,
+} from "@/server/protocols/lighter/client"
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
 import { fetchLighterPortfolio } from "@/server/protocols/lighter/account"
 import {
@@ -389,92 +397,98 @@ export async function placeLighterOrder(
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
   return saying(async () => {
-  const where = await orderContext(network, auth, params.marketId)
-  const price = scaleLighterPrice(params.px, where.priceDecimals)
-  const size = scaleLighterSize(params.sz, where.sizeDecimals)
-  if (price === null || size === null || size <= 0) {
-    throw new Error(
-      "LIVE_EXCHANGE:That price or size cannot be said in the whole numbers Lighter takes for this market. Move the price to the market's own step and try again."
-    )
-  }
+    assertPlaceOrderValues(params)
+    const where = await orderContext(network, auth, params.marketId)
+    const price = scaleLighterPrice(params.px, where.priceDecimals)
+    const size = scaleLighterSize(params.sz, where.sizeDecimals)
+    if (price === null || size === null || size <= 0) {
+      throw new Error(
+        "LIVE_EXCHANGE:That price or size cannot be said in the whole numbers Lighter takes for this market. Move the price to the market's own step and try again."
+      )
+    }
 
-  /**
-   * Only when opening. The caller sends a leverage on the first order of a
-   * market and null once a position is held, because changing the leverage
-   * under an open position is a different act with its own window and its own
-   * refusals — see `changeLiveLeverage`.
-   *
-   * **After the price and size are known to be sendable**, because this is a
-   * real transaction with a lasting effect: setting it first would leave the
-   * market's leverage changed by an order that was then refused for a reason
-   * having nothing to do with leverage.
-   */
-  if (params.leverage != null && params.leverage > 0) {
-    await applyLighterLeverage(
+    /**
+     * Only when opening. The caller sends a leverage on the first order of a
+     * market and null once a position is held, because changing the leverage
+     * under an open position is a different act with its own window and its own
+     * refusals — see `changeLiveLeverage`.
+     *
+     * **After the price and size are known to be sendable**, because this is a
+     * real transaction with a lasting effect: setting it first would leave the
+     * market's leverage changed by an order that was then refused for a reason
+     * having nothing to do with leverage.
+     */
+    if (params.leverage != null && params.leverage > 0) {
+      await applyLighterLeverage(
+        network,
+        where,
+        params.leverage,
+        params.marginMode
+      )
+    }
+
+    /**
+     * The app's own order number, carried through so a fill can be traced back
+     * to the order that made it. Lighter wants a plain integer, and this app's
+     * ids are already numbers on the venues that number their orders.
+     */
+    const clientOrderIndex = await auth.allocateNonce(
+      `lighter:${where.accountIndex}`
+    )
+    const nonce = await nextLighterNonce(
+      network,
+      where.accountIndex,
+      where.apiKeyIndex
+    )
+
+    const signed = await signLighterOrder({
+      accountIndex: where.accountIndex,
+      marketIndex: where.marketIndex,
+      clientOrderIndex,
+      baseAmount: size,
+      price,
+      side: params.side,
+      orderType: LIGHTER_ORDER_TYPE.limit,
+      // Never `market`. A post-only order that would take the market is
+      // refused by Lighter instead of filling, which is the rule.
+      timeInForce: LIGHTER_TIME_IN_FORCE.postOnly,
+      reduceOnly: params.reduceOnly,
+      nonce,
+    })
+    await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
+
+    /**
+     * The send proves nothing — Lighter cancels a crossing post-only order
+     * without telling the sender, so the order is read back and a cancelled or
+     * missing one becomes a refusal instead of a journal line about an order
+     * that does not exist. See `confirmLighterOrder`.
+     */
+    const confirmed = await confirmLighterOrder(
       network,
       where,
-      params.leverage,
-      params.marginMode
+      clientOrderIndex
     )
-  }
 
-  /**
-   * The app's own order number, carried through so a fill can be traced back
-   * to the order that made it. Lighter wants a plain integer, and this app's
-   * ids are already numbers on the venues that number their orders.
-   */
-  const clientOrderIndex = await auth.allocateNonce(
-    `lighter:${where.accountIndex}`
-  )
-  const nonce = await nextLighterNonce(
-    network,
-    where.accountIndex,
-    where.apiKeyIndex
-  )
-
-  const signed = await signLighterOrder({
-    accountIndex: where.accountIndex,
-    marketIndex: where.marketIndex,
-    clientOrderIndex,
-    baseAmount: size,
-    price,
-    side: params.side,
-    orderType: LIGHTER_ORDER_TYPE.limit,
-    // Never `market`. A post-only order that would take the market is
-    // refused by Lighter instead of filling, which is the rule.
-    timeInForce: LIGHTER_TIME_IN_FORCE.postOnly,
-    reduceOnly: params.reduceOnly,
-    nonce,
-  })
-  await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
-
-  /**
-   * The send proves nothing — Lighter cancels a crossing post-only order
-   * without telling the sender, so the order is read back and a cancelled or
-   * missing one becomes a refusal instead of a journal line about an order
-   * that does not exist. See `confirmLighterOrder`.
-   */
-  const confirmed = await confirmLighterOrder(network, where, clientOrderIndex)
-
-  return {
-    // Resting when the book holds it; filled when Lighter's history says a
-    // fast market took it before the read-back.
-    status: confirmed.stood,
-    orderId: String(clientOrderIndex),
-    avgPx: confirmed.stood === "filled" ? confirmed.avgPx : null,
-    filledSz: confirmed.stood === "filled" ? confirmed.filledSz : null,
-    /**
-     * Lighter cannot carry a stop or target on the entry itself — each one is
-     * its own order, placed by `setBrackets` once the position exists. So an
-     * entry that was asked for protection reports "partial" and says so
-     * rather than claiming legs that were never sent with it.
-     */
-    protection: params.tpPx === null && params.slPx === null ? null : "partial",
-    protectionNote:
-      params.tpPx === null && params.slPx === null
-        ? null
-        : "Lighter takes a stop or target as its own order, so it goes on just after the position opens rather than with it.",
-  }
+    return {
+      // Resting when the book holds it; filled when Lighter's history says a
+      // fast market took it before the read-back.
+      status: confirmed.stood,
+      orderId: String(clientOrderIndex),
+      avgPx: confirmed.stood === "filled" ? confirmed.avgPx : null,
+      filledSz: confirmed.stood === "filled" ? confirmed.filledSz : null,
+      /**
+       * Lighter cannot carry a stop or target on the entry itself — each one is
+       * its own order, placed by `setBrackets` once the position exists. So an
+       * entry that was asked for protection reports "partial" and says so
+       * rather than claiming legs that were never sent with it.
+       */
+      protection:
+        params.tpPx === null && params.slPx === null ? null : "partial",
+      protectionNote:
+        params.tpPx === null && params.slPx === null
+          ? null
+          : "Lighter takes a stop or target as its own order, so it goes on just after the position opens rather than with it.",
+    }
   })
 }
 
@@ -484,19 +498,19 @@ export async function cancelLighterOrder(
   params: { marketId: string; orderId: string }
 ): Promise<void> {
   return saying(async () => {
-  const where = await orderContext(network, auth, params.marketId)
-  const nonce = await nextLighterNonce(
-    network,
-    where.accountIndex,
-    where.apiKeyIndex
-  )
-  const signed = await signLighterCancel({
-    accountIndex: where.accountIndex,
-    marketIndex: where.marketIndex,
-    orderIndex: params.orderId,
-    nonce,
-  })
-  await send(network, where, LIGHTER_TX_TYPE.cancelOrder, signed.txInfo)
+    const where = await orderContext(network, auth, params.marketId)
+    const nonce = await nextLighterNonce(
+      network,
+      where.accountIndex,
+      where.apiKeyIndex
+    )
+    const signed = await signLighterCancel({
+      accountIndex: where.accountIndex,
+      marketIndex: where.marketIndex,
+      orderIndex: params.orderId,
+      nonce,
+    })
+    await send(network, where, LIGHTER_TX_TYPE.cancelOrder, signed.txInfo)
   })
 }
 
@@ -580,6 +594,8 @@ export async function modifyLighterOrder(
     reduceOnly: boolean
   }
 ): Promise<void> {
+  assertOrderValue(params.sz, "LIVE_SIZE")
+  assertOrderValue(params.px, "LIVE_PRICE")
   await cancelLighterOrder(network, auth, {
     marketId: params.marketId,
     orderId: params.orderId,
@@ -750,7 +766,10 @@ async function readLighterOpenOrders(
 }
 
 /** Lighter's own order rows as this app's, from either the socket or REST. */
-async function toLighterOpenOrders(network: NetworkId, raw: readonly unknown[]) {
+async function toLighterOpenOrders(
+  network: NetworkId,
+  raw: readonly unknown[]
+) {
   const rows: WalletOpenOrder[] = []
   for (const one of raw) {
     const row = orderRowSchema.safeParse(one)
@@ -821,59 +840,59 @@ export async function closeLighterPosition(
 ): Promise<{ avgPx: number | null; filledSz: number | null }> {
   if (params.szi === 0) return { avgPx: null, filledSz: null }
   return saying(async () => {
-  const where = await orderContext(network, auth, params.marketId)
-  const marks = await fetchLighterPrices(network, [params.marketId])
-  const mark = marks.get(params.marketId)
-  if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+    const where = await orderContext(network, auth, params.marketId)
+    const marks = await fetchLighterPrices(network, [params.marketId])
+    const mark = marks.get(params.marketId)
+    if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
 
-  // Selling a long reaches DOWN through the mark, buying back a short reaches
-  // up: the cap has to be on the side the order will actually cross to.
-  const selling = params.szi > 0
-  const capped = selling
-    ? mark * (1 - CLOSE_THROUGH_MARK)
-    : mark * (1 + CLOSE_THROUGH_MARK)
+    // Selling a long reaches DOWN through the mark, buying back a short reaches
+    // up: the cap has to be on the side the order will actually cross to.
+    const selling = params.szi > 0
+    const capped = selling
+      ? mark * (1 - CLOSE_THROUGH_MARK)
+      : mark * (1 + CLOSE_THROUGH_MARK)
 
-  const price = scaleLighterPrice(capped, where.priceDecimals)
-  const size = scaleLighterSize(Math.abs(params.szi), where.sizeDecimals)
-  if (price === null || size === null || size <= 0) {
-    throw new Error(
-      "LIVE_EXCHANGE:That position's size cannot be said in the whole numbers Lighter takes for this market."
+    const price = scaleLighterPrice(capped, where.priceDecimals)
+    const size = scaleLighterSize(Math.abs(params.szi), where.sizeDecimals)
+    if (price === null || size === null || size <= 0) {
+      throw new Error(
+        "LIVE_EXCHANGE:That position's size cannot be said in the whole numbers Lighter takes for this market."
+      )
+    }
+
+    const clientOrderIndex = await auth.allocateNonce(
+      `lighter:${where.accountIndex}`
     )
-  }
-
-  const clientOrderIndex = await auth.allocateNonce(
-    `lighter:${where.accountIndex}`
-  )
-  const nonce = await nextLighterNonce(
-    network,
-    where.accountIndex,
-    where.apiKeyIndex
-  )
-  const signed = await signLighterOrder({
-    accountIndex: where.accountIndex,
-    marketIndex: where.marketIndex,
-    clientOrderIndex,
-    baseAmount: size,
-    price,
-    side: selling ? "sell" : "buy",
-    orderType: LIGHTER_ORDER_TYPE.limit,
-    timeInForce: LIGHTER_TIME_IN_FORCE.immediateOrCancel,
-    reduceOnly: true,
-    /**
-     * **Zero, and it has to be.** An order that lives only for this instant
-     * cannot also carry an expiry weeks away, and Lighter's own signer
-     * refuses the transaction outright with "OrderExpiry is invalid" — so a
-     * close never even reached the exchange. The default of -1 means
-     * "Lighter's usual 28 days", which is right for a resting order and
-     * nonsense for this one.
-     */
-    orderExpiry: 0,
-    nonce,
-  })
-  await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
-  // Lighter answers the send, not the fill. What actually filled arrives on
-  // the trade history, so claiming a price here would be inventing one.
-  return { avgPx: null, filledSz: null }
+    const nonce = await nextLighterNonce(
+      network,
+      where.accountIndex,
+      where.apiKeyIndex
+    )
+    const signed = await signLighterOrder({
+      accountIndex: where.accountIndex,
+      marketIndex: where.marketIndex,
+      clientOrderIndex,
+      baseAmount: size,
+      price,
+      side: selling ? "sell" : "buy",
+      orderType: LIGHTER_ORDER_TYPE.limit,
+      timeInForce: LIGHTER_TIME_IN_FORCE.immediateOrCancel,
+      reduceOnly: true,
+      /**
+       * **Zero, and it has to be.** An order that lives only for this instant
+       * cannot also carry an expiry weeks away, and Lighter's own signer
+       * refuses the transaction outright with "OrderExpiry is invalid" — so a
+       * close never even reached the exchange. The default of -1 means
+       * "Lighter's usual 28 days", which is right for a resting order and
+       * nonsense for this one.
+       */
+      orderExpiry: 0,
+      nonce,
+    })
+    await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
+    // Lighter answers the send, not the fill. What actually filled arrives on
+    // the trade history, so claiming a price here would be inventing one.
+    return { avgPx: null, filledSz: null }
   })
 }
 
@@ -909,38 +928,39 @@ export async function setLighterBrackets(
   }
 ): Promise<{ slOrderId: string | null }> {
   return saying(async () => {
-  const where = await orderContext(network, auth, params.marketId)
-  const held = Math.abs(params.position.szi)
-  if (held === 0) throw new Error("LIVE_POSITION_GONE")
-  // A long is protected by selling and a short by buying back.
-  const closingSide = params.position.szi > 0 ? "sell" : "buy"
+    assertBracketValues(params)
+    const where = await orderContext(network, auth, params.marketId)
+    const held = Math.abs(params.position.szi)
+    if (held === 0) throw new Error("LIVE_POSITION_GONE")
+    // A long is protected by selling and a short by buying back.
+    const closingSide = params.position.szi > 0 ? "sell" : "buy"
 
-  // **Off before on.** A leg left behind sells the position a second time.
-  for (const orderId of params.position.protectionOrderIds) {
-    await cancelLighterOrder(network, auth, {
-      marketId: params.marketId,
-      orderId,
-    })
-  }
+    // **Off before on.** A leg left behind sells the position a second time.
+    for (const orderId of params.position.protectionOrderIds) {
+      await cancelLighterOrder(network, auth, {
+        marketId: params.marketId,
+        orderId,
+      })
+    }
 
-  let slOrderId: string | null = null
-  if (params.slPx !== null) {
-    slOrderId = await placeTriggerOrder(network, auth, where, {
-      side: closingSide,
-      triggerPx: params.slPx,
-      sz: params.slSz ?? held,
-      kind: "stop",
-    })
-  }
-  for (const target of params.targets) {
-    await placeTriggerOrder(network, auth, where, {
-      side: closingSide,
-      triggerPx: target.px,
-      sz: target.sz ?? held,
-      kind: "target",
-    })
-  }
-  return { slOrderId }
+    let slOrderId: string | null = null
+    if (params.slPx !== null) {
+      slOrderId = await placeTriggerOrder(network, auth, where, {
+        side: closingSide,
+        triggerPx: params.slPx,
+        sz: params.slSz ?? held,
+        kind: "stop",
+      })
+    }
+    for (const target of params.targets) {
+      await placeTriggerOrder(network, auth, where, {
+        side: closingSide,
+        triggerPx: target.px,
+        sz: target.sz ?? held,
+        kind: "target",
+      })
+    }
+    return { slOrderId }
   })
 }
 
