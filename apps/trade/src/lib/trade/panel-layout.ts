@@ -30,6 +30,9 @@ export function marketPanelScopeKey(scope: MarketPanelScope) {
 
 export type OpenMarketRows = Record<string, string | null>
 
+/** The drawing rail's place inside the candle area, as shares of its travel. */
+export type ChartToolbarPosition = { x: number; y: number }
+
 export type NamedPanelLayout = {
   id: string
   name: string
@@ -41,6 +44,8 @@ export type NamedPanelLayout = {
   openMarketRows: OpenMarketRows
   /** Older saved layouts leave the current header choice alone. */
   headerProfitVisible?: boolean
+  /** Older saved layouts leave the drawing rail where it is. */
+  chartToolbarPosition?: ChartToolbarPosition | null
 }
 
 /** Every panel arrangement kept in the account's one preference column. */
@@ -51,6 +56,8 @@ export type TradePanelLayouts = {
   openMarketRows: OpenMarketRows
   /** Whether the sticky header shows profit beside the active-trade value. */
   headerProfitVisible: boolean
+  /** Null is the home position, equally inset from the top and right. */
+  chartToolbarPosition: ChartToolbarPosition | null
   /** The named layout that follows later dashboard changes. */
   activeNamedId: string | null
   named: NamedPanelLayout[]
@@ -62,6 +69,7 @@ export function emptyTradePanelLayouts(): TradePanelLayouts {
     current: {},
     openMarketRows: {},
     headerProfitVisible: true,
+    chartToolbarPosition: null,
     activeNamedId: null,
     named: [],
   }
@@ -278,6 +286,8 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
       typeof record.headerProfitVisible === "boolean"
         ? record.headerProfitVisible
         : true,
+    chartToolbarPosition:
+      readChartToolbarPosition(record.chartToolbarPosition) ?? null,
     activeNamedId,
     named,
   }
@@ -323,8 +333,35 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
   if (typeof record.headerProfitVisible === "boolean") {
     layout.headerProfitVisible = record.headerProfitVisible
   }
+  const chartToolbarPosition = readChartToolbarPosition(
+    record.chartToolbarPosition
+  )
+  if (chartToolbarPosition !== undefined) {
+    layout.chartToolbarPosition = chartToolbarPosition
+  }
   if (marketColumn) layout.marketColumn = marketColumn
   return layout
+}
+
+/** Invalid stored coordinates are ignored; null is the deliberate home spot. */
+export function readChartToolbarPosition(
+  value: unknown
+): ChartToolbarPosition | null | undefined {
+  if (value === null) return null
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return undefined
+  }
+  const position = value as Record<string, unknown>
+  return typeof position.x === "number" &&
+    Number.isFinite(position.x) &&
+    position.x >= 0 &&
+    position.x <= 1 &&
+    typeof position.y === "number" &&
+    Number.isFinite(position.y) &&
+    position.y >= 0 &&
+    position.y <= 1
+    ? { x: position.x, y: position.y }
+    : undefined
 }
 
 const MARKET_PANEL_SCOPE_KEYS = new Set(

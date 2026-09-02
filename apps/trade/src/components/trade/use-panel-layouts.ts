@@ -7,6 +7,7 @@ import {
   deleteNamedPanelLayout,
   getPanelLayoutErrorMessage,
   importLegacyPanelLayouts,
+  saveChartToolbarPosition,
   saveOpenMarketRow,
   savePanelLayout,
 } from "@/lib/api/trade/panel-layouts"
@@ -22,6 +23,7 @@ import {
   marketPanelScopeKey,
   readLegacyTradePanelLayouts,
   type MarketPanelScope,
+  type ChartToolbarPosition,
   type TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -40,6 +42,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     Partial<Record<TradePanelLayoutKey, number>>
   >({})
   const openMarketRowVersions = React.useRef<Record<string, number>>({})
+  const chartToolbarPositionVersion = React.useRef(0)
   if (loaded.source !== initial) {
     setLoaded({ source: initial, value: initial })
   }
@@ -149,6 +152,24 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     [enqueue]
   )
 
+  const rememberChartToolbarPosition = React.useCallback(
+    (position: ChartToolbarPosition | null) => {
+      chartToolbarPositionVersion.current += 1
+      setLoaded((state) => ({
+        ...state,
+        value: {
+          ...state.value,
+          legacyImported: true,
+          chartToolbarPosition: position,
+        },
+      }))
+      void enqueue(() => saveChartToolbarPosition(position)).catch(
+        (error: unknown) => showErrorToast(getPanelLayoutErrorMessage(error))
+      )
+    },
+    [enqueue]
+  )
+
   const createNamed = React.useCallback(
     async (
       name: string,
@@ -157,7 +178,8 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
       vertical: Layout,
       scope: MarketPanelScope,
       openMarketRowId: string | null,
-      headerProfitVisible: boolean
+      headerProfitVisible: boolean,
+      chartToolbarPosition: ChartToolbarPosition | null
     ) => {
       const saved = await enqueue(() =>
         createNamedPanelLayout({
@@ -168,6 +190,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
           scope,
           openMarketRowId,
           headerProfitVisible,
+          chartToolbarPosition,
         })
       )
       // Creating a name does not move the panels. A drag made while the save
@@ -178,6 +201,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
           ...saved,
           current: state.value.current,
           openMarketRows: state.value.openMarketRows,
+          chartToolbarPosition: state.value.chartToolbarPosition,
         },
       }))
     },
@@ -189,6 +213,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
       const versions = { ...currentVersions.current }
       const scopeKey = marketPanelScopeKey(scope)
       const openVersion = openMarketRowVersions.current[scopeKey] ?? 0
+      const toolbarVersion = chartToolbarPositionVersion.current
       const saved = await enqueue(() => applyNamedPanelLayout(id, scope))
       setLoaded((state) => ({
         ...state,
@@ -212,6 +237,10 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
                   ...saved.openMarketRows,
                   [scopeKey]: state.value.openMarketRows[scopeKey] ?? null,
                 },
+          chartToolbarPosition:
+            chartToolbarPositionVersion.current === toolbarVersion
+              ? saved.chartToolbarPosition
+              : state.value.chartToolbarPosition,
         },
       }))
       publishHeaderProfitVisibility(saved.headerProfitVisible)
@@ -229,6 +258,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
           ...saved,
           current: state.value.current,
           openMarketRows: state.value.openMarketRows,
+          chartToolbarPosition: state.value.chartToolbarPosition,
         },
       }))
     },
@@ -239,6 +269,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     layouts,
     remember,
     rememberOpenMarketRow,
+    rememberChartToolbarPosition,
     createNamed,
     applyNamed,
     deleteNamed,

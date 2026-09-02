@@ -69,10 +69,12 @@ vi.mock("@/components/trade/use-panel-layouts", () => ({
       current: {},
       openMarketRows: {},
       headerProfitVisible: true,
+      chartToolbarPosition: null,
       activeNamedId: null,
       named: [],
     },
     remember: vi.fn(),
+    rememberChartToolbarPosition: vi.fn(),
   }),
 }))
 
@@ -196,6 +198,7 @@ describe("a live run coin's chart", () => {
             current: {},
             openMarketRows: {},
             headerProfitVisible: true,
+            chartToolbarPosition: null,
             activeNamedId: null,
             named: [],
           }}

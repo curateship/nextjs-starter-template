@@ -38,6 +38,7 @@ import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
 import { emaIndicator } from "@/lib/trade/indicators/ema"
 import { indicatorPaint } from "@/lib/trade/indicators/registry"
+import type { ChartToolbarPosition } from "@/lib/trade/panel-layout"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
 
@@ -78,6 +79,8 @@ export function BacktestChartPanel({
   error,
   live,
   automationId,
+  chartToolbarPosition,
+  onChartToolbarPositionChange,
   onRetry,
 }: {
   coins: readonly BacktestCoinRow[]
@@ -109,6 +112,8 @@ export function BacktestChartPanel({
   live: boolean
   /** The flow this run came from — where the back arrow goes. */
   automationId: string
+  chartToolbarPosition?: ChartToolbarPosition | null
+  onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
 }) {
   const chartable = coins.filter((coin) => coin.summary)
@@ -393,15 +398,18 @@ export function BacktestChartPanel({
                     surface={surface}
                     tool={paint.tool}
                   />
+                  <PaintToolbar
+                    tool={paint.tool}
+                    onPickTool={paint.setTool}
+                    drawingCount={paint.drawings.length}
+                    drawingsVisible
+                    rightInset={surface.axisWidth}
+                    savedPosition={chartToolbarPosition}
+                    onPositionChange={onChartToolbarPositionChange}
+                    onClearAll={() => void paint.clearAll()}
+                  />
                 </>
               )}
-            />
-            <PaintToolbar
-              tool={paint.tool}
-              onPickTool={paint.setTool}
-              drawingCount={paint.drawings.length}
-              drawingsVisible
-              onClearAll={() => void paint.clearAll()}
             />
           </div>
         )}

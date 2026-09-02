@@ -26,6 +26,8 @@ import {
   MAX_NAMED_PANEL_LAYOUTS,
   matchingPanelLayout,
   readOpenMarketRows,
+  readChartToolbarPosition,
+  type ChartToolbarPosition,
   readTradePanelLayouts,
   type MarketPanelScope,
   type TradePanelLayouts,
@@ -659,6 +661,24 @@ export async function saveHeaderProfitVisibility(
   }))
 }
 
+/** Remember the drawing rail and carry it into the selected named layout. */
+export async function saveChartToolbarPosition(
+  userId: string,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const position = readChartToolbarPosition(value)
+  if (position === undefined) throw new Error("PANEL_LAYOUT_INVALID")
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    chartToolbarPosition: position,
+    named: updateActiveNamedLayout(layouts, (named) => ({
+      ...named,
+      chartToolbarPosition: position,
+    })),
+  }))
+}
+
 function updateActiveNamedLayout(
   layouts: TradePanelLayouts,
   change: (
@@ -803,6 +823,7 @@ export async function createNamedTradePanelLayout(
     scope: MarketPanelScope
     openMarketRowId: unknown
     headerProfitVisible: boolean
+    chartToolbarPosition: ChartToolbarPosition | null
   },
   database: CustomShellDb = db
 ): Promise<TradePanelLayouts> {
@@ -819,13 +840,17 @@ export async function createNamedTradePanelLayout(
     input.marketColumn,
     tradePanelIds[tradePanelLayoutKey.workspaceMarketColumn]
   )
+  const chartToolbarPosition = readChartToolbarPosition(
+    input.chartToolbarPosition
+  )
   if (
     !name ||
     name.length > 32 ||
     !horizontal ||
     !vertical ||
     !marketColumn ||
-    typeof input.headerProfitVisible !== "boolean"
+    typeof input.headerProfitVisible !== "boolean" ||
+    chartToolbarPosition === undefined
   ) {
     throw new Error("PANEL_LAYOUT_INVALID")
   }
@@ -870,6 +895,7 @@ export async function createNamedTradePanelLayout(
       },
       openMarketRows,
       headerProfitVisible: input.headerProfitVisible,
+      chartToolbarPosition,
       activeNamedId: id,
       named: [
         ...layouts.named,
@@ -881,6 +907,7 @@ export async function createNamedTradePanelLayout(
           vertical,
           openMarketRows: { [scopeKey]: openMarketRowId },
           headerProfitVisible: input.headerProfitVisible,
+          chartToolbarPosition,
         },
       ],
     }
@@ -928,6 +955,12 @@ export async function applyNamedTradePanelLayout(
         : layouts.openMarketRows,
       headerProfitVisible:
         named.headerProfitVisible ?? layouts.headerProfitVisible,
+      chartToolbarPosition: Object.prototype.hasOwnProperty.call(
+        named,
+        "chartToolbarPosition"
+      )
+        ? (named.chartToolbarPosition ?? null)
+        : layouts.chartToolbarPosition,
       activeNamedId: id,
     }
   })

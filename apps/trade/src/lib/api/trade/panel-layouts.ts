@@ -5,6 +5,7 @@ import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
 import { ALL_ROW, WATCHED_ROW } from "@/lib/trade/market-folders"
 import { TRADE_PANEL_LAYOUT_KEYS } from "@/lib/trade/panel-keys"
 import type {
+  ChartToolbarPosition,
   MarketPanelScope,
   TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
@@ -14,6 +15,7 @@ import {
   createNamedTradePanelLayout,
   deleteNamedTradePanelLayout,
   importLegacyTradePanelLayouts,
+  saveChartToolbarPosition as saveChartToolbarPositionForUser,
   saveOpenMarketRow as saveOpenMarketRowForUser,
   saveTradePanelLayout,
 } from "@/server/trade/prefs"
@@ -31,6 +33,12 @@ const marketPanelScopeSchema = z.object({
   protocol: z.enum(KNOWN_PROTOCOLS),
   network: z.enum(["mainnet", "testnet"]),
 })
+const chartToolbarPositionSchema = z
+  .object({
+    x: z.number().finite().min(0).max(1),
+    y: z.number().finite().min(0).max(1),
+  })
+  .nullable()
 
 const savePanelLayoutFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -60,6 +68,7 @@ const createNamedPanelLayoutFn = createServerFn({ method: "POST" })
       scope: marketPanelScopeSchema,
       openMarketRowId: openMarketRowIdSchema,
       headerProfitVisible: z.boolean(),
+      chartToolbarPosition: chartToolbarPositionSchema,
     })
   )
   .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
@@ -92,6 +101,14 @@ const saveOpenMarketRowFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
+const saveChartToolbarPositionFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ position: chartToolbarPositionSchema }))
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveChartToolbarPositionForUser(context.user.id, data.position)
+    return { saved: true }
+  })
+
 export function savePanelLayout(
   key: (typeof TRADE_PANEL_LAYOUT_KEYS)[number],
   layout: Record<string, number>
@@ -113,6 +130,7 @@ export function createNamedPanelLayout(input: {
   scope: MarketPanelScope
   openMarketRowId: string | null
   headerProfitVisible: boolean
+  chartToolbarPosition: ChartToolbarPosition | null
 }) {
   return createNamedPanelLayoutFn({ data: input })
 }
@@ -130,6 +148,12 @@ export function saveOpenMarketRow(
   openMarketRowId: string | null
 ) {
   return saveOpenMarketRowFn({ data: { ...scope, openMarketRowId } })
+}
+
+export function saveChartToolbarPosition(
+  position: ChartToolbarPosition | null
+) {
+  return saveChartToolbarPositionFn({ data: { position } })
 }
 
 export const getPanelLayoutErrorMessage = createErrorMessage(

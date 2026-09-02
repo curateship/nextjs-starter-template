@@ -77,6 +77,7 @@ import {
 } from "@/lib/protocols/contracts"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
 import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { ChartToolbarPosition } from "@/lib/trade/panel-layout"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
   DEFAULT_MARGIN_BOTTOM,
@@ -351,6 +352,8 @@ export function ChartPanel({
   interval,
   initialChartView,
   initialChart,
+  chartToolbarPosition,
+  onChartToolbarPositionChange,
   initialDrawings,
   initialQuickOrder,
   priceAlerts = NO_PRICE_ALERTS,
@@ -379,6 +382,10 @@ export function ChartPanel({
   initialChartView: ChartView | null
   /** First-paint bars that arrived with the route's opening answer. */
   initialChart: InitialChart
+  /** The drawing rail position restored with the current workspace layout. */
+  chartToolbarPosition?: ChartToolbarPosition | null
+  /** Saves the drawing rail into the current and selected named layout. */
+  onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   /** Saved lines for the remembered market, from that same answer. */
   initialDrawings: {
     marketKey: string | null
@@ -514,6 +521,7 @@ export function ChartPanel({
   const paint = useChartDrawings(selectedKey, initialDrawings)
   const setPaintTool = paint.setTool
   const setSelectedDrawing = paint.setSelectedId
+  const clearPaintDrawings = paint.clearAll
   const paintTool = options.drawings ? paint.tool : null
 
   // Hiding drawings also puts down the active tool and lets go of the picked
@@ -1580,6 +1588,16 @@ export function ChartPanel({
             away rather than carrying a box onto a chart it means nothing
             on. */}
         <MeasureLayer key={currentKey} surface={surface} tool={paintTool} />
+        <PaintToolbar
+          tool={paintTool}
+          onPickTool={setPaintTool}
+          drawingCount={paint.drawings.length}
+          drawingsVisible={options.drawings}
+          rightInset={surface.axisWidth}
+          savedPosition={chartToolbarPosition}
+          onPositionChange={onChartToolbarPositionChange}
+          onClearAll={() => void clearPaintDrawings()}
+        />
       </>
     ),
     [
@@ -1594,6 +1612,10 @@ export function ChartPanel({
       paint.move,
       paint.remove,
       paintTool,
+      chartToolbarPosition,
+      onChartToolbarPositionChange,
+      setPaintTool,
+      clearPaintDrawings,
       priceAlerts,
       onMovePriceAlert,
       onDeletePriceAlert,
@@ -1708,13 +1730,6 @@ export function ChartPanel({
             // a position. Every layer inside draws in the same coordinates and
             // none is anything the chart itself knows about.
             overlay={overlay}
-          />
-          <PaintToolbar
-            tool={paintTool}
-            onPickTool={paint.setTool}
-            drawingCount={paint.drawings.length}
-            drawingsVisible={options.drawings}
-            onClearAll={() => void paint.clearAll()}
           />
         </div>
       )}

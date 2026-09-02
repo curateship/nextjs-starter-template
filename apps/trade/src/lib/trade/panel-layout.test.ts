@@ -96,6 +96,7 @@ describe("remembered trade panel layouts", () => {
       current: {},
       openMarketRows: { [scope]: null, unknown: "watched" },
       headerProfitVisible: false,
+      chartToolbarPosition: { x: 0.25, y: 0.75 },
       activeNamedId: "layout-1",
       named: [
         {
@@ -106,6 +107,7 @@ describe("remembered trade panel layouts", () => {
           vertical: { workspace: 72, activity: 28 },
           openMarketRows: { [scope]: "watched", unknown: "all" },
           headerProfitVisible: false,
+          chartToolbarPosition: null,
         },
         {
           id: "layout-2",
@@ -118,13 +120,23 @@ describe("remembered trade panel layouts", () => {
 
     expect(saved.openMarketRows).toEqual({ [scope]: null })
     expect(saved.headerProfitVisible).toBe(false)
+    expect(saved.chartToolbarPosition).toEqual({ x: 0.25, y: 0.75 })
     expect(saved.activeNamedId).toBe("layout-1")
     expect(saved.named[0]?.openMarketRows).toEqual({ [scope]: "watched" })
     expect(saved.named[0]?.marketColumn).toEqual({ folders: 68, alerts: 32 })
     expect(saved.named[0]?.headerProfitVisible).toBe(false)
+    expect(saved.named[0]?.chartToolbarPosition).toBeNull()
     expect(saved.named[1]?.openMarketRows).toEqual({})
     expect(saved.named[1]?.marketColumn).toBeUndefined()
     expect(saved.named[1]?.headerProfitVisible).toBeUndefined()
+    expect(saved.named[1]?.chartToolbarPosition).toBeUndefined()
+  })
+
+  it("ignores unreadable drawing toolbar coordinates", () => {
+    expect(
+      readTradePanelLayouts({ chartToolbarPosition: { x: 2, y: 0.5 } })
+        .chartToolbarPosition
+    ).toBeNull()
   })
 
   it("clears an active id that no longer names a readable layout", () => {

@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   remove: vi.fn(),
   importLegacy: vi.fn(),
   save: vi.fn(),
+  saveChartToolbarPosition: vi.fn(),
   saveOpenRow: vi.fn(),
 }))
 
@@ -24,6 +25,7 @@ vi.mock("@/lib/api/trade/panel-layouts", () => ({
   deleteNamedPanelLayout: api.remove,
   getPanelLayoutErrorMessage: () => "The panel arrangement could not be saved.",
   importLegacyPanelLayouts: api.importLegacy,
+  saveChartToolbarPosition: api.saveChartToolbarPosition,
   saveOpenMarketRow: api.saveOpenRow,
   savePanelLayout: api.save,
 }))
@@ -37,6 +39,7 @@ const empty: TradePanelLayouts = {
   current: {},
   openMarketRows: {},
   headerProfitVisible: true,
+  chartToolbarPosition: null,
   activeNamedId: null,
   named: [],
 }
@@ -89,6 +92,7 @@ describe("the browser-to-account panel layout handoff", () => {
       current: { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
       openMarketRows: {},
       headerProfitVisible: true,
+      chartToolbarPosition: null,
       activeNamedId: null,
       named: [],
     }
@@ -174,6 +178,38 @@ describe("the browser-to-account panel layout handoff", () => {
     )
   })
 
+  it("saves the drawing toolbar position with the rest of the account layout", async () => {
+    const latest: {
+      current: ReturnType<typeof useTradePanelLayouts> | null
+    } = { current: null }
+    api.saveChartToolbarPosition.mockResolvedValue({ saved: true })
+
+    await act(async () => {
+      root.render(
+        <Harness
+          initial={{ ...empty, legacyImported: true }}
+          onRead={(value) => {
+            latest.current = value
+          }}
+        />
+      )
+    })
+
+    act(() => {
+      latest.current?.rememberChartToolbarPosition({ x: 0.2, y: 0.4 })
+    })
+
+    expect(latest.current?.layouts.chartToolbarPosition).toEqual({
+      x: 0.2,
+      y: 0.4,
+    })
+    await act(async () => Promise.resolve())
+    expect(api.saveChartToolbarPosition).toHaveBeenCalledWith({
+      x: 0.2,
+      y: 0.4,
+    })
+  })
+
   it("keeps a newer drag made while the old browser layout is importing", async () => {
     const latest: {
       current: ReturnType<typeof useTradePanelLayouts> | null
@@ -209,6 +245,7 @@ describe("the browser-to-account panel layout handoff", () => {
         current: { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
         openMarketRows: {},
         headerProfitVisible: true,
+        chartToolbarPosition: null,
         activeNamedId: null,
         named: [],
       })
@@ -266,6 +303,7 @@ describe("the browser-to-account panel layout handoff", () => {
         },
         openMarketRows: { "hyperliquid:mainnet": "watched" },
         headerProfitVisible: false,
+        chartToolbarPosition: null,
         activeNamedId: "layout-1",
         named: [],
       })

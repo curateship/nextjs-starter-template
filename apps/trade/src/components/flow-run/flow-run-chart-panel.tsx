@@ -31,6 +31,7 @@ import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
 import { flowRunIndicatorPaint } from "@/lib/trade/flow-run-indicators"
+import type { ChartToolbarPosition } from "@/lib/trade/panel-layout"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 
 /**
@@ -69,6 +70,8 @@ export function FlowRunChartPanel({
   error,
   walletLabel,
   automationId,
+  chartToolbarPosition,
+  onChartToolbarPositionChange,
   onRetry,
 }: {
   spec: TradeFlowRunSpec
@@ -100,6 +103,8 @@ export function FlowRunChartPanel({
   /** The wallet's name, for the ladder tag's tooltip. */
   walletLabel: string
   automationId: string
+  chartToolbarPosition?: ChartToolbarPosition | null
+  onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
 }) {
   const hasGraph = graphSeries !== null && graphSeries.usd.length > 1
@@ -239,15 +244,18 @@ export function FlowRunChartPanel({
                     surface={surface}
                     tool={paint.tool}
                   />
+                  <PaintToolbar
+                    tool={paint.tool}
+                    onPickTool={paint.setTool}
+                    drawingCount={paint.drawings.length}
+                    drawingsVisible
+                    rightInset={surface.axisWidth}
+                    savedPosition={chartToolbarPosition}
+                    onPositionChange={onChartToolbarPositionChange}
+                    onClearAll={() => void paint.clearAll()}
+                  />
                 </>
               )}
-            />
-            <PaintToolbar
-              tool={paint.tool}
-              onPickTool={paint.setTool}
-              drawingCount={paint.drawings.length}
-              drawingsVisible
-              onClearAll={() => void paint.clearAll()}
             />
           </div>
         )}
