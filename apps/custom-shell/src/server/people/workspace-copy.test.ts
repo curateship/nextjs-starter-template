@@ -83,6 +83,7 @@ describe("starting a workspace from an existing one", () => {
     })
     expect(parseWorkspaceSettings(copied.settings)).toMatchObject({
       favicon: "https://example.test/alpha.png",
+      publicTheme: { brandColor: "#123456" },
       publicFooterCopyright: "Alpha Ltd",
       pages: { "/about": { visibility: "off" } },
     })

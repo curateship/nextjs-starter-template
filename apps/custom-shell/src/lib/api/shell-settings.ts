@@ -22,13 +22,18 @@ import {
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_RADIUS,
+  PUBLIC_BRAND_COLOR_PATTERN,
   PUBLIC_THEME_FONTS,
-  normalizePublicTheme,
+  normalizePublicBrandColor,
+  publicThemeForAppWideSave,
 } from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
-import { dropWorkspaceCache } from "@/server/workspaces/host"
+import {
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
 import { isOwnedImageUrl } from "@/server/media/library"
 import {
   customShellSettings,
@@ -143,6 +148,10 @@ const publicNavigationSchema = z
   .transform(cleanPublicNavigationLinks)
 
 const publicThemeSchema = z.object({
+  brandColor: z.union([
+    z.literal(""),
+    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
+  ]),
   font: z.enum(PUBLIC_THEME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
@@ -247,6 +256,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
+            publicTheme: {
+              brandColor: normalizePublicBrandColor(
+                data.publicTheme.brandColor
+              ),
+            },
             publicNavigation: data.publicNavigation,
             publicFooter: data.publicFooter,
             publicFooterCopyright: data.publicFooterCopyright,
@@ -310,7 +324,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
-          publicTheme: normalizePublicTheme(data.publicTheme),
+          publicTheme: publicThemeForAppWideSave(
+            data.publicTheme,
+            existingGlobals.publicTheme,
+            Boolean(workspaceBaseDomain())
+          ),
           automationPause: existingGlobals.automationPause,
         }),
         maintenance: {

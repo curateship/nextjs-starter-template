@@ -54,7 +54,10 @@ import {
 } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
-import { normalizePublicTheme } from "@/lib/public-theme"
+import {
+  isPublicBrandColor,
+  normalizePublicTheme,
+} from "@/lib/public-theme"
 import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth/auth"
@@ -247,6 +250,10 @@ export function ShellLayout({
       setSaveStatus("blocked")
       return false
     }
+    if (!isPublicBrandColor(snapshot.publicTheme.brandColor)) {
+      setSaveStatus("idle")
+      return false
+    }
 
     const version = configSaveVersionRef.current + 1
     configSaveVersionRef.current = version
@@ -432,7 +439,10 @@ export function ShellLayout({
         clearTimeout(configSaveTimerRef.current)
         configSaveTimerRef.current = null
         const snapshot = latestConfigRef.current
-        if (snapshot.workspaceName.trim()) {
+        if (
+          snapshot.workspaceName.trim() &&
+          isPublicBrandColor(snapshot.publicTheme.brandColor)
+        ) {
           void saveShellSettings(snapshot).catch(() => undefined)
         }
       }

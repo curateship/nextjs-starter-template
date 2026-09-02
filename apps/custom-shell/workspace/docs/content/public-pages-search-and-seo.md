@@ -18,17 +18,20 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
-The app has one public look. Settings under Public > Look control corner
-rounding from 0 to 24px and offer the system face, Inter, serif, and mono fonts.
+Settings under Public > Look control the site's brand colour, corner rounding
+from 0 to 24px, and font. The system face, Inter, serif, and mono are available.
 Inter comes from the app; the other choices use fonts already on the visitor's
-device. Public pages never fetch a font from another site. Public Look does not
-control colors.
+device. Public pages never fetch a font from another site. Font and corners are
+app-wide. Apps with public workspace domains keep a brand colour per site. An
+app without those domains uses one brand colour for its public frontend.
 
-The root page load includes the public look from the app-wide settings row. The
-server writes the saved values into the first HTML response, before the browser
-paints or React starts. Missing and invalid fields use the standard font and
-corner values. Public look settings never change the signed-in app, which keeps
-its own Styling settings.
+The root page load combines the app-wide font and corners with the brand colour
+for the domain being visited. The server writes those values into the first HTML
+response, before the browser paints or React starts. Missing and invalid fields
+use the standard colour, font, and corner values. The brand colour writes the
+shell's primary and focus-ring variables, so public buttons, links, selected
+highlights, and keyboard focus share one colour. Public look settings never
+change the signed-in app, which keeps its own Styling settings.
 
 Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search

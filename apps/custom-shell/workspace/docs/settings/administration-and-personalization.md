@@ -11,7 +11,7 @@ The built-in settings groups contain:
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
 - Public Navigation for the signed-out header and footer, plus Public Look for
-  the app's font and corner rounding. Public Look does not control colors.
+  the site's brand colour and the app's font and corner rounding.
 
 ## Saving
 
@@ -49,8 +49,27 @@ Styling settings control:
 - Public branding.
 
 Public Look is separate from Styling. Styling changes the signed-in workspace
-used by admins and members. Public Look is one app-wide setting and changes only
-the pages a visitor can see before signing in.
+used by admins and members. Public Look changes only the pages a visitor can see
+before signing in. Font and corners are app-wide. Brand colour belongs to the
+current site when the app gives workspaces their own public domains. An app
+without public workspace domains uses one app-wide brand colour instead.
+
+Brand colour accepts a 6-digit hex value. The shell uses it for public buttons,
+links, and focus rings, and chooses dark or light button text to keep the label
+readable. Clearing the field restores the app's normal public colour.
+
+Migration `0075_custom_shell_public_brand_color.sql` copies CMS's old
+`accentColor` into `publicTheme.brandColor` only when the new field does not
+exist. An explicit new colour or an explicit clear always wins. The old key
+stays in place for the previous CMS release during a rolling deploy. The next
+CMS shell merge owns deleting its private editor, frame styling, and old reads.
+Before the compatibility read goes, back up CMS workspace settings, deploy the
+shared shell to every CMS process, and run a final backfill for any old process
+that saved `accentColor` after migration `0075`. Confirm that no workspace has a
+valid `accentColor` without a `publicTheme.brandColor`, then remove the private
+CMS field and its remaining directory and share-image consumers. Migration
+`0075` leaves `accentColor` untouched, so the previous CMS release remains the
+rollback until the final cutover is complete.
 
 The shell turns those values into its runtime configuration and CSS variables.
 UI code still uses shared components so a saved theme affects one system rather
