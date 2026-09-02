@@ -15,15 +15,16 @@ button. Touch adds no second confirmation.
 
 A small rail of tools starts at the top-right corner of the candles, just before
 the chart's price labels, rather than in the header row: the header says which
-market and which timeframe, and the rail says what the pointer is holding. Its
-border and translucent background separate it from the candles without a
-shadow. Its bottom grip moves the rail anywhere inside the candles. A dashed
-copy marks its home while it moves. The copy and the rail brighten inside the
-snap range, then the rail lands eight pixels from both the top and the
-price-label edge. Arrow keys move the focused grip eight pixels at a time, and
-Home returns it to that corner. The account layout remembers the rail's relative
-place across live, backtest and flow-run charts, even when the chart panel
-changes size. A selected named workspace layout remembers the same place.
+market and which timeframe, and the rail says what the pointer is holding. The
+translucent background leaves the candles visible underneath with a moderate
+blur and stronger colour. The border separates the rail without a shadow. Its
+bottom grip moves the rail anywhere inside the candles. A dashed copy marks its
+home while it moves. The copy and the rail brighten inside the snap range, then
+the rail lands eight pixels from both the top and the price-label edge. Arrow
+keys move the focused grip eight pixels at a time, and Home returns it to that
+corner. The account layout remembers the rail's relative place across live,
+backtest and flow-run charts, even when the chart panel changes size. A selected
+named workspace layout remembers the same place.
 
 - **Two tools: a level and a trendline.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into

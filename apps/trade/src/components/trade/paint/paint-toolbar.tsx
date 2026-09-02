@@ -369,7 +369,7 @@ export function PaintToolbar({
         data-position={atHome ? "top-right" : "free"}
         style={toolbarStyle}
         className={cn(
-          "pointer-events-auto absolute z-20 flex flex-col gap-0.5 rounded-lg border bg-card/85 p-0.5 backdrop-blur-sm",
+          "pointer-events-auto absolute z-20 flex flex-col gap-0.5 rounded-lg border bg-card/45 p-0.5 backdrop-blur-md backdrop-saturate-150",
           snapReady && "ring-2 ring-primary/60"
         )}
       >
