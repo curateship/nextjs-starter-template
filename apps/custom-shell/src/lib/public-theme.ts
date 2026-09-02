@@ -1,16 +1,28 @@
 import type { CSSProperties } from "react"
 
+import {
+  derivePublicBrandColors,
+  type PublicBrandColorOverrides,
+} from "@/lib/public-theme-colors"
+
 export const PUBLIC_THEME_FONTS = ["system", "inter", "serif", "mono"] as const
 export type PublicThemeFont = (typeof PUBLIC_THEME_FONTS)[number]
 
 export type PublicTheme = {
   /** Buttons, links, and focus rings. Empty keeps the app's normal colour. */
   brandColor: string
+  /** Optional fixed values. A missing key keeps that value automatic. */
+  brandOverrides: PublicBrandColorOverrides
   font: PublicThemeFont
   radius: number
 }
 
-export type PublicBrandTheme = Pick<PublicTheme, "brandColor">
+export type PublicBrandTheme = Pick<
+  PublicTheme,
+  "brandColor" | "brandOverrides"
+>
+
+export type PublicBrandOverrideKey = keyof PublicBrandColorOverrides
 
 export const PUBLIC_THEME_FONT_LABELS: Record<PublicThemeFont, string> = {
   system: "App default",
@@ -29,10 +41,17 @@ export const PUBLIC_THEME_FONT_STACKS: Record<PublicThemeFont, string> = {
 export const DEFAULT_PUBLIC_RADIUS = 10
 export const MAX_PUBLIC_RADIUS = 24
 export const PUBLIC_BRAND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+export const PUBLIC_BRAND_OVERRIDE_KEYS = [
+  "hoverColor",
+  "softColor",
+  "foregroundColor",
+  "darkColor",
+] as const satisfies readonly PublicBrandOverrideKey[]
 
 export function createDefaultPublicTheme(): PublicTheme {
   return {
     brandColor: "",
+    brandOverrides: {},
     font: "system",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
@@ -48,6 +67,33 @@ export function isPublicBrandColor(value: string): boolean {
   return value === "" || PUBLIC_BRAND_COLOR_PATTERN.test(value)
 }
 
+export function normalizePublicBrandOverrides(
+  value: unknown
+): PublicBrandColorOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+
+  const overrides = value as Record<string, unknown>
+  return Object.fromEntries(
+    PUBLIC_BRAND_OVERRIDE_KEYS.flatMap((key) => {
+      const color = normalizePublicBrandColor(overrides[key])
+      return color ? [[key, color]] : []
+    })
+  )
+}
+
+export function isPublicBrandThemeInputValid(theme: PublicBrandTheme) {
+  return (
+    isPublicBrandColor(theme.brandColor) &&
+    PUBLIC_BRAND_OVERRIDE_KEYS.every((key) => {
+      if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
+        return true
+      }
+      const value = theme.brandOverrides[key]
+      return typeof value === "string" && PUBLIC_BRAND_COLOR_PATTERN.test(value)
+    })
+  )
+}
+
 /**
  * A site's part of Public Look. The optional fallback carries CMS's old
  * top-level accent colour until its next shell merge removes that field.
@@ -59,12 +105,18 @@ export function normalizePublicBrandTheme(
 ): PublicBrandTheme {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const theme = value as Partial<PublicBrandTheme>
-    if (Object.prototype.hasOwnProperty.call(theme, "brandColor")) {
-      return { brandColor: normalizePublicBrandColor(theme.brandColor) }
+    return {
+      brandColor: Object.prototype.hasOwnProperty.call(theme, "brandColor")
+        ? normalizePublicBrandColor(theme.brandColor)
+        : normalizePublicBrandColor(fallbackBrandColor),
+      brandOverrides: normalizePublicBrandOverrides(theme.brandOverrides),
     }
   }
 
-  return { brandColor: normalizePublicBrandColor(fallbackBrandColor) }
+  return {
+    brandColor: normalizePublicBrandColor(fallbackBrandColor),
+    brandOverrides: {},
+  }
 }
 
 /**
@@ -78,8 +130,9 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
   }
 
   const theme = value as Partial<PublicTheme>
+  const brandTheme = normalizePublicBrandTheme(theme)
   return {
-    brandColor: normalizePublicBrandColor(theme.brandColor),
+    ...brandTheme,
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
@@ -105,17 +158,8 @@ export function publicThemeForAppWideSave(
 
   return {
     ...next,
-    brandColor: normalizePublicTheme(currentValue).brandColor,
+    ...normalizePublicBrandTheme(currentValue),
   }
-}
-
-function readablePublicBrandForeground(hex: string) {
-  const red = Number.parseInt(hex.slice(1, 3), 16)
-  const green = Number.parseInt(hex.slice(3, 5), 16)
-  const blue = Number.parseInt(hex.slice(5, 7), 16)
-  return red * 0.299 + green * 0.587 + blue * 0.114 > 150
-    ? "#18181b"
-    : "#fafafa"
 }
 
 /**
@@ -126,13 +170,21 @@ export function publicThemeStyle(
   theme: PublicTheme
 ): CSSProperties | undefined {
   const style: Record<string, string> = {}
-  const brandColor = normalizePublicBrandColor(theme.brandColor)
+  const colors = derivePublicBrandColors(
+    normalizePublicBrandColor(theme.brandColor),
+    normalizePublicBrandOverrides(theme.brandOverrides)
+  )
 
-  if (brandColor) {
-    style["--shell-primary"] = brandColor
-    style["--shell-primary-foreground"] =
-      readablePublicBrandForeground(brandColor)
-    style["--shell-ring"] = brandColor
+  if (colors) {
+    style["--shell-public-primary-light"] = colors.light.brand
+    style["--shell-public-primary-dark"] = colors.dark.brand
+    style["--shell-public-primary-hover-light"] = colors.light.hover
+    style["--shell-public-primary-hover-dark"] = colors.dark.hover
+    style["--shell-public-primary-soft-light"] = colors.light.soft
+    style["--shell-public-primary-soft-dark"] = colors.dark.soft
+    style["--shell-public-primary-foreground-light"] =
+      colors.light.foreground
+    style["--shell-public-primary-foreground-dark"] = colors.dark.foreground
   }
 
   if (theme.radius !== DEFAULT_PUBLIC_RADIUS) {

@@ -55,8 +55,19 @@ current site when the app gives workspaces their own public domains. An app
 without public workspace domains uses one app-wide brand colour instead.
 
 Brand colour accepts a 6-digit hex value. The shell uses it for public buttons,
-links, and focus rings, and chooses dark or light button text to keep the label
-readable. Clearing the field restores the app's normal public colour.
+links, and focus rings. The shell also builds a distinct hover colour, a soft
+selection tint, readable button text, and a brand colour that stays visible in
+dark mode. Each automatic value appears in Public Look with its computed
+colour. Editing an automatic value makes it manual, and Back to automatic makes
+it follow the main brand colour again. A manual value survives later changes to
+the main brand colour. Clearing the main field restores the app's normal public
+colour without deleting those manual choices.
+
+Public Look checks normal-size text at a contrast ratio of 4.5 to 1. The current
+page text and background pass in both modes by default. A brand link or button
+label that falls below the same line gets a plain warning beside the setting
+for the mode that fails. Contrast warnings update while the admin types and
+never block saving a valid colour.
 
 Migration `0075_custom_shell_public_brand_color.sql` copies CMS's old
 `accentColor` into `publicTheme.brandColor` only when the new field does not

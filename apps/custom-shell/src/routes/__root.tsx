@@ -185,6 +185,7 @@ function RootDocument({
     <html
       lang="en"
       suppressHydrationWarning
+      data-public-brand={publicTheme?.brandColor ? "" : undefined}
       style={style}
     >
       <head>

@@ -55,7 +55,7 @@ import {
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
-  isPublicBrandColor,
+  isPublicBrandThemeInputValid,
   normalizePublicTheme,
 } from "@/lib/public-theme"
 import { resolveAppName } from "@/lib/branding"
@@ -250,7 +250,7 @@ export function ShellLayout({
       setSaveStatus("blocked")
       return false
     }
-    if (!isPublicBrandColor(snapshot.publicTheme.brandColor)) {
+    if (!isPublicBrandThemeInputValid(snapshot.publicTheme)) {
       setSaveStatus("idle")
       return false
     }
@@ -441,7 +441,7 @@ export function ShellLayout({
         const snapshot = latestConfigRef.current
         if (
           snapshot.workspaceName.trim() &&
-          isPublicBrandColor(snapshot.publicTheme.brandColor)
+          isPublicBrandThemeInputValid(snapshot.publicTheme)
         ) {
           void saveShellSettings(snapshot).catch(() => undefined)
         }

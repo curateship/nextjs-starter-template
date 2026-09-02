@@ -86,9 +86,14 @@
 
 :root {
     --app-font-sans: ui-sans-serif, system-ui, sans-serif;
-    --shell-primary: oklch(0.205 0 0);
-    --shell-primary-foreground: oklch(0.985 0 0);
-    --shell-ring: oklch(0.708 0 0);
+    --shell-primary: var(--shell-public-primary-light, oklch(0.205 0 0));
+    --shell-primary-foreground: var(
+      --shell-public-primary-foreground-light,
+      oklch(0.985 0 0)
+    );
+    --shell-primary-hover: var(--shell-public-primary-hover-light);
+    --shell-primary-soft: var(--shell-public-primary-soft-light);
+    --shell-ring: var(--shell-public-primary-light, oklch(0.708 0 0));
     --shell-sidebar-primary: oklch(0.205 0 0);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
     --shell-sidebar-accent: oklch(0.97 0 0);
@@ -129,9 +134,14 @@
 }
 
 .dark {
-    --shell-primary: oklch(0.922 0 0);
-    --shell-primary-foreground: oklch(0.205 0 0);
-    --shell-ring: oklch(0.556 0 0);
+    --shell-primary: var(--shell-public-primary-dark, oklch(0.922 0 0));
+    --shell-primary-foreground: var(
+      --shell-public-primary-foreground-dark,
+      oklch(0.205 0 0)
+    );
+    --shell-primary-hover: var(--shell-public-primary-hover-dark);
+    --shell-primary-soft: var(--shell-public-primary-soft-dark);
+    --shell-ring: var(--shell-public-primary-dark, oklch(0.556 0 0));
     --shell-sidebar-primary: oklch(0.488 0.243 264.376);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
     --shell-sidebar-accent: oklch(0.269 0 0);
@@ -184,6 +194,15 @@
 body.app-font {
     --app-font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     font-family: var(--app-font-sans);
+}
+
+html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
+  background-color: var(--shell-primary-hover);
+}
+
+html[data-public-brand] ::selection {
+  color: var(--foreground);
+  background-color: var(--shell-primary-soft);
 }
 
 @layer base {
