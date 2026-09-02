@@ -172,14 +172,17 @@ function Picker() {
 }
 
 describe("the chart interval picker", () => {
-  it("shows the current interval as one named dropdown", async () => {
+  it("keeps the timeframe dropdown at the far right when the interval changes", async () => {
     await act(async () => root.render(<Picker />))
 
     const trigger = host.querySelector<HTMLElement>(
-      '[role="tab"][aria-selected="true"]'
+      'button[aria-label="Candle interval"]'
     )
-    expect(trigger?.textContent).toContain("4h")
     expect(trigger?.getAttribute("aria-haspopup")).toBe("menu")
+    expect(trigger).toBe(trigger?.parentElement?.lastElementChild)
+    expect(
+      host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
+    ).toContain("4h")
 
     await act(async () => {
       trigger?.dispatchEvent(
@@ -202,13 +205,14 @@ describe("the chart interval picker", () => {
     expect(
       host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
     ).toContain("1d")
+    expect(trigger).toBe(trigger?.parentElement?.lastElementChild)
   })
 
   it("keeps favorite intervals as header shortcuts", async () => {
     await act(async () => root.render(<Picker />))
 
     const trigger = host.querySelector<HTMLElement>(
-      '[role="tab"][aria-selected="true"]'
+      'button[aria-label="Candle interval"]'
     )
     await act(async () => {
       trigger?.dispatchEvent(
@@ -242,13 +246,9 @@ describe("the chart interval picker", () => {
       host.querySelector('[role="tablist"][aria-label="Candle intervals"]')
     ).not.toBeNull()
     expect(shortcut).not.toBeNull()
-    const selected = host.querySelector<HTMLElement>(
-      '[role="tab"][aria-selected="true"]'
-    )
-    expect(selected?.querySelector("svg")).not.toBeNull()
     expect(
       host.querySelector('button[aria-label="Candle interval"]')
-    ).toBeNull()
+    ).not.toBeNull()
     await act(async () => {
       shortcut?.dispatchEvent(
         new MouseEvent("mousedown", { bubbles: true, button: 0 })

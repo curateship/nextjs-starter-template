@@ -28,9 +28,10 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the right the timeframe control (1m to 1d, remembered per browser, 4h the
   default), the indicator button and the view button. A star beside each
   timeframe keeps that choice in the header as a shortcut. The browser
-  remembers the stars. The menu arrow stays inside the selected timeframe,
-  never in its own button. A narrow header shows only that selected timeframe
-  and its menu. The indicator button's
+  remembers the stars. The timeframe menu arrow has its own fixed spot at the
+  far right inside the timeframe tabs, so choosing another timeframe never
+  carries the arrow to that tab. A narrow header shows only the selected
+  timeframe and that fixed arrow. The indicator button's
   small count says how many indicators are on. Each control uses the muted gray
   inside its border, while the rest of the header keeps the card background.
   The market dropdown uses the same light gray as the other header buttons.
