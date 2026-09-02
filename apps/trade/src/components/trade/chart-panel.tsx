@@ -46,6 +46,7 @@ import { useLongPress } from "@/components/trade/use-long-press"
 import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -283,34 +284,42 @@ export function IntervalPicker({
       onValueChange={(next) => onChange(next as CandleInterval)}
       className="gap-0"
     >
-      <TabsList aria-label="Candle intervals">
-        {headerIntervals.map((option) =>
-          option === value ? (
-            <DropdownMenu key={option}>
-              <DropdownMenuTrigger asChild>
-                <TabsTrigger
-                  value={option}
-                  aria-label={`Show ${option} candles`}
-                  className="px-2"
-                >
-                  {option}
-                  <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-                </TabsTrigger>
-              </DropdownMenuTrigger>
-              {menu}
-            </DropdownMenu>
-          ) : (
+      <div className="inline-flex h-8 w-fit items-center rounded-lg bg-muted/60 p-0.5 text-muted-foreground">
+        <TabsList
+          aria-label="Candle intervals"
+          className="h-7 rounded-none bg-transparent p-0"
+        >
+          {headerIntervals.map((option) => (
             <TabsTrigger
               key={option}
               value={option}
               aria-label={`Show ${option} candles`}
-              className="hidden md:inline-flex"
+              className={option === value ? "px-2" : "hidden md:inline-flex"}
             >
               {option}
             </TabsTrigger>
-          )
-        )}
-      </TabsList>
+          ))}
+        </TabsList>
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Candle interval"
+                  className="rounded-md"
+                >
+                  <ChevronDownIcon className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Choose timeframe</TooltipContent>
+          </Tooltip>
+          {menu}
+        </DropdownMenu>
+      </div>
     </Tabs>
   )
 }
