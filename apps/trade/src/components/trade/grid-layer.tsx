@@ -25,12 +25,14 @@ import {
   gridLevels,
   gridRangeAfterMove,
   gridRangeEndMovable,
+  gridRangeReshapable,
   gridStopBeyond,
   gridStopPx,
   gridTakeProfitPx,
   lossEdge,
   GRID_DIRECTION_LABELS,
   type GridDirection,
+  type GridRangeMove,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { cn } from "@/lib/utils"
@@ -88,10 +90,7 @@ export const GridLayer = React.memo(function GridLayer({
   onReverseGrid: (grid: SmartGrid) => void
   /** Why this grid cannot be reversed right now, or null when it can. */
   reverseDisabledReason: (grid: SmartGrid) => string | null
-  onMoveRange: (
-    grid: SmartGrid,
-    move: { end: "top" | "bottom"; px: number }
-  ) => Promise<boolean>
+  onMoveRange: (grid: SmartGrid, move: GridRangeMove) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
     which: "takeProfit" | "stopLoss",
@@ -122,6 +121,27 @@ export const GridLayer = React.memo(function GridLayer({
     return { y, off: null }
   }
 
+  /** One preview edge mid-drag. The full plan is rebuilt only on drop. */
+  const [previewDrag, setPreviewDrag] = React.useState<{
+    index: number
+    px: number
+  } | null>(null)
+
+  /** How far every preview price is moving while its middle grip is held. */
+  const [previewMove, setPreviewMove] = React.useState<{
+    offset: number
+  } | null>(null)
+
+  const previewEdges = (() => {
+    if (!preview) return null
+    const upper = preview.lines.find((line) => line.kind === "upper")?.px
+    const lower = preview.lines.find((line) => line.kind === "lower")?.px
+    return upper !== undefined && lower !== undefined && upper > lower
+      ? { topPx: upper, bottomPx: lower }
+      : null
+  })()
+  const previewOffset = previewMove?.offset ?? 0
+
   // The preview's own band: from its highest line to its lowest.
   const previewBand = (() => {
     if (!preview || preview.lines.length === 0) return null
@@ -130,8 +150,12 @@ export const GridLayer = React.memo(function GridLayer({
         one.kind === "upper" || one.kind === "lower" || one.kind === "level"
     )
     if (inRange.length === 0) return null
-    const top = yPinned(Math.max(...inRange.map((one) => one.px)))
-    const bottom = yPinned(Math.min(...inRange.map((one) => one.px)))
+    const top = yPinned(
+      Math.max(...inRange.map((one) => one.px + previewOffset))
+    )
+    const bottom = yPinned(
+      Math.min(...inRange.map((one) => one.px + previewOffset))
+    )
     if (!top || !bottom || bottom.y <= top.y) return null
     return { top: top.y, height: bottom.y - top.y }
   })()
@@ -148,11 +172,6 @@ export const GridLayer = React.memo(function GridLayer({
    * re-derives every level from the dropped field, and doing that on every
    * pixel would re-plan the grid a hundred times per drag.
    */
-  const [previewDrag, setPreviewDrag] = React.useState<{
-    index: number
-    px: number
-  } | null>(null)
-
   const startPreviewDrag =
     (index: number, kind: GridPreviewDragKind, from: number) =>
     (event: React.PointerEvent) => {
@@ -187,6 +206,71 @@ export const GridLayer = React.memo(function GridLayer({
       window.addEventListener("pointerup", onUp)
     }
 
+  /** Move every preview line by the same price amount, then rebuild once. */
+  const startPreviewGridDrag = (event: React.PointerEvent) => {
+    if (!previewEdges || !preview?.onMoveGrid) return
+    event.preventDefault()
+    event.stopPropagation()
+    const top = layerRef.current?.getBoundingClientRect().top ?? null
+    if (top === null) return
+    const from = surface.priceAt(event.clientY - top)
+    if (from === null) return
+    let frame = 0
+    let lastY = event.clientY
+    const offsetAt = (clientY: number) => {
+      const px = surface.priceAt(clientY - top)
+      if (px === null) return null
+      const offset = px - from
+      return previewEdges.bottomPx + offset > 0 ? offset : null
+    }
+    const onMove = (move: PointerEvent) => {
+      lastY = move.clientY
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const offset = offsetAt(lastY)
+        if (offset !== null) setPreviewMove({ offset })
+      })
+    }
+    const onUp = (up: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+      if (frame) cancelAnimationFrame(frame)
+      const offset = offsetAt(up.clientY)
+      setPreviewMove(null)
+      if (offset === null || Math.abs(offset) < 1e-9) return
+      preview.onMoveGrid?.({
+        topPx: previewEdges.topPx + offset,
+        bottomPx: previewEdges.bottomPx + offset,
+      })
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+  }
+
+  /** The focused middle grip moves one small screen step with arrow keys. */
+  const movePreviewGridFromKey = (event: React.KeyboardEvent) => {
+    if (
+      !previewEdges ||
+      !preview?.onMoveGrid ||
+      (event.key !== "ArrowUp" && event.key !== "ArrowDown")
+    ) {
+      return
+    }
+    const middle = (previewEdges.topPx + previewEdges.bottomPx) / 2
+    const y = surface.yOf(middle)
+    if (y === null) return
+    const moved = surface.priceAt(y + (event.key === "ArrowUp" ? -8 : 8))
+    if (moved === null) return
+    const offset = moved - middle
+    if (!(previewEdges.bottomPx + offset > 0)) return
+    event.preventDefault()
+    preview.onMoveGrid({
+      topPx: previewEdges.topPx + offset,
+      bottomPx: previewEdges.bottomPx + offset,
+    })
+  }
+
   return (
     <div
       ref={layerRef}
@@ -206,10 +290,19 @@ export const GridLayer = React.memo(function GridLayer({
           }}
         />
       ) : null}
+      {previewBand && previewEdges && preview?.onMoveGrid && tool === null ? (
+        <GridMoveKnob
+          top={previewBand.top + previewBand.height / 2}
+          onPointerDown={startPreviewGridDrag}
+          onKeyDown={movePreviewGridFromKey}
+          title="Drag to move the whole grid without changing the range's width."
+        />
+      ) : null}
       {preview?.lines.map((line, index) => {
         // The line being dragged follows the pointer; the rest hold still.
-        const shownPx =
-          previewDrag !== null && previewDrag.index === index
+        const shownPx = previewMove
+          ? line.px + previewMove.offset
+          : previewDrag !== null && previewDrag.index === index
             ? previewDrag.px
             : line.px
         const y = yFor(shownPx)
@@ -445,8 +538,50 @@ function gridStopName(
   return `STOP LOSS ${formatSignedUsd(gridResultAt(plan, stopPx) - feesPaid)}`
 }
 
-/** Which of the grid's four lines a drag is moving. */
-type DragEnd = "top" | "bottom" | "takeProfit" | "stopLoss"
+/** Which grid control a drag is moving. */
+type DragEnd = "top" | "bottom" | "whole" | "takeProfit" | "stopLoss"
+
+/** The same handle before and after placement, so saving does not flash. */
+function GridMoveKnob({
+  top,
+  disabled = false,
+  pointerEvents = "auto",
+  onPointerDown,
+  onKeyDown,
+  title,
+}: {
+  top: number
+  disabled?: boolean
+  pointerEvents?: "auto" | "none"
+  onPointerDown?: (event: React.PointerEvent) => void
+  onKeyDown?: (event: React.KeyboardEvent) => void
+  title: string
+}) {
+  return (
+    <button
+      type="button"
+      aria-label="Move the whole grid"
+      aria-disabled={disabled}
+      className={cn(
+        "absolute z-10 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground shadow-sm ring-2 ring-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        disabled ? "cursor-not-allowed opacity-70" : "cursor-ns-resize"
+      )}
+      style={{
+        // Tyler marked the grip beside the grid's right-hand prices. Keep the
+        // same gap as the chart grows instead of measuring from the left.
+        left: "calc(100% - 64px)",
+        top,
+        pointerEvents,
+        touchAction: "none",
+      }}
+      onPointerDown={disabled ? undefined : onPointerDown}
+      onKeyDown={disabled ? undefined : onKeyDown}
+      title={title}
+    >
+      <GripVerticalIcon className="size-4" />
+    </button>
+  )
+}
 
 function GridLines({
   grid,
@@ -484,10 +619,7 @@ function GridLines({
   onReverseGrid: (grid: SmartGrid) => void
   /** Why this grid cannot be reversed right now, or null when it can. */
   reverseDisabledReason: (grid: SmartGrid) => string | null
-  onMoveRange: (
-    grid: SmartGrid,
-    move: { end: "top" | "bottom"; px: number }
-  ) => Promise<boolean>
+  onMoveRange: (grid: SmartGrid, move: GridRangeMove) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
     which: "takeProfit" | "stopLoss",
@@ -519,6 +651,7 @@ function GridLines({
   // edge, has no grip; every other valid end stays available.
   const topMovable = gridRangeEndMovable(plan, "top")
   const bottomMovable = gridRangeEndMovable(plan, "bottom")
+  const wholeMovable = gridRangeReshapable(plan)
   // The end being dragged, as a price, while the pointer is down.
   const [dragging, setDragging] = React.useState<{
     end: DragEnd
@@ -540,7 +673,7 @@ function GridLines({
   } | null>(null)
 
   /**
-   * Dragging one of the grid's four lines to a new price.
+   * Dragging one of the grid's range or exit controls to a new price.
    *
    * The line follows the pointer while the button is down and only asks the
    * server when it is let go — a grid re-prices every level on a move, so doing
@@ -554,6 +687,8 @@ function GridLines({
       // browser for it on every pixel forced a layout per mouse move.
       const top = measureTop()
       if (top === null) return
+      const pointerFrom = priceFrom(event.clientY, top)
+      if (pointerFrom === null) return
       // Pointer moves arrive faster than the screen repaints, so they are
       // coalesced onto one animation frame — the same rule the chart's own
       // surface uses. The line still lands on every frame; it just stops
@@ -565,7 +700,11 @@ function GridLines({
         if (frame) return
         frame = requestAnimationFrame(() => {
           frame = 0
-          const px = priceFrom(lastY, top)
+          const pointedPx = priceFrom(lastY, top)
+          const px =
+            which === "whole" && pointedPx !== null
+              ? from + pointedPx - pointerFrom
+              : pointedPx
           if (px !== null && px > 0) setDragging({ end: which, px })
         })
       }
@@ -573,17 +712,22 @@ function GridLines({
         window.removeEventListener("pointermove", onMove)
         window.removeEventListener("pointerup", onUp)
         if (frame) cancelAnimationFrame(frame)
-        const px = priceFrom(up.clientY, top)
+        const pointedPx = priceFrom(up.clientY, top)
+        const px =
+          which === "whole" && pointedPx !== null
+            ? from + pointedPx - pointerFrom
+            : pointedPx
         setDragging(null)
         if (px === null || !(px > 0)) return
         // A drag that ends where it started is a click, not a move.
         if (Math.abs(from - px) < 1e-9) return
-        const rangeEnd = which === "top" || which === "bottom"
-        if (rangeEnd && !gridRangeAfterMove(plan, { end: which, px })) return
+        const rangeMove =
+          which === "top" || which === "bottom" || which === "whole"
+        if (rangeMove && !gridRangeAfterMove(plan, { end: which, px })) return
         // Shown where it was dropped from this moment on, so letting go looks
         // like the end of the move rather than the start of a wait.
         setPending({ end: which, px, was: savedFor(which) })
-        const settled = rangeEnd
+        const settled = rangeMove
           ? onMoveRange(grid, { end: which, px })
           : onMoveExit(grid, which, px)
         // A refused move never changes the plan, so nothing would clear the
@@ -606,9 +750,11 @@ function GridLines({
       ? plan.topPx
       : end === "bottom"
         ? plan.bottomPx
-        : end === "takeProfit"
-          ? gridTakeProfitPx(plan)
-          : gridStopPx(plan)
+        : end === "whole"
+          ? (plan.topPx + plan.bottomPx) / 2
+          : end === "takeProfit"
+            ? gridTakeProfitPx(plan)
+            : gridStopPx(plan)
 
   /**
    * The pointer wins, then the price just dropped, then what is saved.
@@ -624,11 +770,17 @@ function GridLines({
     return saved
   }
   const activeRangeMove = (() => {
-    if (dragging?.end === "top" || dragging?.end === "bottom") {
+    if (
+      dragging?.end === "top" ||
+      dragging?.end === "bottom" ||
+      dragging?.end === "whole"
+    ) {
       return { end: dragging.end, px: dragging.px }
     }
     if (
-      (pending?.end === "top" || pending?.end === "bottom") &&
+      (pending?.end === "top" ||
+        pending?.end === "bottom" ||
+        pending?.end === "whole") &&
       pending.was === savedFor(pending.end)
     ) {
       return { end: pending.end, px: pending.px }
@@ -661,6 +813,35 @@ function GridLines({
     !(pinTop.off !== null && pinTop.off === pinBottom.off)
   // Is the range being moved right now — dragged, or dropped and waiting?
   const rangeMoved = shownTop !== plan.topPx || shownBottom !== plan.bottomPx
+
+  /** A focused saved-grid handle moves one small screen step. */
+  const moveWholeGridFromKey = (event: React.KeyboardEvent) => {
+    if (
+      !wholeMovable ||
+      (event.key !== "ArrowUp" && event.key !== "ArrowDown") ||
+      bandTop === null ||
+      bandBottom === null
+    ) {
+      return
+    }
+    const top = measureTop()
+    if (top === null) return
+    const knobY = (bandTop + bandBottom) / 2
+    const here = priceFrom(top + knobY, top)
+    const moved = priceFrom(
+      top + knobY + (event.key === "ArrowUp" ? -8 : 8),
+      top
+    )
+    if (here === null || moved === null) return
+    const middle = (plan.topPx + plan.bottomPx) / 2
+    const px = middle + moved - here
+    if (!gridRangeAfterMove(plan, { end: "whole", px })) return
+    event.preventDefault()
+    setPending({ end: "whole", px, was: middle })
+    void onMoveRange(grid, { end: "whole", px }).then((ok) => {
+      if (!ok) setPending(null)
+    })
+  }
 
   /**
    * The levels the moved range would have, worked out here rather than waited
@@ -732,17 +913,30 @@ function GridLines({
           does not exist. A band has no line to collide with, and it says the
           thing the edges were there to say much better: this is the stretch of
           chart the grid works in. */}
-      {/* The stretch of chart the grid works in. */}
       {bandTop !== null && bandBottom !== null && bandBottom > bandTop ? (
-        <div
-          className="absolute inset-x-0"
-          style={{
-            top: bandTop,
-            height: bandBottom - bandTop,
-            backgroundColor: colors.primary,
-            opacity: dragging ? 0.1 : 0.05,
-          }}
-        />
+        <>
+          <div
+            className="absolute inset-x-0"
+            style={{
+              top: bandTop,
+              height: bandBottom - bandTop,
+              backgroundColor: colors.primary,
+              opacity: dragging ? 0.1 : 0.05,
+            }}
+          />
+          <GridMoveKnob
+            top={(bandTop + bandBottom) / 2}
+            disabled={!wholeMovable}
+            pointerEvents={controls}
+            onPointerDown={startDrag("whole", (plan.topPx + plan.bottomPx) / 2)}
+            onKeyDown={moveWholeGridFromKey}
+            title={
+              wholeMovable
+                ? "Drag to move the whole grid without changing the range's width."
+                : "The whole grid can move once it is holding no coin. An open entry stays at the price it actually paid."
+            }
+          />
+        </>
       ) : null}
 
       {/* The levels between the ends: a thin line and a price, nothing more.

@@ -2436,6 +2436,22 @@ describe("changing a live grid while it is flat", () => {
     })
   })
 
+  it("moves a whole live grid while every level is waiting", async () => {
+    await restingGrid()
+
+    await moveLiveGridRange(userId, wallet, {
+      gridId: "grid-1",
+      end: "whole",
+      px: 95,
+    })
+
+    const plan = await gridPlan()
+    expect(plan).toMatchObject({ topPx: 100, bottomPx: 90 })
+    expect(plan.levels.map((level) => level.buyPx)).toEqual([90, 95])
+    expect(place).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
   it("compresses a live grid around its one open entry", async () => {
     const base = gridState()
     await restingGrid(null)

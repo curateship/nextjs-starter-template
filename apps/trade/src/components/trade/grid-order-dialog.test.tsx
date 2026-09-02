@@ -310,7 +310,7 @@ describe("the grid window's saved settings", () => {
     expect(host.textContent).toContain("$800.00 free")
   }, 15_000)
 
-  it("hands the chart draggable edges and the money on every rung", async () => {
+  it("hands the chart draggable edges, a whole-grid grip and the money on every rung", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     let last: GridPreview | null = null
     await renderDialog(undefined, (preview) => {
@@ -325,11 +325,56 @@ describe("the grid window's saved settings", () => {
     expect(upper?.grip).toBe(true)
     expect(stop?.grip).toBe(true)
     expect(preview?.onMoveLine).toBeTypeOf("function")
+    expect(preview?.onMoveGrid).toBeTypeOf("function")
     // …every rung says what it puts in…
     const level = preview?.lines.find((one) => one.kind === "level")
     expect(level?.usd ?? 0).toBeGreaterThan(0)
     // …and the stop says what firing it would cost.
     expect(stop?.label).toMatch(/^STOP LOSS -\$/)
+  }, 15_000)
+
+  it("moves both ends together when the whole-grid grip is dragged", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => false)
+    let last: GridPreview | null = null
+    await renderDialog(onPlace, (preview) => {
+      last = preview
+    })
+
+    let preview = last as GridPreview | null
+    const upperBefore = preview?.lines.find((one) => one.kind === "upper")?.px
+    const lowerBefore = preview?.lines.find((one) => one.kind === "lower")?.px
+    expect(upperBefore).toBeTypeOf("number")
+    expect(lowerBefore).toBeTypeOf("number")
+
+    await act(async () =>
+      preview?.onMoveGrid?.({
+        topPx: (upperBefore ?? 0) + 10,
+        bottomPx: (lowerBefore ?? 0) + 10,
+      })
+    )
+
+    preview = last as GridPreview | null
+    const upperAfter = preview?.lines.find((one) => one.kind === "upper")?.px
+    const lowerAfter = preview?.lines.find((one) => one.kind === "lower")?.px
+    expect(upperAfter).toBeCloseTo((upperBefore ?? 0) + 10, 9)
+    expect(lowerAfter).toBeCloseTo((lowerBefore ?? 0) + 10, 9)
+    expect((upperAfter ?? 0) - (lowerAfter ?? 0)).toBeCloseTo(
+      (upperBefore ?? 0) - (lowerBefore ?? 0),
+      9
+    )
+    expect(host.textContent).toContain("The range is where you dragged it")
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topPx: upperAfter,
+        bottomPx: lowerAfter,
+      })
+    )
   }, 15_000)
 
   it("moves only the dragged edge of a click-hung range", async () => {

@@ -937,6 +937,25 @@ describe("moving the range", () => {
     expect(await orders()).toHaveLength(0)
   })
 
+  it("moves the whole placed grid and keeps its width", async () => {
+    await place()
+
+    await moveGridRange(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      end: "whole",
+      px: 140,
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.topPx).toBe(160)
+    expect(grid.plan.bottomPx).toBe(120)
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
+      120, 130, 140, 150,
+    ])
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
   it("keeps the stop it was given", async () => {
     await place({ stopLoss: { underPct: 5, base: null } })
     await moveGridRange(userId, wallet, {

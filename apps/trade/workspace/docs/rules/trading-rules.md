@@ -201,6 +201,19 @@ add up to.
 
 ## Grids
 
+- Tyler, 1 Sep 2026: **"for smart grid. I want to be able to move the whole
+  grid at once. Add a draggable knob here"** and **"knob should be light gray
+  and its not supposeed to disapear after i place the grid. I should be able to
+  still move it"** The light-gray middle grip remains on the placed grid. While
+  the grid is flat, it moves both range edges by the same amount, so the grid
+  keeps its width while every rung moves with it. The grip sits at the range's
+  vertical middle and 64 pixels left of the plot's right edge, beside the
+  right-hand prices where Tyler marked it. Tyler's follow-ups **"Look where its
+  at!"** and **"why the fuck cant you make it sit closer to the price?"** mean
+  the grip follows the right edge as the chart widens. The placement preview is
+  removed before the saved grid draws, so placement does not flicker. If the
+  grid holds coin, the grip remains visible but waits until the grid is flat;
+  an entry already paid at its old price cannot move.
 - Tyler, 30 Aug 2026: **"In What calls the grid, I need to change by hours and
   not days."** The clean wait is shown and changed in hours. Since Grid only
   reads closed 4-hour candles, the choices move in 4-hour steps. The default is

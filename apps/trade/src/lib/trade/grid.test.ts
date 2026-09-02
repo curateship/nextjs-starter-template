@@ -379,6 +379,24 @@ describe("reading a stored grid back", () => {
     expect(gridRangeEndMovable(plan, "bottom")).toBe(true)
   })
 
+  it("moves the whole flat range by its middle without changing its width", () => {
+    expect(gridRangeAfterMove(plan, { end: "whole", px: 140 })).toEqual({
+      topPx: 160,
+      bottomPx: 120,
+    })
+  })
+
+  it("does not move the whole range across an entry it already opened", () => {
+    const held = {
+      ...plan,
+      levels: [
+        plan.levels[0],
+        { ...plan.levels[1], status: "holding" as const },
+      ],
+    }
+    expect(gridRangeAfterMove(held, { end: "whole", px: 140 })).toBeNull()
+  })
+
   it("compresses around one open entry but does not re-slice it", () => {
     const held = {
       ...plan,

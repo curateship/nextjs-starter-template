@@ -1631,6 +1631,12 @@ export function isGridStopLeg(
 
 export type GridRangeEnd = "top" | "bottom"
 
+/** A range edge at one price, or the whole range by its middle price. */
+export type GridRangeMove = {
+  end: GridRangeEnd | "whole"
+  px: number
+}
+
 type GridRangeState = Pick<GridPlan, "levels"> & {
   carriedLevels?: GridLevelState[]
 }
@@ -1702,9 +1708,19 @@ export function gridRangeEndMovable(
  */
 export function gridRangeAfterMove(
   plan: AdjustableGridRange,
-  move: { end: GridRangeEnd; px: number }
+  move: GridRangeMove
 ): { topPx: number; bottomPx: number } | null {
-  if (!gridRangeEndMovable(plan, move.end) || !(move.px > 0)) return null
+  if (!(move.px > 0)) return null
+  if (move.end === "whole") {
+    if (!gridRangeReshapable(plan)) return null
+    const halfWidth = (plan.topPx - plan.bottomPx) / 2
+    const range = {
+      topPx: move.px + halfWidth,
+      bottomPx: move.px - halfWidth,
+    }
+    return range.bottomPx > 0 ? range : null
+  }
+  if (!gridRangeEndMovable(plan, move.end)) return null
   const anchor = gridRangeAnchor(plan)
   if (!anchor) {
     const range =

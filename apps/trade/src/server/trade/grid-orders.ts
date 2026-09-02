@@ -32,7 +32,7 @@ import {
   type GridLevelState,
   type GridParams,
   type GridPlan,
-  type GridRangeEnd,
+  type GridRangeMove,
   type GridStop,
 } from "@/lib/trade/grid"
 import { paperAccountFigures } from "@/lib/trade/paper"
@@ -771,10 +771,8 @@ export type ReshapeGridShape = {
   manualRungPcts?: number[]
 }
 
-export type MoveGridRangeInput = {
+export type MoveGridRangeInput = GridRangeMove & {
   gridId: string
-  end: GridRangeEnd
-  px: number
 }
 
 /**
@@ -835,6 +833,9 @@ export function gridPlanAfterRangeMove(input: {
   takerFeeRate: number
 }): GridPlan {
   const { plan, move, mark, roundPx } = input
+  if (move.end === "whole") {
+    throw new Error("SMART_GRID_WHOLE_FIXED")
+  }
   if (!gridRangeEndMovable(plan, move.end)) {
     throw new Error("SMART_GRID_RANGE_FIXED")
   }

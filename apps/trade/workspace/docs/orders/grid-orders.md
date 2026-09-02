@@ -165,6 +165,16 @@ before any money moves:
   after the first version kept the clicked price pinned to its own rung and
   dragging one edge visibly moved the whole grid. A drop that would turn
   the range inside out changes nothing.
+- **The light-gray round grip in the middle moves the whole grid.** Dragging
+  the grip shifts the upper and lower prices by the same amount, so the range
+  keeps its width. Every rung redraws inside the moved range. The window holds
+  the result as plain prices because a moved range may sit wholly above or
+  below today's price. Typing a range percent takes control back. The grip also
+  works from the keyboard with the up and down arrow keys. The grip sits at the
+  range's vertical middle and 64 pixels left of the plot's right edge, beside
+  the grid's prices without covering them. The same grip stays there after
+  Place. The preview comes off before the saved grid is drawn, so the two copies
+  never flash on top of each other.
 - **The money is on the chart before placing.** Every rung carries the chip a
   placed level gets, saying what that rung puts in. The stop line says what
   firing it would cost if every rung had opened first — the worst case, which
@@ -257,6 +267,12 @@ fixed point. Dragging Upper price or Lower price spreads the waiting levels out
 or pulls them in around it. The grid keeps the chosen equal-dollar or
 equal-percent spacing, every rung keeps its share of the money, and the open
 level keeps its entry, coins and budget. Its exit moves with the new spacing.
+
+The middle grip remains visible on a placed grid. While the grid holds no coin,
+dragging it moves the full range and every waiting rung together without
+changing the range's width. Once a rung has bought, the grip stays where it is
+but is disabled until the grid is flat again. A price already paid cannot move
+with the waiting rungs without making the trade record untrue.
 
 An edge that is itself the open entry has no grip because moving it would move
 the entry. The other edge still works. Once two levels are open, or an older

@@ -134,7 +134,11 @@ function layer(
       (level) => level.status === "holding"
     )
       ? 5
-      : 0
+      : 0,
+  onMoveRange: (
+    grid: SmartGrid,
+    move: { end: "top" | "bottom" | "whole"; px: number }
+  ) => Promise<boolean> = async () => true
 ) {
   return (
     <GridLayer
@@ -152,8 +156,42 @@ function layer(
       onReverseGrid={() => undefined}
       reverseDisabledReason={() => null}
       onOpenSettings={() => undefined}
-      onMoveRange={async () => true}
+      onMoveRange={onMoveRange}
       onMoveExit={onMoveExit}
+    />
+  )
+}
+
+function previewLayer(
+  onMoveGrid: (range: { topPx: number; bottomPx: number }) => void
+) {
+  return (
+    <GridLayer
+      surface={surface}
+      colors={{ ...colors, primary: "#171717", badgeText: "#ffffff" }}
+      marketKey="market"
+      currentPx={100}
+      grids={[]}
+      preview={{
+        direction: "long",
+        levelCount: 2,
+        lines: [
+          { px: 110, kind: "upper", grip: true },
+          { px: 100, kind: "level" },
+          { px: 90, kind: "lower", grip: true },
+          { px: 80, kind: "stopLoss", grip: true },
+        ],
+        onMoveGrid,
+      }}
+      tool={null}
+      walletName={() => "Wallet"}
+      onCancelLevel={() => undefined}
+      onCancelGrid={() => undefined}
+      onReverseGrid={() => undefined}
+      reverseDisabledReason={() => null}
+      onOpenSettings={() => undefined}
+      onMoveRange={async () => true}
+      onMoveExit={async () => true}
     />
   )
 }
@@ -210,6 +248,127 @@ describe("the grid stop-loss line", () => {
       70
     )
     expect(host.textContent).toContain("STOP LOSS -$105.00")
+    await act(async () => root.unmount())
+  })
+})
+
+describe("the grid preview's whole-grid grip", () => {
+  it("moves both range edges by the same price amount", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveGrid = vi.fn()
+    await act(async () => root.render(previewLayer(onMoveGrid)))
+
+    const grip = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole grid"]'
+    )
+    expect(grip).not.toBeNull()
+    expect(grip?.className).toContain("bg-muted")
+    expect(grip?.className).toContain("text-muted-foreground")
+    expect(grip?.style.left).toBe("calc(100% - 64px)")
+    await act(async () => {
+      grip?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 110 })
+      )
+    })
+
+    expect(onMoveGrid).toHaveBeenCalledWith({ topPx: 100, bottomPx: 80 })
+    await act(async () => root.unmount())
+  })
+
+  it("moves the range from the keyboard", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveGrid = vi.fn()
+    await act(async () => root.render(previewLayer(onMoveGrid)))
+
+    const grip = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole grid"]'
+    )
+    await act(async () => {
+      grip?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })
+      )
+    })
+
+    expect(onMoveGrid).toHaveBeenCalledWith({ topPx: 118, bottomPx: 98 })
+    await act(async () => root.unmount())
+  })
+})
+
+describe("a placed grid's whole-grid grip", () => {
+  it("stays on the grid after the placement preview is gone and moves it", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveRange = vi.fn(async () => true)
+    await act(async () =>
+      root.render(
+        layer(
+          grid("long", false),
+          async () => true,
+          () => 0,
+          onMoveRange
+        )
+      )
+    )
+
+    const grip = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole grid"]'
+    )
+    expect(grip).not.toBeNull()
+    expect(grip?.className).toContain("bg-muted")
+    expect(grip?.className).toContain("text-muted-foreground")
+    expect(grip?.style.left).toBe("calc(100% - 64px)")
+    expect(grip?.getAttribute("aria-disabled")).toBe("false")
+
+    await act(async () => {
+      grip?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 110 })
+      )
+    })
+
+    expect(onMoveRange).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "grid" }),
+      { end: "whole", px: 90 }
+    )
+    await act(async () => root.unmount())
+  })
+
+  it("remains visible but cannot move while the grid is holding coin", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveRange = vi.fn(async () => true)
+    await act(async () =>
+      root.render(
+        layer(
+          grid("long"),
+          async () => true,
+          () => 5,
+          onMoveRange
+        )
+      )
+    )
+
+    const grip = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole grid"]'
+    )
+    expect(grip).not.toBeNull()
+    expect(grip?.getAttribute("aria-disabled")).toBe("true")
+    await act(async () => {
+      grip?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 110 })
+      )
+    })
+    expect(onMoveRange).not.toHaveBeenCalled()
     await act(async () => root.unmount())
   })
 })
