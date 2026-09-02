@@ -17,7 +17,8 @@ import { getPageErrorMessage } from "@/components/shell/route-error"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadBranding } from "@/lib/api/shell"
-import { resolveAppName } from "@/lib/branding"
+import { resolveAppName, usePublicTheme } from "@/lib/branding"
+import { publicThemeStyle, type PublicTheme } from "@/lib/public-theme"
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { routePageTitle } from "@/lib/nav/route-title"
@@ -119,6 +120,9 @@ function RootErrorComponent({ error }: ErrorComponentProps) {
 function RootComponent() {
   useDismissErrorToastOnNavigate()
   useTrafficBeacon()
+  const signedInPage = useSignedInPage()
+  const savedPublicTheme = usePublicTheme()
+  const publicTheme = signedInPage ? null : savedPublicTheme
 
   // A domain belonging to no workspace is a dead end — a subdomain nobody has
   // taken, or one whose workspace is switched off. Serving the deployment's own
@@ -131,7 +135,7 @@ function RootComponent() {
   const { hostIsUnknown } = Route.useLoaderData()
 
   return (
-    <RootDocument>
+    <RootDocument publicTheme={publicTheme}>
       <ThemeProvider>
         <TooltipProvider>
           <div data-slot="app-canvas">
@@ -142,6 +146,15 @@ function RootComponent() {
       </ThemeProvider>
     </RootDocument>
   )
+}
+
+function useSignedInPage() {
+  return useRouterState({
+    select: (state) =>
+      state.matches.some((match) =>
+        match.routeId.startsWith("/_authenticated")
+      ),
+  })
 }
 
 /** What a domain nobody has claimed says. Deliberately tells you nothing else. */
@@ -160,23 +173,27 @@ function UnknownHost() {
   )
 }
 
-function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  const signedInPage = useRouterState({
-    select: (state) =>
-      state.matches.some((match) =>
-        match.routeId.startsWith("/_authenticated"),
-      ),
-  })
+function RootDocument({
+  children,
+  publicTheme = null,
+}: Readonly<{ children: ReactNode; publicTheme?: PublicTheme | null }>) {
+  const signedInPage = useSignedInPage()
+  const style = publicTheme ? publicThemeStyle(publicTheme) : undefined
+  const wantsInter = signedInPage || publicTheme?.font === "inter"
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={style}
+    >
       <head>
         {/*
          * Only the signed-in pages use Inter, so only they ask for it early.
          * Without this the font arrives after the stylesheet and the page
          * repaints once in the system font first.
          */}
-        {signedInPage ? (
+        {wantsInter ? (
           <link
             rel="preload"
             href="/fonts/inter-latin.woff2"

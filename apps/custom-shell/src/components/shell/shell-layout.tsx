@@ -54,6 +54,7 @@ import {
 } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import { normalizePublicTheme } from "@/lib/public-theme"
 import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth/auth"
@@ -688,6 +689,7 @@ function normalizeConfig(
       : fallback.publicFooter,
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
+    publicTheme: normalizePublicTheme(settings.publicTheme),
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation,
       actionIds

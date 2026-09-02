@@ -12,6 +12,11 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import {
+  hasCustomPublicTheme,
+  normalizePublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -75,6 +80,7 @@ export async function readBranding(
   >["publicNavigation"]
   publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
   publicFooterCopyright: string
+  publicTheme?: PublicTheme
   /**
    * True when the domain belongs to no workspace at all — a subdomain nobody
    * has taken, or one whose workspace is switched off. The root route turns
@@ -85,6 +91,7 @@ export async function readBranding(
 }> {
   const globals = await readShellGlobals(database)
   const answer = await answerForRequest(database)
+  const publicTheme = globals.publicTheme
 
   if (answer.kind !== "workspace") {
     return {
@@ -94,6 +101,7 @@ export async function readBranding(
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
+      ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
       hostIsUnknown: answer.kind === "unknown",
     }
   }
@@ -102,14 +110,14 @@ export async function readBranding(
 
   return {
     appName: answer.workspace.name || globals.appName,
-    // A workspace has a favicon of its own but no logo yet — that arrives with
-    // the rest of its look, in a later task. Until then the deployment's logo
-    // is shown, which beats a site with no mark at all.
+    // A workspace has a favicon of its own but no logo yet. Until it does, the
+    // deployment's logo keeps the public pages from losing their mark.
     logo: globals.logo,
     logoDark: globals.logoDark,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
   }
 }
@@ -185,6 +193,7 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
+    publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -245,6 +254,7 @@ export function pickShellGlobals(
     | "workspaceName"
     | "logo"
     | "logoDark"
+    | "publicTheme"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -264,6 +274,7 @@ export function pickShellGlobals(
     workspaceName: settings.workspaceName,
     logo: settings.logo,
     logoDark: settings.logoDark,
+    publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,

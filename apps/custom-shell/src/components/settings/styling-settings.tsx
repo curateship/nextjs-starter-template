@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsSliderRow as SliderRow } from "@/components/settings/settings-slider-row"
 import {
   Card,
   CardContent,
@@ -12,7 +13,6 @@ import {
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import {
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
@@ -471,75 +470,6 @@ function BackgroundField({
             />
           </div>
         </div>
-      ) : null}
-    </div>
-  )
-}
-
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  valueLabel,
-  disabled,
-  onChange,
-  help,
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step?: number
-  valueLabel: string
-  disabled?: boolean
-  onChange: (value: number) => void
-  help?: string
-}) {
-  const fieldId = React.useId()
-  const labelId = `${fieldId}-label`
-  const helpId = `${fieldId}-help`
-  const thumbRef = React.useRef<HTMLSpanElement>(null)
-
-  return (
-    <div className="grid gap-2">
-      <div className="grid max-w-sm gap-2">
-        <div className="flex items-center justify-between">
-          {/* `htmlFor` would do nothing here: the element with role="slider" is
-              the thumb, a <span>, and a label can only point at a form control.
-              So the name is wired with aria-labelledby and the click is passed
-              on by hand — both landing on the thumb, not the wrapper. */}
-          <Label
-            id={labelId}
-            className="cursor-pointer"
-            onClick={() => thumbRef.current?.focus()}
-          >
-            {label}
-          </Label>
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {valueLabel}
-          </span>
-        </div>
-        <Slider
-          thumbRef={thumbRef}
-          aria-labelledby={labelId}
-          aria-describedby={help ? helpId : undefined}
-          // "24px", "10%" or "Off" — what the row already shows, so a screen
-          // reader reads the same thing as the eye instead of a bare number.
-          aria-valuetext={valueLabel}
-          min={min}
-          max={max}
-          step={step}
-          value={[value]}
-          disabled={disabled}
-          onValueChange={(next) => onChange(next[0] ?? min)}
-        />
-      </div>
-      {help ? (
-        <p id={helpId} className="text-xs text-muted-foreground">
-          {help}
-        </p>
       ) : null}
     </div>
   )

@@ -1,5 +1,11 @@
+import * as React from "react"
 import { rootRouteId, useLoaderData } from "@tanstack/react-router"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicTheme,
+  normalizePublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 
 /** Shown wherever the app name appears while nobody has set one. */
 export const DEFAULT_APP_NAME = "Custom Shell"
@@ -72,4 +78,17 @@ export function usePublicFooterCopyright() {
     from: rootRouteId,
     select: (data) => data.publicFooterCopyright ?? "",
   })
+}
+
+/** The app's public font and corners, normalized again at the paint boundary. */
+export function usePublicTheme(): PublicTheme {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicTheme,
+  })
+
+  return React.useMemo(
+    () => (saved ? normalizePublicTheme(saved) : createDefaultPublicTheme()),
+    [saved]
+  )
 }

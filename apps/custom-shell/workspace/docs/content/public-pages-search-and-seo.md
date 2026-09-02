@@ -18,6 +18,18 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
+The app has one public look. Settings under Public > Look control corner
+rounding from 0 to 24px and offer the system face, Inter, serif, and mono fonts.
+Inter comes from the app; the other choices use fonts already on the visitor's
+device. Public pages never fetch a font from another site. Public Look does not
+control colors.
+
+The root page load includes the public look from the app-wide settings row. The
+server writes the saved values into the first HTML response, before the browser
+paints or React starts. Missing and invalid fields use the standard font and
+corner values. Public look settings never change the signed-in app, which keeps
+its own Styling settings.
+
 Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search
 must apply the same visibility rule as opening the result.

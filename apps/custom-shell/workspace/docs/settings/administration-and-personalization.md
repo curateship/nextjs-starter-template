@@ -10,7 +10,8 @@ The built-in settings groups contain:
 - Platform tabs for general details, admin navigation, dashboard widgets,
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
-- Public Navigation for the signed-out header and footer.
+- Public Navigation for the signed-out header and footer, plus Public Look for
+  the app's font and corner rounding. Public Look does not control colors.
 
 ## Saving
 
@@ -46,6 +47,10 @@ Styling settings control:
 - Logo and icon.
 - Font choices and sidebar dimensions.
 - Public branding.
+
+Public Look is separate from Styling. Styling changes the signed-in workspace
+used by admins and members. Public Look is one app-wide setting and changes only
+the pages a visitor can see before signing in.
 
 The shell turns those values into its runtime configuration and CSS variables.
 UI code still uses shared components so a saved theme affects one system rather

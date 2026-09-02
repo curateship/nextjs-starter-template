@@ -87,6 +87,7 @@ import { setSessionPolicy } from "@/server/auth/session-policy"
 import {
   parseShellGlobals,
   pickShellGlobals,
+  readBranding,
   readShellGlobals,
   readShellSettings,
 } from "@/server/shell-settings"
@@ -1515,7 +1516,7 @@ describe("custom shell workspaces", () => {
     ])
   })
 
-  it("normalizes public links and broken public settings safely", () => {
+  it("normalizes public links safely", () => {
     const saved = parseWorkspaceSettings({
       publicNavigation: [
         { label: "About", href: "/about" },
@@ -1530,6 +1531,28 @@ describe("custom shell workspaces", () => {
     ])
     expect(saved.publicFooter).toEqual([])
     expect(saved.publicFooterCopyright).toBe("")
+  })
+
+  it("uses the app-wide public theme and ignores removed colors", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicTheme: {
+          brandColor: { light: "#ffffff", dark: "#000000" },
+          backgroundColor: { light: "#ffffff", dark: "#000000" },
+          textColor: { light: "#000000", dark: "#ffffff" },
+          font: "system",
+          radius: 0,
+        },
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicTheme).toEqual({ font: "system", radius: 0 })
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {

@@ -11,6 +11,7 @@ import type { UserAnnouncement } from "@/lib/announcement"
 import { serializeUser, type AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
+import type { PublicTheme } from "@/lib/public-theme"
 import {
   seesEveryWorkspace,
   type WorkspaceListResponse,
@@ -156,6 +157,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
+    publicTheme?: PublicTheme
     hostIsUnknown: boolean
   }> => {
     try {

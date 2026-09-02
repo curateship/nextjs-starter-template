@@ -20,6 +20,11 @@ import {
   MAX_PUBLIC_NAVIGATION_LINKS,
 } from "@/lib/pages/public-navigation"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
+import {
+  MAX_PUBLIC_RADIUS,
+  PUBLIC_THEME_FONTS,
+  normalizePublicTheme,
+} from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
@@ -137,6 +142,11 @@ const publicNavigationSchema = z
   .max(MAX_PUBLIC_NAVIGATION_LINKS)
   .transform(cleanPublicNavigationLinks)
 
+const publicThemeSchema = z.object({
+  font: z.enum(PUBLIC_THEME_FONTS),
+  radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
+})
+
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
  * the handler is what decides which ids survive, and it drops anything no
@@ -188,6 +198,7 @@ const shellConfigSchema = z.object({
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
     .transform(cleanPublicFooterCopyright),
+  publicTheme: publicThemeSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
@@ -299,6 +310,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
+          publicTheme: normalizePublicTheme(data.publicTheme),
           automationPause: existingGlobals.automationPause,
         }),
         maintenance: {

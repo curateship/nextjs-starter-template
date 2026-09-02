@@ -12,6 +12,7 @@ import {
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -433,6 +434,8 @@ export type ShellConfig = {
   publicFooter: PublicNavigationLink[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
+  /** Font and corner rounding for the app's public frontend. */
+  publicTheme: PublicTheme
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -1019,6 +1022,7 @@ export function createDefaultShellConfig(): ShellConfig {
     publicNavigation: [],
     publicFooter: [],
     publicFooterCopyright: "",
+    publicTheme: createDefaultPublicTheme(),
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.
