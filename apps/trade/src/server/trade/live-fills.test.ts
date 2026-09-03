@@ -148,6 +148,77 @@ describe("how often a wallet's history is read", () => {
 })
 
 describe("live fill storage", () => {
+  it("announces one order once when the exchange splits it into fill pieces", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Ku1",
+      kind: "live",
+      status: "active",
+      protocol: "kucoin",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "kucoin-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const at = Date.now()
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "fill-piece-1",
+        orderId: "one-order",
+        marketId: "JASMYUSDTM",
+        side: "buy",
+        px: 0.004861,
+        sz: 9_300,
+        at,
+        closedPnl: 0,
+        fee: 0.02,
+        dir: "Buy",
+        liquidation: false,
+      },
+      {
+        fillId: "fill-piece-2",
+        orderId: "one-order",
+        marketId: "JASMYUSDTM",
+        side: "buy",
+        px: 0.00486,
+        sz: 220.16,
+        at: at + 5,
+        closedPnl: 0,
+        fee: 0.01,
+        dir: "Buy",
+        liquidation: false,
+      },
+    ])
+
+    expect(writeTradeNotice).toHaveBeenCalledTimes(1)
+    expect(writeTradeNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Bought $46.28 of JASMYUSDTM at $0.004861 (Ku1)",
+        body: "The order filled on the exchange.",
+        soundKind: "fill",
+      })
+    )
+    const saved = await database
+      .select()
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, user.id))
+    expect(saved).toHaveLength(2)
+  })
+
   it("reads fills for newly learnt triggers in one query", async () => {
     const user = await insertUser(database)
     const wallet: TradeWallet = {

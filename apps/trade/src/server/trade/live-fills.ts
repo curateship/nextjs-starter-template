@@ -317,8 +317,8 @@ export async function recordLiveFills(
 }
 
 /**
- * One bell notice per fresh fill, and a second one straight away when the fill
- * came from a stop or a target this app already knew about.
+ * One bell notice per fresh order execution, and a second one straight away
+ * when the execution came from a stop or a target this app already knew about.
  *
  * The known-trigger case is the common one — `recordTriggers` writes a stop
  * down while it rests on the position, long before it fires. A stop this app
@@ -338,7 +338,9 @@ async function announceFills(
   // brand-new rows, and every one of them would pass the "was it inserted"
   // test — a bell with three hundred notices about last spring. Only a fill
   // made just now is worth a notice.
-  const recent = fresh.filter((fill) => fill.at >= cutoff)
+  const recent = groupFillNoticePieces(
+    fresh.filter((fill) => fill.at >= cutoff)
+  )
   const knownByOrder = await triggerRowsByOrder(
     userId,
     wallet.id,
@@ -392,6 +394,51 @@ async function announceFills(
       console.error("trade fill notice failed", error)
     }
   }
+}
+
+/**
+ * Add the pieces of one immediate order execution before the bell speaks.
+ *
+ * Exchanges record one trade for every price level an order meets. KuCoin in
+ * particular can return several rows for one click, a few milliseconds apart.
+ * Those rows stay separate in the Journal, but the bell describes the order
+ * once at its size-weighted average price. A resting order that fills again
+ * later still gets another notice, because that is new money moving later.
+ */
+function groupFillNoticePieces(
+  fills: readonly WalletOrderFill[]
+): WalletOrderFill[] {
+  const grouped: WalletOrderFill[] = []
+  const openByOrder = new Map<string, number>()
+
+  for (const fill of [...fills].sort(
+    (left, right) =>
+      left.at - right.at || left.fillId.localeCompare(right.fillId)
+  )) {
+    const key = fill.orderId
+      ? `${fill.marketId}\u0000${fill.side}\u0000${fill.orderId}`
+      : null
+    const index = key === null ? undefined : openByOrder.get(key)
+    const open = index === undefined ? undefined : grouped[index]
+
+    if (open && index !== undefined && fill.at - open.at <= 1_000) {
+      const sz = open.sz + fill.sz
+      grouped[index] = {
+        ...open,
+        px: sz > 0 ? (open.px * open.sz + fill.px * fill.sz) / sz : open.px,
+        sz,
+        closedPnl: open.closedPnl + fill.closedPnl,
+        fee: open.fee + fill.fee,
+        liquidation: open.liquidation || fill.liquidation,
+      }
+      continue
+    }
+
+    grouped.push({ ...fill })
+    if (key !== null) openByOrder.set(key, grouped.length - 1)
+  }
+
+  return grouped
 }
 
 /**
