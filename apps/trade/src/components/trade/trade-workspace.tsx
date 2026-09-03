@@ -24,14 +24,13 @@ import {
   AddWalletDialog,
   WalletSettingsDialog,
 } from "@/components/trade/wallet-dialogs"
-import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
 import { ChartFullscreenButton } from "@/components/trade/chart-fullscreen-button"
+import { ChartToolsMenu } from "@/components/trade/chart-tools-menu"
 import {
   ChartPanel,
   IntervalPicker,
   type OlderBarsStatus,
 } from "@/components/trade/chart-panel"
-import { IndicatorsMenu } from "@/components/trade/indicators-menu"
 import { useChartOptions } from "@/components/trade/use-chart-options"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import {
@@ -42,10 +41,10 @@ import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { MarketFoldersMenu } from "@/components/trade/market-folders-menu"
+import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { useLineAlerts } from "@/components/trade/use-line-alerts"
-import { PriceAlertsPanel } from "@/components/trade/price-alerts-panel"
 import { usePriceAlerts } from "@/components/trade/use-price-alerts"
-import { PanelLayoutsMenu } from "@/components/trade/panel-layouts-menu"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -90,7 +89,6 @@ import { useRememberedChoice } from "@/lib/remembered-choice"
 import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
-  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { usePanelFit } from "@/lib/trade/panel-fit"
@@ -486,12 +484,15 @@ export function TradeWorkspace({
   // answer. They belong to the account rather than to the market, exactly like
   // the zoom — an indicator is how you read a chart, not a fact about a coin.
   const indicators = useChartIndicators(initialIndicators)
+  const chartOptions = useChartOptions(initialChartOptions)
+  const priceAlerts = usePriceAlerts(initialPriceAlerts)
   const lineAlerts = useLineAlerts()
   // The line a panel row asked for, until the chart has picked it out.
   const [drawingToSelect, setDrawingToSelect] = React.useState<{
     marketKey: string
     id: string
   } | null>(null)
+  const [folderManagerOpen, setFolderManagerOpen] = React.useState(false)
   const onSelectLine = React.useCallback(
     (marketKey: string, id: string) => {
       onSelectMarket(marketKey)
@@ -513,8 +514,13 @@ export function TradeWorkspace({
     onSelect: onSelectLine,
     onSwitchOff: lineAlerts.switchOff,
   }
-  const chartOptions = useChartOptions(initialChartOptions)
-  const priceAlerts = usePriceAlerts(initialPriceAlerts)
+  const refreshPriceAlerts = priceAlerts.refresh
+  const refreshLineAlerts = lineAlerts.refresh
+  const onAlertsCleared = React.useCallback(
+    async () =>
+      void (await Promise.all([refreshPriceAlerts(), refreshLineAlerts()])),
+    [refreshLineAlerts, refreshPriceAlerts]
+  )
 
   // The live feed: one watch per catalog, torn down with the page. When the
   // feed recovers from a gap it refetches the loader's snapshot, so figures
@@ -525,11 +531,8 @@ export function TradeWorkspace({
   )
 
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const alertsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const smartOrdersPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const { collapsed: alertsCollapsed, onResize: onAlertsResize } =
-    usePanelCollapsed(alertsPanelRef)
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
   const verticalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
@@ -557,7 +560,6 @@ export function TradeWorkspace({
     ? (panelLayouts.layouts.openMarketRows[marketPanelScopeId] ?? null)
     : WATCHED_ROW
   const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
-  const marketColumnKey = tradePanelLayoutKey.workspaceMarketColumn
   const verticalKey = tradePanelLayoutKey.workspaceVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
     tradePanelIds[horizontalKey],
@@ -568,11 +570,6 @@ export function TradeWorkspace({
     tradePanelIds[verticalKey],
     panelLayouts.layouts.current[verticalKey],
     (layout) => panelLayouts.remember(verticalKey, layout)
-  )
-  const marketColumnLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[marketColumnKey],
-    panelLayouts.layouts.current[marketColumnKey],
-    (layout) => panelLayouts.remember(marketColumnKey, layout)
   )
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayouts = React.useRef<{
@@ -673,15 +670,13 @@ export function TradeWorkspace({
   const createNamedLayout = React.useCallback(
     async (name: string) => {
       const horizontal = horizontalLayout.getLayout()
-      const marketColumn = marketColumnLayout.getLayout()
       const vertical = verticalLayout.getLayout()
-      if (!horizontal || !marketColumn || !vertical) {
+      if (!horizontal || !vertical) {
         throw new Error("PANEL_LAYOUT_INVALID")
       }
       await panelLayouts.createNamed(
         name,
         horizontal,
-        marketColumn,
         vertical,
         marketPanelScope,
         expandedMarketRowId,
@@ -692,7 +687,6 @@ export function TradeWorkspace({
     [
       expandedMarketRowId,
       horizontalLayout,
-      marketColumnLayout,
       marketPanelScope,
       panelLayouts,
       verticalLayout,
@@ -720,17 +714,6 @@ export function TradeWorkspace({
     toggleSmartOrdersPanel()
     horizontalLayout.rememberLayout()
   }, [horizontalLayout, toggleSmartOrdersPanel])
-  const toggleAlertsPanel = usePanelToggle(alertsPanelRef)
-  const toggleAlerts = React.useCallback(() => {
-    toggleAlertsPanel()
-    marketColumnLayout.rememberLayout()
-  }, [marketColumnLayout, toggleAlertsPanel])
-  const expandAlerts = React.useCallback(() => {
-    const panel = alertsPanelRef.current
-    if (!panel || !panel.isCollapsed()) return
-    panel.expand()
-    marketColumnLayout.rememberLayout()
-  }, [marketColumnLayout])
   // Double-clicking the bottom panel's blank space shuts it, and this is the
   // one panel where that has to be spelled out rather than handed to
   // `usePanelToggle`.
@@ -757,7 +740,6 @@ export function TradeWorkspace({
   const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
   const smartOrdersDoubleClick = useBlankSpaceDoubleClick(toggleSmartOrders)
   const activityDoubleClick = useBlankSpaceDoubleClick(toggleActivity)
-  const alertsDoubleClick = useBlankSpaceDoubleClick(toggleAlerts)
 
   // A slid-open panel belongs to the narrow layout, so crossing the width
   // boundary shuts it. Widening otherwise leaves the sheet sitting over the
@@ -784,36 +766,26 @@ export function TradeWorkspace({
    * from its own fetch. Kept with the market-and-interval it is about, so a
    * report that lands after a switch is simply not shown.
    */
-  const [olderBars, setOlderBars] = React.useState<OlderBarsStatus | null>(
-    null
-  )
+  const [olderBars, setOlderBars] = React.useState<OlderBarsStatus | null>(null)
   const olderBarsNote =
-    olderBars && selectedKey && olderBars.key === `${selectedKey}@${interval}`
-      ? olderBars.failed
-        ? (
-            <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
-              {olderBars.source
-                ? `Older bars: ${olderBars.source}, not all loaded.`
-                : "Older bars could not be loaded."}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={olderBars.retry}
-              >
-                Try again
-              </Button>
-            </span>
-          )
-        : olderBars.source
-          ? (
-              <span className="hidden text-xs text-muted-foreground md:inline">
-                Older bars: {olderBars.source}
-              </span>
-            )
-          : null
-      : null
+    olderBars &&
+    selectedKey &&
+    olderBars.key === `${selectedKey}@${interval}` ? (
+      olderBars.failed ? (
+        <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
+          Older bars could not all be loaded.
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={olderBars.retry}
+          >
+            Try again
+          </Button>
+        </span>
+      ) : null
+    ) : null
   const showTrade = React.useCallback(
     (trade: LiveTrade | null) => {
       setShownTrade(trade)
@@ -907,91 +879,54 @@ export function TradeWorkspace({
 
   // Folders stays one panel rather than splitting folders and markets again:
   // Watched is its first row and All markets its last (decided 23 Aug 2026).
-  // Alerts has its own remembered split below it.
+  // Alerts now opens from the market header, so Folders owns this full column.
   const marketColumn = (
-    <ResizablePanelGroup
-      data-panel-group="market-column"
-      groupRef={marketColumnLayout.groupRef}
-      orientation="vertical"
-      className="min-h-0 flex-1"
-      onLayoutChanged={marketColumnLayout.onLayoutChanged}
+    <WorkspacePanel
+      collapsed={marketsCollapsed}
+      onDoubleClick={marketsDoubleClick}
+      className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
     >
-      <ResizablePanel id="folders" defaultSize="68%" minSize="8.5rem">
-        <WorkspacePanel
-          collapsed={marketsCollapsed}
-          onDoubleClick={marketsDoubleClick}
-          className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
-        >
-          <MarketFoldersPanel
-            folders={folders}
-            protocol={protocol}
-            network={network}
-            catalogs={catalogs}
-            marketsError={marketsError}
-            marketsPending={marketsPending}
-            // The same list the chart draws its waiting lines from and the Open
-            // orders tab lists, so the row can never disagree with either.
-            watchedOrders={{
-              rows: trading.watchOrders,
-              // The account and the exchange together, so one person's levels
-              // never flash up for the next person to sign in on this machine,
-              // and one exchange's never flash up on another's page.
-              cacheScope: `${user.id}:${protocol}`,
-              // NOT `trading.loading`: that turns false when the practice half
-              // lands on its own, and a screen whose waiting levels are all on
-              // real wallets would say "nothing is waiting" until the exchange
-              // answered.
-              settled: trading.settled,
-              failed: trading.failed,
-              // Why a level has not fired. See `RefusalNote` — without it a level
-              // the exchange keeps refusing reads as one quietly waiting.
-              refusals: trading.refusals,
-              onRetry: trading.retry,
-            }}
-            walletName={walletNameOf}
-            expandedId={expandedMarketRowId}
-            selectedMarketKey={selectedKey}
-            panelRows={panelRows}
-            onFoldersChange={setFolders}
-            onPanelRowsChange={setPanelRows}
-            onExpandedIdChange={(id) =>
-              panelLayouts.rememberOpenMarketRow(marketPanelScope, id)
-            }
-            onSelectMarket={onSelectMarket}
-            onRetryMarkets={onRetryMarkets}
-          />
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap className={NO_RING} />
-      <ResizablePanel
-        id="alerts"
-        panelRef={alertsPanelRef}
-        defaultSize="32%"
-        minSize="8.5rem"
-        groupResizeBehavior="preserve-pixel-size"
-        collapsible
-        collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-        onResize={onAlertsResize}
-      >
-        <WorkspacePanel
-          collapsed={marketsCollapsed}
-            lines={linesForPanel}
-          headerOnly={alertsCollapsed}
-          onDoubleClick={alertsDoubleClick}
-          className="flex w-full min-w-0 flex-col"
-        >
-          <PriceAlertsPanel
-            alerts={priceAlerts.alerts}
-            error={priceAlerts.error}
-            collapsed={alertsCollapsed}
-            onRetry={() => void priceAlerts.refresh()}
-            onExpand={expandAlerts}
-            onSelectMarket={onSelectMarket}
-            onDelete={priceAlerts.remove}
-          />
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      <MarketFoldersPanel
+        folders={folders}
+        protocol={protocol}
+        network={network}
+        catalogs={catalogs}
+        marketsError={marketsError}
+        marketsPending={marketsPending}
+        // The same list the chart draws its waiting lines from and the Open
+        // orders tab lists, so the row can never disagree with either.
+        watchedOrders={{
+          rows: trading.watchOrders,
+          // The account and the exchange together, so one person's levels
+          // never flash up for the next person to sign in on this machine,
+          // and one exchange's never flash up on another's page.
+          cacheScope: `${user.id}:${protocol}`,
+          // NOT `trading.loading`: that turns false when the practice half
+          // lands on its own, and a screen whose waiting levels are all on
+          // real wallets would say "nothing is waiting" until the exchange
+          // answered.
+          settled: trading.settled,
+          failed: trading.failed,
+          // Why a level has not fired. See `RefusalNote` — without it a level
+          // the exchange keeps refusing reads as one quietly waiting.
+          refusals: trading.refusals,
+          onRetry: trading.retry,
+        }}
+        walletName={walletNameOf}
+        expandedId={expandedMarketRowId}
+        selectedMarketKey={selectedKey}
+        panelRows={panelRows}
+        onFoldersChange={setFolders}
+        onPanelRowsChange={setPanelRows}
+        onExpandedIdChange={(id) =>
+          panelLayouts.rememberOpenMarketRow(marketPanelScope, id)
+        }
+        onSelectMarket={onSelectMarket}
+        onRetryMarkets={onRetryMarkets}
+        manageOpen={folderManagerOpen}
+        onManageOpenChange={setFolderManagerOpen}
+      />
+    </WorkspacePanel>
   )
 
   // Memoised for the same reason: a new array here re-sorted the whole
@@ -1056,32 +991,60 @@ export function TradeWorkspace({
           folders={folders}
           folderActions={folderActions}
           onSelectMarket={onSelectMarket}
-          // The chart's own controls live in the header row. Indicators sit
-          // to the right of the timeframe: which candles first, then what to
-          // draw on them.
+          marketAction={
+            <div className="flex shrink-0 items-center gap-2">
+              <MarketFoldersMenu
+                folders={folders}
+                protocol={protocol}
+                network={network}
+                catalogs={catalogs}
+                selectedMarketKey={selectedKey}
+                onFoldersChange={setFolders}
+                onManage={() => {
+                  if (!desktop) {
+                    setSideSheet({ side: "markets", open: true })
+                  }
+                  setFolderManagerOpen(true)
+                }}
+                onSelectMarket={onSelectMarket}
+              />
+              <PriceAlertsMenu
+                alerts={priceAlerts.alerts}
+                error={priceAlerts.error}
+                onRetry={() => void priceAlerts.refresh()}
+                onSelectMarket={onSelectMarket}
+                onDelete={priceAlerts.remove}
+                lines={linesForPanel}
+                onCleared={onAlertsCleared}
+              />
+            </div>
+          }
+          // The chart's own controls live in the header row. The timeframe
+          // stays one press away; less frequent choices share the three-dot
+          // menu before the wallet. Full screen lives on the chart itself.
           note={olderBarsNote}
           toolbar={
             <>
               <IntervalPicker value={interval} onChange={setInterval} />
-              <IndicatorsMenu
+              <ChartToolsMenu
                 indicators={indicators}
-                context={{ zone: chartOptions.options.zone, interval }}
+                indicatorContext={{
+                  zone: chartOptions.options.zone,
+                  interval,
+                }}
+                chartOptions={chartOptions}
+                layouts={
+                  desktop && !chartFullscreen
+                    ? {
+                        rows: panelLayouts.layouts.named,
+                        activeId: panelLayouts.layouts.activeNamedId,
+                        onCreate: createNamedLayout,
+                        onApply: applyNamedLayout,
+                        onDelete: panelLayouts.deleteNamed,
+                      }
+                    : undefined
+                }
               />
-              <ChartOptionsMenu control={chartOptions} />
-              {desktop && !chartFullscreen ? (
-                <PanelLayoutsMenu
-                  layouts={panelLayouts.layouts.named}
-                  activeId={panelLayouts.layouts.activeNamedId}
-                  onCreate={createNamedLayout}
-                  onApply={applyNamedLayout}
-                  onDelete={panelLayouts.deleteNamed}
-                />
-              ) : null}
-              <ChartFullscreenButton
-                active={chartFullscreen}
-                onToggle={toggleChartFullscreen}
-              />
-              <span className="h-5 border-l" aria-hidden />
               {walletManagement}
             </>
           }
@@ -1098,13 +1061,6 @@ export function TradeWorkspace({
               : () => setSideSheet({ side: "smart-orders", open: true })
           }
         />
-      ) : chartFullscreen ? (
-            onDrawingAlertChange={lineAlerts.refresh}
-            selectDrawing={drawingToSelect}
-            onDrawingSelected={onDrawingSelected}
-        <div className="flex justify-end border-b p-1">
-          <ChartFullscreenButton active onToggle={exitChartFullscreen} />
-        </div>
       ) : null}
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
@@ -1118,6 +1074,9 @@ export function TradeWorkspace({
               panelLayouts.rememberChartToolbarPosition
             }
             initialDrawings={initialDrawings}
+            onDrawingAlertChange={lineAlerts.refresh}
+            selectDrawing={drawingToSelect}
+            onDrawingSelected={onDrawingSelected}
             priceAlerts={priceAlerts.alerts}
             onCreatePriceAlert={priceAlerts.create}
             onMovePriceAlert={priceAlerts.move}
@@ -1134,6 +1093,12 @@ export function TradeWorkspace({
             shownTrade={shownTrade}
             onClearShownTrade={() => setShownTrade(null)}
             onOlderBars={setOlderBars}
+            cornerControl={
+              <ChartFullscreenButton
+                active={chartFullscreen}
+                onToggle={toggleChartFullscreen}
+              />
+            }
             // The gate: the chart is on that row's coin AND the traded wallet
             // is that row's wallet. Until both are true this stays null and
             // the order window does not open.

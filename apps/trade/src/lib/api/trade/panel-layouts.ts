@@ -63,7 +63,6 @@ const createNamedPanelLayoutFn = createServerFn({ method: "POST" })
     z.object({
       name: z.string().trim().min(1).max(32),
       horizontal: layoutSchema,
-      marketColumn: layoutSchema,
       vertical: layoutSchema,
       scope: marketPanelScopeSchema,
       openMarketRowId: openMarketRowIdSchema,
@@ -125,7 +124,6 @@ export function importLegacyPanelLayouts(
 export function createNamedPanelLayout(input: {
   name: string
   horizontal: Record<string, number>
-  marketColumn: Record<string, number>
   vertical: Record<string, number>
   scope: MarketPanelScope
   openMarketRowId: string | null

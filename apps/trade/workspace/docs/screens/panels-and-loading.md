@@ -17,7 +17,7 @@ fixed in one is fixed in both.
   is left opens it again. A double-click on a button, a box or a word is that
   control's, never the panel's.
 - **Sizes and shut panels follow the account.** The trade workspace, backtest
-  run and live-run screens keep their seven divider arrangements in
+  run and live-run screens keep their divider arrangements in
   `trade_prefs`. A drag or collapse therefore returns after a reload and on a
   second browser signed into the same account.
 - **An old browser layout crosses over once.** The first browser with one of
@@ -48,9 +48,10 @@ fixed in one is fixed in both.
   current panels.
 - **The chart has its own full-screen view.** Press the full-screen button or F
   while no field is being typed in. The side panels, bottom panel and page
-  chrome leave, while the chart header stays with an exit button. Press the
-  button again, F again or Escape to restore the exact divider positions and
-  shut panels from before. The chart and its panel groups stay mounted, so
+  chrome leave, while the chart header stays. The full-screen button remains at
+  the plot's bottom-right, just left of the price numbers, as the exit button.
+  Press the button again, F again or Escape to restore the exact divider
+  positions and shut panels from before. The chart and its panel groups stay mounted, so
   entering or leaving does not ask for candles again. On exit the fixed,
   viewport-wide frame is removed before the saved percentages are put back;
   otherwise a percentage restored against that wider frame becomes a larger

@@ -406,6 +406,7 @@ export function ChartPanel({
   addTo,
   onAddOpened,
   onOlderBars,
+  cornerControl,
 }: {
   selectedKey: string | null
   interval: CandleInterval
@@ -426,7 +427,6 @@ export function ChartPanel({
     rows: Drawing[]
     error: string | null
   }
-  /**
   /** Told after a drawn line's alert is switched on or off and saved. */
   onDrawingAlertChange?: () => void
   /**
@@ -435,6 +435,7 @@ export function ChartPanel({
    */
   selectDrawing?: { marketKey: string; id: string } | null
   onDrawingSelected?: () => void
+  /**
    * How the right-click order window was last set up, from the same loader.
    * The window opens on a click, so anything read after it is on screen would
    * arrive too late to be any use to somebody already typing.
@@ -493,6 +494,8 @@ export function ChartPanel({
   onAddOpened: () => void
   /** Where the older bars came from, for the header line beside the timeframe. */
   onOlderBars?: (status: OlderBarsStatus) => void
+  /** A chart action pinned inside the plot, immediately left of the price axis. */
+  cornerControl?: React.ReactNode
 }) {
   const wide = useWideScreen()
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
@@ -570,9 +573,6 @@ export function ChartPanel({
   )
   const setPaintTool = paint.setTool
   const setSelectedDrawing = paint.setSelectedId
-  const clearPaintDrawings = paint.clearAll
-  const paintTool = options.drawings ? paint.tool : null
-
 
   // A row in the Alerts panel names a line on another market. The market is
   // opened first, and the line is picked out here once its drawings have
@@ -591,6 +591,9 @@ export function ChartPanel({
     setSelectedDrawing,
     onDrawingSelected,
   ])
+  const clearPaintDrawings = paint.clearAll
+  const paintTool = options.drawings ? paint.tool : null
+
   // Hiding drawings also puts down the active tool and lets go of the picked
   // line. The drawings themselves stay loaded and saved, ready to be shown
   // again in the same positions.
@@ -1554,11 +1557,11 @@ export function ChartPanel({
             onCreate={paint.create}
             onMove={paint.move}
             onDelete={paint.remove}
+            onSetAlert={paint.setAlert}
+            onAlertOpen={paint.refresh}
           />
         ) : null}
         <SmartLadderLayer
-            onSetAlert={paint.setAlert}
-            onAlertOpen={paint.refresh}
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
@@ -1670,6 +1673,14 @@ export function ChartPanel({
           onPositionChange={onChartToolbarPositionChange}
           onClearAll={() => void clearPaintDrawings()}
         />
+        {cornerControl ? (
+          <div
+            className="pointer-events-auto absolute bottom-3 z-20"
+            style={{ right: surface.axisWidth + 12 }}
+          >
+            {cornerControl}
+          </div>
+        ) : null}
       </>
     ),
     [
@@ -1684,10 +1695,13 @@ export function ChartPanel({
       paint.setSelectedId,
       paint.create,
       paint.move,
+      paint.setAlert,
+      paint.refresh,
       paint.remove,
       paintTool,
       chartToolbarPosition,
       onChartToolbarPositionChange,
+      cornerControl,
       setPaintTool,
       clearPaintDrawings,
       priceAlerts,
@@ -1695,8 +1709,6 @@ export function ChartPanel({
       onDeletePriceAlert,
       selectedKey,
       linePositions,
-      paint.setAlert,
-      paint.refresh,
       looseOrders,
       walletNameOf,
       onMoveOrder,

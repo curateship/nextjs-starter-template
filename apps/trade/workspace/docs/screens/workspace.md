@@ -7,8 +7,8 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 ┌────────────┬─────────────────────┬────────────┐
 │ Folders    │ MARKET HEADER       │ Account    │
 │  Watched   │ ─────────────────── ├────────────┤
-├────────────┤ Chart               │ Order      │
-│ Alerts     │                     │            │
+│            │ Chart               │ Order      │
+│            │                     │            │
 ├────────────┴─────────────────────┴────────────┤
 │ Positions | Open orders | Fills                │
 └───────────────────────────────────────────────┘
@@ -18,22 +18,28 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   list panel that sat above it). Every row wears a folder's shape and opens
   in place: **Watched first** — it lists orders rather than markets, see "The
   Watched row" below — then the saved folders, then **All markets** last with
-  its sort headers. Live exchange data. The panel opens on Watched.
-- **Left, below Folders, Alerts.** The divider between the two panels drags up
-  and down. Alerts can collapse to their header, and the account remembers the
-  divider position with the other workspace panels.
+  its sort headers. Live exchange data. The panel opens on Watched and uses the
+  full height of the left column.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
-  with a first-letter circle when an exchange has no art), its name, and on
-  the right the timeframe control (1m to 1d, remembered per browser, 4h the
-  default), the indicator button and the view button. A star beside each
+  with a first-letter circle when an exchange has no art), its name, a Folders
+  button, an Alerts bell, and on the right the timeframe control (1m to 1d, remembered per browser, 4h the
+  default) and a vertical three-dot chart menu before the wallet. The chart
+  menu replaces the divider and holds labeled rows for Indicators, View options
+  and Saved layouts. A star beside each
   timeframe keeps that choice in the header as a shortcut. The browser
   remembers the stars. The timeframe menu arrow has its own fixed spot at the
   far right inside the timeframe tabs, so choosing another timeframe never
   carries the arrow to that tab. A narrow header shows only the selected
-  timeframe and that fixed arrow. The indicator button's
-  small count says how many indicators are on. Each control uses the muted gray
-  inside its border, while the rest of the header keeps the card background.
+  timeframe and that fixed arrow. The Indicators row's round count says how
+  many indicators are on. Hovering the folder button opens a compact second
+  view of the saved folders and the markets inside them. It grows with its
+  contents until it reaches the available screen height, then scrolls. Its plus
+  creates a folder there and its cog opens the full manager; the full Folders
+  panel stays in the left column. The bell opens the account's Alert and Fired lists;
+  a red badge counts fired price and drawing alerts, and each tab can clear all
+  of its own rows from the dropdown footer after confirmation. Each outlined control uses the muted gray inside its
+  border, while the rest of the header keeps the card background.
   The market dropdown uses the same light gray as the other header buttons.
   The star is amber and filled when the market is in any folder and a hollow
   outline when it is not, so the two do not differ by colour alone. An empty
@@ -44,14 +50,15 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the name would never be on screen. The star has its own outlined button. The
   market logo, name, top leverage, arrow and info button sit in one outlined
   group. The leverage is secondary 12px text beside the larger market name.
-  Every control in that row is 32px high. The saved-layout button keeps up to
-  five named arrangements of the surrounding panels and the Folders row left
+  Every control in that row is 32px high. Saved layouts keeps up to five named
+  arrangements of the surrounding panels and the Folders row left
   open on each exchange. Its plus makes a new name. A checked name updates
   itself whenever its panels, folder row or header profit eye changes. The
-  layout menu has no save button. The full-screen button,
-  or F from outside a field, leaves the chart and its own header on screen and
-  hides the rest of the workspace and page chrome. Escape returns to the exact
-  panel arrangement from before. Pressing the market name
+  layout menu has no save button. The full-screen button sits inside the plot's
+  bottom-right corner, immediately left of the price numbers. Pressing it, or F
+  from outside a field, leaves the chart and its own header on screen and hides
+  the rest of the workspace and page chrome. Escape returns to the exact panel
+  arrangement from before. Pressing the market name
   opens the full market picker: search; segmented tabs; sortable figures; and
   a star on every row. Favorites, All and Trending are always there. Phemex and
   KuCoin stop there because every market is crypto. Hyperliquid also has Crypto,
@@ -69,7 +76,9 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   zoom and position alone. Every type uses the real candles for its price
   scale, so a stop, target, drawing or indicator at $100 stays at $100 when the
   visible shape changes. Heikin-Ashi uses the candles already loaded and never
-  asks the exchange for different data.
+  asks the exchange for different data. The header does not name the source
+  used to fill older history. A failed older-history request still appears
+  there with a retry button.
   Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Grid levels, ladder rungs and order
   lines read those same theme colours. Neutral waiting orders use the muted

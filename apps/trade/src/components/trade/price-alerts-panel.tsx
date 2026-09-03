@@ -5,6 +5,7 @@ import {
   DashboardCardTab,
   DashboardCardTabsHeader,
 } from "@/components/shared/dashboard-card-header"
+import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -48,26 +49,26 @@ const NO_LINES: LineAlertsForPanel = {
   onSwitchOff: () => undefined,
 }
 
-export function PriceAlertsPanel({
-  alerts,
-  error,
-  collapsed,
-  onRetry,
-  onExpand,
-  onSelectMarket,
-  onDelete,
-  lines = NO_LINES,
-}: {
+export type PriceAlertsPanelProps = {
   alerts: readonly PriceAlert[]
   error: string | null
-  collapsed: boolean
   onRetry: () => void
-  onExpand?: () => void
   onSelectMarket: (marketKey: string) => void
   onDelete: (id: string) => void
   lines?: LineAlertsForPanel
-}) {
-  const [tab, setTab] = React.useState<"alerts" | "fired">("alerts")
+}
+
+export type FiredPriceAlertsControl = {
+  alerts: readonly FiredPriceAlert[]
+  error: string | null
+  known: boolean
+  busy: boolean
+  refresh: () => Promise<void>
+  remove: (id: string) => void
+}
+
+/** The fired list stays live so the bell can notify before its menu opens. */
+export function useFiredPriceAlerts(): FiredPriceAlertsControl {
   const [fired, setFired] = React.useState<FiredPriceAlert[]>([])
   const [firedError, setFiredError] = React.useState<string | null>(null)
   const [firedKnown, setFiredKnown] = React.useState(false)
@@ -104,7 +105,6 @@ export function PriceAlertsPanel({
   }, [refreshFired])
 
   React.useEffect(() => {
-    if (tab !== "fired" || alerts.length === 0) return
     const refreshWhenVisible = () => {
       if (!document.hidden) void refreshFired()
     }
@@ -114,7 +114,7 @@ export function PriceAlertsPanel({
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", refreshWhenVisible)
     }
-  }, [alerts.length, refreshFired, tab])
+  }, [refreshFired])
 
   const deleteFired = React.useCallback(
     (id: string) => {
@@ -143,13 +143,40 @@ export function PriceAlertsPanel({
     [fired]
   )
 
+  return {
+    alerts: fired,
+    error: firedError,
+    known: firedKnown,
+    busy: firedBusy,
+    refresh: refreshFired,
+    remove: deleteFired,
+  }
+}
+
+export function PriceAlertsPanelContent({
+  alerts,
+  error,
+  onRetry,
+  onSelectMarket,
+  onDelete,
+  lines = NO_LINES,
+  fired,
+  onClear,
+  clearing = false,
+}: PriceAlertsPanelProps & {
+  fired: FiredPriceAlertsControl
+  onClear?: (kind: "active" | "fired") => void
+  clearing?: boolean
+}) {
+  const [tab, setTab] = React.useState<"alerts" | "fired">("alerts")
+
   return (
     <Tabs
       value={tab}
       onValueChange={(value) => {
         const next = value as "alerts" | "fired"
         setTab(next)
-        if (next === "fired") void refreshFired()
+        if (next === "fired") void fired.refresh()
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
@@ -159,43 +186,56 @@ export function PriceAlertsPanel({
           icon={<BellRingIcon className="size-4" />}
           label="Alert"
           count={alerts.length + lines.armed.length}
-          onClick={collapsed ? onExpand : undefined}
         />
         <DashboardCardTab
           value="fired"
           icon={<HistoryIcon className="size-4" />}
           label="Fired"
-          count={firedKnown ? fired.length + lines.fired.length : undefined}
-          onClick={collapsed ? onExpand : undefined}
+          count={
+            fired.known ? fired.alerts.length + lines.fired.length : undefined
+          }
         />
       </DashboardCardTabsHeader>
 
-      {collapsed ? null : (
-        <>
-          <TabsContent value="alerts" className="min-h-0 flex-1">
-            <ActiveAlertsView
-              alerts={alerts}
-              error={error}
-              onRetry={onRetry}
-              onSelectMarket={onSelectMarket}
-              onDelete={onDelete}
-              lines={lines}
-            />
-          </TabsContent>
-          <TabsContent value="fired" className="min-h-0 flex-1">
-            <FiredAlertsView
-              alerts={fired}
-              error={firedError}
-              known={firedKnown}
-              busy={firedBusy}
-              onRetry={() => void refreshFired()}
-              onSelectMarket={onSelectMarket}
-              onDelete={deleteFired}
-              lines={lines}
-            />
-          </TabsContent>
-        </>
-      )}
+      <TabsContent value="alerts" className="min-h-0 flex-1">
+        <ActiveAlertsView
+          alerts={alerts}
+          error={error}
+          onRetry={onRetry}
+          onSelectMarket={onSelectMarket}
+          onDelete={onDelete}
+          lines={lines}
+        />
+      </TabsContent>
+      <TabsContent value="fired" className="min-h-0 flex-1">
+        <FiredAlertsView
+          alerts={fired.alerts}
+          error={fired.error}
+          known={fired.known}
+          busy={fired.busy}
+          onRetry={() => void fired.refresh()}
+          onSelectMarket={onSelectMarket}
+          onDelete={fired.remove}
+          lines={lines}
+        />
+      </TabsContent>
+      {onClear &&
+      (tab === "alerts"
+        ? alerts.length + lines.armed.length > 0
+        : fired.alerts.length + lines.fired.length > 0) ? (
+        <div className="mt-auto flex shrink-0 border-t p-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 text-xs text-muted-foreground"
+            disabled={clearing}
+            onClick={() => onClear(tab === "alerts" ? "active" : "fired")}
+          >
+            {clearing ? "Clearing..." : "Clear all"}
+          </Button>
+        </div>
+      ) : null}
     </Tabs>
   )
 }
@@ -210,8 +250,16 @@ function activeRows(
   lines: readonly LineAlert[]
 ): ActiveRow[] {
   return [
-    ...alerts.map((alert): ActiveRow => ({ kind: "price", at: alert.createdAt, alert })),
-    ...lines.map((alert): ActiveRow => ({ kind: "line", at: alert.armedAt, alert })),
+    ...alerts.map((alert): ActiveRow => ({
+      kind: "price",
+      at: alert.createdAt,
+      alert,
+    })),
+    ...lines.map((alert): ActiveRow => ({
+      kind: "line",
+      at: alert.armedAt,
+      alert,
+    })),
   ].sort((a, b) => a.at - b.at || a.alert.id.localeCompare(b.alert.id))
 }
 
@@ -258,7 +306,7 @@ function ActiveAlertsView({
             {rows.map((row) => (
               <div
                 key={row.alert.id}
-                className="flex min-h-8 items-center gap-1 border-b px-3 hover:bg-muted"
+                className="-mt-px flex min-h-8 items-center gap-1 border-y border-t-transparent px-3 first:mt-0 hover:z-10 hover:border-t-border hover:bg-muted"
               >
                 {row.kind === "price" ? (
                   <>
@@ -307,10 +355,16 @@ function firedRows(
   lines: readonly LineAlert[]
 ): FiredRow[] {
   return [
-    ...alerts.map((alert): FiredRow => ({ kind: "price", at: alert.firedAt, alert })),
-    ...lines.map(
-      (alert): FiredRow => ({ kind: "line", at: alert.firedAt ?? 0, alert })
-    ),
+    ...alerts.map((alert): FiredRow => ({
+      kind: "price",
+      at: alert.firedAt,
+      alert,
+    })),
+    ...lines.map((alert): FiredRow => ({
+      kind: "line",
+      at: alert.firedAt ?? 0,
+      alert,
+    })),
   ].sort((a, b) => b.at - a.at || a.alert.id.localeCompare(b.alert.id))
 }
 
@@ -359,7 +413,7 @@ function FiredAlertsView({
             {rows.map((row) => (
               <div
                 key={row.alert.id}
-                className="flex min-h-8 items-center gap-1 border-b px-3 hover:bg-muted"
+                className="-mt-px flex min-h-8 items-center gap-1 border-y border-t-transparent px-3 first:mt-0 hover:z-10 hover:border-t-border hover:bg-muted"
               >
                 {row.kind === "price" ? (
                   <>

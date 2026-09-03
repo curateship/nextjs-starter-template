@@ -30,12 +30,17 @@ export function PanelLayoutsMenu({
   onCreate,
   onApply,
   onDelete,
+  trigger,
+  nested = false,
 }: {
   layouts: NamedPanelLayout[]
   activeId: string | null
   onCreate: (name: string) => Promise<void>
   onApply: (id: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  trigger?: React.ReactElement
+  /** Places the dropdown beside a trigger inside another chart menu. */
+  nested?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
@@ -94,23 +99,32 @@ export function PanelLayoutsMenu({
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Saved panel layouts"
-                className="bg-muted/60 dark:bg-muted/60"
-              >
-                <LayoutTemplateIcon />
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Saved panel layouts</TooltipContent>
-        </Tooltip>
-        <PopoverContent align="end" className="w-56 p-1.5">
+        {trigger ? (
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Saved panel layouts"
+                  className="bg-muted/60 dark:bg-muted/60"
+                >
+                  <LayoutTemplateIcon />
+                </Button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Saved panel layouts</TooltipContent>
+          </Tooltip>
+        )}
+        <PopoverContent
+          side={nested ? "right" : "bottom"}
+          align={nested ? "start" : "end"}
+          sideOffset={nested ? 8 : 4}
+          className="w-56 p-1.5"
+        >
           <p className="px-2 py-1.5 text-xs font-medium">Saved layouts</p>
 
           {layouts.length === 0 ? (

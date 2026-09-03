@@ -20,7 +20,16 @@ vi.mock("@/lib/api/trade/price-alerts", () => ({
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: errors.show }))
 
-import { PriceAlertsPanel } from "@/components/trade/price-alerts-panel"
+import {
+  PriceAlertsPanelContent,
+  useFiredPriceAlerts,
+  type PriceAlertsPanelProps,
+} from "@/components/trade/price-alerts-panel"
+
+function PriceAlertsPanel(props: PriceAlertsPanelProps) {
+  const fired = useFiredPriceAlerts()
+  return <PriceAlertsPanelContent {...props} fired={fired} />
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -61,7 +70,6 @@ describe("the Alerts panel", () => {
             },
           ]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={select}
           onDelete={remove}
@@ -91,6 +99,8 @@ describe("the Alerts panel", () => {
     )
     expect(del?.parentElement?.className).toContain("min-h-8")
     expect(del?.parentElement?.className).not.toContain("min-h-10")
+    expect(del?.parentElement?.className).toContain("hover:border-t-border")
+    expect(del?.parentElement?.className).toContain("-mt-px")
     await act(async () => open?.click())
     await act(async () => del?.click())
 
@@ -121,7 +131,6 @@ describe("the Alerts panel", () => {
             },
           ]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}
@@ -166,8 +175,8 @@ describe("the Alerts panel", () => {
     expect(tabs[1]?.textContent).toContain("1")
 
     // The line row is older, so it sits first, and it says what it is.
-    const rows = Array.from(host.querySelectorAll("button")).filter(
-      (button) => /ETH|BTC/.test(button.textContent ?? "")
+    const rows = Array.from(host.querySelectorAll("button")).filter((button) =>
+      /ETH|BTC/.test(button.textContent ?? "")
     )
     expect(rows[0]?.textContent).toContain("ETH")
     expect(rows[0]?.textContent).toContain("trendline at $3,600 · below")
@@ -189,39 +198,11 @@ describe("the Alerts panel", () => {
     expect(host.textContent).toContain("SOL")
     expect(host.textContent).toContain("trendline at $150 · above")
     expect(
-      host.querySelector('button[aria-label="Clear the fired SOL trendline alert"]')
+      host.querySelector(
+        'button[aria-label="Clear the fired SOL trendline alert"]'
+      )
     ).not.toBeNull()
 
-    await act(async () => root.unmount())
-    host.remove()
-  })
-
-  it("opens a collapsed panel when either tab is pressed", async () => {
-    const expand = vi.fn()
-    const host = document.createElement("div")
-    document.body.appendChild(host)
-    const root = createRoot(host)
-    await act(async () => {
-      root.render(
-        <PriceAlertsPanel
-          alerts={[]}
-          error={null}
-          collapsed
-          onRetry={() => {}}
-          onExpand={expand}
-          onSelectMarket={() => {}}
-          onDelete={() => {}}
-        />
-      )
-    })
-
-    const tabs = Array.from(
-      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    )
-    await act(async () => tabs[0]?.click())
-    await act(async () => tabs[1]?.click())
-
-    expect(expand).toHaveBeenCalledTimes(2)
     await act(async () => root.unmount())
     host.remove()
   })
@@ -251,7 +232,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={select}
           onDelete={() => {}}
@@ -325,7 +305,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}
@@ -379,7 +358,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}
@@ -431,7 +409,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}

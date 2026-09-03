@@ -12,8 +12,6 @@
 export const tradePanelLayoutKey = {
   /** Markets | chart | smart orders, across the workspace. */
   workspaceHorizontal: "trade-workspace-horizontal",
-  /** Folders above Alerts in the workspace's left column. */
-  workspaceMarketColumn: "trade-workspace-market-column",
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
   /** A backtest run: settings | chart | summary, across the workspace. */
@@ -29,7 +27,7 @@ export const tradePanelLayoutKey = {
 export type TradePanelLayoutKey =
   (typeof tradePanelLayoutKey)[keyof typeof tradePanelLayoutKey]
 
-/** The seven account-owned panel groups, also used to validate imported keys. */
+/** The six account-owned panel groups, also used to validate imported keys. */
 export const TRADE_PANEL_LAYOUT_KEYS = Object.values(tradePanelLayoutKey)
 
 /** The exact panel names each saved group must contain. */
@@ -39,7 +37,6 @@ export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
     "chart",
     "smart-orders",
   ],
-  [tradePanelLayoutKey.workspaceMarketColumn]: ["folders", "alerts"],
   [tradePanelLayoutKey.workspaceVertical]: ["workspace", "activity"],
   [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
   [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],

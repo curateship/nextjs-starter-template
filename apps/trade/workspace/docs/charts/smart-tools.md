@@ -62,9 +62,9 @@ alert then switches itself off and the line stays on the chart. Opening the
 window again says when it fired, and the switch can go on again for another
 single ring.
 
-## In the Alerts panel
+## In the Alerts menu
 
-Every armed line has a row in the Alerts panel's Alert tab, beside the price
+Every armed line has a row in the header bell's Alert tab, beside the price
 alerts, oldest first. The row says the coin, the word trendline, where the
 line is right now in dollars, and the direction it waits for. A fired line has
 a row in Fired, newest first, priced at where the line was when it fired and
@@ -74,6 +74,10 @@ Pressing a line row opens that market and picks the line out once its
 drawings have arrived. The bin on an armed row switches the alert off, and
 on a fired row clears it from the list. The line stays on the chart either
 way.
+
+The footer's **Clear all** asks for confirmation, then removes every line and
+price alert from the tab on screen while leaving the other tab alone. Clearing
+a line alert removes its alert state; the drawing stays on the chart.
 
 The list reads every two seconds while any line is armed, so a fired line
 moves to Fired on its own. Switching an alert on or off from the chart tells

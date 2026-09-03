@@ -708,12 +708,6 @@ function namedLayoutPanelChange(
       horizontal: layout,
     }))
   }
-  if (key === tradePanelLayoutKey.workspaceMarketColumn) {
-    return updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      marketColumn: layout,
-    }))
-  }
   if (key === tradePanelLayoutKey.workspaceVertical) {
     return updateActiveNamedLayout(layouts, (named) => ({
       ...named,
@@ -824,7 +818,6 @@ export async function createNamedTradePanelLayout(
   input: {
     name: string
     horizontal: unknown
-    marketColumn: unknown
     vertical: unknown
     scope: MarketPanelScope
     openMarketRowId: unknown
@@ -842,10 +835,6 @@ export async function createNamedTradePanelLayout(
     input.vertical,
     tradePanelIds[tradePanelLayoutKey.workspaceVertical]
   )
-  const marketColumn = matchingPanelLayout(
-    input.marketColumn,
-    tradePanelIds[tradePanelLayoutKey.workspaceMarketColumn]
-  )
   const chartToolbarPosition = readChartToolbarPosition(
     input.chartToolbarPosition
   )
@@ -854,7 +843,6 @@ export async function createNamedTradePanelLayout(
     name.length > 32 ||
     !horizontal ||
     !vertical ||
-    !marketColumn ||
     typeof input.headerProfitVisible !== "boolean" ||
     chartToolbarPosition === undefined
   ) {
@@ -896,7 +884,6 @@ export async function createNamedTradePanelLayout(
       current: {
         ...layouts.current,
         [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
-        [tradePanelLayoutKey.workspaceMarketColumn]: marketColumn,
         [tradePanelLayoutKey.workspaceVertical]: vertical,
       },
       openMarketRows,
@@ -909,7 +896,6 @@ export async function createNamedTradePanelLayout(
           id,
           name,
           horizontal,
-          marketColumn,
           vertical,
           openMarketRows: { [scopeKey]: openMarketRowId },
           headerProfitVisible: input.headerProfitVisible,
@@ -946,11 +932,6 @@ export async function applyNamedTradePanelLayout(
       current: {
         ...layouts.current,
         [tradePanelLayoutKey.workspaceHorizontal]: named.horizontal,
-        ...(named.marketColumn
-          ? {
-              [tradePanelLayoutKey.workspaceMarketColumn]: named.marketColumn,
-            }
-          : {}),
         [tradePanelLayoutKey.workspaceVertical]: named.vertical,
       },
       openMarketRows: hasOpenRow
