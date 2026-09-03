@@ -192,6 +192,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     leverage: 1,
     maxOrderVolPct: 0,
     twoGreen: false,
+    marketBuyFirst: false,
     // Inert: every ladder watches its rungs now, whatever this says. Still
     // here only because the saved-settings type carries the field.
     rungEntry: "limit",
@@ -1014,6 +1015,7 @@ describe("placing a ladder", () => {
 
     const ladder = await onlyLadder()
     expect(ladder.status).toBe("active")
+    expect("marketBuyFirst" in ladder.plan).toBe(false)
     const rungs = ladder.plan.rungs
     expect(rungs.map((rung) => rung.status)).toEqual(["waiting", "waiting"])
     expect(rungs.map((rung) => rung.orderId)).toEqual([null, null])
@@ -1021,6 +1023,42 @@ describe("placing a ladder", () => {
     expect(rungs[0].sz).toBeCloseTo(7.017, 9)
     expect(rungs[1].px).toBeCloseTo(87.4, 9)
     expect(rungs[1].sz).toBeCloseTo(15.255, 9)
+  })
+
+  it("buys rung 1 at today's price and leaves the deeper rungs waiting", async () => {
+    const placed = await place({ marketBuyFirst: true })
+
+    expect(placed).toMatchObject({
+      placed: 1,
+      passed: 0,
+      marketFirst: "bought",
+    })
+    const [held] = await positions()
+    expect(held.entryPx).toBe(100)
+    // Rung 1 was allowed about $666.62 at its $95 line. The market buy keeps
+    // that dollar budget and adjusts the coin count for today's $100 price.
+    expect(held.szi).toBeCloseTo((95 * 7.017) / 100, 3)
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.marketBuyFirst).toBe(true)
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "waiting",
+    ])
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("rests a previous-rung sell after the market-first buy", async () => {
+    const placed = await place({
+      marketBuyFirst: true,
+      takeProfit: { mode: "prevRung", pct: 2 },
+    })
+
+    expect(placed.ladder.plan.rungs[0].status).toBe("filled")
+    expect(placed.ladder.plan.rungs[0].sellOrderId).not.toBeNull()
+    const [sell] = (await orders()).filter((order) => order.side === "sell")
+    expect(sell).toMatchObject({ reduceOnly: true })
+    expect(sell.px).toBeGreaterThan(100)
   })
 
   it("moves and re-spreads a placed ladder until its first buy", async () => {
@@ -1244,6 +1282,18 @@ describe("placing a ladder", () => {
       "SMART_LADDER_ABOVE_MARKET"
     )
     expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("buys only rung 1 when market-first overrides two-green confirmation", async () => {
+    marks.set("BTC", 80)
+
+    expect(await place({ marketBuyFirst: true, twoGreen: true })).toMatchObject(
+      { placed: 0, passed: 1 }
+    )
+    expect((await onlyLadder()).plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "skipped",
+    ])
   })
 
   it("still places a two-green ladder while price is above its rungs", async () => {
@@ -1985,9 +2035,12 @@ describe("everything around a ladder", () => {
   it("remembers the window's settings, and junk falls back to nothing", async () => {
     expect(await loadSmartDca(userId)).toBeNull()
 
-    const saved = params({ maxPositionPct: 33 })
+    const saved = params({ maxPositionPct: 33, marketBuyFirst: true })
     await saveSmartDca(userId, saved)
-    expect(await loadSmartDca(userId)).toEqual(saved)
+    expect(await loadSmartDca(userId)).toEqual({
+      ...saved,
+      marketBuyFirst: false,
+    })
 
     await database
       .update(tradePrefs)

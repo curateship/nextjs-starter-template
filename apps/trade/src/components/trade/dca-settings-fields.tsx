@@ -75,6 +75,7 @@ export function DcaSettingsFields({
   suggestedSlPct,
   plannedRungs = [],
   volumeCapped = false,
+  marketBuyFirstOption = false,
   takeProfitFixed = false,
   stopLossFixed = false,
   onChange,
@@ -90,6 +91,8 @@ export function DcaSettingsFields({
   suggestedSlPct: number
   plannedRungs?: readonly { dollars: number }[]
   volumeCapped?: boolean
+  /** Placement-only choice. A saved ladder has either bought or is already waiting. */
+  marketBuyFirstOption?: boolean
   takeProfitFixed?: boolean
   stopLossFixed?: boolean
   onChange: (next: DcaSettingsFormState) => void
@@ -173,6 +176,24 @@ export function DcaSettingsFields({
             <PlusIcon className="size-4" />
             Add rung
           </Button>
+          {marketBuyFirstOption ? (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={id("market-first")}
+                checked={form.marketBuyFirst}
+                disabled={busy}
+                onCheckedChange={(value) =>
+                  change("marketBuyFirst", value === true)
+                }
+              />
+              <FieldLabel
+                htmlFor={id("market-first")}
+                hint="Buy rung 1 now at today's market price for the dollars shown above. The deeper rungs stay waiting at their shown prices."
+              >
+                Buy rung 1 at market now
+              </FieldLabel>
+            </div>
+          ) : null}
         </OptionCard>
       ) : null}
 

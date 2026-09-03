@@ -62,6 +62,34 @@ price to show the projected gross profit. The Position card puts Max position,
 Size ramp and Borrowing on separate rows. The window no longer repeats the line
 saying where the ladder hangs.
 
+The Ladder card also has **Buy rung 1 at market now**. The choice starts off
+every time because it spends money immediately and is not remembered with the
+reusable ladder settings. When the choice is on, Place buys rung 1 at today's
+price for the dollar amount shown on that row. The app
+changes the coin amount to keep the dollars fixed. The deeper rungs stay at
+their shown prices. If price has already passed one of those deeper prices,
+that rung is skipped instead of being folded into the market buy. Two-green
+confirmation still applies to the deeper rungs, not to the first buy requested
+for now.
+
+The first buy uses the same cash, market-minimum and exchange-refusal checks as
+a rung reached later. If the buy cannot go through, the ladder stays saved and
+rung 1 stays waiting rather than being recorded as filled. A practice-wallet
+result says whether rung 1 bought or is still waiting.
+
+On a real wallet, placement queues the first buy for the trading engine and the
+result says it was queued. Before saving the ladder, the app checks that every
+running engine copy understands this new instruction. An older engine makes
+the placement fail before any ladder or exchange order exists. The web app and
+engine must be deployed together before this choice can place real money.
+An ordinary ladder does not store the new field, so it keeps working while the
+engine versions are being changed.
+
+When the ladder sells each buy at the previous rung, the market buy goes first.
+The sell waits until the exchange shows the new position, then rests above the
+current price if its original level has already passed. A sell that cannot rest
+must never stop the requested buy from reaching the exchange.
+
 The free-cash figure names what the wallet has available now, but it never
 blocks Place. A watched ladder spends nothing until a rung's price arrives, so
 the window does not compare the complete ladder cost with today's free cash.

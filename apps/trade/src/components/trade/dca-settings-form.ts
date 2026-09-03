@@ -27,6 +27,7 @@ export type DcaSettingsFormState = {
   leverage: string
   maxOrderVolPct: string
   twoGreen: boolean
+  marketBuyFirst: boolean
   anchor: DcaAnchor
   tpOn: boolean
   tpMode: DcaTpMode
@@ -58,6 +59,7 @@ export function dcaSettingsFormState(
     leverage: String(settings.leverage),
     maxOrderVolPct: String(settings.maxOrderVolPct),
     twoGreen: settings.twoGreen,
+    marketBuyFirst: false,
     anchor: settings.anchor,
     tpOn: settings.takeProfit !== null,
     tpMode: settings.takeProfit?.mode ?? "average",

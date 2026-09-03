@@ -445,7 +445,12 @@ export async function loadSmartDca(userId: string): Promise<DcaParams | null> {
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
   const parsed = dcaParamsSchema.safeParse(row[0]?.smartDca ?? null)
-  return parsed.success ? parsed.data : null
+  return parsed.success ? reusableDcaPrefs(parsed.data) : null
+}
+
+/** One-shot placement actions never become defaults for the next order. */
+function reusableDcaPrefs(params: DcaParams): DcaParams {
+  return { ...params, marketBuyFirst: false }
 }
 
 /** Remember them — saved after a successful place, never on every keystroke. */
@@ -453,12 +458,13 @@ export async function saveSmartDca(
   userId: string,
   smartDca: DcaParams
 ): Promise<void> {
+  const reusable = reusableDcaPrefs(smartDca)
   await db
     .insert(tradePrefs)
-    .values({ userId, smartDca, updatedAt: new Date() })
+    .values({ userId, smartDca: reusable, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { smartDca, updatedAt: new Date() },
+      set: { smartDca: reusable, updatedAt: new Date() },
     })
 }
 

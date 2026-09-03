@@ -66,9 +66,16 @@ describe("dcaParamsSchema", () => {
     expect(dcaParamsSchema.safeParse(defaultDcaParams()).success).toBe(true)
   })
 
-  it("keeps saved ladders compounding when the setting is missing", () => {
-    const { compound: _compound, ...saved } = defaultDcaParams()
-    expect(dcaParamsSchema.parse(saved).compound).toBe(true)
+  it("keeps old saved settings on watched placement", () => {
+    const {
+      compound: _compound,
+      marketBuyFirst: _marketBuyFirst,
+      ...saved
+    } = defaultDcaParams()
+    expect(dcaParamsSchema.parse(saved)).toMatchObject({
+      compound: true,
+      marketBuyFirst: false,
+    })
   })
 
   it.each([
@@ -187,6 +194,7 @@ describe("ladder plans", () => {
     anchorPx: 100,
     anchor: "click",
     rungEntry: "limit",
+    marketBuyFirst: false,
     baseDetection: {
       searchBars: 36,
       holdBars: 8,
@@ -283,7 +291,11 @@ describe("ladder plans", () => {
   })
 
   it("reads an old stored plan with no exit-rung state", () => {
-    const { exitRungs: _exitRungs, ...withoutExitRungs } = plan
+    const {
+      exitRungs: _exitRungs,
+      marketBuyFirst: _marketBuyFirst,
+      ...withoutExitRungs
+    } = plan
     const oldPlan = {
       ...withoutExitRungs,
       takeProfit: withoutExitRungs.takeProfit
@@ -296,6 +308,7 @@ describe("ladder plans", () => {
     const parsed = ladderPlanSchema.parse(oldPlan)
     expect(parsed.exitRungs).toEqual([])
     expect(parsed.takeProfit?.exitGapPct).toBe(0)
+    expect(parsed.marketBuyFirst).toBeUndefined()
   })
 
   it("moves an untouched ladder as one shape and keeps each rung's budget", () => {

@@ -21,6 +21,12 @@ import { getSmartOrderErrorMessage } from "@/lib/api/trade/smart-orders"
  */
 
 describe("a refusal that carries its own figures", () => {
+  it("explains why an older engine blocks a market-first ladder", () => {
+    expect(
+      getSmartOrderErrorMessage(new Error("LIVE_ENGINE_DCA_MARKET_FIRST_OLD"))
+    ).toContain("Deploy the web app and trading engine together")
+  })
+
   it("hands back the leverage cap this market states", () => {
     expect(
       getLiveErrorMessage(

@@ -1972,7 +1972,7 @@ export function useTrading(
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
-        const { placed, passed, ladder } = await placeDcaLadder({
+        const { placed, passed, marketFirst, ladder } = await placeDcaLadder({
           walletId,
           ...input,
         })
@@ -1981,10 +1981,24 @@ export function useTrading(
         // Counted honestly: rungs above the price never get a chance to wait,
         // and a ladder quietly placing four buys instead of seven is worse
         // than one that says so.
-        toast.success(
+        const deeperWaiting = input.params.marketBuyFirst
+          ? Math.max(0, placed - (marketFirst === "bought" ? 0 : 1))
+          : placed
+        const result = [
+          marketFirst === "bought" ? "rung 1 bought at market" : null,
+          marketFirst === "queued" ? "rung 1 queued to buy at market" : null,
+          marketFirst === "waiting"
+            ? "rung 1 could not buy yet and remains waiting"
+            : null,
+          deeperWaiting > 0
+            ? `${deeperWaiting} ${input.params.marketBuyFirst ? "deeper " : ""}${deeperWaiting === 1 ? "buy" : "buys"} waiting`
+            : null,
           passed > 0
-            ? `Ladder placed in ${nameOf(walletId)} — ${placed} buys waiting, ${passed} skipped because price is already below them.`
-            : `Ladder placed in ${nameOf(walletId)} — ${placed} buys waiting.`
+            ? `${passed} skipped because price is already below ${passed === 1 ? "it" : "them"}`
+            : null,
+        ].filter((part): part is string => part !== null)
+        toast.success(
+          `Ladder placed in ${nameOf(walletId)}: ${result.join(", ")}.`
         )
         return true
       } catch (error) {

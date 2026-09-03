@@ -46,6 +46,7 @@ import {
   tradeFlowRunOrders,
   tradeSmartLadders,
   tradeWallets,
+  tradeWorkerHeartbeats,
 } from "@/server/trade/schema"
 
 const prices = vi.fn()
@@ -144,6 +145,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     leverage: 1,
     maxOrderVolPct: 0,
     twoGreen: false,
+    marketBuyFirst: false,
     // Inert: every ladder watches its rungs now, whatever this says. Still
     // here only because the saved-settings type carries the field.
     rungEntry: "limit",
@@ -385,6 +387,14 @@ beforeEach(async () => {
     address: ADDRESS,
     agentKeyEncrypted: encryptSecret(KEY),
   })
+  await database.insert(tradeWorkerHeartbeats).values({
+    id: "market-first-engine",
+    kind: "ladders",
+    startedAt: new Date(),
+    lastSeenAt: new Date(),
+    role: "leader",
+    meta: { dcaMarketFirst: true },
+  })
   wallet = {
     id: "live-1",
     label: "Live test",
@@ -563,11 +573,240 @@ describe("live Smart orders", () => {
       forOrder: true,
     })
     const plan = await ladder()
+    expect("marketBuyFirst" in plan).toBe(false)
     expect(plan.rungs.map((rung) => rung.status)).toEqual([
       "waiting",
       "waiting",
     ])
     expect(plan.rungs.map((rung) => rung.orderId)).toEqual([null, null])
+  })
+
+  it("queues rung 1 for the engine and leaves rung 2 watched", async () => {
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "first-rung",
+      avgPx: 100,
+      filledSz: null,
+    })
+
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ marketBuyFirst: true }),
+    })
+
+    expect(place).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      placed: 2,
+      passed: 0,
+      marketFirst: "queued",
+    })
+    expect(result.ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "waiting",
+      "waiting",
+    ])
+
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({
+        marketId: "BTC",
+        side: "buy",
+        kind: "market",
+      })
+    )
+    expect((await ladder()).rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "waiting",
+    ])
+    expect((await ladder()).marketBuyFirst).toBe(true)
+  })
+
+  it("buys rung 1 before placing its previous-rung sell", async () => {
+    place
+      .mockResolvedValueOnce({
+        status: "filled",
+        orderId: "first-rung",
+        avgPx: 100,
+        filledSz: null,
+      })
+      .mockResolvedValueOnce({
+        status: "resting",
+        orderId: "first-exit",
+        avgPx: null,
+        filledSz: null,
+      })
+
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({
+        marketBuyFirst: true,
+        takeProfit: { mode: "prevRung", pct: 2 },
+      }),
+    })
+
+    expect(result.marketFirst).toBe("queued")
+    expect(result.ladder.plan.rungs[0]).toMatchObject({
+      status: "waiting",
+      sellOrderId: null,
+    })
+    expect(place).not.toHaveBeenCalled()
+
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+    await reconcileLiveLadders(userId, wallet)
+
+    const boughtPlan = await ladder()
+    expect(boughtPlan.rungs[0]).toMatchObject({
+      status: "filled",
+      sellOrderId: null,
+    })
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place).toHaveBeenLastCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ side: "buy", kind: "market" })
+    )
+
+    const bought = boughtPlan.rungs[0]
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: bought.sz,
+          entryPx: 100,
+          leverage: 1,
+          marginUsed: bought.budget,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledTimes(2)
+    expect(place).toHaveBeenLastCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({
+        side: "sell",
+        kind: "postOnly",
+        px: expect.any(Number),
+      })
+    )
+    const exitRequest = place.mock.calls[1]?.[2]
+    expect(exitRequest?.px).toBeGreaterThan(100)
+    expect((await ladder()).rungs[0].sellOrderId).toBe("first-exit")
+  })
+
+  it("buys only rung 1 when market-first overrides two-green confirmation", async () => {
+    prices.mockResolvedValue(new Map([["BTC", 80]]))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "first-rung",
+      avgPx: 80,
+      filledSz: null,
+    })
+
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ marketBuyFirst: true, twoGreen: true }),
+    })
+
+    expect(result).toMatchObject({
+      placed: 1,
+      passed: 1,
+      marketFirst: "queued",
+    })
+    expect(result.ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "waiting",
+      "skipped",
+    ])
+    expect(place).not.toHaveBeenCalled()
+
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+    await reconcileLiveLadders(userId, wallet)
+
+    expect((await ladder()).rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "skipped",
+    ])
+    expect(place).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves the first market buy waiting when the exchange refuses it", async () => {
+    place.mockRejectedValue(
+      new Error("LIVE_ORDER_REFUSED:The exchange refused this buy.")
+    )
+
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ marketBuyFirst: true }),
+    })
+
+    expect(place).not.toHaveBeenCalled()
+    expect(result.marketFirst).toBe("queued")
+    expect(result.placed).toBe(2)
+
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(result.ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "waiting",
+      "waiting",
+    ])
+    expect((await ladder()).rungs[0].status).toBe("waiting")
+  })
+
+  it("refuses market-first placement until the live engine supports it", async () => {
+    await database.delete(tradeWorkerHeartbeats)
+
+    await expect(
+      placeLiveDcaLadder(userId, wallet, {
+        marketKey: MARKET,
+        clickPx: 100,
+        interval: "1m",
+        params: params({ marketBuyFirst: true }),
+      })
+    ).rejects.toThrow("LIVE_ENGINE_DCA_MARKET_FIRST_OLD")
+
+    expect(place).not.toHaveBeenCalled()
+    const rows = await database.select().from(tradeSmartLadders)
+    expect(rows).toHaveLength(0)
   })
 
   it("cancels a recorded open rung whose id was wiped from the plan", async () => {

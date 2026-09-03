@@ -183,6 +183,47 @@ describe("the DCA ladder window", () => {
     expect(onPlace).toHaveBeenCalledOnce()
   })
 
+  it("offers to buy rung 1 at market when the ladder is placed", async () => {
+    rememberDcaPrefs({ ...defaultDcaParams(), marketBuyFirst: true })
+    const onPlace = vi.fn(async () => false)
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 105, x: 20, y: 20 }}
+            market={market}
+            equity={10_000}
+            free={10_000}
+            interval="15m"
+            busy={false}
+            onPreview={() => undefined}
+            onPlace={onPlace}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+      await Promise.resolve()
+    })
+
+    const marketFirst = host.querySelector<HTMLButtonElement>(
+      "#smart-market-first"
+    )
+    expect(marketFirst).not.toBeNull()
+    expect(marketFirst?.getAttribute("aria-checked")).toBe("false")
+    await act(async () => marketFirst?.click())
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.startsWith("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ marketBuyFirst: true }),
+      })
+    )
+  })
+
   it("puts each take-profit field on its own full-width row", async () => {
     rememberDcaPrefs({
       ...defaultDcaParams(),
