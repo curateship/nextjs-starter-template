@@ -25,6 +25,7 @@ const appPublicTheme = vi.hoisted(() => ({
   headerBorder: true,
   footerBorder: true,
   colorScheme: "dark",
+  useCustomFont: false,
   font: "serif",
   radius: 4,
 }))
@@ -258,6 +259,7 @@ describe("public site branding", () => {
       headerBorder: false,
       footerBorder: true,
       colorScheme: "dark",
+      useCustomFont: false,
       font: "serif",
       radius: 4,
     })

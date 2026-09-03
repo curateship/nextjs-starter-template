@@ -62,6 +62,8 @@ export type PublicTheme = {
   footerBorder: boolean
   /** Whether visitors choose light or dark, or the public site pins one. */
   colorScheme: PublicColorScheme
+  /** Uses the uploaded app-wide font while keeping `font` as its fallback. */
+  useCustomFont: boolean
   font: PublicThemeFont
   radius: number
 }
@@ -128,6 +130,7 @@ export function createDefaultPublicTheme(): PublicTheme {
     headerBorder: true,
     footerBorder: true,
     colorScheme: "system",
+    useCustomFont: false,
     font: "system",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
@@ -317,6 +320,10 @@ export function normalizePublicTheme(
     )
       ? (theme.colorScheme as PublicColorScheme)
       : fallback.colorScheme,
+    useCustomFont:
+      typeof theme.useCustomFont === "boolean"
+        ? theme.useCustomFont
+        : fallback.useCustomFont,
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
@@ -399,6 +406,9 @@ export function publicThemeOverrides(
     ...(theme.colorScheme !== baseline.colorScheme
       ? { colorScheme: theme.colorScheme }
       : {}),
+    ...(theme.useCustomFont !== baseline.useCustomFont
+      ? { useCustomFont: theme.useCustomFont }
+      : {}),
     ...(theme.font !== baseline.font ? { font: theme.font } : {}),
     ...(theme.radius !== baseline.radius ? { radius: theme.radius } : {}),
   }
@@ -469,8 +479,10 @@ export function publicThemeStyle(
     style["--radius-3xl"] = "calc(var(--radius) * 2.2)"
     style["--radius-4xl"] = "calc(var(--radius) * 2.6)"
   }
-  if (theme.font !== "system") {
-    style["--app-font-sans"] = PUBLIC_THEME_FONT_STACKS[theme.font]
+  if (theme.useCustomFont || theme.font !== "system") {
+    style["--app-font-sans"] = theme.useCustomFont
+      ? `"Custom public font", ${PUBLIC_THEME_FONT_STACKS[theme.font]}`
+      : PUBLIC_THEME_FONT_STACKS[theme.font]
     style.fontFamily = "var(--app-font-sans)"
   }
   if (

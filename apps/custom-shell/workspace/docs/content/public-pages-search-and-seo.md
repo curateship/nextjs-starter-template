@@ -46,6 +46,13 @@ font, and corner choices are app-wide. Apps with public workspace domains keep
 a brand colour per site. An app without
 those domains uses one brand colour for its public frontend.
 
+An admin can also upload one WOFF2 font under Public > Styling. The first page
+response preloads the font and declares it before the browser paints. The
+browser requests `/public-font.woff2` from the same site rather than
+contacting the object store or a font service. The address includes the upload
+version, so a replacement gets a fresh browser cache entry. If the file cannot
+load, the saved built-in font remains the CSS fallback.
+
 The app-wide colour mode follows the visitor's device by default. In that mode,
 the public header or top-right corner offers Light, Dark, and System choices and
 remembers the visitor's choice in the browser. An admin can instead pin the

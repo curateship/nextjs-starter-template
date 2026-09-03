@@ -1178,6 +1178,7 @@ describe("custom shell workspaces", () => {
         headerBorder: false,
         footerBorder: true,
         colorScheme: "dark",
+        useCustomFont: false,
         font: "serif",
         radius: 4,
       })
@@ -1202,6 +1203,7 @@ describe("custom shell workspaces", () => {
         headerBorder: false,
         footerBorder: true,
         colorScheme: "dark",
+        useCustomFont: false,
         font: "serif",
         radius: 4,
       })
@@ -1672,6 +1674,7 @@ describe("custom shell workspaces", () => {
       headerBorder: true,
       footerBorder: true,
       colorScheme: "system",
+      useCustomFont: false,
       font: "system",
       radius: 0,
     })

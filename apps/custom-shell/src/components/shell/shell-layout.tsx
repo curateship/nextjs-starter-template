@@ -64,6 +64,7 @@ import {
   isPublicThemeInputValid,
   normalizePublicTheme,
 } from "@/lib/public-theme"
+import { normalizePublicFontAsset } from "@/lib/public-font"
 import { resolveAppName } from "@/lib/branding"
 import {
   normalizePublicFaviconSet,
@@ -282,7 +283,11 @@ export function ShellLayout({
       const result = await save
       if (version === configSaveVersionRef.current) {
         const savedConfig = normalizeConfig(
-          { ...snapshot, faviconSet: result.faviconSet },
+          {
+            ...snapshot,
+            faviconSet: result.faviconSet,
+            publicFont: result.publicFont,
+          },
           user.role
         )
         latestConfigRef.current = savedConfig
@@ -735,6 +740,7 @@ function normalizeConfig(
       : fallback.publicFooter,
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
+    publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation,

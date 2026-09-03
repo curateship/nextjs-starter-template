@@ -12,6 +12,7 @@ import type { UserAnnouncement } from "@/lib/announcement"
 import { serializeUser, type AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
+import type { PublicFontAsset } from "@/lib/public-font"
 import type { PublicTheme } from "@/lib/public-theme"
 import {
   createDefaultPublicSystemCopy,
@@ -172,6 +173,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
     publicSearchEnabled: boolean
+    publicFont: PublicFontAsset | null
     publicTheme?: PublicTheme
     hostIsUnknown: boolean
   }> => {
@@ -198,6 +200,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicFooter: [],
         publicFooterCopyright: "",
         publicSearchEnabled: true,
+        publicFont: null,
         hostIsUnknown: false,
       }
     }

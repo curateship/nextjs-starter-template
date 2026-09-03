@@ -125,6 +125,13 @@ buttons a brand-coloured border and transparent fill. Labels can stay as
 written or display in capitals. Destructive, ghost, and deliberately secondary
 button styles keep their own treatment.
 
+The Type & corners card accepts one app-wide WOFF2 font up to 1 MB. Uploading a
+font selects it for the public site and adds its filename to the Font menu. The
+built-in font choice stays saved underneath it. Selecting a built-in font keeps
+the upload available for later, while removing the upload deletes its stored
+file and returns the public site to that built-in choice. The signed-in app
+continues to use Inter.
+
 Colour mode in the same card can follow the visitor's device or pin every
 public page to light or dark. Follow device is the default and shows a public
 mode menu whose Light, Dark, or System choice is remembered in that browser.

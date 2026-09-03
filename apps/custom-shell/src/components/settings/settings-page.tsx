@@ -194,9 +194,14 @@ export function SettingsPage({
         {activeTab === "public-styling" ? (
           <PublicThemeSettings
             theme={config.publicTheme}
+            publicFont={config.publicFont}
             onThemeChange={(publicTheme) =>
               onConfigChange({ ...config, publicTheme })
             }
+            onFontStateChange={(publicTheme, publicFont) =>
+              onConfigChange({ ...config, publicTheme, publicFont })
+            }
+            onSaveConfig={onSaveConfig}
           />
         ) : null}
         {activeTab === "public-pages" ? (
