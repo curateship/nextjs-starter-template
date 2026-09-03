@@ -316,12 +316,22 @@ price is on the chart, where prices live. A grid on 20% of a $10,000 account
 has $2,000 behind it, and four rungs at 10/20/30/40 give the levels $200,
 $400, $600 and $800.
 
-**The rows can add up to whatever is typed.** Tyler's rule, 1 Sep 2026:
-"There's no need for the rungs to be at 100% combined. It can be whatever I
-put." Rows summing to 65 use 65% of the money set aside; rows summing past
-100 use more than one share's worth. The card says what they add up to, in
-percent and in dollars, and never refuses over it. Until that day the card
-demanded exactly 100 and blocked placing on anything else.
+**The rows always divide 100% of the money set aside for the grid.** Tyler's
+latest rule, 3 Sep 2026: "The rungs should always be at 100%." A $100 grid has
+$100 on one rung, $50 each on two equal rungs and $25 each on four equal rungs.
+A hand-set split can still make the rungs different sizes, but the shares must
+add up to exactly 100%. The total turns red and Place or Save changes refuses
+the split until it does.
+
+A remembered setup from the older rule may add up to another number. Since a
+setup has not placed money, the next new-grid window opens those old rungs as
+an equal 100% split. Two rungs open at 50% each, four at 25% each. A saved
+custom split that already adds to 100% stays exactly as it was typed.
+
+An older running grid keeps the dollar amount already frozen onto each rung.
+Changing those amounts in the background could change real orders. Opening its
+settings shows the current split, and any deliberate re-slice must follow the
+100% rule before it can be saved.
 
 **The window's tooltips are one or two short sentences.** Tyler, 1 Sep 2026:
 "the tooltips are way too long. Condense them." The long explanations live in

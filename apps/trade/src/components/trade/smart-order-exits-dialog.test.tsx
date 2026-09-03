@@ -287,6 +287,86 @@ it("does not let a running grid remove its stop loss", async () => {
   expect(control("grid-stop-pct").disabled).toBe(false)
 })
 
+it("does not save running-grid rung shares unless they add up to 100%", async () => {
+  const reshape = vi.fn(async () => true)
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={grid}
+          wallet="Test wallet"
+          mark={100}
+          busy={false}
+          onSave={async () => true}
+          onReshape={reshape}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  await act(async () => control("grid-edit-rungs").click())
+  const firstRung = document.querySelector<HTMLInputElement>(
+    'input[id^="grid-edit-rung-"]'
+  )
+  if (!firstRung) throw new Error("The Rungs card did not show its inputs")
+  await type(firstRung.id, "40")
+
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(document.body.textContent).toContain("have to add up to 100%")
+  expect(reshape).not.toHaveBeenCalled()
+})
+
+it("still lets an older partial-split grid move its stop", async () => {
+  const older = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      direction: "long" as const,
+      manualSizing: true,
+      manualRungPcts: [30, 15],
+      levels: [
+        { status: "waiting" as const, heldSz: 0, buyPx: 90, budget: 300 },
+        { status: "holding" as const, heldSz: 1, buyPx: 95, budget: 150 },
+      ],
+    },
+  } as SmartGrid
+  const saveStop = vi.fn(async () => true)
+  const reshape = vi.fn(async () => true)
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={older}
+          wallet="Test wallet"
+          mark={100}
+          busy={false}
+          onSave={saveStop}
+          onReshape={reshape}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  await type("grid-stop-pct", "3")
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(saveStop).toHaveBeenCalledOnce()
+  expect(reshape).not.toHaveBeenCalled()
+})
+
 it("offers to repair a running Short whose largest rung is at the bottom", async () => {
   const prices = [0.73364, 0.75134, 0.76945, 0.78801, 0.80701]
   const wrongShort = {

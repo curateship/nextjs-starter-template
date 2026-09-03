@@ -933,6 +933,24 @@ describe("the grid window's saved settings", () => {
       )
     })
 
+    it("opens an old partial split as one complete, even pot", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: {
+          ...defaultGridParams(),
+          levels: 3,
+          manualSizing: true,
+          manualRungPcts: [10, 15, 20],
+        },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+
+      const split = rungBoxes().map((one) => Number(one.value))
+      expect(split.reduce((sum, pct) => sum + pct, 0)).toBe(100)
+      expect(Math.max(...split) - Math.min(...split)).toBeCloseTo(0.01, 9)
+      expect(host.textContent).toContain("Adds up to100% · $")
+    })
+
     it("sends the mirror after the direction is switched", async () => {
       // The rows are held against prices, so what is sent is what is on
       // screen. Switching the direction turns the rows over, which is what
@@ -975,10 +993,7 @@ describe("the grid window's saved settings", () => {
       ])
     })
 
-    it("takes rows adding to any total, and says the money it comes to", async () => {
-      // Tyler's rule, 1 Sep 2026: "There's no need for the rungs to be at
-      // 100% combined. It can be whatever I put." Rows summing to 80 use
-      // 80% of the pot, and the card says so instead of refusing.
+    it("refuses rows that do not add up to the complete grid pot", async () => {
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: { ...defaultGridParams(), levels: 4 },
       })
@@ -992,16 +1007,18 @@ describe("the grid window's saved settings", () => {
       await typeInto(rungBoxes()[2], "30")
       await typeInto(rungBoxes()[3], "20")
 
-      // The running total, in percent and in dollars, never in red.
+      // The running total shows the problem before any order is sent.
       expect(host.textContent).toContain("Adds up to80% · $")
-      expect(host.textContent).not.toContain("have to add up to 100%")
+      expect(host.querySelector(".text-destructive")?.textContent).toContain(
+        "80%"
+      )
 
-      // And pressing Place places it.
       const place = [
         ...host.querySelectorAll<HTMLButtonElement>("button"),
       ].find((button) => button.textContent?.includes("Place"))
       await act(async () => place?.click())
-      expect(onPlace).toHaveBeenCalledOnce()
+      expect(host.textContent).toContain("have to add up to 100%")
+      expect(onPlace).not.toHaveBeenCalled()
     })
 
     it("shows each rung as a share and its money, without the price", async () => {

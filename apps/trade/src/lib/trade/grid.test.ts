@@ -22,6 +22,7 @@ import {
   gridRowPctsFromLevels,
   gridRowRungNumber,
   gridRungNumber,
+  gridRungPctsAddTo100,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridShares,
@@ -801,7 +802,9 @@ describe("splitting the pot by hand", () => {
       const pcts = gridEvenRungPcts(count)
       expect(pcts).toHaveLength(count)
       expect(gridRungPctsSum(pcts)).toBeCloseTo(100, 9)
+      expect(gridRungPctsAddTo100(pcts)).toBe(true)
     }
+    expect(gridRungPctsAddTo100([20, 20, 20, 20])).toBe(false)
   })
 
   it("is remembered and read back with the rest of the settings", () => {

@@ -1007,6 +1007,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "A level is too small to be an order at this market's size step — nothing was placed. Use fewer levels, a bigger share, or the same size at every level.",
     SMART_GRID_RUNG_COUNT:
       "The rungs no longer match the grid's levels, so nothing was changed. Close the window and open it again.",
+    SMART_GRID_RUNG_TOTAL:
+      "The rung shares have to add up to 100%, so the grid uses all of the money set aside for it.",
     SMART_GRID_NOT_FOUND:
       "That grid is not there any more — it may have finished or been cancelled.",
     SMART_GRID_FINISHED:

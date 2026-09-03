@@ -19,6 +19,7 @@ import {
   gridRangeReshapable,
   gridRowPctsFromLevels,
   gridRungNumber,
+  gridRungPctsAddTo100,
   gridStepPct,
   gridStopBeyond,
   gridStopPx,
@@ -137,6 +138,19 @@ export type GridDraft = {
   totalCost: number
 }
 
+/** Refuse a new or deliberately re-sized hand-set grid that does not use one pot. */
+export function assertCompleteGridRungSplit(
+  params: Pick<GridParams, "manualSizing" | "manualRungPcts">
+): void {
+  if (
+    params.manualSizing &&
+    params.manualRungPcts !== null &&
+    !gridRungPctsAddTo100(params.manualRungPcts)
+  ) {
+    throw new Error("SMART_GRID_RUNG_TOTAL")
+  }
+}
+
 /**
  * The grid a set of settings describes, and every reason it might be refused.
  *
@@ -156,9 +170,10 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   const range = { topPx, bottomPx }
 
   // A hand-set grid: one typed percentage per level, each its own share of
-  // the pot. The COUNT is checked — a list whose length drifted from the
-  // level count would guess order sizes — but the SUM is free: Tyler's rule,
-  // rows adding to 65 use 65% of the pot, and that is what was asked for.
+  // the pot. A list whose length drifted from the level count would guess
+  // order sizes. New placements and deliberate re-slices check the 100% total
+  // before reaching this shared draft, while old running grids keep their
+  // frozen amounts until somebody changes them.
   if (params.manualSizing) {
     if (
       params.manualRungPcts === null ||
@@ -391,6 +406,7 @@ export async function placeGridOrder(
   wallet: TradeWallet,
   input: PlaceGridInput
 ): Promise<PlacedGrid> {
+  assertCompleteGridRungSplit(input.params)
   const ref = parseMarketKey(input.marketKey)
   if (
     !ref ||
@@ -1017,6 +1033,7 @@ export async function reshapeGrid(
       : null
     if (input.rangeMove && !movedRange) throw new Error("SMART_GRID_RANGE")
     const split = reshapedGridSplit(plan, input)
+    if (changesSlices) assertCompleteGridRungSplit(split)
     const draft = draftGridOrder({
       marketKey: grid.marketKey,
       params: {

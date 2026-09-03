@@ -263,6 +263,13 @@ describe("placing a grid", () => {
     ])
   })
 
+  it("refuses a hand-set split that does not use the complete pot", async () => {
+    await expect(
+      place({ manualSizing: true, manualRungPcts: [10, 20, 30, 20] })
+    ).rejects.toThrow("SMART_GRID_RUNG_TOTAL")
+    expect(await gridRows()).toHaveLength(0)
+  })
+
   it("names the rung that was typed, not the level, when one is too small", async () => {
     // A 0.4% share of a $2,000 pot is $8, under this market's $10 floor. It
     // is rung 4, which on a buying grid is the bottom of the range.

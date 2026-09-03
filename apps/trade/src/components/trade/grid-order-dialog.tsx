@@ -58,6 +58,7 @@ import {
   gridRowLevelIndex,
   gridRowRungNumber,
   gridRungNumber,
+  gridRungPctsAddTo100,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridStopBeyond,
@@ -77,6 +78,7 @@ import {
   MIN_GRID_LEVELS,
   type GridAnchor,
   type GridDirection,
+  type GridParams,
   type PlaceGridParams,
   type GridSpacing,
 } from "@/lib/trade/grid"
@@ -175,6 +177,29 @@ function rungsFrom(pcts: readonly number[]): Rung[] {
   }))
 }
 
+/**
+ * Old remembered splits were allowed to use less or more than the complete
+ * pot. A new order has not spent anything yet, so open those old preferences
+ * on the equal 100% split instead of making the first thing somebody sees an
+ * invalid grid.
+ */
+function rememberedRungRows(params: GridParams | null): number[] {
+  const pcts = params?.manualRungPcts ?? []
+  if (
+    pcts.length >= MIN_GRID_LEVELS &&
+    pcts.length <= MAX_GRID_LEVELS &&
+    pcts.every((pct) => pct > 0 && pct <= 100)
+  ) {
+    return gridRungPctsAddTo100(pcts) ? pcts : gridEvenRungPcts(pcts.length)
+  }
+  if (!params?.manualSizing) return []
+  const count = Math.min(
+    MAX_GRID_LEVELS,
+    Math.max(MIN_GRID_LEVELS, params.levels)
+  )
+  return gridEvenRungPcts(count)
+}
+
 export function GridOrderDialog({
   state,
   wide = true,
@@ -255,7 +280,7 @@ export function GridOrderDialog({
     rungsFrom(
       gridRungRowsWithLargestFurthest(
         seeded?.direction ?? defaultGridParams().direction,
-        seeded?.manualRungPcts ?? []
+        rememberedRungRows(seeded)
       )
     )
   )
@@ -321,7 +346,7 @@ export function GridOrderDialog({
         rungsFrom(
           gridRungRowsWithLargestFurthest(
             params.direction,
-            params.manualRungPcts ?? []
+            rememberedRungRows(params)
           )
         )
       )
@@ -375,10 +400,12 @@ export function GridOrderDialog({
     [rungs]
   )
   const rungSum = gridRungPctsSum(rungPcts)
+  const rungTotalIs100 = gridRungPctsAddTo100(rungPcts)
   const rungsUsable =
     rungs.length >= MIN_GRID_LEVELS &&
     rungs.length <= MAX_GRID_LEVELS &&
-    rungPcts.every((pct) => pct > 0 && pct <= 100)
+    rungPcts.every((pct) => pct > 0 && pct <= 100) &&
+    rungTotalIs100
   const badRung = rungPcts.findIndex((pct) => !(pct > 0 && pct <= 100))
 
   /**
@@ -871,7 +898,10 @@ export function GridOrderDialog({
               : manualOn && badRung !== -1
                 ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a share above zero.`
                 : manualOn && !rungsUsable
-                  ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
+                  ? rungs.length < MIN_GRID_LEVELS ||
+                    rungs.length > MAX_GRID_LEVELS
+                    ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
+                    : "The rung shares have to add up to 100%."
                   : !params
                     ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
                     : plan &&
@@ -917,9 +947,9 @@ export function GridOrderDialog({
     )
   const removeRung = (id: string) =>
     setRungs((held) => held.filter((one) => one.id !== id))
-  // A new row copies the last one rather than guessing a number. The sum line
-  // then says the rungs no longer add to 100, which is true, and "Even split"
-  // is one click away.
+  // A new row copies the last one rather than changing the custom split behind
+  // somebody's back. The total then explains what needs fixing, and "Even
+  // split" remains one click away.
   const addRung = () =>
     setRungs((held) => {
       const last = parsed(held[held.length - 1]?.value ?? "")
@@ -1234,7 +1264,7 @@ export function GridOrderDialog({
                 ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
                 : null
             }
-            hint={`Each rung takes its own share of the money, as a percent of Share of account %. The total is whatever you type. Rung 1 is the first ${entryWord(direction)}.`}
+            hint={`Each rung takes its own share of the money set aside for the grid. The shares must add up to 100%. Rung 1 is the first ${entryWord(direction)}.`}
           >
             {rungs.map((rung, index) => {
               // Rows read top of the range first; levels read bottom first.
@@ -1285,12 +1315,15 @@ export function GridOrderDialog({
                 </div>
               )
             })}
-            {/* The total is information, not a rule: the rows can add up to
-                whatever was typed, and the grid uses exactly that share of
-                the money. Tyler's rule, 1 Sep 2026. */}
+            {/* The total is the rule: every valid split uses the complete pot. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Adds up to</span>
-              <span className="text-muted-foreground tabular-nums">
+              <span
+                className={cn(
+                  "tabular-nums",
+                  rungTotalIs100 ? "text-muted-foreground" : "text-destructive"
+                )}
+              >
                 {Math.round(rungSum * 100) / 100}%
                 {plan === null ? "" : ` · ${formatUsd(plan.totalCost)}`}
               </span>

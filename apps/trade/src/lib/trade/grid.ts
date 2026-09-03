@@ -908,17 +908,20 @@ export function gridShares(count: number, sizing: GridSizing): number[] {
 
 // ----- Splitting the pot by hand -------------------------------------------
 
-/**
- * What a set of typed rung percentages adds up to.
- *
- * The sum is free — Tyler's rule, 1 Sep 2026: "There's no need for the rungs
- * to be at 100% combined. It can be whatever I put." Each rung takes its
- * typed share of the pot, so rows summing to 65 simply use 65% of it and
- * rows summing past 100 use more than one pot's worth. The sum is shown, in
- * percent and in dollars, and never enforced.
- */
+/** What a set of typed rung percentages adds up to. */
 export function gridRungPctsSum(pcts: number[]): number {
   return pcts.reduce((sum, pct) => sum + pct, 0)
+}
+
+/**
+ * Whether the hand-set rungs divide one complete pot.
+ *
+ * Decimal inputs can leave a tiny floating-point remainder, so the comparison
+ * allows less than one millionth of a percentage point. Anything a person can
+ * type and see as under or over 100 is still refused.
+ */
+export function gridRungPctsAddTo100(pcts: number[]): boolean {
+  return Math.abs(gridRungPctsSum(pcts) - 100) < 0.000001
 }
 
 /**

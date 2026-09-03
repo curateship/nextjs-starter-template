@@ -10,8 +10,9 @@ turns when the row is open, the open row in gray, and its choices under it.
 Manual order holds Long and Short. Smart order holds DCA ladder and Grid. Both
 start closed. Clicking a row opens it, clicking it again closes it, and
 opening one closes the other. Nothing is saved: the Recent list is what
-remembers. A wallet that cannot place smart
-orders gets no fold-out rows, just Long and Short.
+remembers. The choices stay indented under their parent, but their hover and
+keyboard-focus backgrounds reach both menu edges. A wallet that cannot place
+smart orders gets no fold-out rows, just Long and Short.
 
 Once an order has been placed, the right-click menu starts with **Recent**.
 The latest kind is first, followed by the other unique kinds this account has
