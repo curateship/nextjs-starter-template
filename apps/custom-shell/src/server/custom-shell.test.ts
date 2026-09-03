@@ -73,7 +73,6 @@ import {
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
-  resolveMaintenanceMessage,
   type ShellChildItem,
   type ShellItem,
   type ShellSection,
@@ -4627,6 +4626,48 @@ describe("member sidebar", () => {
     })
   })
 
+  it("carries the app-wide social card and public system copy through a save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals({ appName: "x" })).toMatchObject({
+      shareImage: "",
+      shareImageVersion: "",
+      socialCardType: "summary",
+      socialHandle: "",
+      publicSystemCopy: {
+        notFoundHeading: "",
+        notFoundBody: "",
+        maintenanceHeading: "",
+        maintenanceBody: "",
+      },
+    })
+  })
+
   it("carries the top-bar link limit through a save and back", () => {
     // Same trap as the three above: miss it in `pickShellGlobals` and every
     // save drops the limit, so the top bar quietly goes back to a long row.
@@ -6570,29 +6611,17 @@ describe("custom shell maintenance mode", () => {
   it("reads as off when the settings row has never been written", async () => {
     const db = database as unknown as CustomShellDb
 
-    expect(await readMaintenance(db)).toEqual({ enabled: false, message: "" })
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
-  it("turns the app off and back on, keeping the message either way", async () => {
+  it("turns the app off and back on", async () => {
     const db = database as unknown as CustomShellDb
 
-    await setMaintenance(
-      { enabled: true, message: "  Upgrading the database.  " },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: true,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: true }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: true })
 
-    await setMaintenance(
-      { enabled: false, message: "Upgrading the database." },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: false,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: false }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
   it("leaves the other app-wide settings alone", async () => {
@@ -6610,7 +6639,7 @@ describe("custom shell maintenance mode", () => {
       updatedAt: createdAt,
     })
 
-    await setMaintenance({ enabled: true, message: "" }, db)
+    await setMaintenance({ enabled: true }, db)
 
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
@@ -6623,23 +6652,13 @@ describe("custom shell maintenance mode", () => {
   })
 
   it("treats a missing or hand-edited value as off", () => {
-    expect(normalizeMaintenance(undefined)).toEqual({
-      enabled: false,
-      message: "",
-    })
+    expect(normalizeMaintenance(undefined)).toEqual({ enabled: false })
     expect(normalizeMaintenance({ enabled: "yes", message: 7 })).toEqual({
       enabled: false,
-      message: "",
     })
     expect(normalizeMaintenance({ enabled: true, message: "Back soon" })).toEqual({
       enabled: true,
-      message: "Back soon",
     })
-  })
-
-  it("falls back to the default wording when no message was written", () => {
-    expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
-    expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
   })
 })
 

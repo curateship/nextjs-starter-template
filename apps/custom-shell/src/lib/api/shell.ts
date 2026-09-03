@@ -14,6 +14,12 @@ import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
 import type { PublicTheme } from "@/lib/public-theme"
 import {
+  createDefaultPublicSystemCopy,
+  DEFAULT_SOCIAL_CARD_TYPE,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
+import {
   seesEveryWorkspace,
   type WorkspaceListResponse,
 } from "@/lib/api/people/workspaces"
@@ -158,6 +164,10 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     faviconSet: PublicFaviconSet | null
     logo: string
     logoDark: string
+    shareImage: string
+    socialCardType: SocialCardType
+    socialHandle: string
+    publicSystemCopy: PublicSystemCopy
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
@@ -179,6 +189,10 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         faviconSet: null,
         logo: "",
         logoDark: "",
+        shareImage: "",
+        socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
+        socialHandle: "",
+        publicSystemCopy: createDefaultPublicSystemCopy(),
         publicNavigation: [],
         publicFooter: [],
         publicFooterCopyright: "",

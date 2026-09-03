@@ -164,7 +164,7 @@ export function isPublicThemeInputValid(theme: PublicTheme) {
 }
 
 /**
- * A site's part of Public Look. The optional fallback carries CMS's old
+ * A site's part of Public Styling. The optional fallback carries CMS's old
  * top-level accent colour until its next shell merge removes that field.
  * An explicit new value, including an empty one, always wins.
  */

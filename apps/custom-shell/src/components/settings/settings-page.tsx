@@ -7,6 +7,10 @@ import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import {
+  PublicSocialSettings,
+  PublicSystemPagesSettings,
+} from "@/components/settings/public-metadata-settings"
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
@@ -56,7 +60,9 @@ const memberSettingsTabs = [
 /** Settings for the pages a site's visitors see before signing in. */
 const publicSettingsTabs = [
   { id: "public-navigation", label: "Navigation" },
-  { id: "public-look", label: "Look" },
+  { id: "public-styling", label: "Styling" },
+  { id: "public-pages", label: "Pages" },
+  { id: "public-social", label: "Social" },
 ] as const
 
 export type SettingsTabId =
@@ -185,12 +191,24 @@ export function SettingsPage({
             onSaveConfig={onSaveConfig}
           />
         ) : null}
-        {activeTab === "public-look" ? (
+        {activeTab === "public-styling" ? (
           <PublicThemeSettings
             theme={config.publicTheme}
             onThemeChange={(publicTheme) =>
               onConfigChange({ ...config, publicTheme })
             }
+          />
+        ) : null}
+        {activeTab === "public-pages" ? (
+          <PublicSystemPagesSettings
+            config={config}
+            onConfigChange={onConfigChange}
+          />
+        ) : null}
+        {activeTab === "public-social" ? (
+          <PublicSocialSettings
+            config={config}
+            onConfigChange={onConfigChange}
           />
         ) : null}
         {activeTab === "sidebar" ? (
@@ -211,7 +229,7 @@ export function SettingsPage({
             reset={{
               label: "Reset all to defaults",
               description:
-                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, public look, and signed-in styling go back to their defaults. This cannot be undone.",
+                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
               onReset: () => onConfigChange(createDefaultShellConfig()),
             }}
           />

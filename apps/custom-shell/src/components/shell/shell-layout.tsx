@@ -53,6 +53,12 @@ import {
   workspaceWord,
 } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import {
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+} from "@/lib/pages/public-metadata"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
   isPublicThemeInputValid,
@@ -619,6 +625,15 @@ export function ShellLayout({
             />
             <DashboardContent
               id="main-content"
+              // Settings pages are taller than the viewport and already make
+              // the document scroll. Letting this panel scroll too draws two
+              // vertical scrollbars beside the settings cards.
+              className={
+                currentPath === "/admin/settings" ||
+                currentPath.startsWith("/admin/settings/")
+                  ? "overflow-visible"
+                  : undefined
+              }
               styling={config.styling}
               pageTitle={getCurrentPageTitle(
                 config,
@@ -704,6 +719,14 @@ function normalizeConfig(
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: settings.logo ?? fallback.logo,
     logoDark: settings.logoDark ?? fallback.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     publicNavigation: Array.isArray(settings.publicNavigation)
       ? settings.publicNavigation
       : fallback.publicNavigation,

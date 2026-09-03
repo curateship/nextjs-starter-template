@@ -14,6 +14,15 @@ import {
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+  versionedShareImage,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
+import {
   normalizePublicFaviconSet,
   type PublicFaviconSet,
 } from "@/lib/favicon"
@@ -88,6 +97,10 @@ export async function readBranding(
   faviconSet: PublicFaviconSet | null
   logo: string
   logoDark: string
+  shareImage: string
+  socialCardType: SocialCardType
+  socialHandle: string
+  publicSystemCopy: PublicSystemCopy
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -114,6 +127,13 @@ export async function readBranding(
       faviconSet: globals.faviconSet,
       logo: globals.logo,
       logoDark: globals.logoDark,
+      shareImage: versionedShareImage(
+        globals.shareImage,
+        globals.shareImageVersion
+      ),
+      socialCardType: globals.socialCardType,
+      socialHandle: globals.socialHandle,
+      publicSystemCopy: globals.publicSystemCopy,
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
@@ -137,6 +157,13 @@ export async function readBranding(
     faviconSet: globals.faviconSet,
     logo: globals.logo,
     logoDark: globals.logoDark,
+    shareImage: versionedShareImage(
+      globals.shareImage,
+      globals.shareImageVersion
+    ),
+    socialCardType: globals.socialCardType,
+    socialHandle: globals.socialHandle,
+    publicSystemCopy: globals.publicSystemCopy,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -231,6 +258,14 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion.slice(0, 64)
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
       fallback.publicTheme
@@ -307,6 +342,11 @@ export function pickShellGlobals(
     | "faviconSet"
     | "logo"
     | "logoDark"
+    | "shareImage"
+    | "shareImageVersion"
+    | "socialCardType"
+    | "socialHandle"
+    | "publicSystemCopy"
     | "publicTheme"
     | "dashboardRowsPerPage"
     | "toastSeconds"
@@ -330,6 +370,11 @@ export function pickShellGlobals(
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: settings.logo,
     logoDark: settings.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion: settings.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,

@@ -48,6 +48,17 @@ External links remain normal document navigation. The header search uses the
 same clearable field as signed-in lists and submits its current `q` value to the
 public search page.
 
+An error that escapes a route's own handling uses a smaller public frame rather
+than the signed-in shell. The fallback shows the root logo and app name, applies
+the public canvas and fixed light or dark choice, and offers retry and front-page
+actions. The fallback avoids page loaders and the full public frame so it can
+still render when those dependencies caused the crash. Missing branding falls
+back to the default app name and normal theme tokens.
+
+Settings pages use the document's vertical scroll instead of adding another
+scrolling panel inside it. Long settings therefore show one scrollbar at the
+edge of the window while the shared page gutter still owns their spacing.
+
 ## Shared state
 
 The shell owns shared state for:

@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm"
 
 import {
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -33,10 +32,7 @@ export async function setMaintenance(
   input: ShellMaintenance,
   database: CustomShellDb = db
 ): Promise<ShellMaintenance> {
-  const maintenance: ShellMaintenance = {
-    enabled: input.enabled,
-    message: input.message.trim().slice(0, MAX_MAINTENANCE_MESSAGE_LENGTH),
-  }
+  const maintenance: ShellMaintenance = { enabled: input.enabled }
 
   await database.transaction(async (tx) => {
     // Read, merge and write in one transaction, with the row locked first. This

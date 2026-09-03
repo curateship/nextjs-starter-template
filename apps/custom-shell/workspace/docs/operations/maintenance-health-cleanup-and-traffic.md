@@ -5,11 +5,17 @@ The maintenance switch changes access in four ways:
 - Members and signed-out visitors go to the maintenance page.
 - Admins stay signed in so they can repair the product and turn the switch off.
 - The header reminds admins that maintenance is active.
-- The server trims the saved message and applies a fixed length limit.
+- Public > Pages supplies the visitor heading and plain-text message, with the
+  former wording used whenever either field is empty.
 
 The maintenance value shares the platform settings record, but its server action
 locks and merges that record in a transaction. A settings save and a maintenance
 change cannot quietly overwrite one another.
+
+The public page uses the same root branding response as the header, logo,
+canvas, light or dark mode, and social tags. Maintenance mode does not issue a
+second settings read for its wording. This keeps the page available when the
+rest of the app is deliberately closed.
 
 ## Health checks
 

@@ -87,7 +87,7 @@ export function PublicThemeSettings({
   return (
     <CardGroup>
       <CollapsibleSettingsCard
-        storageId="public-look-brand-colour"
+        storageId="public-styling-brand-colour"
         title="Brand colour"
         description="Choose one colour for public buttons, links, and focus rings. The shell builds the related shades automatically."
         contentClassName="space-y-4"
@@ -198,7 +198,7 @@ export function PublicThemeSettings({
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
-        storageId="public-look-page-frame"
+        storageId="public-styling-page-frame"
         title="Page frame"
         description="Set the shared width, canvas, borders, and spacing around every public page."
         contentClassName="space-y-6"
@@ -374,7 +374,7 @@ export function PublicThemeSettings({
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
-        storageId="public-look-type-corners"
+        storageId="public-styling-type-corners"
         title="Type & corners"
         description="Choose the public frontend's typeface and how rounded its controls and cards are."
         contentClassName="space-y-6"

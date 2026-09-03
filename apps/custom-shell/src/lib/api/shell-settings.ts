@@ -6,11 +6,16 @@ import { z } from "zod"
 import { appPublicTheme } from "@/lib/app-options"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   SHELL_ROLES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import {
+  MAX_PUBLIC_SYSTEM_BODY_LENGTH,
+  MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
+  MAX_SOCIAL_HANDLE_LENGTH,
+  SOCIAL_CARD_TYPES,
+} from "@/lib/pages/public-metadata"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import type {
   PublicFaviconSet,
@@ -250,6 +255,21 @@ const shellConfigSchema = z.object({
   faviconDark: faviconSourceSchema,
   logo: z.string(),
   logoDark: z.string(),
+  shareImage: z.string().trim().max(2048),
+  // Carried by the client for the full config shape. The handler always takes
+  // the saved version or writes a fresh timestamp instead of trusting this.
+  shareImageVersion: z.string().max(64),
+  socialCardType: z.enum(SOCIAL_CARD_TYPES),
+  socialHandle: z
+    .string()
+    .max(MAX_SOCIAL_HANDLE_LENGTH)
+    .regex(/^[A-Za-z0-9_]*$/),
+  publicSystemCopy: z.object({
+    notFoundHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
+    notFoundBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
+    maintenanceHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
+    maintenanceBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
+  }),
   publicNavigation: publicNavigationSchema,
   publicFooter: publicNavigationSchema,
   publicFooterCopyright: z
@@ -269,7 +289,6 @@ const shellConfigSchema = z.object({
   ),
   maintenance: z.object({
     enabled: z.boolean(),
-    message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
   }),
   // Carried in the config for display only; the save below never writes it.
   sessionPolicy: z.object({
@@ -360,10 +379,10 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // The maintenance switch is only ever flipped by its own confirmed
       // action (lib/api/maintenance.ts). An admin whose settings page loaded
       // before somebody turned it on must not switch it back off by renaming
-      // the app, so the switch keeps whatever the row already says; only its
-      // message comes from this save. The session policy and the automations
-      // kill switch are kept whole for the same reason — their one writer each
-      // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
+      // the app, so the switch keeps whatever the row already says. The
+      // session policy and the automations kill switch are kept whole for the
+      // same reason — their one writer each is lib/api/auth/session-policy.ts
+      // and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
       previousFaviconSet = existingGlobals.faviconSet
 
@@ -385,6 +404,16 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             "That logo is no longer in your media library. Pick another one."
           )
         }
+      }
+
+      if (
+        data.shareImage &&
+        data.shareImage !== existingGlobals.shareImage &&
+        !(await isOwnedImageUrl(context.user.id, data.shareImage, tx))
+      ) {
+        throw new Error(
+          "That share image is no longer in your media library. Pick another one."
+        )
       }
 
       const light = faviconVariantForLockedSave(
@@ -417,13 +446,18 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           faviconSet: savedFaviconSet,
+          shareImageVersion:
+            data.shareImage === existingGlobals.shareImage
+              ? existingGlobals.shareImageVersion
+              : data.shareImage
+                ? updatedAt.toISOString()
+                : "",
           publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
-          message: data.maintenance.message,
         },
         sessionPolicy: existingGlobals.sessionPolicy,
       }

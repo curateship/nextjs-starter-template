@@ -40,10 +40,7 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import {
-  readBranding,
-  shellGlobalsForWrite,
-} from "@/server/shell-settings"
+import { readBranding, shellGlobalsForWrite } from "@/server/shell-settings"
 import { dropWorkspaceCache } from "@/server/workspaces/host"
 
 const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
@@ -73,7 +70,7 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
-  it("uses the app-wide favicon on public domains", async () => {
+  it("uses app-wide icons, social metadata, and system copy on public domains", async () => {
     const timestamp = now()
     const light = {
       source: "https://media.example.test/owner/favicon.png",
@@ -89,6 +86,16 @@ describe("public site branding", () => {
         favicon: light.source,
         faviconDark: "https://media.example.test/owner/favicon-dark.png",
         faviconSet: { light },
+        shareImage: "https://media.example.test/owner/share.png",
+        shareImageVersion: "2026-09-02T12:00:00.000Z",
+        socialCardType: "summary_large_image",
+        socialHandle: "custom_shell",
+        publicSystemCopy: {
+          notFoundHeading: "Lost?",
+          notFoundBody: "Try the front page.",
+          maintenanceHeading: "Taking a short break",
+          maintenanceBody: "Back at noon.",
+        },
       },
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -106,6 +113,16 @@ describe("public site branding", () => {
       favicon: light.source,
       faviconDark: "https://media.example.test/owner/favicon-dark.png",
       faviconSet: { light },
+      shareImage:
+        "https://media.example.test/owner/share.png?v=2026-09-02T12%3A00%3A00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
     })
   })
 
