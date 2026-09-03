@@ -765,6 +765,58 @@ describe("running out of the range", () => {
 })
 
 describe("the stop", () => {
+  it("puts the stop back when the exchange shows none", async () => {
+    // A hand may move the stop; the exchange showing NO stop is never a hand
+    // move. On 3 Sep 2026 kSHIB bought, the same pass read "no stop" from the
+    // exchange, and the grid wrote that into its plan and never placed one.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await priceTo(109)
+    expect((await onlyGrid()).plan.aimedSlPx).toBeCloseTo(76, 9)
+
+    // The exchange shows the position with no stop on it; the plan still
+    // remembers aiming one.
+    await database
+      .update(tradePaperPositions)
+      .set({ slPx: null })
+      .where(eq(tradePaperPositions.userId, userId))
+    await priceTo(108)
+
+    const grid = await onlyGrid()
+    expect((await positions())[0].slPx).toBeCloseTo(76, 9)
+    expect(grid.plan.aimedSlPx).toBeCloseTo(76, 9)
+    expect(grid.plan.stopLoss?.px ?? 76).toBeCloseTo(76, 9)
+  })
+
+  it("heals a grid saved with a frozen stop and no price", async () => {
+    // The shape kSHIB was left in: following down freezes the stop as a fixed
+    // price, and that price was lost. The percent the setting names still
+    // says where the stop belongs, so the engine places it there.
+    await place({ followDown: true, stopLoss: { underPct: 5, base: null } })
+    await priceTo(109)
+    const before = await onlyGrid()
+    expect(before.plan.stopLoss).toMatchObject({ mode: "fixed", px: 76 })
+
+    await database
+      .update(tradePaperPositions)
+      .set({ slPx: null })
+      .where(eq(tradePaperPositions.userId, userId))
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: {
+          ...before.plan,
+          aimedSlPx: null,
+          stopLoss: { ...before.plan.stopLoss, px: null },
+        },
+      })
+      .where(eq(tradeSmartLadders.userId, userId))
+    await priceTo(108)
+
+    const grid = await onlyGrid()
+    expect((await positions())[0].slPx).toBeCloseTo(76, 9)
+    expect(grid.plan.aimedSlPx).toBeCloseTo(76, 9)
+  })
+
   it("closes everything and ends the grid when price cuts through it", async () => {
     await place({ stopLoss: { underPct: 5, base: null } })
     await priceTo(109)

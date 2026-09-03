@@ -715,6 +715,17 @@ out. Only the automatic stop keeps off the inside, because it follows a rule
 rather than a hand; the paragraph above says why the rule must measure from
 the range's edge.
 
+**A missing stop is never a hand move.** After every buy the engine compares
+the stop it last sent with the stop the exchange shows. A stop at another price
+is a hand move and is honoured. A position showing no stop at all, while the
+grid has a stop setting, is placed again on that pass. Before 3 September 2026
+the engine believed the absence: the kSHIB grid on Hyperliquid bought, read
+"no stop" from the exchange in the same second, wrote an empty stop price into
+its plan and never placed one. A grid saved that way, with a frozen stop and no
+price, now falls back to the percent its stop setting names and places that.
+A DCA ladder keeps the old rule, because its stop is optional and clearing it
+by hand is a choice.
+
 The one place a dragged stop may not go is at or past the current price, where
 it would fire the moment the hand let go. That drop is refused with "The price
 is already past there". If the venue will not give a current price at that

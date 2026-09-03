@@ -277,13 +277,34 @@ export function makeFillClaimer(
  * `wanted` being null is a real answer, not a missing one: it means "no stop
  * yet", and writing zero instead would be a stop in name only that sat under
  * every level and killed them all.
+ *
+ * **A missing stop, on an order that must have one, is never a hand move.**
+ * That is `missing: "replace"`. A hand can put the stop at another price, and
+ * that is honoured. A position showing NO stop while the plan wants one is a
+ * stop that has not landed yet, or one the exchange dropped, and the only
+ * right answer is to place it again. Believing the absence is how the kSHIB
+ * grid on 3 Sep 2026 bought, read "no stop" in the same second, wrote that
+ * into its plan, and sat with real money and no stop until somebody noticed.
+ * A DCA ladder's stop is optional, so it keeps `"honour"`: clearing it by hand
+ * is a choice the ladder respects.
  */
 export function aimStop(
   aimed: { aimedSlPx: number | null },
   position: { slPx: number | null; updatedAt: number },
   wanted: number | null,
-  onHandMoved: (px: number | null) => void
+  onHandMoved: (px: number | null) => void,
+  missing: "honour" | "replace" = "honour"
 ): boolean {
+  if (
+    missing === "replace" &&
+    aimed.aimedSlPx !== null &&
+    position.slPx === null &&
+    wanted !== null
+  ) {
+    position.slPx = wanted
+    aimed.aimedSlPx = wanted
+    return true
+  }
   if (!nearNullable(aimed.aimedSlPx, position.slPx)) {
     // Somebody dragged it. Remember where they put it and stop following.
     aimed.aimedSlPx = position.slPx

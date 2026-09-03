@@ -11,6 +11,7 @@ import {
   gridShiftAway,
   gridShiftInto,
   gridStepPct,
+  gridStopBeyond,
   gridStopPx,
   gridTakeProfitPx,
   heldWrongWay,
@@ -79,6 +80,17 @@ import {
  */
 const NEXT_LEVEL_OFF_TICK =
   "The next grid level does not fit this market's price step. The grid paused before placing it."
+
+/**
+ * The stop the engine places. `gridStopPx` answers null for a frozen stop
+ * whose price was lost, and a grid with a stop setting must never be placed
+ * with none, so that case falls back to the percent the setting names.
+ */
+function gridWantedStopPx(plan: GridPlan): number | null {
+  const wanted = gridStopPx(plan)
+  if (wanted !== null || !plan.stopLoss) return wanted
+  return gridStopBeyond(plan.direction, plan, plan.stopLoss.underPct)
+}
 
 /**
  * Whether two prices are the same level: equal, or one exchange tick apart on
@@ -642,14 +654,22 @@ export async function advanceGrid(
       changed = true
     }
   } else {
-    const wanted = gridStopPx(plan)
+    const wanted = gridWantedStopPx(plan)
     if (
-      aimStop(plan, after, wanted === null ? null : roundPx(wanted), (px) => {
-        if (plan.stopLoss) {
-          plan.stopLoss.mode = "fixed"
-          plan.stopLoss.px = px !== null && px > 0 ? px : null
-        }
-      })
+      aimStop(
+        plan,
+        after,
+        wanted === null ? null : roundPx(wanted),
+        (px) => {
+          // A hand may move the stop; it cannot take it away. Only a real price
+          // is written down, so a grid never loses its stop through this door.
+          if (plan.stopLoss && px !== null && px > 0) {
+            plan.stopLoss.mode = "fixed"
+            plan.stopLoss.px = px
+          }
+        },
+        "replace"
+      )
     ) {
       after.updatedAt = now
       book.touchedMarkets.add(row.marketKey)
