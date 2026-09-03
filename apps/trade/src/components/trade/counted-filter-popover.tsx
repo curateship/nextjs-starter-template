@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ListFilterIcon } from "lucide-react"
+import { CheckIcon, ListFilterIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils"
 
 type CountedFilterGroup<Item> = {
   label: string
-  value: string | null
+  value: readonly string[] | null
   valueOf: (item: Item) => string
   labelOf?: (item: Item) => string
-  onChange: (value: string | null) => void
+  onChange: (value: string[] | null) => void
 }
 
 export function CountedFilterPopover<Item>({
@@ -43,7 +43,6 @@ export function CountedFilterPopover<Item>({
             {index > 0 ? <div className="border-t" /> : null}
             <FilterGroup
               label={group.label}
-              total={items.length}
               value={group.value}
               options={countedOptions(items, group.valueOf, group.labelOf)}
               onChange={group.onChange}
@@ -65,35 +64,34 @@ export function CountedFilterPopover<Item>({
 
 function FilterGroup({
   label,
-  total,
   value,
   options,
   onChange,
 }: {
   label: string
-  total: number
-  value: string | null
+  value: readonly string[] | null
   options: Array<{ value: string; label: string; count: number }>
-  onChange: (value: string | null) => void
+  onChange: (value: string[] | null) => void
 }) {
+  const selected = value ?? options.map((option) => option.value)
+
   return (
     <div className="grid gap-0.5 p-2.5">
       <p className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
-      <FilterOption
-        label="All"
-        count={total}
-        selected={!value}
-        onClick={() => onChange(null)}
-      />
       {options.map((option) => (
         <FilterOption
           key={option.value}
           label={option.label}
           count={option.count}
-          selected={value === option.value}
-          onClick={() => onChange(option.value)}
+          selected={selected.includes(option.value)}
+          onClick={() => {
+            const next = selected.includes(option.value)
+              ? selected.filter((one) => one !== option.value)
+              : [...selected, option.value]
+            onChange(next.length === options.length ? null : next)
+          }}
         />
       ))}
     </div>
@@ -115,14 +113,22 @@ function FilterOption({
     <Button
       type="button"
       variant="ghost"
-      className="w-full justify-between"
-      aria-pressed={selected}
+      className="w-full justify-start"
+      role="checkbox"
+      aria-checked={selected}
       onClick={onClick}
     >
-      <span className={cn(selected && "font-semibold")}>{label}</span>
-      <span className={selected ? "text-primary" : "text-muted-foreground"}>
+      <span>{label}</span>
+      <span
+        data-slot="filter-option-count"
+        className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-xs leading-none font-medium text-muted-foreground tabular-nums"
+      >
         {count.toLocaleString()}
       </span>
+      <CheckIcon
+        className={cn("ml-auto size-4", !selected && "opacity-0")}
+        aria-hidden
+      />
     </Button>
   )
 }

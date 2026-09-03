@@ -224,8 +224,8 @@ function TradesTable({
 }) {
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(50)
-  const [venue, setVenue] = React.useState<string | null>(null)
-  const [walletId, setWalletId] = React.useState<string | null>(null)
+  const [venues, setVenues] = React.useState<string[] | null>(null)
+  const [walletIds, setWalletIds] = React.useState<string[] | null>(null)
   const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
     "at",
     "desc",
@@ -235,10 +235,10 @@ function TradesTable({
     () =>
       overview.fills.filter(
         (fill) =>
-          (!venue || fill.venue === venue) &&
-          (!walletId || fill.walletId === walletId)
+          (!venues || venues.includes(fill.venue)) &&
+          (!walletIds || walletIds.includes(fill.walletId))
       ),
-    [overview.fills, venue, walletId]
+    [overview.fills, venues, walletIds]
   )
   const sorted = React.useMemo(() => {
     const value = (fill: TradingOverviewFill): string | number => {
@@ -295,19 +295,19 @@ function TradesTable({
           action={
             <TradeFilters
               fills={overview.fills}
-              venue={venue}
-              walletId={walletId}
-              onVenueChange={(next) => {
-                setVenue(next)
+              venues={venues}
+              walletIds={walletIds}
+              onVenuesChange={(next) => {
+                setVenues(next)
                 setPage(1)
               }}
-              onWalletChange={(next) => {
-                setWalletId(next)
+              onWalletsChange={(next) => {
+                setWalletIds(next)
                 setPage(1)
               }}
               onClear={() => {
-                setVenue(null)
-                setWalletId(null)
+                setVenues(null)
+                setWalletIds(null)
                 setPage(1)
               }}
             />
@@ -321,7 +321,7 @@ function TradesTable({
       loadingLabel="Loading trades"
       failedWords="Trades could not be loaded."
       emptyWords={
-        venue || walletId
+        venues || walletIds
           ? "No trades match these filters."
           : "No real trades have been recorded yet."
       }
@@ -445,17 +445,17 @@ function TradeDayRow({ at }: { at: number }) {
 
 function TradeFilters({
   fills,
-  venue,
-  walletId,
-  onVenueChange,
-  onWalletChange,
+  venues,
+  walletIds,
+  onVenuesChange,
+  onWalletsChange,
   onClear,
 }: {
   fills: TradingOverviewFill[]
-  venue: string | null
-  walletId: string | null
-  onVenueChange: (venue: string | null) => void
-  onWalletChange: (walletId: string | null) => void
+  venues: readonly string[] | null
+  walletIds: readonly string[] | null
+  onVenuesChange: (venues: string[] | null) => void
+  onWalletsChange: (walletIds: string[] | null) => void
   onClear: () => void
 }) {
   return (
@@ -464,16 +464,16 @@ function TradeFilters({
       groups={[
         {
           label: "Exchange",
-          value: venue,
+          value: venues,
           valueOf: (fill) => fill.venue,
-          onChange: onVenueChange,
+          onChange: onVenuesChange,
         },
         {
           label: "Wallet",
-          value: walletId,
+          value: walletIds,
           valueOf: (fill) => fill.walletId,
           labelOf: (fill) => fill.walletLabel,
-          onChange: onWalletChange,
+          onChange: onWalletsChange,
         },
       ]}
       onClear={onClear}

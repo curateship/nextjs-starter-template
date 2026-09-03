@@ -24,6 +24,7 @@ function trade(
     marketKey: `hyperliquid:mainnet:${id}`,
     market: id,
     side: "long",
+    orderKind: "manual",
     value,
     profit,
     profitShare: profit === null || value === null ? null : profit / value,
@@ -59,11 +60,13 @@ describe("active-trade header refreshes", () => {
         trade("ETH", "practice", 245, 6),
       ],
       activeTradesUnavailable: [],
+      watchingOrders: [],
     }
     const fresh: ActiveTradesSnapshot = {
       readAt: 200,
       activeTrades: [trade("ETH", "practice", 250, 8)],
       activeTradesUnavailable: ["main"],
+      watchingOrders: [],
     }
 
     expect(mergeActiveTradesSnapshot(was, fresh)).toEqual({

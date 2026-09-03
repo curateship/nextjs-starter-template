@@ -5,6 +5,7 @@ import {
   buildTradingOverviewBots,
   buildTradingOverviewProfit,
   buildTradingOverviewActiveTrades,
+  buildTradingOverviewWatchingOrders,
   isTradingOverviewWallet,
   tradingOverviewWalletPerformance,
   type TradingOverview,
@@ -23,6 +24,7 @@ import { loadLivePortfolio } from "@/server/trade/live-orders"
 import { pricesEverySale } from "@/server/protocols/registry"
 import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
 import { listLatestFlowRuns } from "@/server/trade/flow-run-report"
+import { listActiveSmartOrders } from "@/server/trade/smart-orders"
 
 /**
  * Everything the trading overview needs. Wallet figures come through the one
@@ -190,7 +192,7 @@ async function loadActiveTrades(
   userId: string,
   wallets: Awaited<ReturnType<typeof loadWalletSummaries>>["wallets"]
 ) {
-  const [paperPortfolio, livePortfolio] = await Promise.all([
+  const [paperPortfolio, livePortfolio, smartOrders] = await Promise.all([
     loadPaperPortfolio(userId, wallets).catch((error) => {
       console.error("Active practice trades could not be read", error)
       return null
@@ -199,6 +201,10 @@ async function loadActiveTrades(
       console.error("Active live trades could not be read", error)
       return null
     }),
+    listActiveSmartOrders(
+      userId,
+      wallets.map((wallet) => wallet.id)
+    ),
   ])
   const positions = [
     ...(paperPortfolio?.positions ?? []),
@@ -210,7 +216,8 @@ async function loadActiveTrades(
   const activeTrades = buildTradingOverviewActiveTrades(
     positions,
     wallets,
-    marks
+    marks,
+    smartOrders
   )
   const unavailableWalletIds = new Set(livePortfolio?.unreachable ?? [])
   if (!paperPortfolio) {
@@ -225,6 +232,7 @@ async function loadActiveTrades(
   }
   return {
     activeTrades,
+    watchingOrders: buildTradingOverviewWatchingOrders(smartOrders, wallets),
     activeTradesUnavailable: wallets
       .filter((wallet) => unavailableWalletIds.has(wallet.id))
       .map((wallet) => wallet.id),

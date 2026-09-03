@@ -1,4 +1,5 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
+import type { SmartOrderKind } from "@/lib/trade/smart-plan"
 import {
   positionMargin,
   positionProfit,
@@ -51,15 +52,31 @@ export type TradingOverviewActiveTrade = {
   marketKey: string
   market: string
   side: "long" | "short"
+  orderKind: TradingOverviewOrderKind
   value: number | null
   profit: number | null
   profitShare: number | null
+}
+
+export type TradingOverviewOrderKind = "manual" | "dca" | "grid" | "signal"
+
+export type TradingOverviewWatchingOrder = {
+  id: string
+  walletId: string
+  walletLabel: string
+  accountType: "Practice" | "Testnet" | "Real"
+  protocol: string
+  marketKey: string
+  market: string
+  orderKind: TradingOverviewOrderKind
+  createdAt: number
 }
 
 export type ActiveTradesSnapshot = {
   readAt: number
   activeTrades: TradingOverviewActiveTrade[]
   activeTradesUnavailable: string[]
+  watchingOrders: TradingOverviewWatchingOrder[]
 }
 
 export type TradingOverviewBotState =
@@ -220,9 +237,16 @@ export function buildTradingOverviewBots(
 export function buildTradingOverviewActiveTrades(
   positions: readonly TradePosition[],
   wallets: readonly TradeWallet[],
-  marks: ReadonlyMap<string, number>
+  marks: ReadonlyMap<string, number>,
+  orders: readonly TradingOverviewOrderSource[] = []
 ): TradingOverviewActiveTrade[] {
   const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  const orderByPosition = new Map(
+    orders.map((order) => [
+      `${order.walletId}\0${order.marketKey}`,
+      overviewOrderKind(order.kind),
+    ])
+  )
 
   return positions.flatMap((position) => {
     const wallet = walletById.get(position.walletId)
@@ -236,22 +260,67 @@ export function buildTradingOverviewActiveTrades(
         id: position.id,
         walletId: wallet.id,
         walletLabel: wallet.label,
-        accountType:
-          wallet.kind === "paper"
-            ? ("Practice" as const)
-            : wallet.network === "testnet"
-              ? ("Testnet" as const)
-              : ("Real" as const),
+        accountType: overviewAccountType(wallet),
         protocol: venueLabel(wallet.protocol, wallet.network),
         marketKey: position.marketKey,
         market,
         side: position.szi > 0 ? ("long" as const) : ("short" as const),
+        orderKind:
+          orderByPosition.get(`${wallet.id}\0${position.marketKey}`) ??
+          "manual",
         value: mark === undefined ? null : positionValue(position, mark),
         profit,
         profitShare: profit !== null && margin > 0 ? profit / margin : null,
       },
     ]
   })
+}
+
+type TradingOverviewOrderSource = {
+  id: string
+  walletId: string
+  marketKey: string
+  kind: SmartOrderKind
+  createdAt: number
+}
+
+/** Turns active smart orders into the account-wide Watching list. */
+export function buildTradingOverviewWatchingOrders(
+  orders: readonly TradingOverviewOrderSource[],
+  wallets: readonly TradeWallet[]
+): TradingOverviewWatchingOrder[] {
+  const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  return orders.flatMap((order) => {
+    const wallet = walletById.get(order.walletId)
+    if (!wallet) return []
+    return [
+      {
+        id: order.id,
+        walletId: wallet.id,
+        walletLabel: wallet.label,
+        accountType: overviewAccountType(wallet),
+        protocol: venueLabel(wallet.protocol, wallet.network),
+        marketKey: order.marketKey,
+        market: order.marketKey.split(":").slice(2).join(":"),
+        orderKind: overviewOrderKind(order.kind),
+        createdAt: order.createdAt,
+      },
+    ]
+  })
+}
+
+function overviewOrderKind(kind: SmartOrderKind): TradingOverviewOrderKind {
+  return kind === "watch" ? "manual" : kind
+}
+
+function overviewAccountType(
+  wallet: TradeWallet
+): TradingOverviewActiveTrade["accountType"] {
+  return wallet.kind === "paper"
+    ? "Practice"
+    : wallet.network === "testnet"
+      ? "Testnet"
+      : "Real"
 }
 
 export function isTradingOverviewWallet(wallet: {

@@ -250,22 +250,34 @@ export function TradeTablePanel<Row, Key extends string>({
   return (
     <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
       {header}
-      <ScrollArea
-        className="min-h-0 flex-1"
-        viewportClassName="h-full min-h-24"
-      >
-        <div
-          data-slot="table-container"
-          className={cn(
-            "relative w-full overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
-            stickyPanelTableHeaderClassName
-          )}
-        >
-          <TradeTable {...table} actions={false} roomy />
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      <TradeTableContent {...table} />
       {afterTable}
     </TableSurface>
+  )
+}
+
+/** The scrolling table body, for a panel whose tabs own the outer frame. */
+export function TradeTableContent<Row, Key extends string>({
+  className,
+  ...table
+}: React.ComponentProps<typeof TradeTable<Row, Key>> & {
+  className?: string
+}) {
+  return (
+    <ScrollArea
+      className={cn("min-h-0 flex-1", className)}
+      viewportClassName="h-full min-h-24"
+    >
+      <div
+        data-slot="table-container"
+        className={cn(
+          "relative w-full overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+          stickyPanelTableHeaderClassName
+        )}
+      >
+        <TradeTable {...table} actions={false} roomy />
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }

@@ -5,10 +5,12 @@ import type { ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { loadActiveTradesHeader, saveHeaderProfitVisibility } = vi.hoisted(() => ({
-  loadActiveTradesHeader: vi.fn(),
-  saveHeaderProfitVisibility: vi.fn(),
-}))
+const { loadActiveTradesHeader, saveHeaderProfitVisibility } = vi.hoisted(
+  () => ({
+    loadActiveTradesHeader: vi.fn(),
+    saveHeaderProfitVisibility: vi.fn(),
+  })
+)
 
 vi.mock("@/lib/api/trade/active-trades-header", () => ({
   loadActiveTradesHeader,
@@ -16,16 +18,24 @@ vi.mock("@/lib/api/trade/active-trades-header", () => ({
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
-vi.mock("@/components/trade/active-trades-widget", () => ({
-  ActiveTradesWidget: ({ headerAction }: { headerAction?: ReactNode }) => (
+vi.mock("@/components/trade/active-trades-dropdown", () => ({
+  ActiveTradesDropdown: ({ headerAction }: { headerAction?: ReactNode }) => (
     <div>{headerAction}</div>
   ),
 }))
 
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PopoverContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+  PopoverContent: ({
+    children,
+    className,
+  }: {
+    children: ReactNode
+    className?: string
+  }) => (
+    <div data-testid="active-trades-popover" className={className}>
+      {children}
+    </div>
   ),
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
@@ -67,12 +77,14 @@ beforeEach(() => {
           marketKey: "hyperliquid:mainnet:BTC",
           market: "BTC",
           side: "long",
+          orderKind: "manual",
           value: 1_250,
           profit: -42,
           profitShare: -0.0336,
         },
       ],
       activeTradesUnavailable: [],
+      watchingOrders: [],
     },
     headerProfitVisible: true,
   })
@@ -86,6 +98,18 @@ afterEach(async () => {
 })
 
 describe("the Active Trades header", () => {
+  it("grows with its rows until the middle of the screen", async () => {
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+
+    const popover = host.querySelector<HTMLElement>(
+      '[data-testid="active-trades-popover"]'
+    )
+    expect(popover?.className).toContain("max-h-[calc(50vh-4rem)]")
+    expect(
+      popover?.className.split(" ").some((name) => name.startsWith("h-["))
+    ).toBe(false)
+  })
+
   it("hides and restores the header profit from the eye button", async () => {
     await act(async () => root.render(<ActiveTradesHeader role="admin" />))
 

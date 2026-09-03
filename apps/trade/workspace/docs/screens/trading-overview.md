@@ -74,21 +74,26 @@ chip. New dashboards put Active Trades under PnL Graph;
 an account with a saved arrangement finds it under Settings → Widgets until it
 is placed.
 
-The Active Trades table has four columns: ticker, type, current position value,
-and current profit in dollars and as a share of the money the trade holds. Type
-is Long or Short. Value is the absolute position size at the current market
-price, not the margin committed to the trade. The ticker cell has a 16px icon,
-12px medium symbol, then a compact Testnet or Practice badge when the account is
-pretend. Clicking the symbol or anywhere else on the row opens that market on
-its protocol's chart. All four columns fit at the card's normal width. A narrow
+The Active Trades table has five columns: ticker, type, order, current position
+value, and current profit in dollars and as a share of the money the trade
+holds. Type is Long or Short. Order says Manual, DCA ladder, Grid, or Signal.
+Manual means no running smart order owns the position. Value is the absolute
+position size at the current market price, not the margin committed to the
+trade. The ticker cell has a 16px icon, 12px medium symbol, then a compact
+Testnet or Practice badge when the account is pretend. Clicking the symbol or
+anywhere else on the row opens that market on its protocol's chart. A narrow
 screen keeps every column reachable through the table's horizontal scroll.
 Trade rows use 10px of vertical padding, 2px more than the bottom Positions
 panel, to give the list a little more air without changing its type size. The
 table opens
 with the largest P/L first. Every heading sorts, and Filter narrows the rows by
-exchange, wallet, or both. Active Trades and Trades use the same counted Filter
-menu, including the All rows, Clear all, Done, and the number of filters in
-use. Each menu keeps its own open state when both widgets sit on screen. A
+exchange, wallet, or both. Every exchange and wallet starts checked. More than
+one may stay checked, and unchecking a choice removes its rows. Clear all resets
+the menu to every row. Each choice shows its row count in a muted badge directly
+beside the exchange or wallet name. The checkmark stays at the far right. The
+Filter button counts how many groups are narrowed.
+Active Trades and Trades use the same checked Filter menu. Each menu keeps its
+own open state when both widgets sit on screen. A
 wallet that could not be read does not add an
 orange warning row above the trades that did answer. When no trades answer, the
 empty wording still avoids claiming that every wallet was empty. A market whose
@@ -110,11 +115,18 @@ The signed-in header's top-right side also shows the account-wide Active Trades
 total. The first figure is the current value held in every open position. The
 second is their current profit or loss. Both are rounded to whole dollars in
 the header so the answer stays readable beside the shell controls. Hovering the
-summary opens the same Active Trades widget, with the same rows, filters,
-sorting, totals and chart links. Clicking the summary opens it for touch and
-keyboard use. The menu fits the width its table needs, up to the available
-browser width. Moving away closes it. The header asks for a fresh answer every
-15 seconds while the browser tab is visible. The Active trades item can be
+summary opens a two-tab menu. Active trades has the same rows, filters, sorting,
+totals, and chart links as the dashboard widget. Watching lists every active
+manual watched price, DCA ladder, grid, and signal order across the account.
+Its columns name the ticker, order kind, and wallet. A watched row opens that
+market on its protocol's chart. The two tabs keep separate exchange and wallet
+filters, so narrowing one list does not silently narrow the other.
+
+Clicking the summary opens the menu for touch and keyboard use. The menu grows
+with its rows and stops just above the middle of the screen. Longer lists scroll
+under their sticky headings. The menu fits the width its table needs, up to the
+available browser width. Moving away closes it. The header asks for a fresh
+answer every 15 seconds while the browser tab is visible. The Active trades item can be
 moved or hidden under Settings → Top right menu. It appears only in the admin
 menu. The eye beside Filter hides the profit or loss from the header button and
 changes to a crossed eye. The value held stays visible, so the button still
