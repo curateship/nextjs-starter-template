@@ -525,10 +525,14 @@ active range keeps the original number of levels and splits its next buys by
 the same money rule the grid was placed with.
 
 Percentage-spaced ranges keep every overlapping level at its existing price
-when they move. Repeating the percentage arithmetic can put the same price a
-few trillionths away, which is treated as the same price rather than a reason
-to pause the grid. A real difference at the market's price step still pauses
-before an existing level can be changed.
+when they move. The moved range is rounded to the market's price step first,
+and the levels are drawn from that rounded range, so the next move redraws the
+same prices it saved. Before 3 September 2026 the levels were drawn from the
+unrounded range, which left a saved level one step away from the redraw and
+paused a healthy grid with "does not fit this market's price step" (MUBARAK on
+KuCoin was the case). A saved level one step away from the redrawn one is now
+the same level, and it keeps the price it traded at. A gap of two steps or more
+still pauses before an existing level can be changed.
 
 The position on the wallet is still the final count of what exists. If coins
 from a carried level were already closed by hand, the grid removes that carried

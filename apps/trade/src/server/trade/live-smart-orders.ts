@@ -92,6 +92,7 @@ import {
 } from "@/server/trade/smart-order-actions"
 import { walletCredential } from "@/server/trade/wallet-auth"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
+import { engineCanMarketBuyFirstDca } from "@/server/trade/workers"
 import {
   assertLadderRungsTradable,
   ladderById,
@@ -172,6 +173,10 @@ async function placeLiveDcaLadderOnce(
   })
 
   const protocol = getProtocol(wallet.protocol)
+  const marketBuyFirst = input.flowRunId == null && input.params.marketBuyFirst
+  if (marketBuyFirst && !(await engineCanMarketBuyFirstDca())) {
+    throw new Error("LIVE_ENGINE_DCA_MARKET_FIRST_OLD")
+  }
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("LIVE_MARKET")
   const mark = (
@@ -248,9 +253,14 @@ async function placeLiveDcaLadderOnce(
     return { px, sz }
   })
   const twoGreen = input.params.twoGreen
-  const rungs: LadderRungState[] = priced.map((rung) => ({
+  const rungs: LadderRungState[] = priced.map((rung, index) => ({
     ...rung,
-    status: !twoGreen && rung.px >= mark ? "skipped" : "waiting",
+    status:
+      (!twoGreen || marketBuyFirst) &&
+      !(marketBuyFirst && index === 0) &&
+      rung.px >= mark
+        ? "skipped"
+        : "waiting",
     budget: rung.px * rung.sz,
     orderId: null,
     sellOrderId: null,
@@ -261,19 +271,19 @@ async function placeLiveDcaLadderOnce(
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
-  // Two-green marks nothing skipped — price under a rung is its trigger — so
-  // the check above cannot fire for it. Real money, so this matters more here
-  // than anywhere: without it, a two-green ladder on a coin that has fallen
-  // under its deepest rung buys every rung at once on the next two greens.
-  // Matches `draftDcaLadder`, which the practice and replay paths use.
-  if (twoGreen && rungs.every((rung) => rung.px >= mark)) {
+  // Two-green normally marks nothing skipped because price under a rung is its
+  // trigger, so the check above cannot fire for it. Real money, so this matters
+  // more here than anywhere. Without it, a two-green ladder on a coin that has
+  // fallen under its deepest rung buys every rung at once on the next two
+  // greens. The explicit market-first choice skips deeper passed rungs, so it
+  // does not need this refusal. Matches `draftDcaLadder`.
+  if (twoGreen && !marketBuyFirst && rungs.every((rung) => rung.px >= mark)) {
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
-  // Placing sends NOTHING to the exchange. The ladder is a row the engine
-  // watches — each rung a price, bought at market when price reaches it — so
-  // there are no orders to place here, no order-cap to count against, and no
-  // rollback to carry. Nothing about the account changes until a rung fires.
+  // Placing normally sends nothing to the exchange. Each rung is a watched
+  // price. The hand-placement option below deliberately asks the engine for
+  // rung 1 as soon as the durable ladder row exists.
   const now = new Date()
   const ladderId = randomUUID()
   const plan = ladderPlan(
@@ -325,8 +335,9 @@ async function placeLiveDcaLadderOnce(
   })
 
   return {
-    placed: rungs.filter((rung) => rung.status === "waiting").length,
-    passed: rungs.filter((rung) => rung.status === "skipped").length,
+    placed: plan.rungs.filter((rung) => rung.status === "waiting").length,
+    passed: plan.rungs.filter((rung) => rung.status === "skipped").length,
+    marketFirst: marketBuyFirst ? "queued" : "off",
     // The row as written, so the chart draws the ladder in the same frame the
     // window closes — see `PlacedLadder`.
     ladder: {
@@ -368,6 +379,9 @@ function ladderPlan(
     // here rather than in the engine is what keeps those two apart, so this
     // change does not quietly rewrite what every past run measured.
     rungEntry: "market" as const,
+    ...(input.flowRunId == null && input.params.marketBuyFirst
+      ? { marketBuyFirst: true }
+      : {}),
     startedAt: Date.now(),
     baseDetection: input.params.baseDetection,
     sizeDecimals,

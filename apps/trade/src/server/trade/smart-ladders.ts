@@ -20,7 +20,7 @@ import {
 } from "@/lib/trade/dca"
 import { canOpenAnother, type EntryLimit } from "@/lib/trade/entry-limit"
 import type { GridPlan } from "@/lib/trade/grid"
-import type { SignalPlan } from "@/lib/trade/signal-order"
+import { restingChasePx, type SignalPlan } from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import { readSmartOrderKind, readSmartPlan } from "@/lib/trade/smart-plan"
 import { leftForANewerBuild } from "@/server/trade/left-for-newer-build"
@@ -576,6 +576,28 @@ export async function advanceOne(
 
   // ----- The rungs themselves -------------------------------------------
 
+  // The placement choice makes rung 1 the one exception to the watched
+  // prices. It spends that rung's fixed dollar budget at today's price, then
+  // the rest of the ladder follows its ordinary watched or two-green rules.
+  let boughtMarketFirstThisPass = false
+  const firstRung = plan.rungs[0]
+  if (
+    plan.marketBuyFirst &&
+    firstRung &&
+    firstRung.status === "waiting" &&
+    !firstRung.dead
+  ) {
+    const mark = input.marks.get(row.marketKey)
+    if (
+      mark !== undefined &&
+      mark > 0 &&
+      buyRungAtMark(plan, input, deps, row.marketKey, firstRung, mark)
+    ) {
+      changed = true
+      boughtMarketFirstThisPass = true
+    }
+  }
+
   // Two-green waits for its confirmation candles; every other ladder's rungs
   // are triggers, fired off the live price the moment it crosses them.
   if (plan.twoGreen) {
@@ -730,7 +752,11 @@ export async function advanceOne(
       const mark = input.marks.get(row.marketKey) ?? null
       for (const [index, rung] of plan.rungs.entries()) {
         if (rung.status !== "filled" || rung.sellOrderId) continue
-        // At the rung above, or at the market if price is already past it.
+        // The market-first buy must reach the exchange before its sell. On the
+        // next pass the real position is visible and the sell can safely rest.
+        if (boughtMarketFirstThisPass && index === 0) continue
+        // At the rung above, or just beyond the market if price already passed
+        // it. A post-only sell at the market is refused rather than rested.
         //
         // A sell resting BELOW the market is a sale that has already happened
         // everywhere except here: a real exchange fills it instantly at the
@@ -740,12 +766,17 @@ export async function advanceOne(
         // biggest lots of every held ladder, open forever.
         //
         // Below the market it is untouched, which is every ordinary sale.
+        const exitPx =
+          plan.marketBuyFirst && index === 0
+            ? restingLadderSellPx(exits[index], mark, roundPx)
+            : roundPx(
+                mark !== null && mark > exits[index] ? mark : exits[index]
+              )
+        if (exitPx === null) continue
         rung.sellOrderId = await deps.insertOrder({
           marketKey: row.marketKey,
           side: "sell",
-          px: roundPx(
-            mark !== null && mark > exits[index] ? mark : exits[index]
-          ),
+          px: exitPx,
           sz: rung.sz,
           leverage: held.leverage,
           maxLeverage: plan.maxLeverage,
@@ -756,7 +787,11 @@ export async function advanceOne(
       }
     }
 
-    if (plan.takeProfit?.mode === "exitLadder" && !holdingOut) {
+    if (
+      plan.takeProfit?.mode === "exitLadder" &&
+      !holdingOut &&
+      !boughtMarketFirstThisPass
+    ) {
       const exits = exitLadderLevels(plan)
       const mark = input.marks.get(row.marketKey) ?? null
       let remainingHeld = Math.min(held.szi, ladderHeldSz(plan))
@@ -781,12 +816,14 @@ export async function advanceOne(
         }
         if (!(wantedSz > 0)) continue
 
+        const exitPx = plan.marketBuyFirst
+          ? restingLadderSellPx(exits[index], mark, roundPx)
+          : roundPx(mark !== null && mark > exits[index] ? mark : exits[index])
+        if (exitPx === null) continue
         exit.orderId = await deps.insertOrder({
           marketKey: row.marketKey,
           side: "sell",
-          px: roundPx(
-            mark !== null && mark > exits[index] ? mark : exits[index]
-          ),
+          px: exitPx,
           sz: wantedSz,
           leverage: held.leverage,
           maxLeverage: plan.maxLeverage,
@@ -809,6 +846,18 @@ export async function advanceOne(
   if (await reviveRungs(plan, input, deps, row, holdingOut)) changed = true
 
   if (changed) await persistLadder(input, deps, row, "active")
+}
+
+/** A reduce-only sell that stays on the resting side of today's market. */
+function restingLadderSellPx(
+  wantedPx: number,
+  mark: number | null,
+  roundPx: (px: number) => number
+): number | null {
+  const wanted = roundPx(wantedPx)
+  return mark !== null && wanted <= mark
+    ? restingChasePx("sell", mark, roundPx)
+    : wanted
 }
 
 /**
@@ -1506,41 +1555,54 @@ function fireRungsOnMark(
   let changed = false
   for (const rung of plan.rungs) {
     if (rung.status !== "waiting" || rung.dead || mark > rung.px) continue
-    const px = slippedPx(mark, "buy", input.book.costs.slippageRate)
-    const sz = floorSize(rungBudget(rung) / px, plan.sizeDecimals)
-    if (sz <= 0) continue
-    // Under the exchange's minimum, the order is refused before it exists —
-    // sending it anyway spent a request to be told no, and the refusal path
-    // then recorded the rung as bought with nothing behind it. The rung stays
-    // waiting instead: pots move, and a rung too small today may clear the
-    // bar tomorrow. The buy-back path applies the same rule.
-    if (px * sz < MIN_ORDER_USD) continue
-    if (!mayOpenCoin(input.book, marketKey, plan.maxLeverage, input.now)) {
-      continue
+    if (buyRungAtMark(plan, input, deps, marketKey, rung, mark)) {
+      changed = true
     }
-    if ((px * sz) / plan.leverage > deps.freeCash(input.book) + 1e-9) continue
-    const priorSz = rung.sz
-    deps.fill(input.book, {
-      marketKey,
-      side: "buy",
-      px,
-      sz,
-      feeRate: input.book.costs.takerFeeRate,
-      leverage: plan.leverage,
-      maxLeverage: plan.maxLeverage,
-      reduceOnly: false,
-      reason: "order",
-      at: input.now,
-      undo: () => {
-        rung.status = "waiting"
-        rung.sz = priorSz
-      },
-    })
-    rung.sz = sz
-    rung.status = "filled"
-    changed = true
   }
   return changed
+}
+
+/** Spend one rung's fixed dollar budget at today's market price. */
+function buyRungAtMark(
+  plan: LadderPlan,
+  input: LadderAdvanceInput,
+  deps: LadderEngineDeps,
+  marketKey: string,
+  rung: LadderPlan["rungs"][number],
+  mark: number
+): boolean {
+  const px = slippedPx(mark, "buy", input.book.costs.slippageRate)
+  const sz = floorSize(rungBudget(rung) / px, plan.sizeDecimals)
+  if (sz <= 0) return false
+  // Under the exchange's minimum, the order is refused before it exists.
+  // The rung stays waiting because its budget or the market can change.
+  if (px * sz < MIN_ORDER_USD) return false
+  if (!mayOpenCoin(input.book, marketKey, plan.maxLeverage, input.now)) {
+    return false
+  }
+  if ((px * sz) / plan.leverage > deps.freeCash(input.book) + 1e-9) {
+    return false
+  }
+  const priorSz = rung.sz
+  deps.fill(input.book, {
+    marketKey,
+    side: "buy",
+    px,
+    sz,
+    feeRate: input.book.costs.takerFeeRate,
+    leverage: plan.leverage,
+    maxLeverage: plan.maxLeverage,
+    reduceOnly: false,
+    reason: "order",
+    at: input.now,
+    undo: () => {
+      rung.status = "waiting"
+      rung.sz = priorSz
+    },
+  })
+  rung.sz = sz
+  rung.status = "filled"
+  return true
 }
 
 async function insertLadderOrder(

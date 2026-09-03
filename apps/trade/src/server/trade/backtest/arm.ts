@@ -54,7 +54,9 @@ export function armLadder(input: {
   try {
     const draft = draftDcaLadder({
       marketKey: input.marketKey,
-      params: input.params,
+      // Buying rung 1 now belongs to the hand-placement window. A replay has
+      // no placement click in real time and keeps its existing rung model.
+      params: { ...input.params, marketBuyFirst: false },
       interval: input.interval,
       // Nothing was clicked in a replay, so the click price is today's price.
       // Only read when the ladder is set to hang off a click rather than a base.

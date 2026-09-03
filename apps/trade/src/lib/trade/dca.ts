@@ -301,6 +301,12 @@ export const dcaParamsSchema = z.object({
   /** Buy only after two green candles confirm the turn, instead of resting orders. */
   twoGreen: z.boolean(),
   /**
+   * Buy the first rung at today's market price as the ladder is placed. The
+   * remaining rungs keep their planned prices. Off preserves the watched-only
+   * placement used by older saved settings.
+   */
+  marketBuyFirst: z.boolean().default(false),
+  /**
    * Where rung 1 is measured from. Defaults to the base, so a ladder saved
    * before this existed gets the rule the QFL automation uses.
    */
@@ -403,6 +409,7 @@ export function defaultDcaParams(): DcaParams {
     leverage: 1,
     maxOrderVolPct: 0,
     twoGreen: false,
+    marketBuyFirst: false,
     anchor: "base",
     baseDetection: baseStopDetection(),
     rungEntry: "limit",
@@ -716,6 +723,11 @@ export const ladderPlanSchema = z.object({
    * sell on the same bar's bounce — the model every measured run used.
    */
   rungEntry: z.enum(["market", "limit"]).default("limit"),
+  /**
+   * Rung 1 ignores its watched price until it has bought once. Used only by
+   * the hand-placement choice to buy that first slice immediately.
+   */
+  marketBuyFirst: z.boolean().optional(),
   /**
    * When this ladder came into existence, in epoch milliseconds.
    *

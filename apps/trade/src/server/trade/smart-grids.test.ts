@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
+import { snapToTick } from "@/lib/protocols/tick"
 import {
   defaultGridParams,
   gridFlippedPcts,
@@ -55,6 +56,8 @@ import {
 
 const marks = new Map<string, number>([["BTC", 200]])
 let candles: CandleBar[] = []
+/** The market's price step. Null leaves every price exactly as drawn. */
+let tick: number | null = null
 
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -74,6 +77,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             subExchange: null,
             category: "crypto",
             sizeDecimals: 3,
+            priceTick: tick,
             maxLeverage: 50,
             isolatedOnly: false,
             iconUrl: null,
@@ -92,7 +96,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             .map((id) => [id, marks.get(id) as number])
         ),
       candles: async () => candles,
-      roundPx: (px: number) => px,
+      roundPx: (px: number) => snapToTick(px, tick),
     },
     account: { fetch: async () => null },
   }),
@@ -179,6 +183,7 @@ beforeEach(async () => {
   clearMarketRulesCache()
   marks.set("BTC", 200)
   candles = []
+  tick = null
 
   userId = (await insertUser(database)).id
   await database.insert(tradeWallets).values({
@@ -571,6 +576,7 @@ describe("one smart order per coin per wallet", () => {
         compound: true,
         maxOrderVolPct: 0,
         twoGreen: false,
+        marketBuyFirst: false,
         rungEntry: "limit",
         anchor: "click",
         takeProfit: null,
@@ -598,6 +604,7 @@ describe("one smart order per coin per wallet", () => {
           compound: true,
           maxOrderVolPct: 0,
           twoGreen: false,
+          marketBuyFirst: false,
           rungEntry: "limit",
           anchor: "click",
           takeProfit: null,
@@ -1795,6 +1802,62 @@ describe("following price down", () => {
     ])
     const potAfter = grid.plan.levels.reduce((sum, one) => sum + one.budget, 0)
     expect(potAfter).toBeCloseTo(potBefore, 0)
+  })
+
+  it("keeps stepping down a percentage-spaced range on a market with a price step", async () => {
+    // MUBARAK's pause, 3 Sep 2026. Percentage spacing puts a level a few
+    // hundred-thousandths past a tick; drawing the levels from the unrounded
+    // range and saving the range rounded left the next redraw one tick off the
+    // saved level, which the grid read as "does not fit the price step".
+    tick = 0.01
+    await priceTo(100)
+    await place({ followDown: true, spacing: "compounding" })
+    await priceTo(121)
+    await priceTo(20)
+    for (let pass = 0; pass < 8; pass += 1) await settle()
+
+    const grid = await onlyGrid()
+    expect(grid.plan.paused).toBeFalsy()
+    expect(grid.plan.downShifts).toBeGreaterThanOrEqual(8)
+    // Every saved price sits on the tick, and the range redraws to the same
+    // waiting prices it saved.
+    for (const level of grid.plan.levels) {
+      expect(level.buyPx).toBe(snapToTick(level.buyPx, tick))
+      expect(level.sellPx).toBe(snapToTick(level.sellPx, tick))
+    }
+  })
+
+  it("moves a grid saved with levels one tick off the redrawn range", async () => {
+    // A grid saved before the fix carries that one-tick gap. It must slide,
+    // keeping every old level at the price it actually traded.
+    tick = 0.01
+    await priceTo(100)
+    await place({ followDown: true, spacing: "compounding" })
+    await priceTo(121)
+    const before = await onlyGrid()
+    const nudged = before.plan.levels.map((level, index) =>
+      index === 0
+        ? level
+        : {
+            ...level,
+            buyPx: snapToTick(level.buyPx - 0.01, tick),
+            sellPx: snapToTick(level.sellPx - 0.01, tick),
+          }
+    )
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan: { ...before.plan, levels: nudged } })
+      .where(eq(tradeSmartLadders.id, before.id))
+
+    await priceTo(79)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.paused).toBeFalsy()
+    expect(grid.plan.downShifts).toBe(1)
+    // The old levels moved one place down the array and kept their prices.
+    expect(grid.plan.levels.slice(1).map((one) => one.buyPx)).toEqual(
+      nudged.slice(0, -1).map((one) => one.buyPx)
+    )
   })
 
   it("pauses when the exchange's new minimum makes the lower buys too small", async () => {

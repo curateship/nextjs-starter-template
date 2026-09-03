@@ -189,9 +189,10 @@ export function SmartOrderDialog({
       baseDetection: baseStopDetection(),
       compound: true,
       rungEntry: "limit",
+      marketBuyFirst: form.marketBuyFirst,
     })
     return checked.success ? checked.data : null
-  }, [inspection.settings])
+  }, [form.marketBuyFirst, inspection.settings])
 
   // The click stands in for the base until the base read lands, so the rungs
   // draw in the same frame the window opens. Placing still waits for the real
@@ -355,7 +356,7 @@ export function SmartOrderDialog({
     })
     // The server remembers these on placing; the browser's copy keeps the
     // next window from opening on anything older.
-    if (placed) rememberDcaPrefs(params)
+    if (placed) rememberDcaPrefs({ ...params, marketBuyFirst: false })
     if (placed) onClose()
   }
 
@@ -389,6 +390,7 @@ export function SmartOrderDialog({
             suggestedSlPct={suggestedSlPct}
             plannedRungs={plan?.rungs}
             volumeCapped={plan?.volumeCapped}
+            marketBuyFirstOption
             onChange={changeForm}
             onBlur={() => setShowValidation(true)}
           />

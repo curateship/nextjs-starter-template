@@ -6,12 +6,16 @@ import { assertRealMoneySwitchOn } from "@/server/protocols/real-money"
 import { createTestDatabase } from "@/server/test-support"
 import {
   clearFlowScanRequest,
+  engineCanMarketBuyFirstDca,
   realMoneySwitch,
   requestFlowScan,
   setRealMoneySwitch,
   setWorkerSwitch,
 } from "@/server/trade/workers"
-import { tradeWorkerControls } from "@/server/trade/schema"
+import {
+  tradeWorkerControls,
+  tradeWorkerHeartbeats,
+} from "@/server/trade/schema"
 
 /**
  * The real-money permission, both layers.
@@ -69,6 +73,31 @@ describe("the real-money switch", () => {
 })
 
 describe("the ladders switch", () => {
+  it("allows market-first ladders only when every live engine supports them", async () => {
+    const now = new Date("2026-09-03T14:00:00.000Z")
+    expect(await engineCanMarketBuyFirstDca(db, now)).toBe(false)
+
+    await db.insert(tradeWorkerHeartbeats).values({
+      id: "new-leader",
+      kind: "ladders",
+      startedAt: now,
+      lastSeenAt: now,
+      role: "leader",
+      meta: { dcaMarketFirst: true },
+    })
+    expect(await engineCanMarketBuyFirstDca(db, now)).toBe(true)
+
+    await db.insert(tradeWorkerHeartbeats).values({
+      id: "old-standby",
+      kind: "ladders",
+      startedAt: now,
+      lastSeenAt: now,
+      role: "standby",
+      meta: {},
+    })
+    expect(await engineCanMarketBuyFirstDca(db, now)).toBe(false)
+  })
+
   it("does not clear a newer folder scan request", async () => {
     await requestFlowScan(db)
     const [first] = await db

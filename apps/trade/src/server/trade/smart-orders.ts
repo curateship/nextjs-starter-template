@@ -96,10 +96,12 @@ export type PlaceLadderInput = {
 }
 
 export type PlacedLadder = {
-  /** How many rungs the ladder has. */
+  /** How many rungs are waiting after placement finishes. */
   placed: number
   /** Rungs price had already passed, so they never got a chance to wait. */
   passed: number
+  /** What happened to the one-shot first-rung market request. */
+  marketFirst: "off" | "queued" | "bought" | "waiting"
   /**
    * The ladder exactly as it was written down, so the chart can draw it in
    * the same frame the window closes — the same reason `PlacedGrid` carries
@@ -237,7 +239,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
 
   const twoGreen = params.twoGreen
 
-  const rungs: LadderRungState[] = priced.map((rung) => {
+  const rungs: LadderRungState[] = priced.map((rung, index) => {
     const state: LadderRungState = {
       px: rung.px,
       sz: rung.sz,
@@ -255,7 +257,11 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     // resting an order does not change that — and without this, every rung
     // already under the price fills on the very next bar, which turned one
     // ladder into a cascade of buys at one price.
-    if (!twoGreen && isMarketable("buy", rung.px, mark)) {
+    if (
+      (!twoGreen || params.marketBuyFirst) &&
+      !(params.marketBuyFirst && index === 0) &&
+      isMarketable("buy", rung.px, mark)
+    ) {
       // Price is already below this rung, so its moment has been and gone.
       //
       // It used to buy here, at the market — which is defensible for one rung
@@ -278,14 +284,18 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
-  // Two-green mode marks nothing as skipped — price being under a rung is its
-  // trigger — so the check above can never fire for it. That was covered by
+  // Two-green mode normally marks nothing as skipped because price being under
+  // a rung is its trigger, so the check above cannot fire for it. That was covered by
   // the under-base refusal until it was removed, and without this a two-green
   // ladder placed on a coin that has fallen under its deepest rung would buy
   // EVERY rung at once on the next two green candles: the cascade of buys at
   // one price the skip rule above exists to prevent, arriving through the one
   // door that rule does not watch.
-  if (twoGreen && rungs.every((rung) => isMarketable("buy", rung.px, mark))) {
+  if (
+    twoGreen &&
+    !params.marketBuyFirst &&
+    rungs.every((rung) => isMarketable("buy", rung.px, mark))
+  ) {
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
@@ -330,6 +340,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     // are one strategy — a replay that modelled resting fills would be testing
     // behaviour the live wallet no longer has.
     rungEntry: "market" as const,
+    ...(params.marketBuyFirst ? { marketBuyFirst: true } : {}),
     // Where the candle watch starts reading. Anything earlier belongs to a
     // market this ladder was not alive for.
     startedAt: input.startedAt ?? 0,
@@ -407,16 +418,19 @@ export async function placeDcaLadder(
     marks,
   })
 
+  const params = input.flowRunId
+    ? { ...input.params, marketBuyFirst: false }
+    : input.params
   const { plan, rungs } = draftDcaLadder({
     marketKey: input.marketKey,
-    params: input.params,
+    params,
     interval: input.interval,
     clickPx: input.clickPx,
     mark,
     base,
     rules,
     roundPx,
-    equity: input.params.compound ? figures.equity : wallet.startingBalance,
+    equity: params.compound ? figures.equity : wallet.startingBalance,
     // Where the candle watch starts reading. Without this the plan kept the
     // draft's zero, and the first settle walked every candle the feed held —
     // buying rungs on bars from months before the ladder existed. The live
@@ -506,15 +520,24 @@ export async function placeDcaLadder(
     })
   })
 
-  // One more settle lets the ladder engine finish the job — aim the brackets
-  // of anything that bought immediately, and rest its sells.
+  // One settle makes the requested market buy. Its per-rung sells wait for the
+  // next pass so the entry exists before its reduce-only exit. Practice can run
+  // that follow-up immediately because its new position is already visible.
   await settleWallet(userId, wallet, { marks })
+  if (params.marketBuyFirst) await settleWallet(userId, wallet, { marks })
+  const saved = await ladderById(userId, wallet.id, ladderId)
+  const savedPlan = saved.plan
 
   return {
-    placed: rungs.filter((rung) => rung.status === "waiting").length,
+    placed: savedPlan.rungs.filter((rung) => rung.status === "waiting").length,
     // Rungs price had already passed. Reported rather than hidden: a ladder
     // that placed four of seven buys should say so on the spot.
-    passed: rungs.filter((rung) => rung.status === "skipped").length,
+    passed: savedPlan.rungs.filter((rung) => rung.status === "skipped").length,
+    marketFirst: params.marketBuyFirst
+      ? savedPlan.rungs[0]?.status === "filled"
+        ? "bought"
+        : "waiting"
+      : "off",
     ladder: {
       id: ladderId,
       walletId: wallet.id,
@@ -524,7 +547,7 @@ export async function placeDcaLadder(
       flowRunId: input.flowRunId ?? null,
       createdAt: now,
       updatedAt: now,
-      plan,
+      plan: savedPlan,
     },
   }
 }

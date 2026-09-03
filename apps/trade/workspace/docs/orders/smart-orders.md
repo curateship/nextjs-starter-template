@@ -1,10 +1,22 @@
-# Smart-order entries never rest on the book
+# Smart-order entries do not rest on the book
 
-**A smart order places no entry until a price is actually reached.** A level on
-the chart is a price the app is watching. When the market gets there, and only
-then, an entry is sent. Nothing sits on the exchange's book waiting to buy.
+**A smart order normally places no entry until a price is actually reached.** A
+level on the chart is a price the app is watching. When the market gets there,
+an entry is sent. Nothing sits on the exchange's book waiting to buy.
 Reduce-only exits may rest after a buy because they can only sell coins already
 held.
+
+A hand-placed DCA ladder has one deliberate exception. **Buy rung 1 at market
+now** spends rung 1's shown dollar amount at today's price as part of placement.
+The app changes the coin amount to keep those dollars fixed. Every deeper rung
+stays at its shown price and waits under the same rules as before. The choice is
+off by default, so an older saved setup still sends nothing when placed.
+
+The real-wallet request belongs to the trading engine, not the web process.
+Every running engine copy announces whether it understands the market-first
+field. The web app refuses the placement before saving anything unless all of
+them do. Deploy the web app and trading engine together; opening new web code
+against an older engine would otherwise leave the ladder untouched forever.
 
 Placing a ladder or grid does not reserve its planned buys from today's free
 cash. The window may show that the complete plan controls more dollars than are

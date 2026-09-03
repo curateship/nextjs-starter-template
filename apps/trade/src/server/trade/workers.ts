@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm"
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm"
 
 import {
   safeWorkerError,
@@ -36,6 +36,37 @@ import {
 
 /** No beat for this long and the engine is treated as gone. */
 const ONLINE_WINDOW_MS = 30_000
+
+/**
+ * True only when every running ladder engine understands the one-shot DCA
+ * market buy. An older standby could become leader at any moment, so one old
+ * copy is enough to refuse a new plan that it would leave untouched.
+ */
+export async function engineCanMarketBuyFirstDca(
+  database: CustomShellDb = db,
+  checkedAt = new Date()
+): Promise<boolean> {
+  const online = await database
+    .select({
+      role: tradeWorkerHeartbeats.role,
+      meta: tradeWorkerHeartbeats.meta,
+    })
+    .from(tradeWorkerHeartbeats)
+    .where(
+      and(
+        eq(tradeWorkerHeartbeats.kind, "ladders"),
+        gte(
+          tradeWorkerHeartbeats.lastSeenAt,
+          new Date(checkedAt.getTime() - ONLINE_WINDOW_MS)
+        )
+      )
+    )
+
+  return (
+    online.some((beat) => beat.role === "leader") &&
+    online.every((beat) => beat.meta?.dcaMarketFirst === true)
+  )
+}
 
 /** How long a stopped copy's last beat is kept, so "when did it last run" has an answer. */
 const HEARTBEAT_KEEP_MS = 3 * 24 * 60 * 60_000

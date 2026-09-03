@@ -931,6 +931,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     LIVE_MARKET: "That market is not one this live wallet can trade.",
     LIVE_NO_PRICE:
       "The exchange would not give a price for that market, so nothing was placed.",
+    LIVE_ENGINE_DCA_MARKET_FIRST_OLD:
+      "The trading engine has not been updated for an immediate DCA buy, so nothing was placed. Deploy the web app and trading engine together, then try again.",
     EXCHANGE_BUSY:
       "The exchange is asking us to slow down, so it would not give a price. Nothing was placed. Try again in a minute — it clears on its own.",
     LIVE_MAINNET_OFF:

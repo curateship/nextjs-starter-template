@@ -81,6 +81,17 @@ const NEXT_LEVEL_OFF_TICK =
   "The next grid level does not fit this market's price step. The grid paused before placing it."
 
 /**
+ * Whether two prices are the same level: equal, or one exchange tick apart on
+ * a market that states its tick. A market with no stated tick keeps the exact
+ * rule, because there is no step to measure a gap against.
+ */
+function withinOneTick(a: number, b: number, tick: number | null): boolean {
+  if (near(a, b)) return true
+  if (tick === null || !(tick > 0)) return false
+  return Math.abs(a - b) <= tick * (1 + 1e-6)
+}
+
+/**
  * How long a holding grid's position must be missing from the wallet read
  * before the absence is believed to mean the position is gone.
  *
@@ -701,9 +712,16 @@ function followTheRangeAway(
   takerFeeRate: number
 ): boolean {
   const direction = plan.direction
+  // The range is saved rounded, so the levels are drawn from the ROUNDED range.
+  // Drawing them from the unrounded one and saving the rounded one left the
+  // next redraw a tick away from the saved levels, which read as "does not fit
+  // the price step" and paused a healthy grid.
+  const top = roundPx(moved.topPx)
+  const bottom = roundPx(moved.bottomPx)
+  if (!(top > bottom) || !(bottom > 0)) return false
   const drawn = gridLevels({
-    topPx: moved.topPx,
-    bottomPx: moved.bottomPx,
+    topPx: top,
+    bottomPx: bottom,
     levels: plan.levels.length,
     spacing: plan.spacing,
     direction,
@@ -731,10 +749,6 @@ function followTheRangeAway(
     if (level.sz <= 0 || level.sz * level.buyPx < plan.minOrderValueUsd)
       return false
   }
-
-  const top = roundPx(moved.topPx)
-  const bottom = roundPx(moved.bottomPx)
-  if (!(top > bottom) || !(bottom > 0)) return false
 
   // A second move must not shake the first traded price's next-rung
   // requirement off. Carry each unfinished requirement by price as that price
@@ -808,9 +822,13 @@ function followTheRangeInto(
 ): { moved: boolean; reason: string | null } {
   const direction = plan.direction
   const count = plan.levels.length
+  // Same rule as the move away: the levels come from the rounded range that
+  // is about to be saved, so the next pass redraws exactly these prices.
+  const topPx = roundPx(moved.topPx)
+  const bottomPx = roundPx(moved.bottomPx)
   const prices = gridLevels({
-    topPx: moved.topPx,
-    bottomPx: moved.bottomPx,
+    topPx,
+    bottomPx,
     levels: count,
     spacing: plan.spacing,
     direction,
@@ -818,8 +836,6 @@ function followTheRangeInto(
     buyPx: roundPx(level.buyPx),
     sellPx: roundPx(level.sellPx),
   }))
-  const topPx = roundPx(moved.topPx)
-  const bottomPx = roundPx(moved.bottomPx)
   if (
     prices.length !== count ||
     !(topPx > bottomPx) ||
@@ -839,13 +855,18 @@ function followTheRangeInto(
   const shift = direction === "long" ? 1 : -1
 
   // Old level i becomes new level i + shift. If the exchange's price tick
-  // prevents that exact overlap, moving would rewrite the prices old coins
-  // traded at. Pause instead.
+  // prevents that overlap, moving would rewrite the prices old coins traded
+  // at. Pause instead. A gap of one tick is the same level: grids saved before
+  // the levels were drawn from the rounded range carry that gap, and every old
+  // level keeps its own saved prices below, so nothing is rewritten.
   for (let index = 0; index < count; index += 1) {
     if (index === carriedAt) continue
     const old = plan.levels[index]
     const next = prices[index + shift]
-    if (!near(old.buyPx, next.buyPx) || !near(old.sellPx, next.sellPx)) {
+    if (
+      !withinOneTick(old.buyPx, next.buyPx, plan.priceTick) ||
+      !withinOneTick(old.sellPx, next.sellPx, plan.priceTick)
+    ) {
       return { moved: false, reason: NEXT_LEVEL_OFF_TICK }
     }
   }

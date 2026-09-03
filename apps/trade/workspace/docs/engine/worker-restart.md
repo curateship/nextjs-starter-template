@@ -82,6 +82,13 @@ This protects the next time round, not the last one. The build that did the
 damage on 3 Sep had no such check, and no change made today can reach a
 container that has already been built.
 
+The engine heartbeat also says whether it understands the DCA market-first
+field. The web app checks every live engine and standby before saving a real
+ladder with that field. An old copy makes placement fail without creating a
+ladder. This keeps a newer web process from leaving an order that the older
+engine correctly refuses to touch. A ladder that did not ask for the immediate
+buy does not store the field and remains compatible with the older engine.
+
 ## One thing to confirm on the server
 
 The engine exits 0, so Coolify's restart policy for the engine resource must

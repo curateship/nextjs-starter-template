@@ -190,6 +190,17 @@ add up to.
   which is one big lump, not a ladder. This is a birth rule only: a rung a
   RUNNING ladder already owns is never thrown away (the rule below). Live and
   the replay do the identical thing here.
+- **A hand-placed ladder may buy rung 1 at market when asked.** The first buy
+  spends rung 1's fixed dollar amount at today's price. Deeper rungs stay at
+  their planned prices, and any deeper price already passed is skipped rather
+  than added to the market buy. The choice starts off. The buy reaches the
+  exchange before any reduce-only sell created for it. That sell waits for the
+  position to appear and rests above the current price if its old level has
+  already passed.
+- **A real market-first ladder waits for a matching engine build.** Every live
+  engine and standby must announce that it understands the new plan field.
+  Otherwise the app refuses before saving the ladder or sending money. Deploy
+  the web app and engine together.
 - **The base stop steps the ladder down.** Selling at the stop and re-buying
   at the next rung is one motion of the same ladder, not a new ladder.
 - **A rung is never written off for money or price.** Dropped for cash, it
