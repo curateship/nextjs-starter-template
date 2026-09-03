@@ -979,6 +979,29 @@ export const tradeCandleGaps = pgTable(
   ]
 )
 
+/**
+ * A stock split the candle store found in a source's raw prices, and folded
+ * back so the whole history reads in today's units.
+ *
+ * Dukascopy publishes what traded, so Tesla is $2,211 on 28 Aug 2020 and
+ * $443 the next session. `at` is the first bar in the new units and `ratio`
+ * is old units per new unit: 5 for a five-for-one split, 0.1 for a one-for-
+ * ten reverse. Every stored bar before `at` has been divided by the ratio,
+ * and any raw bar fetched later for that stretch is divided on its way in.
+ */
+export const tradeCandleSplits = pgTable(
+  "trade_candle_splits",
+  {
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    at: bigint("at", { mode: "number" }).notNull(),
+    ratio: doublePrecision("ratio").notNull(),
+    detectedAt: timestamp("detected_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.marketKey, table.at] })]
+)
+
 /** Historical funding settlements, shared like the candle store. */
 export const tradeFundingRates = pgTable(
   "trade_funding_rates",

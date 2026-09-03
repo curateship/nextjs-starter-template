@@ -44,6 +44,8 @@ import {
   loadStoredFunding,
 } from "@/server/trade/funding-store"
 import { replayMarketRules } from "@/server/trade/market-rules"
+import { resolveHistorySource } from "@/server/trade/history-source"
+import { getProtocol } from "@/server/protocols/registry"
 import { INTERVAL_MS } from "@/server/trade/smart-engine"
 import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
 import {
@@ -300,23 +302,31 @@ async function loadOneCoin(
 
   await note(userId, groupId, marketKey, 0.1, "Loading market history")
 
+  // Every read goes to the market's history source. A run saved before the
+  // store had sources holds venue keys, and mapping them here rather than
+  // rewriting the saved spec is what keeps that run rerunnable untouched.
+  const source = (await resolveHistorySource(marketKey)) ?? marketKey
   const window = await ensureCandleCoverage(
-    marketKey,
+    source,
     spec.interval,
     spec.from,
     spec.to
   )
   // The base rule reads the 4h whatever the run walks, and it needs history
   // from before the window so a level can already be known on day one.
-  await ensureCandleCoverage(marketKey, BASE_STOP_INTERVAL, warmFrom, spec.to)
+  await ensureCandleCoverage(source, BASE_STOP_INTERVAL, warmFrom, spec.to)
   // A signals run needs the same head start at its OWN interval. Its own call
   // rather than a wider window above, so the "no history for this coin" answer
   // still comes from exactly the stretch being tested.
   const signalFrom = signalWarmupFrom(spec)
   if (signalFrom < spec.from) {
-    await ensureCandleCoverage(marketKey, spec.interval, signalFrom, spec.from)
+    await ensureCandleCoverage(source, spec.interval, signalFrom, spec.from)
   }
-  await ensureFundingCoverage(marketKey, spec.from, spec.to)
+  // Stocks have no funding on Dukascopy. The run says so on its result
+  // rather than recording a missing stretch nobody could have filled.
+  if (sourceHasFunding(source)) {
+    await ensureFundingCoverage(source, spec.from, spec.to)
+  }
 
   if (window.barCount === 0) {
     await skipCoin(
@@ -357,6 +367,12 @@ async function loadOneCoin(
     )
 }
 
+/** Whether a market's history source settles funding at all. */
+function sourceHasFunding(source: string): boolean {
+  const ref = parseMarketKey(source)
+  return ref !== null && getProtocol(ref.protocol).funding !== undefined
+}
+
 /** The walk itself, then the numbers, then one write. */
 async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
   const { userId, groupId, spec } = claimed
@@ -377,8 +393,19 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
 
   const testable = ready.filter((coin) => coin.status !== "skipped")
   const skipped: BacktestSkip[] = []
+  /** Coins whose source settles no funding, so the result can say so. */
+  const fundingNotCounted: string[] = []
 
-  const first = parseMarketKey(testable[0]?.marketKey ?? spec.marketKeys[0])
+  // The engine's own price rounding and bar clock come from one protocol.
+  // Every history source here rounds nothing, so the first coin's is as good
+  // as any; the market rules themselves are read per coin below.
+  const first = parseMarketKey(
+    (await resolveHistorySource(
+      testable[0]?.marketKey ?? spec.marketKeys[0]
+    )) ??
+      testable[0]?.marketKey ??
+      spec.marketKeys[0]
+  )
   if (!first) throw new Error("BACKTEST_MARKET")
   const protocol = first.protocol
   const network = first.network
@@ -398,41 +425,33 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
     async (
       coin
     ): Promise<{ coin: BacktestCoin } | { skip: BacktestSkip } | null> => {
-      const ref = parseMarketKey(coin.marketKey)
+      const source = (await resolveHistorySource(coin.marketKey)) ?? coin.marketKey
+      const ref = parseMarketKey(source)
       if (!ref) return null
       const signalFrom = signalWarmupFrom(spec)
+      if (!sourceHasFunding(source)) fundingNotCounted.push(coin.symbol)
 
       try {
         const [rules, baseBars, warmupBars, windowBars, funding] =
           await Promise.all([
-            replayMarketRules(protocol, network, ref.marketId),
+            replayMarketRules(ref.protocol, ref.network, ref.marketId),
             // The base rule always reads 4h, so a run that IS on 4h wants the
             // same candles for its warm history and window. The window below
             // slices this one list instead of holding a duplicate.
             loadStoredCandles(
-              coin.marketKey,
+              source,
               BASE_STOP_INTERVAL,
               spec.from - baseWarmupBars(spec) * BASE_STOP_BAR_MS,
               spec.to
             ),
             // Indicator warm-up is bounded by the settings that are on.
             signalFrom < spec.from
-              ? loadStoredCandles(
-                  coin.marketKey,
-                  spec.interval,
-                  signalFrom,
-                  spec.from
-                )
+              ? loadStoredCandles(source, spec.interval, signalFrom, spec.from)
               : Promise.resolve([]),
             spec.interval === BASE_STOP_INTERVAL
               ? Promise.resolve(null)
-              : loadStoredCandles(
-                  coin.marketKey,
-                  spec.interval,
-                  spec.from,
-                  spec.to
-                ),
-            loadStoredFunding(coin.marketKey, spec.from, spec.to),
+              : loadStoredCandles(source, spec.interval, spec.from, spec.to),
+            loadStoredFunding(source, spec.from, spec.to),
           ])
 
         if (!rules) {
@@ -548,7 +567,8 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
     skipped,
     outcome,
     zoom.coinsWithoutMinutes(),
-    preparation
+    preparation,
+    fundingNotCounted.sort()
   )
 }
 
@@ -563,7 +583,9 @@ async function finish(
   outcome: Outcome | null,
   /** Coins the exchange publishes no minute prices for. */
   withoutMinutes: readonly string[] = [],
-  preparation?: BacktestPreparation
+  preparation?: BacktestPreparation,
+  /** Coins whose history source settles no funding, by symbol. */
+  fundingNotCounted: readonly string[] = []
 ): Promise<void> {
   const { userId, groupId, spec } = claimed
 
@@ -788,6 +810,7 @@ async function finish(
     // Null rather than zero when there is no pot to take a share of, so the
     // tile shows a dash like every other figure a run cannot answer.
     typicalInPlayPct: shares.length > 0 ? middleOf(shares) : null,
+    fundingNotCounted: [...fundingNotCounted],
     potAtWorstDipUsd:
       dip.at === null
         ? null

@@ -61,16 +61,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
+import {
+  getCandlesErrorMessage,
+  loadCandles,
+  loadOlderCandlesFor,
+} from "@/lib/api/trade/candles"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { intervalMs, wantsFullHistory } from "@/lib/trade/chart-history"
+import { intervalMs, stitchCandles } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
 import {
-  parseMarketKey,
-  protocolChasesFullHistory,
-  protocolFirstPaintMs,
   CANDLE_INTERVALS,
+  parseMarketKey,
   type CandleBar,
   type CandleInterval,
   type MarketRow,
@@ -167,12 +169,23 @@ const drawnCharts = new Map<string, CandleBar[]>()
 
 const DRAWN_CHARTS_KEPT = 40
 
+/**
+ * Charts whose older rows are already drawn behind the venue's slice. A
+ * refresh on a bar close then asks the venue again and leaves the store
+ * alone: the older rows cannot have changed, and the refresh job keeps the
+ * store itself current.
+ */
+const olderRowsDrawn = new Set<string>()
+
 function rememberDrawnChart(key: string, candles: CandleBar[]) {
   drawnCharts.delete(key)
   drawnCharts.set(key, candles)
   if (drawnCharts.size > DRAWN_CHARTS_KEPT) {
     const oldest = drawnCharts.keys().next().value
-    if (oldest !== undefined) drawnCharts.delete(oldest)
+    if (oldest !== undefined) {
+      drawnCharts.delete(oldest)
+      olderRowsDrawn.delete(oldest)
+    }
   }
 }
 
@@ -340,6 +353,23 @@ type InitialChart = {
 } | null
 
 /**
+ * Where a chart's older bars came from, for the header line.
+ *
+ * `source` is the printed name of the history source when bars older than
+ * the venue's own are on screen, and null when the whole chart is the
+ * venue's. `failed` means the store could not be filled; the venue's bars
+ * stay drawn and `retry` asks again.
+ */
+export type OlderBarsStatus = {
+  /** The market-and-interval this is about, so a stale report is ignored. */
+  key: string
+  source: string | null
+  volumeNote: string | null
+  failed: boolean
+  retry: () => void
+}
+
+/**
  * The middle of the middle panel: the picked market's price history.
  *
  * This panel owns the fetching and the honest states; `PriceChart` under it
@@ -372,6 +402,7 @@ export function ChartPanel({
   onClearShownTrade = () => {},
   addTo,
   onAddOpened,
+  onOlderBars,
 }: {
   selectedKey: string | null
   interval: CandleInterval
@@ -449,6 +480,8 @@ export function ChartPanel({
   addTo: TradePosition | null
   /** Taken; the workspace lets go of the request so it cannot fire twice. */
   onAddOpened: () => void
+  /** Where the older bars came from, for the header line beside the timeframe. */
+  onOlderBars?: (status: OlderBarsStatus) => void
 }) {
   const wide = useWideScreen()
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
@@ -473,6 +506,7 @@ export function ChartPanel({
   })
   // Bumped by the retry button; the fetch effect depends on it.
   const [attempt, setAttempt] = React.useState(0)
+  const [olderBars, setOlderBars] = React.useState<OlderBarsStatus | null>(null)
   const [orbAnswer, setOrbAnswer] = React.useState<{
     key: string
     candles: CandleBar[]
@@ -1279,28 +1313,55 @@ export function ChartPanel({
       rememberDrawnChart(wanted, candles)
       setAnswer({ key: wanted, candles, error: null })
     }
+    const report = (status: Omit<OlderBarsStatus, "key" | "retry">) => {
+      const full = {
+        ...status,
+        key: wanted,
+        retry: () => setAttempt((count) => count + 1),
+      }
+      setOlderBars(full)
+      onOlderBars?.(full)
+    }
+
+    /**
+     * The store's rows behind the venue's slice, stitched in without a
+     * flicker: the newer bars are the same bars and the chart keeps its zoom.
+     *
+     * A bonus, not the answer. The venue's bars are already drawn, so a
+     * refusal here changes nothing on screen and must not put an error card
+     * over bars that are perfectly good. The header line says the older bars
+     * could not be loaded instead, with Try again.
+     */
+    const fillBehind = (venue: CandleBar[]) => {
+      loadOlderCandlesFor(selectedKey, interval)
+        .then(({ candles: older, source, partial }) => {
+          if (stale) return
+          // Remembered only once rows really came back, and only when the
+          // fill finished. A market that had no source when it was first
+          // opened, whose fill was empty, or whose source would not answer
+          // is asked again on its next open: the answer is one cheap
+          // request, and remembering "nothing" made META stay at 30 days
+          // for the life of the tab after its source was added.
+          if (older.length > 0) {
+            draw(stitchCandles(older, venue))
+            if (!partial) olderRowsDrawn.add(wanted)
+          }
+          const seam = venue[0]?.openTime ?? Number.POSITIVE_INFINITY
+          const olderShown = older.some((bar) => bar.openTime < seam)
+          report({
+            source: source && olderShown ? source.label : null,
+            volumeNote: source && olderShown ? source.volumeNote : null,
+            failed: partial,
+          })
+        })
+        .catch(() => {
+          if (!stale) report({ source: null, volumeNote: null, failed: true })
+        })
+    }
 
     const timeout = setTimeout(
       () => {
         hasStartedCandleLoad.current = true
-        // On a timeframe that loads its whole history, the last two years are
-        // drawn first and the rest replaces them a moment later. The whole
-        // history takes a second or two to gather, and a chart showing nothing
-        // for two seconds reads as a chart that is broken; two years arrives in
-        // well under one. Nothing flickers on the swap — the newer bars are the
-        // same bars, and the chart keeps its own zoom.
-        /**
-         * How much history is worth asking for depends on the exchange. On
-         * Lighter, which allows sixty requests a minute for everything, the
-         * two-year paint plus the full-history chase came to seventeen pages
-         * for one coin — so clicking through its market list ran the minute
-         * out after eight coins and the chart said so. It asks for ninety
-         * days and does not chase; scrolling back asks for more on its own.
-         */
-        const venue = parseMarketKey(selectedKey)?.protocol
-        const staged = wantsFullHistory(interval)
-        const chases =
-          staged && venue !== undefined && protocolChasesFullHistory(venue)
 
         if (
           !handledInitialChart.current &&
@@ -1319,37 +1380,18 @@ export function ChartPanel({
               draw(initialChart.candles)
             }
           }
-          if (!initialChart.error && chases) {
-            loadCandles(selectedKey, interval)
-              .then(({ candles: deeper }) => {
-                if (deeper.length > initialChart.candles.length) draw(deeper)
-              })
-              .catch(() => {})
-          }
+          if (!initialChart.error) fillBehind(initialChart.candles)
           return
         }
 
-        const first =
-          staged && venue !== undefined
-            ? loadCandles(
-                selectedKey,
-                interval,
-                Date.now() - protocolFirstPaintMs(venue)
-              )
-            : loadCandles(selectedKey, interval)
-
-        first
+        // A refresh keeps what is already behind the venue's slice. Drawing
+        // the slice alone would throw the older rows away for a bar.
+        const previous = drawnCharts.get(wanted) ?? []
+        loadCandles(selectedKey, interval)
           .then(({ candles }) => {
-            draw(candles)
-            if (!chases || stale) return
-            // The deeper read is a bonus, not the answer: it is already drawn
-            // without it, so a refusal here changes nothing on screen and must
-            // not put an error card over bars that are perfectly good.
-            return loadCandles(selectedKey, interval)
-              .then(({ candles: deeper }) => {
-                if (deeper.length > candles.length) draw(deeper)
-              })
-              .catch(() => {})
+            draw(previous.length > 0 ? stitchCandles(previous, candles) : candles)
+            if (stale || olderRowsDrawn.has(wanted)) return
+            fillBehind(candles)
           })
           .catch((error: unknown) => {
             if (stale) return
@@ -1376,7 +1418,7 @@ export function ChartPanel({
       stale = true
       clearTimeout(timeout)
     }
-  }, [selectedKey, interval, wanted, attempt, initialChart])
+  }, [selectedKey, interval, wanted, attempt, initialChart, onOlderBars])
 
   // Refresh when a bar of this timeframe closes, so the chart appends it by
   // itself instead of waiting for a click. On the 1m chart that is the
@@ -1714,6 +1756,16 @@ export function ChartPanel({
               message="The opening range could not load the 15m candles it needs. The chart is still working. Try again in a moment."
               onRetry={() => setOrbAttempt((count) => count + 1)}
             />
+          ) : null}
+          {/* Dukascopy's volume is its own brokerage volume, not the stock
+              market's. Said on the pane that draws it, for the bars it
+              covers, rather than left for somebody to assume. */}
+          {options.volume &&
+          olderBars?.key === current.key &&
+          olderBars.volumeNote ? (
+            <span className="pointer-events-none absolute bottom-1 left-1 z-10 text-[10px] text-muted-foreground">
+              {olderBars.volumeNote}
+            </span>
           ) : null}
           <PriceChart
             candles={current.candles}

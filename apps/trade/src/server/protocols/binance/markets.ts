@@ -6,6 +6,7 @@ import type {
   NetworkId,
 } from "@/lib/protocols/contracts"
 import { marketKey } from "@/lib/protocols/contracts"
+import { coinNameFor } from "@/lib/protocols/binance/translate"
 import {
   fetchBinanceCandleRange,
   isNotListedOnBinance,
@@ -67,21 +68,6 @@ type Ticker = {
   lastPrice?: string
   priceChangePercent?: string
   quoteVolume?: string
-}
-
-/**
- * The app's coin name for a Binance symbol — the inverse of `binanceSymbolFor`.
- *
- * `BTCUSDT` is BTC. `1000PEPEUSDT` is this app's `kPEPE`, because both apps
- * write "a thousand of them" the same way the exchange that listed it did, and
- * a market called `1000PEPE` in one place and `kPEPE` in another is two names
- * for one thing.
- */
-export function coinNameFor(symbol: string): string | null {
-  if (!symbol.endsWith("USDT")) return null
-  const base = symbol.slice(0, -"USDT".length)
-  if (base.length === 0) return null
-  return base.startsWith("1000") && base.length > 4 ? `k${base.slice(4)}` : base
 }
 
 function rowFor(
@@ -227,6 +213,19 @@ export async function fetchBinanceCandles(
   const to = Date.now()
   const from = since ?? to - CHART_BARS * INTERVAL_MS[interval]
   return fetchBinanceCandleRange(marketId, interval, from, to)
+}
+
+/**
+ * The earliest moment Binance could have a perpetual bar for anything.
+ *
+ * Binance Futures opened in September 2019. Asking before that costs a page
+ * of nothing per coin per six months, and the candle store asks page by page
+ * from wherever it is told to start.
+ */
+const BINANCE_FUTURES_OPENED = Date.parse("2019-09-01T00:00:00.000Z")
+
+export function binanceHistoryFloor(): number {
+  return BINANCE_FUTURES_OPENED
 }
 
 /** A finished historical window for the shared candle store. */

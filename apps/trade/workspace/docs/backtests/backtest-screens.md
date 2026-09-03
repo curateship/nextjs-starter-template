@@ -49,16 +49,20 @@
 - A backtest result opens on the first market in Results and the first trade in
   Trades, so its chart is useful immediately. Each run remembers the last
   market and trade chosen in this browser and restores them when reopened.
-- Backtests save finished candles in the app database by full market key and
-  candle size. Running the same window again reads those rows without asking
-  the exchange again.
-- The selected protocol is also the history source. Hyperliquid markets use
-  Hyperliquid candles and Binance markets use Binance candles; prices are never
-  substituted across exchanges.
+- Backtests read the shared candle store described in
+  `charts/candle-store.md`, by history source and candle size. Coins read
+  Binance's rows and stocks, indices, metals and currency pairs read
+  Dukascopy's. Running the same window again reads those rows without asking
+  the source again.
+- The results page says whose candles the run walked on its "Prices from" line:
+  Binance for coins, Dukascopy for the rest, or the venue itself on a run saved
+  before the store had sources.
 - Downloads are saved page by page, so a failed request resumes at its missing
-  page. Every missing candle stretch stays visible as a recorded gap.
-- Hyperliquid keeps a limited history. A window beyond that history shows the
-  shortfall; adding a fallback source requires a separate decision.
+  page. Every missing candle stretch stays visible as a recorded gap. For a
+  stock, only two or more silent weekdays in a row count as a gap; nights,
+  weekends and single holidays are silence.
+- A market no source covers reads its own exchange's history, which may be
+  short. The shortfall shows as a gap; no other source is substituted.
 
 ## Backtest funding
 
@@ -72,3 +76,6 @@
   A negative figure means the position received more funding than it paid.
 - Any missing market or settlement stretch appears in the result warning. It is
   never silently described as free.
+- Stocks have no funding on Dukascopy. A "Funding not counted" line names them
+  and says "Stocks: no funding in this run". A Hyperliquid or Lighter stock
+  perpetual does charge funding in real life; this run did not count it.

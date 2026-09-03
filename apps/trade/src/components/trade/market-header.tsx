@@ -47,6 +47,7 @@ export function MarketHeader({
   folderActions,
   onSelectMarket,
   toolbar,
+  note,
   onOpenMarkets,
   onOpenSmartOrders,
 }: {
@@ -57,6 +58,8 @@ export function MarketHeader({
   onSelectMarket: (key: string) => void
   /** The chart's controls — the interval picker — shown only with a market. */
   toolbar?: React.ReactNode
+  /** One short line before the controls: where the chart's older bars came from. */
+  note?: React.ReactNode
   /**
    * Narrow screens only. The side panels are not on screen there, so the
    * header opens Markets and Smart orders; passing neither leaves the buttons
@@ -108,6 +111,7 @@ export function MarketHeader({
   const action =
     toolbar || sheetButtons ? (
       <div className="flex items-center gap-2">
+        {note}
         {toolbar}
         {sheetButtons}
       </div>

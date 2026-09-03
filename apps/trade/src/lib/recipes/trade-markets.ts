@@ -10,17 +10,12 @@ import { plural } from "@/lib/format/plural"
 export const DEFAULT_BACKTEST_DAYS = 30
 
 /**
- * The exchange a backtest reads history from when nobody has said otherwise.
+ * What a new step writes into its `protocol` field.
  *
- * Binance rather than the one this app trades on, and that is the point: with
- * pretend money nothing is ever sent anywhere, so the only thing that matters
- * is whose price history is longest and widest. Binance lists more coins and
- * holds years more of them, which is the difference between testing a strategy
- * over one cycle and testing it over several.
- *
- * It is only ever a default. Naming a wallet moves the step onto that wallet's
- * exchange, because a wallet can only trade its own — and picking a different
- * one here by hand is always allowed.
+ * The field is never renamed and never removed: saved flows carry it. A
+ * backtest no longer reads it, because its coins come from one list of every
+ * venue's markets and each is tested on its history source. A flow with a
+ * wallet named writes the wallet's exchange over it on every change.
  */
 export const DEFAULT_BACKTEST_PROTOCOL = "binance"
 

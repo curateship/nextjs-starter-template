@@ -21,7 +21,7 @@ import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 
 vi.mock("@/lib/api/trade/backtests", () => ({
   loadTestableMarkets: () => new Promise(() => {}),
-  loadMarketProtocols: () => new Promise(() => {}),
+  loadBacktestMarkets: () => new Promise(() => {}),
 }))
 
 vi.mock("@/app/options", () => ({ appOptions: {} }))
@@ -99,6 +99,13 @@ describe("the Markets step with pretend money", () => {
     expect(html).not.toContain("When it trades")
     expect(html).not.toContain("Follows")
   })
+
+  it("offers no exchange to pick", () => {
+    // One list of every venue's markets, each on its history source. An
+    // exchange picker here would be a choice with no meaning.
+    expect(html).not.toContain("Markets from")
+    expect(html).not.toContain("Binance")
+  })
 })
 
 describe("the Markets step with a wallet named", () => {
@@ -136,10 +143,11 @@ describe("a wallet on the practice network", () => {
 
 describe("coins saved from an exchange the wallet cannot reach", () => {
   it("says the flow will not run, and how to put it right", () => {
-    const html = draw({ ...HYPERLIQUID, walletProtocol: "binance" })
-    expect(html).toContain("cannot trade")
+    const html = draw({ ...HYPERLIQUID, walletProtocol: "aster" })
+    expect(html).toContain("trades on Aster")
+    expect(html).toContain("picked on Hyperliquid")
     expect(html).toContain("will not run as it stands")
-    expect(html).toContain("pick the coins again after")
+    expect(html).toContain("pick the coins again")
   })
 })
 

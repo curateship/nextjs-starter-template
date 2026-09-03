@@ -1,35 +1,66 @@
-import type { CandleInterval } from "@/lib/protocols/contracts"
+import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
+import { MAX_BACKTEST_DAYS } from "@/lib/recipes/trade-markets"
 
 /**
- * How much price history a chart loads, and in what order it arrives.
+ * How much price history a chart loads, where each part comes from, and in
+ * what order it arrives.
  *
- * **Four hours loads everything the exchange has.** It is the timeframe the
- * strategies are judged on, and a few hundred four-hour bars is only a month
- * or two — not enough to see a coin through a crash and out the other side.
- * Every other timeframe stays a recent slice: a minute chart's full history is
- * hundreds of thousands of bars, which is a slow page and nothing anyone
- * scrolls back through.
+ * **The venue supplies the last 30 days. The store supplies the rest.** A
+ * candle from last Tuesday is finished and never changes, so it is fetched
+ * once from the source with the longest memory (Binance for coins, Dukascopy
+ * for stocks, indices, metals and currency pairs) and kept. The exchange is
+ * only asked for the bars it is uniquely right about: the recent ones, where
+ * its own price is the one an order would fill at.
  *
- * **It arrives in two goes.** The whole history takes a second or two to
- * gather, and a chart that shows nothing for two seconds reads as a chart that
- * is broken. So the last two years are drawn first — under a second — and the
- * rest replaces it a moment later without anything flickering, because the
- * newer bars are identical and the chart keeps its own zoom.
+ * Tyler, 2 Sep 2026: "We only need the first 30 days of real data from the
+ * protocol. The rest we can use our candle storage."
+ *
+ * **It arrives in two goes.** The venue's slice is one request and is drawn
+ * at once. The store's rows follow a moment later and go in behind it without
+ * anything flickering, because the newer bars are the same bars and the chart
+ * keeps its own zoom.
  *
  * Read by the browser to decide how to ask, and by the server to decide how
- * far to go, so the two can never disagree about which timeframe is which.
+ * far to go, so the two can never disagree.
+ */
+
+const DAY_MS = 86_400_000
+
+/** The stretch the venue itself is asked for. */
+export const VENUE_HISTORY_MS = 30 * DAY_MS
+
+/**
+ * The most bars the venue is asked for in that stretch.
+ *
+ * Thirty days of minute bars is 43,200 rows, which on Lighter is 87 requests
+ * against an allowance of sixty a minute. One thousand is one page on most
+ * venues and two on Lighter; on the fast timeframes the store fills in behind
+ * it exactly as it does behind the 30 days.
+ */
+export const VENUE_SLICE_BARS = 1_000
+
+/** The moment the venue's own slice starts from. */
+export function venueSliceFrom(interval: CandleInterval, now: number): number {
+  return now - Math.min(VENUE_HISTORY_MS, VENUE_SLICE_BARS * intervalMs(interval))
+}
+
+/**
+ * The timeframes the store fills all the way back to the source's first bar.
+ *
+ * Four hours is the timeframe the strategies are judged on, and a day is the
+ * one a crash is read on; a few hundred bars of either is not enough to see a
+ * coin through a fall and out the other side. Every other timeframe holds
+ * `MOST_BARS_A_CHART_ASKS_FOR`: a minute chart two weeks, an hour chart about
+ * two years.
  */
 const FULL_HISTORY: ReadonlySet<CandleInterval> = new Set<CandleInterval>([
   "4h",
+  "1d",
 ])
 
 export function wantsFullHistory(interval: CandleInterval): boolean {
   return FULL_HISTORY.has(interval)
 }
-
-/** What the chart draws while the rest of the history is still coming. */
-export const FIRST_PAINT_MS = 730 * 86_400_000
-
 
 /** How long one bar of each timeframe lasts. One table, read everywhere. */
 const INTERVAL_MS: Record<CandleInterval, number> = {
@@ -46,26 +77,42 @@ export function intervalMs(interval: CandleInterval): number {
 }
 
 /**
- * The most bars a chart will ever ask an exchange for.
+ * The most bars a chart will ever ask for on a timeframe that does not load
+ * in full.
  *
- * **This is a limit on us, not on the exchange.** The chart names the moment
- * it wants history from, and that moment arrives from the browser. An asking
- * time of 1970 on a minute chart works out at a hundred and forty-seven
- * thousand pages, each one a real request — enough to hang the app and get
- * the whole exchange to ration us, from one ordinary signed-in person. So
- * every asking time is pulled forward to this many bars ago before anything
- * is sent.
- *
- * Twenty thousand bars is more than any chart can draw and far more than the
- * longest history these exchanges keep, so nothing real is ever cut short.
+ * **This is a limit on us, not on the exchange.** Twenty thousand bars is more
+ * than any chart can draw, and it bounds what a first look at a minute chart
+ * costs the source: twenty pages from Binance, once, then nothing.
  */
 export const MOST_BARS_A_CHART_ASKS_FOR = 20_000
 
-/** The earliest moment worth asking about, whatever the browser said. */
-export function earliestAskable(
-  interval: CandleInterval,
-  since: number
-): number {
-  const floor = Date.now() - MOST_BARS_A_CHART_ASKS_FOR * intervalMs(interval)
-  return Math.max(since, floor)
+/** The oldest moment the store is asked to hold for a timeframe that does not load in full. */
+export function storeDepthFrom(interval: CandleInterval, now: number): number {
+  return now - MOST_BARS_A_CHART_ASKS_FOR * intervalMs(interval)
+}
+
+/**
+ * The oldest moment the store keeps at all: the daily sweep removes bars
+ * older than the longest backtest window. A fill that reached further back
+ * would fetch gold from 2003 today and have it swept tomorrow, every day.
+ */
+export function storeKeepsFrom(now: number): number {
+  return now - MAX_BACKTEST_DAYS * DAY_MS
+}
+
+/**
+ * The venue's bars over the store's, one list, oldest first.
+ *
+ * Where both have a bar the venue wins: its price is the one an order would
+ * fill at. The seam is the venue's first bar, and everything before it is
+ * the source's, which the header says out loud.
+ */
+export function stitchCandles(
+  older: readonly CandleBar[],
+  venue: readonly CandleBar[]
+): CandleBar[] {
+  const byTime = new Map<number, CandleBar>()
+  for (const bar of older) byTime.set(bar.openTime, bar)
+  for (const bar of venue) byTime.set(bar.openTime, bar)
+  return [...byTime.values()].sort((left, right) => left.openTime - right.openTime)
 }

@@ -320,16 +320,13 @@ were refused. The count in the message said `34 read, 0 socket` — not one
 socket frame, so the feed, the polling and the split were all working. It was
 the chart.
 
-Every other venue's four-hour chart draws two years first and then chases the
-whole history behind it. That is nine pages of five hundred bars, then eight
-more: **seventeen requests for one coin.** Fine on Hyperliquid. On Lighter it
-is a quarter of the minute for a coin somebody glanced at.
+At the time, every other venue's four-hour chart drew two years first and then
+chased the whole history behind it: nine pages of five hundred bars, then
+eight more, **seventeen requests for one coin.** Fine on Hyperliquid. On
+Lighter it was a quarter of the minute for a coin somebody glanced at.
 
-So Lighter, and only Lighter:
-
-- **The first draw asks for ninety days**, not two years. One request.
-- **It does not chase the full history.** Scrolling back asks for more on its
-  own, which is when somebody has actually said they want it.
+So Lighter, and only Lighter, was cut to a ninety-day first draw with no
+chase:
 
 | clicking through 25 markets | before | after |
 | --- | ---: | ---: |
@@ -337,8 +334,13 @@ So Lighter, and only Lighter:
 | clicks refused | 18 of 25 | 4 of 25 |
 | at a normal clicking pace | — | **0 of 14** |
 
-The cost is that a Lighter coin opens on three months of history rather than
-two years. Scroll back and the rest arrives.
+Since 2 Sep 2026 the same rule holds on every venue, and Lighter is no longer
+the odd one out. A chart asks the venue for its own last 30 days, one request
+(two on the minute chart), and reads everything older from the candle store:
+Binance's rows for a coin, Dukascopy's for a stock, back to 2017 for TSLA
+rather than to the day Lighter listed it. `charts/candle-store.md` has the
+rule. A Lighter market no source can name keeps to its 30 days; it never
+walks its own history.
 
 ### What a browsing session costs now
 

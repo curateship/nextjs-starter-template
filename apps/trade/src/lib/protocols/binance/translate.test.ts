@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { binanceSymbolFor } from "@/server/protocols/binance/candles"
+import { binanceSymbolFor } from "@/lib/protocols/binance/translate"
 
 /**
  * Which coin is which on Binance.

@@ -3,6 +3,7 @@ import {
   ensureCandleCoverage,
   loadStoredCandles,
 } from "@/server/trade/candle-store"
+import { resolveHistorySource } from "@/server/trade/history-source"
 
 /**
  * Minute prices for the bars a backtest actually needs them for.
@@ -55,8 +56,11 @@ export function createBarZoom(): BarZoom {
   let zoomed = 0
 
   async function loadDay(marketKey: string, day: number) {
-    await ensureCandleCoverage(marketKey, "1m", day, day + DAY_MS)
-    const bars = await loadStoredCandles(marketKey, "1m", day, day + DAY_MS)
+    // The minutes live under the market's history source, like every other
+    // candle. Dukascopy serves a stock's minutes back to 2017.
+    const source = (await resolveHistorySource(marketKey)) ?? marketKey
+    await ensureCandleCoverage(source, "1m", day, day + DAY_MS)
+    const bars = await loadStoredCandles(source, "1m", day, day + DAY_MS)
     const minutes = new Map(bars.map((bar) => [bar.openTime, bar]))
     held.set(marketKey, { day, minutes })
     return minutes

@@ -4,10 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase } from "@/server/test-support"
+import { tradeCandles } from "@/server/trade/schema"
 import {
+  adjustStoredSplits,
   ensureCandleCoverage,
   listCandleGaps,
   loadStoredCandles,
+  splitBetween,
 } from "@/server/trade/candle-store"
 
 /**
@@ -37,6 +40,11 @@ let failFromOnce: number | null = null
 /** What the fake exchanges say their history batch is; unset means no cap. */
 const FAKE_BATCH_BARS: Record<string, number | undefined> = { aster: 9_000 }
 
+/** Which fake source only has bars during its market's hours. */
+const SESSION_ONLY: Record<string, boolean | undefined> = { dukascopy: true }
+/** Which fake source publishes splits as they traded. */
+const RAW_SPLITS: Record<string, boolean | undefined> = { dukascopy: true }
+
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
@@ -46,6 +54,8 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   getProtocol: (protocol: string) => ({
     markets: {
       historyBatchBars: FAKE_BATCH_BARS[protocol],
+      barsOnlyInSession: SESSION_ONLY[protocol],
+      pricesCarrySplits: RAW_SPLITS[protocol],
       intervalMs: (interval: string) =>
         interval === "1h" ? HOUR : FOUR_HOURS,
       history: async (
@@ -389,5 +399,192 @@ describe("the selected protocol", () => {
         to,
       },
     ])
+  })
+})
+
+describe("a market that only trades during its exchange's hours", () => {
+  const STOCK = "dukascopy:mainnet:tslaususd"
+  // Monday 25 Aug 2025, midnight UTC: a fortnight safely in the past, since
+  // the store never asks past the clock.
+  const MONDAY = Date.parse("2025-08-25T00:00:00.000Z")
+  const DAY = 86_400_000
+
+  /** Seven hourly bars a day, 13:00 to 19:00 UTC, on the weekdays given. */
+  function tradingDays(days: readonly number[]): CandleBar[] {
+    return days.flatMap((day) =>
+      bars(MONDAY + day * DAY + 13 * HOUR, 7, HOUR)
+    )
+  }
+
+  it("records no gap for nights, weekends or one holiday", async () => {
+    // Monday to Friday, then the next Monday to Friday with Wednesday off.
+    available = tradingDays([0, 1, 2, 3, 4, 7, 8, 10, 11])
+
+    const report = await ensureCandleCoverage(
+      STOCK,
+      "1h",
+      MONDAY,
+      MONDAY + 14 * DAY,
+      db
+    )
+
+    expect(report.barCount).toBe(63)
+    expect(report.gaps).toEqual([])
+    expect(await listCandleGaps(STOCK, "1h", MONDAY, MONDAY + 14 * DAY, db)).toEqual(
+      []
+    )
+  })
+
+  it("records two or more silent weekdays in a row as a gap", async () => {
+    // The second week's Tuesday to Thursday are missing.
+    available = tradingDays([0, 1, 2, 3, 4, 7, 11])
+
+    const report = await ensureCandleCoverage(
+      STOCK,
+      "1h",
+      MONDAY,
+      MONDAY + 14 * DAY,
+      db
+    )
+
+    expect(report.gaps).toEqual([
+      {
+        from: MONDAY + 8 * DAY,
+        to: MONDAY + 11 * DAY,
+        reason: "The source had no price on these trading days.",
+      },
+    ])
+  })
+
+  it("says when a young market's prices begin", async () => {
+    // Nothing until the second Wednesday.
+    available = tradingDays([9, 10, 11])
+
+    const report = await ensureCandleCoverage(
+      STOCK,
+      "1h",
+      MONDAY,
+      MONDAY + 14 * DAY,
+      db
+    )
+
+    expect(report.gaps).toHaveLength(1)
+    expect(report.gaps[0].from).toBe(MONDAY)
+    expect(report.gaps[0].to).toBe(MONDAY + 9 * DAY)
+    expect(report.gaps[0].reason).toContain("before 2025-09-03")
+  })
+
+  it("never judges the day still in progress", async () => {
+    available = tradingDays([0, 1, 2, 3])
+    // Asked at 9am on Friday, before the market opens: Thursday and the
+    // half-Friday would be two silent weekdays if the partial day counted.
+    const report = await ensureCandleCoverage(
+      STOCK,
+      "1h",
+      MONDAY,
+      MONDAY + 4 * DAY + 9 * HOUR,
+      db
+    )
+    expect(report.gaps).toEqual([])
+  })
+})
+
+describe("a stock split in a source's raw prices", () => {
+  const STOCK = "dukascopy:mainnet:tslaususd"
+  const MONDAY = Date.parse("2025-08-25T00:00:00.000Z")
+  const DAY = 86_400_000
+
+  /** Seven hourly bars a day at `price`, on the weekdays given. */
+  function sessionBars(days: readonly number[], price: number): CandleBar[] {
+    return days.flatMap((day) =>
+      Array.from({ length: 7 }, (_, hour) => ({
+        openTime: MONDAY + day * DAY + (13 + hour) * HOUR,
+        open: price,
+        high: price * 1.01,
+        low: price * 0.99,
+        close: price,
+        volume: 100,
+      }))
+    )
+  }
+
+  it("reads a whole-number step between sessions as a split, and nothing else", () => {
+    const at = (day: number, price: number): CandleBar => ({
+      openTime: MONDAY + day * DAY + 13 * HOUR,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: 1,
+    })
+    // Tesla's own numbers: 2,210.99 then 443, and 890.84 then 302.54.
+    expect(splitBetween(at(0, 2210.987), at(1, 442.998))).toBe(5)
+    expect(splitBetween(at(0, 890.836), at(1, 302.542))).toBe(3)
+    // A reverse split, one for ten.
+    expect(splitBetween(at(0, 1.2), at(1, 12.1))).toBeCloseTo(0.1)
+    // An ordinary fall, a fall inside one session, and a bad print.
+    expect(splitBetween(at(0, 100), at(1, 70))).toBeNull()
+    expect(
+      splitBetween(at(0, 100), { ...at(0, 50), openTime: MONDAY + 15 * HOUR })
+    ).toBeNull()
+    expect(splitBetween(at(0, 0), at(1, 50))).toBeNull()
+  })
+
+  it("folds the bars before a split into today's units as they are stored", async () => {
+    // Monday to Wednesday at $2,000, then a five-for-one: $400 from Thursday.
+    available = [...sessionBars([0, 1, 2], 2_000), ...sessionBars([3, 4], 400)]
+
+    await ensureCandleCoverage(STOCK, "1h", MONDAY, MONDAY + 7 * DAY, db)
+
+    const stored = await loadStoredCandles(STOCK, "1h", MONDAY, MONDAY + 7 * DAY, db)
+    expect(stored).toHaveLength(35)
+    expect(stored[0].close).toBeCloseTo(400)
+    expect(stored[0].volume).toBeCloseTo(500)
+    expect(stored[stored.length - 1].close).toBeCloseTo(400)
+    expect(stored[stored.length - 1].volume).toBe(100)
+  })
+
+  it("folds the years already stored when a split lands in a later top-up", async () => {
+    available = sessionBars([0, 1, 2, 3, 4], 2_000)
+    await ensureCandleCoverage(STOCK, "1h", MONDAY, MONDAY + 5 * DAY, db)
+    // The same days on the four-hour feed, stored raw as well.
+    available = sessionBars([0, 1, 2, 3, 4], 2_000)
+    await ensureCandleCoverage(STOCK, "4h", MONDAY, MONDAY + 5 * DAY, db)
+
+    // Next week arrives after a five-for-one.
+    available = sessionBars([7, 8], 400)
+    await ensureCandleCoverage(STOCK, "1h", MONDAY + 5 * DAY, MONDAY + 9 * DAY, db)
+
+    const hours = await loadStoredCandles(STOCK, "1h", MONDAY, MONDAY + 9 * DAY, db)
+    expect(hours[0].close).toBeCloseTo(400)
+    expect(hours[hours.length - 1].close).toBeCloseTo(400)
+    // Every timeframe of the market is folded, not only the one that saw it.
+    const fours = await loadStoredCandles(STOCK, "4h", MONDAY, MONDAY + 5 * DAY, db)
+    expect(fours[0].close).toBeCloseTo(400)
+
+    // A raw page for the old stretch fetched later comes in folded too.
+    available = sessionBars([5], 2_000)
+    // Friday of the first week was a holiday in the fake; refetch it raw.
+    const beforeCount = hours.length
+    await ensureCandleCoverage(STOCK, "1h", MONDAY + 5 * DAY, MONDAY + 6 * DAY, db)
+    const again = await loadStoredCandles(STOCK, "1h", MONDAY, MONDAY + 9 * DAY, db)
+    expect(again.length).toBeGreaterThanOrEqual(beforeCount)
+    expect(again.every((bar) => bar.close < 500)).toBe(true)
+  })
+
+  it("folds a history that was stored raw before the store knew about splits", async () => {
+    // Stored by hand, the way rows written before 2 Sep 2026 were.
+    const raw = [...sessionBars([0, 1], 2_000), ...sessionBars([2, 3], 400)]
+    await db.insert(tradeCandles).values(
+      raw.map((bar) => ({ marketKey: STOCK, interval: "1h" as const, ...bar }))
+    )
+
+    const found = await adjustStoredSplits(STOCK, db)
+
+    expect(found).toEqual([{ at: MONDAY + 2 * DAY + 13 * HOUR, ratio: 5 }])
+    const stored = await loadStoredCandles(STOCK, "1h", MONDAY, MONDAY + 7 * DAY, db)
+    expect(stored.every((bar) => Math.abs(bar.close - 400) < 1)).toBe(true)
+    // Asking again finds nothing: the step is gone.
+    expect(await adjustStoredSplits(STOCK, db)).toEqual([])
   })
 })
