@@ -19,6 +19,10 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadBranding } from "@/lib/api/shell"
 import { resolveAppName, usePublicTheme } from "@/lib/branding"
 import {
+  publicFaviconLinks,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
+import {
   noFlashThemeScript,
   publicThemeStyle,
   type PublicTheme,
@@ -136,10 +140,16 @@ function RootComponent() {
   // Drawn here rather than thrown from the loader: this route's own `<head>`
   // and document are built from that same loader data, so throwing leaves them
   // with nothing and the render fails before any not-found page is reached.
-  const { hostIsUnknown } = Route.useLoaderData()
+  const { favicon, faviconDark, faviconSet, hostIsUnknown } =
+    Route.useLoaderData()
 
   return (
-    <RootDocument publicTheme={publicTheme}>
+    <RootDocument
+      publicTheme={publicTheme}
+      favicon={favicon}
+      faviconDark={faviconDark}
+      faviconSet={faviconSet}
+    >
       <ThemeProvider
         forcedTheme={
           publicTheme?.colorScheme === "light" ||
@@ -187,10 +197,24 @@ function UnknownHost() {
 function RootDocument({
   children,
   publicTheme = null,
-}: Readonly<{ children: ReactNode; publicTheme?: PublicTheme | null }>) {
+  favicon = "",
+  faviconDark = "",
+  faviconSet = null,
+}: Readonly<{
+  children: ReactNode
+  publicTheme?: PublicTheme | null
+  favicon?: string
+  faviconDark?: string
+  faviconSet?: PublicFaviconSet | null
+}>) {
   const signedInPage = useSignedInPage()
   const style = publicTheme ? publicThemeStyle(publicTheme) : undefined
   const wantsInter = signedInPage || publicTheme?.font === "inter"
+  const faviconLinks = publicFaviconLinks({
+    favicon,
+    faviconDark,
+    faviconSet,
+  })
 
   return (
     <html
@@ -222,6 +246,13 @@ function RootDocument({
           }}
         />
         <script dangerouslySetInnerHTML={{ __html: noFlashCollapseScript }} />
+        {faviconLinks.map((link) => (
+          <link
+            key={`${link.rel}-${link.sizes ?? "original"}-${link.media ?? "all"}`}
+            {...link}
+            data-custom-shell-favicon="true"
+          />
+        ))}
         <HeadContent />
       </head>
       <body className={signedInPage ? "app-font" : undefined}>

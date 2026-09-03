@@ -18,6 +18,11 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
+The root page load also puts the app-wide favicon set in the document head.
+Public pages and signed-in pages therefore use the same light favicon, optional
+dark favicon, and generated browser sizes. With no saved favicon the document
+adds no custom icon links, which keeps the app's built-in browser behavior.
+
 Settings under Public > Look control the site's brand colour, corner rounding
 from 0 to 24px, font, colour mode, canvas colour, content width, content
 alignment, vertical spacing, and the header and footer divider lines. The

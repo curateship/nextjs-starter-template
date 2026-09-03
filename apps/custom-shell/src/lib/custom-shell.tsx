@@ -13,6 +13,7 @@ import {
 } from "@/lib/pages/page-visibility"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
 import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
+import type { PublicFaviconSet } from "@/lib/favicon"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -413,12 +414,17 @@ export type ShellConfig = {
    * link in the sidebar an admin built for them.
    */
   memberHomeRoute: string
+  /** App-wide browser-tab image selected from the media library. */
   favicon: string
+  /** Optional app-wide browser-tab image for dark browser chrome. */
+  faviconDark: string
+  /** Server-generated PNG sizes for the selected favicon images. */
+  faviconSet: PublicFaviconSet | null
   /**
    * App-wide brand image drawn above the signed-out pages (sign in, register,
-   * reset, pricing). A media-library URL, empty for no logo. Unlike the favicon
-   * it is a global rather than a per-workspace setting, because the pages that
-   * show it are read before anybody has signed in or picked a workspace.
+   * reset, pricing). A media-library URL, empty for no logo. It is app-wide for
+   * the same reason as the favicon: these pages load before anybody has signed
+   * in or picked a workspace.
    */
   logo: string
   /**
@@ -1017,6 +1023,8 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     memberHomeRoute: "",
     favicon: "",
+    faviconDark: "",
+    faviconSet: null,
     logo: "",
     logoDark: "",
     publicNavigation: [],

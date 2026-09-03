@@ -73,6 +73,42 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
+  it("uses the app-wide favicon on public domains", async () => {
+    const timestamp = now()
+    const light = {
+      source: "https://media.example.test/owner/favicon.png",
+      icon16: "https://media.example.test/owner/favicons/v1/light-16.png",
+      icon32: "https://media.example.test/owner/favicons/v1/light-32.png",
+      appleTouchIcon:
+        "https://media.example.test/owner/favicons/v1/light-180.png",
+      icon512: "https://media.example.test/owner/favicons/v1/light-512.png",
+    }
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        favicon: light.source,
+        faviconDark: "https://media.example.test/owner/favicon-dark.png",
+        faviconSet: { light },
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Public site",
+      subdomain: "public",
+      settings: { favicon: "https://media.example.test/site-icon.png" },
+    })
+    request.host = "public.localhost:3002"
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding).toMatchObject({
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+  })
+
   it("keeps app theme defaults out of unrelated global writes", () => {
     expect(shellGlobalsForWrite({ appName: "Bookshelf" }).publicTheme).toEqual(
       {}

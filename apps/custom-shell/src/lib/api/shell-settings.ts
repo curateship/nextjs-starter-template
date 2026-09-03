@@ -12,6 +12,10 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import type {
+  PublicFaviconSet,
+  PublicFaviconVariant,
+} from "@/lib/favicon"
 import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationLinks,
@@ -42,7 +46,14 @@ import {
   dropWorkspaceCache,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
-import { isOwnedImageUrl } from "@/server/media/library"
+import {
+  findOwnedImageByUrl,
+  isOwnedImageUrl,
+} from "@/server/media/library"
+import {
+  createFaviconVariant,
+  deleteReplacedFaviconFiles,
+} from "@/server/media/favicon"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -51,11 +62,13 @@ import {
 import {
   parseShellGlobals,
   pickShellGlobals,
+  readShellGlobals,
 } from "@/server/shell-settings"
 import { adminPost, userPost } from "@/server/guards"
 import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
+const faviconSourceSchema = z.string().trim().max(2048)
 
 const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
 
@@ -233,7 +246,8 @@ const shellConfigSchema = z.object({
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
-  favicon: z.string(),
+  favicon: faviconSourceSchema,
+  faviconDark: faviconSourceSchema,
   logo: z.string(),
   logoDark: z.string(),
   publicNavigation: publicNavigationSchema,
@@ -282,6 +296,31 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       throw new Error("Workspace name is required")
     }
 
+    let previousFaviconSet: PublicFaviconSet | null = null
+    let savedFaviconSet: PublicFaviconSet | null = null
+    const generatedFaviconSet: PublicFaviconSet = {}
+    const startingGlobals = await readShellGlobals()
+
+    try {
+      generatedFaviconSet.light = await generateFaviconVariantForSave({
+        source: data.favicon,
+        saved: startingGlobals.faviconSet?.light,
+        mode: "light",
+        userId: context.user.id,
+      })
+      generatedFaviconSet.dark = await generateFaviconVariantForSave({
+        source: data.faviconDark,
+        saved: startingGlobals.faviconSet?.dark,
+        mode: "dark",
+        userId: context.user.id,
+      })
+    } catch (error) {
+      await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+        () => undefined
+      )
+      throw error
+    }
+
     await db.transaction(async (tx) => {
       await tx
         .update(customShellWorkspaces)
@@ -290,7 +329,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           settings: {
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
-            favicon: data.favicon,
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
             publicNavigation: data.publicNavigation,
             publicFooter: data.publicFooter,
@@ -327,6 +365,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // kill switch are kept whole for the same reason — their one writer each
       // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
+      previousFaviconSet = existingGlobals.faviconSet
 
       // The logos are drawn on the signed-out pages, so what gets stored has to
       // be a picture somebody here really uploaded — not any address a browser
@@ -348,6 +387,23 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         }
       }
 
+      const light = faviconVariantForLockedSave(
+        data.favicon,
+        existingGlobals.faviconSet?.light,
+        generatedFaviconSet.light
+      )
+      const dark = faviconVariantForLockedSave(
+        data.faviconDark,
+        existingGlobals.faviconSet?.dark,
+        generatedFaviconSet.dark
+      )
+      savedFaviconSet = light || dark
+        ? {
+            ...(light ? { light } : {}),
+            ...(dark ? { dark } : {}),
+          }
+        : null
+
       const nextPublicTheme = publicThemeForAppWideSave(
         data.publicTheme,
         existingGlobals.publicTheme,
@@ -360,6 +416,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
+          faviconSet: savedFaviconSet,
           publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
         }),
@@ -384,6 +441,24 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           updatedAt,
         })
       }
+    }).catch(async (error) => {
+      await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+        () => undefined
+      )
+      throw error
+    })
+
+    await deleteReplacedFaviconFiles(
+      previousFaviconSet,
+      savedFaviconSet
+    ).catch((error) => {
+      console.error("Replaced favicon files could not be removed", error)
+    })
+    await deleteReplacedFaviconFiles(
+      generatedFaviconSet,
+      savedFaviconSet
+    ).catch((error) => {
+      console.error("Unused favicon files could not be removed", error)
     })
 
     // The public pages, the feed and the sitemap all read a site's name and
@@ -393,11 +468,54 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     // not throw away a cache that still matches the database.
     dropWorkspaceCache()
 
-    return { settings: data }
+    return { faviconSet: savedFaviconSet }
   })
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
+}
+
+async function generateFaviconVariantForSave({
+  source,
+  saved,
+  mode,
+  userId,
+}: {
+  source: string
+  saved: PublicFaviconVariant | undefined
+  mode: "light" | "dark"
+  userId: string
+}): Promise<PublicFaviconVariant | undefined> {
+  if (!source || saved?.source === source) return undefined
+
+  const media = await findOwnedImageByUrl(userId, source)
+  if (!media) {
+    throw new Error(
+      "That favicon is no longer in your media library. Pick another one."
+    )
+  }
+
+  try {
+    return await createFaviconVariant(media, mode)
+  } catch {
+    throw new Error(
+      "The favicon sizes could not be created. Try another image."
+    )
+  }
+}
+
+function faviconVariantForLockedSave(
+  source: string,
+  saved: PublicFaviconVariant | undefined,
+  generated: PublicFaviconVariant | undefined
+) {
+  if (!source) return undefined
+  if (saved?.source === source) return saved
+  if (generated?.source === source) return generated
+
+  throw new Error(
+    "The favicon changed while these settings were saving. Try again."
+  )
 }
 
 // Lightweight, per-user save for the draggable sidebar width. Unlike the full

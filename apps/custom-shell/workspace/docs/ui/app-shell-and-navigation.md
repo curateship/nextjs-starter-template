@@ -9,9 +9,12 @@ The signed-in shell draws:
 
 The shell also applies the active workspace's:
 
-- Name, favicon, and title.
+- Name and workspace-switcher image.
 - Colors and font.
 - Border style and width choices.
+
+The browser title and favicon are app-wide. The same favicon set is present on
+signed-in and public pages, with an optional dark-tab image.
 
 Navigation comes from the shell catalog plus app options. The server removes
 items the current role may not see, then the browser applies saved labels, order,

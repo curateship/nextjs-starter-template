@@ -14,6 +14,10 @@ import {
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
+  normalizePublicFaviconSet,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
+import {
   hasCustomPublicTheme,
   normalizePublicTheme,
   publicThemeForSite,
@@ -79,6 +83,9 @@ export async function readBranding(
   database: CustomShellDb = db
 ): Promise<{
   appName: string
+  favicon: string
+  faviconDark: string
+  faviconSet: PublicFaviconSet | null
   logo: string
   logoDark: string
   publicNavigation: ReturnType<
@@ -102,6 +109,9 @@ export async function readBranding(
   if (answer.kind !== "workspace") {
     return {
       appName: globals.appName,
+      favicon: globals.favicon,
+      faviconDark: globals.faviconDark,
+      faviconSet: globals.faviconSet,
       logo: globals.logo,
       logoDark: globals.logoDark,
       publicNavigation: [],
@@ -122,8 +132,9 @@ export async function readBranding(
 
   return {
     appName: answer.workspace.name || globals.appName,
-    // A workspace has a favicon of its own but no logo yet. Until it does, the
-    // deployment's logo keeps the public pages from losing their mark.
+    favicon: globals.favicon,
+    faviconDark: globals.faviconDark,
+    faviconSet: globals.faviconSet,
     logo: globals.logo,
     logoDark: globals.logoDark,
     publicNavigation: workspaceSettings.publicNavigation,
@@ -164,7 +175,6 @@ export async function readShellSettings(
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
-    favicon: workspaceSettings.favicon,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -202,6 +212,15 @@ export function parseShellGlobals(value: unknown) {
         ? settings.appName
         : fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    favicon:
+      typeof settings.favicon === "string"
+        ? settings.favicon
+        : fallback.favicon,
+    faviconDark:
+      typeof settings.faviconDark === "string"
+        ? settings.faviconDark
+        : fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -283,6 +302,9 @@ export function pickShellGlobals(
     ShellConfig,
     | "appName"
     | "workspaceName"
+    | "favicon"
+    | "faviconDark"
+    | "faviconSet"
     | "logo"
     | "logoDark"
     | "publicTheme"
@@ -303,6 +325,9 @@ export function pickShellGlobals(
   return {
     appName: settings.appName,
     workspaceName: settings.workspaceName,
+    favicon: settings.favicon,
+    faviconDark: settings.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: settings.logo,
     logoDark: settings.logoDark,
     publicTheme: normalizePublicTheme(settings.publicTheme),

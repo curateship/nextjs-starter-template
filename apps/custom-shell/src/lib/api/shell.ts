@@ -5,6 +5,7 @@ import { loadEntitlements } from "@/server/billing/entitlements"
 import { countUnreadNotifications } from "@/server/notifications/inbox"
 import { findSessionContext } from "@/server/auth/security"
 import { readBranding, readShellSettings } from "@/server/shell-settings"
+import type { PublicFaviconSet } from "@/lib/favicon"
 import { readWorkspaceList } from "@/server/people/workspaces"
 
 import type { UserAnnouncement } from "@/lib/announcement"
@@ -152,6 +153,9 @@ export function loadShellBootstrap() {
 const loadBrandingFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{
     appName: string
+    favicon: string
+    faviconDark: string
+    faviconSet: PublicFaviconSet | null
     logo: string
     logoDark: string
     publicNavigation: ShellConfig["publicNavigation"]
@@ -170,6 +174,9 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
       // must not turn every address into a 404.
       return {
         appName: "",
+        favicon: "",
+        faviconDark: "",
+        faviconSet: null,
         logo: "",
         logoDark: "",
         publicNavigation: [],

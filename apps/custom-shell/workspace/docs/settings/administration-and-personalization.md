@@ -48,6 +48,20 @@ Styling settings control:
 - Font choices and sidebar dimensions.
 - Public branding.
 
+General settings has one app-wide favicon for every browser tab, including
+public pages, plus an optional favicon for dark browser tabs. Each field uses
+the media library's square image picker. The image shown beside a site in the
+workspace switcher remains that site's own icon and is changed from the site
+editor instead.
+
+Saving a favicon checks that the image belongs to the admin's media library.
+The server then makes 16px, 32px, 180px, and 512px PNG files from the one
+selection. The first page response includes the matching browser icon links,
+so public pages have the right favicon before any browser code runs. Each set
+gets a new storage address to avoid stale browser caches. Replacing or clearing
+a favicon stops serving the old links and removes the generated files. The
+original media-library image remains available.
+
 Public Look is separate from Styling. Styling changes the signed-in workspace
 used by admins and members. Public Look changes only the pages a visitor can see
 before signing in. Font and corners are app-wide. Brand colour belongs to the

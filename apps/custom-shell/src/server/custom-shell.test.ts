@@ -4599,6 +4599,34 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ logoDark: 42 }).logoDark).toBe("")
   })
 
+  it("carries the app-wide favicon set through a save and back", () => {
+    const light = {
+      source: "https://media.example.test/owner/favicon.png",
+      icon16: "https://media.example.test/owner/favicons/v1/light-16.png",
+      icon32: "https://media.example.test/owner/favicons/v1/light-32.png",
+      appleTouchIcon:
+        "https://media.example.test/owner/favicons/v1/light-180.png",
+      icon512: "https://media.example.test/owner/favicons/v1/light-512.png",
+    }
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+    expect(parseShellGlobals({ favicon: 42, faviconDark: 42 })).toMatchObject({
+      favicon: "",
+      faviconDark: "",
+      faviconSet: null,
+    })
+  })
+
   it("carries the top-bar link limit through a save and back", () => {
     // Same trap as the three above: miss it in `pickShellGlobals` and every
     // save drops the limit, so the top bar quietly goes back to a long row.
