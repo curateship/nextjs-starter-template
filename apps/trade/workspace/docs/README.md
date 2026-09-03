@@ -42,7 +42,8 @@ screen: anything not written there has not been agreed yet.
   every number, the text scale, the small badge every table shares, and what an
   open position has cost in fees.
 - `bottom-panel-tables.md` — the one frame shared by Positions, Open orders and
-  the Journal, and the safety rules its empty and failed rows keep.
+  the Journal, the safety rules its empty and failed rows keep, and the warning
+  on a position with no stop.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
 - `notices.md` — the bell notices: one per fill, a second when a stop or target

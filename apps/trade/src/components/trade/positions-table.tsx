@@ -46,6 +46,7 @@ import {
 } from "@/lib/trade/live-trades"
 import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
+import { positionHasStop } from "@/lib/trade/position-stop"
 import {
   LOST_MONEY,
   MADE_MONEY,
@@ -59,6 +60,7 @@ import {
   type TradeOrder,
   type TradePosition,
 } from "@/lib/trade/paper"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 import { cn } from "@/lib/utils"
 import { panelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 
@@ -82,20 +84,10 @@ import { panelSectionBarClassName } from "@/lib/layout/panel-section-bar"
  * you sorted by and the figure printed in the row are always the same number.
  */
 
-/**
- * Marks a row that lives on the exchange rather than in the practice engine.
- * Practice, testnet and real rows share these tables, and the two rules point
- * the same way: a real dollar must never be readable as a pretend one, and a
- * pretend one never as real — so a testnet exchange row says "Testnet", in
- * its own colour, never "Real".
- */
-function RealBadge({ marketKey }: { marketKey: string }) {
-  const testnet = parseMarketKey(marketKey)?.network === "testnet"
-  return (
-    <TradeBadge tone={testnet ? "testnet" : "real"}>
-      {testnet ? "Testnet" : "Real"}
-    </TradeBadge>
-  )
+/** Marks a testnet exchange row. Mainnet rows do not need a "Real" chip. */
+function TestnetBadge({ marketKey }: { marketKey: string }) {
+  if (parseMarketKey(marketKey)?.network !== "testnet") return null
+  return <TradeBadge tone="testnet">Testnet</TradeBadge>
 }
 
 /** Marks a row from a practice wallet, so pretend money never reads as real. */
@@ -301,6 +293,26 @@ function SideBadge({ position }: { position: TradePosition }) {
   )
 }
 
+/** A visible warning with the same sentence available on hover and focus. */
+function MissingStopBadge({ marketKey }: { marketKey: string }) {
+  const symbol = marketSymbol(marketKey)
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${symbol} has no stop`}
+          className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <TradeBadge tone="lost">No stop</TradeBadge>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>This position has no stop.</TooltipContent>
+    </Tooltip>
+  )
+}
+
 /**
  * One position's row. Its price arrives as a prop rather than being watched
  * here, so the column the table was sorted by and the figure printed in the
@@ -313,6 +325,7 @@ function PositionRow({
   fees,
   wallet,
   busy,
+  missingStop,
   onSelectMarket,
   onAdd,
   onMargin,
@@ -329,6 +342,8 @@ function PositionRow({
   wallet: string
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
+  /** True only after a settled read proves no ordinary or grid stop exists. */
+  missingStop: boolean
   onSelectMarket: (marketKey: string) => void
   onAdd: (position: TradePosition) => void
   /** Null on an exchange that allows neither change — the button is hidden. */
@@ -359,7 +374,10 @@ function PositionRow({
           <>
             <SideBadge position={position} />
             {position.live ? (
-              <RealBadge marketKey={position.marketKey} />
+              <TestnetBadge marketKey={position.marketKey} />
+            ) : null}
+            {missingStop ? (
+              <MissingStopBadge marketKey={position.marketKey} />
             ) : null}
           </>
         }
@@ -516,6 +534,7 @@ export function PositionsTable({
   positions,
   markets,
   fills,
+  smartOrders,
   walletName,
   busy,
   settled,
@@ -536,6 +555,8 @@ export function PositionsTable({
    * added up from — see `positionFees`.
    */
   fills: readonly LiveFill[]
+  /** The same settled plans the poll carries, for grid-owned stops. */
+  smartOrders: readonly SmartOrder[]
   walletName: (walletId: string) => string
   busy: boolean
   /**
@@ -593,6 +614,16 @@ export function PositionsTable({
   const feesOf = React.useCallback(
     (position: TradePosition) => feesById.get(position.id) ?? null,
     [feesById]
+  )
+
+  const stoppedPositionIds = React.useMemo(
+    () =>
+      new Set(
+        positions
+          .filter((position) => positionHasStop(position, smartOrders))
+          .map((position) => position.id)
+      ),
+    [positions, smartOrders]
   )
 
   const rows = React.useMemo(
@@ -659,6 +690,9 @@ export function PositionsTable({
             fees={feesOf(position)}
             wallet={walletName(position.walletId)}
             busy={busy}
+            missingStop={
+              settled && !failed && !stoppedPositionIds.has(position.id)
+            }
             onSelectMarket={onSelectMarket}
             onAdd={onAdd}
             onMargin={onMargin}
@@ -780,7 +814,9 @@ export function OpenOrdersTable({
             badge={
               <>
                 {order.reduceOnly ? <TradeBadge>Reduce only</TradeBadge> : null}
-                {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
+                {order.live ? (
+                  <TestnetBadge marketKey={order.marketKey} />
+                ) : null}
                 {order.paused ? (
                   <span className={cn("text-xs", WARNING)}>Paused</span>
                 ) : null}
@@ -1022,7 +1058,7 @@ export function TradesTable({
             onSelect={() => onSelectMarket(trade.marketKey)}
             badge={
               trade.live ? (
-                <RealBadge marketKey={trade.marketKey} />
+                <TestnetBadge marketKey={trade.marketKey} />
               ) : (
                 <PracticeBadge />
               )

@@ -20,6 +20,13 @@ import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
+Object.assign(globalThis, {
+  ResizeObserver: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+})
 
 /**
  * The answers an empty bottom-panel table can give, told apart.
@@ -46,7 +53,11 @@ const shared = {
 }
 
 /** Only the positions table reads fills; the other two never see them. */
-const positionsShared = { ...shared, fills: [] }
+const positionsShared = {
+  ...shared,
+  fills: [],
+  smartOrders: [],
+}
 
 function market(symbol: string, price: number): MarketRow {
   return {
@@ -84,6 +95,47 @@ function position(symbol: string, size: number): TradePosition {
     slPx: null,
     feesPaid: 0,
     updatedAt: 1,
+  }
+}
+
+function liveOrder(network: "mainnet" | "testnet"): TradeOrder {
+  return {
+    id: `${network}-order`,
+    walletId: "live-wallet",
+    marketKey: `hyperliquid:${network}:BTC`,
+    side: "buy",
+    px: 100,
+    sz: 1,
+    leverage: 1,
+    maxLeverage: 10,
+    reduceOnly: false,
+    tpPx: null,
+    slPx: null,
+    createdAt: 1,
+    updatedAt: 1,
+    live: true,
+  }
+}
+
+function liveTrade(network: "mainnet" | "testnet"): LiveTrade {
+  return {
+    id: `${network}-trade`,
+    walletId: "live-wallet",
+    marketKey: `hyperliquid:${network}:BTC`,
+    live: true,
+    direction: "long",
+    openedAt: 1,
+    closedAt: 2,
+    heldMs: 1,
+    entryPx: 100,
+    exitPx: 110,
+    sz: 1,
+    amountUsd: 100,
+    pnl: 10,
+    returnPct: 10,
+    ending: "closed",
+    stopPx: null,
+    fills: [],
   }
 }
 
@@ -141,6 +193,75 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("keeps the Real chip off every mainnet row", () => {
+    const mainnetPosition: TradePosition = {
+      ...position("BTC", 1),
+      walletId: "live-wallet",
+      live: {
+        marginUsed: 100,
+        liquidationPx: 50,
+        tpOrderId: null,
+        slOrderId: null,
+      },
+    }
+    const positions = draw(
+      <PositionsTable
+        {...positionsShared}
+        positions={[mainnetPosition]}
+        settled={true}
+        failed={false}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+    const orders = renderToStaticMarkup(
+      <OpenOrdersTable
+        {...shared}
+        orders={[liveOrder("mainnet")]}
+        settled={true}
+        failed={false}
+        onCancel={() => {}}
+        onResume={async () => true}
+      />
+    )
+    const trades = renderToStaticMarkup(
+      <TradesTable
+        {...shared}
+        trades={[liveTrade("mainnet")]}
+        settled={true}
+        failed={false}
+        selectedId={null}
+        onSelectTrade={() => {}}
+        onRemove={() => {}}
+        ticked={new Set<string>()}
+        onTickTrade={() => {}}
+        onTickVisible={() => {}}
+        tickAllState={() => false}
+      />
+    )
+
+    expect(`${positions}${orders}${trades}`).not.toContain(">Real<")
+  })
+
+  it("keeps the Testnet chip on exchange rows", () => {
+    const html = renderToStaticMarkup(
+      <OpenOrdersTable
+        {...shared}
+        orders={[liveOrder("testnet")]}
+        settled={true}
+        failed={false}
+        onCancel={() => {}}
+        onResume={async () => true}
+      />
+    )
+
+    expect(html).toContain(">Testnet<")
+  })
+
   it("hands the live exchange row to its cancel action", async () => {
     const live: TradeOrder = {
       id: "aster-order-77",
@@ -375,6 +496,103 @@ describe("the bottom panel's tables say what they know", () => {
     expect(html.indexOf(">ETH</button>")).toBeLessThan(
       html.indexOf(">SOL</button>")
     )
+  })
+
+  it("marks a settled position that has no stop", () => {
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        positions={[position("BTC", 1)]}
+        settled={true}
+        failed={false}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+
+    expect(html).toContain("No stop")
+  })
+
+  it("explains the missing-stop mark on keyboard focus", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <PositionsTable
+            {...positionsShared}
+            positions={[position("BTC", 1)]}
+            settled={true}
+            failed={false}
+            onAdd={() => {}}
+            onEdit={() => {}}
+            onFlip={() => {}}
+            onClose={() => {}}
+            onClosePart={() => {}}
+            onMargin={null}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const warning = host.querySelector<HTMLButtonElement>(
+      '[aria-label="BTC has no stop"]'
+    )
+    expect(warning?.textContent).toBe("No stop")
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
+      )
+      warning?.focus()
+    })
+    expect(document.body.textContent).toContain("This position has no stop.")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("does not mark a position that has a stop", () => {
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        positions={[{ ...position("BTC", 1), slPx: 90 }]}
+        settled={true}
+        failed={false}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+
+    expect(html).not.toContain("No stop")
+  })
+
+  it("does not mark a position until both halves of the first read have landed", () => {
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        positions={[position("BTC", 1)]}
+        settled={false}
+        failed={false}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+
+    expect(html).not.toContain("No stop")
   })
 
   it("claims empty only after a read has landed, and keeps its headings", () => {

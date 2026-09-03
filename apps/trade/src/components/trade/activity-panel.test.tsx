@@ -170,6 +170,15 @@ afterEach(async () => {
 })
 
 describe("the Positions tab glance", () => {
+  it("keeps missing-stop wording off the tab", async () => {
+    await drawActivity([position])
+
+    const tab = Array.from(host.querySelectorAll('[role="tab"]')).find((one) =>
+      one.textContent?.includes("Positions")
+    )
+    expect(tab?.textContent).not.toContain("without a stop")
+  })
+
   it("opens a clickable position summary on hover", async () => {
     const onSelectMarket = vi.fn()
     await drawActivity([position], onSelectMarket)

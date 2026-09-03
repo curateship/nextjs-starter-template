@@ -422,6 +422,7 @@ export function ActivityPanel({
             markets={markets}
             // What a real position's fee total is added up from.
             fills={trading.fills}
+            smartOrders={trading.smartOrders}
             walletName={walletName}
             busy={trading.busy}
             settled={trading.settled}
