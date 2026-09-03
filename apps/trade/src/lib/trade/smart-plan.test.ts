@@ -4,6 +4,7 @@ import {
   forEachPlanOrderId,
   laddersAndGridsYouPlaced,
   smartOrdersYouPlaced,
+  unknownPlanFields,
   type SmartOrder,
 } from "@/lib/trade/smart-plan"
 import type { LadderPlan } from "@/lib/trade/dca"
@@ -92,5 +93,36 @@ describe("ladder order ids", () => {
     })
 
     expect(plan.exitRungs[0].orderId).toBe("exchange-exit")
+  })
+})
+
+/**
+ * A saved plan with fields this build does not know was written by a newer
+ * build. Naming them is what lets the engine leave the row alone instead of
+ * saving it back without them — see `leftForANewerBuild`.
+ */
+describe("unknownPlanFields", () => {
+  it("names the fields a newer build added to a grid", () => {
+    expect(
+      unknownPlanFields("grid", {
+        direction: "short",
+        levels: [],
+        splitsIntoThirds: true,
+      })
+    ).toEqual(["splitsIntoThirds"])
+  })
+
+  it("is empty for a plan this build could have written", () => {
+    expect(
+      unknownPlanFields("grid", { direction: "short", reverseWhenStopped: false })
+    ).toEqual([])
+    expect(unknownPlanFields("dca", { rungs: [], aimedSlPx: null })).toEqual([])
+    expect(unknownPlanFields("signal", { orderId: "1" })).toEqual([])
+    expect(unknownPlanFields("watch", { orderId: "1" })).toEqual([])
+  })
+
+  it("has nothing to say about a plan that is not an object", () => {
+    expect(unknownPlanFields("grid", null)).toEqual([])
+    expect(unknownPlanFields("grid", [1])).toEqual([])
   })
 })

@@ -1375,6 +1375,11 @@ export type GridPlan = z.infer<typeof gridPlanSchema>
  * Reached through `readSmartPlan` rather than called directly, so nothing can
  * parse a row without first saying which kind of smart order it is.
  */
+/** Every top-level field this build knows a saved grid to have. */
+export const GRID_PLAN_FIELDS: ReadonlySet<string> = new Set(
+  Object.keys(gridPlanSchema.shape)
+)
+
 export function readGridPlan(value: unknown): GridPlan | null {
   const parsed = gridPlanSchema.safeParse(value)
   return parsed.success ? parsed.data : null

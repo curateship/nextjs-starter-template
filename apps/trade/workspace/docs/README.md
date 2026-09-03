@@ -181,6 +181,8 @@ screen: anything not written there has not been agreed yet.
 - `worker-restart.md` — the Restart button on the Workers screen: how the
   engine sees the request, why a pass in flight finishes first, and who does
   the starting.
+  Also the rule that in production only the engine trades, and why a
+  saved plan a build does not understand is left alone.
 - `worker-image.md` — why local worker builds keep source maps, why those maps
   contain no server source, and which files enter the running image.
 - `data-retention.md` — which trading rows are permanent records and which

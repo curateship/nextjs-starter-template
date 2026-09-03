@@ -43,11 +43,44 @@ lock. It registers no restart handler, so a Restart pressed against dev
 clears the mark, logs one line, and kills nothing. Only the worker binary
 (`worker/src/index.ts`) registers the exit.
 
-The same is true of the deployed website on the rare day it is the one
-holding the lock (the worker down for over a minute). Pressing Restart then
-clears the mark and restarts nothing, because the website must never exit
-itself. The card simply stops saying "Restart requested"; the fix for a
-missing worker is starting the worker, not this button.
+## In production only the engine trades
+
+The deployed website and the deployed shell worker never take the lock, so
+while the engine is restarting nothing trades. Every stop already rests on
+the exchange, and the engine is back within seconds, so nothing is lost by
+waiting.
+
+They used to stand in after a minute without an engine. That is what ended
+seven short grids on 3 Sep 2026. Tyler redeployed the engine on its own, and
+in the thirty seconds it was away the Trade Worker container took the lock.
+That container was still the build from before short grids existed, so it
+read each short grid as a buying grid holding a short, ended all seven as
+"stopped", and saved the grids back without their Short setting. Nothing was
+sold, because the stops rest on Hyperliquid, but the grids stopped managing
+their coins. A stand-in that runs old code is worse than no stand-in.
+
+**Deploy Web, Worker and Engine together.** Each Coolify app builds whatever
+`develop` is at the moment its button is pressed, so pressing one leaves the
+other two on older builds.
+
+## A row written by a newer build is left alone
+
+Every plan change adds fields and never renames one, so an older build can
+still read a newer row: the reader drops the fields it does not know. That
+is fine for a screen and dangerous for the engine, which saves the plan back
+after every pass and would save it without those fields.
+
+So both engine passes now check a row's saved plan before touching it. A
+plan with a field this build has never heard of belongs to a newer build.
+The row is skipped: not traded, not saved, not ended. The engine's console
+says so once per row, naming the fields, so a stale container is found
+instead of guessed at. The check lives in `unknownPlanFields` in
+`src/lib/trade/smart-plan.ts` and `leftForANewerBuild` in
+`src/server/trade/left-for-newer-build.ts`.
+
+This protects the next time round, not the last one. The build that did the
+damage on 3 Sep had no such check, and no change made today can reach a
+container that has already been built.
 
 ## One thing to confirm on the server
 
