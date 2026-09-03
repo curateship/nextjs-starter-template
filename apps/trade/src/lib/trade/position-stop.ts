@@ -21,7 +21,7 @@ type PositionStopSource =
     }
 
 /**
- * Whether the latest settled read shows a stop protecting this position.
+ * Where the stop protecting this position sits, or null when there is none.
  *
  * An ordinary stop comes back on the position itself. A running grid is the
  * exception: Lighter keeps its stop inside Trade as a watched price, and a
@@ -29,18 +29,22 @@ type PositionStopSource =
  * stop belongs to the matching active grid rather than the position's ordinary
  * stop slot.
  */
-export function positionHasStop(
+export function positionStopPx(
   position: Pick<TradePosition, "walletId" | "marketKey" | "slPx">,
   smartOrders: readonly PositionStopSource[]
-): boolean {
-  if (position.slPx !== null) return true
+): number | null {
+  if (position.slPx !== null) return position.slPx
 
-  return smartOrders.some(
-    (order) =>
+  for (const order of smartOrders) {
+    if (
       order.kind === "grid" &&
       order.status === "active" &&
       order.walletId === position.walletId &&
-      order.marketKey === position.marketKey &&
-      gridStopPx(order.plan) !== null
-  )
+      order.marketKey === position.marketKey
+    ) {
+      const px = gridStopPx(order.plan)
+      if (px !== null) return px
+    }
+  }
+  return null
 }

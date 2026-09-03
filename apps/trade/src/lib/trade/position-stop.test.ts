@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { positionHasStop } from "@/lib/trade/position-stop"
+import { positionStopPx } from "@/lib/trade/position-stop"
 import type { TradePosition } from "@/lib/trade/paper"
 
 const position: TradePosition = {
@@ -37,19 +37,23 @@ const gridStop = {
   },
 }
 
-describe("positionHasStop", () => {
+describe("positionStopPx", () => {
   it("reads an ordinary stop from the settled position", () => {
-    expect(positionHasStop({ ...position, slPx: 90 }, [])).toBe(true)
-    expect(positionHasStop(position, [])).toBe(false)
+    expect(positionStopPx({ ...position, slPx: 90 }, [])).toBe(90)
+    expect(positionStopPx(position, [])).toBeNull()
   })
 
-  it("counts the stop held by a running grid plan", () => {
-    expect(positionHasStop(position, [gridStop])).toBe(true)
+  it("reads the stop held by a running grid plan", () => {
+    expect(positionStopPx(position, [gridStop])).toBe(75)
     expect(
-      positionHasStop(position, [{ ...gridStop, status: "done" as const }])
-    ).toBe(false)
+      positionStopPx(position, [{ ...gridStop, status: "done" as const }])
+    ).toBeNull()
     expect(
-      positionHasStop(position, [{ ...gridStop, walletId: "wallet-2" }])
-    ).toBe(false)
+      positionStopPx(position, [{ ...gridStop, walletId: "wallet-2" }])
+    ).toBeNull()
+  })
+
+  it("prefers the ordinary stop over the grid's", () => {
+    expect(positionStopPx({ ...position, slPx: 90 }, [gridStop])).toBe(90)
   })
 })

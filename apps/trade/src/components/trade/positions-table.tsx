@@ -48,7 +48,8 @@ import {
 } from "@/lib/trade/live-trades"
 import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
-import { positionHasStop } from "@/lib/trade/position-stop"
+import { ifStoppedChange } from "@/lib/trade/if-stopped"
+import { positionStopPx } from "@/lib/trade/position-stop"
 import {
   LOST_MONEY,
   MADE_MONEY,
@@ -146,6 +147,7 @@ type PositionColumn =
   | "margin"
   | "liquidation"
   | "projected"
+  | "ifStopped"
   | "fees"
   | "unrealized"
 
@@ -156,6 +158,7 @@ const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
   { key: "margin", label: "Margin" },
   { key: "liquidation", label: "Liquidation" },
   { key: "projected", label: "Projected P / L" },
+  { key: "ifStopped", label: "If stopped" },
   { key: "fees", label: "Fees" },
   { key: "unrealized", label: "Unrealized P&L" },
 ]
@@ -327,7 +330,7 @@ function PositionRow({
   fees,
   wallet,
   busy,
-  missingStop,
+  stopPx,
   onSelectMarket,
   onAdd,
   onMargin,
@@ -344,8 +347,11 @@ function PositionRow({
   wallet: string
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
-  /** True only after a settled read proves no ordinary or grid stop exists. */
-  missingStop: boolean
+  /**
+   * Where the stop sits, from the position or its running grid, or null when
+   * there is none. Undefined until a settled read has actually looked.
+   */
+  stopPx: number | null | undefined
   onSelectMarket: (marketKey: string) => void
   onAdd: (position: TradePosition) => void
   /** Null on an exchange that allows neither change — the button is hidden. */
@@ -360,6 +366,13 @@ function PositionRow({
   // risked, so it is what the percentage is worth measuring against.
   const profitShare = margin > 0 ? (profit / margin) * 100 : 0
   const away = liquidationAwayOf(position, mark)
+  // Only a settled read that found nothing is a missing stop; a read still on
+  // its way is not an answer either way.
+  const missingStop = stopPx === null
+  const ifStopped =
+    stopPx === null || stopPx === undefined
+      ? null
+      : ifStoppedChange({ szi: position.szi, mark, stopPx })
 
   return (
     <TableRow
@@ -422,6 +435,18 @@ function PositionRow({
               : formatSignedUsd(projectedProfit(position, position.slPx))}
           </span>
         </span>
+      </Cell>
+      <Cell>
+        {/* From today's price, not the entry: what firing the stop now would
+            do to the money. A stop already on the good side of the price
+            banks a gain, and says so in the same column. */}
+        {ifStopped === null ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span className={cn("font-medium", moneyTone(ifStopped))}>
+            {formatSignedUsd(ifStopped)}
+          </span>
+        )}
       </Cell>
       <Cell className="text-muted-foreground">
         {/* The practice engine charges its own fees and knows the total
@@ -590,11 +615,15 @@ export function PositionsTable({
 }) {
   const [confirming, setConfirming] = React.useState<TradePosition | null>(null)
   // Money columns start biggest-first, which is the order anybody scanning a
-  // list of positions actually wants.
+  // list of positions actually wants. If stopped starts with the biggest loss
+  // first, because that column exists to find the trade that hurts most.
   const { sort, direction, toggleSort } = useTableSort<PositionColumn>(
     "unrealized",
     "desc",
-    (column) => (column === "market" || column === "wallet" ? "asc" : "desc")
+    (column) =>
+      column === "market" || column === "wallet" || column === "ifStopped"
+        ? "asc"
+        : "desc"
   )
 
   const marks = useLiveMarks(positions.map((one) => one.marketKey))
@@ -618,14 +647,19 @@ export function PositionsTable({
     [feesById]
   )
 
-  const stoppedPositionIds = React.useMemo(
-    () =>
-      new Set(
-        positions
-          .filter((position) => positionHasStop(position, smartOrders))
-          .map((position) => position.id)
-      ),
-    [positions, smartOrders]
+  // Undefined until both halves of the read are in: "no stop" is a claim
+  // about money, and half a read cannot make it.
+  const stopPxById = React.useMemo(() => {
+    const byId = new Map<string, number | null>()
+    if (!settled || failed) return byId
+    for (const one of positions) {
+      byId.set(one.id, positionStopPx(one, smartOrders))
+    }
+    return byId
+  }, [positions, smartOrders, settled, failed])
+  const stopPxOf = React.useCallback(
+    (position: TradePosition) => stopPxById.get(position.id),
+    [stopPxById]
   )
 
   const rows = React.useMemo(
@@ -645,6 +679,14 @@ export function PositionsTable({
             return liquidationAwayOf(position, mark) ?? Number.POSITIVE_INFINITY
           case "projected":
             return targetsProfit(position) ?? Number.NEGATIVE_INFINITY
+          case "ifStopped": {
+            // Biggest loss first means smallest number first, so a row with
+            // no stop sorts to the end the way a missing liquidation does.
+            const stopPx = stopPxOf(position)
+            return stopPx === null || stopPx === undefined
+              ? Number.POSITIVE_INFINITY
+              : ifStoppedChange({ szi: position.szi, mark, stopPx })
+          }
           case "fees":
             // The figure the row prints, so the order and the number agree. A
             // real position with nothing swept has no figure at all and sorts
@@ -656,7 +698,7 @@ export function PositionsTable({
             return positionProfit(position, mark)
         }
       }),
-    [positions, direction, sort, markOf, walletName, feesOf]
+    [positions, direction, sort, markOf, walletName, feesOf, stopPxOf]
   )
 
   return (
@@ -692,9 +734,7 @@ export function PositionsTable({
             fees={feesOf(position)}
             wallet={walletName(position.walletId)}
             busy={busy}
-            missingStop={
-              settled && !failed && !stoppedPositionIds.has(position.id)
-            }
+            stopPx={stopPxOf(position)}
             onSelectMarket={onSelectMarket}
             onAdd={onAdd}
             onMargin={onMargin}
