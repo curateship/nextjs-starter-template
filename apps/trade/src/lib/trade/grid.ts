@@ -242,6 +242,58 @@ export const GRID_SPACING_LABELS: Record<GridSpacing, string> = {
 export const GRID_SPACING_HINT =
   "Dollars apart: $100, $90, $80 — equal gaps on the chart. Percent apart at 10%: $100, $90, $81 — every cycle the same % move."
 
+/** The gap between rungs the window opens on before one has been saved. */
+export const DEFAULT_GRID_RUNG_GAP_PCT = 2
+
+/**
+ * How deep a range reaches from its nearest rung when `steps` gaps of
+ * `gapPct` are laid end to end, in percent of that rung's price.
+ *
+ * 4.75% between 3 rungs is 2 steps, so 9.5% deep. Same-dollar spacing adds
+ * the gaps; same-percent spacing compounds them, so 3 rungs 10% apart on a
+ * buying grid reach 19% down (100 → 90 → 81), and on a selling grid 21% up
+ * (100 → 110 → 121). Null when a buying grid would reach zero or below.
+ */
+export function gridDepthFromGap(input: {
+  gapPct: number
+  steps: number
+  spacing: GridSpacing
+  direction: GridDirection
+}): number | null {
+  const { gapPct, steps, direction } = input
+  if (!(gapPct > 0) || steps < 0) return null
+  const depth =
+    input.spacing === "compounding"
+      ? direction === "long"
+        ? (1 - (1 - gapPct / 100) ** steps) * 100
+        : ((1 + gapPct / 100) ** steps - 1) * 100
+      : gapPct * steps
+  if (!Number.isFinite(depth)) return null
+  if (direction === "long" && depth >= 100) return null
+  return depth
+}
+
+/**
+ * The two depths of a range that straddles today's price with `levels` rungs
+ * `gapPct` apart, half the range each side. The range is `levels` steps tall
+ * (every rung has a way out one step away), so each side is half that.
+ */
+export function gridHalfRangeFromGap(input: {
+  gapPct: number
+  levels: number
+  spacing: GridSpacing
+}): { above: number; below: number } | null {
+  const { gapPct, levels } = input
+  if (!(gapPct > 0) || levels < 1) return null
+  const half = levels / 2
+  if (input.spacing === "compounding") {
+    const ratio = (1 + gapPct / 100) ** half
+    return { above: (ratio - 1) * 100, below: (1 - 1 / ratio) * 100 }
+  }
+  const depth = gapPct * half
+  return depth < 100 ? { above: depth, below: depth } : null
+}
+
 /**
  * How the pot is divided between the levels.
  *
@@ -375,6 +427,14 @@ export const gridParamsSchema = z.object({
    */
   direction: z.enum(GRID_DIRECTIONS).default("long"),
   levels: z.number().int().min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS),
+  /**
+   * The gap between one rung and the next, in percent, or null on settings
+   * saved before the window asked for it. The window works the range's depth
+   * out from this and the count; the engine only ever reads the depths. A new
+   * field with a default, never a new value in an old one — see
+   * `manualSizing`.
+   */
+  rungGapPct: z.number().positive().max(100).nullable().default(null),
   /** The whole grid's share of the account, in percent, split evenly. */
   potPct: z.number().positive().max(100),
   /**
@@ -502,6 +562,7 @@ export function defaultGridParams(): GridParams {
   return {
     direction: "long",
     levels: DEFAULT_GRID_LEVELS,
+    rungGapPct: null,
     potPct: DEFAULT_GRID_POT_PCT,
     compound: true,
     leverage: 1,
@@ -652,6 +713,38 @@ export function gridRangeFromClick(input: {
   // meant to name is not there.
   if (!(clickPx < range.topPx) || !(clickPx > range.bottomPx)) return null
   return range
+}
+
+/**
+ * The range whose rung nearest the market sits at `rungPx`, with the far edge
+ * held at `farPx`.
+ *
+ * The chart's UPPER PRICE and LOWER PRICE labels sit on the first and last
+ * rung's own prices (Tyler, 3 Sep 2026), and the first rung is one step inside
+ * the range's winning edge. Dragging that label therefore lands the RUNG under
+ * the hand, and this solves for the edge that puts it there — the same algebra
+ * a right-click uses, because a right-click also names a rung, not an edge.
+ */
+export function gridRangeFromNearRung(input: {
+  rungPx: number
+  farPx: number
+  levels: number
+  spacing: GridSpacing
+  direction: GridDirection
+}): { topPx: number; bottomPx: number } | null {
+  const { rungPx, farPx, direction } = input
+  if (!(rungPx > 0) || !(farPx > 0)) return null
+  const rangePct =
+    direction === "long"
+      ? (1 - farPx / rungPx) * 100
+      : (farPx / rungPx - 1) * 100
+  return gridRangeFromClick({
+    clickPx: rungPx,
+    rangePct,
+    levels: input.levels,
+    spacing: input.spacing,
+    direction,
+  })
 }
 
 /**

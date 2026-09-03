@@ -29,6 +29,8 @@ export type ChartColors = {
   neutral: string
   /** Text drawn on a solid chart badge. */
   badgeText: string
+  /** The page's own text colour, black in the light theme, for a neutral bar. */
+  foreground: string
   upSoft: string
   downSoft: string
 }
@@ -47,9 +49,11 @@ export function readChartColors(host: HTMLElement): ChartColors {
   const down = resolve("text-destructive")
   const border = resolve("text-border")
   const text = resolve("text-muted-foreground")
+  const foreground = resolve("text-foreground")
   return {
     text,
-    grid: withAlpha(resolve("text-foreground"), 0.08),
+    grid: withAlpha(foreground, 0.08),
+    foreground,
     border,
     primary: resolve("text-primary"),
     up,

@@ -27,7 +27,7 @@ import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
 import { prefetchChartEngine } from "@/components/trade/chart-engine"
-import { GridLayer, gridLineObstacles } from "@/components/trade/grid-layer"
+import { GridLayer } from "@/components/trade/grid-layer"
 import type {
   GridOrderState,
   GridPreview,
@@ -1389,7 +1389,9 @@ export function ChartPanel({
         const previous = drawnCharts.get(wanted) ?? []
         loadCandles(selectedKey, interval)
           .then(({ candles }) => {
-            draw(previous.length > 0 ? stitchCandles(previous, candles) : candles)
+            draw(
+              previous.length > 0 ? stitchCandles(previous, candles) : candles
+            )
             if (stale || olderRowsDrawn.has(wanted)) return
             fillBehind(candles)
           })
@@ -1568,15 +1570,6 @@ export function ChartPanel({
           // The grid's chips as things the pills slide around, so an Entry
           // pill at a level's own price sits BESIDE its money chip and both
           // stay readable.
-          obstacles={gridLineObstacles(
-            gridsShown,
-            selectedKey,
-            (px) => {
-              const y = surface.yOf(px)
-              return y === null || y < 0 || y > surface.height ? null : y
-            },
-            feesPaidForGrid
-          )}
           // This layer paints over the paint tools, so it has to know when
           // one is in hand and keep its hands off the pointer — otherwise
           // starting a line near a stop drags the stop.

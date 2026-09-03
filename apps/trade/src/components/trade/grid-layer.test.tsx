@@ -26,6 +26,7 @@ const colors: ChartColors = {
   alert: "theme-purple",
   neutral: "theme-neutral",
   badgeText: "theme-badge-text",
+  foreground: "theme-foreground",
   upSoft: "theme-up-soft",
   downSoft: "theme-down-soft",
 }
@@ -204,12 +205,12 @@ describe("the grid stop-loss line", () => {
   it.each(["long", "short"] as const)(
     "shows what the held %s grid would lose at its stop after fees",
     (direction) => {
-      expect(render(grid(direction))).toContain("STOP LOSS -$70.00")
+      expect(render(grid(direction))).toContain("SL -$70.00")
     }
   )
 
   it("shows that a flat grid has no money at risk yet", () => {
-    expect(render(grid("long", false))).toContain("STOP LOSS $0.00")
+    expect(render(grid("long", false))).toContain("SL $0.00")
   })
 
   it("shows no amount when the fills cannot provide the fees", () => {
@@ -220,7 +221,7 @@ describe("the grid stop-loss line", () => {
         () => null
       )
     )
-    expect(html).toContain("STOP LOSS —")
+    expect(html).toContain("SL —")
   })
 
   it("recalculates the amount when the stop moves", async () => {
@@ -229,9 +230,9 @@ describe("the grid stop-loss line", () => {
     const onMoveExit = vi.fn(async () => true)
     await act(async () => root.render(layer(grid("long"), onMoveExit)))
     const stop = [...host.querySelectorAll("span")].find((one) =>
-      one.textContent?.startsWith("STOP LOSS")
+      one.textContent?.startsWith("SL")
     )
-    expect(stop?.textContent).toBe("STOP LOSS -$70.00")
+    expect(stop?.textContent).toBe("SL -$70.00")
 
     await act(async () => {
       stop?.dispatchEvent(
@@ -247,7 +248,7 @@ describe("the grid stop-loss line", () => {
       "stopLoss",
       70
     )
-    expect(host.textContent).toContain("STOP LOSS -$105.00")
+    expect(host.textContent).toContain("SL -$105.00")
     await act(async () => root.unmount())
   })
 })
@@ -263,9 +264,10 @@ describe("the grid preview's whole-grid grip", () => {
       'button[aria-label="Move the whole grid"]'
     )
     expect(grip).not.toBeNull()
-    expect(grip?.className).toContain("bg-muted")
-    expect(grip?.className).toContain("text-muted-foreground")
-    expect(grip?.style.left).toBe("calc(100% - 64px)")
+    // The preview's grip sits on a DRAG GRID bar dressed like the name bars.
+    expect(grip?.parentElement?.textContent).toBe("DRAG GRID")
+    expect(grip?.parentElement?.className).toContain("w-28")
+    expect(grip?.parentElement?.className).toContain("bg-background")
     await act(async () => {
       grip?.dispatchEvent(
         new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
@@ -319,9 +321,9 @@ describe("a placed grid's whole-grid grip", () => {
       'button[aria-label="Move the whole grid"]'
     )
     expect(grip).not.toBeNull()
-    expect(grip?.className).toContain("bg-muted")
-    expect(grip?.className).toContain("text-muted-foreground")
-    expect(grip?.style.left).toBe("calc(100% - 64px)")
+    // The preview's grip sits on a plain muted bar of the shared bar width.
+    expect(grip?.parentElement?.children[0]).toBe(grip)
+    expect(grip?.parentElement?.className).toContain("w-28")
     expect(grip?.getAttribute("aria-disabled")).toBe("false")
 
     await act(async () => {
@@ -370,5 +372,210 @@ describe("a placed grid's whole-grid grip", () => {
     })
     expect(onMoveRange).not.toHaveBeenCalled()
     await act(async () => root.unmount())
+  })
+})
+
+describe("the names on a placed grid's range", () => {
+  // The saved grid: range 90–110, two levels. On a buying grid the levels are
+  // 90 and 100, so rung 1 (the highest buy) is 100 and the top edge 110 is
+  // where it sells. On a selling grid the levels are 100 and 110, so rung 1
+  // is 100 and the bottom edge 90 is where it buys back.
+  /** The y each named line is drawn at, read off its own wrapper. */
+  function yOfName(html: string, name: string): string | null {
+    const box = document.createElement("div")
+    box.innerHTML = html
+    const span = [...box.querySelectorAll("span")].find((one) =>
+      one.textContent?.includes(name)
+    )
+    let node: HTMLElement | null = span ?? null
+    while (node && !node.style.top) node = node.parentElement
+    return node?.style.top ?? null
+  }
+
+  it("puts UPPER PRICE on rung 1's own price on a buying grid", () => {
+    const html = render(grid("long", false))
+    expect(html).toContain("UPPER PRICE")
+    expect(html).toContain("LOWER PRICE")
+    // $100 is drawn at y=100 and $90 at y=110. The top edge, $110 at y=90,
+    // is not drawn at all; the band reaches it.
+    expect(yOfName(html, "UPPER PRICE")).toBe("100px")
+    expect(yOfName(html, "LOWER PRICE")).toBe("110px")
+    expect(html).not.toContain('style="top:90px"')
+  })
+
+  it("puts LOWER PRICE on rung 1's own price on a selling grid", () => {
+    const html = render(grid("short", false))
+    expect(html).toContain("UPPER PRICE")
+    expect(html).toContain("LOWER PRICE")
+    expect(yOfName(html, "UPPER PRICE")).toBe("90px")
+    expect(yOfName(html, "LOWER PRICE")).toBe("100px")
+    expect(html).not.toContain('style="top:110px"')
+  })
+
+  it("colours the range by direction and End Grid orange", () => {
+    const long = grid("long", false)
+    long.plan.takeProfitPx = 120
+    const longHtml = render(long)
+    expect(longHtml).toContain("border-color:theme-up")
+    expect(longHtml).toMatch(/border-color:theme-warning[^]*?END GRID/)
+    expect(longHtml).toMatch(/background-color:theme-up[^]*?2\/2/)
+
+    const shortHtml = render(grid("short", false))
+    expect(shortHtml).toMatch(/background-color:theme-down[^]*?2\/2/)
+    expect(shortHtml).not.toContain("theme-primary")
+  })
+
+  it("puts the grip inside the options bar, midway between the two names, off the rungs", () => {
+    // Tyler, 3 Sep 2026: the options bar sits in the middle, flush right,
+    // the same width as the name bars, with the whole-grid grip inside it.
+    const html = render(grid("long", false))
+    const box = document.createElement("div")
+    box.innerHTML = html
+    const grip = box.querySelector('button[aria-label="Move the whole grid"]')
+    const bar = grip?.parentElement as HTMLElement
+    expect(bar.children[0]).toBe(grip)
+    expect(bar.textContent).toContain("2/2")
+    expect(
+      bar.querySelector('button[aria-label="Reverse the grid"]')
+    ).not.toBeNull()
+    expect(bar.className).toContain("w-28")
+    // UPPER PRICE is on $100 (y=100) and LOWER PRICE on $90 (y=110), so the
+    // row sits midway, at y=105.
+    expect((bar.parentElement as HTMLElement).style.top).toBe("105px")
+    const upper = [...box.querySelectorAll("span")].find((s) =>
+      s.textContent?.startsWith("UPPER PRICE")
+    )
+    expect(upper?.parentElement?.textContent).not.toContain("2/2")
+  })
+
+  it("lands rung 1 under the hand when UPPER PRICE is dragged on a buying grid", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveRange = vi.fn(async () => true)
+    await act(async () =>
+      root.render(
+        layer(
+          grid("long", false),
+          async () => true,
+          () => 0,
+          onMoveRange
+        )
+      )
+    )
+    const upper = [...host.querySelectorAll("span")].find((one) =>
+      one.textContent?.includes("UPPER PRICE")
+    )
+    // Rung 1 sits at $100 (y=100). Dropping it at y=95 asks for rung 1 at
+    // $105; with the bottom held at $90 the step is $15 and the top is $120.
+    await act(async () => {
+      upper?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 95 })
+      )
+    })
+    expect(onMoveRange).toHaveBeenCalledTimes(1)
+    const [, move] = onMoveRange.mock.calls[0] as unknown as [
+      SmartGrid,
+      { end: string; px: number },
+    ]
+    expect(move.end).toBe("top")
+    expect(move.px).toBeCloseTo(120, 6)
+    await act(async () => root.unmount())
+  })
+
+  it("names rung 1 once with a rung's money and ×, not as a level and an edge", () => {
+    const html = render(grid("long", false))
+    // Only the two rungs carry a cancel ×; the top edge line has none.
+    const box = document.createElement("div")
+    box.innerHTML = html
+    expect(
+      box.querySelectorAll('button[aria-label^="Cancel the buy at"]').length
+    ).toBe(2)
+  })
+})
+
+describe("two named lines on one price", () => {
+  const rowOf = (html: string, name: string) => {
+    const box = document.createElement("div")
+    box.innerHTML = html
+    const span = [...box.querySelectorAll("span")].find((s) =>
+      s.textContent?.startsWith(name)
+    )
+    return [...(span?.parentElement?.children ?? [])]
+  }
+
+  it("draws a stop sitting on the bottom rung's price on that rung's row, to the left of its name", () => {
+    // The stop 0% under the bottom of the range is the bottom rung's own
+    // price. Two bars on one pixel hid half of each other.
+    const one = grid("long", false)
+    one.plan.stopLoss = { mode: "fixed", underPct: 0, px: 90, base: null }
+    const html = render(one)
+    const texts = rowOf(html, "LOWER PRICE").map((c) => c.textContent)
+    expect(texts[0]).toContain("SL")
+    expect(
+      texts.findIndex((one) => one?.includes("LOWER PRICE"))
+    ).toBeGreaterThan(0)
+    // The stop bar appears once, not once on each line.
+    expect(html.match(/SL/g)?.length).toBe(1)
+  })
+
+  it("keeps a stop clear of the range on its own line", () => {
+    // $70 draws at y=130, twenty pixels under the bottom rung at y=110.
+    const one = grid("long", false)
+    one.plan.stopLoss = { mode: "fixed", underPct: 22, px: 70, base: null }
+    const html = render(one)
+    const row = rowOf(html, "SL")
+    // An empty money slot, then the bar flush right, and nothing else.
+    expect(row[row.length - 1]?.textContent).toContain("SL")
+    expect(row.slice(0, -1).every((c) => c.textContent === "")).toBe(true)
+  })
+
+  it("puts the bar flush right with the money and × to its left", () => {
+    // Tyler, 3 Sep 2026: the amounts are aligned right, all the way to the
+    // right. So a line reads: name, ×, money — and the × keeps its width when
+    // a rung cannot be cancelled so the money column stays put.
+    const html = render(grid("long", false))
+    const row = rowOf(html, "UPPER PRICE")
+    // ×, then the money, then the bar flush right. No rung number on a
+    // placed grid.
+    expect(
+      row[0]?.querySelector("button")?.getAttribute("aria-label") ??
+        row[0]?.getAttribute("aria-label")
+    ).toContain("Cancel the buy")
+    // The flat fixture's rungs hold no size, so its money slot is empty; a
+    // held rung fills it, and a held rung has no ×.
+    expect(row[1]?.textContent).toBe("")
+    expect(row[2]?.textContent).toContain("UPPER PRICE")
+    const heldRow = rowOf(render(grid("long", true)), "UPPER PRICE")
+    expect(heldRow[0]?.textContent).toBe("$200")
+    expect(heldRow[1]?.textContent).toContain("UPPER PRICE")
+  })
+})
+
+describe("a rung with no bar", () => {
+  it("keeps a bar's worth of room so its money stays in the column", () => {
+    const one = grid("long", true)
+    // Three rungs: 90, 100, 110 — the middle one has no bar of its own.
+    one.plan.levels.push({
+      ...one.plan.levels[0],
+      buyPx: 95,
+      sellPx: 105,
+    })
+    const html = render(one)
+    const box = document.createElement("div")
+    box.innerHTML = html
+    const chip = [...box.querySelectorAll("span")].find(
+      (s) => s.textContent === "$190"
+    )
+    // In this tiny fixture the middle rung is also where the options bar
+    // lands, so the bar-width thing after the money is the options bar; on a
+    // wider grid it is an empty bar-width slot. Either way the money is
+    // never the last thing on the line.
+    const row = chip?.closest(".right-0")
+    const last = row?.lastElementChild as HTMLElement
+    expect(last.className).toContain("w-28")
+    expect(row?.children[0]?.textContent).toBe("$190")
   })
 })

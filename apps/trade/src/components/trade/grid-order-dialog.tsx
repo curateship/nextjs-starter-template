@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -44,7 +43,9 @@ import { cn } from "@/lib/utils"
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
-  DEFAULT_GRID_TAKE_PROFIT_PCT,
+  DEFAULT_GRID_RUNG_GAP_PCT,
+  gridDepthFromGap,
+  gridHalfRangeFromGap,
   defaultGridParams,
   entryWord,
   gridEndPx,
@@ -53,6 +54,7 @@ import {
   gridOrderPlan,
   placeGridParamsSchema,
   gridRangeFromClick,
+  gridRangeFromNearRung,
   gridRowLevelIndex,
   gridRowRungNumber,
   gridRungNumber,
@@ -60,6 +62,7 @@ import {
   gridRungPctsSum,
   gridStopBeyond,
   reachedEntry,
+  winEdge,
   GRID_ANCHOR_HINTS,
   GRID_ANCHOR_LABELS,
   GRID_ANCHORS,
@@ -103,12 +106,25 @@ export type GridOrderState = { px: number; x: number; y: number }
  */
 export type GridPreviewLine = {
   px: number
-  /** What this line is, which decides its colour and its name. */
-  kind: "level" | "upper" | "lower" | "takeProfit" | "stopLoss" | "liquidation"
+  /**
+   * What this line is, which decides its colour and its name. "upper" and
+   * "lower" sit on the first and last rung's own prices; "edge" is the range's
+   * winning edge one step past rung 1, drawn as a plain line.
+   */
+  kind:
+    | "level"
+    | "upper"
+    | "lower"
+    | "edge"
+    | "takeProfit"
+    | "stopLoss"
+    | "liquidation"
   /** What this rung puts in, in dollars, shown as the chip a placed level gets. */
   usd?: number
   /** Words for the line's badge when the kind's own name is not enough. */
   label?: string
+  /** The rung's number, 1 nearest the market, printed beside its money. */
+  rung?: number
   /** This line can be dragged, and dropping it rewrites the window's fields. */
   grip?: boolean
 }
@@ -146,6 +162,11 @@ type Rung = { id: string; value: string }
 
 /** Counts up for the life of the tab; nothing is stored or compared to it. */
 let nextRungId = 0
+
+/** A percent for the card, to two decimals, without a trailing ".00". */
+function pctText(value: number): string {
+  return String(Math.round(value * 100) / 100)
+}
 
 function rungsFrom(pcts: readonly number[]): Rung[] {
   return pcts.map((pct) => ({
@@ -214,6 +235,15 @@ export function GridOrderDialog({
   const [levels, setLevels] = React.useState(
     String(seeded?.levels ?? defaultGridParams().levels)
   )
+  /**
+   * How far apart the rungs sit, in percent — the one thing the Range card
+   * asks about the range's size. Tyler, 3 Sep 2026: "we just need to set a %
+   * between rungs." The depth of the range is rungs times gap, worked out
+   * below, and is what the server is sent and what is remembered as before.
+   */
+  const [gapPct, setGapPct] = React.useState(
+    String(seeded?.rungGapPct ?? DEFAULT_GRID_RUNG_GAP_PCT)
+  )
   const [potPct, setPotPct] = React.useState(
     String(seeded?.potPct ?? defaultGridParams().potPct)
   )
@@ -248,35 +278,15 @@ export function GridOrderDialog({
   const [followDown, setFollowDown] = React.useState(
     seeded?.followDown ?? false
   )
-  // The range STRADDLES the price: levels above it are sells of what the grid
-  // holds, levels below are buys waiting for a dip, and the grid earns from
-  // price crossing back and forth between them.
-  //
-  // Set as two PERCENTAGES of the price, not two prices. A percentage means the
-  // same thing on the next coin you open — "8% either side" is a grid you can
-  // picture — while a price is only meaningful on the coin it came from, and
-  // was remembered onto charts where it was nonsense.
-  const [abovePct, setAbovePct] = React.useState(
-    String(seeded?.abovePct ?? DEFAULT_GRID_ABOVE_PCT)
-  )
-  const [belowPct, setBelowPct] = React.useState(
-    String(seeded?.rangePct ?? DEFAULT_GRID_BELOW_PCT)
-  )
   const [tpOn, setTpOn] = React.useState(
     seeded ? seeded.takeProfitPct !== null : true
   )
-  const [tpPct, setTpPct] = React.useState(
-    String(
-      seeded?.takeProfitPct ??
-        defaultGridParams().takeProfitPct ??
-        DEFAULT_GRID_TAKE_PROFIT_PCT
-    )
-  )
-  const [slUnderPct, setSlUnderPct] = React.useState(
-    String(
-      seeded?.stopLoss?.underPct ?? defaultGridParams().stopLoss?.underPct ?? 5
-    )
-  )
+  // End Grid and the stop both sit one gap past the range — Tyler, 3 Sep
+  // 2026 — so neither has a box of its own. Dragging one of them on the chart
+  // gives it its own distance until the gap is typed again, which takes both
+  // back to the gap.
+  const [tpDragPct, setTpDragPct] = React.useState<number | null>(null)
+  const [slDragPct, setSlDragPct] = React.useState<number | null>(null)
   const [baseOn, setBaseOn] = React.useState(
     seeded ? seeded.stopLoss?.base != null : false
   )
@@ -301,6 +311,7 @@ export function GridOrderDialog({
       if (stale || !params || edited.current) return
       setDirection(params.direction)
       setLevels(String(params.levels))
+      if (params.rungGapPct !== null) setGapPct(String(params.rungGapPct))
       setPotPct(String(params.potPct))
       setManualOn(params.manualSizing)
       // The fresh server answer replaces the browser seed as one setup. A
@@ -320,13 +331,9 @@ export function GridOrderDialog({
       setAnchor(params.anchor)
       setFollow(params.follow)
       setFollowDown(params.followDown)
-      setAbovePct(String(params.abovePct))
-      setBelowPct(String(params.rangePct))
       setTpOn(params.takeProfitPct !== null)
       setReverseOn(params.reverseWhenStopped)
-      if (params.takeProfitPct !== null) setTpPct(String(params.takeProfitPct))
       if (params.stopLoss) {
-        setSlUnderPct(String(params.stopLoss.underPct))
         setBaseOn(params.stopLoss.base !== null)
         if (params.stopLoss.base) {
           setBaseUnderPct(String(params.stopLoss.base.underPct))
@@ -345,13 +352,8 @@ export function GridOrderDialog({
   // The two ends as prices. Worked out here and nowhere else, so what the
   // summary counts, what the chart previews and what the server is sent are the
   // same numbers.
-  const above = parsed(abovePct)
-  const below = parsed(belowPct)
-  // On a hand-set grid the ROWS are the level count: adding a rung is how you
-  // add a level, so a second box saying how many would be a box that argues
-  // with them.
+  const gap = parsed(gapPct)
   const rungCount = rungs.length
-  const levelCount = manualOn ? rungCount : parsed(levels)
   const borrowing = parsed(leverage)
 
   const maxBorrowing = marketLeverageLimit(market.maxLeverage)
@@ -378,10 +380,6 @@ export function GridOrderDialog({
     rungs.length <= MAX_GRID_LEVELS &&
     rungPcts.every((pct) => pct > 0 && pct <= 100)
   const badRung = rungPcts.findIndex((pct) => !(pct > 0 && pct <= 100))
-  // Hanging off a click reads ONE depth, and which of the two fields holds it
-  // depends on the direction: a buying grid reaches DOWN from the click, a
-  // selling grid reaches UP.
-  const clickDepth = direction === "long" ? below : above
 
   /**
    * A range set by dragging an edge on the chart, in plain prices.
@@ -398,6 +396,39 @@ export function GridOrderDialog({
     topPx: number
     bottomPx: number
   } | null>(null)
+
+  // On a hand-set grid the ROWS are the level count: adding a rung is how you
+  // add a level, so a second box saying how many would be a box that argues
+  // with them.
+  const levelCount = manualOn ? rungCount : parsed(levels)
+
+  /**
+   * The range's size, from the gap and the count.
+   *
+   * 9.5% deep with 3 rungs puts rungs at the click, 4.75% below it and 9.5%
+   * below it. The gap box is that arithmetic backwards: 4.75% between 3 rungs
+   * is 9.5% deep, and 5 rungs at the same gap is 19%. Hanging off a click the
+   * click IS rung 1, so the depth is one gap fewer than the rungs. Around
+   * today's price the rungs straddle it, half the range each side.
+   */
+  const depths = React.useMemo(() => {
+    if (gap === null || levelCount === null || levelCount < 1) return null
+    if (anchor === "click") {
+      const depth = gridDepthFromGap({
+        gapPct: gap,
+        steps: levelCount - 1,
+        spacing,
+        direction,
+      })
+      if (depth === null) return null
+      return direction === "long"
+        ? { above: DEFAULT_GRID_ABOVE_PCT, below: depth }
+        : { above: depth, below: DEFAULT_GRID_BELOW_PCT }
+    }
+    return gridHalfRangeFromGap({ gapPct: gap, levels: levelCount, spacing })
+  }, [gap, levelCount, anchor, spacing, direction])
+  const above = depths?.above ?? null
+  const below = depths?.below ?? null
 
   const typedRange = React.useMemo(() => {
     // Hanging off the click solves the far edge BACKWARDS from it, so the
@@ -435,18 +466,33 @@ export function GridOrderDialog({
   const top = range?.topPx ?? null
   const bottom = range?.bottomPx ?? null
 
-  /** Typing into a range field takes the range back from a chart drag. */
-  const typeRange =
-    (set: (value: string) => void) =>
-    (value: string) => {
-      setDraggedRange(null)
-      set(value)
-    }
+  /** Typing the gap takes the range back from a chart drag. */
+  const typeRange = (set: (value: string) => void) => (value: string) => {
+    setDraggedRange(null)
+    setTpDragPct(null)
+    setSlDragPct(null)
+    set(value)
+  }
+
+  const takeProfitPct = tpDragPct ?? gap
+  const stopUnderPct = slDragPct ?? gap
+  // End Grid is measured from the higher of the range's top and today's
+  // price (the lower of the two on a selling grid): a line on the wrong side
+  // of the price would close the grid the moment it was placed. The readout
+  // says which one it was measured from.
+  const endFromPrice =
+    top !== null &&
+    bottom !== null &&
+    (direction === "long" ? market.price > top : market.price < bottom)
 
   const params = React.useMemo((): PlaceGridParams | null => {
     const candidate: PlaceGridParams = {
       direction,
-      levels: manualOn ? rungCount : (parsed(levels) ?? -1),
+      levels: levelCount ?? -1,
+      // Remembered whichever way the count was set, so switching to the gap
+      // later opens on the last one typed. A gap that is not a usable number
+      // must not block a grid that is counting its rungs another way.
+      rungGapPct: gap !== null && gap > 0 && gap <= 100 ? gap : null,
       potPct: parsed(potPct) ?? -1,
       // A grid placed by hand is sized once, off the account right now.
       compound: true,
@@ -470,19 +516,14 @@ export function GridOrderDialog({
       // the click, which is below for a buying grid and above for a selling
       // one. A leftover from a bad typing session in the other field must not
       // block a grid that no longer looks at it.
-      abovePct:
-        anchor === "click" && direction === "long"
-          ? (above ?? DEFAULT_GRID_ABOVE_PCT)
-          : (above ?? -1),
-      rangePct:
-        anchor === "click" && direction === "short"
-          ? (below ?? DEFAULT_GRID_BELOW_PCT)
-          : (below ?? -1),
+      abovePct: above ?? -1,
+      rangePct: below ?? -1,
       baseDetection: baseStopDetection(),
-      takeProfitPct: tpOn ? (parsed(tpPct) ?? -1) : null,
+      // One gap past the range, both of them, unless one was dragged.
+      takeProfitPct: tpOn ? (takeProfitPct ?? -1) : null,
       reverseWhenStopped: reverseOn,
       stopLoss: {
-        underPct: parsed(slUnderPct) ?? -1,
+        underPct: stopUnderPct ?? -1,
         base: baseOn
           ? {
               underPct: parsed(baseUnderPct) ?? -1,
@@ -495,10 +536,10 @@ export function GridOrderDialog({
     return checked.success ? checked.data : null
   }, [
     direction,
-    levels,
+    levelCount,
+    gap,
     potPct,
     manualOn,
-    rungCount,
     rungPcts,
     rungsUsable,
     borrowing,
@@ -510,9 +551,9 @@ export function GridOrderDialog({
     above,
     below,
     tpOn,
-    tpPct,
+    takeProfitPct,
+    stopUnderPct,
     reverseOn,
-    slUnderPct,
     baseOn,
     baseUnderPct,
     baseReclaimDays,
@@ -537,7 +578,6 @@ export function GridOrderDialog({
   // cleanup left it under the newly saved grid for one frame, which flickered.
   React.useLayoutEffect(() => () => onPreview(null), [onPreview])
 
-  const takeProfitPct = parsed(tpPct)
   const takeProfitPx =
     tpOn &&
     top !== null &&
@@ -559,7 +599,7 @@ export function GridOrderDialog({
       ? gridStopBeyond(
           direction,
           { topPx: top, bottomPx: bottom },
-          parsed(slUnderPct) ?? 0
+          stopUnderPct ?? 0
         )
       : null
 
@@ -571,7 +611,6 @@ export function GridOrderDialog({
   const onMoveLine = React.useCallback(
     (kind: GridPreviewDragKind, px: number) => {
       if (busy || !(px > 0)) return
-      const pct = (value: number) => String(Math.round(value * 100) / 100)
       if (top === null || bottom === null) return
       /**
        * Dragging an edge moves THAT edge, one for one, and nothing else —
@@ -582,26 +621,39 @@ export function GridOrderDialog({
        * is what placing sends anyway. A drop that would turn the range
        * inside out changes nothing.
        */
+      /**
+       * UPPER PRICE and LOWER PRICE sit on rung 1 and the deepest rung. The
+       * deepest rung IS the range's far edge, so that drop is the edge. Rung
+       * 1 sits a step inside the other edge, so its drop is turned into the
+       * edge that puts rung 1 under the hand, with the far edge held.
+       */
+      const nearEdge = (rungPx: number, farPx: number): number | null => {
+        if (levelCount === null) return null
+        const moved = gridRangeFromNearRung({
+          rungPx,
+          farPx,
+          levels: levelCount,
+          spacing,
+          direction,
+        })
+        return moved === null ? null : winEdge(direction, moved)
+      }
       if (kind === "upper") {
-        if (!(px > bottom)) return
-        if (anchor === "click") {
-          touched(setDraggedRange)({ topPx: px, bottomPx: bottom })
-          return
-        }
-        const value = (px / market.price - 1) * 100
-        if (value > 0) touched(setAbovePct)(pct(value))
+        const edge = direction === "long" ? nearEdge(px, bottom) : px
+        if (edge === null || !(edge > bottom)) return
+        // One gap cannot say "the top moved and the bottom did not", so a
+        // drop becomes a hand-set range in plain prices. Typing a gap takes
+        // the range back.
+        touched(setDraggedRange)({ topPx: edge, bottomPx: bottom })
         return
       }
       if (kind === "lower") {
-        if (!(px < top)) return
-        if (anchor === "click") {
-          touched(setDraggedRange)({ topPx: top, bottomPx: px })
-          return
-        }
-        const value = (1 - px / market.price) * 100
-        if (value > 0) touched(setBelowPct)(pct(value))
+        const edge = direction === "short" ? nearEdge(px, top) : px
+        if (edge === null || !(edge < top)) return
+        touched(setDraggedRange)({ topPx: top, bottomPx: edge })
         return
       }
+      const pct = (value: number) => Math.round(value * 100) / 100
       if (kind === "takeProfit") {
         // `gridEndPx` at zero percent IS the edge it measures from, so the
         // dropped price inverts against the same base the placement uses.
@@ -613,15 +665,26 @@ export function GridOrderDialog({
         )
         const value =
           direction === "long" ? (px / from - 1) * 100 : (1 - px / from) * 100
-        if (value > 0) touched(setTpPct)(pct(value))
+        if (value > 0) touched(setTpDragPct)(pct(value))
         return
       }
       const edge = direction === "long" ? bottom : top
       const value =
         direction === "long" ? (1 - px / edge) * 100 : (px / edge - 1) * 100
-      if (value > 0) touched(setSlUnderPct)(pct(value))
+      if (value > 0) touched(setSlDragPct)(pct(value))
     },
-    [busy, anchor, market.price, direction, top, bottom, touched, setDraggedRange]
+    [
+      busy,
+      anchor,
+      market.price,
+      direction,
+      top,
+      bottom,
+      levelCount,
+      spacing,
+      touched,
+      setDraggedRange,
+    ]
   )
 
   /**
@@ -650,9 +713,7 @@ export function GridOrderDialog({
       ? plan.levels.reduce(
           (sum, level) =>
             sum +
-            (stopPx - level.buyPx) *
-              level.sz *
-              (direction === "long" ? 1 : -1),
+            (stopPx - level.buyPx) * level.sz * (direction === "long" ? 1 : -1),
           0
         )
       : null
@@ -678,40 +739,60 @@ export function GridOrderDialog({
       onPreview(null)
       return
     }
-    // Every price a level sits at, then the two ends of the range and the two
-    // ways out. One end of the range IS the deepest level's own price — the
-    // bottom on a buying grid, the top on a selling one — so that one is drawn
-    // once, as the range. Levels are ordered lowest price first either way.
-    // Each level carries its dollars, so the grid can be read before it is
-    // placed the way a placed one is read.
-    const skip = direction === "long" ? 0 : plan.levels.length - 1
+    // Every price a level sits at, then the two named rungs, the range's
+    // winning edge and the two ways out. UPPER PRICE and LOWER PRICE sit on
+    // the first and last rung's own prices: rung 1 is the level nearest the
+    // market and the deepest rung's price IS the range's far edge. Those two
+    // are drawn once, as the named lines. Levels are ordered lowest price
+    // first either way. Each level carries its dollars, so the grid can be
+    // read before it is placed the way a placed one is read.
+    const nearIndex = direction === "long" ? plan.levels.length - 1 : 0
+    const farIndex = direction === "long" ? 0 : plan.levels.length - 1
+    const count = plan.levels.length
     const lines: GridPreviewLine[] = plan.levels
-      .filter((_, index) => index !== skip)
-      .map((level) => ({
+      .map((level, index) => ({ level, index }))
+      .filter(({ index }) => index !== nearIndex && index !== farIndex)
+      .map(({ level, index }) => ({
         px: level.buyPx,
         kind: "level" as const,
         usd: level.dollars,
+        rung: gridRungNumber(index, count, direction),
       }))
-    const deepUsd = plan.levels[skip]?.dollars
-    // Both edges drag, whatever the anchor. On a click-hung range the
+    const near = plan.levels[nearIndex]
+    const far = plan.levels[farIndex]
+    // Both named lines drag, whatever the anchor. On a click-hung range the
     // worked-out edge's drop is turned back into the one depth that puts it
     // there — see `onMoveLine`.
-    if (top !== null) {
+    if (top !== null && bottom !== null && near && far) {
       lines.push({
-        px: top,
+        px: direction === "long" ? near.buyPx : top,
         kind: "upper",
         grip: !busy,
-        usd: direction === "short" ? deepUsd : undefined,
+        usd: (direction === "long" ? near : far).dollars,
+        rung: gridRungNumber(
+          direction === "long" ? nearIndex : farIndex,
+          count,
+          direction
+        ),
       })
-    }
-    if (bottom !== null) {
       lines.push({
-        px: bottom,
+        px: direction === "long" ? bottom : near.buyPx,
         kind: "lower",
         grip: !busy,
-        usd: direction === "long" ? deepUsd : undefined,
+        usd: (direction === "long" ? far : near).dollars,
+        rung: gridRungNumber(
+          direction === "long" ? farIndex : nearIndex,
+          count,
+          direction
+        ),
+      })
+      lines.push({
+        px: winEdge(direction, { topPx: top, bottomPx: bottom }),
+        kind: "edge",
       })
     }
+    // Both ways out sit one gap past the range and follow it. Dragging one
+    // gives it its own distance — see `onMoveLine`.
     if (takeProfitPx !== null)
       lines.push({ px: takeProfitPx, kind: "takeProfit", grip: !busy })
     if (stopPx !== null) {
@@ -722,7 +803,7 @@ export function GridOrderDialog({
         label:
           stopResultUsd === null
             ? undefined
-            : `STOP LOSS ${formatSignedUsd(stopResultUsd)}`,
+            : `SL ${formatSignedUsd(stopResultUsd)}`,
       })
     }
     if (liquidationPx !== null) {
@@ -775,30 +856,34 @@ export function GridOrderDialog({
   // Every refusal the server would give, in the same order and wording as the
   // server. It appears after a bad field loses focus or Place is pressed.
   const refusal =
-    top === null || bottom === null || !(top > 0) || !(bottom > 0)
-      ? anchor === "click"
-        ? `Set how far ${direction === "long" ? "below" : "above"} your click the grid reaches, and between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels.`
-        : "Both ends of the range need to be a percentage above zero."
-      : bottom >= top
-        ? "The bottom of the grid has to be below the top."
-        : borrowingInvalid
-          ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
-          : manualOn && badRung !== -1
-            ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a share above zero.`
-            : manualOn && !rungsUsable
-              ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
-              : !params
-                  ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
-                  : plan &&
-                      plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
-                    ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
-                    : plan && plan.tooSmallIndex !== null
-                      ? manualOn
-                        ? `Rung ${gridRungNumber(plan.tooSmallIndex, plan.levels.length, direction)} is too small to be an order on this market. Give it a bigger share, or raise the share of the account.`
-                        : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
-                      : stopPastLiquidation
-                        ? "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels."
-                        : null
+    gap === null || !(gap > 0)
+      ? "Type the gap between rungs as a percent above zero."
+      : levelCount !== null && depths === null && !draggedRange
+        ? `${levelCount} rungs ${gapPct}% apart reach further than the price can fall. Use a smaller gap or fewer rungs.`
+        : top === null || bottom === null || !(top > 0) || !(bottom > 0)
+          ? anchor === "click"
+            ? `Set how far ${direction === "long" ? "below" : "above"} your click the grid reaches, and between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels.`
+            : "Both ends of the range need to be a percentage above zero."
+          : bottom >= top
+            ? "The bottom of the grid has to be below the top."
+            : borrowingInvalid
+              ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
+              : manualOn && badRung !== -1
+                ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a share above zero.`
+                : manualOn && !rungsUsable
+                  ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
+                  : !params
+                    ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
+                    : plan &&
+                        plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
+                      ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
+                      : plan && plan.tooSmallIndex !== null
+                        ? manualOn
+                          ? `Rung ${gridRungNumber(plan.tooSmallIndex, plan.levels.length, direction)} is too small to be an order on this market. Give it a bigger share, or raise the share of the account.`
+                          : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
+                        : stopPastLiquidation
+                          ? "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels."
+                          : null
 
   const ready = !busy && refusal === null && plan !== null
 
@@ -916,17 +1001,13 @@ export function GridOrderDialog({
             summary={
               draggedRange
                 ? `${formatPrice(draggedRange.bottomPx)} – ${formatPrice(draggedRange.topPx)}`
-                : anchor === "click"
-                  ? clickDepth === null
-                    ? "—"
-                    : direction === "long"
-                      ? `−${belowPct}%`
-                      : `+${abovePct}%`
-                  : above === null || below === null
-                    ? "—"
-                    : above === below
-                      ? `±${belowPct}%`
-                      : `+${abovePct}% / −${belowPct}%`
+                : depths === null
+                  ? "—"
+                  : anchor === "click"
+                    ? direction === "long"
+                      ? `−${pctText(depths.below)}%`
+                      : `+${pctText(depths.above)}%`
+                    : `±${pctText(depths.above)}%`
             }
           >
             {/* Which way round the grid runs. The first thing the card asks,
@@ -986,85 +1067,58 @@ export function GridOrderDialog({
                 </SelectContent>
               </Select>
             </div>
-            {anchor === "click" ? (
-              /* One depth, not two. The far edge is solved for so the clicked
-                   price gets its own level, so there is nothing to type on
-                   that side. A buying grid reaches down from the click and a
-                   selling grid reaches up. */
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="grid-click-depth"
-                  hint={
-                    direction === "long"
-                      ? "How far under the price you clicked the deepest buy sits."
-                      : "How far over the price you clicked the deepest short sits."
-                  }
-                >
-                  {direction === "long" ? "How far below %" : "How far above %"}
-                </FieldLabel>
-                <Input
-                  id="grid-click-depth"
-                  inputMode="decimal"
-                  value={direction === "long" ? belowPct : abovePct}
-                  disabled={busy}
-                  aria-invalid={showValidation && clickDepth === null}
-                  onChange={(event) =>
-                    touched(
-                      typeRange(
-                        direction === "long" ? setBelowPct : setAbovePct
-                      )
-                    )(event.target.value)
-                  }
-                  onBlur={() => setShowValidation(true)}
-                  className="bg-background"
-                />
-              </div>
-            ) : (
-              <div className="flex items-end gap-2">
-                <div className="grid flex-1 gap-2">
-                  <Label htmlFor="grid-top" className="text-xs">
-                    Above %
-                  </Label>
-                  <Input
-                    id="grid-top"
-                    inputMode="decimal"
-                    value={abovePct}
-                    disabled={busy}
-                    aria-invalid={showValidation && above === null}
-                    onChange={(event) =>
-                      touched(typeRange(setAbovePct))(event.target.value)
-                    }
-                    onBlur={() => setShowValidation(true)}
-                    className="bg-background"
-                  />
-                </div>
-                <div className="grid flex-1 gap-2">
-                  <Label htmlFor="grid-bottom" className="text-xs">
-                    Below %
-                  </Label>
-                  <Input
-                    id="grid-bottom"
-                    inputMode="decimal"
-                    value={belowPct}
-                    disabled={busy}
-                    aria-invalid={showValidation && below === null}
-                    onChange={(event) =>
-                      touched(typeRange(setBelowPct))(event.target.value)
-                    }
-                    onBlur={() => setShowValidation(true)}
-                    className="bg-background"
-                  />
-                </div>
-              </div>
-            )}
+            {/* One box for the range's size: how far apart the rungs sit.
+                The depth is rungs times gap and is said on the line under it,
+                so there is no second box to argue with this one. */}
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-gap"
+                hint={`How far apart the rungs sit, as a percent. 3 rungs 4.75% apart reach 9.5% ${
+                  direction === "long" ? "below" : "above"
+                } your click; 5 rungs at the same gap reach 19%.${
+                  spacing === "even"
+                    ? ""
+                    : " With levels the same percent apart, each step is this percent of the rung before it."
+                }`}
+              >
+                Gap between rungs %
+              </FieldLabel>
+              <Input
+                id="grid-gap"
+                inputMode="decimal"
+                value={gapPct}
+                disabled={busy}
+                aria-invalid={showValidation && (gap === null || !(gap > 0))}
+                onChange={(event) =>
+                  touched(typeRange(setGapPct))(event.target.value)
+                }
+                onBlur={() => setShowValidation(true)}
+                className="bg-background"
+              />
+            </div>
+            <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                {anchor === "click"
+                  ? direction === "long"
+                    ? "Reaches below your click"
+                    : "Reaches above your click"
+                  : "Reaches either side of the price"}
+              </span>
+              <span className="tabular-nums">
+                {depths === null
+                  ? "—"
+                  : anchor === "click"
+                    ? `${pctText(direction === "long" ? depths.below : depths.above)}%`
+                    : `${pctText(depths.above)}%`}
+              </span>
+            </div>
             {/* Said out loud, or the depth box above reads as the range while
                 the chart shows something else. */}
             {draggedRange ? (
               <p className="text-xs text-muted-foreground">
                 The range is where you dragged it:{" "}
                 {formatPrice(draggedRange.bottomPx)} to{" "}
-                {formatPrice(draggedRange.topPx)}. Typing a percent takes it
-                back.
+                {formatPrice(draggedRange.topPx)}. Typing a gap takes it back.
               </p>
             ) : null}
             {/* The Rungs card counts the levels once it is on, so the box that
@@ -1236,7 +1290,7 @@ export function GridOrderDialog({
                 the money. Tyler's rule, 1 Sep 2026. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Adds up to</span>
-              <span className="tabular-nums text-muted-foreground">
+              <span className="text-muted-foreground tabular-nums">
                 {Math.round(rungSum * 100) / 100}%
                 {plan === null ? "" : ` · ${formatUsd(plan.totalCost)}`}
               </span>
@@ -1266,108 +1320,29 @@ export function GridOrderDialog({
           </OptionCard>
 
           <OptionCard
-            id="grid-tp-on"
-            title="End Grid"
-            summary={
-              tpOn
-                ? parsed(tpPct) === null
-                  ? "—"
-                  : `${direction === "long" ? "+" : "−"}${tpPct}%`
-                : null
-            }
-            hint={
-              direction === "long"
-                ? "A fixed line above the range. Reaching it closes the grid. Without it the grid runs until you stop it or the stop loss fires."
-                : "A fixed line below the range. Reaching it closes the grid. Without it the grid runs until you stop it or the stop loss fires."
-            }
-            foldWhenOff={false}
-            toggle={{
-              checked: tpOn,
-              disabled: busy,
-              onChange: touched(setTpOn),
-            }}
-          >
-            {tpOn ? (
-              <>
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="grid-tp-pct"
-                    hint={
-                      direction === "long"
-                        ? "Measured from today's price or the top of the grid, whichever is higher. End Grid starts above both."
-                        : "Measured from today's price or the bottom of the grid, whichever is lower. End Grid starts below both."
-                    }
-                  >
-                    {direction === "long"
-                      ? "Above the higher price %"
-                      : "Below the lower price %"}
-                  </FieldLabel>
-                  <Input
-                    id="grid-tp-pct"
-                    inputMode="decimal"
-                    value={tpPct}
-                    disabled={busy}
-                    aria-invalid={showValidation && parsed(tpPct) === null}
-                    onChange={(event) => touched(setTpPct)(event.target.value)}
-                    onBlur={() => setShowValidation(true)}
-                    className="bg-background"
-                  />
-                </div>
-                <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Grid ends at</span>
-                  <span className="tabular-nums">
-                    {takeProfitPx === null ? "—" : formatPrice(takeProfitPx)}
-                  </span>
-                </div>
-              </>
-            ) : null}
-          </OptionCard>
-
-          <OptionCard
             id="grid-sl-on"
             title="Stop loss"
             summary={
-              parsed(slUnderPct) === null
+              stopUnderPct === null
                 ? "—"
-                : `${direction === "long" ? "−" : "+"}${slUnderPct}%`
+                : `${direction === "long" ? "−" : "+"}${pctText(stopUnderPct)}%`
             }
             hint={
               direction === "long"
-                ? "A stop below the range. Price cutting through it sells everything held and ends the grid."
-                : "A stop above the range. Price cutting through it buys the whole short back and ends the grid."
+                ? "A stop one gap below the range. Price cutting through it sells everything held and ends the grid."
+                : "A stop one gap above the range. Price cutting through it buys the whole short back and ends the grid."
             }
           >
             <>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="grid-sl-pct"
-                  hint={
-                    direction === "long"
-                      ? "How far under the bottom of the range the stop rests. Zero sits it on the bottom itself."
-                      : "How far over the top of the range the stop rests. Zero sits it on the top itself."
-                  }
-                >
-                  {direction === "long"
-                    ? "Below the bottom %"
-                    : "Above the top %"}
-                </FieldLabel>
-                <Input
-                  id="grid-sl-pct"
-                  inputMode="decimal"
-                  value={slUnderPct}
-                  disabled={busy}
-                  aria-invalid={showValidation && parsed(slUnderPct) === null}
-                  onChange={(event) =>
-                    touched(setSlUnderPct)(event.target.value)
-                  }
-                  onBlur={() => setShowValidation(true)}
-                  className="bg-background"
-                />
-              </div>
+              {/* No percent of its own: the stop sits one gap under the
+                  bottom rung, the same gap the rungs keep — Tyler, 3 Sep
+                  2026. The line under says where that lands. */}
               <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                <span>Stop sits at</span>
+                <span>Sits past the range by</span>
                 <span className="tabular-nums">
-                  {stopPx === null ? "—" : formatPrice(stopPx)}
+                  {stopUnderPct === null
+                    ? "—"
+                    : `${direction === "long" ? "−" : "+"}${pctText(stopUnderPct)}%`}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -1414,6 +1389,43 @@ export function GridOrderDialog({
               ) : null
             }
           >
+            {/* End Grid: on or off, one gap past the range. It lived on a card
+                of its own with a percent of its own; Tyler moved it here and
+                tied it to the gap on 3 Sep 2026. */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-tp-on"
+                checked={tpOn}
+                disabled={busy}
+                onCheckedChange={touched((next: boolean | "indeterminate") =>
+                  setTpOn(next === true)
+                )}
+              />
+              <FieldLabel
+                htmlFor="grid-tp-on"
+                hint={
+                  direction === "long"
+                    ? "A fixed line one gap above the range, or above today's price if that is higher. Reaching it closes the grid. Off, the grid runs until you stop it or the stop fires."
+                    : "A fixed line one gap below the range, or below today's price if that is lower. Reaching it closes the grid. Off, the grid runs until you stop it or the stop fires."
+                }
+              >
+                End Grid
+              </FieldLabel>
+            </div>
+            {tpOn ? (
+              <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  {endFromPrice
+                    ? "Ends past today's price by"
+                    : "Ends past the range by"}
+                </span>
+                <span className="tabular-nums">
+                  {takeProfitPct === null
+                    ? "—"
+                    : `${direction === "long" ? "+" : "−"}${pctText(takeProfitPct)}%`}
+                </span>
+              </div>
+            ) : null}
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-leverage"

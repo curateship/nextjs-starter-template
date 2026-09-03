@@ -27,6 +27,7 @@ const colors: ChartColors = {
   alert: "theme-purple",
   neutral: "theme-neutral",
   badgeText: "theme-badge-text",
+  foreground: "theme-foreground",
   upSoft: "theme-up-soft",
   downSoft: "theme-down-soft",
 }
@@ -401,8 +402,8 @@ describe("chart bracket lines", () => {
       held.feesPaid = 5
       held.live = { ...held.live!, liquidationPx: liquidation }
 
-      const label = lineLabel(renderLines(held, []), "Liquidation")
-      expect(label.textContent).toBe(`Liquidation ${loss}`)
+      const label = lineLabel(renderLines(held, []), "LIQUIDATION")
+      expect(label.textContent).toBe(`LIQUIDATION ${loss}`)
       expect(label.querySelector("tspan")?.textContent).toBe(loss)
       expect(label.querySelector("tspan")?.getAttribute("fill")).toBe(
         "theme-down"
@@ -418,8 +419,8 @@ describe("chart bracket lines", () => {
     held.feesPaid = 5
     delete held.live
 
-    const label = lineLabel(renderLines(held, []), "Liquidation")
-    expect(label.textContent).toBe("Liquidation -$103.00")
+    const label = lineLabel(renderLines(held, []), "LIQUIDATION")
+    expect(label.textContent).toBe("LIQUIDATION -$103.00")
   })
 
   it("keeps the stop loss amount tied to the dragged price", () => {
@@ -437,7 +438,7 @@ describe("chart bracket lines", () => {
     const html = renderLines(held, [], null, () => null)
 
     expect(lineLabel(html, "Stop Loss").textContent).toBe("Stop Loss —")
-    expect(lineLabel(html, "Liquidation").textContent).toBe("Liquidation —")
+    expect(lineLabel(html, "LIQUIDATION").textContent).toBe("LIQUIDATION —")
   })
 
   it("names a spare protection leg for what it is, not as a plain sell", () => {
@@ -502,47 +503,6 @@ describe("chart bracket lines", () => {
         expect(sameBand && sameColumn).toBe(false)
       }
     }
-  })
-
-  it("slides a pill left of another layer's chip instead of covering it", () => {
-    // A grid level's money chip and a position's Entry pill share a height
-    // whenever the grid just bought — the grid IS the position then. The chip
-    // cannot move (it belongs to another layer), so the pill must.
-    const held = position("stop")
-    held.slPx = null
-    const chipWidth = 60
-    const html = renderToStaticMarkup(
-      <TradeLinesLayer
-        surface={surface}
-        colors={colors}
-        marketKey={MARKET}
-        currentPx={null}
-        positions={[held]}
-        orders={[]}
-        walletName={() => "Wallet"}
-        tool={null}
-        onMoveOrder={() => undefined}
-        onCancelOrder={() => undefined}
-        onSetBrackets={() => undefined}
-        // A chip hugging the right edge at the entry's own height.
-        obstacles={[
-          {
-            top: surface.yOf(held.entryPx)! - 11,
-            bottom: surface.yOf(held.entryPx)! + 11,
-            width: chipWidth,
-          },
-        ]}
-      />
-    )
-    const boxes = pillBoxes(html)
-    const entry = boxes.find(
-      (box) => Math.abs(box.top + box.height / 2 - surface.yOf(100)!) < 2
-    )
-    expect(entry).toBeDefined()
-    // The whole pill sits clear, left of where the chip begins.
-    expect(entry!.left + entry!.width).toBeLessThanOrEqual(
-      surface.width - chipWidth
-    )
   })
 
   it("prints one price badge when two lines sit on the same price", () => {

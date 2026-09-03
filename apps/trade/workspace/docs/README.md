@@ -86,6 +86,8 @@ screen: anything not written there has not been agreed yet.
 - `grid-orders.md` — how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, and what following price up and down does.
+- `grid-rung-gap.md` — typing the percent gap between rungs instead of a
+  count, how the range decides how many fit, and what is saved.
 - `grid-above-ladder.md` — the one allowed pairing of two smart orders on a
   coin: a grid working a range above a DCA ladder, the grid's own fixed-size
   stop, and every reason the pairing is refused.

@@ -14,6 +14,9 @@ import {
   gridRangeAfterMove,
   gridRangeEndMovable,
   gridRangeFromClick,
+  gridRangeFromNearRung,
+  gridDepthFromGap,
+  gridHalfRangeFromGap,
   gridRangeReshapable,
   gridRowLevelIndex,
   gridRowPctsFromLevels,
@@ -942,7 +945,6 @@ describe("gridRangeFromClick", () => {
   })
 })
 
-
 describe("gridShiftAway", () => {
   const range = {
     topPx: 120,
@@ -1480,5 +1482,98 @@ describe("what a reversal would place", () => {
     expect(reversal.ok).toBe(false)
     if (reversal.ok) return
     expect(reversal.reason).toContain("50%")
+  })
+})
+
+describe("gridDepthFromGap", () => {
+  it("adds equal-dollar gaps: 3 rungs 4.75% apart reach 9.5%", () => {
+    expect(
+      gridDepthFromGap({
+        gapPct: 4.75,
+        steps: 2,
+        spacing: "even",
+        direction: "long",
+      })
+    ).toBeCloseTo(9.5, 9)
+  })
+
+  it("compounds equal-percent gaps each way", () => {
+    // 100 → 90 → 81 down, 100 → 110 → 121 up.
+    expect(
+      gridDepthFromGap({
+        gapPct: 10,
+        steps: 2,
+        spacing: "compounding",
+        direction: "long",
+      })
+    ).toBeCloseTo(19, 9)
+    expect(
+      gridDepthFromGap({
+        gapPct: 10,
+        steps: 2,
+        spacing: "compounding",
+        direction: "short",
+      })
+    ).toBeCloseTo(21, 9)
+  })
+
+  it("refuses a buying grid that would reach zero", () => {
+    expect(
+      gridDepthFromGap({
+        gapPct: 30,
+        steps: 4,
+        spacing: "even",
+        direction: "long",
+      })
+    ).toBeNull()
+  })
+})
+
+describe("gridHalfRangeFromGap", () => {
+  it("splits the range evenly either side of the price", () => {
+    // 4 rungs 2% apart is an 8% range, 4% each side.
+    expect(
+      gridHalfRangeFromGap({ gapPct: 2, levels: 4, spacing: "even" })
+    ).toEqual({ above: 4, below: 4 })
+  })
+})
+
+describe("gridRangeFromNearRung", () => {
+  it("puts the top one step past rung 1 on a buying grid", () => {
+    // Rung 1 at $110 with the bottom held at $92 over four levels: three
+    // steps of $6 between them, so the top is $116.
+    const range = gridRangeFromNearRung({
+      rungPx: 110,
+      farPx: 92,
+      levels: 4,
+      spacing: "even",
+      direction: "long",
+    })
+    expect(range?.bottomPx).toBeCloseTo(92, 9)
+    expect(range?.topPx).toBeCloseTo(116, 9)
+  })
+
+  it("puts the bottom one step under rung 1 on a selling grid", () => {
+    const range = gridRangeFromNearRung({
+      rungPx: 100,
+      farPx: 130,
+      levels: 4,
+      spacing: "even",
+      direction: "short",
+    })
+    expect(range?.topPx).toBeCloseTo(130, 9)
+    expect(range?.bottomPx).toBeCloseTo(90, 9)
+  })
+
+  it("refuses a rung dragged past the far edge", () => {
+    expect(
+      gridRangeFromNearRung({
+        rungPx: 90,
+        farPx: 92,
+        levels: 4,
+        spacing: "even",
+        direction: "long",
+      })
+    ).toBeNull()
   })
 })

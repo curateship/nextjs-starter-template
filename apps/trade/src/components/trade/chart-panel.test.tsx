@@ -93,6 +93,7 @@ vi.mock("@/components/trade/price-chart", async () => {
     alert: "#70c",
     neutral: "#777",
     badgeText: "#fff",
+    foreground: "theme-foreground",
     upSoft: "#afa",
     downSoft: "#faa",
   }
@@ -490,7 +491,9 @@ describe("the chart candle request", () => {
     vi.useFakeTimers()
     const bar = { openTime: 30, open: 1, high: 1, low: 1, close: 1, volume: 1 }
     vi.mocked(loadCandles).mockResolvedValue({ candles: [bar] })
-    vi.mocked(loadOlderCandlesFor).mockRejectedValue(new Error("Binance is down"))
+    vi.mocked(loadOlderCandlesFor).mockRejectedValue(
+      new Error("Binance is down")
+    )
     const reports: OlderBarsStatus[] = []
 
     await act(async () =>

@@ -536,6 +536,8 @@ export async function reshapeLiveGrid(
           // Frozen at placement: a re-shape redraws prices, never the side.
           direction: plan.direction,
           levels: split.levels,
+          // A re-shape keeps the plan's prices; the window's gap is not part of it.
+          rungGapPct: null,
           potPct: input.potPct ?? plan.potPct,
           compound: true,
           leverage: input.leverage ?? plan.leverage,

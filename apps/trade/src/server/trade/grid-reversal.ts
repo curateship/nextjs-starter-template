@@ -125,6 +125,8 @@ export function buildReversedPlan(input: {
     params: {
       direction: reversal.direction,
       levels: plan.levels.length,
+      // The reversed grid keeps the old prices; the window's gap is not part of it.
+      rungGapPct: null,
       potPct: plan.potPct,
       compound: true,
       leverage: plan.leverage,
