@@ -14,11 +14,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { clearAlerts, getClearAlertsErrorMessage } from "@/lib/api/trade/alerts"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -93,37 +88,32 @@ export function PriceAlertsMenu({
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="relative bg-muted/60 dark:bg-muted/60"
-                onMouseEnter={openFromHover}
-                onMouseLeave={closeFromHover}
-                aria-label={
-                  firedCount > 0
-                    ? `Open alerts, ${firedCount} fired`
-                    : "Open alerts"
-                }
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="relative bg-muted/60 dark:bg-muted/60"
+            onMouseEnter={openFromHover}
+            onMouseLeave={closeFromHover}
+            aria-label={
+              firedCount > 0
+                ? `Open alerts, ${firedCount} fired`
+                : "Open alerts"
+            }
+          >
+            <BellIcon className="size-4" />
+            {firedCount > 0 ? (
+              <Badge
+                variant="destructive"
+                aria-hidden
+                className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
               >
-                <BellIcon className="size-4" />
-                {firedCount > 0 ? (
-                  <Badge
-                    variant="destructive"
-                    aria-hidden
-                    className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
-                  >
-                    {firedCount > 99 ? "99+" : firedCount}
-                  </Badge>
-                ) : null}
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Alerts</TooltipContent>
-        </Tooltip>
+                {firedCount > 99 ? "99+" : firedCount}
+              </Badge>
+            ) : null}
+          </Button>
+        </PopoverTrigger>
         <PopoverContent
           align="start"
           collisionPadding={12}

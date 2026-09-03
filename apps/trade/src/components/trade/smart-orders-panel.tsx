@@ -156,12 +156,15 @@ type SmartOrdersPanelProps = SmartOrdersViewProps & {
   protocol: ProtocolId
   initialBots: RunningBot[]
   initialBotsError: string | null
+  /** Size to the rows when the panel is shown in the collapsed-column menu. */
+  compact?: boolean
 }
 
 export function SmartOrdersPanel({
   protocol,
   initialBots,
   initialBotsError,
+  compact = false,
   ...smartOrdersProps
 }: SmartOrdersPanelProps) {
   const [tab, setTab] = React.useState<"smart" | "bots">("smart")
@@ -209,7 +212,12 @@ export function SmartOrdersPanel({
         setTab(next)
         if (next === "bots") void refreshBots()
       }}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
+      className={cn(
+        "min-h-0 gap-0 overflow-hidden bg-card",
+        compact
+          ? "max-h-[var(--radix-popover-content-available-height)]"
+          : "h-full flex-1"
+      )}
     >
       <DashboardCardTabsHeader>
         <DashboardCardTab
@@ -224,10 +232,19 @@ export function SmartOrdersPanel({
         />
       </DashboardCardTabsHeader>
 
-      <TabsContent value="smart" className="flex min-h-0 flex-1 flex-col">
-        <SmartOrdersView {...smartOrdersProps} />
+      <TabsContent
+        value="smart"
+        className={cn(
+          "flex min-h-0 flex-col",
+          compact ? "flex-none" : "flex-1"
+        )}
+      >
+        <SmartOrdersView {...smartOrdersProps} compact={compact} />
       </TabsContent>
-      <TabsContent value="bots" className="min-h-0 flex-1">
+      <TabsContent
+        value="bots"
+        className={cn("min-h-0", compact ? "flex-none" : "flex-1")}
+      >
         <BotsView
           bots={bots}
           error={botsError}
@@ -235,6 +252,7 @@ export function SmartOrdersPanel({
           busy={botsBusy}
           onRetry={() => void refreshBots()}
           onRefresh={refreshBots}
+          compact={compact}
         />
       </TabsContent>
     </Tabs>
@@ -248,6 +266,7 @@ function BotsView({
   busy,
   onRetry,
   onRefresh,
+  compact,
 }: {
   bots: readonly RunningBot[]
   error: string | null
@@ -255,6 +274,7 @@ function BotsView({
   busy: boolean
   onRetry: () => void
   onRefresh: () => Promise<void>
+  compact: boolean
 }) {
   const [stopping, setStopping] = React.useState<RunningBot | null>(null)
   const [actingId, setActingId] = React.useState<string | null>(null)
@@ -278,12 +298,22 @@ function BotsView({
   }
 
   if (!known && busy) {
-    return <LoadingRow label="Reading your running bots" className="h-full" />
+    return (
+      <LoadingRow
+        label="Reading your running bots"
+        className={compact ? undefined : "h-full"}
+      />
+    )
   }
 
   if (!known && error) {
     return (
-      <p className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+      <p
+        className={cn(
+          "flex items-center justify-center p-6 text-center text-sm text-muted-foreground",
+          !compact && "h-full"
+        )}
+      >
         {error}{" "}
         <button type="button" className="underline" onClick={onRetry}>
           Try again
@@ -303,7 +333,7 @@ function BotsView({
 
   if (bots.length === 0) {
     return (
-      <div className="flex h-full flex-col">
+      <div className={cn("flex flex-col", !compact && "h-full")}>
         {refreshError}
         <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
           No bot is running on this exchange. Switch one on from its automation
@@ -315,7 +345,13 @@ function BotsView({
 
   return (
     <>
-      <ScrollArea className="h-full">
+      <ScrollArea
+        className={
+          compact
+            ? "max-h-[calc(var(--radix-popover-content-available-height)-3.5rem)]"
+            : "h-full"
+        }
+      >
         {refreshError}
         <ul>
           {bots.map((bot) => (
@@ -525,7 +561,8 @@ function SmartOrdersView({
   onRetry,
   onResumeSmartOrder,
   onSelectMarket,
-}: SmartOrdersViewProps) {
+  compact,
+}: SmartOrdersViewProps & { compact: boolean }) {
   const [cached, setCached] = React.useState<ReturnType<
     typeof readSmartOrdersCache
   >>(null)
@@ -701,7 +738,13 @@ function SmartOrdersView({
           place one — a flow&rsquo;s orders live on its own dashboard.
         </p>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea
+          className={
+            compact
+              ? "max-h-[calc(var(--radix-popover-content-available-height)-3.5rem)]"
+              : "min-h-0 flex-1"
+          }
+        >
           <Table
             className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4"
             containerClassName={cn(

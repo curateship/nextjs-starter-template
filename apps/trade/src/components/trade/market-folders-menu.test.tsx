@@ -104,6 +104,7 @@ describe("the folders menu", () => {
       )
     })
 
+    expect(button("Open folders").dataset.slot).toBe("popover-trigger")
     await act(async () => {
       button("Open folders").dispatchEvent(
         new MouseEvent("mouseover", { bubbles: true })

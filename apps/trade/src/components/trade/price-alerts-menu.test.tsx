@@ -113,6 +113,7 @@ describe("the alerts menu", () => {
     await vi.waitFor(() => {
       expect(button("Open alerts, 1 fired")).not.toBeNull()
     })
+    expect(button("Open alerts, 1 fired").dataset.slot).toBe("popover-trigger")
     expect(button("Open alerts, 1 fired").textContent).toContain("1")
 
     await act(async () => {

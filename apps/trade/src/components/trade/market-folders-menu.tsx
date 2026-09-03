@@ -17,11 +17,6 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   createFolder,
   getMarketFolderErrorMessage,
 } from "@/lib/api/trade/market-folders"
@@ -113,24 +108,19 @@ export function MarketFoldersMenu({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="bg-muted/60 dark:bg-muted/60"
-              aria-label="Open folders"
-              onMouseEnter={openFromHover}
-              onMouseLeave={closeFromHover}
-            >
-              <FolderIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Folders</TooltipContent>
-      </Tooltip>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="bg-muted/60 dark:bg-muted/60"
+          aria-label="Open folders"
+          onMouseEnter={openFromHover}
+          onMouseLeave={closeFromHover}
+        >
+          <FolderIcon className="size-4" />
+        </Button>
+      </PopoverTrigger>
       <PopoverContent
         align="start"
         collisionPadding={12}

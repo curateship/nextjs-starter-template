@@ -38,7 +38,8 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   creates a folder there and its cog opens the full manager; the full Folders
   panel stays in the left column. The bell opens the account's Alert and Fired lists;
   a red badge counts fired price and drawing alerts, and each tab can clear all
-  of its own rows from the dropdown footer after confirmation. Each outlined control uses the muted gray inside its
+  of its own rows from the dropdown footer after confirmation. The Folders and
+  Alerts buttons have no hover messages. Each outlined control uses the muted gray inside its
   border, while the rest of the header keeps the card background.
   The market dropdown uses the same light gray as the other header buttons.
   The star is amber and filled when the market is in any folder and a hollow
@@ -141,7 +142,13 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   Money is monospaced and tabular. Wallet and smart-order profit use the same
   12px type and end on the same right edge.
 - **Right, Smart orders and Bots.** The wallet block no longer takes the top of
-  this column. Smart orders and Bots use the full height.
+  this column. Smart orders and Bots use the full height. When the column is
+  collapsed, a bot icon appears at the far right of the market header and opens
+  those same two tabs in a dropdown. Dragging the right divider open returns
+  the tabs to their full-height panel. The dropdown is as wide as the side
+  panel and grows with its rows until it reaches the available screen height;
+  longer tables scroll inside it. Hovering the bot icon opens the dropdown.
+  The dropdown icon has no hover message.
 - **Bottom, what you are holding.** Positions, open orders and fills, as tabs.
 
 **Every workspace panel header uses `DashboardCardHeader`.** The header is 57px

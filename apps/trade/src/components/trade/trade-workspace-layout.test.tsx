@@ -47,7 +47,15 @@ vi.mock("@/components/trade/activity-panel", () => ({
   ActivityPanel: () => null,
 }))
 vi.mock("@/components/trade/smart-orders-panel", () => ({
-  SmartOrdersPanel: () => null,
+  SmartOrdersPanel: () => <div data-testid="smart-orders-panel" />,
+}))
+vi.mock("@/components/trade/smart-orders-menu", () => ({
+  SmartOrdersMenu: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="smart-orders-menu">
+      <button type="button" aria-label="Open smart orders and bots" />
+      {children}
+    </div>
+  ),
 }))
 vi.mock("@/components/trade/use-trading", () => ({
   useTrading: () => ({
@@ -197,12 +205,19 @@ vi.mock("@/components/ui/resizable", () => ({
     id,
     className,
     children,
+    onResize,
   }: {
     id: string
     className?: string
     children: React.ReactNode
+    onResize?: (size: { asPercentage: number }) => void
   }) => (
     <div data-panel={id} className={className}>
+      <button
+        type="button"
+        aria-label={`Collapse ${id} panel`}
+        onClick={() => onResize?.({ asPercentage: 0 })}
+      />
       {children}
     </div>
   ),
@@ -440,6 +455,26 @@ describe("the trade workspace chart full screen", () => {
       "Open folders",
       "Open alerts",
     ])
+    expect(host.querySelector('[data-testid="smart-orders-menu"]')).toBeNull()
+
+    await act(async () => clickButton("Collapse smart-orders panel"))
+    expect(
+      host.querySelector(
+        '[data-testid="market-header"] button[aria-label="Open smart orders and bots"]'
+      )
+    ).not.toBeNull()
+    expect(
+      host.querySelector(
+        '[data-testid="smart-orders-menu"] [data-testid="smart-orders-panel"]'
+      )
+    ).not.toBeNull()
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[data-testid="market-header"] button'
+        )
+      ).at(-1)?.ariaLabel
+    ).toBe("Open smart orders and bots")
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Show chart full screen"]'

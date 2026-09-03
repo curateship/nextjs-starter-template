@@ -25,6 +25,7 @@ the price-label edge. Arrow keys move the focused grip eight pixels at a time,
 and Home returns it to that corner. The account layout remembers the toolbar's
 relative place across live, backtest and flow-run charts, even when the chart
 panel changes size. A selected named workspace layout remembers the same place.
+The grip has no hover message.
 
 - **Two tools: a level and a trendline.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into

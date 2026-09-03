@@ -18,6 +18,7 @@ import {
   type ActivityTab,
 } from "@/components/trade/activity-panel"
 import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
+import { SmartOrdersMenu } from "@/components/trade/smart-orders-menu"
 import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
 import {
@@ -958,6 +959,7 @@ export function TradeWorkspace({
   const smartOrdersPanel = (
     <SmartOrdersPanel
       key={protocol}
+      compact={desktop && smartOrdersCollapsed}
       protocol={protocol}
       initialBots={initialRunningBots.rows}
       initialBotsError={initialRunningBots.error}
@@ -1046,6 +1048,9 @@ export function TradeWorkspace({
                 }
               />
               {walletManagement}
+              {desktop && smartOrdersCollapsed && !chartFullscreen ? (
+                <SmartOrdersMenu>{smartOrdersPanel}</SmartOrdersMenu>
+              ) : null}
             </>
           }
           // On a wide screen both panels are already on screen, so the buttons
@@ -1121,13 +1126,6 @@ export function TradeWorkspace({
             onClick={toggleMarkets}
           />
         ) : null}
-        {desktop && smartOrdersCollapsed && !chartFullscreen ? (
-          <PanelReopenTab
-            side="right"
-            label="Show smart orders"
-            onClick={toggleSmartOrders}
-          />
-        ) : null}
       </div>
     </WorkspacePanel>
   )
@@ -1182,13 +1180,14 @@ export function TradeWorkspace({
         groupResizeBehavior="preserve-pixel-size"
         onResize={(size) => setSmartOrdersCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel
-          collapsed={smartOrdersCollapsed}
-          onDoubleClick={smartOrdersDoubleClick}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          {smartOrdersPanel}
-        </WorkspacePanel>
+        {smartOrdersCollapsed ? null : (
+          <WorkspacePanel
+            onDoubleClick={smartOrdersDoubleClick}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            {smartOrdersPanel}
+          </WorkspacePanel>
+        )}
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
