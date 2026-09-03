@@ -71,9 +71,9 @@ export async function loadDrawingAlerts(
  * Ring the bell for every armed drawn line the price has crossed.
  *
  * The same shape as `checkPriceAlerts`, and run beside it once per engine
- * pass. A trendline's price at "now" is its slope carried on, so a line drawn
- * through last week is compared at today's point on it. A market with no
- * pushed price waits.
+ * pass. A level is the same price at every moment. A trendline's price at
+ * "now" is its slope carried on, so a line drawn through last week is
+ * compared at today's point on it. A market with no pushed price waits.
  *
  * The conditional update is the claim, and it names the line's points as well
  * as the alert: a line dragged somewhere else after the engine read it, or an
@@ -112,13 +112,10 @@ export async function checkDrawingAlerts({
     )
     .orderBy(asc(tradeChartDrawings.createdAt), asc(tradeChartDrawings.id))
 
-  // Only a trendline carries an alert today. A level's alert is its own task,
-  // with its own words, so a level row is left alone rather than announced as
-  // a line it is not.
   const armed = rows.flatMap((row) => {
     const alert = readDrawingAlert(row.alert)
     const shape = readDrawingShape(row.shape)
-    return drawingAlertArmed(alert) && alert && shape?.kind === "trendline"
+    return drawingAlertArmed(alert) && alert && shape
       ? [{ ...row, alert, shape }]
       : []
   })
@@ -154,6 +151,7 @@ export async function checkDrawingAlerts({
 
       const words = drawingAlertNoticeWords({
         marketKey: row.marketKey,
+        kind: row.shape.kind,
         price: linePrice,
         direction: row.alert.direction,
       })

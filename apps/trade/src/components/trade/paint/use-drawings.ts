@@ -15,6 +15,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   drawingAlertArmed,
+  extendedRight,
   priceAtTime,
   type Drawing,
   type DrawingShape,
@@ -215,6 +216,8 @@ export function useChartDrawings(
    * Switch a line's alert on or off. The switch flips at once, with the
    * direction worked out here the same way the server will, and the server's
    * answer replaces it; a refused save puts the switch back and says why.
+   * Switching on also draws a trendline on to the right edge, the same way
+   * the server does, so the two never disagree about the line's shape.
    */
   const setAlert = React.useCallback(
     (id: string, on: boolean, currentPrice: number | null) => {
@@ -232,16 +235,19 @@ export function useChartDrawings(
               firedAt: null,
             }
           : null
+      const shape = guess ? extendedRight(previous.shape) : previous.shape
       revise(key, (current) =>
         current.map((candidate) =>
-          candidate.id === id ? { ...candidate, alert: guess } : candidate
+          candidate.id === id ? { ...candidate, shape, alert: guess } : candidate
         )
       )
       setDrawingAlert(id, on, currentPrice)
         .then((saved) => {
           revise(key, (current) =>
             current.map((candidate) =>
-              candidate.id === id ? { ...candidate, alert: saved.alert } : candidate
+              candidate.id === id
+                ? { ...candidate, shape: saved.shape, alert: saved.alert }
+                : candidate
             )
           )
           onAlertChange?.()

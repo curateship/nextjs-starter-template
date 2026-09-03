@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   drawingAlertArmed,
+  extendedRight,
   moveShape,
   priceAtTime,
   readDrawingAlert,
@@ -25,6 +26,20 @@ describe("reading a saved drawing", () => {
       from: { time: 1_000, price: 10 },
       to: { time: 2_000, price: 20 },
     })
+  })
+
+  it("reads a trendline drawn on to the right, and an older row without the flag as not", () => {
+    const line = {
+      kind: "trendline" as const,
+      from: { time: 1_000, price: 10 },
+      to: { time: 2_000, price: 20 },
+    }
+    expect(readDrawingShape({ ...line, extendRight: true })).toEqual({
+      ...line,
+      extendRight: true,
+    })
+    expect(readDrawingShape(line)?.kind === "trendline" && readDrawingShape(line)).not.toHaveProperty("extendRight")
+    expect(readDrawingShape({ ...line, extendRight: "yes" })).toBeNull()
   })
 
   it("drops a row it cannot read rather than guessing at it", () => {
@@ -84,6 +99,25 @@ describe("moving a drawing", () => {
     })
   })
 
+  it("keeps a line drawn on to the right that way when it moves", () => {
+    const moved = moveShape(
+      {
+        kind: "trendline",
+        from: { time: 1_000, price: 10 },
+        to: { time: 3_000, price: 30 },
+        extendRight: true,
+      },
+      500,
+      5
+    )
+    expect(moved).toEqual({
+      kind: "trendline",
+      from: { time: 1_500, price: 15 },
+      to: { time: 3_500, price: 35 },
+      extendRight: true,
+    })
+  })
+
   it("keeps times whole, so what is saved is what can be read back", () => {
     const moved = moveShape(
       {
@@ -120,6 +154,25 @@ describe("where a drawing is at one moment", () => {
     expect(
       priceAtTime({ ...line, to: { time: 1_000, price: 30 } }, 1_000)
     ).toBeNull()
+  })
+})
+
+describe("drawing a line on to the right", () => {
+  const line = {
+    kind: "trendline" as const,
+    from: { time: 1_000, price: 10 },
+    to: { time: 3_000, price: 30 },
+  }
+
+  it("switches the flag on, and leaves a line that already has it alone", () => {
+    expect(extendedRight(line)).toEqual({ ...line, extendRight: true })
+    const already = { ...line, extendRight: true }
+    expect(extendedRight(already)).toBe(already)
+  })
+
+  it("leaves a level alone, because it already runs the whole width", () => {
+    const level = { kind: "level" as const, price: 7 }
+    expect(extendedRight(level)).toBe(level)
   })
 })
 

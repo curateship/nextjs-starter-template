@@ -4,7 +4,6 @@ import { z } from "zod"
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   drawingShapeSchema,
-  DRAWING_ALERT_NEEDS_LINE,
   DRAWING_ALERT_NO_PRICE,
   DRAWINGS_FULL,
   MAX_DRAWINGS_PER_MARKET,
@@ -181,8 +180,6 @@ export const getLineAlertsLoadErrorMessage = createErrorMessage(
 
 export const getDrawingAlertErrorMessage = createErrorMessage(
   {
-    [DRAWING_ALERT_NEEDS_LINE]:
-      "Only a trendline can carry an alert for now.",
     [DRAWING_ALERT_NO_PRICE]:
       "There is no live price to set the alert from yet. Try again in a moment.",
   },

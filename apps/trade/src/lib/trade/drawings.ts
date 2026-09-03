@@ -19,8 +19,17 @@ export type DrawingPoint = { time: number; price: number }
 export type DrawingShape =
   /** A price, drawn all the way across. Time means nothing to it. */
   | { kind: "level"; price: number }
-  /** Two points with a line between them. */
-  | { kind: "trendline"; from: DrawingPoint; to: DrawingPoint }
+  /**
+   * Two points with a line between them. `extendRight` carries the line on
+   * past its later point to the right edge of the chart, so the place an
+   * alert would fire can be seen. Left out on older rows, which means off.
+   */
+  | {
+      kind: "trendline"
+      from: DrawingPoint
+      to: DrawingPoint
+      extendRight?: boolean
+    }
 
 /**
  * The alert a line carries, once somebody has switched it on.
@@ -65,6 +74,7 @@ export const drawingShapeSchema: z.ZodType<DrawingShape> = z.discriminatedUnion(
       kind: z.literal("trendline"),
       from: pointSchema,
       to: pointSchema,
+      extendRight: z.boolean().optional(),
     }),
   ]
 )
@@ -85,9 +95,6 @@ export const MAX_DRAWINGS_PER_MARKET = 200
  * first thing it touches that only Node has.
  */
 export const DRAWINGS_FULL = "DRAWINGS_FULL"
-
-/** Thrown when an alert is switched on for a level rather than a trendline. */
-export const DRAWING_ALERT_NEEDS_LINE = "DRAWING_ALERT_NEEDS_LINE"
 
 /**
  * Thrown when there is no price to set the direction from: no live price on
@@ -159,7 +166,7 @@ export function moveShape(
     return { kind: "level", price: shape.price + byPrice }
   }
   return {
-    kind: "trendline",
+    ...shape,
     from: {
       time: Math.round(shape.from.time + byTime),
       price: shape.from.price + byPrice,
@@ -169,4 +176,16 @@ export function moveShape(
       price: shape.to.price + byPrice,
     },
   }
+}
+
+/**
+ * A trendline that draws on to the right edge, or the same drawing when it
+ * already does, or is a level, which runs the whole width anyway. Switching
+ * an alert on does this, because an alert on a line that stops dead at its
+ * second point would be watching a place nobody can see.
+ */
+export function extendedRight(shape: DrawingShape): DrawingShape {
+  return shape.kind === "trendline" && shape.extendRight !== true
+    ? { ...shape, extendRight: true }
+    : shape
 }

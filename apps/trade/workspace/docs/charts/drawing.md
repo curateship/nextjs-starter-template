@@ -67,7 +67,8 @@ The grip has no hover message.
   one; the question is asked before it runs instead.
 - **The chart underneath still pans, zooms and shows its crosshair.** Only a
   line itself takes the pointer, plus the whole chart while a tool is held.
-- **A picked-out trendline also shows a cog beside its x**, which opens its
-  alert window; double-clicking the line does the same. That is the first
-  smart tool, in `smart-tools.md`. Orders on lines are still out of scope and
-  attach to the same surface in their own task.
+- **A picked-out line, level or trendline, also shows a cog beside its x**,
+  which opens its alert window; double-clicking the line does the same. A
+  trendline's window can also draw the line on to the right edge, dashed.
+  Both are smart tools, in `smart-tools.md`. Orders on lines are still out of
+  scope and attach to the same surface in their own task.

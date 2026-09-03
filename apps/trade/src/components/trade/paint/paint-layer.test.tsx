@@ -356,18 +356,91 @@ describe("the alert a trendline carries", () => {
     const [xAt, cogAt] = circles.map((circle) => Number(circle.getAttribute("cx")))
     expect(cogAt - xAt).toBe(22)
 
+  })
+
+  it("gives a level the same cog and window, with no extend switch", async () => {
     const level: Drawing = {
       id: "level-1",
       shape: { kind: "level", price: 100 },
       alert: null,
     }
+    const onSetAlert = vi.fn()
     await draw({
       tool: null,
       drawings: [level],
       selectedId: level.id,
-      onSetAlert: vi.fn(),
+      onSetAlert,
     })
-    expect(host.querySelector('[aria-label^="Alert on"]')).toBeNull()
+    const levelCog = host.querySelector<SVGGElement>('[aria-label="Alert on level at $100"]')
+    expect(levelCog).not.toBeNull()
+    // Over the middle of the chart, where the x already sits for a level.
+    const circles = Array.from(host.querySelectorAll('[role="button"] > circle'))
+    expect(circles.map((circle) => Number(circle.getAttribute("cx")))).toEqual([89, 111])
+
+    await act(async () => {
+      levelCog!.dispatchEvent(pointer("pointerdown", 0, 0))
+    })
+    expect(document.body.textContent).toContain("The level is at $100 right now.")
+    expect(document.getElementById("line-extend-level-1")).toBeNull()
+    await act(async () => {
+      document.getElementById("line-alert-level-1")!.click()
+    })
+    expect(onSetAlert).toHaveBeenCalledWith("level-1", true, 105)
+  })
+
+  it("draws a dashed extension to the right edge on the same slope, out of the pointer's reach", async () => {
+    const extended: Drawing = {
+      ...line,
+      shape: {
+        kind: "trendline",
+        from: { time: 1_000, price: 100 },
+        to: { time: 1_400, price: 120 },
+        extendRight: true,
+      },
+    }
+    await draw({ tool: null, drawings: [line], selectedId: null })
+    expect(host.querySelector("[data-line-extension]")).toBeNull()
+
+    await draw({ tool: null, drawings: [extended], selectedId: null })
+    const extension = host.querySelector<SVGLineElement>("[data-line-extension]")!
+    expect(extension).not.toBeNull()
+    // From the later end (time 1,400, $120) to the right edge (time 2,000,
+    // where the slope of $20 per 400 puts the line at $150).
+    expect(
+      ["x1", "y1", "x2", "y2"].map((name) => Number(extension.getAttribute(name)))
+    ).toEqual([140, 80, 200, 50])
+    expect(extension.getAttribute("stroke-dasharray")).toBe("4 4")
+    expect(extension.style.pointerEvents).toBe("none")
+    expect(extension.getAttribute("aria-hidden")).toBe("true")
+  })
+
+  it("saves the extend switch as a move of the same line", async () => {
+    const onMove = vi.fn()
+    await draw({
+      tool: null,
+      drawings: [line],
+      selectedId: line.id,
+      onSetAlert: vi.fn(),
+      onMove,
+    })
+    await act(async () => {
+      cog()!.dispatchEvent(pointer("pointerdown", 0, 0))
+    })
+    const extend = document.getElementById("line-extend-line-1")!
+    expect(extend.getAttribute("aria-checked")).toBe("false")
+    await act(async () => {
+      extend.click()
+    })
+    expect(onMove).toHaveBeenCalledWith(
+      "line-1",
+      {
+        kind: "trendline",
+        from: { time: 1_000, price: 100 },
+        to: { time: 1_400, price: 120 },
+        extendRight: true,
+      },
+      105
+    )
   })
 
   it("opens the alert window from the cog and switches the alert on from the live price", async () => {

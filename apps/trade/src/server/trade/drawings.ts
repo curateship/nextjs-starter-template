@@ -2,9 +2,9 @@ import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm"
 
 import {
   DRAWINGS_FULL,
-  DRAWING_ALERT_NEEDS_LINE,
   DRAWING_ALERT_NO_PRICE,
   MAX_DRAWINGS_PER_MARKET,
+  extendedRight,
   priceAtTime,
   readDrawingAlert,
   readDrawingShape,
@@ -137,12 +137,13 @@ export async function saveChartDrawing(
 }
 
 /**
- * Switch a line's alert on or off.
+ * Switch a drawing's alert on or off.
  *
  * On: the direction is fixed from where the line is right now against the
  * live price, and the record starts fresh, so a line that fired before can be
- * armed again. Off: the record goes, fired or not. Only a trendline takes an
- * alert for now; a level's alert is its own task.
+ * armed again. A trendline is also drawn on to the right edge from then on,
+ * so the place the alert will fire is on screen. Off: the record goes, fired
+ * or not, and the line keeps drawing the way it was.
  */
 export async function setChartDrawingAlert(
   userId: string,
@@ -167,8 +168,8 @@ export async function setChartDrawingAlert(
   if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
 
   let alert: DrawingAlert | null = null
+  let saved = shape
   if (input.on) {
-    if (shape.kind !== "trendline") throw new Error(DRAWING_ALERT_NEEDS_LINE)
     const linePrice = priceAtTime(shape, now)
     if (linePrice === null || input.currentPrice === null) {
       throw new Error(DRAWING_ALERT_NO_PRICE)
@@ -178,18 +179,25 @@ export async function setChartDrawingAlert(
       armedAt: now,
       firedAt: null,
     }
+    saved = extendedRight(shape)
   }
 
+  // The shape is only written when the switch changed it. Writing it back
+  // unchanged would undo a drag that landed between the read above and here.
   await db
     .update(tradeChartDrawings)
-    .set({ alert, updatedAt: new Date() })
+    .set(
+      saved === shape
+        ? { alert, updatedAt: new Date() }
+        : { alert, shape: saved, updatedAt: new Date() }
+    )
     .where(
       and(
         eq(tradeChartDrawings.userId, userId),
         eq(tradeChartDrawings.id, input.id)
       )
     )
-  return { id: row.id, shape, alert }
+  return { id: row.id, shape: saved, alert }
 }
 
 /** Remove one, and say whether there was one to remove. */

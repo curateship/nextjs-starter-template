@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
-  DRAWING_ALERT_NEEDS_LINE,
   DRAWINGS_FULL,
   MAX_DRAWINGS_PER_MARKET,
 } from "@/lib/trade/drawings"
@@ -327,7 +326,7 @@ describe("the alert a trendline carries", () => {
       firedAt: null,
     })
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id, shape: line, alert: armed.alert },
+      { id, shape: { ...line, extendRight: true }, alert: armed.alert },
     ])
 
     const off = await setChartDrawingAlert(userId, {
@@ -339,16 +338,51 @@ describe("the alert a trendline carries", () => {
     expect((await loadChartDrawings(userId, BTC))[0]?.alert).toBeNull()
   })
 
-  it("refuses a level, and a line that is not there", async () => {
+  it("draws a trendline on to the right when its alert goes on, and keeps it that way when the alert goes off", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, { id, shape: line })
+
+    const armed = await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 100 },
+      2_000
+    )
+    expect(armed.shape).toEqual({ ...line, extendRight: true })
+    expect((await loadChartDrawings(userId, BTC))[0]?.shape).toEqual({
+      ...line,
+      extendRight: true,
+    })
+
+    const off = await setChartDrawingAlert(userId, {
+      id,
+      on: false,
+      currentPrice: 100,
+    })
+    expect(off.shape).toEqual({ ...line, extendRight: true })
+  })
+
+  it("arms a level from the live price, without touching its shape", async () => {
     const userId = await person()
     const id = uuid()
     await saveChartDrawing(userId, BTC, {
       id,
       shape: { kind: "level", price: 100 },
     })
-    await expect(
-      setChartDrawingAlert(userId, { id, on: true, currentPrice: 90 })
-    ).rejects.toThrow(DRAWING_ALERT_NEEDS_LINE)
+    const armed = await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 90 },
+      2_000
+    )
+    expect(armed).toEqual({
+      id,
+      shape: { kind: "level", price: 100 },
+      alert: { direction: "above", armedAt: 2_000, firedAt: null },
+    })
+  })
+
+  it("refuses a line that is not there", async () => {
+    const userId = await person()
     await expect(
       setChartDrawingAlert(userId, { id: uuid(), on: true, currentPrice: 90 })
     ).rejects.toThrow("DRAWING_NOT_FOUND")

@@ -156,8 +156,8 @@ function dragged(grab: Grab, now: DrawingPoint): DrawingShape {
   // Only a trendline has ends, and only its ends are ever handed out.
   if (grab.original.kind !== "trendline") return grab.original
   return grab.part === "from"
-    ? { kind: "trendline", from: now, to: grab.original.to }
-    : { kind: "trendline", from: grab.original.from, to: now }
+    ? { ...grab.original, from: now }
+    : { ...grab.original, to: now }
 }
 
 function segmentOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
@@ -174,6 +174,24 @@ function segmentOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
     x2: surface.xOf(shape.to.time),
     y2,
   }
+}
+
+/**
+ * The dashed part of a trendline that carries on past its later point to the
+ * right edge, on the same slope, or null when the line does not extend or
+ * already reaches the edge. Read through the same `priceAtTime` the engine
+ * uses, so the dashes land exactly where the alert would fire.
+ */
+function extensionOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
+  if (shape.kind !== "trendline" || shape.extendRight !== true) return null
+  const later = shape.to.time >= shape.from.time ? shape.to : shape.from
+  const x1 = surface.xOf(later.time)
+  if (x1 >= surface.width) return null
+  const y1 = surface.yOf(later.price)
+  const edgePrice = priceAtTime(shape, surface.timeAt(surface.width))
+  const y2 = edgePrice === null ? null : surface.yOf(edgePrice)
+  if (y1 === null || y2 === null) return null
+  return { x1, y1, x2: surface.width, y2 }
 }
 
 /** How far apart the two buttons over a line sit, centre to centre. */
@@ -352,9 +370,9 @@ export const PaintLayer = React.memo(function PaintLayer({
   onMove: (id: string, shape: DrawingShape, currentPrice: number | null) => void
   onDelete: (id: string) => void
   /**
-   * Switch a trendline's alert on or off. Left out on a chart whose lines
-   * are not watched by the engine, where the cog and the double-click are
-   * not offered at all.
+   * Switch a line's alert on or off. Left out on a chart whose lines are not
+   * watched by the engine, where the cog and the double-click are not
+   * offered at all.
    */
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
   /** The alert window is opening: a chance to read the lines again. */
@@ -725,6 +743,7 @@ export const PaintLayer = React.memo(function PaintLayer({
         const segment = segmentOf(shape, surface)
         if (!segment) return null
         const selected = drawing.id === selectedId
+        const extension = extensionOf(shape, surface)
 
         return (
           <g
@@ -743,6 +762,21 @@ export const PaintLayer = React.memo(function PaintLayer({
               stroke="currentColor"
               strokeWidth={selected ? 2.5 : 1.5}
             />
+            {/* The carried-on part, dashed and thinner so the drawn part
+                still reads as the drawn part. It takes no pointer, so a click
+                on it reaches the chart rather than picking the line, and a
+                screen reader still hears one line. */}
+            {extension ? (
+              <line
+                data-line-extension
+                aria-hidden
+                {...extension}
+                stroke="currentColor"
+                strokeWidth={selected ? 1.5 : 1}
+                strokeDasharray="4 4"
+                style={{ pointerEvents: "none" }}
+              />
+            ) : null}
             {/* The part the pointer and the Tab key actually meet: a fat
                 invisible line over the thin visible one, because a 1.5px
                 target is not one. Focus picks the line out, so the darker,
@@ -771,9 +805,7 @@ export const PaintLayer = React.memo(function PaintLayer({
               // travelled, so no drag starts; and a tool in hand means the
               // sheet above has the pointer, so this never arrives then.
               onDoubleClick={
-                onSetAlert && shape.kind === "trendline"
-                  ? () => openAlert(drawing.id)
-                  : undefined
+                onSetAlert ? () => openAlert(drawing.id) : undefined
               }
               onKeyDown={(event) => {
                 if (event.key === "Delete" || event.key === "Backspace") {
@@ -808,8 +840,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                 where the sheet above would swallow the click anyway. */}
             {selected && !tool
               ? (() => {
-                  const withCog =
-                    onSetAlert !== undefined && shape.kind === "trendline"
+                  const withCog = onSetAlert !== undefined
                   const at = buttonsOf(segment, surface, withCog)
                   const name = describeDrawing(shape, formatPrice).toLowerCase()
                   return (
@@ -858,6 +889,16 @@ export const PaintLayer = React.memo(function PaintLayer({
                 onSetAlert={(on) =>
                   onSetAlert(alertDrawing.id, on, currentPrice())
                 }
+                // Saved the way a drag is saved: it is the same line with one
+                // more thing true of it, and the same optimistic write.
+                onSetExtend={(on) => {
+                  if (alertDrawing.shape.kind !== "trendline") return
+                  onMove(
+                    alertDrawing.id,
+                    { ...alertDrawing.shape, extendRight: on },
+                    currentPrice()
+                  )
+                }}
               />
             )
           })()

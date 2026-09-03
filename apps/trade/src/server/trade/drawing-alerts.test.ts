@@ -24,7 +24,6 @@ import {
   saveChartDrawing,
   setChartDrawingAlert,
 } from "@/server/trade/drawings"
-import { tradeChartDrawings } from "@/server/trade/schema"
 
 const BTC = "hyperliquid:mainnet:BTC"
 
@@ -192,17 +191,10 @@ describe("alerts on drawn lines", () => {
     expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBeNull()
   })
 
-  it("forgets the alert with the line, and ignores a level", async () => {
+  it("forgets the alert with the line", async () => {
     const userId = await person()
     const id = await armedLine(userId, 100)
     await deleteChartDrawing(userId, id)
-    await database.insert(tradeChartDrawings).values({
-      userId,
-      id: uuid(),
-      marketKey: BTC,
-      shape: { kind: "level", price: 100 },
-      alert: { direction: "above", armedAt: 0, firedAt: null },
-    })
 
     expect(
       await checkDrawingAlerts({
@@ -212,5 +204,29 @@ describe("alerts on drawn lines", () => {
       })
     ).toBe(0)
     expect(await database.select().from(customShellNotifications)).toEqual([])
+  })
+
+  it("fires a level once when the price falls through it, and says level", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { kind: "level", price: 100 },
+    })
+    // The price is above the level, so it waits for a fall.
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 110 }, 1_000)
+    const pushedMarks = () => ({ marks: new Map([[BTC, 99]]), missing: [] })
+
+    expect(
+      await checkDrawingAlerts({ pushedMarks, checkedAt: new Date(2_000), database })
+    ).toBe(1)
+    expect(
+      await checkDrawingAlerts({ pushedMarks, checkedAt: new Date(3_000), database })
+    ).toBe(0)
+    const notices = await database.select().from(customShellAnnouncements)
+    expect(notices.map((notice) => notice.title)).toEqual([
+      "BTC crossed your level at $100 (was falling)",
+    ])
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBe(2_000)
   })
 })

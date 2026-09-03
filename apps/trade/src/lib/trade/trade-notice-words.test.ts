@@ -20,14 +20,23 @@ describe("a drawn line's alert notice", () => {
     expect(
       drawingAlertNoticeWords({
         marketKey: "hyperliquid:mainnet:BTC",
+        kind: "trendline",
         price: 61_200,
         direction: "below",
       })
     ).toEqual({
       title: "BTC crossed your trendline at $61,200 (was falling)",
-      body: "The line's alert fired once and is now off. The line is still on the chart.",
+      body: "The trendline's alert fired once and is now off. The trendline is still on the chart.",
       level: "info",
     })
+    expect(
+      drawingAlertNoticeWords({
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "level",
+        price: 61_200,
+        direction: "above",
+      }).title
+    ).toBe("BTC crossed your level at $61,200 (was rising)")
   })
 })
 
