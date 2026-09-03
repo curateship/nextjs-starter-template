@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const router = vi.hoisted(() => ({ navigate: vi.fn(), pathname: "/" }))
+const publicSearch = vi.hoisted(() => ({ enabled: true }))
 const publicTheme = vi.hoisted(() => ({
   current: {
     brandColor: "",
@@ -14,6 +15,11 @@ const publicTheme = vi.hoisted(() => ({
     pageWidth: 1152,
     mainSpacing: 40,
     contentAlignment: "center" as "left" | "center" | "right",
+    backgroundPattern: "none" as const,
+    backgroundPatternSize: "medium" as const,
+    backgroundPatternOpacity: 8,
+    buttonStyle: "solid" as const,
+    buttonCasing: "as-written" as const,
     headerBorder: true,
     footerBorder: true,
     colorScheme: "system" as "system" | "light" | "dark",
@@ -67,6 +73,7 @@ vi.mock("@/lib/branding", () => ({
   ],
   usePublicFooter: () => [{ label: "About", href: "/about?from=footer#team" }],
   usePublicFooterCopyright: () => "Copyright",
+  usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicTheme: () => publicTheme.current,
 }))
 
@@ -91,6 +98,7 @@ describe("PublicPageFrame navigation", () => {
     ).IS_REACT_ACT_ENVIRONMENT = true
     router.navigate.mockReset()
     router.pathname = "/"
+    publicSearch.enabled = true
     publicTheme.current = {
       brandColor: "",
       brandOverrides: {},
@@ -98,6 +106,11 @@ describe("PublicPageFrame navigation", () => {
       pageWidth: 1152,
       mainSpacing: 40,
       contentAlignment: "center",
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: 8,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
       headerBorder: true,
       footerBorder: true,
       colorScheme: "system",
@@ -152,6 +165,7 @@ describe("PublicPageFrame navigation", () => {
     expect(main?.firstElementChild?.className).toContain("items-center")
     expect(main?.firstElementChild?.className).toContain("text-center")
     expect(main?.getAttribute("style")).toBeNull()
+    expect(host.querySelector("[data-public-canvas]")).not.toBeNull()
     expect(host.querySelector("header")?.className).toContain("border-b")
     expect(host.querySelector("footer")?.className).toContain("border-t")
     expect(host.textContent).toContain("Choose colour mode")
@@ -284,6 +298,23 @@ describe("PublicPageFrame navigation", () => {
       to: "/search",
       search: { q: "guides" },
     })
+
+    await act(async () => root.unmount())
+  })
+
+  it("does not offer search when the public search page is switched off", async () => {
+    publicSearch.enabled = false
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    expect(
+      host.querySelector('input[aria-label="Search this site"]')
+    ).toBeNull()
 
     await act(async () => root.unmount())
   })

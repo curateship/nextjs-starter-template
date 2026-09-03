@@ -22,6 +22,8 @@ import {
   type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
+import { pageForPath } from "@/lib/pages/page-registry"
+import { pageVisibility } from "@/lib/pages/page-visibility"
 import {
   normalizePublicFaviconSet,
   type PublicFaviconSet,
@@ -106,6 +108,7 @@ export async function readBranding(
   >["publicNavigation"]
   publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
   publicFooterCopyright: string
+  publicSearchEnabled: boolean
   publicTheme?: PublicTheme
   /**
    * True when the domain belongs to no workspace at all — a subdomain nobody
@@ -137,6 +140,7 @@ export async function readBranding(
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
+      publicSearchEnabled: true,
       ...(hasCustomPublicTheme(appWidePublicTheme)
         ? { publicTheme: appWidePublicTheme }
         : {}),
@@ -149,6 +153,7 @@ export async function readBranding(
     appWidePublicTheme,
     workspaceSettings.publicTheme
   )
+  const searchPage = pageForPath("/search")
 
   return {
     appName: answer.workspace.name || globals.appName,
@@ -167,6 +172,9 @@ export async function readBranding(
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicSearchEnabled:
+      searchPage !== null &&
+      pageVisibility(workspaceSettings.pages, searchPage) !== "off",
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
   }

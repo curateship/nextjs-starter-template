@@ -15,6 +15,24 @@ export const PUBLIC_CONTENT_ALIGNMENTS = ["left", "center", "right"] as const
 export type PublicContentAlignment =
   (typeof PUBLIC_CONTENT_ALIGNMENTS)[number]
 
+export const PUBLIC_BACKGROUND_PATTERNS = ["none", "dots", "grid"] as const
+export type PublicBackgroundPattern =
+  (typeof PUBLIC_BACKGROUND_PATTERNS)[number]
+
+export const PUBLIC_BACKGROUND_PATTERN_SIZES = [
+  "small",
+  "medium",
+  "large",
+] as const
+export type PublicBackgroundPatternSize =
+  (typeof PUBLIC_BACKGROUND_PATTERN_SIZES)[number]
+
+export const PUBLIC_BUTTON_STYLES = ["solid", "outline"] as const
+export type PublicButtonStyle = (typeof PUBLIC_BUTTON_STYLES)[number]
+
+export const PUBLIC_BUTTON_CASINGS = ["as-written", "uppercase"] as const
+export type PublicButtonCasing = (typeof PUBLIC_BUTTON_CASINGS)[number]
+
 export type PublicTheme = {
   /** Buttons, links, and focus rings. Empty keeps the app's normal colour. */
   brandColor: string
@@ -28,6 +46,16 @@ export type PublicTheme = {
   mainSpacing: number
   /** Horizontal alignment for the main content on every public page. */
   contentAlignment: PublicContentAlignment
+  /** Optional texture drawn over the public canvas. */
+  backgroundPattern: PublicBackgroundPattern
+  /** Distance between the pattern's dots or grid lines. */
+  backgroundPatternSize: PublicBackgroundPatternSize
+  /** Pattern strength as a percentage, capped for readability. */
+  backgroundPatternOpacity: number
+  /** Default primary-button treatment on public pages. */
+  buttonStyle: PublicButtonStyle
+  /** Label casing for buttons on public pages. */
+  buttonCasing: PublicButtonCasing
   /** Whether the public header draws its bottom divider. */
   headerBorder: boolean
   /** Whether the public footer draws its top divider. */
@@ -66,6 +94,16 @@ export const DEFAULT_PUBLIC_PAGE_WIDTH = 1152
 export const MAX_PUBLIC_PAGE_WIDTH = 1600
 export const DEFAULT_PUBLIC_MAIN_SPACING = 40
 export const MAX_PUBLIC_MAIN_SPACING = 96
+export const DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY = 8
+export const MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY = 20
+export const PUBLIC_BACKGROUND_PATTERN_SIZE_PIXELS: Record<
+  PublicBackgroundPatternSize,
+  number
+> = {
+  small: 12,
+  medium: 16,
+  large: 24,
+}
 export const PUBLIC_BRAND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 export const PUBLIC_BRAND_OVERRIDE_KEYS = [
   "hoverColor",
@@ -82,6 +120,11 @@ export function createDefaultPublicTheme(): PublicTheme {
     pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
     mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
     contentAlignment: "center",
+    backgroundPattern: "none",
+    backgroundPatternSize: "medium",
+    backgroundPatternOpacity: DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+    buttonStyle: "solid",
+    buttonCasing: "as-written",
     headerBorder: true,
     footerBorder: true,
     colorScheme: "system",
@@ -235,6 +278,32 @@ export function normalizePublicTheme(
     )
       ? (theme.contentAlignment as PublicContentAlignment)
       : fallback.contentAlignment,
+    backgroundPattern: PUBLIC_BACKGROUND_PATTERNS.includes(
+      theme.backgroundPattern as PublicBackgroundPattern
+    )
+      ? (theme.backgroundPattern as PublicBackgroundPattern)
+      : fallback.backgroundPattern,
+    backgroundPatternSize: PUBLIC_BACKGROUND_PATTERN_SIZES.includes(
+      theme.backgroundPatternSize as PublicBackgroundPatternSize
+    )
+      ? (theme.backgroundPatternSize as PublicBackgroundPatternSize)
+      : fallback.backgroundPatternSize,
+    backgroundPatternOpacity: normalizeWholeNumber(
+      theme.backgroundPatternOpacity,
+      fallback.backgroundPatternOpacity,
+      0,
+      MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY
+    ),
+    buttonStyle: PUBLIC_BUTTON_STYLES.includes(
+      theme.buttonStyle as PublicButtonStyle
+    )
+      ? (theme.buttonStyle as PublicButtonStyle)
+      : fallback.buttonStyle,
+    buttonCasing: PUBLIC_BUTTON_CASINGS.includes(
+      theme.buttonCasing as PublicButtonCasing
+    )
+      ? (theme.buttonCasing as PublicButtonCasing)
+      : fallback.buttonCasing,
     headerBorder:
       typeof theme.headerBorder === "boolean"
         ? theme.headerBorder
@@ -305,6 +374,21 @@ export function publicThemeOverrides(
       : {}),
     ...(theme.contentAlignment !== baseline.contentAlignment
       ? { contentAlignment: theme.contentAlignment }
+      : {}),
+    ...(theme.backgroundPattern !== baseline.backgroundPattern
+      ? { backgroundPattern: theme.backgroundPattern }
+      : {}),
+    ...(theme.backgroundPatternSize !== baseline.backgroundPatternSize
+      ? { backgroundPatternSize: theme.backgroundPatternSize }
+      : {}),
+    ...(theme.backgroundPatternOpacity !== baseline.backgroundPatternOpacity
+      ? { backgroundPatternOpacity: theme.backgroundPatternOpacity }
+      : {}),
+    ...(theme.buttonStyle !== baseline.buttonStyle
+      ? { buttonStyle: theme.buttonStyle }
+      : {}),
+    ...(theme.buttonCasing !== baseline.buttonCasing
+      ? { buttonCasing: theme.buttonCasing }
       : {}),
     ...(theme.headerBorder !== baseline.headerBorder
       ? { headerBorder: theme.headerBorder }
@@ -389,6 +473,15 @@ export function publicThemeStyle(
     style["--app-font-sans"] = PUBLIC_THEME_FONT_STACKS[theme.font]
     style.fontFamily = "var(--app-font-sans)"
   }
+  if (
+    theme.backgroundPattern !== "none" &&
+    theme.backgroundPatternOpacity > 0
+  ) {
+    style["--shell-public-pattern-color"] =
+      `color-mix(in oklab, var(--foreground) ${theme.backgroundPatternOpacity}%, transparent)`
+    style["--shell-public-pattern-size"] =
+      `${PUBLIC_BACKGROUND_PATTERN_SIZE_PIXELS[theme.backgroundPatternSize]}px`
+  }
 
   return Object.keys(style).length ? (style as CSSProperties) : undefined
 }
@@ -400,6 +493,10 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
     theme.pageWidth !== DEFAULT_PUBLIC_PAGE_WIDTH ||
     theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
     theme.contentAlignment !== "center" ||
+    (theme.backgroundPattern !== "none" &&
+      theme.backgroundPatternOpacity > 0) ||
+    theme.buttonStyle !== "solid" ||
+    theme.buttonCasing !== "as-written" ||
     !theme.headerBorder ||
     !theme.footerBorder ||
     theme.colorScheme !== "system"

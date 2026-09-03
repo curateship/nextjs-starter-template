@@ -22,6 +22,7 @@ import {
   usePublicFooter,
   usePublicFooterCopyright,
   usePublicNavigation,
+  usePublicSearchEnabled,
   usePublicTheme,
 } from "@/lib/branding"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
@@ -52,9 +53,12 @@ import { cn } from "@/lib/utils"
 export function PublicPageFrame({
   className,
   children,
+  publicSearchEnabled: publicSearchEnabledOverride,
 }: {
   className?: string
   children: React.ReactNode
+  /** Current 404 data when root loader data is unavailable. */
+  publicSearchEnabled?: boolean
 }) {
   const appName = useAppName()
   const logo = useBrandLogo()
@@ -62,6 +66,9 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const brandedPublicSearchEnabled = usePublicSearchEnabled()
+  const publicSearchEnabled =
+    publicSearchEnabledOverride ?? brandedPublicSearchEnabled
   const theme = usePublicTheme()
   const pathname = useLocation({ select: (location) => location.pathname })
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
@@ -141,6 +148,7 @@ export function PublicPageFrame({
     if (visitorCanChooseTheme) {
       return (
         <div
+          data-public-canvas=""
           className="flex min-h-screen flex-col bg-muted/60"
           style={canvasStyle}
         >
@@ -163,6 +171,7 @@ export function PublicPageFrame({
 
     return (
       <main
+        data-public-canvas=""
         className={cn(
           "grid min-h-screen bg-muted/60 px-4 py-10",
           mainLayoutClass,
@@ -177,6 +186,7 @@ export function PublicPageFrame({
 
   return (
     <div
+      data-public-canvas=""
       className="flex min-h-screen flex-col bg-muted/60"
       style={canvasStyle}
     >
@@ -218,7 +228,7 @@ export function PublicPageFrame({
                 {appName}
               </span>
             </Link>
-            {pathname === "/search" ? null : (
+            {publicSearchEnabled && pathname !== "/search" ? (
               <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
                 <DashboardToolbarSearch
                   className="min-w-0 flex-1 sm:flex-1"
@@ -232,7 +242,7 @@ export function PublicPageFrame({
                   onChange={(event) => setSiteSearch(event.target.value)}
                 />
               </SiteSearchForm>
-            )}
+            ) : null}
             {navigation.length ? (
               <>
                 <nav aria-label="Main navigation" className="hidden md:block">
@@ -331,7 +341,7 @@ export function PublicPageFrame({
   )
 }
 
-function PublicLink({
+export function PublicLink({
   link,
   className,
   ...props

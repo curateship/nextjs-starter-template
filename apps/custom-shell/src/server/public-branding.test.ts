@@ -17,6 +17,11 @@ const appPublicTheme = vi.hoisted(() => ({
   pageWidth: 960,
   mainSpacing: 24,
   contentAlignment: "center",
+  backgroundPattern: "none",
+  backgroundPatternSize: "medium",
+  backgroundPatternOpacity: 8,
+  buttonStyle: "solid",
+  buttonCasing: "as-written",
   headerBorder: true,
   footerBorder: true,
   colorScheme: "dark",
@@ -41,6 +46,7 @@ import {
   type TestDatabase,
 } from "@/server/test-support"
 import { readBranding, shellGlobalsForWrite } from "@/server/shell-settings"
+import { setPageVisibility } from "@/server/content/pages"
 import { dropWorkspaceCache } from "@/server/workspaces/host"
 
 const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
@@ -123,7 +129,27 @@ describe("public site branding", () => {
         maintenanceHeading: "Taking a short break",
         maintenanceBody: "Back at noon.",
       },
+      publicSearchEnabled: true,
     })
+  })
+
+  it("does not offer a site's search page after it is switched off", async () => {
+    const workspace = await insertWorkspace(database, {
+      name: "Private search",
+      subdomain: "private-search",
+      settings: {},
+    })
+    request.host = "private-search.localhost:3002"
+
+    const testDb = database as unknown as CustomShellDb
+    expect((await readBranding(testDb)).publicSearchEnabled).toBe(true)
+    await setPageVisibility(
+      workspace.id,
+      { path: "/search", visibility: "off" },
+      testDb
+    )
+
+    expect((await readBranding(testDb)).publicSearchEnabled).toBe(false)
   })
 
   it("keeps app theme defaults out of unrelated global writes", () => {
@@ -224,6 +250,11 @@ describe("public site branding", () => {
       pageWidth: 960,
       mainSpacing: 24,
       contentAlignment: "right",
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: 8,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
       headerBorder: false,
       footerBorder: true,
       colorScheme: "dark",

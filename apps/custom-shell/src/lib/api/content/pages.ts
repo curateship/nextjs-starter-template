@@ -15,6 +15,7 @@ import {
 import {
   loadPagesOverview as loadPagesOverviewQuery,
   readPageVisibility,
+  readPublicNotFoundDiscovery,
   readWrittenPageForViewer,
   setPageVisibility,
   type PagesOverview,
@@ -22,6 +23,7 @@ import {
   type WrittenPageView,
 } from "@/server/content/pages"
 import { findSessionContext } from "@/server/auth/security"
+import type { PublicNotFoundDiscovery } from "@/lib/pages/not-found-discovery"
 import {
   createWrittenPage,
   deleteWrittenPage,
@@ -68,6 +70,17 @@ const loadPagesOverviewFn = createServerFn({ method: "GET" })
 
 export function loadPagesOverview() {
   return loadPagesOverviewFn()
+}
+
+const loadPublicNotFoundDiscoveryFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicNotFoundDiscovery> => {
+    return readPublicNotFoundDiscovery(await visitorWorkspaceId())
+  }
+)
+
+/** Fresh 404 search and menu settings for the domain the visitor opened. */
+export function loadPublicNotFoundDiscovery() {
+  return loadPublicNotFoundDiscoveryFn()
 }
 
 const setPageVisibilityFn = createServerFn({ method: "POST" })

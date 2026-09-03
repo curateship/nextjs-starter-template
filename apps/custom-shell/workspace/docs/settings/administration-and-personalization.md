@@ -65,8 +65,9 @@ original media-library image remains available.
 
 Public Styling is separate from the Platform Styling tab. Platform Styling
 changes the signed-in workspace used by admins and members. Public Styling
-changes only the pages a visitor can see before signing in. Font and corners
-are app-wide. Brand colour belongs to the current site when the app gives
+changes only the pages a visitor can see before signing in. Font, corners,
+background pattern, and button choices are app-wide. Brand colour belongs to
+the current site when the app gives
 workspaces their own public domains. An app without public workspace domains
 uses one app-wide brand colour instead.
 
@@ -112,6 +113,17 @@ the former 1152px width, muted canvas, 40px spacing, both divider lines, and
 content centred. Content alignment can move every public page's main content
 to the left, centre, or right. Canvas colours use the same 6-digit hex
 validation as brand colours.
+
+The Background pattern card can leave the canvas plain or draw dots or a grid
+over it. Small, medium, and large sizes control the spacing. Pattern opacity
+starts at 8% and cannot exceed 20%, which keeps the texture behind the content
+instead of competing with it. None and 0% draw no pattern at all.
+
+The Buttons card changes public buttons without changing controls inside the
+signed-in app. Solid is the default primary style. Outline gives primary
+buttons a brand-coloured border and transparent fill. Labels can stay as
+written or display in capitals. Destructive, ghost, and deliberately secondary
+button styles keep their own treatment.
 
 Colour mode in the same card can follow the visitor's device or pin every
 public page to light or dark. Follow device is the default and shows a public

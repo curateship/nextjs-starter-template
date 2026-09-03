@@ -205,6 +205,52 @@ html[data-public-brand] ::selection {
   background-color: var(--shell-primary-soft);
 }
 
+html[data-public-pattern="dots"] [data-public-canvas] {
+  background-image: radial-gradient(
+    circle,
+    var(--shell-public-pattern-color) 1px,
+    transparent 1px
+  );
+  background-size: var(--shell-public-pattern-size)
+    var(--shell-public-pattern-size);
+}
+
+html[data-public-pattern="grid"] [data-public-canvas] {
+  background-image:
+    linear-gradient(
+      to right,
+      var(--shell-public-pattern-color) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      var(--shell-public-pattern-color) 1px,
+      transparent 1px
+    );
+  background-size: var(--shell-public-pattern-size)
+    var(--shell-public-pattern-size);
+}
+
+html[data-public-button-style="outline"]
+  [data-slot="button"][data-variant="default"] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: transparent;
+}
+
+html[data-public-button-style="outline"]
+  [data-slot="button"][data-variant="default"]:hover {
+  color: var(--primary);
+  background-color: var(
+    --shell-primary-soft,
+    color-mix(in oklab, var(--primary) 10%, transparent)
+  );
+}
+
+html[data-public-button-casing="uppercase"] [data-slot="button"] {
+  text-transform: uppercase;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

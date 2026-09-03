@@ -17,19 +17,29 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
   DEFAULT_PUBLIC_MAIN_SPACING,
+  MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
   MAX_PUBLIC_MAIN_SPACING,
   MAX_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_RADIUS,
   MIN_PUBLIC_PAGE_WIDTH,
+  PUBLIC_BACKGROUND_PATTERNS,
+  PUBLIC_BACKGROUND_PATTERN_SIZES,
   PUBLIC_BRAND_COLOR_PATTERN,
+  PUBLIC_BUTTON_CASINGS,
+  PUBLIC_BUTTON_STYLES,
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
   PUBLIC_THEME_FONT_LABELS,
   isPublicBrandColor,
   normalizePublicBrandOverrides,
+  type PublicBackgroundPattern,
+  type PublicBackgroundPatternSize,
   type PublicBrandOverrideKey,
+  type PublicButtonCasing,
+  type PublicButtonStyle,
   type PublicColorScheme,
   type PublicContentAlignment,
   type PublicTheme,
@@ -370,6 +380,165 @@ export function PublicThemeSettings({
               Show the line above the public footer
             </Label>
           </div>
+        </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-styling-background-pattern"
+        title="Background pattern"
+        description="Add a faint dot or grid texture over the public canvas."
+        contentClassName="space-y-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-theme-background-pattern"
+            hint="None leaves the canvas exactly as it is today."
+          >
+            Pattern
+          </FieldLabel>
+          <Select
+            value={theme.backgroundPattern}
+            onValueChange={(backgroundPattern) =>
+              update({
+                backgroundPattern: backgroundPattern as PublicBackgroundPattern,
+              })
+            }
+          >
+            <SelectTrigger
+              id="public-theme-background-pattern"
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_BACKGROUND_PATTERNS.map((pattern) => (
+                <SelectItem key={pattern} value={pattern}>
+                  {pattern === "none"
+                    ? "None"
+                    : pattern === "dots"
+                      ? "Dots"
+                      : "Grid"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {theme.backgroundPattern !== "none" ? (
+          <>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="public-theme-background-pattern-size"
+                hint="Sets the space between dots or grid lines."
+              >
+                Pattern size
+              </FieldLabel>
+              <Select
+                value={theme.backgroundPatternSize}
+                onValueChange={(backgroundPatternSize) =>
+                  update({
+                    backgroundPatternSize:
+                      backgroundPatternSize as PublicBackgroundPatternSize,
+                  })
+                }
+              >
+                <SelectTrigger
+                  id="public-theme-background-pattern-size"
+                  className="w-full sm:w-fit"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PUBLIC_BACKGROUND_PATTERN_SIZES.map((size) => (
+                    <SelectItem key={size} value={size}>
+                      {size === "small"
+                        ? "Small"
+                        : size === "medium"
+                          ? "Medium"
+                          : "Large"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <SettingsSliderRow
+              label="Pattern opacity"
+              value={theme.backgroundPatternOpacity}
+              min={0}
+              max={MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY}
+              valueLabel={`${theme.backgroundPatternOpacity}%`}
+              onChange={(backgroundPatternOpacity) =>
+                update({ backgroundPatternOpacity })
+              }
+              help={`${DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY}% is the default. 0% hides the pattern without changing the saved pattern or size.`}
+            />
+          </>
+        ) : null}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-styling-buttons"
+        title="Buttons"
+        description="Choose the default public button treatment and label casing."
+        contentClassName="space-y-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-theme-button-style"
+            hint="Changes primary public buttons. Destructive, ghost, and deliberately secondary buttons keep their own style."
+          >
+            Default style
+          </FieldLabel>
+          <Select
+            value={theme.buttonStyle}
+            onValueChange={(buttonStyle) =>
+              update({ buttonStyle: buttonStyle as PublicButtonStyle })
+            }
+          >
+            <SelectTrigger
+              id="public-theme-button-style"
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_BUTTON_STYLES.map((style) => (
+                <SelectItem key={style} value={style}>
+                  {style === "solid" ? "Solid" : "Outline"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-theme-button-casing"
+            hint="Changes button labels only. Headings and body text stay as written."
+          >
+            Label casing
+          </FieldLabel>
+          <Select
+            value={theme.buttonCasing}
+            onValueChange={(buttonCasing) =>
+              update({ buttonCasing: buttonCasing as PublicButtonCasing })
+            }
+          >
+            <SelectTrigger
+              id="public-theme-button-casing"
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_BUTTON_CASINGS.map((casing) => (
+                <SelectItem key={casing} value={casing}>
+                  {casing === "as-written" ? "As written" : "Capitals"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CollapsibleSettingsCard>
 

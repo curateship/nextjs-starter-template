@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
+  MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  PUBLIC_BACKGROUND_PATTERNS,
+  PUBLIC_BACKGROUND_PATTERN_SIZES,
+  PUBLIC_BUTTON_CASINGS,
+  PUBLIC_BUTTON_STYLES,
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
   createDefaultPublicTheme,
@@ -77,6 +83,54 @@ describe("public theme", () => {
       footerBorder: true,
       mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
       contentAlignment: "center",
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
+    })
+  })
+
+  it("normalizes public patterns and button choices conservatively", () => {
+    expect(PUBLIC_BACKGROUND_PATTERNS).toEqual(["none", "dots", "grid"])
+    expect(PUBLIC_BACKGROUND_PATTERN_SIZES).toEqual([
+      "small",
+      "medium",
+      "large",
+    ])
+    expect(PUBLIC_BUTTON_STYLES).toEqual(["solid", "outline"])
+    expect(PUBLIC_BUTTON_CASINGS).toEqual(["as-written", "uppercase"])
+
+    expect(
+      normalizePublicTheme({
+        backgroundPattern: "grid",
+        backgroundPatternSize: "large",
+        backgroundPatternOpacity: 999,
+        buttonStyle: "outline",
+        buttonCasing: "uppercase",
+      })
+    ).toMatchObject({
+      backgroundPattern: "grid",
+      backgroundPatternSize: "large",
+      backgroundPatternOpacity: MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+      buttonStyle: "outline",
+      buttonCasing: "uppercase",
+    })
+
+    expect(
+      normalizePublicTheme({
+        backgroundPattern: "waves",
+        backgroundPatternSize: "huge",
+        backgroundPatternOpacity: -1,
+        buttonStyle: "ghost",
+        buttonCasing: "title-case",
+      })
+    ).toMatchObject({
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: 0,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
     })
   })
 
@@ -125,6 +179,11 @@ describe("public theme", () => {
       canvasColor: "",
       pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
       mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
       headerBorder: true,
       footerBorder: true,
       colorScheme: "system",
@@ -331,5 +390,48 @@ describe("public theme", () => {
     })
     expect(style).not.toHaveProperty("--primary")
     expect(style).not.toHaveProperty("--shell-primary")
+  })
+
+  it("writes a visible background pattern and treats zero opacity as none", () => {
+    const patterned = {
+      ...createDefaultPublicTheme(),
+      backgroundPattern: "dots" as const,
+      backgroundPatternSize: "large" as const,
+      backgroundPatternOpacity: 12,
+    }
+
+    expect(publicThemeStyle(patterned)).toMatchObject({
+      "--shell-public-pattern-color":
+        "color-mix(in oklab, var(--foreground) 12%, transparent)",
+      "--shell-public-pattern-size": "24px",
+    })
+    expect(hasCustomPublicTheme(patterned)).toBe(true)
+    expect(
+      publicThemeStyle({ ...patterned, backgroundPatternOpacity: 0 })
+    ).toBeUndefined()
+    expect(
+      hasCustomPublicTheme({ ...patterned, backgroundPatternOpacity: 0 })
+    ).toBe(false)
+  })
+
+  it("stores public button and pattern changes over an app default", () => {
+    const baseline = createDefaultPublicTheme()
+    const selected = {
+      ...baseline,
+      backgroundPattern: "grid" as const,
+      backgroundPatternSize: "small" as const,
+      backgroundPatternOpacity: 4,
+      buttonStyle: "outline" as const,
+      buttonCasing: "uppercase" as const,
+    }
+
+    expect(publicThemeOverrides(selected, baseline)).toEqual({
+      backgroundPattern: "grid",
+      backgroundPatternSize: "small",
+      backgroundPatternOpacity: 4,
+      buttonStyle: "outline",
+      buttonCasing: "uppercase",
+    })
+    expect(hasCustomPublicTheme(selected)).toBe(true)
   })
 })

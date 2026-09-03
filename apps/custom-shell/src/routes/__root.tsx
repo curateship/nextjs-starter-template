@@ -135,6 +135,7 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
         }
       >
         <div
+          data-public-canvas=""
           className="flex min-h-screen flex-col bg-muted/60"
           style={canvasStyle}
         >
@@ -288,6 +289,19 @@ function RootDocument({
       lang="en"
       suppressHydrationWarning
       data-public-brand={publicTheme?.brandColor ? "" : undefined}
+      data-public-pattern={
+        publicTheme &&
+        publicTheme.backgroundPattern !== "none" &&
+        publicTheme.backgroundPatternOpacity > 0
+          ? publicTheme.backgroundPattern
+          : undefined
+      }
+      data-public-button-style={
+        publicTheme?.buttonStyle === "outline" ? "outline" : undefined
+      }
+      data-public-button-casing={
+        publicTheme?.buttonCasing === "uppercase" ? "uppercase" : undefined
+      }
       style={style}
     >
       <head>

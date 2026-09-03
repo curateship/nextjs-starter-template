@@ -38,11 +38,12 @@ preview caches see a different address.
 
 Settings under Public > Styling control the site's brand colour, corner rounding
 from 0 to 24px, font, colour mode, canvas colour, content width, content
-alignment, vertical spacing, and the header and footer divider lines. The
-system face, Inter, serif, and mono are available. Inter comes from the app;
-the other choices use fonts already on the visitor's device. Public pages never
-fetch a font from another site. Frame, font, and corner choices are app-wide.
-Apps with public workspace domains keep a brand colour per site. An app without
+alignment, vertical spacing, background pattern, button treatment, and the
+header and footer divider lines. The system face, Inter, serif, and mono are
+available. Inter comes from the app; the other choices use fonts already on the
+visitor's device. Public pages never fetch a font from another site. Frame,
+font, and corner choices are app-wide. Apps with public workspace domains keep
+a brand colour per site. An app without
 those domains uses one brand colour for its public frontend.
 
 The app-wide colour mode follows the visitor's device by default. In that mode,
@@ -75,6 +76,19 @@ which keeps its own Styling settings.
 Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search
 must apply the same visibility rule as opening the result.
+
+The missing-page card includes the public search field while Search is
+available and lists the site's saved main-menu links in their saved order. A
+search moves to `/search` with the entered words. Switching Search off removes
+both the header search and the missing-page search. With no saved menu, the
+missing-page card adds no empty navigation section.
+
+Dots and grid patterns are drawn in CSS over the public canvas in light and
+dark mode. The public theme limits their opacity to 20%. None and 0% add no
+pattern image, so the canvas matches an unpatterned site. Public primary buttons
+can use their normal solid fill or a brand-coloured outline. Public button
+labels can display as written or in capitals. These rules are attached only to
+signed-out documents, so signed-in buttons keep the platform styling.
 
 Public > Pages holds the app-wide heading and body for the 404 and maintenance
 pages. Both are plain text and show a preview while the admin types. Empty

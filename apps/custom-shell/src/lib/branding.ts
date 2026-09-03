@@ -84,6 +84,14 @@ export function usePublicFooterCopyright() {
   })
 }
 
+/** Whether the site's public search page may be offered to visitors. */
+export function usePublicSearchEnabled() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicSearchEnabled ?? true,
+  })
+}
+
 /** Copy for the public fallback pages, carried by the resilient root loader. */
 export function usePublicSystemCopy(): PublicSystemCopy {
   const saved = useLoaderData({

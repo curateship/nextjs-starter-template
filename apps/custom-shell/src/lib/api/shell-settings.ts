@@ -31,12 +31,17 @@ import {
 } from "@/lib/pages/public-navigation"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
+  MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
   MAX_PUBLIC_MAIN_SPACING,
   MAX_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_RADIUS,
   MIN_PUBLIC_PAGE_WIDTH,
+  PUBLIC_BACKGROUND_PATTERNS,
+  PUBLIC_BACKGROUND_PATTERN_SIZES,
   PUBLIC_BRAND_COLOR_PATTERN,
   PUBLIC_BRAND_OVERRIDE_KEYS,
+  PUBLIC_BUTTON_CASINGS,
+  PUBLIC_BUTTON_STYLES,
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
@@ -202,6 +207,15 @@ const publicThemeSchema = z.object({
     .max(MAX_PUBLIC_PAGE_WIDTH),
   mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
   contentAlignment: z.enum(PUBLIC_CONTENT_ALIGNMENTS),
+  backgroundPattern: z.enum(PUBLIC_BACKGROUND_PATTERNS),
+  backgroundPatternSize: z.enum(PUBLIC_BACKGROUND_PATTERN_SIZES),
+  backgroundPatternOpacity: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY),
+  buttonStyle: z.enum(PUBLIC_BUTTON_STYLES),
+  buttonCasing: z.enum(PUBLIC_BUTTON_CASINGS),
   headerBorder: z.boolean(),
   footerBorder: z.boolean(),
   colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),

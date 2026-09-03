@@ -171,6 +171,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
+    publicSearchEnabled: boolean
     publicTheme?: PublicTheme
     hostIsUnknown: boolean
   }> => {
@@ -196,6 +197,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicNavigation: [],
         publicFooter: [],
         publicFooterCopyright: "",
+        publicSearchEnabled: true,
         hostIsUnknown: false,
       }
     }
