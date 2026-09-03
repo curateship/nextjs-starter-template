@@ -153,12 +153,13 @@ describe("the folders menu", () => {
     expect(document.body.textContent).toContain("BTC")
     await act(async () => buttonWithText("BTC").click())
     expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:BTC")
+    // The pick puts that coin on the chart and leaves the menu up, so the
+    // next coin in the folder is one press away. Manage folders below is
+    // pressed without reopening anything, which is the proof it stayed.
+    expect(
+      document.body.querySelector('[data-slot="popover-content"]')
+    ).not.toBeNull()
 
-    await act(async () => {
-      button("Open folders").dispatchEvent(
-        new MouseEvent("mouseover", { bubbles: true })
-      )
-    })
     await act(async () => button("Manage folders").click())
     expect(manage).toHaveBeenCalledTimes(1)
   })

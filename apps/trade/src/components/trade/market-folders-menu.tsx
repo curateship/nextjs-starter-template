@@ -229,10 +229,10 @@ export function MarketFoldersMenu({
                             key={market.key}
                             row={market}
                             selected={market.key === selectedMarketKey}
-                            onSelect={(marketKey) => {
-                              setOpen(false)
-                              onSelectMarket(marketKey)
-                            }}
+                            // The menu stays up after a pick, so a folder
+                            // can be read one coin at a time. Moving the
+                            // pointer off it closes it, and so does Escape.
+                            onSelect={onSelectMarket}
                           />
                         ))
                       ) : (

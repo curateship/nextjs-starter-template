@@ -34,7 +34,10 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   timeframe and that fixed arrow. The Indicators row's round count says how
   many indicators are on. Hovering the folder button opens a compact second
   view of the saved folders and the markets inside them. It grows with its
-  contents until it reaches the available screen height, then scrolls. Its plus
+  contents until it reaches the available screen height, then scrolls. Picking
+  a coin there changes the chart and leaves the menu open, so a folder can be
+  read one coin at a time; the menu closes when the pointer leaves it, or on
+  Escape. Its plus
   creates a folder there and its cog opens the full manager; the full Folders
   panel stays in the left column. The bell opens the account's Alert and Fired lists;
   a red badge counts fired price and drawing alerts, and each tab can clear all
