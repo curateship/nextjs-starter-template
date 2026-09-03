@@ -9,6 +9,12 @@ import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { catchAllOverride } from "@/lib/app-options"
 import { loadWrittenPage } from "@/lib/api/content/pages"
+import { resolveAppName } from "@/lib/branding"
+import {
+  defaultPublicDescription,
+  publicSocialMeta,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
 
 /**
  * Every address the app has no route for lands here, and this is where a page
@@ -67,12 +73,39 @@ export const Route = createFileRoute("/$")({
   },
   errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   component: CatchAllRoute,
-  head: ({ loaderData }) => {
+  head: ({ loaderData, matches }) => {
     if (!loaderData) return {}
     if (loaderData.source === "app") {
       return appPage?.head?.({ data: loaderData.data }) ?? {}
     }
-    return { meta: [{ title: loaderData.page.title }] }
+
+    const branding = matches[0]?.loaderData as
+      | {
+          appName?: string
+          shareImage?: string
+          socialCardType?: SocialCardType
+          socialHandle?: string
+        }
+      | undefined
+    const title = `${loaderData.page.title} · ${resolveAppName(
+      branding?.appName
+    )}`
+    const description = defaultPublicDescription(
+      resolveAppName(branding?.appName)
+    )
+
+    return {
+      meta: [
+        { title: loaderData.page.title },
+        ...publicSocialMeta({
+          title,
+          description,
+          image: branding?.shareImage ?? "",
+          cardType: branding?.socialCardType ?? "summary",
+          handle: branding?.socialHandle ?? "",
+        }),
+      ],
+    }
   },
 })
 

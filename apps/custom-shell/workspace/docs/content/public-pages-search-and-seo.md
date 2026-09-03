@@ -18,7 +18,25 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
-Settings under Public > Look control the site's brand colour, corner rounding
+The root page load also puts the app-wide favicon set in the document head.
+Public pages and signed-in pages therefore use the same light favicon, optional
+dark favicon, and generated browser sizes. With no saved favicon the document
+adds no custom icon links, which keeps the app's built-in browser behavior.
+
+Every public page also gets its sharing title and description in the first HTML
+response. Coded pages use the summary in their page declaration. Written pages
+use their title and the app-wide fallback description. This covers the front
+page, pricing, search, written pages, sign-in and registration pages, password
+recovery, the missing-page screen, and maintenance mode.
+
+Public > Social can add one app-wide share image, choose a small or large X card,
+and name the site's X account. The account is stored without its leading `@`.
+Clearing the image still leaves title and description tags, and clearing the
+account removes its tag. The image must belong to the admin's media library.
+Selecting a replacement gives the public image URL a new version so social
+preview caches see a different address.
+
+Settings under Public > Styling control the site's brand colour, corner rounding
 from 0 to 24px, font, colour mode, canvas colour, content width, content
 alignment, vertical spacing, and the header and footer divider lines. The
 system face, Inter, serif, and mono are available. Inter comes from the app;
@@ -41,19 +59,28 @@ card layout, and written pages stay cards until
 their own per-page layout choice is added. Main content is centred by default
 in both layouts. The app-wide content alignment can move it left or right.
 
-The root page load combines the app-wide font and corners with the brand colour
-for the domain being visited. The server writes those values into the first HTML
-response, before the browser paints or React starts. Missing and invalid fields
-use the standard colour, font, and corner values. The brand colour writes the
-shell's primary and focus-ring variables. The shell derives the public button
-hover, selection tint, readable button text, and dark-mode brand from the same
-colour before the first paint. A saved manual override replaces its automatic
-value in both modes until an admin sends it back to automatic. Public look
-settings never change the signed-in app, which keeps its own Styling settings.
+The root page load starts with the app's default public theme, then adds the
+saved app-wide values and the brand colour for the domain being visited. An app
+that supplies no default starts with Custom Shell's built-in look. The server
+writes the resolved values into the first HTML response, before the browser
+paints or React starts. Missing saved fields keep the app default. The resolver
+checks saved values and app defaults before they reach the page. Saved manual
+shades replace only matching app shades, and sending a shade back to automatic
+removes that inherited manual value. The brand colour writes the shell's
+primary and focus-ring variables. The shell derives the public button hover,
+selection tint, readable button text, and dark-mode brand from the same colour
+before the first paint. Public styling settings never change the signed-in app,
+which keeps its own Styling settings.
 
 Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search
 must apply the same visibility rule as opening the result.
+
+Public > Pages holds the app-wide heading and body for the 404 and maintenance
+pages. Both are plain text and show a preview while the admin types. Empty
+fields preserve the built-in wording. The maintenance page reads this copy
+from the root branding response, so it does not add another settings query
+while the app is deliberately unavailable.
 
 The signed-in action on the public front page opens Overview directly for an
 admin and Home directly for a member. The action does not pass through the

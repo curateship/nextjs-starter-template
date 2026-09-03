@@ -73,7 +73,6 @@ import {
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
-  resolveMaintenanceMessage,
   type ShellChildItem,
   type ShellItem,
   type ShellSection,
@@ -4599,6 +4598,76 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ logoDark: 42 }).logoDark).toBe("")
   })
 
+  it("carries the app-wide favicon set through a save and back", () => {
+    const light = {
+      source: "https://media.example.test/owner/favicon.png",
+      icon16: "https://media.example.test/owner/favicons/v1/light-16.png",
+      icon32: "https://media.example.test/owner/favicons/v1/light-32.png",
+      appleTouchIcon:
+        "https://media.example.test/owner/favicons/v1/light-180.png",
+      icon512: "https://media.example.test/owner/favicons/v1/light-512.png",
+    }
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+    expect(parseShellGlobals({ favicon: 42, faviconDark: 42 })).toMatchObject({
+      favicon: "",
+      faviconDark: "",
+      faviconSet: null,
+    })
+  })
+
+  it("carries the app-wide social card and public system copy through a save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals({ appName: "x" })).toMatchObject({
+      shareImage: "",
+      shareImageVersion: "",
+      socialCardType: "summary",
+      socialHandle: "",
+      publicSystemCopy: {
+        notFoundHeading: "",
+        notFoundBody: "",
+        maintenanceHeading: "",
+        maintenanceBody: "",
+      },
+    })
+  })
+
   it("carries the top-bar link limit through a save and back", () => {
     // Same trap as the three above: miss it in `pickShellGlobals` and every
     // save drops the limit, so the top bar quietly goes back to a long row.
@@ -6542,29 +6611,17 @@ describe("custom shell maintenance mode", () => {
   it("reads as off when the settings row has never been written", async () => {
     const db = database as unknown as CustomShellDb
 
-    expect(await readMaintenance(db)).toEqual({ enabled: false, message: "" })
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
-  it("turns the app off and back on, keeping the message either way", async () => {
+  it("turns the app off and back on", async () => {
     const db = database as unknown as CustomShellDb
 
-    await setMaintenance(
-      { enabled: true, message: "  Upgrading the database.  " },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: true,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: true }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: true })
 
-    await setMaintenance(
-      { enabled: false, message: "Upgrading the database." },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: false,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: false }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
   it("leaves the other app-wide settings alone", async () => {
@@ -6573,37 +6630,35 @@ describe("custom shell maintenance mode", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf", adminRoute: "/admin/media" },
+      settings: {
+        appName: "Bookshelf",
+        adminRoute: "/admin/media",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
 
-    await setMaintenance({ enabled: true, message: "" }, db)
+    await setMaintenance({ enabled: true }, db)
 
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.adminRoute).toBe("/admin/media")
     expect(globals.maintenance.enabled).toBe(true)
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("treats a missing or hand-edited value as off", () => {
-    expect(normalizeMaintenance(undefined)).toEqual({
-      enabled: false,
-      message: "",
-    })
+    expect(normalizeMaintenance(undefined)).toEqual({ enabled: false })
     expect(normalizeMaintenance({ enabled: "yes", message: 7 })).toEqual({
       enabled: false,
-      message: "",
     })
     expect(normalizeMaintenance({ enabled: true, message: "Back soon" })).toEqual({
       enabled: true,
-      message: "Back soon",
     })
-  })
-
-  it("falls back to the default wording when no message was written", () => {
-    expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
-    expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
   })
 })
 
@@ -6704,7 +6759,10 @@ describe("custom shell session policy", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf" },
+      settings: {
+        appName: "Bookshelf",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
@@ -6714,6 +6772,10 @@ describe("custom shell session policy", () => {
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.sessionPolicy).toEqual({ maxAgeDays: 30, idleMinutes: 60 })
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("creates the settings row when the policy is saved on a fresh install", async () => {

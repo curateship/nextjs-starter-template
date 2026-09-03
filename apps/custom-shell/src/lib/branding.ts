@@ -2,6 +2,10 @@ import * as React from "react"
 import { rootRouteId, useLoaderData } from "@tanstack/react-router"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
 import {
+  normalizePublicSystemCopy,
+  type PublicSystemCopy,
+} from "@/lib/pages/public-metadata"
+import {
   createDefaultPublicTheme,
   normalizePublicTheme,
   type PublicTheme,
@@ -80,7 +84,17 @@ export function usePublicFooterCopyright() {
   })
 }
 
-/** The app's public look, normalized again at the paint boundary. */
+/** Copy for the public fallback pages, carried by the resilient root loader. */
+export function usePublicSystemCopy(): PublicSystemCopy {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicSystemCopy,
+  })
+
+  return React.useMemo(() => normalizePublicSystemCopy(saved), [saved])
+}
+
+/** The app's public styling, normalized again at the paint boundary. */
 export function usePublicTheme(): PublicTheme {
   const saved = useLoaderData({
     from: rootRouteId,

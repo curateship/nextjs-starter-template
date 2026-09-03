@@ -14,6 +14,8 @@ import {
   normalizePublicBrandOverrides,
   normalizePublicTheme,
   publicThemeForAppWideSave,
+  publicThemeForSite,
+  publicThemeOverrides,
   publicThemeStyle,
 } from "@/lib/public-theme"
 
@@ -130,6 +132,78 @@ describe("public theme", () => {
       font: "system",
       radius: 24,
     })
+  })
+
+  it("fills only missing saved values from the app's public theme", () => {
+    const appTheme = {
+      ...createDefaultPublicTheme(),
+      brandColor: "#123456",
+      brandOverrides: { darkColor: "#abcdef" },
+      canvasColor: "#f5f5f5",
+      colorScheme: "dark" as const,
+      font: "serif" as const,
+      radius: 4,
+    }
+
+    expect(
+      normalizePublicTheme(
+        {
+          brandOverrides: { hoverColor: "#654321" },
+          font: "mono",
+        },
+        appTheme
+      )
+    ).toEqual({
+      ...appTheme,
+      brandOverrides: {
+        darkColor: "#abcdef",
+        hoverColor: "#654321",
+      },
+      font: "mono",
+    })
+  })
+
+  it("puts a site's saved brand values over the app's public theme", () => {
+    const appTheme = {
+      ...createDefaultPublicTheme(),
+      brandColor: "#123456",
+      brandOverrides: { darkColor: "#abcdef" },
+    }
+
+    expect(
+      publicThemeForSite(appTheme, {
+        brandColor: "#654321",
+        brandOverrides: { hoverColor: "#112233" },
+      })
+    ).toEqual({
+      ...appTheme,
+      brandColor: "#654321",
+      brandOverrides: { hoverColor: "#112233" },
+    })
+    expect(publicThemeForSite(appTheme, undefined)).toEqual(appTheme)
+  })
+
+  it("stores only public values that differ from their inherited values", () => {
+    const appTheme = {
+      ...createDefaultPublicTheme(),
+      brandColor: "#123456",
+      brandOverrides: { darkColor: "#abcdef" },
+      font: "serif" as const,
+    }
+    const selectedTheme = {
+      ...appTheme,
+      brandOverrides: {},
+      font: "mono" as const,
+    }
+
+    const saved = publicThemeOverrides(selectedTheme, appTheme)
+
+    expect(saved).toEqual({
+      brandOverrides: { darkColor: "" },
+      font: "mono",
+    })
+    expect(normalizePublicTheme(saved, appTheme)).toEqual(selectedTheme)
+    expect(publicThemeOverrides(appTheme, appTheme)).toEqual({})
   })
 
   it("normalizes a six-digit brand colour", () => {

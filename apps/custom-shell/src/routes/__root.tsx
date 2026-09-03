@@ -11,13 +11,18 @@ import {
 } from "@tanstack/react-router"
 
 import "@/styles.css"
+import { BrandLogo } from "@/components/shell/brand-logo"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { getPageErrorMessage } from "@/components/shell/route-error"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadBranding } from "@/lib/api/shell"
 import { resolveAppName, usePublicTheme } from "@/lib/branding"
+import { focusRing } from "@/lib/layout/focus-ring"
+import {
+  publicFaviconLinks,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
 import {
   noFlashThemeScript,
   publicThemeStyle,
@@ -26,33 +31,40 @@ import {
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { routePageTitle } from "@/lib/nav/route-title"
+import { pageForPath } from "@/lib/pages/page-registry"
+import {
+  defaultPublicDescription,
+  publicSocialMeta,
+} from "@/lib/pages/public-metadata"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
+import { cn } from "@/lib/utils"
 import { ThemeProvider } from "@/components/shell/sticky-header/light-dark-switcher"
 
 // The app name and logo change about as rarely as the shell config, so hold
 // them for the same minute rather than re-reading on every navigation.
 const BRANDING_STALE_TIME_MS = 60_000
 
-const PUBLIC_ROUTE_DESCRIPTIONS: Record<string, string> = {
-  "/": "Accounts, workspaces and billing, ready to run.",
-  "/pricing": "Plans and billing for your workspace.",
-  "/login": "Sign in to your workspace.",
-  "/register": "Create an account and start using your workspace.",
-  "/forgot-password": "Request a link to reset your password.",
-  "/reset-password": "Choose a new password for your account.",
-  "/sign-in-link": "Use an email link to sign in securely.",
-  "/verify-email": "Confirm your email address.",
-  "/report-unwanted-sign-in":
-    "Stop and report an unwanted password-reset or sign-in link.",
-}
-
 function routeTitle(
-  matches: ReadonlyArray<{ routeId: string }>,
+  matches: ReadonlyArray<{ routeId: string; loaderData?: unknown }>,
   appName: string | null | undefined,
 ) {
-  const routeId = matches.at(-1)?.routeId
-  const page = routePageTitle(routeId, capitalise(workspaceWord().many))
+  const match = matches.at(-1)
+  const page =
+    writtenPageTitle(match?.loaderData) ??
+    pageForPath(match?.routeId ?? "")?.name ??
+    routePageTitle(match?.routeId, capitalise(workspaceWord().many))
   return `${page} · ${resolveAppName(appName)}`
+}
+
+function writtenPageTitle(loaderData: unknown) {
+  if (!loaderData || typeof loaderData !== "object") return null
+  const data = loaderData as {
+    source?: unknown
+    page?: { title?: unknown }
+  }
+  return data.source === "written" && typeof data.page?.title === "string"
+    ? data.page.title
+    : null
 }
 
 export const Route = createRootRoute({
@@ -60,7 +72,14 @@ export const Route = createRootRoute({
   loader: () => loadBranding(),
   head: ({ loaderData, matches }) => {
     const title = routeTitle(matches, loaderData?.appName)
-    const description = PUBLIC_ROUTE_DESCRIPTIONS[matches.at(-1)?.routeId ?? ""]
+    const match = matches.at(-1)
+    const publicPage = !matches.some((item) =>
+      item.routeId.startsWith("/_authenticated")
+    )
+    const description =
+      (!writtenPageTitle(match?.loaderData) &&
+        pageForPath(match?.routeId ?? "")?.summary) ||
+      defaultPublicDescription(resolveAppName(loaderData?.appName))
 
     return {
       meta: [
@@ -70,13 +89,14 @@ export const Route = createRootRoute({
         // console and which left the starting zoom unset on phones.
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { title },
-        ...(description
-          ? [
-              { name: "description", content: description },
-              { property: "og:title", content: title },
-              { property: "og:description", content: description },
-              { name: "twitter:card", content: "summary" },
-            ]
+        ...(publicPage
+          ? publicSocialMeta({
+              title,
+              description,
+              image: loaderData?.shareImage ?? "",
+              cardType: loaderData?.socialCardType ?? "summary",
+              handle: loaderData?.socialHandle ?? "",
+            })
           : []),
       ],
     }
@@ -87,36 +107,87 @@ export const Route = createRootRoute({
 
 /**
  * The last resort, for a failure that escaped every page's own error strip.
- * There is no shell around this one — the shell itself may be what failed — so
- * it stands on its own and offers the two ways out: try again, or go home.
+ * It uses only root branding and small shared primitives, not the public frame
+ * whose own work may be where the crash began.
  */
-function RootErrorComponent({ error }: ErrorComponentProps) {
+function RootErrorComponent({ error: _error }: ErrorComponentProps) {
   const router = useRouter()
+  const branding = Route.useLoaderData()
+  const appName = resolveAppName(branding?.appName)
+  const publicTheme = branding?.publicTheme ?? null
+  const canvasStyle = publicTheme?.canvasColor
+    ? { backgroundColor: publicTheme.canvasColor }
+    : undefined
 
   return (
-    <RootDocument>
-      <div className="grid min-h-screen place-items-center bg-muted/60 p-6">
-        <div className="w-full max-w-md">
-          <Card size="sm">
-            <CardContent className="grid gap-4">
-              <div className="grid gap-1">
-                <p className="text-sm font-medium">Something went wrong</p>
+    <RootDocument
+      publicTheme={publicTheme}
+      favicon={branding?.favicon}
+      faviconDark={branding?.faviconDark}
+      faviconSet={branding?.faviconSet}
+    >
+      <ThemeProvider
+        forcedTheme={
+          publicTheme?.colorScheme === "light" ||
+          publicTheme?.colorScheme === "dark"
+            ? publicTheme.colorScheme
+            : undefined
+        }
+      >
+        <div
+          className="flex min-h-screen flex-col bg-muted/60"
+          style={canvasStyle}
+        >
+          <header
+            className={
+              publicTheme?.headerBorder
+                ? "border-b bg-background"
+                : "bg-background"
+            }
+          >
+            <div className="mx-auto flex w-full max-w-6xl items-center px-3 py-2 md:px-4">
+              <a
+                href="/"
+                className={cn(
+                  "flex min-w-0 items-center gap-2 rounded-md text-sm font-medium",
+                  focusRing
+                )}
+              >
+                <BrandLogo
+                  src={branding?.logo ?? ""}
+                  darkSrc={branding?.logoDark ?? ""}
+                  appName={appName}
+                />
+                <span className="truncate">{appName}</span>
+              </a>
+            </div>
+          </header>
+          <main className="grid flex-1 place-items-center px-4 py-10">
+            <Card className="w-full max-w-md" size="sm">
+              <CardHeader>
+                <CardTitle as="h1">Something went wrong</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
                 <p className="text-sm text-muted-foreground">
-                  {getPageErrorMessage(error)}
+                  The page could not be loaded. Try again or return to the front
+                  page.
                 </p>
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" onClick={() => void router.invalidate()}>
-                  Try again
-                </Button>
-                <Button asChild variant="outline">
-                  <a href="/">Go home</a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => void router.invalidate()}
+                  >
+                    Try again
+                  </Button>
+                  <Button asChild variant="outline">
+                    <a href="/">Go to the front page</a>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </main>
         </div>
-      </div>
+      </ThemeProvider>
     </RootDocument>
   )
 }
@@ -136,10 +207,16 @@ function RootComponent() {
   // Drawn here rather than thrown from the loader: this route's own `<head>`
   // and document are built from that same loader data, so throwing leaves them
   // with nothing and the render fails before any not-found page is reached.
-  const { hostIsUnknown } = Route.useLoaderData()
+  const { favicon, faviconDark, faviconSet, hostIsUnknown } =
+    Route.useLoaderData()
 
   return (
-    <RootDocument publicTheme={publicTheme}>
+    <RootDocument
+      publicTheme={publicTheme}
+      favicon={favicon}
+      faviconDark={faviconDark}
+      faviconSet={faviconSet}
+    >
       <ThemeProvider
         forcedTheme={
           publicTheme?.colorScheme === "light" ||
@@ -187,10 +264,24 @@ function UnknownHost() {
 function RootDocument({
   children,
   publicTheme = null,
-}: Readonly<{ children: ReactNode; publicTheme?: PublicTheme | null }>) {
+  favicon = "",
+  faviconDark = "",
+  faviconSet = null,
+}: Readonly<{
+  children: ReactNode
+  publicTheme?: PublicTheme | null
+  favicon?: string
+  faviconDark?: string
+  faviconSet?: PublicFaviconSet | null
+}>) {
   const signedInPage = useSignedInPage()
   const style = publicTheme ? publicThemeStyle(publicTheme) : undefined
   const wantsInter = signedInPage || publicTheme?.font === "inter"
+  const faviconLinks = publicFaviconLinks({
+    favicon,
+    faviconDark,
+    faviconSet,
+  })
 
   return (
     <html
@@ -222,6 +313,13 @@ function RootDocument({
           }}
         />
         <script dangerouslySetInnerHTML={{ __html: noFlashCollapseScript }} />
+        {faviconLinks.map((link) => (
+          <link
+            key={`${link.rel}-${link.sizes ?? "original"}-${link.media ?? "all"}`}
+            {...link}
+            data-custom-shell-favicon="true"
+          />
+        ))}
         <HeadContent />
       </head>
       <body className={signedInPage ? "app-font" : undefined}>

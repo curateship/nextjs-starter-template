@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { appPublicTheme } from "@/lib/app-options"
 import {
   createDefaultMemberSections,
   createDefaultShellConfig,
@@ -13,8 +14,23 @@ import {
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+  versionedShareImage,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
+import {
+  normalizePublicFaviconSet,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
+import {
   hasCustomPublicTheme,
   normalizePublicTheme,
+  publicThemeForSite,
+  publicThemeOverrides,
   type PublicTheme,
 } from "@/lib/public-theme"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
@@ -76,8 +92,15 @@ export async function readBranding(
   database: CustomShellDb = db
 ): Promise<{
   appName: string
+  favicon: string
+  faviconDark: string
+  faviconSet: PublicFaviconSet | null
   logo: string
   logoDark: string
+  shareImage: string
+  socialCardType: SocialCardType
+  socialHandle: string
+  publicSystemCopy: PublicSystemCopy
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -99,8 +122,18 @@ export async function readBranding(
   if (answer.kind !== "workspace") {
     return {
       appName: globals.appName,
+      favicon: globals.favicon,
+      faviconDark: globals.faviconDark,
+      faviconSet: globals.faviconSet,
       logo: globals.logo,
       logoDark: globals.logoDark,
+      shareImage: versionedShareImage(
+        globals.shareImage,
+        globals.shareImageVersion
+      ),
+      socialCardType: globals.socialCardType,
+      socialHandle: globals.socialHandle,
+      publicSystemCopy: globals.publicSystemCopy,
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
@@ -112,17 +145,25 @@ export async function readBranding(
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
-  const publicTheme = {
-    ...appWidePublicTheme,
-    ...workspaceSettings.publicTheme,
-  }
+  const publicTheme = publicThemeForSite(
+    appWidePublicTheme,
+    workspaceSettings.publicTheme
+  )
 
   return {
     appName: answer.workspace.name || globals.appName,
-    // A workspace has a favicon of its own but no logo yet. Until it does, the
-    // deployment's logo keeps the public pages from losing their mark.
+    favicon: globals.favicon,
+    faviconDark: globals.faviconDark,
+    faviconSet: globals.faviconSet,
     logo: globals.logo,
     logoDark: globals.logoDark,
+    shareImage: versionedShareImage(
+      globals.shareImage,
+      globals.shareImageVersion
+    ),
+    socialCardType: globals.socialCardType,
+    socialHandle: globals.socialHandle,
+    publicSystemCopy: globals.publicSystemCopy,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -152,7 +193,7 @@ export async function readShellSettings(
   const workspace = await currentWorkspace(user.id, database)
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
   const publicTheme = workspaceBaseDomain()
-    ? { ...globals.publicTheme, ...workspaceSettings.publicTheme }
+    ? publicThemeForSite(globals.publicTheme, workspaceSettings.publicTheme)
     : globals.publicTheme
 
   return {
@@ -161,7 +202,6 @@ export async function readShellSettings(
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
-    favicon: workspaceSettings.favicon,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -181,7 +221,10 @@ export async function readShellSettings(
 }
 
 export function parseShellGlobals(value: unknown) {
-  const fallback = createDefaultShellConfig()
+  const fallback = {
+    ...createDefaultShellConfig(),
+    publicTheme: appPublicTheme(),
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return pickShellGlobals(fallback)
   }
@@ -196,6 +239,15 @@ export function parseShellGlobals(value: unknown) {
         ? settings.appName
         : fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    favicon:
+      typeof settings.favicon === "string"
+        ? settings.favicon
+        : fallback.favicon,
+    faviconDark:
+      typeof settings.faviconDark === "string"
+        ? settings.faviconDark
+        : fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -206,7 +258,18 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
-    publicTheme: normalizePublicTheme(settings.publicTheme),
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion.slice(0, 64)
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    publicTheme: normalizePublicTheme(
+      settings.publicTheme,
+      fallback.publicTheme
+    ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -254,6 +317,15 @@ export function parseShellGlobals(value: unknown) {
   }
 }
 
+/** Resolves globals for a write without turning app theme defaults into saves. */
+export function shellGlobalsForWrite(value: unknown) {
+  const settings = parseShellGlobals(value)
+  return {
+    ...settings,
+    publicTheme: publicThemeOverrides(settings.publicTheme, appPublicTheme()),
+  }
+}
+
 /**
  * Takes the fields it reads rather than a whole `ShellConfig`: the settings save
  * hands it a validated request, and the parts of that request which are not
@@ -265,8 +337,16 @@ export function pickShellGlobals(
     ShellConfig,
     | "appName"
     | "workspaceName"
+    | "favicon"
+    | "faviconDark"
+    | "faviconSet"
     | "logo"
     | "logoDark"
+    | "shareImage"
+    | "shareImageVersion"
+    | "socialCardType"
+    | "socialHandle"
+    | "publicSystemCopy"
     | "publicTheme"
     | "dashboardRowsPerPage"
     | "toastSeconds"
@@ -285,8 +365,16 @@ export function pickShellGlobals(
   return {
     appName: settings.appName,
     workspaceName: settings.workspaceName,
+    favicon: settings.favicon,
+    faviconDark: settings.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: settings.logo,
     logoDark: settings.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion: settings.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,

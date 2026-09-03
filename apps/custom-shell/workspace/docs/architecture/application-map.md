@@ -6,6 +6,12 @@ email, notifications, media, feedback, public pages, and automations. Each app
 adds product routes, widgets, automation nodes, workers, and public content
 through the shell configuration instead of copying shell code.
 
+Custom Shell, Trade, and Video each have one public site. Their public-page,
+branding, theme, and SEO settings are app-wide. CMS is the only multisite app
+and owns its site-specific storage and controls inside CMS. Shared shell work
+must not add site selectors, cross-site copying, site templates, or settings
+whose only purpose is serving several public sites from one deployment.
+
 ## Route groups
 
 The route tree has three clear audiences:

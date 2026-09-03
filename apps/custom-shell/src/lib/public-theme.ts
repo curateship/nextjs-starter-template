@@ -114,6 +114,41 @@ export function normalizePublicBrandOverrides(
   )
 }
 
+function publicBrandOverridesWithFallback(
+  value: unknown,
+  fallback: PublicBrandColorOverrides
+): PublicBrandColorOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...fallback }
+  }
+
+  const overrides = value as Record<string, unknown>
+  const resolved = { ...fallback }
+  for (const key of PUBLIC_BRAND_OVERRIDE_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(overrides, key)) continue
+
+    const color = normalizePublicBrandColor(overrides[key])
+    if (color) {
+      resolved[key] = color
+    } else {
+      delete resolved[key]
+    }
+  }
+  return resolved
+}
+
+function publicBrandOverrideChanges(
+  value: PublicBrandColorOverrides,
+  fallback: PublicBrandColorOverrides
+): PublicBrandColorOverrides {
+  return Object.fromEntries(
+    PUBLIC_BRAND_OVERRIDE_KEYS.flatMap((key) => {
+      const color = value[key] ?? ""
+      return color === (fallback[key] ?? "") ? [] : [[key, color]]
+    })
+  )
+}
+
 export function isPublicThemeInputValid(theme: PublicTheme) {
   return (
     isPublicBrandColor(theme.brandColor) &&
@@ -129,7 +164,7 @@ export function isPublicThemeInputValid(theme: PublicTheme) {
 }
 
 /**
- * A site's part of Public Look. The optional fallback carries CMS's old
+ * A site's part of Public Styling. The optional fallback carries CMS's old
  * top-level accent colour until its next shell merge removes that field.
  * An explicit new value, including an empty one, always wins.
  */
@@ -157,17 +192,32 @@ export function normalizePublicBrandTheme(
  * Public theme values are stored in a JSON settings object that can predate
  * fields here. Normalize each one before writing it into a public page.
  */
-export function normalizePublicTheme(value: unknown): PublicTheme {
-  const fallback = createDefaultPublicTheme()
+export function normalizePublicTheme(
+  value: unknown,
+  fallback: PublicTheme = createDefaultPublicTheme()
+): PublicTheme {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return fallback
+    return { ...fallback, brandOverrides: { ...fallback.brandOverrides } }
   }
 
   const theme = value as Partial<PublicTheme>
   const brandTheme = normalizePublicBrandTheme(theme)
   return {
-    ...brandTheme,
-    canvasColor: normalizePublicBrandColor(theme.canvasColor),
+    brandColor: Object.prototype.hasOwnProperty.call(theme, "brandColor")
+      ? brandTheme.brandColor
+      : fallback.brandColor,
+    brandOverrides: Object.prototype.hasOwnProperty.call(
+      theme,
+      "brandOverrides"
+    )
+      ? publicBrandOverridesWithFallback(
+          theme.brandOverrides,
+          fallback.brandOverrides
+        )
+      : { ...fallback.brandOverrides },
+    canvasColor: Object.prototype.hasOwnProperty.call(theme, "canvasColor")
+      ? normalizePublicBrandColor(theme.canvasColor)
+      : fallback.canvasColor,
     pageWidth: normalizeWholeNumber(
       theme.pageWidth,
       fallback.pageWidth,
@@ -207,6 +257,66 @@ export function normalizePublicTheme(value: unknown): PublicTheme {
       0,
       MAX_PUBLIC_RADIUS
     ),
+  }
+}
+
+/** Adds the brand values saved for one public site over the app-wide look. */
+export function publicThemeForSite(
+  appWideTheme: PublicTheme,
+  savedBrandTheme: unknown
+): PublicTheme {
+  const siteTheme = normalizePublicBrandTheme(savedBrandTheme)
+  if (!siteTheme.brandColor && !Object.keys(siteTheme.brandOverrides).length) {
+    return appWideTheme
+  }
+
+  return {
+    ...appWideTheme,
+    brandColor: siteTheme.brandColor || appWideTheme.brandColor,
+    brandOverrides: siteTheme.brandOverrides,
+  }
+}
+
+/** Keeps only app-wide values an admin changed from the app's starting look. */
+export function publicThemeOverrides(
+  value: PublicTheme,
+  fallback: PublicTheme
+): Partial<PublicTheme> {
+  const theme = normalizePublicTheme(value)
+  const baseline = normalizePublicTheme(fallback)
+  const brandOverrides = publicBrandOverrideChanges(
+    theme.brandOverrides,
+    baseline.brandOverrides
+  )
+
+  return {
+    ...(theme.brandColor !== baseline.brandColor
+      ? { brandColor: theme.brandColor }
+      : {}),
+    ...(Object.keys(brandOverrides).length ? { brandOverrides } : {}),
+    ...(theme.canvasColor !== baseline.canvasColor
+      ? { canvasColor: theme.canvasColor }
+      : {}),
+    ...(theme.pageWidth !== baseline.pageWidth
+      ? { pageWidth: theme.pageWidth }
+      : {}),
+    ...(theme.mainSpacing !== baseline.mainSpacing
+      ? { mainSpacing: theme.mainSpacing }
+      : {}),
+    ...(theme.contentAlignment !== baseline.contentAlignment
+      ? { contentAlignment: theme.contentAlignment }
+      : {}),
+    ...(theme.headerBorder !== baseline.headerBorder
+      ? { headerBorder: theme.headerBorder }
+      : {}),
+    ...(theme.footerBorder !== baseline.footerBorder
+      ? { footerBorder: theme.footerBorder }
+      : {}),
+    ...(theme.colorScheme !== baseline.colorScheme
+      ? { colorScheme: theme.colorScheme }
+      : {}),
+    ...(theme.font !== baseline.font ? { font: theme.font } : {}),
+    ...(theme.radius !== baseline.radius ? { radius: theme.radius } : {}),
   }
 }
 

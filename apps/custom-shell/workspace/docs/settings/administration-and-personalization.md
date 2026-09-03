@@ -10,8 +10,9 @@ The built-in settings groups contain:
 - Platform tabs for general details, admin navigation, dashboard widgets,
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
-- Public Navigation for the signed-out header and footer, plus Public Look for
-  the site's brand colour and the app's frame, font, and corner rounding.
+- Public Navigation for the signed-out header and footer, Public Styling for
+  the site's colours and frame, Public Pages for system-page wording, and
+  Public Social for sharing cards.
 
 ## Saving
 
@@ -48,26 +49,61 @@ Styling settings control:
 - Font choices and sidebar dimensions.
 - Public branding.
 
-Public Look is separate from Styling. Styling changes the signed-in workspace
-used by admins and members. Public Look changes only the pages a visitor can see
-before signing in. Font and corners are app-wide. Brand colour belongs to the
-current site when the app gives workspaces their own public domains. An app
-without public workspace domains uses one app-wide brand colour instead.
+General settings has one app-wide favicon for every browser tab, including
+public pages, plus an optional favicon for dark browser tabs. Each field uses
+the media library's square image picker. The image shown beside a site in the
+workspace switcher remains that site's own icon and is changed from the site
+editor instead.
+
+Saving a favicon checks that the image belongs to the admin's media library.
+The server then makes 16px, 32px, 180px, and 512px PNG files from the one
+selection. The first page response includes the matching browser icon links,
+so public pages have the right favicon before any browser code runs. Each set
+gets a new storage address to avoid stale browser caches. Replacing or clearing
+a favicon stops serving the old links and removes the generated files. The
+original media-library image remains available.
+
+Public Styling is separate from the Platform Styling tab. Platform Styling
+changes the signed-in workspace used by admins and members. Public Styling
+changes only the pages a visitor can see before signing in. Font and corners
+are app-wide. Brand colour belongs to the current site when the app gives
+workspaces their own public domains. An app without public workspace domains
+uses one app-wide brand colour instead.
+
+An app may supply the public styling a fresh install starts with through its app
+options. The app names only the fields it wants to change. A value saved in
+Public Styling replaces the matching app default, while untouched fields keep
+the app's choice and omitted app fields keep Custom Shell's built-in look. The
+option is code, not another settings record, so changing the app default
+requires a deploy. The settings record keeps only values that differ from the
+app default. Saving another setting does not freeze the inherited public look,
+and a later app default still reaches every value the admin left alone.
 
 Brand colour accepts a 6-digit hex value. The shell uses it for public buttons,
 links, and focus rings. The shell also builds a distinct hover colour, a soft
 selection tint, readable button text, and a brand colour that stays visible in
-dark mode. Each automatic value appears in Public Look with its computed
+dark mode. Each automatic value appears in Public Styling with its computed
 colour. Editing an automatic value makes it manual, and Back to automatic makes
 it follow the main brand colour again. A manual value survives later changes to
 the main brand colour. Clearing the main field restores the app's normal public
 colour without deleting those manual choices.
 
-Public Look checks normal-size text at a contrast ratio of 4.5 to 1. The current
-page text and background pass in both modes by default. A brand link or button
-label that falls below the same line gets a plain warning beside the setting
-for the mode that fails. Contrast warnings update while the admin types and
-never block saving a valid colour.
+Public Styling checks normal-size text at a contrast ratio of 4.5 to 1. The
+current page text and background pass in both modes by default. A brand link or
+button label that falls below the same line gets a plain warning beside the
+setting for the mode that fails. Contrast warnings update while the admin types
+and never block saving a valid colour.
+
+Public Social uses one media-library image across every public page.
+The server checks that a new selection belongs to the current admin and changes
+the image URL version when the selection changes. The same card chooses the
+small or large X presentation and saves an optional X account without `@`.
+Small is the default so older installs keep their previous card style.
+
+Public Pages edits one short heading and plain-text body for both the 404 and
+maintenance pages. Empty fields use the former built-in wording. The preview
+uses the same fallback rules as the public page, so clearing a field shows what
+a visitor will get before the settings save.
 
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the

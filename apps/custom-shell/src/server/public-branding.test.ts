@@ -10,9 +10,26 @@ import {
 } from "vitest"
 
 const request = vi.hoisted(() => ({ host: "" }))
+const appPublicTheme = vi.hoisted(() => ({
+  brandColor: "#123456",
+  brandOverrides: { darkColor: "#abcdef" },
+  canvasColor: "#f5f5f5",
+  pageWidth: 960,
+  mainSpacing: 24,
+  contentAlignment: "center",
+  headerBorder: true,
+  footerBorder: true,
+  colorScheme: "dark",
+  font: "serif",
+  radius: 4,
+}))
 
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeader: (name: string) => (name === "host" ? request.host : null),
+}))
+
+vi.mock("@/app/options", () => ({
+  appOptions: { publicTheme: appPublicTheme },
 }))
 
 import { now } from "@/server/auth/security"
@@ -23,7 +40,7 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import { readBranding } from "@/server/shell-settings"
+import { readBranding, shellGlobalsForWrite } from "@/server/shell-settings"
 import { dropWorkspaceCache } from "@/server/workspaces/host"
 
 const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
@@ -53,6 +70,117 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
+  it("uses app-wide icons, social metadata, and system copy on public domains", async () => {
+    const timestamp = now()
+    const light = {
+      source: "https://media.example.test/owner/favicon.png",
+      icon16: "https://media.example.test/owner/favicons/v1/light-16.png",
+      icon32: "https://media.example.test/owner/favicons/v1/light-32.png",
+      appleTouchIcon:
+        "https://media.example.test/owner/favicons/v1/light-180.png",
+      icon512: "https://media.example.test/owner/favicons/v1/light-512.png",
+    }
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        favicon: light.source,
+        faviconDark: "https://media.example.test/owner/favicon-dark.png",
+        faviconSet: { light },
+        shareImage: "https://media.example.test/owner/share.png",
+        shareImageVersion: "2026-09-02T12:00:00.000Z",
+        socialCardType: "summary_large_image",
+        socialHandle: "custom_shell",
+        publicSystemCopy: {
+          notFoundHeading: "Lost?",
+          notFoundBody: "Try the front page.",
+          maintenanceHeading: "Taking a short break",
+          maintenanceBody: "Back at noon.",
+        },
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Public site",
+      subdomain: "public",
+      settings: { favicon: "https://media.example.test/site-icon.png" },
+    })
+    request.host = "public.localhost:3002"
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding).toMatchObject({
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+      shareImage:
+        "https://media.example.test/owner/share.png?v=2026-09-02T12%3A00%3A00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+  })
+
+  it("keeps app theme defaults out of unrelated global writes", () => {
+    expect(shellGlobalsForWrite({ appName: "Bookshelf" }).publicTheme).toEqual(
+      {}
+    )
+    expect(
+      shellGlobalsForWrite({
+        appName: "Bookshelf",
+        publicTheme: { font: "mono" },
+      }).publicTheme
+    ).toEqual({ font: "mono" })
+  })
+
+  it("uses the app's public theme when the site has nothing saved", async () => {
+    await insertWorkspace(database, {
+      name: "Fresh site",
+      subdomain: "fresh",
+      settings: {},
+    })
+    request.host = "fresh.localhost:3002"
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicTheme).toEqual(appPublicTheme)
+  })
+
+  it("combines saved app-wide values with the site's brand", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: { publicTheme: { font: "mono" } },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Blue site",
+      subdomain: "blue",
+      settings: {
+        publicTheme: {
+          brandColor: "#2563eb",
+          brandOverrides: { hoverColor: "#1d4ed8" },
+        },
+      },
+    })
+    request.host = "blue.localhost:3002"
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicTheme).toEqual({
+      ...appPublicTheme,
+      brandColor: "#2563eb",
+      brandOverrides: { hoverColor: "#1d4ed8" },
+      font: "mono",
+    })
+  })
+
   it("combines app-wide type and corners with the domain's brand colour", async () => {
     const timestamp = now()
     await database.insert(customShellSettings).values({

@@ -13,6 +13,7 @@ import {
   appShowsRunButton,
   appOffersMemberTest,
   appPaletteGroups,
+  appPublicTheme,
   appSettingsTabs,
   catchAllOverride,
   landingPageOverride,
@@ -21,6 +22,7 @@ import {
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { workspaceAddress } from "@/lib/workspaces/addresses"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
@@ -63,6 +65,10 @@ function testNode(kind: string) {
 }
 
 describe("an option nobody set means what the shell always did", () => {
+  it("keeps the shell's public look", () => {
+    expect(appPublicTheme({})).toEqual(createDefaultPublicTheme())
+  })
+
   it("adds no app-owned control to the signed-in header", () => {
     expect(appHeaderRightAction({})).toBeNull()
   })
@@ -92,6 +98,19 @@ describe("an option nobody set means what the shell always did", () => {
 })
 
 describe("an app's answer wins", () => {
+  it("uses the app's default public look", () => {
+    const publicTheme = {
+      brandColor: "#123456",
+      colorScheme: "dark" as const,
+      font: "serif" as const,
+    }
+
+    expect(appPublicTheme({ publicTheme })).toEqual({
+      ...createDefaultPublicTheme(),
+      ...publicTheme,
+    })
+  })
+
   it("hands over the signed-in header's app-owned control", () => {
     const rightAction = {
       id: "app-status",

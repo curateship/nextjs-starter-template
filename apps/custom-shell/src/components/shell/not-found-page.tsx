@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
-import { useAppName } from "@/lib/branding"
+import { useAppName, usePublicSystemCopy } from "@/lib/branding"
+import { resolveNotFoundCopy } from "@/lib/pages/public-metadata"
 
 /**
  * What any address the app does not have shows, and what a switched-off page
@@ -102,17 +103,15 @@ function NotFoundCard({
   home: WayOn
   other: WayOn
 }) {
+  const copy = resolveNotFoundCopy(usePublicSystemCopy(), appName)
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>That page does not exist</CardTitle>
+        <CardTitle>{copy.heading}</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          {appName
-            ? `${appName} could not find the page you requested.`
-            : "We could not find the page you requested."}
-        </p>
+        <p className="text-sm text-muted-foreground">{copy.body}</p>
         {/* Ordinary in-app links. Nothing here is broken — the router simply
             had no route for the address — so there is no state to escape by
             reloading, and a reload would only blank the screen on the way. */}

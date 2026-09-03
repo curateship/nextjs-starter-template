@@ -53,12 +53,10 @@ const subscribeToBrowserOrigin = () => () => {}
  */
 export function WorkspaceSwitcher({
   workspaces,
-  favicon,
   baseDomain = "",
   copyChoices = [],
 }: {
   workspaces: WorkspaceItem[]
-  favicon: string
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
   copyChoices?: WorkspaceCopyChoice[]
@@ -70,7 +68,7 @@ export function WorkspaceSwitcher({
   // import its way back to this one.
   const word = workspaceWord()
   const activeWorkspaceName = activeWorkspace?.name ?? ""
-  const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
+  const activeFavicon = activeWorkspace?.favicon || ""
   const browserOrigin = React.useSyncExternalStore(
     subscribeToBrowserOrigin,
     () => window.location.origin,

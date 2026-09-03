@@ -12,6 +12,7 @@ import {
   type SQL,
 } from "drizzle-orm"
 
+import { isGeneratedFaviconStoragePath } from "@/lib/favicon"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   deleteFromR2,
@@ -359,7 +360,11 @@ export async function findOwnedImageByUrl(
   if (!storagePath) return null
 
   const [row] = await database
-    .select({ id: customShellMedia.id, fileType: customShellMedia.fileType })
+    .select({
+      id: customShellMedia.id,
+      fileType: customShellMedia.fileType,
+      storagePath: customShellMedia.storagePath,
+    })
     .from(customShellMedia)
     .where(
       and(
@@ -780,7 +785,12 @@ async function scanMediaOrphans(
   // still be traced back to a person.
   const unlinked = objects
     .filter(
-      (object) => !knownPaths.has(object.key) && APP_STORAGE_KEY.test(object.key)
+      (object) =>
+        !knownPaths.has(object.key) &&
+        APP_STORAGE_KEY.test(object.key) &&
+        // Favicon sizes have no media row by design. Their settings save owns
+        // replacement and cleanup, so the generic orphan tool must leave them.
+        !isGeneratedFaviconStoragePath(object.key)
     )
     .map((object) => {
       const [ownerId, ...rest] = object.key.split("/")

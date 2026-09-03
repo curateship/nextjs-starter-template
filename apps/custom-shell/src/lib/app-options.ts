@@ -9,6 +9,10 @@ import type {
   AutomationCanvasPanel,
   AutomationCanvasStatus,
 } from "@/lib/automations/canvas-panel"
+import {
+  normalizePublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
 /**
@@ -28,13 +32,20 @@ import type { AppSettingsTab } from "@/lib/settings-tab"
  * *here*, in custom-shell, with its default equal to today's behaviour; only
  * then can an app use it.
  *
- * Not everything belongs here. If an admin could plausibly change it on a
- * Settings screen it is `ShellConfig` instead, and if it differs between
- * staging and production of one app it is an environment variable. An app
- * option is decided once by whoever builds the app, is the same on every
- * install of it, and changing it means a deploy.
+ * Not everything belongs here. A value an admin changes while the app runs is
+ * `ShellConfig`; an app option may only supply its starting value when the
+ * shell offers that choice explicitly. A value that differs between staging
+ * and production of one app is an environment variable. An app option is
+ * decided once by whoever builds the app, is the same on every install of it,
+ * and changing it means a deploy.
  */
 export type AppOptions = {
+  /**
+   * The public look a fresh install starts with before an admin saves changes.
+   * An app names only the fields it wants to change. Saved app-wide values
+   * override matching fields, and omitted fields keep the shell's built-in look.
+   */
+  publicTheme?: Partial<PublicTheme>
   header?: HeaderOptions
   landing?: LandingOptions
   pages?: PagesOptions
@@ -431,6 +442,11 @@ export function landingPageOverride(
   options: AppOptions = appOptions
 ): PublicPage | null {
   return options.landing?.page ?? null
+}
+
+/** The app's starting public look, or the shell's when the app says nothing. */
+export function appPublicTheme(options: AppOptions = appOptions): PublicTheme {
+  return normalizePublicTheme(options.publicTheme)
 }
 
 /** The app's one control on the signed-in header, or none. */

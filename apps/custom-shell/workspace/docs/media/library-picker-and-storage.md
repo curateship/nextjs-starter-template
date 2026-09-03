@@ -29,6 +29,15 @@ Uploads pass several checks:
 Account images such as avatars must resolve to an owned image record. A pasted
 external address cannot bypass media ownership checks.
 
+The app favicon also starts with an owned image. When Settings saves that
+choice, the server reads the original from R2 and writes square PNG copies at
+16px, 32px, 180px, and 512px under a versioned favicon folder. A separate dark
+choice gets its own set. Generated favicon files stay out of the media picker;
+the selected originals remain the editable records. Replacing or clearing a
+choice removes the generated files after the settings record saves. The media
+orphan tool leaves this managed favicon folder alone, so it cannot erase an
+active browser icon merely because the generated file has no media row.
+
 ## Admin and cleanup
 
 The Media dashboard can see files across the workspace, their owners, current
