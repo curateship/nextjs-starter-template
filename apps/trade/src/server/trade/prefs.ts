@@ -283,6 +283,37 @@ export async function loadTradeSoundPreferences(
   return row ?? { fillsAndStops: false, alerts: false }
 }
 
+/**
+ * Whether the account's line alerts are paused by the master switch in
+ * Settings. Off until chosen, and a missing row means not paused.
+ */
+export async function loadLineAlertsPaused(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ paused: tradePrefs.lineAlertsPaused })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return row?.paused ?? false
+}
+
+export async function saveLineAlertsPaused(
+  userId: string,
+  paused: boolean,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  await database
+    .insert(tradePrefs)
+    .values({ userId, lineAlertsPaused: paused, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { lineAlertsPaused: paused, updatedAt: new Date() },
+    })
+  return paused
+}
+
 /** Remember both independent account-wide sound choices. */
 export async function saveTradeSoundPreferences(
   userId: string,

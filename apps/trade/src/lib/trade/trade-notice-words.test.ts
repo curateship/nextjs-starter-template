@@ -38,6 +38,22 @@ describe("a drawn line's alert notice", () => {
       }).title
     ).toBe("BTC crossed your level at $61,200 (was rising)")
   })
+
+  it("calls a named line by its name, and puts the price in the body", () => {
+    expect(
+      drawingAlertNoticeWords({
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "trendline",
+        price: 61_200,
+        direction: "above",
+        name: "4h base",
+      })
+    ).toEqual({
+      title: "BTC crossed 4h base (was rising)",
+      body: "4h base was at $61,200. The trendline's alert fired once and is now off. The trendline is still on the chart.",
+      level: "info",
+    })
+  })
 })
 
 describe("a price alert's notice", () => {

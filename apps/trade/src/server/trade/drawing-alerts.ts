@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm"
 
 import {
   MAX_RECENT_FIRED_LINE_ALERTS,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/trade/line-alerts"
 
 import { marketChartHref } from "@/lib/protocols/contracts"
+import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   drawingAlertArmed,
   priceAtTime,
@@ -16,7 +17,8 @@ import {
 import { drawingAlertNoticeWords } from "@/lib/trade/trade-notice-words"
 import { db, type CustomShellDb } from "@/server/db"
 import { writeTradeNotice } from "@/server/trade/notices"
-import { tradeChartDrawings } from "@/server/trade/schema"
+import { loadLineAlertsPaused } from "@/server/trade/prefs"
+import { tradeChartDrawings, tradePrefs } from "@/server/trade/schema"
 
 /**
  * Every line alert one account has, armed ones oldest first and fired ones
@@ -27,20 +29,23 @@ export async function loadDrawingAlerts(
   now = Date.now(),
   database: CustomShellDb = db
 ): Promise<LineAlertList> {
-  const rows = await database
-    .select({
-      id: tradeChartDrawings.id,
-      marketKey: tradeChartDrawings.marketKey,
-      shape: tradeChartDrawings.shape,
-      alert: tradeChartDrawings.alert,
-    })
-    .from(tradeChartDrawings)
-    .where(
-      and(
-        eq(tradeChartDrawings.userId, userId),
-        isNotNull(tradeChartDrawings.alert)
-      )
-    )
+  const [rows, paused] = await Promise.all([
+    database
+      .select({
+        id: tradeChartDrawings.id,
+        marketKey: tradeChartDrawings.marketKey,
+        shape: tradeChartDrawings.shape,
+        alert: tradeChartDrawings.alert,
+      })
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          isNotNull(tradeChartDrawings.alert)
+        )
+      ),
+    loadLineAlertsPaused(userId, database),
+  ])
 
   const armed: LineAlert[] = []
   const fired: LineAlert[] = []
@@ -52,10 +57,11 @@ export async function loadDrawingAlerts(
       id: row.id,
       marketKey: row.marketKey,
       kind: shape.kind,
-      price: priceAtTime(shape, alert.firedAt ?? now),
+      price: alert.firedPrice ?? priceAtTime(shape, alert.firedAt ?? now),
       direction: alert.direction,
       armedAt: alert.armedAt,
       firedAt: alert.firedAt,
+      name: shape.name ?? null,
     }
     if (alert.firedAt === null) armed.push(listed)
     else fired.push(listed)
@@ -64,7 +70,7 @@ export async function loadDrawingAlerts(
   fired.sort(
     (a, b) => (b.firedAt ?? 0) - (a.firedAt ?? 0) || a.id.localeCompare(b.id)
   )
-  return { armed, fired: fired.slice(0, MAX_RECENT_FIRED_LINE_ALERTS) }
+  return { armed, fired: fired.slice(0, MAX_RECENT_FIRED_LINE_ALERTS), paused }
 }
 
 /**
@@ -80,6 +86,12 @@ export async function loadDrawingAlerts(
  * alert switched off meanwhile, changes the row and the claim misses. Two
  * engine containers can both read the row, but only the one whose update
  * changes it writes the notice.
+ *
+ * An account whose master switch in Settings is off is read too, but a cross
+ * on one of its lines rings nothing. Instead the alert is turned to face the
+ * price again, so it waits for the price to come back across. That is what
+ * makes a cross that happened while paused stay silent after the switch goes
+ * back on: the line has to be crossed once more, and then it rings once.
  */
 export async function checkDrawingAlerts({
   pushedMarks,
@@ -122,7 +134,18 @@ export async function checkDrawingAlerts({
   if (armed.length === 0) return 0
 
   const marketKeys = [...new Set(armed.map((row) => row.marketKey))]
+  const userIds = [...new Set(armed.map((row) => row.userId))]
   const { marks } = pushedMarks(marketKeys)
+  const pausedRows = await database
+    .select({ userId: tradePrefs.userId })
+    .from(tradePrefs)
+    .where(
+      and(
+        inArray(tradePrefs.userId, userIds),
+        eq(tradePrefs.lineAlertsPaused, true)
+      )
+    )
+  const paused = new Set(pausedRows.map((row) => row.userId))
   const now = checkedAt.getTime()
   let fired = 0
   for (const row of armed) {
@@ -134,18 +157,33 @@ export async function checkDrawingAlerts({
       row.alert.direction === "above" ? mark >= linePrice : mark <= linePrice
     if (!crossed) continue
 
+    // The same guarded write either way, so a line moved or switched off
+    // after the read is never touched.
+    const claim = and(
+      eq(tradeChartDrawings.userId, row.userId),
+      eq(tradeChartDrawings.id, row.id),
+      eq(tradeChartDrawings.shape, row.shape),
+      eq(tradeChartDrawings.alert, row.alert)
+    )
+
+    if (paused.has(row.userId)) {
+      // Turned to face the price again, the same rule a dragged line follows.
+      // That is what makes this cross stay silent after the switch goes back
+      // on: the line now waits for the price to come back across it.
+      const direction = priceAlertDirection(linePrice, mark)
+      if (direction === row.alert.direction) continue
+      await database
+        .update(tradeChartDrawings)
+        .set({ alert: { ...row.alert, direction } })
+        .where(claim)
+      continue
+    }
+
     await database.transaction(async (tx) => {
       const claimed = await tx
         .update(tradeChartDrawings)
-        .set({ alert: { ...row.alert, firedAt: now } })
-        .where(
-          and(
-            eq(tradeChartDrawings.userId, row.userId),
-            eq(tradeChartDrawings.id, row.id),
-            eq(tradeChartDrawings.shape, row.shape),
-            eq(tradeChartDrawings.alert, row.alert)
-          )
-        )
+        .set({ alert: { ...row.alert, firedAt: now, firedPrice: linePrice } })
+        .where(claim)
         .returning({ id: tradeChartDrawings.id })
       if (claimed.length === 0) return
 
@@ -154,6 +192,7 @@ export async function checkDrawingAlerts({
         kind: row.shape.kind,
         price: linePrice,
         direction: row.alert.direction,
+        name: row.shape.name ?? null,
       })
       await writeTradeNotice({
         userId: row.userId,

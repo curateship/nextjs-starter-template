@@ -16,20 +16,30 @@ import { z } from "zod"
 /** Anywhere on the chart: when, and at what price. */
 export type DrawingPoint = { time: number; price: number }
 
+/**
+ * What every shape carries besides its geometry: a short name typed in the
+ * line's window, shown beside the line and said in the notice instead of a
+ * price. Left out when the line has none.
+ */
+type Named = { name?: string }
+
 export type DrawingShape =
   /** A price, drawn all the way across. Time means nothing to it. */
-  | { kind: "level"; price: number }
+  | ({ kind: "level"; price: number } & Named)
   /**
    * Two points with a line between them. `extendRight` carries the line on
    * past its later point to the right edge of the chart, so the place an
    * alert would fire can be seen. Left out on older rows, which means off.
    */
-  | {
+  | ({
       kind: "trendline"
       from: DrawingPoint
       to: DrawingPoint
       extendRight?: boolean
-    }
+    } & Named)
+
+/** How long a line's name may be. Enough for "4h base" or "weekly low". */
+export const MAX_DRAWING_NAME_LENGTH = 24
 
 /**
  * The alert a line carries, once somebody has switched it on.
@@ -44,6 +54,11 @@ export type DrawingAlert = {
   direction: "above" | "below"
   armedAt: number
   firedAt: number | null
+  /**
+   * Where the line was at the moment it fired, so the chart can put a dot
+   * there. Left out on rows fired before the dot existed.
+   */
+  firedPrice?: number
 }
 
 /** One saved drawing: its id, where it sits, and the alert it carries. */
@@ -60,6 +75,15 @@ const pointSchema = z.object({
   price: z.number().finite(),
 })
 
+// Trimmed before it is measured, so a name of nothing but spaces is refused
+// rather than stored as a name that draws as blank and reads as blank.
+const nameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_DRAWING_NAME_LENGTH)
+  .optional()
+
 /**
  * The one gate a shape passes through, in both directions. Coming in it stops
  * a hand-made request writing junk into the row; going out it stops a row
@@ -69,12 +93,17 @@ const pointSchema = z.object({
 export const drawingShapeSchema: z.ZodType<DrawingShape> = z.discriminatedUnion(
   "kind",
   [
-    z.object({ kind: z.literal("level"), price: z.number().finite() }),
+    z.object({
+      kind: z.literal("level"),
+      price: z.number().finite(),
+      name: nameSchema,
+    }),
     z.object({
       kind: z.literal("trendline"),
       from: pointSchema,
       to: pointSchema,
       extendRight: z.boolean().optional(),
+      name: nameSchema,
     }),
   ]
 )
@@ -112,6 +141,7 @@ export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
   direction: z.enum(["above", "below"]),
   armedAt: z.number().int().min(0).max(MAX_TIME_MS),
   firedAt: z.number().int().min(0).max(MAX_TIME_MS).nullable(),
+  firedPrice: z.number().finite().optional(),
 })
 
 /**
@@ -146,14 +176,49 @@ export function priceAtTime(shape: DrawingShape, time: number): number | null {
   return shape.from.price + slope * (time - shape.from.time)
 }
 
-/** What a screen reader is told about a drawing. */
+/**
+ * Where a drawing is, in words, ready to sit inside a longer sentence:
+ * "level at $100", or "4h base, level at $100" once it has a name.
+ */
+export function describeDrawingInline(
+  shape: DrawingShape,
+  formatPrice: (price: number) => string
+): string {
+  const where =
+    shape.kind === "level"
+      ? `level at ${formatPrice(shape.price)}`
+      : `trendline from ${formatPrice(shape.from.price)} to ${formatPrice(shape.to.price)}`
+  return shape.name ? `${shape.name}, ${where}` : where
+}
+
+/**
+ * What a screen reader is told about a drawing, standing on its own: its name
+ * first when it has one, then what and where it is.
+ *
+ * Only the leading word is ever changed. Lowering the whole sentence to fit a
+ * name in front of it also lowered the name somebody typed, so a line called
+ * "This is a test" was read back as "this is a test".
+ */
 export function describeDrawing(
   shape: DrawingShape,
   formatPrice: (price: number) => string
 ): string {
-  return shape.kind === "level"
-    ? `Level at ${formatPrice(shape.price)}`
-    : `Trendline from ${formatPrice(shape.from.price)} to ${formatPrice(shape.to.price)}`
+  const said = describeDrawingInline(shape, formatPrice)
+  return shape.name ? said : said.charAt(0).toUpperCase() + said.slice(1)
+}
+
+/**
+ * The same drawing with its name set, or with no name when the text is
+ * blank. The key is dropped rather than saved empty, so an unnamed line's
+ * row reads the same whether it was ever named or not.
+ */
+export function namedShape(shape: DrawingShape, raw: string): DrawingShape {
+  const name = raw.trim()
+  if (name !== "") return { ...shape, name }
+  if (shape.name === undefined) return shape
+  const unnamed = { ...shape }
+  delete unnamed.name
+  return unnamed
 }
 
 /** The same drawing, moved by a difference in time and in price. */
@@ -163,7 +228,7 @@ export function moveShape(
   byPrice: number
 ): DrawingShape {
   if (shape.kind === "level") {
-    return { kind: "level", price: shape.price + byPrice }
+    return { ...shape, price: shape.price + byPrice }
   }
   return {
     ...shape,

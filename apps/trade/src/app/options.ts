@@ -52,8 +52,11 @@ export const appOptions: AppOptions = {
         panel: () => import("@/components/trade/market-settings"),
       },
       {
+        // The tab holds the two sound switches and the master switch for
+        // alerts on drawn lines. A switch nobody can find is a switch that
+        // is not there, so the label names both.
         id: "sounds",
-        label: "Sounds",
+        label: "Sounds and alerts",
         panel: () => import("@/components/trade/trade-sound-settings"),
       },
     ],

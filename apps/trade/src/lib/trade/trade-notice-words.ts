@@ -30,7 +30,9 @@ export function priceAlertNoticeWords(input: {
 /**
  * A drawn line's alert, said once when the price crosses it. It names the
  * shape, level or trendline, so a level's notice is never mistaken for a
- * purple price alert's, which says "reached" and never "crossed".
+ * purple price alert's, which says "reached" and never "crossed". A line
+ * with a name is called by it instead of by its price, because a name the
+ * person typed needs no translating; the price then moves to the body.
  */
 export function drawingAlertNoticeWords(input: {
   marketKey: string
@@ -38,12 +40,21 @@ export function drawingAlertNoticeWords(input: {
   /** Where the line was at the moment of the cross. */
   price: number
   direction: "above" | "below"
+  name?: string | null
 }): { title: string; body: string; level: TradeNoticeLevel } {
   const coin = marketSymbol(input.marketKey)
   const movement = input.direction === "above" ? "rising" : "falling"
+  const rest = `The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
+  if (input.name) {
+    return {
+      title: `${coin} crossed ${input.name} (was ${movement})`,
+      body: `${input.name} was at ${formatPrice(input.price)}. ${rest}`,
+      level: "info",
+    }
+  }
   return {
     title: `${coin} crossed your ${input.kind} at ${formatPrice(input.price)} (was ${movement})`,
-    body: `The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`,
+    body: rest,
     level: "info",
   }
 }

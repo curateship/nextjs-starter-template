@@ -1,7 +1,11 @@
 # Sounds for fills, stops, targets and price alerts
 
-Settings has separate switches for fills and stops, and for price alerts. Both
-belong to the account and start off. System volume controls how loud they are.
+Settings → Sounds and alerts has separate switches for fills and stops, and
+for price alerts. Both belong to the account and start off. The same tab holds
+one switch that is not about sound at all, **Line alerts**, the master switch
+for alerts carried by drawn lines. It is written up in `charts/smart-tools.md`,
+and it sits here because a sound and an alert are the two things this app can
+do to interrupt somebody. System volume controls how loud they are.
 The app reads both choices once after sign-in and remembers them while the app
 stays open. Returning to Sounds shows the known choices immediately instead of
 loading the same row again.

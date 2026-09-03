@@ -467,10 +467,10 @@ function FiredAlertsView({
 }
 
 /**
- * A drawn line's row: the coin, the word trendline or level, where the line
- * is in dollars, and the direction. Pressing it opens the market with the
- * line picked out, which is the one thing a line row can do that a price
- * row cannot.
+ * A drawn line's row: the coin, the line's name or else the word trendline
+ * or level, where the line is in dollars, and the direction. Pressing it
+ * opens the market with the line picked out, which is the one thing a line
+ * row can do that a price row cannot.
  */
 function LineAlertRow({
   alert,
@@ -494,7 +494,7 @@ function LineAlertRow({
           {marketSymbol(alert.marketKey)}
         </span>
         <span className="shrink-0 text-xs text-muted-foreground">
-          {alert.kind}
+          {alert.name ?? alert.kind}
           {alert.price === null ? "" : ` at ${formatPrice(alert.price)}`}
           {" · "}
           {alert.direction}

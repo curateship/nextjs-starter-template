@@ -50,7 +50,8 @@ screen: anything not written there has not been agreed yet.
   fires, what a flow says when it stops or goes quiet on its own, and where
   clicking one takes you.
 - `sounds.md` — the separate optional sounds for fills and stops, and for price
-  alerts, what collapses a burst, and when a browser stays silent.
+  alerts, what collapses a burst, when a browser stays silent, and the one
+  non-sound switch that shares their Settings tab.
 - `price-alerts.md` — one-use chart price lines, the Alerts panel, engine
   firing, notices, sounds, deletion, and the account cap.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and

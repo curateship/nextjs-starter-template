@@ -386,6 +386,7 @@ export function ChartPanel({
   onChartToolbarPositionChange,
   initialDrawings,
   onDrawingAlertChange,
+  lineAlertsPaused = false,
   selectDrawing = null,
   onDrawingSelected,
   initialQuickOrder,
@@ -429,6 +430,8 @@ export function ChartPanel({
   }
   /** Told after a drawn line's alert is switched on or off and saved. */
   onDrawingAlertChange?: () => void
+  /** The master switch in Settings is off, which the line's window says. */
+  lineAlertsPaused?: boolean
   /**
    * A line to pick out once its market's drawings have arrived, from a row in
    * the Alerts panel. Answered with `onDrawingSelected` once done.
@@ -593,6 +596,15 @@ export function ChartPanel({
   ])
   const clearPaintDrawings = paint.clearAll
   const paintTool = options.drawings ? paint.tool : null
+
+  // The line's window opening reads this market's lines again, and the
+  // account's line alerts with them, so a fire the engine wrote and the
+  // master switch in Settings are both current the moment the window shows.
+  const refreshPaint = paint.refresh
+  const onAlertOpen = React.useCallback(() => {
+    refreshPaint()
+    onDrawingAlertChange?.()
+  }, [refreshPaint, onDrawingAlertChange])
 
   // Hiding drawings also puts down the active tool and lets go of the picked
   // line. The drawings themselves stay loaded and saved, ready to be shown
@@ -1558,7 +1570,9 @@ export function ChartPanel({
             onMove={paint.move}
             onDelete={paint.remove}
             onSetAlert={paint.setAlert}
-            onAlertOpen={paint.refresh}
+            onAlertOpen={onAlertOpen}
+            wide={wide}
+            lineAlertsPaused={lineAlertsPaused}
           />
         ) : null}
         <SmartLadderLayer
@@ -1696,9 +1710,11 @@ export function ChartPanel({
       paint.create,
       paint.move,
       paint.setAlert,
-      paint.refresh,
       paint.remove,
       paintTool,
+      onAlertOpen,
+      lineAlertsPaused,
+      wide,
       chartToolbarPosition,
       onChartToolbarPositionChange,
       cornerControl,

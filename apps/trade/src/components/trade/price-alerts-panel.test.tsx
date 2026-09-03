@@ -144,6 +144,7 @@ describe("the Alerts panel", () => {
                 direction: "below",
                 armedAt: 1,
                 firedAt: null,
+                name: "4h base",
               },
             ],
             fired: [
@@ -179,7 +180,8 @@ describe("the Alerts panel", () => {
       /ETH|BTC/.test(button.textContent ?? "")
     )
     expect(rows[0]?.textContent).toContain("ETH")
-    expect(rows[0]?.textContent).toContain("trendline at $3,600 · below")
+    // A named line is called by its name; an unnamed one by what it is.
+    expect(rows[0]?.textContent).toContain("4h base at $3,600 · below")
 
     await act(async () => rows[0]?.click())
     expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:ETH", "line-1")

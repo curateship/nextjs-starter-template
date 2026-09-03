@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  describeDrawing,
+  describeDrawingInline,
   drawingAlertArmed,
   extendedRight,
   moveShape,
+  namedShape,
   priceAtTime,
   readDrawingAlert,
   readDrawingShape,
@@ -176,6 +179,75 @@ describe("drawing a line on to the right", () => {
   })
 })
 
+describe("naming a line", () => {
+  const line = {
+    kind: "trendline" as const,
+    from: { time: 1_000, price: 10 },
+    to: { time: 3_000, price: 30 },
+  }
+
+  it("keeps a trimmed name, and drops the key when the name is taken away", () => {
+    expect(namedShape(line, "  4h base  ")).toEqual({ ...line, name: "4h base" })
+    expect(namedShape({ ...line, name: "4h base" }, "   ")).toEqual(line)
+    expect(namedShape({ ...line, name: "4h base" }, "   ")).not.toHaveProperty(
+      "name"
+    )
+    // Nothing to change means the same object, so no save follows.
+    expect(namedShape(line, "")).toBe(line)
+  })
+
+  it("keeps the name on a level and through a move", () => {
+    const level = { kind: "level" as const, price: 100, name: "weekly low" }
+    expect(namedShape(level, "weekly low")).toEqual(level)
+    expect(moveShape(level, 0, 5)).toEqual({ ...level, price: 105 })
+    expect(moveShape({ ...line, name: "4h base" }, 500, 5).name).toBe("4h base")
+  })
+
+  it("reads a saved name, and refuses one too long to have been typed", () => {
+    expect(readDrawingShape({ ...line, name: "4h base" })).toEqual({
+      ...line,
+      name: "4h base",
+    })
+    expect(readDrawingShape({ kind: "level", price: 1, name: "x".repeat(24) }))
+      .not.toBeNull()
+    expect(
+      readDrawingShape({ kind: "level", price: 1, name: "x".repeat(25) })
+    ).toBeNull()
+    expect(readDrawingShape({ kind: "level", price: 1, name: "" })).toBeNull()
+  })
+
+  it("puts the name first for a screen reader, with the typed capitals kept", () => {
+    const price = (value: number) => `$${value}`
+    expect(describeDrawing({ ...line, name: "4h base" }, price)).toBe(
+      "4h base, trendline from $10 to $30"
+    )
+    expect(describeDrawing(line, price)).toBe("Trendline from $10 to $30")
+    expect(
+      describeDrawing({ kind: "level", price: 100, name: "weekly low" }, price)
+    ).toBe("weekly low, level at $100")
+    // The whole sentence used to be lowered to fit the name in front of it,
+    // which lowered the name somebody typed along with it.
+    expect(describeDrawing({ ...line, name: "This is a test" }, price)).toBe(
+      "This is a test, trendline from $10 to $30"
+    )
+    expect(
+      describeDrawingInline({ ...line, name: "This is a test" }, price)
+    ).toBe("This is a test, trendline from $10 to $30")
+    expect(describeDrawingInline(line, price)).toBe(
+      "trendline from $10 to $30"
+    )
+  })
+
+  it("refuses a name that is nothing but spaces", () => {
+    expect(readDrawingShape({ kind: "level", price: 1, name: "   " })).toBeNull()
+    expect(readDrawingShape({ kind: "level", price: 1, name: " a " })).toEqual({
+      kind: "level",
+      price: 1,
+      name: "a",
+    })
+  })
+})
+
 describe("reading a saved alert", () => {
   it("reads an armed and a fired record, and nothing as no alert", () => {
     expect(
@@ -194,5 +266,19 @@ describe("reading a saved alert", () => {
     expect(readDrawingAlert(null)).toBeNull()
     expect(readDrawingAlert(undefined)).toBeNull()
     expect(readDrawingAlert({ direction: "sideways", armedAt: 5 })).toBeNull()
+  })
+
+  it("reads where a fired alert went off, and an older record without it", () => {
+    expect(
+      readDrawingAlert({
+        direction: "above",
+        armedAt: 5,
+        firedAt: 9,
+        firedPrice: 61_200,
+      })
+    ).toEqual({ direction: "above", armedAt: 5, firedAt: 9, firedPrice: 61_200 })
+    expect(
+      readDrawingAlert({ direction: "above", armedAt: 5, firedAt: 9 })
+    ).not.toHaveProperty("firedPrice")
   })
 })

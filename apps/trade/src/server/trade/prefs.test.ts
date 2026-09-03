@@ -18,6 +18,8 @@ import {
   loadMinimumMarketVolume,
   loadLiquidationWarning,
   loadQuickOrder,
+  loadLineAlertsPaused,
+  saveLineAlertsPaused,
   loadTradeSoundPreferences,
   saveQuickOrder,
   saveTradeSoundPreferences,
@@ -141,6 +143,38 @@ describe("trade sounds", () => {
       fillsAndStops: false,
       alerts: false,
     })
+  })
+})
+
+describe("the master switch for line alerts", () => {
+  it("starts watching, pauses for one account only, and comes back on", async () => {
+    const mine = await insertUser(database)
+    const theirs = await insertUser(database)
+
+    expect(await loadLineAlertsPaused(mine.id, database)).toBe(false)
+
+    await saveLineAlertsPaused(mine.id, true, database)
+    expect(await loadLineAlertsPaused(mine.id, database)).toBe(true)
+    expect(await loadLineAlertsPaused(theirs.id, database)).toBe(false)
+
+    await saveLineAlertsPaused(mine.id, false, database)
+    expect(await loadLineAlertsPaused(mine.id, database)).toBe(false)
+  })
+
+  it("leaves the sound choices alone when it writes the same row", async () => {
+    const mine = await insertUser(database)
+    await saveTradeSoundPreferences(
+      mine.id,
+      { fillsAndStops: true, alerts: true },
+      database
+    )
+    await saveLineAlertsPaused(mine.id, true, database)
+
+    expect(await loadTradeSoundPreferences(mine.id, database)).toEqual({
+      fillsAndStops: true,
+      alerts: true,
+    })
+    expect(await loadLineAlertsPaused(mine.id, database)).toBe(true)
   })
 })
 

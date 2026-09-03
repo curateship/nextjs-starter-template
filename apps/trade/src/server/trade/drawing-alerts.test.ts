@@ -24,6 +24,7 @@ import {
   saveChartDrawing,
   setChartDrawingAlert,
 } from "@/server/trade/drawings"
+import { saveLineAlertsPaused } from "@/server/trade/prefs"
 
 const BTC = "hyperliquid:mainnet:BTC"
 
@@ -78,10 +79,12 @@ describe("alerts on drawn lines", () => {
     expect(pushedMarks).toHaveBeenNthCalledWith(1, [BTC])
 
     const [drawing] = await loadChartDrawings(userId, BTC)
+    // The price it crossed at is kept, so the chart can mark the spot.
     expect(drawing?.alert).toEqual({
       direction: "above",
       armedAt: 2_000,
       firedAt: 2_000,
+      firedPrice: 120,
     })
     const notices = await database.select().from(customShellAnnouncements)
     expect(notices.map((notice) => notice.title)).toEqual([
@@ -108,6 +111,7 @@ describe("alerts on drawn lines", () => {
       [first, 150, "above"],
       [second, 150, "above"],
     ])
+    expect(before.paused).toBe(false)
     expect(before.fired).toEqual([])
 
     await checkDrawingAlerts({
@@ -117,6 +121,7 @@ describe("alerts on drawn lines", () => {
     })
     const after = await loadDrawingAlerts(userId, 5_000, database)
     expect(after.armed).toEqual([])
+    expect(after.paused).toBe(false)
     // Fired at 2 seconds, so the price is the line's at 2 seconds, not now.
     expect(after.fired.map((one) => [one.id, one.price, one.firedAt])).toEqual([
       [second, 120, 2_000],
@@ -206,6 +211,31 @@ describe("alerts on drawn lines", () => {
     expect(await database.select().from(customShellNotifications)).toEqual([])
   })
 
+  it("says the line's name instead of its price, and lists it by name", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { ...rising, name: "4h base" },
+    })
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 100 }, 2_000)
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: () => ({ marks: new Map([[BTC, 125]]), missing: [] }),
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(1)
+    const notices = await database.select().from(customShellAnnouncements)
+    expect(notices.map((notice) => notice.title)).toEqual([
+      "BTC crossed 4h base (was rising)",
+    ])
+    expect(notices[0]?.body).toContain("4h base was at $120.")
+    const { fired } = await loadDrawingAlerts(userId, 5_000, database)
+    expect(fired.map((one) => one.name)).toEqual(["4h base"])
+  })
+
   it("fires a level once when the price falls through it, and says level", async () => {
     const userId = await person()
     const id = uuid()
@@ -228,5 +258,87 @@ describe("alerts on drawn lines", () => {
       "BTC crossed your level at $100 (was falling)",
     ])
     expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBe(2_000)
+  })
+})
+
+describe("the master switch in Settings", () => {
+  it("rings nothing while paused, waits for the price to come back, then rings once", async () => {
+    const userId = await person()
+    const id = await armedLine(userId, 100)
+    await saveLineAlertsPaused(userId, true, database)
+    const silence = { marks: new Map([[BTC, 125]]), missing: [] }
+
+    // At 2 seconds the line is at $120 and the price is $125: a cross, and
+    // nothing rings.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: () => silence,
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(0)
+    expect(await database.select().from(customShellNotifications)).toEqual([])
+
+    // The line is still armed, and now waits for the price to fall back.
+    const paused = await loadDrawingAlerts(userId, 2_000, database)
+    expect(paused.paused).toBe(true)
+    expect(paused.armed.map((one) => one.direction)).toEqual(["below"])
+
+    // Switched back on with the price still above the line: still silent.
+    await saveLineAlertsPaused(userId, false, database)
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: () => silence,
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(0)
+    expect(await database.select().from(customShellNotifications)).toEqual([])
+
+    // Crossed again, the other way: one notice.
+    const pushedMarks = () => ({ marks: new Map([[BTC, 110]]), missing: [] })
+    expect(
+      await checkDrawingAlerts({ pushedMarks, checkedAt: new Date(2_000), database })
+    ).toBe(1)
+    expect(
+      await checkDrawingAlerts({ pushedMarks, checkedAt: new Date(3_000), database })
+    ).toBe(0)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(1)
+    expect((await loadChartDrawings(userId, BTC))[0]?.id).toBe(id)
+  })
+
+  it("leaves another account's lines ringing", async () => {
+    const paused = await person()
+    const watching = await person()
+    await armedLine(paused, 100)
+    await armedLine(watching, 100)
+    await saveLineAlertsPaused(paused, true, database)
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: () => ({ marks: new Map([[BTC, 125]]), missing: [] }),
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(1)
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices.map((notice) => notice.recipientUserId)).toEqual([watching])
+  })
+
+  it("writes nothing to a paused line the price has not crossed", async () => {
+    const userId = await person()
+    await armedLine(userId, 100)
+    await saveLineAlertsPaused(userId, true, database)
+
+    await checkDrawingAlerts({
+      pushedMarks: () => ({ marks: new Map([[BTC, 119]]), missing: [] }),
+      checkedAt: new Date(2_000),
+      database,
+    })
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert).toEqual({
+      direction: "above",
+      armedAt: 2_000,
+      firedAt: null,
+    })
   })
 })
