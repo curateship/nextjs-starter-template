@@ -5,6 +5,7 @@ import {
   DashboardCardTab,
   DashboardCardTabsHeader,
 } from "@/components/shared/dashboard-card-header"
+import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -18,29 +19,56 @@ import {
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatPrice } from "@/lib/trade/format"
+import type { LineAlert } from "@/lib/trade/line-alerts"
 import type { FiredPriceAlert, PriceAlert } from "@/lib/trade/price-alerts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const FIRED_REFRESH_MS = 2_000
 
-export function PriceAlertsPanel({
-  alerts,
-  error,
-  collapsed,
-  onRetry,
-  onExpand,
-  onSelectMarket,
-  onDelete,
-}: {
+/**
+ * The alerts drawn lines carry, listed beside the price alerts. Optional, so
+ * a screen with no chart to arm a line from can leave them out.
+ */
+export type LineAlertsForPanel = {
+  armed: readonly LineAlert[]
+  fired: readonly LineAlert[]
+  error: string | null
+  onRetry: () => void
+  /** Open the market and pick the line out. */
+  onSelect: (marketKey: string, id: string) => void
+  /** Switch an armed one off, or clear a fired one. The line stays. */
+  onSwitchOff: (id: string) => void
+}
+
+const NO_LINES: LineAlertsForPanel = {
+  armed: [],
+  fired: [],
+  error: null,
+  onRetry: () => undefined,
+  onSelect: () => undefined,
+  onSwitchOff: () => undefined,
+}
+
+export type PriceAlertsPanelProps = {
   alerts: readonly PriceAlert[]
   error: string | null
-  collapsed: boolean
   onRetry: () => void
-  onExpand?: () => void
   onSelectMarket: (marketKey: string) => void
   onDelete: (id: string) => void
-}) {
-  const [tab, setTab] = React.useState<"alerts" | "fired">("alerts")
+  lines?: LineAlertsForPanel
+}
+
+export type FiredPriceAlertsControl = {
+  alerts: readonly FiredPriceAlert[]
+  error: string | null
+  known: boolean
+  busy: boolean
+  refresh: () => Promise<void>
+  remove: (id: string) => void
+}
+
+/** The fired list stays live so the bell can notify before its menu opens. */
+export function useFiredPriceAlerts(): FiredPriceAlertsControl {
   const [fired, setFired] = React.useState<FiredPriceAlert[]>([])
   const [firedError, setFiredError] = React.useState<string | null>(null)
   const [firedKnown, setFiredKnown] = React.useState(false)
@@ -77,7 +105,6 @@ export function PriceAlertsPanel({
   }, [refreshFired])
 
   React.useEffect(() => {
-    if (tab !== "fired" || alerts.length === 0) return
     const refreshWhenVisible = () => {
       if (!document.hidden) void refreshFired()
     }
@@ -87,7 +114,7 @@ export function PriceAlertsPanel({
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", refreshWhenVisible)
     }
-  }, [alerts.length, refreshFired, tab])
+  }, [refreshFired])
 
   const deleteFired = React.useCallback(
     (id: string) => {
@@ -116,13 +143,40 @@ export function PriceAlertsPanel({
     [fired]
   )
 
+  return {
+    alerts: fired,
+    error: firedError,
+    known: firedKnown,
+    busy: firedBusy,
+    refresh: refreshFired,
+    remove: deleteFired,
+  }
+}
+
+export function PriceAlertsPanelContent({
+  alerts,
+  error,
+  onRetry,
+  onSelectMarket,
+  onDelete,
+  lines = NO_LINES,
+  fired,
+  onClear,
+  clearing = false,
+}: PriceAlertsPanelProps & {
+  fired: FiredPriceAlertsControl
+  onClear?: (kind: "active" | "fired") => void
+  clearing?: boolean
+}) {
+  const [tab, setTab] = React.useState<"alerts" | "fired">("alerts")
+
   return (
     <Tabs
       value={tab}
       onValueChange={(value) => {
         const next = value as "alerts" | "fired"
         setTab(next)
-        if (next === "fired") void refreshFired()
+        if (next === "fired") void fired.refresh()
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
@@ -131,45 +185,86 @@ export function PriceAlertsPanel({
           value="alerts"
           icon={<BellRingIcon className="size-4" />}
           label="Alert"
-          count={alerts.length}
-          onClick={collapsed ? onExpand : undefined}
+          count={alerts.length + lines.armed.length}
         />
         <DashboardCardTab
           value="fired"
           icon={<HistoryIcon className="size-4" />}
           label="Fired"
-          count={firedKnown ? fired.length : undefined}
-          onClick={collapsed ? onExpand : undefined}
+          count={
+            fired.known ? fired.alerts.length + lines.fired.length : undefined
+          }
         />
       </DashboardCardTabsHeader>
 
-      {collapsed ? null : (
-        <>
-          <TabsContent value="alerts" className="min-h-0 flex-1">
-            <ActiveAlertsView
-              alerts={alerts}
-              error={error}
-              onRetry={onRetry}
-              onSelectMarket={onSelectMarket}
-              onDelete={onDelete}
-            />
-          </TabsContent>
-          <TabsContent value="fired" className="min-h-0 flex-1">
-            <FiredAlertsView
-              alerts={fired}
-              error={firedError}
-              known={firedKnown}
-              busy={firedBusy}
-              onRetry={() => void refreshFired()}
-              onSelectMarket={onSelectMarket}
-              onDelete={deleteFired}
-            />
-          </TabsContent>
-        </>
-      )}
+      <TabsContent value="alerts" className="min-h-0 flex-1">
+        <ActiveAlertsView
+          alerts={alerts}
+          error={error}
+          onRetry={onRetry}
+          onSelectMarket={onSelectMarket}
+          onDelete={onDelete}
+          lines={lines}
+        />
+      </TabsContent>
+      <TabsContent value="fired" className="min-h-0 flex-1">
+        <FiredAlertsView
+          alerts={fired.alerts}
+          error={fired.error}
+          known={fired.known}
+          busy={fired.busy}
+          onRetry={() => void fired.refresh()}
+          onSelectMarket={onSelectMarket}
+          onDelete={fired.remove}
+          lines={lines}
+        />
+      </TabsContent>
+      {onClear &&
+      (tab === "alerts"
+        ? alerts.length + lines.armed.length > 0
+        : fired.alerts.length + lines.fired.length > 0) ? (
+        <div className="mt-auto flex shrink-0 border-t p-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 text-xs text-muted-foreground"
+            disabled={clearing}
+            onClick={() => onClear(tab === "alerts" ? "active" : "fired")}
+          >
+            {clearing ? "Clearing..." : "Clear all"}
+          </Button>
+        </div>
+      ) : null}
     </Tabs>
   )
 }
+
+/** One list of both kinds, oldest first, the way the Alert tab reads it. */
+type ActiveRow =
+  | { kind: "price"; at: number; alert: PriceAlert }
+  | { kind: "line"; at: number; alert: LineAlert }
+
+function activeRows(
+  alerts: readonly PriceAlert[],
+  lines: readonly LineAlert[]
+): ActiveRow[] {
+  return [
+    ...alerts.map((alert): ActiveRow => ({
+      kind: "price",
+      at: alert.createdAt,
+      alert,
+    })),
+    ...lines.map((alert): ActiveRow => ({
+      kind: "line",
+      at: alert.armedAt,
+      alert,
+    })),
+  ].sort((a, b) => a.at - b.at || a.alert.id.localeCompare(b.alert.id))
+}
+
+const BIN_CLASS =
+  "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 
 function ActiveAlertsView({
   alerts,
@@ -177,12 +272,14 @@ function ActiveAlertsView({
   onRetry,
   onSelectMarket,
   onDelete,
+  lines,
 }: {
   alerts: readonly PriceAlert[]
   error: string | null
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   onDelete: (id: string) => void
+  lines: LineAlertsForPanel
 }) {
   if (error) {
     return (
@@ -191,35 +288,84 @@ function ActiveAlertsView({
       </div>
     )
   }
+  const rows = activeRows(alerts, lines.armed)
 
   return (
-    <ScrollArea className="h-full min-h-0">
-      {alerts.length === 0 ? (
-        <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-          No active alerts. Right-click a chart to add one.
-        </p>
-      ) : (
-        <div className="grid">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="flex min-h-8 items-center gap-1 border-b px-3 hover:bg-muted"
-            >
-              <PriceAlertRow alert={alert} onSelectMarket={onSelectMarket} />
-              <button
-                type="button"
-                aria-label={`Delete ${marketSymbol(alert.marketKey)} alert at ${formatPrice(alert.price)}`}
-                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={() => onDelete(alert.id)}
+    <div className="flex h-full min-h-0 flex-col">
+      {lines.error ? (
+        <ErrorBanner message={lines.error} onRetry={lines.onRetry} />
+      ) : null}
+      <ScrollArea className="min-h-0 flex-1">
+        {rows.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            No active alerts. Right-click a chart to add one, or double-click a
+            drawn line.
+          </p>
+        ) : (
+          <div className="grid">
+            {rows.map((row) => (
+              <div
+                key={row.alert.id}
+                className="-mt-px flex min-h-8 items-center gap-1 border-y border-t-transparent px-3 first:mt-0 hover:z-10 hover:border-t-border hover:bg-muted"
               >
-                <Trash2Icon className="size-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </ScrollArea>
+                {row.kind === "price" ? (
+                  <>
+                    <PriceAlertRow
+                      alert={row.alert}
+                      onSelectMarket={onSelectMarket}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Delete ${marketSymbol(row.alert.marketKey)} alert at ${formatPrice(row.alert.price)}`}
+                      className={BIN_CLASS}
+                      onClick={() => onDelete(row.alert.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <LineAlertRow alert={row.alert} onSelect={lines.onSelect} />
+                    <button
+                      type="button"
+                      aria-label={`Switch off the ${marketSymbol(row.alert.marketKey)} ${row.alert.kind} alert`}
+                      className={BIN_CLASS}
+                      onClick={() => lines.onSwitchOff(row.alert.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
   )
+}
+
+/** The fired lists of both kinds, newest fire first. */
+type FiredRow =
+  | { kind: "price"; at: number; alert: FiredPriceAlert }
+  | { kind: "line"; at: number; alert: LineAlert }
+
+function firedRows(
+  alerts: readonly FiredPriceAlert[],
+  lines: readonly LineAlert[]
+): FiredRow[] {
+  return [
+    ...alerts.map((alert): FiredRow => ({
+      kind: "price",
+      at: alert.firedAt,
+      alert,
+    })),
+    ...lines.map((alert): FiredRow => ({
+      kind: "line",
+      at: alert.firedAt ?? 0,
+      alert,
+    })),
+  ].sort((a, b) => b.at - a.at || a.alert.id.localeCompare(b.alert.id))
 }
 
 function FiredAlertsView({
@@ -230,6 +376,7 @@ function FiredAlertsView({
   onRetry,
   onSelectMarket,
   onDelete,
+  lines,
 }: {
   alerts: readonly FiredPriceAlert[]
   error: string | null
@@ -238,6 +385,7 @@ function FiredAlertsView({
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   onDelete: (id: string) => void
+  lines: LineAlertsForPanel
 }) {
   if (busy && !known) {
     return <LoadingRow label="Loading fired alerts..." className="min-h-32" />
@@ -250,45 +398,117 @@ function FiredAlertsView({
     )
   }
 
+  const rows = firedRows(alerts, lines.fired)
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {error ? <ErrorBanner message={error} onRetry={onRetry} /> : null}
       <ScrollArea className="min-h-0 flex-1">
-        {alerts.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             No alerts have fired yet.
           </p>
         ) : (
           <div className="grid">
-            {alerts.map((alert) => (
+            {rows.map((row) => (
               <div
-                key={alert.id}
-                className="flex min-h-8 items-center gap-1 border-b px-3 hover:bg-muted"
+                key={row.alert.id}
+                className="-mt-px flex min-h-8 items-center gap-1 border-y border-t-transparent px-3 first:mt-0 hover:z-10 hover:border-t-border hover:bg-muted"
               >
-                <PriceAlertRow
-                  alert={alert}
-                  rightText={formatRelativeTime(
-                    new Date(alert.firedAt),
-                    formatDateTime
-                  )}
-                  rightTitle={formatDateTime(new Date(alert.firedAt))}
-                  rightMuted
-                  onSelectMarket={onSelectMarket}
-                />
-                <button
-                  type="button"
-                  aria-label={`Delete fired ${marketSymbol(alert.marketKey)} alert`}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  onClick={() => onDelete(alert.id)}
-                >
-                  <Trash2Icon className="size-4" />
-                </button>
+                {row.kind === "price" ? (
+                  <>
+                    <PriceAlertRow
+                      alert={row.alert}
+                      rightText={formatRelativeTime(
+                        new Date(row.alert.firedAt),
+                        formatDateTime
+                      )}
+                      rightTitle={formatDateTime(new Date(row.alert.firedAt))}
+                      rightMuted
+                      onSelectMarket={onSelectMarket}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Delete fired ${marketSymbol(row.alert.marketKey)} alert`}
+                      className={BIN_CLASS}
+                      onClick={() => onDelete(row.alert.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <LineAlertRow
+                      alert={row.alert}
+                      rightText={formatRelativeTime(
+                        new Date(row.at),
+                        formatDateTime
+                      )}
+                      rightTitle={formatDateTime(new Date(row.at))}
+                      onSelect={lines.onSelect}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Clear the fired ${marketSymbol(row.alert.marketKey)} ${row.alert.kind} alert`}
+                      className={BIN_CLASS}
+                      onClick={() => lines.onSwitchOff(row.alert.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
         )}
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * A drawn line's row: the coin, the word trendline or level, where the line
+ * is in dollars, and the direction. Pressing it opens the market with the
+ * line picked out, which is the one thing a line row can do that a price
+ * row cannot.
+ */
+function LineAlertRow({
+  alert,
+  rightText,
+  rightTitle,
+  onSelect,
+}: {
+  alert: LineAlert
+  rightText?: string
+  rightTitle?: string
+  onSelect: (marketKey: string, id: string) => void
+}) {
+  return (
+    <button
+      type="button"
+      className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      onClick={() => onSelect(alert.marketKey, alert.id)}
+    >
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="truncate font-medium">
+          {marketSymbol(alert.marketKey)}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {alert.kind}
+          {alert.price === null ? "" : ` at ${formatPrice(alert.price)}`}
+          {" · "}
+          {alert.direction}
+        </span>
+      </span>
+      {rightText ? (
+        <span
+          className="shrink-0 text-xs text-muted-foreground tabular-nums"
+          title={rightTitle}
+        >
+          {rightText}
+        </span>
+      ) : null}
+    </button>
   )
 }
 

@@ -138,6 +138,22 @@ export type RemovableTradeHistory = Pick<
   "id" | "walletId" | "marketKey" | "live" | "fills"
 >
 
+/**
+ * Saved fills that cannot be rebuilt into a complete trade.
+ *
+ * Exchange history can begin after a position opened, so a later close has
+ * no matching entry. These rows are still history and still affect the money
+ * figures. The Journal must show them instead of treating "not pairable" as
+ * "not there".
+ */
+export type UnmatchedTradeHistory = RemovableTradeHistory & {
+  /** A position with the same wallet and market still exists on the exchange. */
+  open: boolean
+  position: { szi: number; entryPx: number | null } | null
+  firstAt: number
+  lastAt: number
+}
+
 /** Sizes below this are the exchange's rounding dust, not a position. */
 const DUST = 1e-9
 
@@ -620,6 +636,65 @@ export function fillsOutsideTrades(
     trades.flatMap((trade) => trade.fills.map((fill) => fill.fillId))
   )
   return fills.filter((fill) => !finished.has(fill.fillId))
+}
+
+/**
+ * Groups every fill that sits outside a complete trade into a Journal row.
+ *
+ * Wallet and market both identify the position. A position in another wallet
+ * never makes old history look current. Fills stay oldest first so the row id
+ * and its dates remain stable when a newer fill arrives.
+ */
+export function unmatchedTradeHistories(
+  fills: readonly LiveFill[],
+  positions: readonly {
+    walletId: string
+    marketKey: string
+    szi: number
+    entryPx?: number
+  }[]
+): UnmatchedTradeHistory[] {
+  const positionsByKey = new Map(
+    positions
+      .filter((position) => Math.abs(position.szi) > DUST)
+      .map((position) => [
+        `${position.walletId}:${position.marketKey}`,
+        {
+          szi: position.szi,
+          entryPx: position.entryPx ?? null,
+        },
+      ])
+  )
+  const byPosition = new Map<string, LiveFill[]>()
+  for (const fill of fills) {
+    const key = `${fill.walletId}:${fill.marketKey}`
+    const grouped = byPosition.get(key)
+    if (grouped) grouped.push(fill)
+    else byPosition.set(key, [fill])
+  }
+
+  return [...byPosition.entries()]
+    .map(([key, grouped]): UnmatchedTradeHistory => {
+      const ordered = [...grouped].sort(
+        (left, right) =>
+          left.at - right.at || left.fillId.localeCompare(right.fillId)
+      )
+      const first = ordered[0]
+      const last = ordered[ordered.length - 1]
+      const position = positionsByKey.get(key) ?? null
+      return {
+        id: `unpaired:${first.walletId}:${first.marketKey}:${first.fillId}`,
+        walletId: first.walletId,
+        marketKey: first.marketKey,
+        live: first.live === true,
+        fills: ordered,
+        open: position !== null,
+        position,
+        firstAt: first.at,
+        lastAt: last.at,
+      }
+    })
+    .sort((left, right) => right.lastAt - left.lastAt)
 }
 
 /**

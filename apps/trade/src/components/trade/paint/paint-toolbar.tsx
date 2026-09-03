@@ -11,12 +11,6 @@ import type { PaintTool } from "@/components/trade/paint/use-drawings"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { ChartToolbarPosition } from "@/lib/trade/panel-layout"
 
@@ -407,37 +401,27 @@ export function PaintToolbar({
             <Trash2Icon />
           </Button>
         ) : null}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Move drawing tools"
-                aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home"
-                className={cn(
-                  "cursor-grab touch-none",
-                  dragging !== null && "cursor-grabbing"
-                )}
-                onPointerDown={startDrag}
-                onPointerMove={continueDrag}
-                onPointerUp={finishDrag}
-                onPointerCancel={cancelDrag}
-                onLostPointerCapture={() => {
-                  if (drag.current) cancelDrag()
-                }}
-                onKeyDown={moveWithKeyboard}
-              >
-                <GripVerticalIcon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Drag to move. Arrow keys move it; Home returns it to the top
-              right.
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          aria-label="Move drawing tools"
+          aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home"
+          className={cn(
+            "cursor-grab touch-none",
+            dragging !== null && "cursor-grabbing"
+          )}
+          onPointerDown={startDrag}
+          onPointerMove={continueDrag}
+          onPointerUp={finishDrag}
+          onPointerCancel={cancelDrag}
+          onLostPointerCapture={() => {
+            if (drag.current) cancelDrag()
+          }}
+          onKeyDown={moveWithKeyboard}
+        >
+          <GripVerticalIcon />
+        </Button>
 
         <ConfirmDialog
           open={confirming}

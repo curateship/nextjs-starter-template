@@ -4,6 +4,7 @@ import type { ChartSurface } from "@/components/trade/price-chart"
 import {
   openFillMarks,
   tradeFillMarks,
+  unmatchedTradeHistories,
   type LiveFill,
   type LiveFillMark,
   type LiveTrade,
@@ -126,36 +127,20 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
         mark,
       }))
     )
-    const positionKeys = new Set(
-      positions
-        .filter((position) => Math.abs(position.szi) > 1e-9)
-        .map((position) => `${position.walletId}:${position.marketKey}`)
+    const open = unmatchedTradeHistories(fills, positions).flatMap(
+      (grouped) => {
+        const history: RemovableTradeHistory | null = grouped.open
+          ? null
+          : grouped
+        const key = `${grouped.walletId}:${grouped.marketKey}`
+        return openFillMarks(grouped.fills).map((mark, index) => ({
+          id: `${history?.id ?? `open:${key}`}:${mark.at}:${mark.side}:${index}`,
+          tradeId: history?.id ?? `open:${key}`,
+          history,
+          mark,
+        }))
+      }
     )
-    const byPosition = new Map<string, LiveFill[]>()
-    for (const fill of fills) {
-      const key = `${fill.walletId}:${fill.marketKey}`
-      const grouped = byPosition.get(key)
-      if (grouped) grouped.push(fill)
-      else byPosition.set(key, [fill])
-    }
-    const open = [...byPosition.entries()].flatMap(([key, grouped]) => {
-      const first = grouped[0]
-      const history: RemovableTradeHistory | null = positionKeys.has(key)
-        ? null
-        : {
-            id: `unpaired:${first.walletId}:${first.marketKey}:${first.fillId}`,
-            walletId: first.walletId,
-            marketKey: first.marketKey,
-            live: first.live === true,
-            fills: grouped,
-          }
-      return openFillMarks(grouped).map((mark, index) => ({
-        id: `${history?.id ?? `open:${key}`}:${mark.at}:${mark.side}:${index}`,
-        tradeId: history?.id ?? `open:${key}`,
-        history,
-        mark,
-      }))
-    })
     return [...finished, ...open]
   }, [fills, focusedTrade, positions, tradeLimit, trades])
 

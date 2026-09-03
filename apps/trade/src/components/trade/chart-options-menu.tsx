@@ -80,8 +80,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function ChartOptionsMenu({
   control,
+  trigger,
+  nested = false,
 }: {
   control: ChartOptionsControl
+  trigger?: React.ReactElement
+  /** Places the dropdown beside a trigger inside another chart menu. */
+  nested?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [trades, setTrades] = React.useState(
@@ -119,23 +124,32 @@ export function ChartOptionsMenu({
 
   return (
     <Popover open={open} onOpenChange={openMenu}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="View options"
-              className="bg-muted/60 dark:bg-muted/60"
-            >
-              <EyeIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>View options</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-72 gap-0 p-2">
+      {trigger ? (
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="View options"
+                className="bg-muted/60 dark:bg-muted/60"
+              >
+                <EyeIcon className="size-4" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>View options</TooltipContent>
+        </Tooltip>
+      )}
+      <PopoverContent
+        side={nested ? "right" : "bottom"}
+        align={nested ? "start" : "end"}
+        sideOffset={nested ? 8 : 4}
+        className="w-72 gap-0 p-2"
+      >
         <SectionLabel>Chart</SectionLabel>
         <div className="grid gap-2 px-2 pb-2">
           <FieldLabel htmlFor="chart-option-type">Chart type</FieldLabel>

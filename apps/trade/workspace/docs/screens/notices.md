@@ -67,9 +67,17 @@ A stale or missing price writes nothing and leaves the alert waiting.
 
 ## When an order fills
 
-One notice per fill, never a digest. The words come from
-`src/lib/trade/trade-notice-words.ts` and always carry the dollars, the price
-and the wallet's own label:
+One immediate order execution makes one notice. An exchange may split that
+execution into several fill rows as the order meets several prices. Pieces
+with the same order, coin and side within one second are added together before
+the bell speaks. The notice carries the total dollars and the average price,
+weighted by how many coins filled at each price. The separate rows stay in the
+Journal.
+
+A resting order that fills again more than a second later makes another
+notice, because more money moved at a different time. Different order ids are
+never combined. The words come from `src/lib/trade/trade-notice-words.ts` and
+always carry the dollars, the price and the wallet's own label:
 
 - **A fill:** "Bought $500 of ETH at $90 (Hyperliquid main)". Level `info`.
 - **A closing fill:** the same, with what it banked in the body — "Lost $55.00
@@ -90,8 +98,9 @@ exchange's own two numbers (the fill's price and what it banked, per coin) in
 because its closed money is the whole position's landed on the last fill, and
 that arithmetic does not hold there.
 
-A ladder with twenty rungs filling in a cascade is twenty notices. That is the
-rule — one per event — and it is loud on purpose; grouping is a later task.
+A ladder with twenty rungs filling in a cascade is still twenty notices. Each
+rung is its own order. Only the pieces of one rung's immediate execution share
+a notice.
 
 ## When a stop or a target fires
 

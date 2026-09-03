@@ -218,7 +218,7 @@ describe("the grid window's saved settings", () => {
     // Buying is the one it opens on, and exactly one is ever ticked.
     expect(directionBox("long")?.getAttribute("data-state")).toBe("checked")
     expect(directionBox("short")?.getAttribute("data-state")).toBe("unchecked")
-    expect(host.textContent).toContain("Below the bottom %")
+    expect(host.textContent).toContain("Sits past the range by")
     expect(host.textContent).toContain("Stop under the base")
     // The level stop is a plain checkbox row, not a card of its own: no fold
     // chevron, and its two boxes only exist while it is ticked.
@@ -257,11 +257,8 @@ describe("the grid window's saved settings", () => {
 
     await sellTheRallies()
 
-    // The stop moves above the range and End Grid below it.
-    expect(host.textContent).toContain("Above the top %")
-    expect(host.textContent).not.toContain("Below the bottom %")
-    expect(host.textContent).toContain("Below the lower price %")
-    expect(host.textContent).not.toContain("Above the higher price %")
+    // The stop moves above the range: its summary reads as a rise.
+    expect(host.textContent).toContain("+2%")
     // And the 4h level the stop can ride is a ceiling, not a floor.
     expect(host.textContent).toContain("Stop above resistance")
     expect(host.textContent).not.toContain("Stop under the base")
@@ -330,7 +327,7 @@ describe("the grid window's saved settings", () => {
     const level = preview?.lines.find((one) => one.kind === "level")
     expect(level?.usd ?? 0).toBeGreaterThan(0)
     // …and the stop says what firing it would cost.
-    expect(stop?.label).toMatch(/^STOP LOSS -\$/)
+    expect(stop?.label).toMatch(/^SL -\$/)
   }, 15_000)
 
   it("moves both ends together when the whole-grid grip is dragged", async () => {
@@ -341,28 +338,31 @@ describe("the grid window's saved settings", () => {
       last = preview
     })
 
+    // On a buying grid the range's top is the unnamed winning edge; UPPER
+    // PRICE sits a step inside it, on rung 1's own price.
     let preview = last as GridPreview | null
+    const topBefore = preview?.lines.find((one) => one.kind === "edge")?.px
     const upperBefore = preview?.lines.find((one) => one.kind === "upper")?.px
     const lowerBefore = preview?.lines.find((one) => one.kind === "lower")?.px
+    expect(topBefore).toBeTypeOf("number")
     expect(upperBefore).toBeTypeOf("number")
     expect(lowerBefore).toBeTypeOf("number")
+    expect(upperBefore ?? 0).toBeLessThan(topBefore ?? 0)
 
     await act(async () =>
       preview?.onMoveGrid?.({
-        topPx: (upperBefore ?? 0) + 10,
+        topPx: (topBefore ?? 0) + 10,
         bottomPx: (lowerBefore ?? 0) + 10,
       })
     )
 
     preview = last as GridPreview | null
+    const topAfter = preview?.lines.find((one) => one.kind === "edge")?.px
     const upperAfter = preview?.lines.find((one) => one.kind === "upper")?.px
     const lowerAfter = preview?.lines.find((one) => one.kind === "lower")?.px
+    expect(topAfter).toBeCloseTo((topBefore ?? 0) + 10, 9)
     expect(upperAfter).toBeCloseTo((upperBefore ?? 0) + 10, 9)
     expect(lowerAfter).toBeCloseTo((lowerBefore ?? 0) + 10, 9)
-    expect((upperAfter ?? 0) - (lowerAfter ?? 0)).toBeCloseTo(
-      (upperBefore ?? 0) - (lowerBefore ?? 0),
-      9
-    )
     expect(host.textContent).toContain("The range is where you dragged it")
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
@@ -371,9 +371,154 @@ describe("the grid window's saved settings", () => {
     await act(async () => place?.click())
     expect(onPlace).toHaveBeenCalledWith(
       expect.objectContaining({
-        topPx: upperAfter,
+        topPx: topAfter,
         bottomPx: lowerAfter,
       })
+    )
+  }, 15_000)
+
+  it("puts UPPER PRICE on rung 1 and lands rung 1 where its label is dropped", async () => {
+    // Tyler, 3 Sep 2026: the upper and lower names sit on the first and last
+    // rung's own prices. Dropping UPPER PRICE must therefore put RUNG 1 under
+    // the hand, with the range's edge solved a step past it.
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), levels: 4 },
+    })
+    let last: GridPreview | null = null
+    await renderDialog(undefined, (preview) => {
+      last = preview
+    })
+    await act(async () => Promise.resolve())
+
+    let preview = last as GridPreview | null
+    // 4 levels 2% apart around $100 is an 8% range, $96 to $104, a $2 step,
+    // rung 1 at $102.
+    expect(preview?.lines.find((one) => one.kind === "edge")?.px).toBeCloseTo(
+      104,
+      9
+    )
+    expect(preview?.lines.find((one) => one.kind === "upper")?.px).toBeCloseTo(
+      102,
+      9
+    )
+    expect(preview?.lines.find((one) => one.kind === "lower")?.px).toBeCloseTo(
+      96,
+      9
+    )
+
+    await act(async () => preview?.onMoveLine?.("upper", 110))
+    preview = last as GridPreview | null
+    // Rung 1 at 110 with the bottom held at 96: three gaps of $4.67, so the
+    // top is one more step up at $114.67.
+    expect(preview?.lines.find((one) => one.kind === "upper")?.px).toBeCloseTo(
+      110,
+      6
+    )
+    expect(preview?.lines.find((one) => one.kind === "edge")?.px).toBeCloseTo(
+      114.6667,
+      3
+    )
+    expect(preview?.lines.find((one) => one.kind === "lower")?.px).toBeCloseTo(
+      96,
+      9
+    )
+  }, 15_000)
+
+  it("works the range's depth out from the gap between rungs", async () => {
+    // Tyler, 3 Sep 2026: one box, the percent between rungs. 4 rungs 2%
+    // apart around a $100 price is an 8% range, 4% each side: $96 to $104.
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), levels: 4, rungGapPct: 2 },
+    })
+    const onPlace = vi.fn(async () => false)
+    let last: GridPreview | null = null
+    await renderDialog(onPlace, (preview) => {
+      last = preview
+    })
+    await act(async () => Promise.resolve())
+
+    expect(host.querySelector("#grid-levels-by")).toBeNull()
+    expect(host.querySelector("#grid-click-depth")).toBeNull()
+    expect(host.querySelector<HTMLInputElement>("#grid-gap")?.value).toBe("2")
+    expect(host.textContent).toContain("Reaches either side of the price4%")
+    let preview = last as GridPreview | null
+    expect(preview?.lines.find((one) => one.kind === "edge")?.px).toBeCloseTo(
+      104,
+      9
+    )
+    expect(preview?.lines.find((one) => one.kind === "lower")?.px).toBeCloseTo(
+      96,
+      9
+    )
+
+    // Doubling the gap doubles the range. The rung count does not move.
+    const gap = host.querySelector<HTMLInputElement>("#grid-gap")
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      set?.call(gap, "4")
+      gap?.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    preview = last as GridPreview | null
+    expect(preview?.levelCount).toBe(4)
+    expect(preview?.lines.find((one) => one.kind === "lower")?.px).toBeCloseTo(
+      92,
+      9
+    )
+    expect(host.textContent).toContain("Reaches either side of the price8%")
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bottomPx: expect.closeTo(92, 6),
+        topPx: expect.closeTo(108, 6),
+        params: expect.objectContaining({
+          levels: 4,
+          rungGapPct: 4,
+          abovePct: 8,
+          rangePct: 8,
+          takeProfitPct: 4,
+          stopLoss: expect.objectContaining({ underPct: 4 }),
+        }),
+      })
+    )
+  }, 15_000)
+
+  it("hangs the rungs under a click one gap apart", async () => {
+    // 3 rungs 4.75% apart under a $80 click: the click is rung 1, so the
+    // deepest rung is 9.5% below it at $72.40, and the range's top sits one
+    // more step above the click.
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: {
+        ...defaultGridParams(),
+        anchor: "click",
+        levels: 3,
+        rungGapPct: 4.75,
+      },
+    })
+    let last: GridPreview | null = null
+    await renderDialog(undefined, (preview) => {
+      last = preview
+    })
+    await act(async () => Promise.resolve())
+    expect(host.textContent).toContain("Reaches below your click9.5%")
+    const preview = last as GridPreview | null
+    expect(preview?.lines.find((one) => one.kind === "upper")?.px).toBeCloseTo(
+      80,
+      6
+    )
+    expect(preview?.lines.find((one) => one.kind === "lower")?.px).toBeCloseTo(
+      72.4,
+      6
+    )
+    expect(preview?.lines.find((one) => one.kind === "edge")?.px).toBeCloseTo(
+      83.8,
+      6
     )
   }, 15_000)
 
@@ -409,7 +554,7 @@ describe("the grid window's saved settings", () => {
     expect(host.textContent).toContain("The range is where you dragged it")
 
     // Typing a depth takes the range back from the drag.
-    const depth = host.querySelector<HTMLInputElement>("#grid-click-depth")
+    const depth = host.querySelector<HTMLInputElement>("#grid-gap")
     expect(depth).not.toBeNull()
     await act(async () => {
       // Through the native setter, or React's controlled input ignores it.
@@ -463,10 +608,10 @@ describe("the grid window's saved settings", () => {
     await renderDialog()
     await act(async () => Promise.resolve())
 
-    expect(host.textContent).toContain("How far below %")
+    expect(host.textContent).toContain("Reaches below your click")
     await sellTheRallies()
-    expect(host.textContent).toContain("How far above %")
-    expect(host.textContent).not.toContain("How far below %")
+    expect(host.textContent).toContain("Reaches above your click")
+    expect(host.textContent).not.toContain("Reaches below your click")
   })
 
   it("sends the reverse-when-stopped switch with the grid", async () => {
@@ -567,7 +712,7 @@ describe("the grid window's saved settings", () => {
 
   it("draws End Grid above today's price when the clicked range is below it", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({
-      params: { ...defaultGridParams(), anchor: "click", takeProfitPct: 5 },
+      params: { ...defaultGridParams(), anchor: "click", rungGapPct: 5 },
     })
     const onPreview = vi.fn((_preview: GridPreview | null) => undefined)
 
@@ -581,7 +726,7 @@ describe("the grid window's saved settings", () => {
       .at(-1)
       ?.lines.find((line) => line.kind === "takeProfit")
 
-    expect(host.textContent).toContain("Above the higher price %")
+    // One gap, 5%, above today's $100 price: the range hangs under the click.
     expect(endGrid?.px).toBeCloseTo(105, 9)
   })
 
@@ -638,7 +783,7 @@ describe("the grid window's saved settings", () => {
     await act(async () => Promise.resolve())
 
     expect(host.textContent).toContain("Stop loss")
-    expect(host.querySelector("#grid-sl-pct")).not.toBeNull()
+    expect(host.textContent).toContain("Sits past the range by")
     expect(host.querySelector("#grid-sl-on")).toBeNull()
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
@@ -655,23 +800,37 @@ describe("the grid window's saved settings", () => {
     )
   })
 
-  it("removes the settings chevron when End Grid is off", async () => {
+  it("keeps End Grid in Advanced settings as a tick box tied to the gap", async () => {
+    // Tyler, 3 Sep 2026: no card and no percent of its own. End Grid sits
+    // one gap past the range and is switched on or off from Advanced.
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
-    await renderDialog()
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+    expect(host.querySelector("#grid-tp-on")).toBeNull()
+    expect(host.querySelector("#grid-tp-pct")).toBeNull()
+    await openAdvanced()
+    const box = host.querySelector<HTMLButtonElement>("#grid-tp-on")
+    expect(box?.getAttribute("data-state")).toBe("checked")
+    expect(host.textContent).toMatch(
+      /Ends past (the range|today's price) by\+2%/
+    )
+    await act(async () => box?.click())
+    expect(host.textContent).not.toMatch(
+      /Ends past (the range|today's price) by/
+    )
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>("#grid-tp-on")?.click()
-    })
-
-    expect(
-      host.querySelector(
-        'button[aria-label="Show End Grid"], button[aria-label="Hide End Grid"]'
-      )
-    ).toBeNull()
-    const endCard = host
-      .querySelector("#grid-tp-on")
-      ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
-    expect(endCard?.querySelectorAll("button")).toHaveLength(1)
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          takeProfitPct: null,
+          stopLoss: expect.objectContaining({ underPct: 2 }),
+        }),
+      })
+    )
   })
 
   describe("the Rungs card", () => {
@@ -774,6 +933,22 @@ describe("the grid window's saved settings", () => {
       )
     })
 
+    it("keeps remembered weights and still uses the complete pot", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: {
+          ...defaultGridParams(),
+          levels: 3,
+          manualSizing: true,
+          manualRungPcts: [10, 15, 20],
+        },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+
+      expect(rungBoxes().map((one) => Number(one.value))).toEqual([10, 15, 20])
+      expect(host.textContent).toContain("Grid uses100% · $")
+    })
+
     it("sends the mirror after the direction is switched", async () => {
       // The rows are held against prices, so what is sent is what is on
       // screen. Switching the direction turns the rows over, which is what
@@ -816,14 +991,11 @@ describe("the grid window's saved settings", () => {
       ])
     })
 
-    it("takes rows adding to any total, and says the money it comes to", async () => {
-      // Tyler's rule, 1 Sep 2026: "There's no need for the rungs to be at
-      // 100% combined. It can be whatever I put." Rows summing to 80 use
-      // 80% of the pot, and the card says so instead of refusing.
+    it("accepts weights with any positive total and uses the complete grid pot", async () => {
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: { ...defaultGridParams(), levels: 4 },
       })
-      const onPlace = vi.fn(async () => true)
+      const onPlace = vi.fn(async () => false)
       await renderDialog(onPlace)
       await act(async () => Promise.resolve())
       await switchOn()
@@ -833,20 +1005,69 @@ describe("the grid window's saved settings", () => {
       await typeInto(rungBoxes()[2], "30")
       await typeInto(rungBoxes()[3], "20")
 
-      // The running total, in percent and in dollars, never in red.
-      expect(host.textContent).toContain("Adds up to80% · $")
-      expect(host.textContent).not.toContain("have to add up to 100%")
+      expect(host.textContent).toContain("Grid uses100% · $")
 
-      // And pressing Place places it.
       const place = [
         ...host.querySelectorAll<HTMLButtonElement>("button"),
       ].find((button) => button.textContent?.includes("Place"))
       await act(async () => place?.click())
-      expect(onPlace).toHaveBeenCalledOnce()
+      expect(onPlace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            manualRungPcts: [10, 20, 30, 20],
+          }),
+        })
+      )
+    })
+
+    it("leaves existing weights alone when the rung count changes", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 3 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      await typeInto(rungBoxes()[0], "10")
+      await typeInto(rungBoxes()[1], "20")
+      await typeInto(rungBoxes()[2], "70")
+
+      const add = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent?.includes("Add rung")
+      )
+      await act(async () => add?.click())
+      expect(rungBoxes().map((one) => one.value)).toEqual([
+        "10",
+        "20",
+        "70",
+        "70",
+      ])
+
+      const remove = host.querySelector<HTMLButtonElement>(
+        'button[aria-label="Remove rung 4"]'
+      )
+      await act(async () => remove?.click())
+      expect(rungBoxes().map((one) => one.value)).toEqual(["10", "20", "70"])
+    })
+
+    it("updates a rung's dollar amount while always using the complete pot", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 3 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      const firstRow = () => rungBoxes()[0]?.closest("div")?.parentElement
+      const before = firstRow()?.textContent
+      await typeInto(rungBoxes()[0], "20")
+
+      expect(firstRow()?.textContent).not.toBe(before)
+      expect(host.textContent).toContain("Grid uses100% · $")
     })
 
     it("shows each rung as a share and its money, without the price", async () => {
-      // The row reads like the DCA ladder's: the typed %, then the dollars.
+      // The row reads like the DCA ladder's: the typed weight, then the dollars.
       // The prices live on the chart.
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: { ...defaultGridParams(), levels: 4 },
@@ -856,8 +1077,8 @@ describe("the grid window's saved settings", () => {
       await switchOn()
 
       const row = rungBoxes()[0]?.closest("div")?.parentElement
-      expect(row?.textContent).toContain("%")
       expect(row?.textContent).toContain("$")
+      expect(row?.textContent).not.toContain("%")
       expect(row?.textContent).not.toMatch(/\$[\d,.]+ · \$/)
     })
   })
@@ -871,7 +1092,7 @@ describe("the grid window's saved settings", () => {
     await act(async () => Promise.resolve())
 
     expect(host.textContent).toContain("Stop loss")
-    expect(host.querySelector("#grid-sl-pct")).not.toBeNull()
+    expect(host.textContent).toContain("Sits past the range by")
     expect(host.querySelector("#grid-sl-on")).toBeNull()
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
@@ -887,4 +1108,75 @@ describe("the grid window's saved settings", () => {
       })
     )
   })
+})
+
+describe("dragging End Grid or the stop before placing", () => {
+  it("gives that line its own distance until the gap is typed again", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), levels: 4, rungGapPct: 2 },
+    })
+    const onPlace = vi.fn(async () => false)
+    let last: GridPreview | null = null
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <GridOrderDialog
+            state={{ px: 80, x: 20, y: 20 }}
+            market={market}
+            equity={1_000}
+            free={800}
+            takerFeeRate={0.00045}
+            busy={false}
+            onPreview={(preview) => {
+              last = preview
+            }}
+            onPlace={onPlace}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+    })
+    await act(async () => Promise.resolve())
+    // Range $96–$104 around $100. The stop is 2% under $96 = $94.08; drag
+    // it to $91.20, which is 5% under.
+    let preview = last as GridPreview | null
+    expect(
+      preview?.lines.find((one) => one.kind === "stopLoss")?.px
+    ).toBeCloseTo(94.08, 6)
+    await act(async () => preview?.onMoveLine?.("stopLoss", 91.2))
+    preview = last as GridPreview | null
+    expect(
+      preview?.lines.find((one) => one.kind === "stopLoss")?.px
+    ).toBeCloseTo(91.2, 6)
+    expect(host.textContent).toContain("Sits past the range by−5%")
+    // End Grid is untouched: still one gap above $104.
+    expect(
+      preview?.lines.find((one) => one.kind === "takeProfit")?.px
+    ).toBeCloseTo(106.08, 6)
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          takeProfitPct: 2,
+          stopLoss: expect.objectContaining({ underPct: 5 }),
+        }),
+      })
+    )
+
+    // Typing the gap again takes the stop back to the gap.
+    const gap = host.querySelector<HTMLInputElement>("#grid-gap")
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      set?.call(gap, "3")
+      gap?.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(host.textContent).toContain("Sits past the range by−3%")
+  }, 15_000)
 })

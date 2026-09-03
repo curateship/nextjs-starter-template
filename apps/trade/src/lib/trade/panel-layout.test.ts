@@ -69,7 +69,7 @@ describe("remembered trade panel layouts", () => {
           workspace: 72,
           activity: 28,
         },
-        [tradePanelLayoutKey.workspaceMarketColumn]: {
+        "trade-workspace-market-column": {
           folders: 68,
           alerts: 32,
         },
@@ -84,10 +84,7 @@ describe("remembered trade panel layouts", () => {
       workspace: 72,
       activity: 28,
     })
-    expect(saved.current[tradePanelLayoutKey.workspaceMarketColumn]).toEqual({
-      folders: 68,
-      alerts: 32,
-    })
+    expect(saved.current).not.toHaveProperty("trade-workspace-market-column")
   })
 
   it("reads the active layout and its open folder without dropping old layouts", () => {
@@ -123,11 +120,10 @@ describe("remembered trade panel layouts", () => {
     expect(saved.chartToolbarPosition).toEqual({ x: 0.25, y: 0.75 })
     expect(saved.activeNamedId).toBe("layout-1")
     expect(saved.named[0]?.openMarketRows).toEqual({ [scope]: "watched" })
-    expect(saved.named[0]?.marketColumn).toEqual({ folders: 68, alerts: 32 })
+    expect(saved.named[0]).not.toHaveProperty("marketColumn")
     expect(saved.named[0]?.headerProfitVisible).toBe(false)
     expect(saved.named[0]?.chartToolbarPosition).toBeNull()
     expect(saved.named[1]?.openMarketRows).toEqual({})
-    expect(saved.named[1]?.marketColumn).toBeUndefined()
     expect(saved.named[1]?.headerProfitVisible).toBeUndefined()
     expect(saved.named[1]?.chartToolbarPosition).toBeUndefined()
   })

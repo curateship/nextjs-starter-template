@@ -40,7 +40,11 @@ import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
 import type { PanelFit } from "@/lib/trade/panel-fit"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import {
+  unmatchedTradeHistories,
+  type LiveTrade,
+  type RemovableTradeHistory,
+} from "@/lib/trade/live-trades"
 import {
   laddersAndGridsYouPlaced,
   smartOrdersYouPlaced,
@@ -162,32 +166,44 @@ export function ActivityPanel({
   // which half it cannot do, so one refused half never hides the other.
   const canChangeMargin = canChangeLeverage || canAdjustMargin
   const [flipping, setFlipping] = React.useState<TradePosition | null>(null)
+  const unmatchedHistory = React.useMemo(
+    () => unmatchedTradeHistories(trading.journalFills, trading.positions),
+    [trading.journalFills, trading.positions]
+  )
+  const removableHistory = React.useMemo(
+    () => [
+      ...trading.trades,
+      ...unmatchedHistory.filter((history) => !history.open),
+    ],
+    [trading.trades, unmatchedHistory]
+  )
   // The bin on a row and the Remove button over ticked rows both ask first.
   // Nothing here can be put back from the screen, and the two lists sit under
   // a chart people click around on all day. One row or many, it is the same
   // question, so one dialog holds whichever list is being asked about.
   const [removingTrades, setRemovingTrades] = React.useState<
-    LiveTrade[] | null
+    RemovableTradeHistory[] | null
   >(null)
 
   // Which Journal rows are ticked for a mass remove, by trade id.
   const journalTicks = useSelection()
   const { setSelected: setJournalTicks } = journalTicks
   const tickedTrades = React.useMemo(
-    () => trading.trades.filter((trade) => journalTicks.selected.has(trade.id)),
-    [trading.trades, journalTicks.selected]
+    () =>
+      removableHistory.filter((trade) => journalTicks.selected.has(trade.id)),
+    [removableHistory, journalTicks.selected]
   )
 
   // A tick never outlives its row. A poll that removes a trade — or a mass
   // remove that just went through — takes the tick with it, so Remove (n)
   // can only ever mean rows that are on screen right now.
   React.useEffect(() => {
-    const listed = new Set(trading.trades.map((trade) => trade.id))
+    const listed = new Set(removableHistory.map((trade) => trade.id))
     setJournalTicks((current) => {
       const next = new Set([...current].filter((id) => listed.has(id)))
       return next.size === current.size ? current : next
     })
-  }, [trading.trades, setJournalTicks])
+  }, [removableHistory, setJournalTicks])
 
   /** Each row says which wallet it is in; the panel shows several at once. */
   const walletNames = trading.walletNames
@@ -410,7 +426,7 @@ export function ActivityPanel({
           value="journal"
           icon={<BookOpenIcon className="size-4" />}
           label="Journal"
-          count={countOf(trading.trades.length)}
+          count={countOf(trading.trades.length + unmatchedHistory.length)}
           onPointerDown={pressTab("journal")}
         />
       </DashboardCardTabsHeader>
@@ -465,6 +481,7 @@ export function ActivityPanel({
         <ScrollArea className="h-full">
           <TradesTable
             trades={trading.trades}
+            unmatchedHistory={unmatchedHistory}
             markets={markets}
             walletName={walletName}
             selectedId={shownTrade?.id ?? null}

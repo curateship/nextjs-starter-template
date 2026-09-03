@@ -14,6 +14,9 @@ import {
   gridRangeAfterMove,
   gridRangeEndMovable,
   gridRangeFromClick,
+  gridRangeFromNearRung,
+  gridDepthFromGap,
+  gridHalfRangeFromGap,
   gridRangeReshapable,
   gridRowLevelIndex,
   gridRowPctsFromLevels,
@@ -643,6 +646,19 @@ describe("splitting the pot by hand", () => {
     expect(plan.tooSmallIndex).toBeNull()
   })
 
+  it("uses the complete pot when the typed weights do not add to 100", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, levels: 2, manualRungPcts: [20, 30] },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [1200, 800])
+    expect(plan.totalCost).toBeCloseTo(2000, 3)
+  })
+
   it("puts each row's share at that row's price, either direction", () => {
     // The rows are held against PRICES, so the same list lands the same way
     // up whichever direction the grid runs. What mirrors a selling grid is
@@ -670,7 +686,7 @@ describe("splitting the pot by hand", () => {
     expectDollars(plan, [2400, 1800, 1200, 600])
   })
 
-  it("flags the level a typed share leaves too small to be an order", () => {
+  it("flags the level a typed weight leaves too small to be an order", () => {
     const plan = gridOrderPlan({
       topPx: 120,
       bottomPx: 80,
@@ -686,7 +702,7 @@ describe("splitting the pot by hand", () => {
     expect(gridRungNumber(0, 4, "long")).toBe(4)
   })
 
-  it("still caps a typed share on a thin coin", () => {
+  it("still caps a typed weight on a thin coin", () => {
     const plan = gridOrderPlan({
       topPx: 120,
       bottomPx: 80,
@@ -941,7 +957,6 @@ describe("gridRangeFromClick", () => {
     ).toBeNull()
   })
 })
-
 
 describe("gridShiftAway", () => {
   const range = {
@@ -1480,5 +1495,98 @@ describe("what a reversal would place", () => {
     expect(reversal.ok).toBe(false)
     if (reversal.ok) return
     expect(reversal.reason).toContain("50%")
+  })
+})
+
+describe("gridDepthFromGap", () => {
+  it("adds equal-dollar gaps: 3 rungs 4.75% apart reach 9.5%", () => {
+    expect(
+      gridDepthFromGap({
+        gapPct: 4.75,
+        steps: 2,
+        spacing: "even",
+        direction: "long",
+      })
+    ).toBeCloseTo(9.5, 9)
+  })
+
+  it("compounds equal-percent gaps each way", () => {
+    // 100 → 90 → 81 down, 100 → 110 → 121 up.
+    expect(
+      gridDepthFromGap({
+        gapPct: 10,
+        steps: 2,
+        spacing: "compounding",
+        direction: "long",
+      })
+    ).toBeCloseTo(19, 9)
+    expect(
+      gridDepthFromGap({
+        gapPct: 10,
+        steps: 2,
+        spacing: "compounding",
+        direction: "short",
+      })
+    ).toBeCloseTo(21, 9)
+  })
+
+  it("refuses a buying grid that would reach zero", () => {
+    expect(
+      gridDepthFromGap({
+        gapPct: 30,
+        steps: 4,
+        spacing: "even",
+        direction: "long",
+      })
+    ).toBeNull()
+  })
+})
+
+describe("gridHalfRangeFromGap", () => {
+  it("splits the range evenly either side of the price", () => {
+    // 4 rungs 2% apart is an 8% range, 4% each side.
+    expect(
+      gridHalfRangeFromGap({ gapPct: 2, levels: 4, spacing: "even" })
+    ).toEqual({ above: 4, below: 4 })
+  })
+})
+
+describe("gridRangeFromNearRung", () => {
+  it("puts the top one step past rung 1 on a buying grid", () => {
+    // Rung 1 at $110 with the bottom held at $92 over four levels: three
+    // steps of $6 between them, so the top is $116.
+    const range = gridRangeFromNearRung({
+      rungPx: 110,
+      farPx: 92,
+      levels: 4,
+      spacing: "even",
+      direction: "long",
+    })
+    expect(range?.bottomPx).toBeCloseTo(92, 9)
+    expect(range?.topPx).toBeCloseTo(116, 9)
+  })
+
+  it("puts the bottom one step under rung 1 on a selling grid", () => {
+    const range = gridRangeFromNearRung({
+      rungPx: 100,
+      farPx: 130,
+      levels: 4,
+      spacing: "even",
+      direction: "short",
+    })
+    expect(range?.topPx).toBeCloseTo(130, 9)
+    expect(range?.bottomPx).toBeCloseTo(90, 9)
+  })
+
+  it("refuses a rung dragged past the far edge", () => {
+    expect(
+      gridRangeFromNearRung({
+        rungPx: 90,
+        farPx: 92,
+        levels: 4,
+        spacing: "even",
+        direction: "long",
+      })
+    ).toBeNull()
   })
 })

@@ -155,10 +155,10 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   }
   const range = { topPx, bottomPx }
 
-  // A hand-set grid: one typed percentage per level, each its own share of
-  // the pot. The COUNT is checked — a list whose length drifted from the
-  // level count would guess order sizes — but the SUM is free: Tyler's rule,
-  // rows adding to 65 use 65% of the pot, and that is what was asked for.
+  // A hand-set grid: one typed weight per level, each its own share of
+  // the pot. A list whose length drifted from the level count would guess
+  // order sizes. The weights can total anything positive; the shared plan
+  // scales them to the complete pot.
   if (params.manualSizing) {
     if (
       params.manualRungPcts === null ||
@@ -779,7 +779,7 @@ export type MoveGridRangeInput = GridRangeMove & {
  * Which split a re-shaped grid is redrawn on, from what the window sent and
  * what the grid already had.
  *
- * **The fallback to the grid's own percentages is what makes a hand-set grid
+ * **The fallback to the grid's own weights is what makes a hand-set grid
  * survive a range drag.** Dragging the range on the chart sends one edge and
  * nothing about sizing through this same door, so without the fallback it would
  * come back split evenly and the shape somebody typed would be gone with no
@@ -1024,6 +1024,8 @@ export async function reshapeGrid(
         // the grid round, because the levels belong to one side.
         direction: plan.direction,
         levels: split.levels,
+        // A re-shape keeps the plan's prices; the window's gap is not part of it.
+        rungGapPct: null,
         potPct: input.potPct ?? plan.potPct,
         compound: true,
         leverage: input.leverage ?? plan.leverage,

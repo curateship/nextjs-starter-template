@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
+import { LineAlertPopover } from "@/components/trade/paint/line-alert-popover"
 import type { PaintTool } from "@/components/trade/paint/use-drawings"
 import {
   nearestWickTip,
@@ -10,7 +11,9 @@ import {
 import type { CandleBar } from "@/lib/protocols/contracts"
 import {
   describeDrawing,
+  drawingAlertArmed,
   moveShape,
+  priceAtTime,
   type Drawing,
   type DrawingPoint,
   type DrawingShape,
@@ -153,8 +156,8 @@ function dragged(grab: Grab, now: DrawingPoint): DrawingShape {
   // Only a trendline has ends, and only its ends are ever handed out.
   if (grab.original.kind !== "trendline") return grab.original
   return grab.part === "from"
-    ? { kind: "trendline", from: now, to: grab.original.to }
-    : { kind: "trendline", from: grab.original.from, to: now }
+    ? { ...grab.original, from: now }
+    : { ...grab.original, to: now }
 }
 
 function segmentOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
@@ -173,16 +176,98 @@ function segmentOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
   }
 }
 
-/** Where a line's own delete button sits: over its middle, clear of the line. */
-function midpointOf(segment: Segment, surface: ChartSurface): ScreenPoint {
+/**
+ * The dashed part of a trendline that carries on past its later point to the
+ * right edge, on the same slope, or null when the line does not extend or
+ * already reaches the edge. Read through the same `priceAtTime` the engine
+ * uses, so the dashes land exactly where the alert would fire.
+ */
+function extensionOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
+  if (shape.kind !== "trendline" || shape.extendRight !== true) return null
+  const later = shape.to.time >= shape.from.time ? shape.to : shape.from
+  const x1 = surface.xOf(later.time)
+  if (x1 >= surface.width) return null
+  const y1 = surface.yOf(later.price)
+  const edgePrice = priceAtTime(shape, surface.timeAt(surface.width))
+  const y2 = edgePrice === null ? null : surface.yOf(edgePrice)
+  if (y1 === null || y2 === null) return null
+  return { x1, y1, x2: surface.width, y2 }
+}
+
+/** How far apart the two buttons over a line sit, centre to centre. */
+const BUTTON_GAP = 22
+
+/**
+ * Where a line's own buttons sit: over its middle, clear of the line. The x
+ * is on the left and the cog on the right, a button's width apart, so neither
+ * can land on top of the other.
+ */
+function buttonsOf(
+  segment: Segment,
+  surface: ChartSurface,
+  withCog: boolean
+): { remove: ScreenPoint; alert: ScreenPoint } {
   const x = (segment.x1 + segment.x2) / 2
   const y = (segment.y1 + segment.y2) / 2 - 16
   // Kept inside the plot, so a line drawn along the top edge still has a
   // button somebody can reach.
+  const spread = withCog ? BUTTON_GAP / 2 : 0
+  const middle = Math.min(
+    Math.max(x, 12 + spread),
+    surface.width - 12 - spread
+  )
+  const clampedY = Math.min(Math.max(y, 12), surface.height - 12)
   return {
-    x: Math.min(Math.max(x, 12), surface.width - 12),
-    y: Math.min(Math.max(y, 12), surface.height - 12),
+    remove: { x: middle - spread, y: clampedY },
+    alert: { x: middle + spread, y: clampedY },
   }
+}
+
+/** The small round button over a picked-out line: the x and the cog share it. */
+function LineButton({
+  at,
+  label,
+  className,
+  onPress,
+  children,
+}: {
+  at: ScreenPoint
+  label: string
+  className?: string
+  onPress: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <g
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      style={{ pointerEvents: "all", cursor: "pointer", outline: "none" }}
+      className={className}
+      // On the press, not the click: the line underneath takes hold of the
+      // pointer on its own press, and a click would arrive after the drag it
+      // started.
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onPress()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onPress()
+        }
+      }}
+    >
+      <circle
+        cx={at.x}
+        cy={at.y}
+        r={9}
+        className="fill-card stroke-foreground/15"
+        strokeWidth={1}
+      />
+      {children}
+    </g>
+  )
 }
 
 /** The small × over a picked-out line. */
@@ -196,40 +281,66 @@ function RemoveButton({
   onRemove: () => void
 }) {
   return (
-    <g
-      role="button"
-      tabIndex={0}
-      aria-label={label}
-      style={{ pointerEvents: "all", cursor: "pointer", outline: "none" }}
+    <LineButton
+      at={at}
+      label={label}
       className="text-muted-foreground hover:text-destructive focus-visible:text-destructive"
-      // On the press, not the click: the line underneath takes hold of the
-      // pointer on its own press, and a click would arrive after the drag it
-      // started.
-      onPointerDown={(event) => {
-        event.stopPropagation()
-        onRemove()
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
-          onRemove()
-        }
-      }}
+      onPress={onRemove}
     >
-      <circle
-        cx={at.x}
-        cy={at.y}
-        r={9}
-        className="fill-card stroke-foreground/15"
-        strokeWidth={1}
-      />
       <path
         d={`M${at.x - 3.5} ${at.y - 3.5} L${at.x + 3.5} ${at.y + 3.5} M${at.x + 3.5} ${at.y - 3.5} L${at.x - 3.5} ${at.y + 3.5}`}
         stroke="currentColor"
         strokeWidth={1.5}
         strokeLinecap="round"
       />
-    </g>
+    </LineButton>
+  )
+}
+
+/**
+ * The cog beside the x, which opens the line's alert window. Drawn in the
+ * alert colour while the line is armed, so a watched line can be told from a
+ * plain one without opening anything.
+ */
+function AlertButton({
+  at,
+  label,
+  armed,
+  onOpen,
+}: {
+  at: ScreenPoint
+  label: string
+  armed: boolean
+  onOpen: () => void
+}) {
+  return (
+    <LineButton
+      at={at}
+      label={label}
+      className={
+        armed
+          ? "text-primary hover:text-foreground focus-visible:text-foreground"
+          : "text-muted-foreground hover:text-foreground focus-visible:text-foreground"
+      }
+      onPress={onOpen}
+    >
+      <g data-line-alert-cog transform={`translate(${at.x} ${at.y})`}>
+        {Array.from({ length: 4 }, (_, index) => (
+          <line
+            key={index}
+            x1={0}
+            y1={-4.5}
+            x2={0}
+            y2={4.5}
+            transform={`rotate(${index * 45})`}
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
+        ))}
+        <circle r={2.2} className="fill-card" stroke="currentColor" strokeWidth={1.5} />
+      </g>
+    </LineButton>
   )
 }
 
@@ -244,6 +355,8 @@ export const PaintLayer = React.memo(function PaintLayer({
   onCreate,
   onMove,
   onDelete,
+  onSetAlert,
+  onAlertOpen,
 }: {
   surface: ChartSurface
   candles: readonly CandleBar[]
@@ -253,9 +366,26 @@ export const PaintLayer = React.memo(function PaintLayer({
   selectedId: string | null
   onSelect: (id: string | null) => void
   onCreate: (shape: DrawingShape) => void
-  onMove: (id: string, shape: DrawingShape) => void
+  /** The live price goes with a move so an armed line stays pointed right. */
+  onMove: (id: string, shape: DrawingShape, currentPrice: number | null) => void
   onDelete: (id: string) => void
+  /**
+   * Switch a line's alert on or off. Left out on a chart whose lines are not
+   * watched by the engine, where the cog and the double-click are not
+   * offered at all.
+   */
+  onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
+  /** The alert window is opening: a chance to read the lines again. */
+  onAlertOpen?: () => void
 }) {
+  const svgRef = React.useRef<SVGSVGElement>(null)
+  // The moment the window opened and the live price then, so "where the line
+  // is right now" is read once at the press rather than on every render.
+  const [alertOpen, setAlertOpen] = React.useState<{
+    id: string
+    openedAt: number
+    price: number | null
+  } | null>(null)
   const [grab, setGrab] = React.useState<Grab | null>(null)
   const [hover, setHover] = React.useState<ScreenPoint | null>(null)
   const [pending, setPending] = React.useState<PendingLine | null>(null)
@@ -443,10 +573,36 @@ export const PaintLayer = React.memo(function PaintLayer({
       : grab.shape
     // A press that never travelled was a click to pick the line out, and
     // saving an unchanged line would be a write for nothing.
-    if (moved) onMove(grab.id, shape)
+    if (moved) onMove(grab.id, shape, currentPrice())
     setGrab(null)
     setSnapTip(null)
   }
+
+  // ----- The alert a line carries -----------------------------------------
+
+  /** The live price, off the working candle first and the last closed one else. */
+  const currentPrice = React.useCallback(
+    (): number | null =>
+      readLiveCandle()?.close ?? candles.at(-1)?.close ?? null,
+    [readLiveCandle, candles]
+  )
+
+  const openAlert = React.useCallback(
+    (id: string) => {
+      onSelect(id)
+      onAlertOpen?.()
+      setAlertOpen({ id, openedAt: Date.now(), price: currentPrice() })
+    },
+    [onSelect, onAlertOpen, currentPrice]
+  )
+
+  // A line that has gone, or a chart that lost its alerts, closes the window
+  // during the same render rather than leaving it hanging over nothing.
+  const alertDrawing =
+    onSetAlert && alertOpen
+      ? (drawings.find((drawing) => drawing.id === alertOpen.id) ?? null)
+      : null
+  if (alertOpen && !alertDrawing) setAlertOpen(null)
 
   // ----- Drawing a new one ----------------------------------------------
 
@@ -574,6 +730,7 @@ export const PaintLayer = React.memo(function PaintLayer({
 
   return (
     <svg
+      ref={svgRef}
       // Marks everything the paint tools own, so a press anywhere else on the
       // page can let the picked line go without this one doing it too.
       data-chart-paint
@@ -586,6 +743,7 @@ export const PaintLayer = React.memo(function PaintLayer({
         const segment = segmentOf(shape, surface)
         if (!segment) return null
         const selected = drawing.id === selectedId
+        const extension = extensionOf(shape, surface)
 
         return (
           <g
@@ -604,6 +762,21 @@ export const PaintLayer = React.memo(function PaintLayer({
               stroke="currentColor"
               strokeWidth={selected ? 2.5 : 1.5}
             />
+            {/* The carried-on part, dashed and thinner so the drawn part
+                still reads as the drawn part. It takes no pointer, so a click
+                on it reaches the chart rather than picking the line, and a
+                screen reader still hears one line. */}
+            {extension ? (
+              <line
+                data-line-extension
+                aria-hidden
+                {...extension}
+                stroke="currentColor"
+                strokeWidth={selected ? 1.5 : 1}
+                strokeDasharray="4 4"
+                style={{ pointerEvents: "none" }}
+              />
+            ) : null}
             {/* The part the pointer and the Tab key actually meet: a fat
                 invisible line over the thin visible one, because a 1.5px
                 target is not one. Focus picks the line out, so the darker,
@@ -628,6 +801,12 @@ export const PaintLayer = React.memo(function PaintLayer({
               onPointerMove={continueGrab}
               onPointerUp={endGrab}
               onPointerCancel={endGrab}
+              // The second click of a double-click is a press that never
+              // travelled, so no drag starts; and a tool in hand means the
+              // sheet above has the pointer, so this never arrives then.
+              onDoubleClick={
+                onSetAlert ? () => openAlert(drawing.id) : undefined
+              }
               onKeyDown={(event) => {
                 if (event.key === "Delete" || event.key === "Backspace") {
                   event.preventDefault()
@@ -659,16 +838,71 @@ export const PaintLayer = React.memo(function PaintLayer({
                 keyboard is on, so without this there is no way to throw away
                 one line with the pointer. It hides while a tool is in hand,
                 where the sheet above would swallow the click anyway. */}
-            {selected && !tool ? (
-              <RemoveButton
-                at={midpointOf(segment, surface)}
-                label={`Delete ${describeDrawing(shape, formatPrice).toLowerCase()}`}
-                onRemove={() => onDelete(drawing.id)}
-              />
-            ) : null}
+            {selected && !tool
+              ? (() => {
+                  const withCog = onSetAlert !== undefined
+                  const at = buttonsOf(segment, surface, withCog)
+                  const name = describeDrawing(shape, formatPrice).toLowerCase()
+                  return (
+                    <>
+                      <RemoveButton
+                        at={at.remove}
+                        label={`Delete ${name}`}
+                        onRemove={() => onDelete(drawing.id)}
+                      />
+                      {withCog ? (
+                        <AlertButton
+                          at={at.alert}
+                          label={`Alert on ${name}`}
+                          armed={drawingAlertArmed(drawing.alert)}
+                          onOpen={() => openAlert(drawing.id)}
+                        />
+                      ) : null}
+                    </>
+                  )
+                })()
+              : null}
           </g>
         )
       })}
+
+      {alertDrawing && alertOpen && onSetAlert
+        ? (() => {
+            const segment = segmentOf(alertDrawing.shape, surface)
+            const at = segment
+              ? buttonsOf(segment, surface, true).alert
+              : { x: surface.width / 2, y: surface.height / 2 }
+            return (
+              <LineAlertPopover
+                drawing={alertDrawing}
+                linePrice={priceAtTime(alertDrawing.shape, alertOpen.openedAt)}
+                currentPrice={alertOpen.price}
+                svg={svgRef}
+                at={{ x: at.x, y: at.y + 9 }}
+                open={true}
+                onOpenChange={(open) => {
+                  if (!open) setAlertOpen(null)
+                }}
+                // The price is read again at the flip, not at the open: the
+                // window can sit there a while and the direction should come
+                // from the price at the moment the switch goes on.
+                onSetAlert={(on) =>
+                  onSetAlert(alertDrawing.id, on, currentPrice())
+                }
+                // Saved the way a drag is saved: it is the same line with one
+                // more thing true of it, and the same optimistic write.
+                onSetExtend={(on) => {
+                  if (alertDrawing.shape.kind !== "trendline") return
+                  onMove(
+                    alertDrawing.id,
+                    { ...alertDrawing.shape, extendRight: on },
+                    currentPrice()
+                  )
+                }}
+              />
+            )
+          })()
+        : null}
 
       {preview ? (
         <line

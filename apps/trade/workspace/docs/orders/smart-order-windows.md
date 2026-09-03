@@ -204,14 +204,16 @@ Right-click the chart, pick Smart order, then Grid. The window floats where you
 clicked and its cards read in the order the decisions are made. What the grid
 does with each of these is in `grid-orders.md`; this is what is on screen.
 
-- **Range** starts with **Where the range sits**, a two-item dropdown. "Around
-  today's price" keeps the two boxes it has always had, Above % and Below %.
-  "Below the price you clicked" swaps them for one, **How far below %**, because
-  the top is worked out rather than typed. Where levels sit above the price,
-  the card says so and says plainly that placing still buys nothing. The window
-  leaves out the repeated current price, range prices, clicked top buy and step
-  size. Those prices are already on the chart. **Share of account %** sits in
-  this card beside Levels. The card shows the dollars of coin each buy controls,
+- **Range** starts with **Where the range sits**, a two-item dropdown: around
+  today's price, or hanging under the price you clicked. Under it is one box,
+  **Gap between rungs %**, and a line saying how far the range reaches from
+  that gap and the rung count: "Reaches below your click 9.5%", or "Reaches
+  either side of the price 4%". There is no depth box and no Above % and
+  Below %; `grid-rung-gap.md` has the arithmetic. Where levels sit above the
+  price, the card says so and says plainly that placing still buys nothing.
+  The window leaves out the repeated current price, range prices, clicked top
+  buy and step size. Those prices are already on the chart. **Levels** and
+  **Share of account %** sit in this card under the gap. The card shows the dollars of coin each buy controls,
   the margin behind that buy, and the dollars of coin the whole grid controls.
   The complete grid may control more than the wallet has free now because none
   of those buys is placed yet. Today's free cash never blocks Place; each level
@@ -224,22 +226,27 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   the window or moves its preview. The DCA window follows the same rule, and
   the full rule lives in `../rules/instant-first.md`.
 - **Rungs** sits under Range and is switched off by default. On, it lists one
-  row per rung, each holding that rung's percentage of the money Share of
-  account % set aside, with the row's price and dollars beside it. The rows run
-  down the range, top first, and each row's share lands at the price beside it,
+  row per rung, each holding that rung's relative weight and the dollars it
+  receives from Share of account %. The rows run
+  down the range, top first, and each row's weight lands at the price beside it,
   so the card and the chart always agree. The NUMBER on each row is what
   reverses: rung 1 is the first trade the grid makes, the top of the range on a
   buying grid and the bottom on a selling one. Switching Long to Short turns the
   values over in the boxes, which mirrors the grid on the chart. A line under
-  the rows says what they add up to, in the refusal colour until it is 100. **Add rung** stops at 20 and the bin stops at 2. **Even split** fills the rows with an equal share that adds to exactly 100.
+  the rows confirms that the weights always use the complete grid amount. The
+  weights themselves can add to any positive number. **Add rung** stops at 20
+  and copies the last weight without changing the others. The bin stops at 2
+  and removes only its own row. **Even split** deliberately replaces every
+  weight with an equal split.
   Switching the card on for the first time starts from the split the grid was
-  already using, so nothing about the grid moves. While it is on, the Levels box
-  in Range is replaced by a line naming the rung count, because the rows are
-  what count the levels; Share of account % stays, because it still sets the
-  money. The Range card's readouts then say the smallest and biggest buy instead
+  already using, so nothing about the grid moves. While it is on, the Levels
+  box in Range is hidden, because the rows are what count the levels and the
+  card's own header says how many; Share of account % stays, because it still
+  sets the money. The Range card's readouts then say the smallest and biggest buy instead
   of one figure for each, since the levels are deliberately different sizes.
-- **Advanced settings** holds Borrowing, Follow price up, Follow price down,
-  Levels spread and the liquidity guard. Borrowing starts at 1× and accepts
+- **Advanced settings** holds End Grid, Borrowing, Follow price up, Follow
+  price down, Levels spread and the liquidity guard. End Grid is a tick box,
+  on by default, with a "Grid ends at" line while it is on. Borrowing starts at 1× and accepts
   whole numbers up to the coin's exchange limit. A grid paired with a DCA
   ladder shows the ladder's borrowing and does not let the grid choose a second
   number. A position already held by hand fixes the field in the same way. The
@@ -249,23 +256,22 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   spread tooltip compares its two choices with prices. Dollar spacing can put
   levels at $100, $90 and $80. Spacing them 10% apart puts them at $100, $90
   and $81, which keeps the same percentage move on every cycle.
-- **End Grid** was called Finish the grid and keeps the same upper line. Its
-  distance is measured above today's price or the top of the range, whichever
-  is higher, so the line always starts above both. Its readout says **Grid ends
-  at**. Follow price up leaves End Grid visible and switched on. The range walks
-  upward under the fixed line until price reaches it. On the chart the line
-  reads **END GRID**. When End Grid is unchecked, the checkbox is the card's
-  only button. There is no help button or settings chevron to open. Checking it
-  opens the settings and adds both controls.
+- **End Grid** sits one gap above today's price or the top of the range,
+  whichever is higher, so the line always starts above both. It has no percent
+  of its own; the gap between rungs is its distance (Tyler, 3 Sep 2026).
+  Follow price up leaves End Grid switched on. The range walks upward under the
+  fixed line until price reaches it. On the chart the line reads **END GRID**,
+  in orange.
 - **Stop loss** is always on. Its card has no checkbox because a grid cannot be
-  placed or left running without a stop. The card sets the distance below the
-  range and the optional confirmed-base rule.
+  placed or left running without a stop, and no percent box because the stop
+  sits one gap below the range. The card shows where that lands, the Reverse
+  on stop loss switch and the optional confirmed-base rule.
 - **Refusals** are said on the window before the button is pressed, in the
   server's own words. If a level is too small for the market, the window names
   it and asks for fewer levels or a bigger account share.
 
-The gear beside UPPER PRICE opens the running grid settings to the left of the
-gear, vertically centred on it. The settings use the same draggable chart
+The gear on the grid's badge, at the middle of the range, opens the running
+grid settings to the left of the gear, vertically centred on it. The settings use the same draggable chart
 window, folding option cards and fixed bottom button as the right-click Grid
 order form. Slices includes Borrowing beside Levels and Share of account.
 The Slices card is first, with no description above it. Levels, Share of

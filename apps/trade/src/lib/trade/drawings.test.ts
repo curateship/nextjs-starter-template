@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { moveShape, readDrawingShape } from "@/lib/trade/drawings"
+import {
+  drawingAlertArmed,
+  extendedRight,
+  moveShape,
+  priceAtTime,
+  readDrawingAlert,
+  readDrawingShape,
+} from "@/lib/trade/drawings"
 
 describe("reading a saved drawing", () => {
   it("reads a level and a trendline", () => {
@@ -19,6 +26,20 @@ describe("reading a saved drawing", () => {
       from: { time: 1_000, price: 10 },
       to: { time: 2_000, price: 20 },
     })
+  })
+
+  it("reads a trendline drawn on to the right, and an older row without the flag as not", () => {
+    const line = {
+      kind: "trendline" as const,
+      from: { time: 1_000, price: 10 },
+      to: { time: 2_000, price: 20 },
+    }
+    expect(readDrawingShape({ ...line, extendRight: true })).toEqual({
+      ...line,
+      extendRight: true,
+    })
+    expect(readDrawingShape(line)?.kind === "trendline" && readDrawingShape(line)).not.toHaveProperty("extendRight")
+    expect(readDrawingShape({ ...line, extendRight: "yes" })).toBeNull()
   })
 
   it("drops a row it cannot read rather than guessing at it", () => {
@@ -78,6 +99,25 @@ describe("moving a drawing", () => {
     })
   })
 
+  it("keeps a line drawn on to the right that way when it moves", () => {
+    const moved = moveShape(
+      {
+        kind: "trendline",
+        from: { time: 1_000, price: 10 },
+        to: { time: 3_000, price: 30 },
+        extendRight: true,
+      },
+      500,
+      5
+    )
+    expect(moved).toEqual({
+      kind: "trendline",
+      from: { time: 1_500, price: 15 },
+      to: { time: 3_500, price: 35 },
+      extendRight: true,
+    })
+  })
+
   it("keeps times whole, so what is saved is what can be read back", () => {
     const moved = moveShape(
       {
@@ -89,5 +129,70 @@ describe("moving a drawing", () => {
       0
     )
     expect(readDrawingShape(moved)).toEqual(moved)
+  })
+})
+
+describe("where a drawing is at one moment", () => {
+  const line = {
+    kind: "trendline" as const,
+    from: { time: 1_000, price: 10 },
+    to: { time: 3_000, price: 30 },
+  }
+
+  it("reads a trendline before, between and after its two ends", () => {
+    expect(priceAtTime(line, 0)).toBe(0)
+    expect(priceAtTime(line, 2_000)).toBe(20)
+    expect(priceAtTime(line, 5_000)).toBe(50)
+  })
+
+  it("reads a level as the same price at every moment", () => {
+    expect(priceAtTime({ kind: "level", price: 7 }, 0)).toBe(7)
+    expect(priceAtTime({ kind: "level", price: 7 }, 9_999)).toBe(7)
+  })
+
+  it("has no one price for a line straight up and down", () => {
+    expect(
+      priceAtTime({ ...line, to: { time: 1_000, price: 30 } }, 1_000)
+    ).toBeNull()
+  })
+})
+
+describe("drawing a line on to the right", () => {
+  const line = {
+    kind: "trendline" as const,
+    from: { time: 1_000, price: 10 },
+    to: { time: 3_000, price: 30 },
+  }
+
+  it("switches the flag on, and leaves a line that already has it alone", () => {
+    expect(extendedRight(line)).toEqual({ ...line, extendRight: true })
+    const already = { ...line, extendRight: true }
+    expect(extendedRight(already)).toBe(already)
+  })
+
+  it("leaves a level alone, because it already runs the whole width", () => {
+    const level = { kind: "level" as const, price: 7 }
+    expect(extendedRight(level)).toBe(level)
+  })
+})
+
+describe("reading a saved alert", () => {
+  it("reads an armed and a fired record, and nothing as no alert", () => {
+    expect(
+      readDrawingAlert({ direction: "above", armedAt: 5, firedAt: null })
+    ).toEqual({ direction: "above", armedAt: 5, firedAt: null })
+    expect(
+      drawingAlertArmed(
+        readDrawingAlert({ direction: "below", armedAt: 5, firedAt: 9 })
+      )
+    ).toBe(false)
+    expect(
+      drawingAlertArmed(
+        readDrawingAlert({ direction: "below", armedAt: 5, firedAt: null })
+      )
+    ).toBe(true)
+    expect(readDrawingAlert(null)).toBeNull()
+    expect(readDrawingAlert(undefined)).toBeNull()
+    expect(readDrawingAlert({ direction: "sideways", armedAt: 5 })).toBeNull()
   })
 })

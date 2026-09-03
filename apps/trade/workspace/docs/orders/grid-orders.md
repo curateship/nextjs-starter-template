@@ -154,8 +154,11 @@ right corner or the Escape key. That is what lets the grid be shaped by hand
 before any money moves:
 
 - **The preview's edges can be dragged, and only the dragged edge moves.**
-  The upper and lower price, End Grid and the stop each carry a grip while
-  the window is open. Around today's price, a drop rewrites that edge's own
+  UPPER PRICE, LOWER PRICE, End Grid and the stop each carry a grip while
+  the window is open. The two range names sit on rung 1 and the deepest rung
+  (see "Where the names sit" below), so dropping UPPER PRICE on a buying grid
+  lands rung 1 under the hand and the range's top is worked out one step past
+  it. Around today's price, a drop rewrites that edge's own
   percent field. On a click-hung range the two edges share one depth field —
   writing it moves both — so a drop there becomes a hand-set range in plain
   prices instead: the dragged edge lands under the hand, the other stays
@@ -165,15 +168,19 @@ before any money moves:
   after the first version kept the clicked price pinned to its own rung and
   dragging one edge visibly moved the whole grid. A drop that would turn
   the range inside out changes nothing.
-- **The light-gray round grip in the middle moves the whole grid.** Dragging
+- **The DRAG GRID bar in the middle moves the whole grid.** It is dressed like
+  the name bars, the same width, in black; on a placed grid the grid's options bar
+  takes its place with the grip inside it.
+  Dragging
   the grip shifts the upper and lower prices by the same amount, so the range
   keeps its width. Every rung redraws inside the moved range. The window holds
   the result as plain prices because a moved range may sit wholly above or
   below today's price. Typing a range percent takes control back. The grip also
   works from the keyboard with the up and down arrow keys. The grip sits at the
-  range's vertical middle and 64 pixels left of the plot's right edge, beside
-  the grid's prices without covering them. The same grip stays there after
-  Place. The preview comes off before the saved grid is drawn, so the two copies
+  range's vertical middle, flush with the plot's right edge, on its own row
+  between the rungs. On a placed grid the grid's badge follows it on that row.
+  It used to sit 64 pixels from the right edge on top of the rungs' furniture,
+  until Tyler moved it on 3 Sep 2026. The same grip stays there after Place. The preview comes off before the saved grid is drawn, so the two copies
   never flash on top of each other.
 - **The money is on the chart before placing.** Every rung carries the chip a
   placed level gets, saying what that rung puts in. The stop line says what
@@ -303,18 +310,28 @@ then divides that money between its levels, and there are two ways it can:
 equally, which is what it does by default, or by hand.
 
 **By hand is the Rungs card.** Switching it on lists one row per rung, each
-holding a percentage of the money Share of account % set aside, shown the way
-the DCA ladder's rows are: the typed %, then the dollars it comes to. The
-price is on the chart, where prices live. A grid on 20% of a $10,000 account
-has $2,000 behind it, and four rungs at 10/20/30/40 give the levels $200,
-$400, $600 and $800.
+holding a relative weight and the dollars that weight receives. The price is
+on the chart, where prices live. A grid on 20% of a $10,000 account has $2,000
+behind it, and four weights at 10/20/30/40 give the levels $200, $400, $600
+and $800.
 
-**The rows can add up to whatever is typed.** Tyler's rule, 1 Sep 2026:
-"There's no need for the rungs to be at 100% combined. It can be whatever I
-put." Rows summing to 65 use 65% of the money set aside; rows summing past
-100 use more than one share's worth. The card says what they add up to, in
-percent and in dollars, and never refuses over it. Until that day the card
-demanded exactly 100 and blocked placing on anything else.
+**The grid always uses 100% of the money set aside, not a required weight
+total.** Tyler's clarified rule, 3 Sep 2026. One rung gets the whole $100 grid.
+Two equal weights get $50 each. Weights 20 and 30 do not need to be rewritten
+as 40 and 60; the grid reads their 20:30 relationship and gives the rungs $40
+and $60. Each weight can be any positive number up to 100, and their total can
+be anything positive.
+
+Typing, adding and deleting never rewrites the other weights. Add rung copies
+the last weight into a new row. Deleting removes only that row. The dollar
+amounts recalculate immediately so the surviving weights still divide the full
+grid amount. Even split is the deliberate button for replacing every weight.
+Remembered weights reopen exactly as saved, whatever number they add up to.
+
+An older running grid keeps the dollar amount already frozen onto each rung.
+Changing those amounts in the background could change real orders. Opening its
+settings shows the current weights, and a deliberate re-slice scales those
+weights across the full grid amount when it is saved.
 
 **The window's tooltips are one or two short sentences.** Tyler, 1 Sep 2026:
 "the tooltips are way too long. Condense them." The long explanations live in
@@ -323,31 +340,31 @@ this doc instead.
 **A selling grid's rungs run backwards down the chart from a buying grid's.**
 Tyler, 29 Aug 2026: _"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2, 1"_.
 
-The card's rows always run down the range, top first, and each row's share
+The card's rows always run down the range, top first, and each row's weight
 lands at the price beside it. What reverses with the direction is the number on
 the row: rung 1 is the first trade the grid makes, which is the top of the range
 on a buying grid, reached on the way down, and the bottom on a selling grid,
 reached on the way up.
 
-Switching between Long and Short turns the typed shares over in the boxes, so
-each rung keeps its share and the grid comes out mirrored:
+Switching between Long and Short turns the typed weights over in the boxes, so
+each rung keeps its weight and the grid comes out mirrored:
 
 ```
 LONG (buying) grid            SHORT (selling) grid
 range $80-$120                after switching the direction
 
- rung   %   price  money      rung   %   price  money
-   1    5%   $112    $50        5   45%   $120   $450
-   2   10%   $104   $100        4   25%   $112   $250
-   3   15%    $96   $150        3   15%   $104   $150
-   4   25%    $88   $250        2   10%    $96   $100
-   5   45%    $80   $450        1    5%    $88    $50
+ rung weight price  money      rung weight price  money
+   1     5    $112    $50        5    45    $120   $450
+   2    10    $104   $100        4    25    $112   $250
+   3    15     $96   $150        3    15    $104   $150
+   4    25     $88   $250        2    10     $96   $100
+   5    45     $80   $450        1     5     $88    $50
 ```
 
 A buying grid buys more the further price falls; the selling grid over the same
 range sells more the further price climbs.
 
-**The shares are held against prices, never against rung numbers.** That is a
+**The weights are held against prices, never against rung numbers.** That is a
 rule learned the hard way: three attempts held them against rung numbers, and
 each time the meaning of what was already saved changed under the new mapping,
 the card silently flipped what had been typed, and the grid on the chart came
@@ -375,8 +392,8 @@ the equal split and keeps the typed rows for next time.
 
 **A hand-set split never changes size when price moves.** A grid that follows
 price up or down redraws its levels at new prices, and each rung keeps exactly
-the share that was typed for it. Dragging the range does the same, including
-when one entry is open. A grid reversing from long to short turns the shares
+the weight that was typed for it. Dragging the range does the same, including
+when one entry is open. A grid reversing from long to short turns the weights
 over, the same move the window makes when the direction is switched by hand,
 so the reversed grid comes out as the mirror of the one it replaced.
 
@@ -622,8 +639,13 @@ The line above the range used to be called Take profit, which was wrong. It
 takes no profit. By the time price is up there every level has already sold and
 the grid holds nothing, so reaching that line sells nothing at all. What it does
 is close the grid and stop it watching. It is called **End Grid**, and the chart
-line reads **END GRID**.
+line reads **END GRID** in orange. Orange because it is neither a buy nor a
+sell and neither a win nor a loss, and it must never be read as a rung. Tyler
+asked for the colour on 3 Sep 2026.
 
+End Grid sits one gap past the range: the gap between rungs is its distance,
+and the placement window has no separate percent for it (Tyler, 3 Sep 2026).
+The stop sits one gap past the other end for the same reason.
 End Grid starts above both today's price and the range, then stays fixed when
 the range follows price up. The range can keep walking up underneath it, but the
 range never moves above the line. The first price at or above End Grid closes
@@ -660,7 +682,7 @@ practice book settles its own fills and cannot be behind.
 
 ## Changing a running grid
 
-The gear beside UPPER PRICE opens Grid settings to the left of the gear,
+The gear on the grid's badge, at the middle of the range, opens Grid settings to the left of the gear,
 vertically centred on it. The settings use the same draggable chart window,
 folding option cards and fixed bottom button as the right-click Grid order
 form. It can change Levels, Share of account, Borrowing, End Grid, following
@@ -715,6 +737,17 @@ out. Only the automatic stop keeps off the inside, because it follows a rule
 rather than a hand; the paragraph above says why the rule must measure from
 the range's edge.
 
+**A missing stop is never a hand move.** After every buy the engine compares
+the stop it last sent with the stop the exchange shows. A stop at another price
+is a hand move and is honoured. A position showing no stop at all, while the
+grid has a stop setting, is placed again on that pass. Before 3 September 2026
+the engine believed the absence: the kSHIB grid on Hyperliquid bought, read
+"no stop" from the exchange in the same second, wrote an empty stop price into
+its plan and never placed one. A grid saved that way, with a frozen stop and no
+price, now falls back to the percent its stop setting names and places that.
+A DCA ladder keeps the old rule, because its stop is optional and clearing it
+by hand is a choice.
+
 The one place a dragged stop may not go is at or past the current price, where
 it would fire the moment the hand let go. That drop is refused with "The price
 is already past there". If the venue will not give a current price at that
@@ -744,13 +777,13 @@ Lighter's live price reaches the line, Trade sends one reduce-only close and
 ends the grid. Setting or moving the line sends no stop order to Lighter.
 
 **The stop is one line on the chart, never two.** The grid draws its own red
-STOP LOSS line. On Lighter that line is the whole order until its price is
+SL line, the stop. On Lighter that line is the whole order until its price is
 reached. On exchanges that hold the stop, the untriggered leg at the same price
 is not drawn. The grid was the one that showed both, so a grey pill carrying
 the same price sat right behind the red one and read as some second thing at
 that level.
 
-The STOP LOSS label states what the grid's currently held levels would make or
+The SL label, the stop, states what the grid's currently held levels would make or
 lose if they all closed at that price after their opening fees. Carried levels
 count too. The future closing fee stays out because the venue does not state it
 until the order fills. The figure follows the line while it is dragged, and
@@ -768,13 +801,74 @@ the line sits at.
 
 What a level puts in, in dollars, is still on the line, because the axis cannot
 tell you that. So is the name of each of the four lines you set: UPPER PRICE,
-LOWER PRICE, END GRID and STOP LOSS. The two range lines also name the rung and
-trade at that price. On a five-rung selling grid, the upper line says RUNG 5
-SELLS and the lower line says RUNG 1 BUYS BACK. A buying grid says the mirror:
-RUNG 5 BUYS on the lower line and RUNG 1 SELLS on the upper line. Five complete
-round trips need six prices, so the wording explains why one boundary sits a
-step past the nearest entry. The levels in between carry no name, because a
-dozen labelled ones is a wall of text over the price action.
+LOWER PRICE, END GRID and SL, the stop. The levels in between carry no name,
+because a dozen labelled ones is a wall of text over the price action.
+
+## Where the names sit
+
+**UPPER PRICE and LOWER PRICE sit on the first and last rung's own prices.**
+Tyler's rule, 3 Sep 2026. On a buying grid UPPER PRICE sits on the highest
+buy, rung 1, and LOWER PRICE on the deepest buy, which is the bottom of the
+range. A selling grid is the mirror: UPPER PRICE on the top of the range, the
+deepest short, and LOWER PRICE on the lowest short, rung 1. The bars say only
+UPPER PRICE and LOWER PRICE, and every named bar on the grid, END GRID and
+SL included, is the same fixed width, 112 pixels, about a tenth wider than a
+position's Entry pill, so they all start and end on the same x. A name too long for the bar is cut short with an ellipsis. They used to add the rung number and trade
+("RUNG 1 BUYS", "RUNG 3 SHORTS"); Tyler had that removed the same day.
+
+Five round trips still need six prices. The sixth is the range's winning edge,
+one step past rung 1, where rung 1 closes. It is not drawn as a line at all:
+the shaded band reaches it, and that is enough. A plain line past rung 1 with
+no name was drawn for a day and confused more than it explained (Tyler, 3 Sep
+2026). The two named lines carry the rung's money chip and its ×, so a rung is
+never drawn twice.
+
+Dragging a named line moves the RUNG under the hand. On a buying grid, dropping
+UPPER PRICE at $110 with the bottom held at $92 over four rungs puts rung 1 at
+$110, the steps at $6 and the top edge at $116. The deepest rung IS the range's
+far edge, so dragging LOWER PRICE on a buying grid moves the bottom one for
+one, as it always did. With one entry open, the server keeps that entry fixed
+and spreads the other prices around it, so the dragged rung can land a little
+off the hand. The range still moves the way it was pulled.
+
+**The bars sit flush against the plot's right edge, the amounts beside them.**
+Reading left to right a line goes: the rung's × if it can be cancelled, then
+the rung's money chip, then the name bar last, against the edge (Tyler, 3 Sep
+2026: the grip on the options bar has to slide to the edge). While a grid is
+being set up, the preview also prints each rung's number between the money and
+the bar, 1 nearest the market; a placed grid does not. The money column is one
+width for the whole grid, as wide as its widest chip, so every amount stacks in
+one straight column and every bar starts on the same x. The gear, the reverse arrows, the × and the count,
+"2/3", are not on any rung's line of their own: they sit on the grip's row,
+midway between the UPPER PRICE and LOWER PRICE bars, flush right, with the grip
+in front of them (Tyler, 3 Sep 2026). On a grid with an odd number of rungs
+that middle IS a rung's line, and the grip and badge then join that rung's
+row, in front of its × and money, rather than covering them. The grip is a
+small rectangle the same height as the badge, so the two read as one bar. A position's pills from the other layer, Entry, LIQUIDATION and the
+targets, stay on the far right and never slide inwards to make room for the
+grid (Tyler, 3 Sep 2026). A pill on a rung's own price is drawn over that
+rung's money chip. The grid no longer hands that layer anything to avoid. The position's liquidation pill reads LIQUIDATION, in caps
+like the grid's bars beside it.
+
+**Two named lines on one price share one row.** A stop 0% under the bottom
+sits on the bottom rung's own price, and an End Grid 0% over the top sits on
+the top of the range. Drawn as two lines, the second bar landed on top of the
+first and hid half of it. Now the way out's bar is drawn on the rung's row
+instead, to the left of the rung's furniture, still in its own colour and
+still draggable: "SL $0.00 · × · $140 · LOWER PRICE". The
+stop's own line is still drawn underneath. Anything more than a label's height
+apart keeps its own bar.
+
+## Green grid, red grid, orange End Grid
+
+Everything a grid owns on the chart wears its direction. A buying grid's
+range band, its UPPER PRICE and LOWER PRICE lines and its badge are green. A
+selling grid's are red. The levels in between keep the colour of the trade
+each one is waiting to make, as before: green where the grid buys, red where
+it sells, so a held level on a buying grid is red because its next trade is a
+sell. END GRID is orange on both. SL, the stop, is red on both. Nothing on a grid
+wears the account's accent colour any more, so a grid can be told from a
+position's blue Entry pill at a glance.
 
 ## The card headers say their answer
 
@@ -786,8 +880,9 @@ sense yet.
 
 ## What is remembered between grids
 
-The window remembers shape, not prices: which way round the grid runs, how deep,
-how many levels, how the money is split, the chosen borrowing, where the range
-sits, and whether it follows up or down. A percentage means the same thing on the next coin you open and a
+The window remembers shape, not prices: which way round the grid runs, the gap
+between rungs and the depth it works out to (`grid-rung-gap.md`), how many
+levels, how the money is split, the chosen borrowing, where the range sits,
+and whether it follows up or down. A percentage means the same thing on the next coin you open and a
 price does not, so nothing about one coin's range is carried onto another
 chart.

@@ -25,6 +25,7 @@ the price-label edge. Arrow keys move the focused grip eight pixels at a time,
 and Home returns it to that corner. The account layout remembers the toolbar's
 relative place across live, backtest and flow-run charts, even when the chart
 panel changes size. A selected named workspace layout remembers the same place.
+The grip has no hover message.
 
 - **Two tools: a level and a trendline.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into
@@ -66,6 +67,8 @@ panel changes size. A selected named workspace layout remembers the same place.
   one; the question is asked before it runs instead.
 - **The chart underneath still pans, zooms and shows its crosshair.** Only a
   line itself takes the pointer, plus the whole chart while a tool is held.
-- Out of scope by the standing decision: alerts on lines and orders on lines.
-  Each attaches to the same surface in its own task. Indicators now do —
-  see below.
+- **A picked-out line, level or trendline, also shows a cog beside its x**,
+  which opens its alert window; double-clicking the line does the same. A
+  trendline's window can also draw the line on to the right edge, dashed.
+  Both are smart tools, in `smart-tools.md`. Orders on lines are still out of
+  scope and attach to the same surface in their own task.

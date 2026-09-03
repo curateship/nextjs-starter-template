@@ -10,8 +10,9 @@ turns when the row is open, the open row in gray, and its choices under it.
 Manual order holds Long and Short. Smart order holds DCA ladder and Grid. Both
 start closed. Clicking a row opens it, clicking it again closes it, and
 opening one closes the other. Nothing is saved: the Recent list is what
-remembers. A wallet that cannot place smart
-orders gets no fold-out rows, just Long and Short.
+remembers. The choices stay indented under their parent, but their hover and
+keyboard-focus backgrounds reach both menu edges. A wallet that cannot place
+smart orders gets no fold-out rows, just Long and Short.
 
 Once an order has been placed, the right-click menu starts with **Recent**.
 The latest kind is first, followed by the other unique kinds this account has
@@ -39,7 +40,7 @@ Stop loss shortcut out because its chart line is the place to change it.
 
 A live take-profit or stop-loss order appears once, as its coloured target or
 stop bar. Each target label states the dollars sold and the profit at its
-price. This includes a grid's own STOP LOSS line. The chart does not draw the
+price. This includes a grid's own SL line, its stop. The chart does not draw the
 exchange's copy of that order as a second gray Sell bar.
 
 A position's Stop Loss and Liquidation labels state how many dollars the whole
@@ -50,7 +51,7 @@ The fee on the future close is not included because the venue does not state it
 until the order fills. A live position shows a dash when the fills on hand do
 not cover its whole fee history.
 
-A grid's uppercase STOP LOSS label gives the same answer for the levels that
+A grid's SL label gives the same answer for the levels that
 grid currently holds, including levels carried from an older range. It takes
 off the opening fees still attached to those levels. A flat grid shows $0.00
 because ending it at the stop would close no coin. Profit and fees already
@@ -171,36 +172,11 @@ behind it.
 
 ## Which chart line wins an overlap
 
-Nothing wins — they move apart. A grid level at the entry price used to stamp
-its money chip on top of the Entry pill's words, and whichever layer painted
-last hid the other; two things in one spot cannot be fixed by stacking. So the
-grid hands the trade-lines layer a map of its right-edge chips
-(`gridLineObstacles`), and a position's pills slide LEFT of them the same way
-they already slide left of each other. Both stay readable, and the pill keeps
-its ×, gear and drag reachable.
-
-Price alerts use this same bar and layout instead of a separate chart control.
-The alert bar is purple and carries the same dotted drag grip, price tag and X
-as an order bar. Alert bars enter the shared layout first. A trading bar at the
-same price paints later, and the layout moves their pills apart so both controls
-stay reachable.
-
-The render order is the backstop for anything the map does not cover:
-indicators, then paint tools, then ladders and grids, then the shared alert and
-trade bars, then journal marks.
-
-Right-clicking an arrow from a finished trade opens a small dropdown beside it
-with one **Remove trade** row. Pressing it acts at once. The complete trade
-leaves the Journal and all of its arrows leave the chart. The saved fills are
-hidden rather than deleted, so a practice wallet's money does not change and a
-real exchange cannot send the history straight back.
-
-Old fills do not always add back to exactly zero. The chart checks for a real
-position with the same wallet and market before treating those unmatched fills
-as current. When no such position exists, the fills are old history and every
-arrow in that group offers **Remove trade**. A position in another wallet does
-not block the removal.
-
-An arrow tied to a position that still exists does not offer removal. The app
-still needs those fills to work out the open position. Right-clicking a current
-position arrow closes any arrow label and does not open the chart's order menu.
+The position's pill does. Entry, LIQUIDATION and the targets stay on the far
+right of the plot and never slide inwards to make room for a grid (Tyler,
+3 Sep 2026). A grid rung at the entry price has its money chip under the Entry
+pill; the pill is painted last and is what you see. The grid used to hand the
+trade-lines layer a map of its chips so the pills could slide left of them,
+and an Entry pill inside a grid ended up well inside the plot. That hand-off is
+gone. Two pills from the trade-lines layer itself still move apart from each
+other as before.

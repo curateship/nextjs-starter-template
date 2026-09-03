@@ -19,11 +19,35 @@ export type DrawingPoint = { time: number; price: number }
 export type DrawingShape =
   /** A price, drawn all the way across. Time means nothing to it. */
   | { kind: "level"; price: number }
-  /** Two points with a line between them. */
-  | { kind: "trendline"; from: DrawingPoint; to: DrawingPoint }
+  /**
+   * Two points with a line between them. `extendRight` carries the line on
+   * past its later point to the right edge of the chart, so the place an
+   * alert would fire can be seen. Left out on older rows, which means off.
+   */
+  | {
+      kind: "trendline"
+      from: DrawingPoint
+      to: DrawingPoint
+      extendRight?: boolean
+    }
 
-/** One saved drawing: its id, and where it sits. */
-export type Drawing = { id: string; shape: DrawingShape }
+/**
+ * The alert a line carries, once somebody has switched it on.
+ *
+ * The direction is fixed from the live price at the moment the switch goes
+ * on, the same rule the purple price alerts use: a line above the price waits
+ * for a rise, one below waits for a fall. It fires once. After that the record
+ * stays, with `firedAt` set, so the popover can say when it went off, and the
+ * switch reads as off. Switching it off by hand removes the record.
+ */
+export type DrawingAlert = {
+  direction: "above" | "below"
+  armedAt: number
+  firedAt: number | null
+}
+
+/** One saved drawing: its id, where it sits, and the alert it carries. */
+export type Drawing = { id: string; shape: DrawingShape; alert: DrawingAlert | null }
 
 // Bounds that keep a stored row sane rather than expressing a trading rule.
 // Times run from the epoch to the year 2100; a price is any real number,
@@ -50,6 +74,7 @@ export const drawingShapeSchema: z.ZodType<DrawingShape> = z.discriminatedUnion(
       kind: z.literal("trendline"),
       from: pointSchema,
       to: pointSchema,
+      extendRight: z.boolean().optional(),
     }),
   ]
 )
@@ -71,10 +96,54 @@ export const MAX_DRAWINGS_PER_MARKET = 200
  */
 export const DRAWINGS_FULL = "DRAWINGS_FULL"
 
+/**
+ * Thrown when there is no price to set the direction from: no live price on
+ * the screen yet, or a vertical line with no one price of its own.
+ */
+export const DRAWING_ALERT_NO_PRICE = "DRAWING_ALERT_NO_PRICE"
+
 /** A stored shape, or null when the row cannot be read. */
 export function readDrawingShape(value: unknown): DrawingShape | null {
   const parsed = drawingShapeSchema.safeParse(value)
   return parsed.success ? parsed.data : null
+}
+
+export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
+  direction: z.enum(["above", "below"]),
+  armedAt: z.number().int().min(0).max(MAX_TIME_MS),
+  firedAt: z.number().int().min(0).max(MAX_TIME_MS).nullable(),
+})
+
+/**
+ * A stored alert, or null when there is none or it cannot be read. An alert
+ * that cannot be read is treated as no alert: the line still draws, and the
+ * switch reads off, which is the honest answer for a record nobody can use.
+ */
+export function readDrawingAlert(value: unknown): DrawingAlert | null {
+  if (value === null || value === undefined) return null
+  const parsed = drawingAlertSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
+
+/** Switched on and not yet fired. */
+export function drawingAlertArmed(alert: DrawingAlert | null): boolean {
+  return alert !== null && alert.firedAt === null
+}
+
+/**
+ * Where a drawing sits at one moment, in dollars.
+ *
+ * A level is the same price at every moment. A trendline is read along its
+ * slope, carried on past either end, so a line drawn through last week still
+ * has a price today. Two ends at the same moment make a vertical line, which
+ * has no one price, so that answers null.
+ */
+export function priceAtTime(shape: DrawingShape, time: number): number | null {
+  if (shape.kind === "level") return shape.price
+  const span = shape.to.time - shape.from.time
+  if (span === 0) return null
+  const slope = (shape.to.price - shape.from.price) / span
+  return shape.from.price + slope * (time - shape.from.time)
 }
 
 /** What a screen reader is told about a drawing. */
@@ -97,7 +166,7 @@ export function moveShape(
     return { kind: "level", price: shape.price + byPrice }
   }
   return {
-    kind: "trendline",
+    ...shape,
     from: {
       time: Math.round(shape.from.time + byTime),
       price: shape.from.price + byPrice,
@@ -107,4 +176,16 @@ export function moveShape(
       price: shape.to.price + byPrice,
     },
   }
+}
+
+/**
+ * A trendline that draws on to the right edge, or the same drawing when it
+ * already does, or is a level, which runs the whole width anyway. Switching
+ * an alert on does this, because an alert on a line that stops dead at its
+ * second point would be watching a place nobody can see.
+ */
+export function extendedRight(shape: DrawingShape): DrawingShape {
+  return shape.kind === "trendline" && shape.extendRight !== true
+    ? { ...shape, extendRight: true }
+    : shape
 }

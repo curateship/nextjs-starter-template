@@ -322,37 +322,51 @@ function IndicatorDialog({
 export function IndicatorsMenu({
   indicators,
   context,
+  trigger,
+  nested = false,
 }: {
   indicators: ChartIndicators
   context: IndicatorContext
+  trigger?: React.ReactElement
+  /** Places the dropdown beside a trigger inside another chart menu. */
+  nested?: boolean
 }) {
   const on = indicatorsOn(indicators.settings)
   const [editing, setEditing] = React.useState<string | null>(null)
   return (
     <>
       <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label={on ? `Indicators, ${on} on` : "Indicators"}
-                className="relative bg-muted/60 dark:bg-muted/60"
-              >
-                <ChartNoAxesCombinedIcon className="size-4" />
-                {on ? (
-                  <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center rounded-full bg-foreground text-[8px] leading-none text-background">
-                    {on}
-                  </span>
-                ) : null}
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Indicators</TooltipContent>
-        </Tooltip>
-        <PopoverContent align="end" className="w-80 gap-0 p-2">
+        {trigger ? (
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={on ? `Indicators, ${on} on` : "Indicators"}
+                  className="relative bg-muted/60 dark:bg-muted/60"
+                >
+                  <ChartNoAxesCombinedIcon className="size-4" />
+                  {on ? (
+                    <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center rounded-full bg-foreground text-[8px] leading-none text-background">
+                      {on}
+                    </span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Indicators</TooltipContent>
+          </Tooltip>
+        )}
+        <PopoverContent
+          side={nested ? "right" : "bottom"}
+          align={nested ? "start" : "end"}
+          sideOffset={nested ? 8 : 4}
+          className="w-80 gap-0 p-2"
+        >
           <div className="grid gap-1">
             {INDICATOR_LIST.map((module) => {
               const state = indicators.settings[module.kind]

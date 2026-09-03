@@ -37,8 +37,6 @@ export type NamedPanelLayout = {
   id: string
   name: string
   horizontal: Layout
-  /** Older named layouts leave the Folders/Alerts split where it is. */
-  marketColumn?: Layout
   vertical: Layout
   /** The folder row this layout opens on each exchange where it was saved. */
   openMarketRows: OpenMarketRows
@@ -307,10 +305,6 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
     record.vertical,
     tradePanelIds[tradePanelLayoutKey.workspaceVertical]
   )
-  const marketColumn = matchingPanelLayout(
-    record.marketColumn,
-    tradePanelIds[tradePanelLayoutKey.workspaceMarketColumn]
-  )
   if (
     typeof record.id !== "string" ||
     record.id.length === 0 ||
@@ -318,8 +312,7 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
     name.length === 0 ||
     name.length > 32 ||
     !horizontal ||
-    !vertical ||
-    (record.marketColumn !== undefined && !marketColumn)
+    !vertical
   ) {
     return null
   }
@@ -339,7 +332,6 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
   if (chartToolbarPosition !== undefined) {
     layout.chartToolbarPosition = chartToolbarPosition
   }
-  if (marketColumn) layout.marketColumn = marketColumn
   return layout
 }
 

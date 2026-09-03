@@ -27,6 +27,27 @@ export function priceAlertNoticeWords(input: {
   }
 }
 
+/**
+ * A drawn line's alert, said once when the price crosses it. It names the
+ * shape, level or trendline, so a level's notice is never mistaken for a
+ * purple price alert's, which says "reached" and never "crossed".
+ */
+export function drawingAlertNoticeWords(input: {
+  marketKey: string
+  kind: "level" | "trendline"
+  /** Where the line was at the moment of the cross. */
+  price: number
+  direction: "above" | "below"
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const movement = input.direction === "above" ? "rising" : "falling"
+  return {
+    title: `${coin} crossed your ${input.kind} at ${formatPrice(input.price)} (was ${movement})`,
+    body: `The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`,
+    level: "info",
+  }
+}
+
 /** "(Main wallet)" — with the word practice added when the money is not real. */
 function walletTag(walletLabel: string, practice: boolean): string {
   return practice ? `(${walletLabel}, practice)` : `(${walletLabel})`

@@ -64,7 +64,14 @@ function pointer(
 }
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, {
+    IS_REACT_ACT_ENVIRONMENT: true,
+    ResizeObserver: class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  })
   host = document.createElement("div")
   document.body.appendChild(host)
   root = createRoot(host)
@@ -82,14 +89,18 @@ async function draw({
   selectedId = null,
   watchLiveBars,
   onCreate = vi.fn<(shape: DrawingShape) => void>(),
-  onMove = vi.fn<(id: string, shape: DrawingShape) => void>(),
+  onMove = vi.fn<
+    (id: string, shape: DrawingShape, currentPrice: number | null) => void
+  >(),
+  onSetAlert,
 }: {
   tool: "level" | "trendline" | null
   drawings?: Drawing[]
   selectedId?: string | null
   watchLiveBars?: (onBar: (bar: (typeof candles)[number]) => void) => () => void
   onCreate?: (shape: DrawingShape) => void
-  onMove?: (id: string, shape: DrawingShape) => void
+  onMove?: (id: string, shape: DrawingShape, currentPrice: number | null) => void
+  onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
 }) {
   await act(async () => {
     root.render(
@@ -104,6 +115,7 @@ async function draw({
         onCreate={onCreate}
         onMove={onMove}
         onDelete={() => undefined}
+        onSetAlert={onSetAlert}
       />
     )
   })
@@ -273,6 +285,7 @@ describe("the chart paint layer", () => {
         from: { time: 1_000, price: 101 },
         to: { time: 1_200, price: 90 },
       },
+      alert: null,
     }
     const { svg } = await draw({
       tool: null,
@@ -296,10 +309,203 @@ describe("the chart paint layer", () => {
     await act(async () => {
       handle.dispatchEvent(pointer("pointerup", 147, 116))
     })
-    expect(onMove).toHaveBeenCalledWith("line-1", {
+    expect(onMove).toHaveBeenCalledWith(
+      "line-1",
+      {
+        kind: "trendline",
+        from: { time: 1_500, price: 80 },
+        to: { time: 1_200, price: 90 },
+      },
+      // The last closed candle's price goes with the move.
+      105
+    )
+  })
+})
+
+describe("the alert a trendline carries", () => {
+  const line: Drawing = {
+    id: "line-1",
+    shape: {
       kind: "trendline",
-      from: { time: 1_500, price: 80 },
-      to: { time: 1_200, price: 90 },
+      from: { time: 1_000, price: 100 },
+      to: { time: 1_400, price: 120 },
+    },
+    alert: null,
+  }
+
+  function cog() {
+    return host.querySelector<SVGGElement>('[aria-label="Alert on trendline from $100 to $120"]')
+  }
+
+  it("shows a cog beside the x only on a watched chart's trendline", async () => {
+    await draw({ tool: null, drawings: [line], selectedId: line.id })
+    expect(cog()).toBeNull()
+    expect(
+      host.querySelector('[aria-label="Delete trendline from $100 to $120"]')
+    ).not.toBeNull()
+
+    await draw({
+      tool: null,
+      drawings: [line],
+      selectedId: line.id,
+      onSetAlert: vi.fn(),
     })
+    expect(cog()).not.toBeNull()
+    // The x sits left of the cog, a button's width apart, never on top of it.
+    const circles = Array.from(host.querySelectorAll('[role="button"] > circle'))
+    const [xAt, cogAt] = circles.map((circle) => Number(circle.getAttribute("cx")))
+    expect(cogAt - xAt).toBe(22)
+
+  })
+
+  it("gives a level the same cog and window, with no extend switch", async () => {
+    const level: Drawing = {
+      id: "level-1",
+      shape: { kind: "level", price: 100 },
+      alert: null,
+    }
+    const onSetAlert = vi.fn()
+    await draw({
+      tool: null,
+      drawings: [level],
+      selectedId: level.id,
+      onSetAlert,
+    })
+    const levelCog = host.querySelector<SVGGElement>('[aria-label="Alert on level at $100"]')
+    expect(levelCog).not.toBeNull()
+    // Over the middle of the chart, where the x already sits for a level.
+    const circles = Array.from(host.querySelectorAll('[role="button"] > circle'))
+    expect(circles.map((circle) => Number(circle.getAttribute("cx")))).toEqual([89, 111])
+
+    await act(async () => {
+      levelCog!.dispatchEvent(pointer("pointerdown", 0, 0))
+    })
+    expect(document.body.textContent).toContain("The level is at $100 right now.")
+    expect(document.getElementById("line-extend-level-1")).toBeNull()
+    await act(async () => {
+      document.getElementById("line-alert-level-1")!.click()
+    })
+    expect(onSetAlert).toHaveBeenCalledWith("level-1", true, 105)
+  })
+
+  it("draws a dashed extension to the right edge on the same slope, out of the pointer's reach", async () => {
+    const extended: Drawing = {
+      ...line,
+      shape: {
+        kind: "trendline",
+        from: { time: 1_000, price: 100 },
+        to: { time: 1_400, price: 120 },
+        extendRight: true,
+      },
+    }
+    await draw({ tool: null, drawings: [line], selectedId: null })
+    expect(host.querySelector("[data-line-extension]")).toBeNull()
+
+    await draw({ tool: null, drawings: [extended], selectedId: null })
+    const extension = host.querySelector<SVGLineElement>("[data-line-extension]")!
+    expect(extension).not.toBeNull()
+    // From the later end (time 1,400, $120) to the right edge (time 2,000,
+    // where the slope of $20 per 400 puts the line at $150).
+    expect(
+      ["x1", "y1", "x2", "y2"].map((name) => Number(extension.getAttribute(name)))
+    ).toEqual([140, 80, 200, 50])
+    expect(extension.getAttribute("stroke-dasharray")).toBe("4 4")
+    expect(extension.style.pointerEvents).toBe("none")
+    expect(extension.getAttribute("aria-hidden")).toBe("true")
+  })
+
+  it("saves the extend switch as a move of the same line", async () => {
+    const onMove = vi.fn()
+    await draw({
+      tool: null,
+      drawings: [line],
+      selectedId: line.id,
+      onSetAlert: vi.fn(),
+      onMove,
+    })
+    await act(async () => {
+      cog()!.dispatchEvent(pointer("pointerdown", 0, 0))
+    })
+    const extend = document.getElementById("line-extend-line-1")!
+    expect(extend.getAttribute("aria-checked")).toBe("false")
+    await act(async () => {
+      extend.click()
+    })
+    expect(onMove).toHaveBeenCalledWith(
+      "line-1",
+      {
+        kind: "trendline",
+        from: { time: 1_000, price: 100 },
+        to: { time: 1_400, price: 120 },
+        extendRight: true,
+      },
+      105
+    )
+  })
+
+  it("opens the alert window from the cog and switches the alert on from the live price", async () => {
+    const onSetAlert = vi.fn()
+    await draw({
+      tool: null,
+      drawings: [line],
+      selectedId: line.id,
+      onSetAlert,
+    })
+    await act(async () => {
+      cog()!.dispatchEvent(pointer("pointerdown", 0, 0))
+    })
+
+    const toggle = document.getElementById("line-alert-line-1")
+    expect(toggle).not.toBeNull()
+    expect(toggle?.getAttribute("aria-checked")).toBe("false")
+    expect(document.body.textContent).toContain("The line is at $")
+
+    await act(async () => {
+      toggle!.click()
+    })
+    // On, from the last closed candle's price of $105.
+    expect(onSetAlert).toHaveBeenCalledWith("line-1", true, 105)
+  })
+
+  it("opens the same window on a double-click of the line, and reads an armed alert", async () => {
+    const armed: Drawing = {
+      ...line,
+      alert: { direction: "above", armedAt: 1, firedAt: null },
+    }
+    await draw({
+      tool: null,
+      drawings: [armed],
+      selectedId: armed.id,
+      onSetAlert: vi.fn(),
+    })
+    const body = Array.from(host.querySelectorAll("line")).find(
+      (candidate) => candidate.getAttribute("tabindex") === "0"
+    )!
+    await act(async () => {
+      body.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    })
+
+    const toggle = document.getElementById("line-alert-line-1")
+    expect(toggle?.getAttribute("aria-checked")).toBe("true")
+    expect(document.body.textContent).toContain("Rings once when the price crosses up through the line")
+  })
+
+  it("says when a fired alert went off", async () => {
+    const fired: Drawing = {
+      ...line,
+      alert: { direction: "above", armedAt: 1, firedAt: Date.UTC(2026, 8, 3, 12) },
+    }
+    await draw({
+      tool: null,
+      drawings: [fired],
+      selectedId: fired.id,
+      onSetAlert: vi.fn(),
+    })
+    await act(async () => {
+      cog()!.dispatchEvent(pointer("pointerdown", 0, 0))
+    })
+    const toggle = document.getElementById("line-alert-line-1")
+    expect(toggle?.getAttribute("aria-checked")).toBe("false")
+    expect(document.body.textContent).toContain("Fired ")
   })
 })

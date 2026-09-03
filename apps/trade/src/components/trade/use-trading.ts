@@ -286,6 +286,8 @@ export type Trading = {
   placing: TradeOrder[]
   /** Every visible execution, including entries for positions still open. */
   fills: LiveFill[]
+  /** Every loaded fill that sits outside a complete Journal trade. */
+  journalFills: LiveFill[]
   /**
    * Finished round trips, newest first — the Journal tab. Practice and real
    * in one list, each row saying which it was, because the question you ask a
@@ -494,7 +496,7 @@ export type Trading = {
       leverage?: number
       /** Split the pot by hand instead of evenly. See the Rungs card. */
       manualSizing?: boolean
-      /** The typed shares in the card's row order, top of the range first. */
+      /** The typed weights in the card's row order, top of the range first. */
       manualRungPcts?: number[]
     }
   ) => Promise<boolean>
@@ -670,6 +672,7 @@ export function useTrading(
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
   const [olderTrades, setOlderTrades] = React.useState<LiveTrade[]>([])
+  const [olderJournalFills, setOlderJournalFills] = React.useState<LiveFill[]>([])
   const [paperBefore, setPaperBefore] = React.useState<number | null>()
   const [liveBefore, setLiveBefore] = React.useState<number | null>()
   const [olderTradesBusy, setOlderTradesBusy] = React.useState(false)
@@ -687,6 +690,7 @@ export function useTrading(
     queueMicrotask(() => {
       if (!current) return
       setOlderTrades([])
+      setOlderJournalFills([])
       setPaperBefore(undefined)
       setLiveBefore(undefined)
       setOlderTradesBusy(false)
@@ -1276,6 +1280,16 @@ export function useTrading(
         for (const trade of mine) byId.set(trade.id, trade)
         return [...byId.values()]
       })
+      setOlderJournalFills((current) => {
+        const byId = new Map(
+          current.map((fill) => [`${fill.walletId}:${fill.fillId}`, fill])
+        )
+        for (const fill of live?.fills ?? []) {
+          if (parseMarketKey(fill.marketKey)?.protocol !== protocol) continue
+          byId.set(`${fill.walletId}:${fill.fillId}`, fill)
+        }
+        return [...byId.values()]
+      })
       if (paper) setPaperBefore(paper.nextBefore)
       if (live) setLiveBefore(live.nextBefore)
     } catch {
@@ -1305,6 +1319,19 @@ export function useTrading(
       return at === undefined || holdExpired(at)
     })
   }, [paperAnswer?.fills, liveAnswer?.fills, cancelling, holdExpired])
+
+  const journalFills = React.useMemo(() => {
+    const byId = new Map(
+      [...fills, ...olderJournalFills].map((fill) => [
+        `${fill.walletId}:${fill.fillId}`,
+        fill,
+      ])
+    )
+    return [...byId.values()].filter((fill) => {
+      const at = cancelling.get(`fill:${fill.walletId}:${fill.fillId}`)
+      return at === undefined || holdExpired(at)
+    })
+  }, [fills, olderJournalFills, cancelling, holdExpired])
 
   /**
    * The just-placed orders still worth drawing.
@@ -2345,6 +2372,18 @@ export function useTrading(
         setOlderTrades((current) =>
           current.filter((one) => !removed.has(one.id))
         )
+        const removedFillIds = new Set(
+          list
+            .filter((trade) => removed.has(trade.id))
+            .flatMap((trade) =>
+              trade.fills.map((fill) => `${fill.walletId}:${fill.fillId}`)
+            )
+        )
+        setOlderJournalFills((current) =>
+          current.filter(
+            (fill) => !removedFillIds.has(`${fill.walletId}:${fill.fillId}`)
+          )
+        )
       }
       void refresh()
     },
@@ -2711,6 +2750,7 @@ export function useTrading(
     orders,
     placing: placingShown,
     fills,
+    journalFills,
     trades,
     loadOlderTrades,
     olderTradesBusy,

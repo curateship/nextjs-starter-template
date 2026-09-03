@@ -93,6 +93,7 @@ vi.mock("@/components/trade/price-chart", async () => {
     alert: "#70c",
     neutral: "#777",
     badgeText: "#fff",
+    foreground: "theme-foreground",
     upSoft: "#afa",
     downSoft: "#faa",
   }
@@ -353,11 +354,17 @@ describe("the chart candle request", () => {
           shownTrade={null}
           addTo={null}
           onAddOpened={() => {}}
+          cornerControl={<button aria-label="Chart corner control" />}
         />
       )
     )
 
     expect(host.querySelector('[data-testid="price-chart"]')).not.toBeNull()
+    const cornerControl = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Chart corner control"]'
+    )
+    expect(cornerControl?.parentElement?.style.right).toBe("72px")
+    expect(cornerControl?.parentElement?.className).toContain("bottom-3")
     expect(loadCandles).not.toHaveBeenCalled()
     await act(async () => vi.advanceTimersByTime(0))
     // The venue's slice came with the page. The one request that leaves is
@@ -490,7 +497,9 @@ describe("the chart candle request", () => {
     vi.useFakeTimers()
     const bar = { openTime: 30, open: 1, high: 1, low: 1, close: 1, volume: 1 }
     vi.mocked(loadCandles).mockResolvedValue({ candles: [bar] })
-    vi.mocked(loadOlderCandlesFor).mockRejectedValue(new Error("Binance is down"))
+    vi.mocked(loadOlderCandlesFor).mockRejectedValue(
+      new Error("Binance is down")
+    )
     const reports: OlderBarsStatus[] = []
 
     await act(async () =>

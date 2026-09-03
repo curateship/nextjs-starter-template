@@ -8,6 +8,7 @@ import { ActivityPanel } from "@/components/trade/activity-panel"
 import type { Trading } from "@/components/trade/use-trading"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketCatalog, MarketRow } from "@/lib/protocols/contracts"
+import type { LiveFill } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 
 const marks = vi.hoisted(() => new Map<string, number>())
@@ -19,7 +20,11 @@ vi.mock("@/lib/trade/live-market", () => ({
 vi.mock("@/components/trade/positions-table", () => ({
   PositionsTable: () => <div>Positions table</div>,
   OpenOrdersTable: () => <div>Open orders table</div>,
-  TradesTable: () => <div>Journal table</div>,
+  TradesTable: ({
+    unmatchedHistory,
+  }: {
+    unmatchedHistory?: readonly unknown[]
+  }) => <div>Journal table {unmatchedHistory?.length ?? 0}</div>,
 }))
 
 vi.mock("@/components/trade/close-all-menu", () => ({
@@ -96,6 +101,7 @@ function trading(positions: TradePosition[]): Trading {
     smartOrders: [],
     trades: [],
     fills: [],
+    journalFills: [],
     walletNames: new Map([["practice", "Practice"]]),
     settled: true,
     failed: false,
@@ -128,14 +134,16 @@ let root: Root
 
 async function drawActivity(
   positions: TradePosition[],
-  onSelectMarket: (marketKey: string) => void = () => {}
+  onSelectMarket: (marketKey: string) => void = () => {},
+  tab: "positions" | "orders" | "journal" = "positions",
+  state: Trading = trading(positions)
 ) {
   await act(async () => {
     root.render(
       <TooltipProvider>
         <ActivityPanel
-          trading={trading(positions)}
-          tab="positions"
+          trading={state}
+          tab={tab}
           onTabChange={() => {}}
           catalogs={[catalog]}
           wallets={[]}
@@ -167,6 +175,35 @@ afterEach(async () => {
   await act(async () => root.unmount())
   host.remove()
   vi.useRealTimers()
+})
+
+describe("the Journal tab", () => {
+  it("passes incomplete fills into the visible table and its count", async () => {
+    const fill: LiveFill = {
+      fillId: "saved-fill",
+      orderId: "saved-order",
+      walletId: "practice",
+      marketKey: market.key,
+      side: "buy",
+      px: 100,
+      sz: 1,
+      at: 1_000,
+      closedPnl: 0,
+      fee: 0.05,
+      dir: "Buy",
+      liquidation: false,
+      live: false,
+    }
+    const state = { ...trading([]), journalFills: [fill] }
+
+    await drawActivity([], () => {}, "journal", state)
+
+    expect(host.textContent).toContain("Journal table 1")
+    const tab = Array.from(host.querySelectorAll('[role="tab"]')).find((one) =>
+      one.textContent?.includes("Journal")
+    )
+    expect(tab?.textContent).toContain("1")
+  })
 })
 
 describe("the Positions tab glance", () => {

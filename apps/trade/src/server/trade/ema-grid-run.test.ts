@@ -671,9 +671,9 @@ describe("flipping after the opposite side confirms", () => {
 })
 
 describe("waiting and refusals", () => {
-  it("places custom rung shares whatever they add up to", async () => {
-    // Tyler's rule, 1 Sep 2026: the sum is free. Rows adding to 90 place a
-    // grid that uses 90% of the pot, not a refusal.
+  it("places custom rung weights whatever they add up to", async () => {
+    // Tyler's rule, clarified 3 Sep 2026: rows adding to 90 still divide the
+    // complete grid pot rather than causing a refusal.
     const runSpec = customRungSpec([10, 20, 30, 30])
 
     expect((await pass({}, { strategy: runSpec.strategy })).did).toBe("placed")

@@ -242,6 +242,58 @@ export const GRID_SPACING_LABELS: Record<GridSpacing, string> = {
 export const GRID_SPACING_HINT =
   "Dollars apart: $100, $90, $80 — equal gaps on the chart. Percent apart at 10%: $100, $90, $81 — every cycle the same % move."
 
+/** The gap between rungs the window opens on before one has been saved. */
+export const DEFAULT_GRID_RUNG_GAP_PCT = 2
+
+/**
+ * How deep a range reaches from its nearest rung when `steps` gaps of
+ * `gapPct` are laid end to end, in percent of that rung's price.
+ *
+ * 4.75% between 3 rungs is 2 steps, so 9.5% deep. Same-dollar spacing adds
+ * the gaps; same-percent spacing compounds them, so 3 rungs 10% apart on a
+ * buying grid reach 19% down (100 → 90 → 81), and on a selling grid 21% up
+ * (100 → 110 → 121). Null when a buying grid would reach zero or below.
+ */
+export function gridDepthFromGap(input: {
+  gapPct: number
+  steps: number
+  spacing: GridSpacing
+  direction: GridDirection
+}): number | null {
+  const { gapPct, steps, direction } = input
+  if (!(gapPct > 0) || steps < 0) return null
+  const depth =
+    input.spacing === "compounding"
+      ? direction === "long"
+        ? (1 - (1 - gapPct / 100) ** steps) * 100
+        : ((1 + gapPct / 100) ** steps - 1) * 100
+      : gapPct * steps
+  if (!Number.isFinite(depth)) return null
+  if (direction === "long" && depth >= 100) return null
+  return depth
+}
+
+/**
+ * The two depths of a range that straddles today's price with `levels` rungs
+ * `gapPct` apart, half the range each side. The range is `levels` steps tall
+ * (every rung has a way out one step away), so each side is half that.
+ */
+export function gridHalfRangeFromGap(input: {
+  gapPct: number
+  levels: number
+  spacing: GridSpacing
+}): { above: number; below: number } | null {
+  const { gapPct, levels } = input
+  if (!(gapPct > 0) || levels < 1) return null
+  const half = levels / 2
+  if (input.spacing === "compounding") {
+    const ratio = (1 + gapPct / 100) ** half
+    return { above: (ratio - 1) * 100, below: (1 - 1 / ratio) * 100 }
+  }
+  const depth = gapPct * half
+  return depth < 100 ? { above: depth, below: depth } : null
+}
+
 /**
  * How the pot is divided between the levels.
  *
@@ -375,6 +427,14 @@ export const gridParamsSchema = z.object({
    */
   direction: z.enum(GRID_DIRECTIONS).default("long"),
   levels: z.number().int().min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS),
+  /**
+   * The gap between one rung and the next, in percent, or null on settings
+   * saved before the window asked for it. The window works the range's depth
+   * out from this and the count; the engine only ever reads the depths. A new
+   * field with a default, never a new value in an old one — see
+   * `manualSizing`.
+   */
+  rungGapPct: z.number().positive().max(100).nullable().default(null),
   /** The whole grid's share of the account, in percent, split evenly. */
   potPct: z.number().positive().max(100),
   /**
@@ -396,7 +456,7 @@ export const gridParamsSchema = z.object({
   /** How the pot is split between the levels. See `GRID_SIZINGS`. */
   sizing: z.enum(GRID_SIZINGS).default("even"),
   /**
-   * Split the pot by hand, one typed percentage per level, instead of evenly.
+   * Split the pot by hand, one typed weight per level, instead of evenly.
    *
    * A NEW FIELD rather than a new value in `sizing`, and that is the whole
    * reason it exists as a pair. An older copy of the app or the engine cannot
@@ -408,8 +468,9 @@ export const gridParamsSchema = z.object({
    */
   manualSizing: z.boolean().default(false),
   /**
-   * What share of the pot each row of the card gets, in percent, adding up to
-   * 100.
+   * The relative weight of each row in the card. The weights do not need to
+   * add up to 100; the grid scales them to one complete pot when it sizes the
+   * orders.
    *
    * **Row order: the top of the range first**, which is how the card reads and
    * how the chart draws. Held against PRICES rather than against rung numbers,
@@ -502,6 +563,7 @@ export function defaultGridParams(): GridParams {
   return {
     direction: "long",
     levels: DEFAULT_GRID_LEVELS,
+    rungGapPct: null,
     potPct: DEFAULT_GRID_POT_PCT,
     compound: true,
     leverage: 1,
@@ -652,6 +714,38 @@ export function gridRangeFromClick(input: {
   // meant to name is not there.
   if (!(clickPx < range.topPx) || !(clickPx > range.bottomPx)) return null
   return range
+}
+
+/**
+ * The range whose rung nearest the market sits at `rungPx`, with the far edge
+ * held at `farPx`.
+ *
+ * The chart's UPPER PRICE and LOWER PRICE labels sit on the first and last
+ * rung's own prices (Tyler, 3 Sep 2026), and the first rung is one step inside
+ * the range's winning edge. Dragging that label therefore lands the RUNG under
+ * the hand, and this solves for the edge that puts it there — the same algebra
+ * a right-click uses, because a right-click also names a rung, not an edge.
+ */
+export function gridRangeFromNearRung(input: {
+  rungPx: number
+  farPx: number
+  levels: number
+  spacing: GridSpacing
+  direction: GridDirection
+}): { topPx: number; bottomPx: number } | null {
+  const { rungPx, farPx, direction } = input
+  if (!(rungPx > 0) || !(farPx > 0)) return null
+  const rangePct =
+    direction === "long"
+      ? (1 - farPx / rungPx) * 100
+      : (farPx / rungPx - 1) * 100
+  return gridRangeFromClick({
+    clickPx: rungPx,
+    rangePct,
+    levels: input.levels,
+    spacing: input.spacing,
+    direction,
+  })
 }
 
 /**
@@ -815,21 +909,13 @@ export function gridShares(count: number, sizing: GridSizing): number[] {
 
 // ----- Splitting the pot by hand -------------------------------------------
 
-/**
- * What a set of typed rung percentages adds up to.
- *
- * The sum is free — Tyler's rule, 1 Sep 2026: "There's no need for the rungs
- * to be at 100% combined. It can be whatever I put." Each rung takes its
- * typed share of the pot, so rows summing to 65 simply use 65% of it and
- * rows summing past 100 use more than one pot's worth. The sum is shown, in
- * percent and in dollars, and never enforced.
- */
+/** What a set of typed rung weights adds up to. */
 export function gridRungPctsSum(pcts: number[]): number {
   return pcts.reduce((sum, pct) => sum + pct, 0)
 }
 
 /**
- * The rungs' percentages, or null when the grid is not hand-set.
+ * The rungs' relative weights, or null when the grid is not hand-set.
  *
  * One rule read from two shapes — the window's settings and a placed grid's
  * plan — because both carry the same two fields and the arithmetic must not
@@ -848,7 +934,7 @@ export function gridManualPcts(
 }
 
 /**
- * An even split as typed percentages, for the moment the card is switched on.
+ * Familiar equal weights for the moment the card is switched on.
  *
  * Rounded to two decimals with the leftover put on the first rung, so the rows
  * add to exactly 100 and the grid does not change size the instant somebody
@@ -1001,15 +1087,17 @@ export function gridOrderPlan(input: {
   // dollars of coin that cash controls, not how much of the account is set
   // aside. At 3x, a $2,000 share buys $6,000 of coin across the levels.
   const pot = (input.equity * input.params.potPct * input.params.leverage) / 100
-  // Hand-set rungs take their share of the SAME pot, so Share of account %
-  // still decides the money and the rungs only decide how it is divided. The
-  // settings carry the card's rows, top of the range first, and levels are
-  // priced lowest first: one mirror, with no direction in it.
+  // Hand-set rungs are weights over the SAME pot, so Share of account % still
+  // decides the money and the rungs only decide how it is divided. The weights
+  // are divided by their own total here, which makes 20/30 spend the same full
+  // pot as 40/60. The settings carry the card's rows, top of the range first,
+  // and levels are priced lowest first: one mirror, with no direction in it.
   const manualPcts = gridManualPcts(input.params, prices.length)
+  const manualTotal = manualPcts === null ? 0 : gridRungPctsSum(manualPcts)
   const split =
-    manualPcts === null
+    manualPcts === null || !(manualTotal > 0)
       ? gridShares(prices.length, input.params.sizing)
-      : gridLevelPctsFromRows(manualPcts).map((pct) => pct / 100)
+      : gridLevelPctsFromRows(manualPcts).map((pct) => pct / manualTotal)
 
   let totalCost = 0
   let tooSmallIndex: number | null = null
@@ -1206,8 +1294,8 @@ const gridPlanSchema = z.object({
    */
   sizing: z.enum(GRID_SIZINGS).default("even"),
   /**
-   * The pot was split by hand, one typed percentage per level, and every path
-   * that re-divides it has to use those percentages instead of an even share.
+   * The pot was split by hand, one typed weight per level, and every path that
+   * re-divides it has to use those weights instead of an even share.
    * Following price down is the only such path once a grid is placed.
    *
    * ADDITIVE, like the reversal fields below, which is the only safe kind of
@@ -1218,8 +1306,8 @@ const gridPlanSchema = z.object({
    */
   manualSizing: z.boolean().default(false),
   /**
-   * The typed shares, in percent, in LEVEL order — lowest price first, which is
-   * what the engine reads. Converted from the card's row order exactly once, in
+   * The typed weights in LEVEL order — lowest price first, which is what the
+   * engine reads. Converted from the card's row order exactly once, in
    * `draftGridOrder`. Null on an evenly split grid and on every grid saved
    * before this existed.
    */

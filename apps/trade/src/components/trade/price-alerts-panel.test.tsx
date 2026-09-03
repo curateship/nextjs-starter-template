@@ -20,7 +20,16 @@ vi.mock("@/lib/api/trade/price-alerts", () => ({
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: errors.show }))
 
-import { PriceAlertsPanel } from "@/components/trade/price-alerts-panel"
+import {
+  PriceAlertsPanelContent,
+  useFiredPriceAlerts,
+  type PriceAlertsPanelProps,
+} from "@/components/trade/price-alerts-panel"
+
+function PriceAlertsPanel(props: PriceAlertsPanelProps) {
+  const fired = useFiredPriceAlerts()
+  return <PriceAlertsPanelContent {...props} fired={fired} />
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -61,7 +70,6 @@ describe("the Alerts panel", () => {
             },
           ]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={select}
           onDelete={remove}
@@ -91,6 +99,8 @@ describe("the Alerts panel", () => {
     )
     expect(del?.parentElement?.className).toContain("min-h-8")
     expect(del?.parentElement?.className).not.toContain("min-h-10")
+    expect(del?.parentElement?.className).toContain("hover:border-t-border")
+    expect(del?.parentElement?.className).toContain("-mt-px")
     await act(async () => open?.click())
     await act(async () => del?.click())
 
@@ -100,32 +110,99 @@ describe("the Alerts panel", () => {
     host.remove()
   })
 
-  it("opens a collapsed panel when either tab is pressed", async () => {
-    const expand = vi.fn()
+  it("lists armed and fired line alerts beside the price alerts", async () => {
+    const select = vi.fn()
+    const switchOff = vi.fn()
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)
     await act(async () => {
       root.render(
         <PriceAlertsPanel
-          alerts={[]}
+          alerts={[
+            {
+              id: "00000000-0000-4000-8000-000000000001",
+              protocol: "hyperliquid",
+              network: "mainnet",
+              marketKey: "hyperliquid:mainnet:BTC",
+              price: 110,
+              direction: "above",
+              createdAt: 5,
+            },
+          ]}
           error={null}
-          collapsed
           onRetry={() => {}}
-          onExpand={expand}
           onSelectMarket={() => {}}
           onDelete={() => {}}
+          lines={{
+            armed: [
+              {
+                id: "line-1",
+                marketKey: "hyperliquid:mainnet:ETH",
+                kind: "trendline",
+                price: 3_600,
+                direction: "below",
+                armedAt: 1,
+                firedAt: null,
+              },
+            ],
+            fired: [
+              {
+                id: "line-2",
+                marketKey: "hyperliquid:mainnet:SOL",
+                kind: "trendline",
+                price: 150,
+                direction: "above",
+                armedAt: 1,
+                firedAt: Date.now() - 60_000,
+              },
+            ],
+            error: null,
+            onRetry: () => {},
+            onSelect: select,
+            onSwitchOff: switchOff,
+          }}
         />
       )
     })
 
+    // Both counts include the lines: one price and one line armed, one
+    // line fired.
     const tabs = Array.from(
-      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      host.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')
     )
-    await act(async () => tabs[0]?.click())
-    await act(async () => tabs[1]?.click())
+    expect(tabs[0]?.textContent).toContain("2")
+    expect(tabs[1]?.textContent).toContain("1")
 
-    expect(expand).toHaveBeenCalledTimes(2)
+    // The line row is older, so it sits first, and it says what it is.
+    const rows = Array.from(host.querySelectorAll("button")).filter((button) =>
+      /ETH|BTC/.test(button.textContent ?? "")
+    )
+    expect(rows[0]?.textContent).toContain("ETH")
+    expect(rows[0]?.textContent).toContain("trendline at $3,600 · below")
+
+    await act(async () => rows[0]?.click())
+    expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:ETH", "line-1")
+
+    const bin = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Switch off the ETH trendline alert"]'
+    )
+    await act(async () => bin?.click())
+    expect(switchOff).toHaveBeenCalledWith("line-1")
+
+    await act(async () => {
+      tabs[1]?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, button: 0 })
+      )
+    })
+    expect(host.textContent).toContain("SOL")
+    expect(host.textContent).toContain("trendline at $150 · above")
+    expect(
+      host.querySelector(
+        'button[aria-label="Clear the fired SOL trendline alert"]'
+      )
+    ).not.toBeNull()
+
     await act(async () => root.unmount())
     host.remove()
   })
@@ -155,7 +232,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={select}
           onDelete={() => {}}
@@ -229,7 +305,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}
@@ -283,7 +358,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}
@@ -335,7 +409,6 @@ describe("the Alerts panel", () => {
         <PriceAlertsPanel
           alerts={[]}
           error={null}
-          collapsed={false}
           onRetry={() => {}}
           onSelectMarket={() => {}}
           onDelete={() => {}}

@@ -8,6 +8,7 @@ import {
   journalTradePageCursor,
   openFillMarks,
   fillsOutsideTrades,
+  unmatchedTradeHistories,
   tradeEndingLabel,
   tradeFillMarks,
   type LiveFill,
@@ -305,6 +306,35 @@ describe("buildLiveTrades", () => {
       3 * MINUTE,
       2 * MINUTE,
       MINUTE,
+    ])
+  })
+})
+
+describe("unmatched trade history", () => {
+  it("keeps every fill the finished-trade builder cannot pair", () => {
+    const fills = [
+      fill({ fillId: "old-close", side: "buy", px: 100, sz: 2, at: 1 }),
+      fill({ fillId: "later-open", side: "sell", px: 105, sz: 1, at: 2 }),
+    ]
+    const trades = buildLiveTrades(fills, noTriggers)
+    const unmatched = unmatchedTradeHistories(
+      fillsOutsideTrades(fills, trades),
+      []
+    )
+
+    expect(trades).toEqual([])
+    expect(unmatched).toHaveLength(1)
+    expect(unmatched[0]).toMatchObject({
+      id: "unpaired:w1:hyperliquid:mainnet:BTC:old-close",
+      walletId: "w1",
+      marketKey: "hyperliquid:mainnet:BTC",
+      open: false,
+      firstAt: 1,
+      lastAt: 2,
+    })
+    expect(unmatched[0].fills.map((one) => one.fillId)).toEqual([
+      "old-close",
+      "later-open",
     ])
   })
 })

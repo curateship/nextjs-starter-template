@@ -27,7 +27,7 @@ import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
 import { prefetchChartEngine } from "@/components/trade/chart-engine"
-import { GridLayer, gridLineObstacles } from "@/components/trade/grid-layer"
+import { GridLayer } from "@/components/trade/grid-layer"
 import type {
   GridOrderState,
   GridPreview,
@@ -385,6 +385,9 @@ export function ChartPanel({
   chartToolbarPosition,
   onChartToolbarPositionChange,
   initialDrawings,
+  onDrawingAlertChange,
+  selectDrawing = null,
+  onDrawingSelected,
   initialQuickOrder,
   priceAlerts = NO_PRICE_ALERTS,
   onCreatePriceAlert = IGNORE_PRICE_ALERT,
@@ -403,6 +406,7 @@ export function ChartPanel({
   addTo,
   onAddOpened,
   onOlderBars,
+  cornerControl,
 }: {
   selectedKey: string | null
   interval: CandleInterval
@@ -423,6 +427,14 @@ export function ChartPanel({
     rows: Drawing[]
     error: string | null
   }
+  /** Told after a drawn line's alert is switched on or off and saved. */
+  onDrawingAlertChange?: () => void
+  /**
+   * A line to pick out once its market's drawings have arrived, from a row in
+   * the Alerts panel. Answered with `onDrawingSelected` once done.
+   */
+  selectDrawing?: { marketKey: string; id: string } | null
+  onDrawingSelected?: () => void
   /**
    * How the right-click order window was last set up, from the same loader.
    * The window opens on a click, so anything read after it is on screen would
@@ -482,6 +494,8 @@ export function ChartPanel({
   onAddOpened: () => void
   /** Where the older bars came from, for the header line beside the timeframe. */
   onOlderBars?: (status: OlderBarsStatus) => void
+  /** A chart action pinned inside the plot, immediately left of the price axis. */
+  cornerControl?: React.ReactNode
 }) {
   const wide = useWideScreen()
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
@@ -552,9 +566,31 @@ export function ChartPanel({
 
   // The lines drawn on this market. They belong to the market, not to the
   // timeframe, so switching between 4h and 1d leaves them where they are.
-  const paint = useChartDrawings(selectedKey, initialDrawings)
+  const paint = useChartDrawings(
+    selectedKey,
+    initialDrawings,
+    onDrawingAlertChange
+  )
   const setPaintTool = paint.setTool
   const setSelectedDrawing = paint.setSelectedId
+
+  // A row in the Alerts panel names a line on another market. The market is
+  // opened first, and the line is picked out here once its drawings have
+  // actually arrived, rather than the moment the market was asked for.
+  const paintDrawings = paint.drawings
+  React.useEffect(() => {
+    if (!selectDrawing || selectDrawing.marketKey !== selectedKey) return
+    if (!paintDrawings.some((drawing) => drawing.id === selectDrawing.id))
+      return
+    setSelectedDrawing(selectDrawing.id)
+    onDrawingSelected?.()
+  }, [
+    selectDrawing,
+    selectedKey,
+    paintDrawings,
+    setSelectedDrawing,
+    onDrawingSelected,
+  ])
   const clearPaintDrawings = paint.clearAll
   const paintTool = options.drawings ? paint.tool : null
 
@@ -1389,7 +1425,9 @@ export function ChartPanel({
         const previous = drawnCharts.get(wanted) ?? []
         loadCandles(selectedKey, interval)
           .then(({ candles }) => {
-            draw(previous.length > 0 ? stitchCandles(previous, candles) : candles)
+            draw(
+              previous.length > 0 ? stitchCandles(previous, candles) : candles
+            )
             if (stale || olderRowsDrawn.has(wanted)) return
             fillBehind(candles)
           })
@@ -1519,6 +1557,8 @@ export function ChartPanel({
             onCreate={paint.create}
             onMove={paint.move}
             onDelete={paint.remove}
+            onSetAlert={paint.setAlert}
+            onAlertOpen={paint.refresh}
           />
         ) : null}
         <SmartLadderLayer
@@ -1568,15 +1608,6 @@ export function ChartPanel({
           // The grid's chips as things the pills slide around, so an Entry
           // pill at a level's own price sits BESIDE its money chip and both
           // stay readable.
-          obstacles={gridLineObstacles(
-            gridsShown,
-            selectedKey,
-            (px) => {
-              const y = surface.yOf(px)
-              return y === null || y < 0 || y > surface.height ? null : y
-            },
-            feesPaidForGrid
-          )}
           // This layer paints over the paint tools, so it has to know when
           // one is in hand and keep its hands off the pointer — otherwise
           // starting a line near a stop drags the stop.
@@ -1642,6 +1673,14 @@ export function ChartPanel({
           onPositionChange={onChartToolbarPositionChange}
           onClearAll={() => void clearPaintDrawings()}
         />
+        {cornerControl ? (
+          <div
+            className="pointer-events-auto absolute bottom-3 z-20"
+            style={{ right: surface.axisWidth + 12 }}
+          >
+            {cornerControl}
+          </div>
+        ) : null}
       </>
     ),
     [
@@ -1656,10 +1695,13 @@ export function ChartPanel({
       paint.setSelectedId,
       paint.create,
       paint.move,
+      paint.setAlert,
+      paint.refresh,
       paint.remove,
       paintTool,
       chartToolbarPosition,
       onChartToolbarPositionChange,
+      cornerControl,
       setPaintTool,
       clearPaintDrawings,
       priceAlerts,

@@ -46,6 +46,7 @@ export function MarketHeader({
   folders,
   folderActions,
   onSelectMarket,
+  marketAction,
   toolbar,
   note,
   onOpenMarkets,
@@ -56,6 +57,8 @@ export function MarketHeader({
   folders: readonly MarketFolder[]
   folderActions: MarketFolderActions
   onSelectMarket: (key: string) => void
+  /** One control immediately beside the market group, before right-side tools. */
+  marketAction?: React.ReactNode
   /** The chart's controls — the interval picker — shown only with a market. */
   toolbar?: React.ReactNode
   /** One short line before the controls: where the chart's older bars came from. */
@@ -144,6 +147,7 @@ export function MarketHeader({
           <MarketInfo selection={selection} />
         </span>
       </div>
+      {marketAction}
       {action ? <div className="ml-auto shrink-0">{action}</div> : null}
     </DashboardCardHeader>
   )

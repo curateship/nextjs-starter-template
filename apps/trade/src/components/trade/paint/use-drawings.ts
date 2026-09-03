@@ -4,13 +4,22 @@ import { toast } from "sonner"
 import {
   clearDrawings,
   deleteDrawing,
+  getDrawingAlertErrorMessage,
   getDrawingsErrorMessage,
   getDrawingsLoadErrorMessage,
   loadDrawings,
   saveDrawing,
+  setDrawingAlert,
 } from "@/lib/api/trade/drawings"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { Drawing, DrawingShape } from "@/lib/trade/drawings"
+import { priceAlertDirection } from "@/lib/trade/price-alerts"
+import {
+  drawingAlertArmed,
+  extendedRight,
+  priceAtTime,
+  type Drawing,
+  type DrawingShape,
+} from "@/lib/trade/drawings"
 
 /** Which tool the pointer is holding, or none. */
 export type PaintTool = DrawingShape["kind"]
@@ -36,7 +45,9 @@ export function useChartDrawings(
     marketKey: string | null
     rows: Drawing[]
     error: string | null
-  }
+  },
+  /** Told after a line's alert has been switched on or off and saved. */
+  onAlertChange?: () => void
 ) {
   // Tagged with the market it belongs to, so an answer that lands after
   // another market was picked is dropped rather than drawn on the wrong chart.
@@ -158,7 +169,7 @@ export function useChartDrawings(
   const create = React.useCallback(
     (shape: DrawingShape) => {
       if (!marketKey) return
-      const drawing: Drawing = { id: crypto.randomUUID(), shape }
+      const drawing: Drawing = { id: crypto.randomUUID(), shape, alert: null }
       revise(marketKey, (current) => [...current, drawing])
       setSelectedId(drawing.id)
       // One shape per press of a tool button. Staying armed would turn a
@@ -169,19 +180,27 @@ export function useChartDrawings(
     [marketKey, put, revise]
   )
 
-  /** Where a line ended up after being dragged. */
+  /**
+   * Where a line ended up after being dragged. The live price goes with it
+   * only when the line carries an armed alert, which then points itself at
+   * the price again; every other move is the one write it always was.
+   */
   const move = React.useCallback(
-    (id: string, shape: DrawingShape) => {
+    (id: string, shape: DrawingShape, currentPrice: number | null = null) => {
       if (!marketKey) return
       const key = marketKey
       const previous = drawings.find((candidate) => candidate.id === id)
       if (!previous) return
       revise(key, (current) =>
         current.map((candidate) =>
-          candidate.id === id ? { id, shape } : candidate
+          candidate.id === id ? { ...candidate, shape } : candidate
         )
       )
-      saveDrawing(key, { id, shape }).catch((error: unknown) => {
+      saveDrawing(
+        key,
+        { id, shape },
+        drawingAlertArmed(previous.alert) ? currentPrice : null
+      ).catch((error: unknown) => {
         revise(key, (current) =>
           current.map((candidate) =>
             candidate.id === id ? previous : candidate
@@ -192,6 +211,68 @@ export function useChartDrawings(
     },
     [drawings, marketKey, revise]
   )
+
+  /**
+   * Switch a line's alert on or off. The switch flips at once, with the
+   * direction worked out here the same way the server will, and the server's
+   * answer replaces it; a refused save puts the switch back and says why.
+   * Switching on also draws a trendline on to the right edge, the same way
+   * the server does, so the two never disagree about the line's shape.
+   */
+  const setAlert = React.useCallback(
+    (id: string, on: boolean, currentPrice: number | null) => {
+      if (!marketKey) return
+      const key = marketKey
+      const previous = drawings.find((candidate) => candidate.id === id)
+      if (!previous) return
+      const now = Date.now()
+      const linePrice = priceAtTime(previous.shape, now)
+      const guess =
+        on && linePrice !== null && currentPrice !== null
+          ? {
+              direction: priceAlertDirection(linePrice, currentPrice),
+              armedAt: now,
+              firedAt: null,
+            }
+          : null
+      const shape = guess ? extendedRight(previous.shape) : previous.shape
+      revise(key, (current) =>
+        current.map((candidate) =>
+          candidate.id === id ? { ...candidate, shape, alert: guess } : candidate
+        )
+      )
+      setDrawingAlert(id, on, currentPrice)
+        .then((saved) => {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id
+                ? { ...candidate, shape: saved.shape, alert: saved.alert }
+                : candidate
+            )
+          )
+          onAlertChange?.()
+        })
+        .catch((error: unknown) => {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id ? previous : candidate
+            )
+          )
+          showErrorToast(getDrawingAlertErrorMessage(error))
+        })
+    },
+    [drawings, marketKey, revise, onAlertChange]
+  )
+
+  /**
+   * Read this market's lines again. The popover asks for this as it opens,
+   * because an alert fires in the engine and the chart only hears about it by
+   * asking; without this the switch could read on for a line that already
+   * rang the bell.
+   */
+  const refresh = React.useCallback(() => {
+    setAttempt((count) => count + 1)
+  }, [])
 
   /** Throw one away at once, restoring it only if the delete fails. */
   const remove = React.useCallback(
@@ -282,6 +363,8 @@ export function useChartDrawings(
     create,
     move,
     remove,
+    setAlert,
+    refresh,
     clearAll,
   }
 }

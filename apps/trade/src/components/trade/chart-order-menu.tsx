@@ -297,7 +297,9 @@ function FoldRow({
           className={cn("size-4 transition-transform", open && "rotate-90")}
         />
       </button>
-      {open ? <div className="bg-muted/30 pl-2">{children}</div> : null}
+      {open ? (
+        <div className="bg-muted/30 [&>button]:pl-4">{children}</div>
+      ) : null}
     </div>
   )
 }

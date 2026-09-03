@@ -47,7 +47,15 @@ vi.mock("@/components/trade/activity-panel", () => ({
   ActivityPanel: () => null,
 }))
 vi.mock("@/components/trade/smart-orders-panel", () => ({
-  SmartOrdersPanel: () => null,
+  SmartOrdersPanel: () => <div data-testid="smart-orders-panel" />,
+}))
+vi.mock("@/components/trade/smart-orders-menu", () => ({
+  SmartOrdersMenu: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="smart-orders-menu">
+      <button type="button" aria-label="Open smart orders and bots" />
+      {children}
+    </div>
+  ),
 }))
 vi.mock("@/components/trade/use-trading", () => ({
   useTrading: () => ({
@@ -82,17 +90,34 @@ vi.mock("@/components/trade/wallet-dialogs", () => ({
 vi.mock("@/components/trade/chart-options-menu", () => ({
   ChartOptionsMenu: () => null,
 }))
+vi.mock("@/components/trade/chart-tools-menu", () => ({
+  ChartToolsMenu: ({
+    layouts,
+  }: {
+    layouts?: { onCreate: (name: string) => void }
+  }) =>
+    layouts ? (
+      <button
+        type="button"
+        aria-label="Save test layout"
+        onClick={() => layouts.onCreate("Eye layout")}
+      />
+    ) : null,
+}))
 vi.mock("@/components/trade/chart-panel", () => ({
   ChartPanel: ({
     onChartToolbarPositionChange,
+    cornerControl,
   }: {
     onChartToolbarPositionChange?: (position: { x: number; y: number }) => void
+    cornerControl?: React.ReactNode
   }) => {
     React.useEffect(() => {
       chartMounts.count += 1
     }, [])
     return (
       <div data-testid="chart">
+        {cornerControl}
         <button
           type="button"
           aria-label="Move test toolbar"
@@ -121,8 +146,17 @@ vi.mock("@/components/trade/use-chart-options", () => ({
   }),
 }))
 vi.mock("@/components/trade/market-header", () => ({
-  MarketHeader: ({ toolbar }: { toolbar: React.ReactNode }) => (
-    <div data-testid="market-header">{toolbar}</div>
+  MarketHeader: ({
+    toolbar,
+    marketAction,
+  }: {
+    toolbar: React.ReactNode
+    marketAction?: React.ReactNode
+  }) => (
+    <div data-testid="market-header">
+      {marketAction}
+      {toolbar}
+    </div>
   ),
 }))
 vi.mock("@/components/trade/card-folds", () => ({
@@ -133,6 +167,12 @@ vi.mock("@/components/trade/use-indicators", () => ({
 }))
 vi.mock("@/components/trade/market-folders-panel", () => ({
   MarketFoldersPanel: () => null,
+}))
+vi.mock("@/components/trade/market-folders-menu", () => ({
+  MarketFoldersMenu: () => <button type="button" aria-label="Open folders" />,
+}))
+vi.mock("@/components/trade/price-alerts-menu", () => ({
+  PriceAlertsMenu: () => <button type="button" aria-label="Open alerts" />,
 }))
 vi.mock("@/components/trade/panel-layouts-menu", () => ({
   PanelLayoutsMenu: ({ onCreate }: { onCreate: (name: string) => void }) => (
@@ -165,12 +205,19 @@ vi.mock("@/components/ui/resizable", () => ({
     id,
     className,
     children,
+    onResize,
   }: {
     id: string
     className?: string
     children: React.ReactNode
+    onResize?: (size: { asPercentage: number }) => void
   }) => (
     <div data-panel={id} className={className}>
+      <button
+        type="button"
+        aria-label={`Collapse ${id} panel`}
+        onClick={() => onResize?.({ asPercentage: 0 })}
+      />
       {children}
     </div>
   ),
@@ -233,11 +280,9 @@ function MockPanelGroup(props: {
   const groupName = props["data-panel-group"] ?? orientation
   const opening = React.useMemo<Record<string, number>>(
     (): Record<string, number> =>
-      groupName === "market-column"
-        ? { folders: 68, alerts: 32 }
-        : orientation === "horizontal"
-          ? { markets: 20, chart: 58, "smart-orders": 22 }
-          : { workspace: 72, activity: 28 },
+      orientation === "horizontal"
+        ? { markets: 20, chart: 58, "smart-orders": 22 }
+        : { workspace: 72, activity: 28 },
     [groupName, orientation]
   )
   const [layout, setLayout] = React.useState<Record<string, number>>(opening)
@@ -276,9 +321,7 @@ function MockPanelGroup(props: {
         aria-label={`Resize ${groupName} group`}
         onClick={() => {
           let next: Record<string, number>
-          if (groupName === "market-column") {
-            next = { folders: 55, alerts: 45 }
-          } else if (orientation === "horizontal") {
+          if (orientation === "horizontal") {
             next = { markets: 25, chart: 50, "smart-orders": 25 }
           } else {
             next = { workspace: 60, activity: 40 }
@@ -367,10 +410,6 @@ describe("the trade workspace chart full screen", () => {
                   chart: 58,
                   "smart-orders": 22,
                 },
-                "trade-workspace-market-column": {
-                  folders: 68,
-                  alerts: 32,
-                },
                 "trade-workspace-vertical": { workspace: 72, activity: 28 },
               },
               openMarketRows: {},
@@ -402,7 +441,45 @@ describe("the trade workspace chart full screen", () => {
       "smart-orders": 22,
     })
     expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
-    expect(layoutOf("market-column")).toEqual({ folders: 68, alerts: 32 })
+    expect(
+      host.querySelector(
+        '[data-testid="market-header"] button[aria-label="Open alerts"]'
+      )
+    ).not.toBeNull()
+    const marketActions = Array.from(
+      host.querySelectorAll<HTMLButtonElement>(
+        '[data-testid="market-header"] button[aria-label="Open folders"], [data-testid="market-header"] button[aria-label="Open alerts"]'
+      )
+    )
+    expect(marketActions.map((button) => button.ariaLabel)).toEqual([
+      "Open folders",
+      "Open alerts",
+    ])
+    expect(host.querySelector('[data-testid="smart-orders-menu"]')).toBeNull()
+
+    await act(async () => clickButton("Collapse smart-orders panel"))
+    expect(
+      host.querySelector(
+        '[data-testid="market-header"] button[aria-label="Open smart orders and bots"]'
+      )
+    ).not.toBeNull()
+    expect(
+      host.querySelector(
+        '[data-testid="smart-orders-menu"] [data-testid="smart-orders-panel"]'
+      )
+    ).not.toBeNull()
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          '[data-testid="market-header"] button'
+        )
+      ).at(-1)?.ariaLabel
+    ).toBe("Open smart orders and bots")
+    expect(
+      host.querySelector(
+        '[data-testid="market-header"] button[aria-label="Show chart full screen"]'
+      )
+    ).toBeNull()
 
     await act(async () => clickButton("Show chart full screen"))
     expect(
@@ -463,7 +540,6 @@ describe("the trade workspace chart full screen", () => {
     expect(createNamedLayout).toHaveBeenCalledWith(
       "Eye layout",
       { markets: 20, chart: 58, "smart-orders": 22 },
-      { folders: 68, alerts: 32 },
       { workspace: 72, activity: 28 },
       { protocol: "hyperliquid", network: "mainnet" },
       "watched",
@@ -479,16 +555,10 @@ describe("the trade workspace chart full screen", () => {
       workspace: 60,
       activity: 40,
     })
-
-    await act(async () => clickButton("Resize market-column group"))
-    expect(rememberedLayouts).toHaveBeenCalledWith(
-      "trade-workspace-market-column",
-      { folders: 55, alerts: 45 }
-    )
   })
 })
 
-function layoutOf(group: "horizontal" | "vertical" | "market-column") {
+function layoutOf(group: "horizontal" | "vertical") {
   const value = host
     .querySelector(`[data-panel-group="${group}"]`)
     ?.getAttribute("data-layout")

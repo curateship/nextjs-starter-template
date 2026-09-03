@@ -267,6 +267,26 @@ describe("the Smart orders panel", () => {
     expect(smartTab?.querySelector('[data-slot="scroll-area"]')).not.toBeNull()
   })
 
+  it("sizes its dropdown mode to the current rows instead of a fixed height", () => {
+    const host = document.createElement("div")
+    host.innerHTML = renderToStaticMarkup(
+      <SmartOrdersPanel
+        {...shared}
+        compact
+        smartOrders={[]}
+        settled
+        failed={false}
+      />
+    )
+
+    const tabs = host.querySelector<HTMLElement>('[data-slot="tabs"]')!
+    expect(tabs.className).toContain(
+      "max-h-[var(--radix-popover-content-available-height)]"
+    )
+    expect(tabs.className.split(/\s+/)).not.toContain("h-full")
+    expect(tabs.className.split(/\s+/)).not.toContain("flex-1")
+  })
+
   it("says nothing is working only once both halves have answered", () => {
     const answered = draw({ smartOrders: [], settled: true, failed: false })
     expect(answered).toContain(EMPTY)

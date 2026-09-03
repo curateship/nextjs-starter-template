@@ -754,7 +754,7 @@ const reshapeGridSchema = z.object({
   leverage: z.number().int().min(1).max(50).optional(),
   /** Switch the hand-set split on or off. Left out, the grid keeps what it had. */
   manualSizing: z.boolean().optional(),
-  /** The typed shares in the card's row order, top of the range first. */
+  /** The typed weights in the card's row order, top of the range first. */
   manualRungPcts: z
     .array(z.number().positive().max(100))
     .min(MIN_GRID_LEVELS)

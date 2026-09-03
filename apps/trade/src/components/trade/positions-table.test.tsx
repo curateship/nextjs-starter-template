@@ -14,8 +14,9 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveTrade, UnmatchedTradeHistory } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -139,6 +140,43 @@ function liveTrade(network: "mainnet" | "testnet"): LiveTrade {
   }
 }
 
+function incompleteHistory(
+  symbol: string,
+  open: boolean,
+  fillCount = 1
+): UnmatchedTradeHistory {
+  const marketKey = `hyperliquid:mainnet:${symbol}`
+  const fill = {
+    fillId: `${symbol}-fill`,
+    orderId: `${symbol}-order`,
+    walletId: "live-wallet",
+    marketKey,
+    side: "buy" as const,
+    px: 100,
+    sz: 1,
+    at: 1_000,
+    closedPnl: 0,
+    fee: 0.05,
+    dir: "Buy",
+    liquidation: false,
+    live: true,
+  }
+  return {
+    id: `unpaired:live-wallet:${marketKey}:${fill.fillId}`,
+    walletId: "live-wallet",
+    marketKey,
+    live: true,
+    fills: Array.from({ length: fillCount }, (_, index) => ({
+      ...fill,
+      fillId: `${fill.fillId}-${index}`,
+    })),
+    open,
+    position: open ? { szi: -1, entryPx: 100 } : null,
+    firstAt: fill.at,
+    lastAt: fill.at,
+  }
+}
+
 /**
  * The provider the app's root already wraps every screen in. Needed here
  * because the Fees column carries an info mark saying whose figure it is.
@@ -193,6 +231,44 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("keeps incomplete and open history visible in the Journal", () => {
+    const stale = incompleteHistory("BTC", false, 26)
+    const open = incompleteHistory("ETH", true)
+    const html = draw(
+      <TradesTable
+        {...shared}
+        trades={[]}
+        unmatchedHistory={[stale, open]}
+        settled={true}
+        failed={false}
+        selectedId={null}
+        onSelectTrade={() => {}}
+        onRemove={() => {}}
+        ticked={new Set<string>()}
+        onTickTrade={() => {}}
+        onTickVisible={() => {}}
+        tickAllState={() => false}
+      />
+    )
+
+    expect(html).toContain("History incomplete")
+    expect(html).toContain("Open, history incomplete")
+    expect(html).toContain("26 saved fills")
+    expect(html).toContain("1 saved fill")
+    expect(html).toContain("Unknown")
+    expect(html).toContain("First saved")
+    expect(html).toContain('aria-label="About incomplete trade history"')
+    expect(html).toContain(
+      'aria-label="Remove the incomplete BTC history from the Journal"'
+    )
+    expect(html).not.toContain(
+      'aria-label="Remove the incomplete ETH history from the Journal"'
+    )
+    expect(html).toContain(
+      'aria-label="ETH is still open and cannot be removed"'
+    )
+  })
+
   it("keeps the Real chip off every mainnet row", () => {
     const mainnetPosition: TradePosition = {
       ...position("BTC", 1),
@@ -453,7 +529,7 @@ describe("the bottom panel's tables say what they know", () => {
     expect(rowTick).not.toBeNull()
     await act(async () => rowTick?.click())
     const headerTick = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Select every finished trade"]'
+      '[aria-label="Select every removable Journal row"]'
     )
     expect(headerTick).not.toBeNull()
     await act(async () => headerTick?.click())
@@ -576,6 +652,115 @@ describe("the bottom panel's tables say what they know", () => {
     expect(html).not.toContain("No stop")
   })
 
+  it("says what a position loses, or banks, if its stop fires now", () => {
+    const btc = market("BTC", 100)
+    const drawWithStop = (slPx: number | null) =>
+      draw(
+        <PositionsTable
+          {...positionsShared}
+          markets={new Map([[btc.key, btc]])}
+          positions={[{ ...position("BTC", 2), slPx }]}
+          settled={true}
+          failed={false}
+          onAdd={() => {}}
+          onEdit={() => {}}
+          onFlip={() => {}}
+          onClose={() => {}}
+          onClosePart={() => {}}
+          onMargin={null}
+        />
+      )
+
+    // Two coins at $100, stop at $90: $10 a coin, $20 in all.
+    expect(drawWithStop(90)).toContain(">-$20.00<")
+    // The stop has moved above the price, so firing it banks a gain.
+    expect(drawWithStop(105)).toContain(">+$10.00<")
+    // No stop, so no figure — a dash, never a made-up zero.
+    const cells = drawWithStop(null).split("<td ")
+    expect(cells[6]).toContain("—")
+  })
+
+  it("reads the If stopped figure from a running grid's stop", () => {
+    const btc = market("BTC", 100)
+    const held = position("BTC", 2)
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        markets={new Map([[btc.key, btc]])}
+        positions={[held]}
+        smartOrders={[
+          {
+            id: "grid-1",
+            kind: "grid",
+            status: "active",
+            walletId: held.walletId,
+            marketKey: held.marketKey,
+            plan: {
+              direction: "long",
+              topPx: 120,
+              bottomPx: 80,
+              stopLoss: { mode: "fixed", underPct: 5, px: 75, base: null },
+              baseWatch: null,
+            },
+          } as unknown as SmartOrder,
+        ]}
+        settled={true}
+        failed={false}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+
+    expect(html).toContain(">-$50.00<")
+    expect(html).not.toContain("No stop")
+  })
+
+  it("sorts If stopped with the biggest loss first and no stop last", async () => {
+    const markets = [market("BTC", 100), market("ETH", 100), market("SOL", 100)]
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <PositionsTable
+            {...positionsShared}
+            markets={new Map(markets.map((one) => [one.key, one]))}
+            positions={[
+              { ...position("SOL", 1), slPx: null },
+              { ...position("ETH", 1), slPx: 95 },
+              { ...position("BTC", 1), slPx: 80 },
+            ]}
+            settled={true}
+            failed={false}
+            onAdd={() => {}}
+            onEdit={() => {}}
+            onFlip={() => {}}
+            onClose={() => {}}
+            onClosePart={() => {}}
+            onMargin={null}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const heading = Array.from(host.querySelectorAll("th button")).find(
+      (one) => one.textContent?.trim() === "If stopped"
+    ) as HTMLButtonElement | undefined
+    expect(heading).toBeDefined()
+    await act(async () => heading?.click())
+
+    const order = Array.from(host.querySelectorAll("td button"))
+      .map((one) => one.textContent)
+      .filter((text) => text === "BTC" || text === "ETH" || text === "SOL")
+    expect(order).toEqual(["BTC", "ETH", "SOL"])
+    await act(async () => root.unmount())
+  })
+
   it("does not mark a position until both halves of the first read have landed", () => {
     const html = draw(
       <PositionsTable
@@ -599,7 +784,7 @@ describe("the bottom panel's tables say what they know", () => {
     for (const [draw, words] of [
       [drawPositions, "No open positions"],
       [drawOrders, "No open orders"],
-      [drawTrades, "No finished trades yet"],
+      [drawTrades, "No trade history yet"],
     ] as const) {
       const html = draw({ settled: true, failed: false })
       expect(html).toContain(words)
@@ -650,7 +835,7 @@ describe("the bottom panel's tables say what they know", () => {
     for (const [draw, label] of [
       [drawPositions, "Reading what you are holding"],
       [drawOrders, "Reading your open orders"],
-      [drawTrades, "Reading your finished trades"],
+      [drawTrades, "Reading your trade history"],
     ] as const) {
       const html = draw({ settled: false, failed: false })
       expect(html).toContain(label)

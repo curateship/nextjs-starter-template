@@ -229,7 +229,6 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   tool,
   entryBadge,
   feesPaidFor,
-  obstacles,
   onMoveOrder,
   onMoveAlert,
   onMoveOrderStop,
@@ -263,14 +262,6 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   entryBadge?: (position: TradePosition) => EntryBadge | null
   /** Fees already charged to this position, or null when the fills cannot say. */
   feesPaidFor?: (position: TradePosition) => number | null
-  /**
-   * Right-edge furniture other layers have already put down — a grid level's
-   * money chip, a range line's name — so this layer's pills slide LEFT of
-   * them instead of painting over them or being painted over. Two things in
-   * one spot cannot be fixed by stacking; only by one of them moving, and
-   * the pills are the ones that already know how.
-   */
-  obstacles?: readonly { top: number; bottom: number; width: number }[]
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
   /** Dragging an alert hands its new price back to the chart owner. */
   onMoveAlert?: (id: string, price: number) => void
@@ -417,12 +408,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         id: `liq:${position.id}`,
         kind: "liquidation",
         price: liq,
-        label: () => `Liquidation ${liquidationText}${tag}`,
+        // In caps, like the grid's own bars beside it — Tyler, 3 Sep 2026.
+        label: () => `LIQUIDATION ${liquidationText}${tag}`,
         money:
           liquidationResult === null
             ? undefined
             : {
-                before: "Liquidation ",
+                before: "LIQUIDATION ",
                 text: liquidationText,
                 after: tag,
                 value: liquidationResult,
@@ -699,15 +691,6 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   // that lands on a pill already there moves LEFT of it. Never up or down: a
   // pill off its own line points at a price that is not its own.
   const pills: Array<{ top: number; bottom: number; x: number }> = []
-  // Other layers' chips go down first, as immovable neighbours: every pill
-  // laid below slides left of anything here it would touch.
-  for (const one of obstacles ?? []) {
-    pills.push({
-      top: one.top,
-      bottom: one.bottom,
-      x: surface.width - one.width,
-    })
-  }
   const badges: Array<{ top: number; bottom: number; text: string }> = []
   const drawn = lines.flatMap((line) => {
     const price = grab?.id === line.id ? grab.price : line.price

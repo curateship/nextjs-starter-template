@@ -111,6 +111,8 @@ export function MarketFoldersPanel({
   onExpandedIdChange,
   onSelectMarket,
   onRetryMarkets,
+  manageOpen,
+  onManageOpenChange,
 }: {
   folders: readonly MarketFolder[]
   /** Where Watched and All markets sit, and whether either is switched off. */
@@ -145,10 +147,15 @@ export function MarketFoldersPanel({
   onExpandedIdChange: (id: string | null) => void
   onSelectMarket: (marketKey: string) => void
   onRetryMarkets: () => void
+  /** Lets the header shortcut open this panel's existing management dialog. */
+  manageOpen?: boolean
+  onManageOpenChange?: (open: boolean) => void
 }) {
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState("")
-  const [managing, setManaging] = React.useState(false)
+  const [localManageOpen, setLocalManageOpen] = React.useState(false)
+  const managing = manageOpen ?? localManageOpen
+  const setManaging = onManageOpenChange ?? setLocalManageOpen
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState<MarketFolder | null>(null)
   const [busy, setBusy] = React.useState(false)

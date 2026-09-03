@@ -33,13 +33,13 @@ rungs splits that distance. With the same-dollars choice, a coin at $100, a 10%
 range and six rungs puts a buying grid at $100, $98, $96, $94, $92 and $90.
 Spacing changes whether those gaps use the same dollars or the same percent.
 
-Custom rungs divide the money set by Share of wallet, and their shares must add
-up to 100. Read from the top of the chart down, a three-rung buying grid is 1,
-2, 3 and puts the largest amount on rung 3 at the bottom. A selling grid is 3,
-2, 1 and puts the largest amount on rung 3 at the top. The EMA turn moves the
-shares with those rung numbers instead of flattening or reversing their sizes.
-The percentages in the Rungs card divide money. They do not move the rung
-prices.
+Custom rungs are relative weights that divide all of the money set by Share of
+wallet. The weights can add to any positive number. Read from the top of the
+chart down, a three-rung buying grid is 1, 2, 3 and puts the largest amount on
+rung 3 at the bottom. A selling grid is 3, 2, 1 and puts the largest amount on
+rung 3 at the top. The EMA turn moves the weights with those rung numbers
+instead of flattening or reversing their sizes. The weights divide money. They
+do not move the rung prices.
 
 Follow price up and Follow price down use the ordinary grid engine. Either
 switch can be on by itself, both can be on, or both can be off. Following toward

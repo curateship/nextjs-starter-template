@@ -30,7 +30,7 @@ import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
-import type { DrawingShape } from "@/lib/trade/drawings"
+import type { DrawingAlert, DrawingShape } from "@/lib/trade/drawings"
 import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
@@ -584,6 +584,8 @@ export const tradeChartDrawings = pgTable(
     id: varchar("id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
     shape: jsonb("shape").$type<DrawingShape>().notNull(),
+    /** The alert the line carries, or null. See `DrawingAlert`. */
+    alert: jsonb("alert").$type<DrawingAlert>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -594,6 +596,9 @@ export const tradeChartDrawings = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.id] }),
     index("trade_chart_drawings_market_idx").on(table.userId, table.marketKey),
+    index("trade_chart_drawings_alert_idx")
+      .on(table.marketKey)
+      .where(sql`${table.alert} IS NOT NULL`),
   ]
 )
 

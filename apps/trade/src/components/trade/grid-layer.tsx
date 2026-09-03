@@ -25,11 +25,13 @@ import {
   gridLevels,
   gridRangeAfterMove,
   gridRangeEndMovable,
+  gridRangeFromNearRung,
   gridRangeReshapable,
   gridStopBeyond,
   gridStopPx,
   gridTakeProfitPx,
   lossEdge,
+  winEdge,
   GRID_DIRECTION_LABELS,
   type GridDirection,
   type GridRangeMove,
@@ -49,6 +51,13 @@ import { cn } from "@/lib/utils"
  *
  * A flat grid can move freely. With one level open, the outer lines compress
  * or expand the waiting prices around that fixed entry.
+ *
+ * The two named range lines, UPPER PRICE and LOWER PRICE, sit on the first and
+ * last rung's own prices — Tyler's rule, 3 Sep 2026 — so the line that says
+ * RUNG 1 is where rung 1 trades. The range's winning edge, one step past rung
+ * 1 where it closes, is drawn as a plain line with no name. Everything a grid
+ * draws is green when it buys the dips and red when it shorts the rallies, and
+ * the End Grid line is orange so it cannot be read as a level.
  */
 
 export const GridLayer = React.memo(function GridLayer({
@@ -132,13 +141,21 @@ export const GridLayer = React.memo(function GridLayer({
     offset: number
   } | null>(null)
 
+  // The preview's range, edge to edge. The named UPPER and LOWER lines sit on
+  // rungs, and one of them is a step inside the range, so the range's own
+  // edges are the outermost of the named lines and the unnamed winning edge.
   const previewEdges = (() => {
     if (!preview) return null
-    const upper = preview.lines.find((line) => line.kind === "upper")?.px
-    const lower = preview.lines.find((line) => line.kind === "lower")?.px
-    return upper !== undefined && lower !== undefined && upper > lower
-      ? { topPx: upper, bottomPx: lower }
-      : null
+    const edges = preview.lines
+      .filter(
+        (line) =>
+          line.kind === "upper" || line.kind === "lower" || line.kind === "edge"
+      )
+      .map((line) => line.px)
+    if (edges.length < 2) return null
+    const topPx = Math.max(...edges)
+    const bottomPx = Math.min(...edges)
+    return topPx > bottomPx ? { topPx, bottomPx } : null
   })()
   const previewOffset = previewMove?.offset ?? 0
 
@@ -147,7 +164,10 @@ export const GridLayer = React.memo(function GridLayer({
     if (!preview || preview.lines.length === 0) return null
     const inRange = preview.lines.filter(
       (one) =>
-        one.kind === "upper" || one.kind === "lower" || one.kind === "level"
+        one.kind === "upper" ||
+        one.kind === "lower" ||
+        one.kind === "edge" ||
+        one.kind === "level"
     )
     if (inRange.length === 0) return null
     const top = yPinned(
@@ -271,6 +291,80 @@ export const GridLayer = React.memo(function GridLayer({
     })
   }
 
+  /**
+   * Every preview line worked out before drawing, so a way out that lands on
+   * the same price as UPPER PRICE or LOWER PRICE can lend that row its bar
+   * instead of sitting on top of it — the same rule the placed grid keeps.
+   */
+  const previewDrawn = (() => {
+    if (!preview) return null
+    const drawn = preview.lines.map((line, index) => {
+      // The line being dragged follows the pointer; the rest hold still.
+      const shownPx = previewMove
+        ? line.px + previewMove.offset
+        : previewDrag !== null && previewDrag.index === index
+          ? previewDrag.px
+          : line.px
+      const y = yFor(shownPx)
+      if (y === null) return null
+      const look = lineLook(line.kind, colors, preview.direction)
+      const draggable =
+        line.grip === true &&
+        line.kind !== "level" &&
+        line.kind !== "edge" &&
+        line.kind !== "liquidation" &&
+        preview.onMoveLine !== undefined &&
+        tool === null
+      return {
+        line,
+        index,
+        y,
+        look,
+        draggable,
+        name: line.label ?? look.name,
+        onGripDown: draggable
+          ? startPreviewDrag(index, line.kind as GridPreviewDragKind, line.px)
+          : undefined,
+        title: draggable
+          ? "Drag to move this line. Dropping it rewrites the window's own fields, so the grid you see is the grid you place."
+          : undefined,
+        /** The rung row this way out's bar is drawn on, or null for its own. */
+        chipOn: null as number | null,
+      }
+    })
+    const rows = drawn.filter(
+      (one) =>
+        one !== null && (one.line.kind === "upper" || one.line.kind === "lower")
+    )
+    for (const one of drawn) {
+      if (
+        one === null ||
+        (one.line.kind !== "stopLoss" && one.line.kind !== "takeProfit")
+      ) {
+        continue
+      }
+      const row = rows.find((r) => r !== null && sharesRow(r.y, one.y))
+      if (row) one.chipOn = row.index
+    }
+    return drawn
+  })()
+  // The grip sits midway between the UPPER PRICE and LOWER PRICE lines.
+  const previewKnobY = (() => {
+    const upper = previewDrawn?.find((one) => one?.line.kind === "upper")
+    const lower = previewDrawn?.find((one) => one?.line.kind === "lower")
+    return upper && lower ? (upper.y + lower.y) / 2 : null
+  })()
+  const previewUsdSlot = previewDrawn
+    ? Math.max(
+        0,
+        ...previewDrawn.map((one) =>
+          one === null || one.line.usd === undefined
+            ? 0
+            : usdChipWidth(one.line.usd)
+        )
+      )
+    : 0
+
   return (
     <div
       ref={layerRef}
@@ -285,63 +379,79 @@ export const GridLayer = React.memo(function GridLayer({
           style={{
             top: previewBand.top,
             height: previewBand.height,
-            backgroundColor: colors.primary,
+            backgroundColor:
+              preview?.direction === "short" ? colors.down : colors.up,
             opacity: 0.05,
           }}
         />
       ) : null}
       {previewBand && previewEdges && preview?.onMoveGrid && tool === null ? (
-        <GridMoveKnob
-          top={previewBand.top + previewBand.height / 2}
-          onPointerDown={startPreviewGridDrag}
-          onKeyDown={movePreviewGridFromKey}
-          title="Drag to move the whole grid without changing the range's width."
-        />
+        <BarRow
+          top={previewKnobY ?? previewBand.top + previewBand.height / 2}
+          pointerEvents="auto"
+          usdSlot={previewUsdSlot}
+          rungSlot
+        >
+          {/* Dressed exactly like a name bar — same width, border, caps —
+              in the neutral colour, so it reads as one of the grid's bars.
+              Tyler, 3 Sep 2026. */}
+          <span
+            className={cn(
+              BAR_WIDTH,
+              "flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-xs font-semibold select-none"
+            )}
+            // Black, on Tyler's call, 3 Sep 2026: the one bar that is not a
+            // price, so it takes no price colour.
+            style={{ borderColor: colors.foreground, color: colors.foreground }}
+          >
+            <GridMoveKnob
+              tone="plain"
+              onPointerDown={startPreviewGridDrag}
+              onKeyDown={movePreviewGridFromKey}
+              title="Drag to move the whole grid without changing the range's width."
+            />
+            <span className="min-w-0 truncate">DRAG GRID</span>
+          </span>
+        </BarRow>
       ) : null}
-      {preview?.lines.map((line, index) => {
-        // The line being dragged follows the pointer; the rest hold still.
-        const shownPx = previewMove
-          ? line.px + previewMove.offset
-          : previewDrag !== null && previewDrag.index === index
-            ? previewDrag.px
-            : line.px
-        const y = yFor(shownPx)
-        if (y === null) return null
-        const look = lineLook(
-          line.kind,
-          colors,
-          preview.direction,
-          preview.levelCount
-        )
-        const draggable =
-          line.grip === true &&
-          line.kind !== "level" &&
-          line.kind !== "liquidation" &&
-          preview.onMoveLine !== undefined &&
-          tool === null
+      {previewDrawn?.map((one) => {
+        // The range's winning edge is not drawn: a line past rung 1 with no
+        // name confused more than it explained (Tyler, 3 Sep 2026). The band
+        // still reaches it, and the drag maths still uses it.
+        if (one === null || one.line.kind === "edge") return null
+        const { line, index, y, look, draggable } = one
         return (
           <ChartLine
             key={`grid-preview-${index}`}
             y={y}
+            usdSlot={previewUsdSlot}
             usd={line.usd}
             colour={look.colour}
-            name={line.label ?? look.name}
+            name={one.chipOn === null ? one.name : null}
+            rung={line.rung}
+            rungSlot
             dashed={look.dashed}
             faded
             grip={draggable}
-            onGripDown={
-              draggable
-                ? startPreviewDrag(
-                    index,
-                    line.kind as GridPreviewDragKind,
-                    line.px
-                  )
-                : undefined
-            }
-            title={
-              draggable
-                ? "Drag to move this line. Dropping it rewrites the window's own fields, so the grid you see is the grid you place."
-                : undefined
+            onGripDown={one.onGripDown}
+            title={one.title}
+            action={
+              <>
+                {previewDrawn
+                  .filter((other) => other !== null && other.chipOn === index)
+                  .map((other) =>
+                    other === null ? null : (
+                      <NameChip
+                        key={`grid-preview-chip-${other.index}`}
+                        colour={other.look.colour}
+                        name={other.name ?? ""}
+                        grip={other.draggable}
+                        onGripDown={other.onGripDown}
+                        title={other.title}
+                      />
+                    )
+                  )}
+              </>
             }
           />
         )
@@ -415,30 +525,24 @@ function priceKey(px: number): string {
 }
 
 /**
- * What one end of the range says on hover.
- *
- * One of the two ends carries the deepest level's own price and the other is
- * only where that level's way out sits. Which is which depends on the
- * direction, so the sentence has to as well.
+ * What one named range line says on hover: what the rung there does, then
+ * whether the line can be dragged and what dragging it does.
  */
-function edgeTitle(
+function rangeLineTitle(
   direction: GridDirection,
-  end: "top" | "bottom",
-  level: AtPrice | null,
+  at: AtPrice | null,
   movable: boolean
 ): string {
-  const where = end === "top" ? "top" : "bottom"
-  if (level === null) {
-    return movable
-      ? `Drag to move the ${where} of the range. If one entry is open, its price stays fixed while the other prices spread out or pull in.`
-      : `The ${where} of the range. It is fixed because more than one entry is open, or an older range still holds coin.`
-  }
-  if (level.holding !== null) {
-    return `The ${where} of the range is an open entry, so it stays fixed. Drag the other edge instead.`
+  const what =
+    at === null
+      ? `The deepest ${entryWord(direction)} of the range.`
+      : levelTitle(direction, at, at.holding !== null)
+  if (at?.holding !== null && at?.holding !== undefined) {
+    return `${what} An open entry stays fixed, so drag the other end instead.`
   }
   return movable
-    ? `The ${where} of the range, and its deepest ${entryWord(direction)}. Drag to move it.`
-    : `The ${where} of the range, and its deepest ${entryWord(direction)}. It is fixed because more than one entry is open, or an older range still holds coin.`
+    ? `${what} Drag to move this end of the range. If one entry is open, its price stays fixed while the other prices spread out or pull in.`
+    : `${what} This end is fixed because more than one entry is open, or an older range still holds coin.`
 }
 
 /** What one level line says on hover, in the words of the grid it belongs to. */
@@ -529,13 +633,15 @@ function gridResultAt(plan: SmartGrid["plan"], exitPx: number): number {
   return result
 }
 
+// The stop's bar reads "SL", not "STOP LOSS" — Tyler, 3 Sep 2026 — so the
+// money after it fits the fixed-width bar.
 function gridStopName(
   plan: SmartGrid["plan"],
   stopPx: number,
   feesPaid: number | null
 ): string {
-  if (feesPaid === null) return "STOP LOSS —"
-  return `STOP LOSS ${formatSignedUsd(gridResultAt(plan, stopPx) - feesPaid)}`
+  if (feesPaid === null) return "SL —"
+  return `SL ${formatSignedUsd(gridResultAt(plan, stopPx) - feesPaid)}`
 }
 
 /** Which grid control a drag is moving. */
@@ -543,45 +649,80 @@ type DragEnd = "top" | "bottom" | "whole" | "takeProfit" | "stopLoss"
 
 /** The same handle before and after placement, so saving does not flash. */
 function GridMoveKnob({
-  top,
   disabled = false,
-  pointerEvents = "auto",
   onPointerDown,
   onKeyDown,
   title,
+  tone,
 }: {
-  top: number
   disabled?: boolean
-  pointerEvents?: "auto" | "none"
   onPointerDown?: (event: React.PointerEvent) => void
   onKeyDown?: (event: React.KeyboardEvent) => void
   title: string
+  /** On the grid's coloured badge, or on the preview's plain bar. */
+  tone: "badge" | "plain"
 }) {
   return (
+    // The grip lives INSIDE the grid's options bar, first thing on it —
+    // Tyler, 3 Sep 2026 — styled like the bar's other icon buttons.
     <button
       type="button"
       aria-label="Move the whole grid"
       aria-disabled={disabled}
       className={cn(
-        "absolute z-10 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground shadow-sm ring-2 ring-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        disabled ? "cursor-not-allowed opacity-70" : "cursor-ns-resize"
+        "rounded p-0.5 focus-visible:outline-none",
+        tone === "badge"
+          ? "hover:bg-current/20 focus-visible:bg-current/20"
+          : "hover:bg-accent focus-visible:bg-accent",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-ns-resize"
       )}
-      style={{
-        // Tyler marked the grip beside the grid's right-hand prices. Keep the
-        // same gap as the chart grows instead of measuring from the left.
-        left: "calc(100% - 64px)",
-        top,
-        pointerEvents,
-        touchAction: "none",
-      }}
+      style={{ touchAction: "none" }}
       onPointerDown={disabled ? undefined : onPointerDown}
       onKeyDown={disabled ? undefined : onKeyDown}
       title={title}
     >
-      <GripVerticalIcon className="size-4" />
+      <GripVerticalIcon className="size-3" />
     </button>
   )
 }
+
+/**
+ * The right-hand cluster of a line: what ChartLine draws, laid out the same
+ * way for a row that has no line of its own. The bar sits where a name bar
+ * sits, then the × slot, then the money column, so it lines up with the rungs.
+ */
+function BarRow({
+  top,
+  pointerEvents,
+  usdSlot,
+  rungSlot = false,
+  children,
+}: {
+  top: number
+  pointerEvents: "auto" | "none"
+  usdSlot: number
+  /** Leave room for the preview's rung-number column. */
+  rungSlot?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className="absolute right-0 z-10 flex -translate-y-1/2 items-center gap-1"
+      style={{ top, pointerEvents }}
+    >
+      <span style={{ minWidth: usdSlot }} />
+      {rungSlot ? <span className="w-4" /> : null}
+      {children}
+    </div>
+  )
+}
+
+/**
+ * The fixed width of every bar on the grid, names and options alike: 112px,
+ * about a tenth wider than a position's Entry pill — Tyler, 3 Sep 2026. A
+ * name that does not fit is cut short with an ellipsis.
+ */
+const BAR_WIDTH = "w-28"
 
 function GridLines({
   grid,
@@ -680,7 +821,8 @@ function GridLines({
    * that on every pixel would be a hundred round trips per drag.
    */
   const startDrag =
-    (which: DragEnd, from: number) => (event: React.PointerEvent) => {
+    (which: DragEnd, from: number, toEdge?: (px: number) => number | null) =>
+    (event: React.PointerEvent) => {
       event.preventDefault()
       event.stopPropagation()
       // Measured once, here. The box cannot move mid-drag, and asking the
@@ -689,6 +831,15 @@ function GridLines({
       if (top === null) return
       const pointerFrom = priceFrom(event.clientY, top)
       if (pointerFrom === null) return
+      // The price under the pointer, as the price the dragged line means. The
+      // whole-grid grip moves by offset; a label sitting on a rung hands back
+      // the range EDGE that puts the rung under the hand, via `toEdge`.
+      const pxAt = (clientY: number): number | null => {
+        const pointedPx = priceFrom(clientY, top)
+        if (pointedPx === null) return null
+        if (which === "whole") return from + pointedPx - pointerFrom
+        return toEdge ? toEdge(pointedPx) : pointedPx
+      }
       // Pointer moves arrive faster than the screen repaints, so they are
       // coalesced onto one animation frame — the same rule the chart's own
       // surface uses. The line still lands on every frame; it just stops
@@ -700,11 +851,7 @@ function GridLines({
         if (frame) return
         frame = requestAnimationFrame(() => {
           frame = 0
-          const pointedPx = priceFrom(lastY, top)
-          const px =
-            which === "whole" && pointedPx !== null
-              ? from + pointedPx - pointerFrom
-              : pointedPx
+          const px = pxAt(lastY)
           if (px !== null && px > 0) setDragging({ end: which, px })
         })
       }
@@ -713,14 +860,13 @@ function GridLines({
         window.removeEventListener("pointerup", onUp)
         if (frame) cancelAnimationFrame(frame)
         const pointedPx = priceFrom(up.clientY, top)
-        const px =
-          which === "whole" && pointedPx !== null
-            ? from + pointedPx - pointerFrom
-            : pointedPx
+        const px = pxAt(up.clientY)
         setDragging(null)
         if (px === null || !(px > 0)) return
         // A drag that ends where it started is a click, not a move.
-        if (Math.abs(from - px) < 1e-9) return
+        if (pointedPx !== null && Math.abs(pointerFrom - pointedPx) < 1e-9) {
+          return
+        }
         const rangeMove =
           which === "top" || which === "bottom" || which === "whole"
         if (rangeMove && !gridRangeAfterMove(plan, { end: which, px })) return
@@ -799,18 +945,6 @@ function GridLines({
   const pinBottom = yPinned(shownBottom)
   const bandTop = pinTop?.y ?? null
   const bandBottom = pinBottom?.y ?? null
-  // An end scrolled out of view is pinned to the chart's edge, and dragging it
-  // from there still works — you pull it back into view. The one case that
-  // does not work is both ends pinned to the SAME edge, where the two labels
-  // land on the same pixel and there is no telling them apart.
-  //
-  // This used to hide the grips whenever either end was off screen, which on a
-  // tightly zoomed chart is most of the time — so the range could not be
-  // dragged at all, which is not what "off screen" should cost you.
-  const grippable =
-    pinTop !== null &&
-    pinBottom !== null &&
-    !(pinTop.off !== null && pinTop.off === pinBottom.off)
   // Is the range being moved right now — dragged, or dropped and waiting?
   const rangeMoved = shownTop !== plan.topPx || shownBottom !== plan.bottomPx
 
@@ -826,7 +960,7 @@ function GridLines({
     }
     const top = measureTop()
     if (top === null) return
-    const knobY = (bandTop + bandBottom) / 2
+    const knobY = badgeY ?? (bandTop + bandBottom) / 2
     const here = priceFrom(top + knobY, top)
     const moved = priceFrom(
       top + knobY + (event.key === "ArrowUp" ? -8 : 8),
@@ -882,19 +1016,99 @@ function GridLines({
     shownStop === null ? null : gridStopName(plan, shownStop, feesPaid)
   const prices = pricesOf(plan)
   /**
-   * The level sitting exactly on the losing end of the range, if any.
+   * The two rungs that carry the range's names.
    *
-   * There always is one: the deepest level's own price IS that end — the
-   * bottom on a buying grid, the top on a selling one — which is what makes
-   * the range mean what it says. So it is drawn ONCE, as that named line
-   * carrying the level's money and its ×, rather than as a range line and a
-   * level line stacked on the same pixel with two badges.
+   * Rung 1 is the level nearest the market — the highest buy on a buying grid,
+   * the lowest short on a selling one — and it sits one step INSIDE the
+   * range's winning edge, because that edge is where rung 1 closes. The
+   * deepest rung's own price IS the losing edge. The named lines sit on those
+   * two rungs, so a line that says RUNG 1 is where rung 1 trades. Each is
+   * drawn ONCE, as the named line carrying that level's money and its ×,
+   * rather than as a range line and a level line stacked on one pixel.
+   *
+   * Rung 1 is picked by PRICE, not by position in the list, so nothing here
+   * leans on how a saved plan happens to be ordered.
    */
+  const nearSaved = plan.levels.reduce((best, level) =>
+    direction === "long"
+      ? level.buyPx > best.buyPx
+        ? level
+        : best
+      : level.buyPx < best.buyPx
+        ? level
+        : best
+  )
+  // `gridLevels` hands the moving levels back lowest price first.
+  const nearIndex = direction === "long" ? levelCount - 1 : 0
+  const nearLevel =
+    prices.find((at) => priceKey(at.px) === priceKey(nearSaved.buyPx)) ?? null
   const deepPx = lossEdge(direction, plan)
   const deepLevel =
     prices.find((at) => priceKey(at.px) === priceKey(deepPx)) ?? null
-  const bottomLevel = direction === "long" ? deepLevel : null
-  const topLevel = direction === "long" ? null : deepLevel
+  // Where rung 1 is drawn: fixed if it is open, else wherever the moving range
+  // puts it, else where the plan has it.
+  const nearPx = movingLevels
+    ? nearSaved.status === "holding"
+      ? nearSaved.buyPx
+      : movingLevels[nearIndex].buyPx
+    : nearSaved.buyPx
+  const upperPx = direction === "long" ? nearPx : shownTop
+  const lowerPx = direction === "long" ? shownBottom : nearPx
+  const upperLevel = direction === "long" ? nearLevel : deepLevel
+  const lowerLevel = direction === "long" ? deepLevel : nearLevel
+  const pinUpper = yPinned(upperPx)
+  const pinLower = yPinned(lowerPx)
+  // Both names are always drawn — pinned to the chart's edge with an arrow
+  // when their own price has scrolled out of view — and dragging from there
+  // still works. The one case that does not is both pinned to the SAME edge,
+  // where the two labels land on the same pixel.
+  const grippable =
+    pinUpper !== null &&
+    pinLower !== null &&
+    !(pinUpper.off !== null && pinUpper.off === pinLower.off)
+  /**
+   * Dragging the label on rung 1 lands RUNG 1 under the hand, so the pointer's
+   * price is turned into the range edge that puts it there, with the far edge
+   * held. With one open entry as a fixed point the server re-spreads around
+   * that entry instead, so the rung lands a little off the hand; rare, and the
+   * range still moves the way it was pulled.
+   */
+  const nearToEdge = (px: number): number | null => {
+    const range = gridRangeFromNearRung({
+      rungPx: px,
+      farPx: deepPx,
+      levels: levelCount,
+      spacing: plan.spacing,
+      direction,
+    })
+    return range === null ? null : winEdge(direction, range)
+  }
+  const upperDrag =
+    direction === "long"
+      ? startDrag("top", plan.topPx, nearToEdge)
+      : startDrag("top", plan.topPx)
+  const lowerDrag =
+    direction === "long"
+      ? startDrag("bottom", plan.bottomPx)
+      : startDrag("bottom", plan.bottomPx, nearToEdge)
+  // Green when the grid buys the dips, red when it shorts the rallies. Every
+  // line the grid owns — the range, its names, its badge — says which at a
+  // glance.
+  const rangeColour = direction === "long" ? colors.up : colors.down
+  const cancelButton = (at: AtPrice | null) =>
+    at?.entry != null ? (
+      <button
+        type="button"
+        aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(at.px)}`}
+        className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+        style={{ pointerEvents: controls }}
+        onClick={() =>
+          onCancelLevel(grid.walletId, grid.id, at.entry as number)
+        }
+      >
+        <XIcon className="size-3" />
+      </button>
+    ) : null
   const target = gridTakeProfitPx(plan)
   const targetY =
     shownTarget !== null
@@ -903,6 +1117,163 @@ function GridLines({
         ? null
         : yFor(target)
 
+  const endTitle = `Reaching this closes everything the grid holds and ends it. Drag it anywhere ${direction === "long" ? "above" : "below"} the range.`
+  const stopTitle = `Price cutting through this closes everything and ends the grid. ${
+    feesPaid === null
+      ? "The fills on hand do not cover the opening fees."
+      : "The dollar figure takes off the opening fees already charged. The closing fee is known only after the order fills."
+  } Drag it anywhere ${direction === "long" ? "below" : "above"} the current price — inside the range trails the stop, and the rungs past it go quiet until it moves clear again.`
+  // A way out sitting on a named rung's own price shares that rung's row:
+  // its bar goes to the LEFT of the rung's furniture instead of on top of it.
+  const upperY = pinUpper?.y ?? null
+  const lowerY = pinLower?.y ?? null
+  const stopOnRow = sharesRow(stopY, lowerY)
+    ? "lower"
+    : sharesRow(stopY, upperY)
+      ? "upper"
+      : null
+  const endOnRow = sharesRow(targetY, upperY)
+    ? "upper"
+    : sharesRow(targetY, lowerY)
+      ? "lower"
+      : null
+  const stopChip =
+    stop !== null && stopName !== null ? (
+      <NameChip
+        colour={colors.down}
+        name={stopName}
+        grip
+        onGripDown={startDrag("stopLoss", stop)}
+        title={stopTitle}
+      />
+    ) : null
+  const endChip =
+    target !== null ? (
+      <NameChip
+        colour={colors.warning}
+        name="END GRID"
+        grip
+        onGripDown={startDrag("takeProfit", target)}
+        title={endTitle}
+      />
+    ) : null
+  // One money column for the whole grid, as wide as its widest chip.
+  const usdSlot = Math.max(
+    0,
+    ...prices.map((at) => usdChipWidth(at.usd)),
+    ...(movingLevels
+      ? plan.levels
+          .filter((level) => level.status === "holding")
+          .map((level) => usdChipWidth(level.buyPx * level.heldSz))
+      : [])
+  )
+  const sharedChips = (row: "upper" | "lower") => (
+    <>
+      {endOnRow === row ? endChip : null}
+      {stopOnRow === row ? stopChip : null}
+    </>
+  )
+
+  /**
+   * Where the grip and the badge go: the middle between UPPER PRICE and LOWER
+   * PRICE, flush right. When that middle lands on a rung's line, the pair
+   * joins that rung's row, in front of its × and money, rather than covering
+   * them.
+   */
+  const badgeY =
+    upperY !== null && lowerY !== null ? (upperY + lowerY) / 2 : null
+  const knobRow = (() => {
+    if (badgeY === null) return null
+    const lines = movingLevels
+      ? movingLevels.map((level, index) => {
+          const saved = plan.levels[index]
+          return {
+            key: `moving-${index}`,
+            y: yFor(saved.status === "holding" ? saved.buyPx : level.buyPx),
+          }
+        })
+      : prices
+          .filter((at) => at !== deepLevel && at !== nearLevel)
+          .map((at) => ({ key: priceKey(at.px), y: yFor(at.px) }))
+    return lines.find((one) => sharesRow(one.y, badgeY))?.key ?? null
+  })()
+  const optionsBar = (
+    <span
+      // The options bar: the same fixed width as every name bar, with the
+      // whole-grid grip first — Tyler, 3 Sep 2026.
+      className={cn(
+        BAR_WIDTH,
+        "flex items-center justify-between gap-0.5 rounded-sm px-1 py-0.5 text-xs font-semibold"
+      )}
+      style={{
+        backgroundColor: rangeColour,
+        color: colors.badgeText,
+        pointerEvents: controls,
+      }}
+      // Says what the grid is doing rather than assuming a buy.
+      title={`${walletName(grid.walletId)} — ${GRID_DIRECTION_LABELS[direction].toLowerCase()}${plan.reversedFrom ? ", continuing a reversed grid on this range" : ""}. ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
+    >
+      <GridMoveKnob
+        tone="badge"
+        disabled={!wholeMovable}
+        onPointerDown={startDrag("whole", (plan.topPx + plan.bottomPx) / 2)}
+        onKeyDown={moveWholeGridFromKey}
+        title={
+          wholeMovable
+            ? "Drag to move the whole grid without changing the range's width."
+            : "The whole grid can move once it is holding no coin. An open entry stays at the price it actually paid."
+        }
+      />
+      <span>
+        {waiting}/{plan.levels.length}
+      </span>
+      {(() => {
+        const why = reverseDisabledReason(grid)
+        return (
+          <button
+            type="button"
+            aria-label="Reverse the grid"
+            aria-disabled={why !== null}
+            className={cn(
+              "rounded p-0.5 focus-visible:bg-current/20 focus-visible:outline-none",
+              why === null
+                ? "hover:bg-current/20"
+                : "cursor-not-allowed opacity-50"
+            )}
+            // A greyed-out button says why, on hover — never a
+            // button that is simply missing.
+            title={
+              why ??
+              "Reverse the grid: close what it holds at market and work the same range the other way round."
+            }
+            onClick={() => {
+              if (why === null) onReverseGrid(grid)
+            }}
+          >
+            <ArrowUpDownIcon className="size-3" />
+          </button>
+        )
+      })()}
+      <button
+        type="button"
+        aria-label="Change the grid's exits"
+        className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
+        onClick={(event) => onOpenSettings(grid, event.currentTarget)}
+      >
+        <SettingsIcon className="size-3" />
+      </button>
+      {waiting > 0 ? (
+        <button
+          type="button"
+          aria-label={`Stop the grid trading — cancel every waiting ${entryWord(direction)}`}
+          className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
+          onClick={() => onCancelGrid(grid)}
+        >
+          <XIcon className="size-3" />
+        </button>
+      ) : null}
+    </span>
+  )
   return (
     <>
       {/* The range, as a shaded band rather than two lines.
@@ -920,22 +1291,15 @@ function GridLines({
             style={{
               top: bandTop,
               height: bandBottom - bandTop,
-              backgroundColor: colors.primary,
+              backgroundColor: rangeColour,
               opacity: dragging ? 0.1 : 0.05,
             }}
           />
-          <GridMoveKnob
-            top={(bandTop + bandBottom) / 2}
-            disabled={!wholeMovable}
-            pointerEvents={controls}
-            onPointerDown={startDrag("whole", (plan.topPx + plan.bottomPx) / 2)}
-            onKeyDown={moveWholeGridFromKey}
-            title={
-              wholeMovable
-                ? "Drag to move the whole grid without changing the range's width."
-                : "The whole grid can move once it is holding no coin. An open entry stays at the price it actually paid."
-            }
-          />
+          {knobRow === null && badgeY !== null ? (
+            <BarRow top={badgeY} pointerEvents={controls} usdSlot={usdSlot}>
+              {optionsBar}
+            </BarRow>
+          ) : null}
         </>
       ) : null}
 
@@ -954,6 +1318,8 @@ function GridLines({
           <ChartLine
             key={`moving-${index}`}
             y={y}
+            usdSlot={usdSlot}
+            nameNode={knobRow === `moving-${index}` ? optionsBar : undefined}
             usd={holding ? saved.buyPx * saved.heldSz : undefined}
             colour={sideColour(
               holding ? exitSide(direction) : entrySide(direction)
@@ -971,7 +1337,7 @@ function GridLines({
       })}
 
       {(movingLevels ? [] : prices)
-        .filter((at) => at !== deepLevel)
+        .filter((at) => at !== deepLevel && at !== nearLevel)
         .map((at) => {
           const y = yFor(at.px)
           if (y === null) return null
@@ -980,6 +1346,8 @@ function GridLines({
             <ChartLine
               key={priceKey(at.px)}
               y={y}
+              usdSlot={usdSlot}
+              nameNode={knobRow === priceKey(at.px) ? optionsBar : undefined}
               usd={at.usd}
               colour={sideColour(
                 holding ? exitSide(direction) : entrySide(direction)
@@ -988,181 +1356,70 @@ function GridLines({
               dashed={at.dead}
               faded={at.dead}
               title={levelTitle(direction, at, holding)}
-              action={
-                at.entry !== null ? (
-                  <button
-                    type="button"
-                    aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(at.px)}`}
-                    className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                    style={{ pointerEvents: controls }}
-                    onClick={() =>
-                      onCancelLevel(grid.walletId, grid.id, at.entry as number)
-                    }
-                  >
-                    <XIcon className="size-3" />
-                  </button>
-                ) : null
-              }
+              cancel={cancelButton(at)}
             />
           )
         })}
 
-      {/* The two ends of the range. One open level stays fixed while these
+      {/* The two named rungs. One open level stays fixed while these
           compress or expand the other prices around it. */}
-      {pinBottom ? (
+      {pinLower ? (
         <ChartLine
-          y={pinBottom.y}
-          // On a buying grid the bottom of the range IS the deepest buy, so it
-          // carries that level's money like every other level line. On a
-          // selling grid the bottom is only where the lowest sell buys back,
-          // and nothing opens there.
-          usd={bottomLevel?.usd}
-          colour={colors.primary}
-          name={gridBoundaryName(direction, "bottom", levelCount)}
-          dashed={pinBottom.off !== null}
+          y={pinLower.y}
+          usdSlot={usdSlot}
+          usd={lowerLevel?.usd}
+          colour={rangeColour}
+          name={gridBoundaryName("bottom")}
+          dashed={pinLower.off !== null}
           grip={bottomMovable && grippable}
-          onGripDown={
-            bottomMovable ? startDrag("bottom", plan.bottomPx) : undefined
-          }
-          title={edgeTitle(direction, "bottom", bottomLevel, bottomMovable)}
-          action={
-            bottomLevel?.entry != null ? (
-              <button
-                type="button"
-                aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(plan.bottomPx)}`}
-                className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                style={{ pointerEvents: controls }}
-                onClick={() =>
-                  onCancelLevel(
-                    grid.walletId,
-                    grid.id,
-                    bottomLevel.entry as number
-                  )
-                }
-              >
-                <XIcon className="size-3" />
-              </button>
-            ) : null
-          }
+          onGripDown={bottomMovable ? lowerDrag : undefined}
+          title={rangeLineTitle(direction, lowerLevel, bottomMovable)}
+          action={sharedChips("lower")}
+          cancel={cancelButton(lowerLevel)}
         />
       ) : null}
-      {pinTop ? (
+      {pinUpper ? (
         <ChartLine
-          y={pinTop.y}
-          usd={topLevel?.usd}
-          colour={colors.primary}
-          name={gridBoundaryName(direction, "top", levelCount)}
-          dashed={pinTop.off !== null}
+          y={pinUpper.y}
+          usdSlot={usdSlot}
+          usd={upperLevel?.usd}
+          colour={rangeColour}
+          name={gridBoundaryName("top")}
+          dashed={pinUpper.off !== null}
           grip={topMovable && grippable}
-          onGripDown={topMovable ? startDrag("top", plan.topPx) : undefined}
-          title={edgeTitle(direction, "top", topLevel, topMovable)}
-          action={
-            <>
-              {topLevel?.entry != null ? (
-                <button
-                  type="button"
-                  aria-label={`Cancel the ${entryWord(direction)} at ${formatPrice(plan.topPx)}`}
-                  className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                  style={{ pointerEvents: controls }}
-                  onClick={() =>
-                    onCancelLevel(
-                      grid.walletId,
-                      grid.id,
-                      topLevel.entry as number
-                    )
-                  }
-                >
-                  <XIcon className="size-3" />
-                </button>
-              ) : null}
-              <span
-                className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-xs font-semibold"
-                style={{
-                  backgroundColor: colors.primary,
-                  color: colors.badgeText,
-                  pointerEvents: controls,
-                }}
-                // Says what the grid is doing rather than assuming a buy.
-                title={`${walletName(grid.walletId)} — ${GRID_DIRECTION_LABELS[direction].toLowerCase()}${plan.reversedFrom ? ", continuing a reversed grid on this range" : ""}. ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
-              >
-                {waiting}/{plan.levels.length}
-                {(() => {
-                  const why = reverseDisabledReason(grid)
-                  return (
-                    <button
-                      type="button"
-                      aria-label="Reverse the grid"
-                      aria-disabled={why !== null}
-                      className={cn(
-                        "rounded p-0.5 focus-visible:bg-current/20 focus-visible:outline-none",
-                        why === null
-                          ? "hover:bg-current/20"
-                          : "cursor-not-allowed opacity-50"
-                      )}
-                      // A greyed-out button says why, on hover — never a
-                      // button that is simply missing.
-                      title={
-                        why ??
-                        "Reverse the grid: close what it holds at market and work the same range the other way round."
-                      }
-                      onClick={() => {
-                        if (why === null) onReverseGrid(grid)
-                      }}
-                    >
-                      <ArrowUpDownIcon className="size-3" />
-                    </button>
-                  )
-                })()}
-                <button
-                  type="button"
-                  aria-label="Change the grid's exits"
-                  className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
-                  onClick={(event) => onOpenSettings(grid, event.currentTarget)}
-                >
-                  <SettingsIcon className="size-3" />
-                </button>
-                {waiting > 0 ? (
-                  <button
-                    type="button"
-                    aria-label={`Stop the grid trading — cancel every waiting ${entryWord(direction)}`}
-                    className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
-                    onClick={() => onCancelGrid(grid)}
-                  >
-                    <XIcon className="size-3" />
-                  </button>
-                ) : null}
-              </span>
-            </>
-          }
+          onGripDown={topMovable ? upperDrag : undefined}
+          title={rangeLineTitle(direction, upperLevel, topMovable)}
+          cancel={cancelButton(upperLevel)}
+          action={sharedChips("upper")}
         />
       ) : null}
 
-      {/* The two ways out. Green is money made and red is the loss limit,
-          whichever side of the range each one sits. */}
+      {/* The two ways out. Orange ends the grid and red is the loss limit,
+          whichever side of the range each one sits. A way out sitting on a
+          named rung's price has already lent that row its bar; only its
+          line is drawn here. */}
       {targetY !== null && target !== null ? (
         <ChartLine
           y={targetY}
-          colour={colors.up}
-          name="END GRID"
+          usdSlot={usdSlot}
+          colour={colors.warning}
+          name={endOnRow ? null : "END GRID"}
           dashed={false}
           grip
           onGripDown={startDrag("takeProfit", target)}
-          title={`Reaching this closes everything the grid holds and ends it. Drag it anywhere ${direction === "long" ? "above" : "below"} the range.`}
+          title={endTitle}
         />
       ) : null}
       {stopY !== null && stop !== null && stopName !== null ? (
         <ChartLine
           y={stopY}
+          usdSlot={usdSlot}
           colour={colors.down}
-          name={stopName}
+          name={stopOnRow ? null : stopName}
           dashed={false}
           grip
           onGripDown={startDrag("stopLoss", stop)}
-          title={`Price cutting through this closes everything and ends the grid. ${
-            feesPaid === null
-              ? "The fills on hand do not cover the opening fees."
-              : "The dollar figure takes off the opening fees already charged. The closing fee is known only after the order fills."
-          } Drag it anywhere ${direction === "long" ? "below" : "above"} the current price — inside the range trails the stop, and the rungs past it go quiet until it moves clear again.`}
+          title={stopTitle}
         />
       ) : null}
     </>
@@ -1170,54 +1427,47 @@ function GridLines({
 }
 
 /**
- * What one end of the range means in the grid's direction.
- *
- * Five rungs need six prices because every rung has an opening trade and a
- * closing trade one step away. Naming the trade at each end makes that sixth
- * line explain itself instead of looking like an extra rung.
+ * The two range names. Each sits on a rung's own price — rung 1 nearest the
+ * market, the deepest rung at the far end — and says only which end it is.
+ * They used to add "RUNG 1 BUYS" / "RUNG 3 SHORTS"; Tyler had the rung words
+ * removed on 3 Sep 2026.
  */
-function gridBoundaryName(
-  direction: GridDirection,
-  end: "top" | "bottom",
-  levelCount: number
-): string {
-  const edge = end === "top" ? "UPPER" : "LOWER"
-  if (direction === "long") {
-    return end === "top"
-      ? `${edge} PRICE · RUNG 1 SELLS`
-      : `${edge} PRICE · RUNG ${levelCount} BUYS`
-  }
-  return end === "top"
-    ? `${edge} PRICE · RUNG ${levelCount} SHORTS`
-    : `${edge} PRICE · RUNG 1 BUYS BACK`
+function gridBoundaryName(end: "top" | "bottom"): string {
+  return end === "top" ? "UPPER PRICE" : "LOWER PRICE"
 }
 
 /** What each kind of line looks like and what it is called. */
 function lineLook(
   kind: GridPreview["lines"][number]["kind"],
   colors: ChartColors,
-  direction: GridDirection,
-  levelCount: number
+  direction: GridDirection
 ): { colour: string; name: string | null; dashed: boolean } {
+  // The grid's own colour: green buying the dips, red shorting the rallies.
+  const rangeColour = direction === "long" ? colors.up : colors.down
   if (kind === "upper") {
     return {
-      colour: colors.primary,
-      name: gridBoundaryName(direction, "top", levelCount),
+      colour: rangeColour,
+      name: gridBoundaryName("top"),
       dashed: false,
     }
   }
   if (kind === "lower") {
     return {
-      colour: colors.primary,
-      name: gridBoundaryName(direction, "bottom", levelCount),
+      colour: rangeColour,
+      name: gridBoundaryName("bottom"),
       dashed: false,
     }
   }
+  // The range's winning edge, one step past rung 1. A line and nothing else.
+  if (kind === "edge") {
+    return { colour: rangeColour, name: null, dashed: false }
+  }
+  // Orange, so the line that ends the grid is never read as a level or a win.
   if (kind === "takeProfit") {
-    return { colour: colors.up, name: "END GRID", dashed: false }
+    return { colour: colors.warning, name: "END GRID", dashed: false }
   }
   if (kind === "stopLoss") {
-    return { colour: colors.down, name: "STOP LOSS", dashed: false }
+    return { colour: colors.down, name: "SL", dashed: false }
   }
   // Where the exchange would take the whole trade. Dashed, because it is not
   // an order anybody placed — it is what the borrowing costs if it all fills.
@@ -1245,6 +1495,8 @@ function lineLook(
  *
  * Only the four lines you set get a name; the levels in between are just a
  * line, because a dozen labelled ones is a wall of text over the price action.
+ * UPPER PRICE and LOWER PRICE sit on the first and last rung, so those two
+ * lines carry a name AND the rung's money and ×.
  */
 function ChartLine({
   y,
@@ -1257,6 +1509,11 @@ function ChartLine({
   onGripDown,
   title,
   action,
+  cancel,
+  usdSlot,
+  nameNode,
+  rung,
+  rungSlot = false,
 }: {
   y: number
   /** What this level puts in, when it is a level rather than a boundary. */
@@ -1269,7 +1526,26 @@ function ChartLine({
   grip?: boolean
   onGripDown?: (event: React.PointerEvent) => void
   title?: string
+  /** The grid's own controls, or another line's name sharing this row. */
   action?: React.ReactNode
+  /** This rung's ×. After the money chip, so it reads as "this buy, off". */
+  cancel?: React.ReactNode
+  /**
+   * Width reserved for the money chip at the far right of every line of one
+   * grid, in pixels, so the amounts stack in one straight column against the
+   * plot's edge and the name bars line up against that column. Tyler, 3 Sep
+   * 2026: "aligned right, all the way to the right".
+   */
+  usdSlot?: number
+  /** Something drawn where the name bar goes, on a line that has no name. */
+  nameNode?: React.ReactNode
+  /**
+   * The rung's number, 1 nearest the market. Only the preview prints them
+   * (Tyler, 3 Sep 2026); a placed grid shows none. `rungSlot` keeps the
+   * column on the preview's lines that have no number, so they line up.
+   */
+  rung?: number
+  rungSlot?: boolean
 }) {
   return (
     <div
@@ -1280,150 +1556,112 @@ function ChartLine({
         className={dashed ? "border-t border-dashed" : "border-t"}
         style={{ borderColor: colour }}
       />
+      {/* Left to right: the grid's controls, this rung's ×, its money, the
+          preview's rung number, then the bar LAST, flush against the plot's
+          right edge — Tyler, 3 Sep 2026, so the grip on the options bar sits
+          at the edge. The money column is one width on every line, so the
+          amounts stack straight and the bars line up against them. */}
       <div className="absolute top-0 right-0 flex -translate-y-1/2 items-center gap-1">
-        {name ? (
-          <span
-            className={cn(
-              "flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-xs font-semibold tracking-wide select-none",
-              grip && "cursor-ns-resize"
-            )}
-            style={{
-              borderColor: colour,
-              color: colour,
-              // The layer itself takes no pointer events, so a line that is
-              // meant to be dragged has to switch them back on for its own
-              // label. Without this the handle is drawn, shows a resize
-              // cursor, and does nothing at all when you press it.
-              pointerEvents: grip ? "auto" : "none",
-              touchAction: "none",
-            }}
-            onPointerDown={onGripDown}
-            title={title}
-          >
-            {grip ? <GripVerticalIcon className="size-3 opacity-70" /> : null}
-            {name}
-          </span>
-        ) : null}
         {action}
-        {/* What this level puts in. Left off the range's own edges, which buy
-            nothing by themselves. */}
-        {usd !== undefined && usd > 0 ? (
-          <span className="rounded-sm bg-muted px-1 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
-            {formatUsdRounded(usd)}
+        {cancel}
+        <span
+          className="flex justify-end"
+          style={usdSlot !== undefined ? { minWidth: usdSlot } : undefined}
+        >
+          {usd !== undefined && usd > 0 ? (
+            <span className="rounded-sm bg-muted px-1 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+              {formatUsdRounded(usd)}
+            </span>
+          ) : null}
+        </span>
+        {rungSlot ? (
+          <span className="w-4 text-center text-xs font-medium text-muted-foreground tabular-nums">
+            {rung}
           </span>
         ) : null}
+        {name ? (
+          <NameChip
+            colour={colour}
+            name={name}
+            grip={grip}
+            onGripDown={onGripDown}
+            title={title}
+          />
+        ) : (
+          // A line with no bar keeps a bar's worth of room, so its money
+          // stays in the column with everyone else's.
+          (nameNode ??
+          (usdSlot !== undefined ? <span className={BAR_WIDTH} /> : null))
+        )}
       </div>
     </div>
   )
 }
 
-// ----- Telling the position's pills where our chips are ---------------------
-
-/** A stretch of the right edge a grid line's chips occupy. */
-export type GridLineObstacle = {
-  top: number
-  bottom: number
-  /** How far left of the plot's right edge the chips reach, in pixels. */
-  width: number
+/**
+ * How wide a money chip is, for the shared column. On the generous side on
+ * purpose: the chip is right-aligned inside the slot, so a slot a little too
+ * wide costs nothing, while a slot narrower than the chip lets that one line's
+ * name bar step out of line with the others by the difference.
+ */
+function usdChipWidth(usd: number): number {
+  return formatUsdRounded(usd).length * 8 + 10
 }
 
-/** The estimates the obstacle widths are built from. Generous on purpose:
- * a pill that slides a few pixels further left costs nothing, one that stops
- * a few pixels short sits on the chip — the exact bug this exists to fix. */
-const OBSTACLE_CHAR = 6.6
-const OBSTACLE_ICON = 20
-const OBSTACLE_GRIP = 14
-const OBSTACLE_HEIGHT = 22
-
 /**
- * Where every drawn grid line's right-edge furniture sits, so the trade-lines
- * layer can lay its pills down around them.
- *
- * A position's Entry pill and a grid level's money chip often share a height —
- * a grid that just bought IS the position, at that level's own price — and
- * whichever painted last hid the other. Stacking cannot fix two things in one
- * spot; only sliding can, and the trade-lines layer already slides its own
- * pills left of each other. This hands it our chips as things to slide
- * around, worked out from the same `pricesOf` the drawing reads, so the
- * obstacles are the chips and not a guess at them.
+ * A named line's white bar. Usually drawn by its own line; when two named
+ * lines land on the same price — a stop 0% under the bottom, an End Grid on
+ * the top — the second bar would sit on top of the first and hide half of
+ * it, so it is drawn on the first line's row instead, to the left, still
+ * draggable.
  */
-export function gridLineObstacles(
-  grids: readonly SmartGrid[],
-  marketKey: string | null,
-  yFor: (price: number) => number | null,
-  feesPaidFor?: (grid: SmartGrid) => number | null
-): GridLineObstacle[] {
-  const obstacles: GridLineObstacle[] = []
-  const add = (px: number, width: number) => {
-    const y = yFor(px)
-    if (y === null || !(width > 0)) return
-    obstacles.push({
-      top: y - OBSTACLE_HEIGHT / 2,
-      bottom: y + OBSTACLE_HEIGHT / 2,
-      width: width + 8,
-    })
-  }
-  const nameWidth = (name: string, grip: boolean) =>
-    name.length * OBSTACLE_CHAR + 12 + (grip ? OBSTACLE_GRIP : 0)
-  const usdWidth = (usd: number) =>
-    usd > 0 ? formatUsdRounded(usd).length * OBSTACLE_CHAR + 8 + 4 : 0
+function NameChip({
+  colour,
+  name,
+  grip,
+  onGripDown,
+  title,
+}: {
+  colour: string
+  name: string
+  grip?: boolean
+  onGripDown?: (event: React.PointerEvent) => void
+  title?: string
+}) {
+  return (
+    <span
+      // One width for every bar — Tyler, 3 Sep 2026 — so UPPER PRICE, LOWER
+      // PRICE, END GRID and SL all start and end on the same x. A name
+      // longer than the bar is cut short with an ellipsis rather than
+      // widening it.
+      className={cn(
+        BAR_WIDTH,
+        "flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-xs font-semibold select-none",
+        grip && "cursor-ns-resize"
+      )}
+      style={{
+        borderColor: colour,
+        color: colour,
+        // The layer itself takes no pointer events, so a line that is meant
+        // to be dragged has to switch them back on for its own label. Without
+        // this the handle is drawn, shows a resize cursor, and does nothing
+        // at all when you press it.
+        pointerEvents: grip ? "auto" : "none",
+        touchAction: "none",
+      }}
+      onPointerDown={onGripDown}
+      title={title}
+    >
+      {grip ? (
+        <GripVerticalIcon className="size-3 shrink-0 opacity-70" />
+      ) : null}
+      <span className="min-w-0 truncate">{name}</span>
+    </span>
+  )
+}
 
-  for (const grid of grids) {
-    if (grid.marketKey !== marketKey) continue
-    const plan = grid.plan
-    const topMovable = gridRangeEndMovable(plan, "top")
-    const bottomMovable = gridRangeEndMovable(plan, "bottom")
-    const deepPx = lossEdge(plan.direction, plan)
-
-    for (const at of pricesOf(plan)) {
-      const cancel = at.entry !== null ? OBSTACLE_ICON + 4 : 0
-      if (priceKey(at.px) === priceKey(deepPx)) continue
-      if (priceKey(at.px) === priceKey(plan.topPx)) continue
-      add(at.px, cancel + usdWidth(at.usd))
-    }
-
-    // The named lines. The top carries the badge cluster: the count, the
-    // reverse icon, the gear and sometimes an ×.
-    const deepLevel =
-      pricesOf(plan).find((at) => priceKey(at.px) === priceKey(deepPx)) ?? null
-    add(
-      plan.bottomPx,
-      nameWidth(
-        gridBoundaryName(plan.direction, "bottom", plan.levels.length),
-        bottomMovable
-      ) +
-        (plan.direction === "long" && deepLevel
-          ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
-            usdWidth(deepLevel.usd)
-          : 0)
-    )
-    add(
-      plan.topPx,
-      nameWidth(
-        gridBoundaryName(plan.direction, "top", plan.levels.length),
-        topMovable
-      ) +
-        (plan.direction === "short" && deepLevel
-          ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
-            usdWidth(deepLevel.usd)
-          : 0) +
-        // The badge cluster: "n/m", reverse, gear, ×.
-        5 * OBSTACLE_CHAR +
-        3 * OBSTACLE_ICON +
-        14
-    )
-    const target = gridTakeProfitPx(plan)
-    if (target !== null) add(target, nameWidth("END GRID", true))
-    const stop = gridStopPx(plan)
-    if (stop !== null) {
-      add(
-        stop,
-        nameWidth(
-          gridStopName(plan, stop, feesPaidFor ? feesPaidFor(grid) : 0),
-          true
-        )
-      )
-    }
-  }
-  return obstacles
+/** Two lines closer than a label is tall would stack their bars. */
+const LABEL_HEIGHT = 16
+function sharesRow(a: number | null, b: number | null): boolean {
+  return a !== null && b !== null && Math.abs(a - b) < LABEL_HEIGHT
 }

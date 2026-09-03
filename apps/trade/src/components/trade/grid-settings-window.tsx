@@ -303,7 +303,6 @@ function StopForm({
   )
   const badRungCount =
     rungs.length < MIN_GRID_LEVELS || rungs.length > MAX_GRID_LEVELS
-  const badRungs = manualOn && (badRung !== -1 || badRungCount)
   // The card's rows go to the server as they are; level order is that list
   // read backwards, which is what the running grid is compared against.
   const levelPcts = gridLevelPctsFromRows(rungPcts)
@@ -316,17 +315,20 @@ function StopForm({
     (manualOn &&
       (levelPcts.length !== wasLevelPcts.length ||
         levelPcts.some(
-          (pct, index) => Math.abs(pct - wasLevelPcts[index]) > 0.005
+          (pct, index) =>
+            !Number.isFinite(pct) || Math.abs(pct - wasLevelPcts[index]) > 0.005
         )))
+  const sliceSettingsChanged =
+    splitChanged ||
+    (!manualOn && parsedLevels !== plan.levels.length) ||
+    parsedPot !== plan.potPct ||
+    parsedLeverage !== plan.leverage
+  const badRungs =
+    manualOn &&
+    sliceSettingsChanged &&
+    (badRung !== -1 || badRungCount)
   const resliced =
-    !badLevels &&
-    !badPot &&
-    !badLeverage &&
-    !badRungs &&
-    (splitChanged ||
-      (!manualOn && parsedLevels !== plan.levels.length) ||
-      parsedPot !== plan.potPct ||
-      parsedLeverage !== plan.leverage)
+    !badLevels && !badPot && !badLeverage && !badRungs && sliceSettingsChanged
 
   // What one round trip would be worth after re-slicing, which is the number
   // that decides whether more levels is a good idea or a slower way to pay
@@ -399,9 +401,9 @@ function StopForm({
       ? "Share of account % has to be a number above zero and no more than 100."
       : badLeverage
         ? `Borrowing has to be a whole number between 1× and ${maxBorrowing}×.`
-        : manualOn && badRung !== -1
-          ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a share above zero.`
-          : manualOn && badRungCount
+        : manualOn && sliceSettingsChanged && badRung !== -1
+          ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a weight above zero and no more than 100.`
+          : manualOn && sliceSettingsChanged && badRungCount
             ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
             : badEnd
                 ? "Above price or range % has to be a number above zero and no more than 999."
@@ -645,14 +647,10 @@ function StopForm({
                 setManualOn(next)
               },
             }}
-            summary={
-              manualOn
-                ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
-                : null
-            }
+            summary={manualOn ? `${rungs.length} rungs · 100% used` : null}
             hint={
               canReshape
-                ? `Each rung takes its own share of the money, as a percent of Share of account %. The total is whatever you type. Rung 1 is the first ${entryWord(plan.direction)}.`
+                ? `The numbers are relative weights. The grid always divides all of its money between them. Rung 1 is the first ${entryWord(plan.direction)}.`
                 : "The split can change only while the grid holds no coin — re-sizing under held coins would mis-price their sells."
             }
           >
@@ -666,7 +664,9 @@ function StopForm({
               )
               const pct = Number(rung.value)
               const dollars =
-                Number.isFinite(pct) && pct > 0 ? (potNow * pct) / 100 : null
+                Number.isFinite(pct) && pct > 0 && rungSum > 0
+                  ? (potNow * pct) / rungSum
+                  : null
               return (
                 <div key={rung.id} className="flex items-center gap-2">
                   <span className="w-4 text-right text-xs text-muted-foreground">
@@ -678,13 +678,12 @@ function StopForm({
                       inputMode="decimal"
                       value={rung.value}
                       disabled={busy || !canReshape}
-                      aria-label={`Rung ${number}, percent of the grid's money`}
+                      aria-label={`Rung ${number} weight`}
                       aria-invalid={showValidation && !(pct > 0 && pct <= 100)}
                       onChange={(event) => setRung(rung.id, event.target.value)}
                       onBlur={() => setShowValidation(true)}
                       className="min-w-0 bg-background"
                     />
-                    <span className="text-xs text-muted-foreground">%</span>
                   </div>
                   {/* The money, the way the DCA ladder's rows say it. The
                       price is on the chart, where prices live. */}
@@ -707,14 +706,11 @@ function StopForm({
                 </div>
               )
             })}
-            {/* The total is information, not a rule: the rows can add up to
-                whatever was typed, and the grid uses exactly that share of
-                the money. Tyler's rule, 1 Sep 2026. */}
+            {/* Weights can add to any number; the orders always use one pot. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Adds up to</span>
-              <span className="tabular-nums text-muted-foreground">
-                {Math.round(rungSum * 100) / 100}%
-                {` · ${formatUsd((potNow * rungSum) / 100)}`}
+              <span className="text-muted-foreground">Grid uses</span>
+              <span className="text-muted-foreground tabular-nums">
+                100% · {formatUsd(potNow)}
               </span>
             </div>
             <div className="flex items-center gap-2">

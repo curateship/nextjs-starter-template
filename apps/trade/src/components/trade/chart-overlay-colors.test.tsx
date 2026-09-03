@@ -17,6 +17,7 @@ const colors: ChartColors = {
   alert: "theme-purple",
   neutral: "theme-neutral",
   badgeText: "theme-badge-text",
+  foreground: "theme-foreground",
   upSoft: "theme-up-soft",
   downSoft: "theme-down-soft",
 }
@@ -67,11 +68,11 @@ describe("theme colours on chart overlays", () => {
           direction: "long",
           levelCount: 5,
           lines: [
-            { px: 130, kind: "upper" },
-            { px: 120, kind: "level" },
+            { px: 130, kind: "upper", rung: 1 },
+            { px: 120, kind: "level", rung: 2 },
             { px: 110, kind: "takeProfit" },
             { px: 100, kind: "stopLoss" },
-            { px: 90, kind: "lower" },
+            { px: 90, kind: "lower", rung: 5 },
           ],
         }}
         tool={null}
@@ -86,11 +87,17 @@ describe("theme colours on chart overlays", () => {
       />
     )
 
-    expect(html).toContain("theme-primary")
+    // The range and its names are green on a buying grid, the stop is red and
+    // End Grid is orange. Nothing on a grid wears the account's accent.
+    expect(html).not.toContain("theme-primary")
     expect(html).toContain("theme-up")
     expect(html).toContain("theme-down")
-    expect(html).toContain("UPPER PRICE · RUNG 1 SELLS")
-    expect(html).toContain("LOWER PRICE · RUNG 5 BUYS")
+    expect(html).toContain("theme-warning")
+    expect(html).toContain("UPPER PRICE")
+    expect(html).toContain("LOWER PRICE")
+    // The preview numbers its rungs, 1 nearest the market.
+    expect(html).toMatch(/tabular-nums">1</)
+    expect(html).toMatch(/tabular-nums">5</)
   })
 
   it("explains both ends of a selling grid's range", () => {
@@ -121,7 +128,10 @@ describe("theme colours on chart overlays", () => {
       />
     )
 
-    expect(html).toContain("UPPER PRICE · RUNG 5 SELLS")
-    expect(html).toContain("LOWER PRICE · RUNG 1 BUYS BACK")
+    expect(html).toContain("UPPER PRICE")
+    expect(html).toContain("LOWER PRICE")
+    // A selling grid's range is red.
+    expect(html).toContain("border-color:theme-down")
+    expect(html).not.toContain("theme-primary")
   })
 })

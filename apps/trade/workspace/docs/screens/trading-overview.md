@@ -202,6 +202,9 @@ by day and keep market, side, time, exchange, wallet, money, size, and fee in a
 compact four-column table. The shared Filter menu narrows the table to one
 exchange, one wallet, or both, and Clear all restores every trade. A fill hidden from the
 Journal stays hidden here too.
+An unhidden fill that cannot be rebuilt into a complete trade stays in this
+table and also appears in the Journal as History incomplete. A PnL figure can
+therefore never depend on saved history that the Journal silently omits.
 Trade rows inherit the dashboard's Inter typeface, including market names and
 Money values. Their numbers keep tabular spacing without switching to a
 monospace face.

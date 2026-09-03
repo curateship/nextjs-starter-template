@@ -25,6 +25,40 @@ Practice mark. Positions keep their close actions. Open orders keep the cancel
 action for the exact order shown. The Journal alone keeps selection and removal
 because finished trades do not disappear while a person is choosing them.
 
+The Journal never drops saved fills because they do not make a complete trade.
+It groups those fills by wallet and market and shows History incomplete in the
+same table, along with the number of saved fills in the group. The row leaves
+figures it cannot know blank instead of inventing an entry, exit, size, or
+result. The Opened column says Unknown and gives the first saved fill time
+separately. When the exchange still holds that wallet and market, the row says
+Open, history incomplete, shows the exchange's side, entry, and size, and cannot
+be selected or removed. Old incomplete history may be removed only with the
+same explicit confirmation as a finished trade.
+
+## What each position loses if its stop hits
+
+The Positions table has an "If stopped" column, after Projected P / L. It says
+in dollars what firing the stop right now would do to the money. The sum is
+the size held times the distance from today's price to the stop. A long with
+two coins at $100 and a stop at $90 reads "-$20.00". Nothing else is taken
+off. Fees are their own column, and a stop's loss from the entry price is the
+red half of Projected P / L.
+
+The figure is measured from today's price, not the entry, because the
+question it answers is "what do I lose from here" when deciding whether the
+open risk across every trade is too much. A stop that has been moved past the
+price, above it on a long or below it on a short, shows a gain with a plus
+sign in the same column, because that is what the stop would bank.
+
+The stop comes from the same place the "No stop" badge reads: the position's
+own stop, or the stop held by its running grid plan. The whole size held is
+used even when a grid's stop is part-size. A position with no stop shows a
+dash, never a zero, and the column stays blank until both halves of the read
+have landed.
+
+Sorting by the column puts the biggest loss first. Rows with no stop sort to
+the end, the way a missing liquidation price already does.
+
 ## Positions without a stop
 
 Once the practice and real-wallet reads have both finished, a position with no

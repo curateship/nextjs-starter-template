@@ -1,9 +1,9 @@
 # Chart indicators
 
 **An indicator is a chart control, so it lives in the chart's controls.** There
-is no indicators page and no dashboard behind them. The indicator button sits
-in the market header beside the timeframe, and the badge on its icon says how
-many are switched on.
+is no indicators page and no dashboard behind them. The vertical three-dot
+chart menu sits in the header before the wallet. Its labeled Indicators row
+opens the indicator list and shows the number switched on in a round count.
 
 - **Each indicator has three separate controls.** Its switch turns the drawing
   on or off. A small mark previews its line colours. The settings button opens
@@ -31,7 +31,7 @@ many are switched on.
   and not the browser — the same rule as the zoom, and for the same reason: an
   indicator is how you read a chart, not a fact about one coin. It carries onto
   the next market, the next timeframe and the other machine.
-- **The eye after the indicator button opens the View options dropdown.** It
+- **The labeled View options row opens the View options dropdown.** It
   was a window with Save and Cancel buttons until 29 Aug 2026; now it is a
   small dropdown like the Indicators menu, and every change lands as it is
   made. Chart, Your activity and Timezone are its three sections. The five

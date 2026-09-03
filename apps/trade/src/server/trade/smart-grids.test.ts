@@ -250,7 +250,7 @@ describe("placing a grid", () => {
     }
   })
 
-  it("splits the pot by the typed shares when the rungs are set by hand", async () => {
+  it("splits the pot by the typed weights when the rungs are set by hand", async () => {
     // Rung order in, level order stored. Rung 1 is the top of a buying
     // grid's range, so 10% at the top and 40% at the $80 bottom.
     await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
@@ -261,6 +261,17 @@ describe("placing a grid", () => {
     expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
       800, 600, 400, 200,
     ])
+  })
+
+  it("scales rung weights with any positive total to the complete pot", async () => {
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 20] })
+    const grid = await onlyGrid()
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      500, 750, 500, 250,
+    ])
+    expect(
+      grid.plan.levels.reduce((sum, one) => sum + one.budget, 0)
+    ).toBeCloseTo(2000, 0)
   })
 
   it("names the rung that was typed, not the level, when one is too small", async () => {
@@ -765,6 +776,58 @@ describe("running out of the range", () => {
 })
 
 describe("the stop", () => {
+  it("puts the stop back when the exchange shows none", async () => {
+    // A hand may move the stop; the exchange showing NO stop is never a hand
+    // move. On 3 Sep 2026 kSHIB bought, the same pass read "no stop" from the
+    // exchange, and the grid wrote that into its plan and never placed one.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await priceTo(109)
+    expect((await onlyGrid()).plan.aimedSlPx).toBeCloseTo(76, 9)
+
+    // The exchange shows the position with no stop on it; the plan still
+    // remembers aiming one.
+    await database
+      .update(tradePaperPositions)
+      .set({ slPx: null })
+      .where(eq(tradePaperPositions.userId, userId))
+    await priceTo(108)
+
+    const grid = await onlyGrid()
+    expect((await positions())[0].slPx).toBeCloseTo(76, 9)
+    expect(grid.plan.aimedSlPx).toBeCloseTo(76, 9)
+    expect(grid.plan.stopLoss?.px ?? 76).toBeCloseTo(76, 9)
+  })
+
+  it("heals a grid saved with a frozen stop and no price", async () => {
+    // The shape kSHIB was left in: following down freezes the stop as a fixed
+    // price, and that price was lost. The percent the setting names still
+    // says where the stop belongs, so the engine places it there.
+    await place({ followDown: true, stopLoss: { underPct: 5, base: null } })
+    await priceTo(109)
+    const before = await onlyGrid()
+    expect(before.plan.stopLoss).toMatchObject({ mode: "fixed", px: 76 })
+
+    await database
+      .update(tradePaperPositions)
+      .set({ slPx: null })
+      .where(eq(tradePaperPositions.userId, userId))
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: {
+          ...before.plan,
+          aimedSlPx: null,
+          stopLoss: { ...before.plan.stopLoss, px: null },
+        },
+      })
+      .where(eq(tradeSmartLadders.userId, userId))
+    await priceTo(108)
+
+    const grid = await onlyGrid()
+    expect((await positions())[0].slPx).toBeCloseTo(76, 9)
+    expect(grid.plan.aimedSlPx).toBeCloseTo(76, 9)
+  })
+
   it("closes everything and ends the grid when price cuts through it", async () => {
     await place({ stopLoss: { underPct: 5, base: null } })
     await priceTo(109)

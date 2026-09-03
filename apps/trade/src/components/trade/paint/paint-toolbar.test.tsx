@@ -115,6 +115,7 @@ describe("the chart drawing toolbar", () => {
     expect(handle.querySelector(".lucide-grip-vertical")).not.toBeNull()
     expect(handle.closest("[data-chart-paint]")).toBe(toolbar)
     expect(handle).toBe(toolbar.lastElementChild)
+    expect(handle.closest('[data-slot="tooltip-trigger"]')).toBeNull()
   })
 
   it("moves inside the chart and snaps back to the top right", async () => {
