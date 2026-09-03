@@ -19,10 +19,26 @@ The practice and real-wallet reads finish separately. A refusal still counts
 as a finished read. Once the other half finishes, the failed row replaces the
 spinner instead of leaving the panel saying it is reading forever.
 
-The rows still belong to their tabs. Positions keep their Real or Testnet mark
-and their close actions. Open orders keep the cancel action for the exact order
-shown. The Journal alone keeps selection and removal because finished trades do
-not disappear while a person is choosing them.
+The rows still belong to their tabs. Mainnet rows never carry a "Real" chip.
+Testnet rows keep their Testnet mark, and practice Journal rows keep their
+Practice mark. Positions keep their close actions. Open orders keep the cancel
+action for the exact order shown. The Journal alone keeps selection and removal
+because finished trades do not disappear while a person is choosing them.
+
+## Positions without a stop
+
+Once the practice and real-wallet reads have both finished, a position with no
+stop has a red "No stop" badge beside its market. Hovering the badge or reaching
+it with the keyboard says, "This position has no stop." The words remain visible
+without relying on the badge's color.
+
+The Positions tab does not mention missing stops. The tab keeps its ordinary
+position count, while the protection warning stays beside the affected market.
+
+An ordinary position gets its stop from the latest position read. A running
+grid also counts as protected when its matching grid plan holds the stop. That
+exception covers a Lighter stop watched inside Trade and a paired grid's own
+part-size stop. The warning reports the missing stop; it never places one.
 
 The heading draws the single one-pixel line above the rows. The first row does
 not add a second edge beneath it, while every later row keeps its normal divider.

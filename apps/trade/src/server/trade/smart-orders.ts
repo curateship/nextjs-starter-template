@@ -1468,10 +1468,21 @@ export async function cancelWatchOrder(
     return { cancelled: true }
   }
 
+  // The engine skips a paused row altogether, so a pause left in place here
+  // would leave the stop unread for good: the row stayed "Paused" under Open
+  // orders with nothing ever taking it back. Calling it off lifts the pause
+  // so the next pass reads the stop. Nothing is placed on that pass, because
+  // a stop is acted on before any order is.
   await db
     .update(tradeSmartLadders)
     .set({
-      plan: { ...plan, phase: "stopping" },
+      plan: {
+        ...plan,
+        phase: "stopping",
+        paused: false,
+        pauseReason: null,
+        refusalStreak: 0,
+      },
       updatedAt: new Date(),
     })
     .where(

@@ -58,9 +58,12 @@ await build({
     "lucide-react/dynamic": "lucide-react/dynamic.mjs",
   },
   // Some dependencies still expect CommonJS's `require`; an ESM bundle has
-  // none, so one is made from the module's own url.
+  // none, so one is made from the module's own url. The import is renamed
+  // because the banner sits outside esbuild's scope tracking: a source file
+  // that imports `createRequire` under its own name (the Dukascopy client
+  // does) would otherwise be declared twice and Node would refuse the bundle.
   banner: {
-    js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+    js: "import { createRequire as __bannerCreateRequire } from 'node:module'; const require = __bannerCreateRequire(import.meta.url);",
   },
   logLevel: "info",
 })

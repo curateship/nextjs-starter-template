@@ -40,6 +40,7 @@ import {
   type SmartOrderKind,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
+import { leftForANewerBuild } from "@/server/trade/left-for-newer-build"
 import { judgeOrder } from "@/lib/trade/order-presence"
 import { readSignalPlan } from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
@@ -1074,6 +1075,7 @@ export async function reconcileLiveLaddersOnce(
   for (const row of rows) {
     const kind = readSmartOrderKind(row.kind)
     if (!kind) continue
+    if (leftForANewerBuild(row.id, kind, row.plan)) continue
     const entry = readSmartEntry(kind, row.plan)
     if (!entry) continue
     parsed.set(row.id, entry)

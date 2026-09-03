@@ -5,10 +5,14 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
+import {
+  ChartPanel,
+  IntervalPicker,
+  type OlderBarsStatus,
+} from "@/components/trade/chart-panel"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { loadCandles } from "@/lib/api/trade/candles"
+import { loadCandles, loadOlderCandlesFor } from "@/lib/api/trade/candles"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
@@ -22,7 +26,7 @@ import type { Trading } from "@/components/trade/use-trading"
 vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/api/trade/candles")>()
-  return { ...actual, loadCandles: vi.fn() }
+  return { ...actual, loadCandles: vi.fn(), loadOlderCandlesFor: vi.fn() }
 })
 
 vi.mock("@/lib/trade/live-market", () => ({
@@ -310,9 +314,10 @@ function chart(key: string) {
 }
 
 describe("the chart candle request", () => {
-  it("draws the opening candles and asks only for the deeper history", async () => {
+  it("draws the opening candles and asks only for the store's older rows", async () => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    vi.mocked(loadOlderCandlesFor).mockReturnValue(new Promise(() => {}))
     const key = "hyperliquid:mainnet:BTC"
 
     await act(async () =>
@@ -355,13 +360,17 @@ describe("the chart candle request", () => {
     expect(host.querySelector('[data-testid="price-chart"]')).not.toBeNull()
     expect(loadCandles).not.toHaveBeenCalled()
     await act(async () => vi.advanceTimersByTime(0))
-    expect(loadCandles).toHaveBeenCalledOnce()
-    expect(loadCandles).toHaveBeenCalledWith(key, "4h")
+    // The venue's slice came with the page. The one request that leaves is
+    // the store read behind it.
+    expect(loadCandles).not.toHaveBeenCalled()
+    expect(loadOlderCandlesFor).toHaveBeenCalledOnce()
+    expect(loadOlderCandlesFor).toHaveBeenCalledWith(key, "4h")
   })
 
   it("waits for the streamed opening slice instead of asking twice", async () => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    vi.mocked(loadOlderCandlesFor).mockReturnValue(new Promise(() => {}))
     const key = "hyperliquid:mainnet:BTC"
     const bar = {
       openTime: 0,
@@ -405,12 +414,118 @@ describe("the chart candle request", () => {
     expect(host.querySelector('[data-testid="price-chart"]')).toBeNull()
 
     // The slice lands as a prop change. The bars it carries are drawn, and
-    // the only request that leaves is the deeper-history chase.
+    // the only request that leaves is the store read behind them.
     await act(async () => root.render(at(false, [bar])))
     await act(async () => vi.advanceTimersByTime(0))
     expect(host.querySelector('[data-testid="price-chart"]')).not.toBeNull()
+    expect(loadCandles).not.toHaveBeenCalled()
+    expect(loadOlderCandlesFor).toHaveBeenCalledOnce()
+    expect(loadOlderCandlesFor).toHaveBeenCalledWith(key, "4h")
+  })
+
+  it("stitches the store's rows behind the venue's and says where they came from", async () => {
+    vi.useFakeTimers()
+    const bar = (openTime: number) => ({
+      openTime,
+      open: 1,
+      high: 1,
+      low: 1,
+      close: 1,
+      volume: 1,
+    })
+    vi.mocked(loadCandles).mockResolvedValue({ candles: [bar(30), bar(40)] })
+    vi.mocked(loadOlderCandlesFor).mockResolvedValue({
+      candles: [bar(0), bar(10), bar(20), bar(30)],
+      source: {
+        key: "dukascopy:mainnet:tslaususd",
+        label: "Dukascopy",
+        volumeNote: "Dukascopy volume",
+      },
+      partial: false,
+    })
+    const reports: OlderBarsStatus[] = []
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="lighter:mainnet:BTC"
+          interval="4h"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={null}
+          trading={trading}
+          free={0}
+          equity={0}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+          onOlderBars={(status) => reports.push(status)}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTime(0))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // One venue request, one store request, in that order.
     expect(loadCandles).toHaveBeenCalledOnce()
-    expect(loadCandles).toHaveBeenCalledWith(key, "4h")
+    expect(loadOlderCandlesFor).toHaveBeenCalledOnce()
+    expect(host.querySelector('[data-slot="chart-ready"]')).not.toBeNull()
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({
+      key: "lighter:mainnet:BTC@4h",
+      source: "Dukascopy",
+      failed: false,
+    })
+    // The volume pane says whose volume the older bars carry.
+    expect(host.textContent).toContain("Dukascopy volume")
+  })
+
+  it("keeps the venue's bars on screen when the store cannot be filled", async () => {
+    vi.useFakeTimers()
+    const bar = { openTime: 30, open: 1, high: 1, low: 1, close: 1, volume: 1 }
+    vi.mocked(loadCandles).mockResolvedValue({ candles: [bar] })
+    vi.mocked(loadOlderCandlesFor).mockRejectedValue(new Error("Binance is down"))
+    const reports: OlderBarsStatus[] = []
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="lighter:mainnet:ETH"
+          interval="4h"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={null}
+          trading={trading}
+          free={0}
+          equity={0}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+          onOlderBars={(status) => reports.push(status)}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTime(0))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // No error card over bars that are perfectly good: the header line says
+    // the older bars could not be loaded, and the chart stays drawn.
+    expect(host.querySelector('[data-slot="chart-ready"]')).not.toBeNull()
+    expect(host.textContent).not.toContain("could not load")
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({ source: null, failed: true })
   })
 
   it("asks at once on a cold load and settles rapid later choices", async () => {

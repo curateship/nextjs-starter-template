@@ -633,6 +633,15 @@ the three outcomes.
 Money the grid made never came from that line. It arrived in cash on each
 level's own sell, one round trip at a time.
 
+A grid is never ended by a build that does not understand it. A saved grid
+carrying a setting the running engine has never heard of was written by a
+newer build, and that engine leaves the row alone: no trades, no saving, no
+ending. On 3 Sep 2026 an older shell worker stood in for the engine during a
+redeploy, read seven short grids as buying grids holding a short, and ended
+them all. `../engine/worker-restart.md` has the whole story and the rule that
+came out of it: in production only the engine trades, and Web, Worker and
+Engine deploy together.
+
 A grid holding coins also ends when its position is gone — stopped out, closed
 by hand, or liquidated. On real money that judgement waits: the exchange read
 can be blind for a few seconds (on 1 Sep 2026 a grid's first buy on a hosted

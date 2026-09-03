@@ -178,7 +178,9 @@ describe("a flow that is not one yet", () => {
     expect(read.problem).toContain("at least one coin")
   })
 
-  it("refuses coins from a different exchange than the step", () => {
+  it("lets coins from several exchanges share one list", () => {
+    // Each is tested on its history source, and the run start maps them
+    // there: BTC on Lighter and TSLA on Aster is a fine list.
     const read = backtestSpecFromFlow(
       flowOf({
         a: wallet,
@@ -187,7 +189,29 @@ describe("a flow that is not one yet", () => {
           settings: {
             ...tradeMarketsNode.createSettings(),
             protocol: "hyperliquid",
-            marketKeys: ["binance:mainnet:BTC"],
+            marketKeys: ["lighter:mainnet:BTC", "aster:mainnet:TSLAUSDT"],
+          },
+        },
+        c: ladder,
+      })
+    )
+
+    expect(read.problem).toBeNull()
+    expect(read.spec?.markets.marketKeys).toEqual([
+      "lighter:mainnet:BTC",
+      "aster:mainnet:TSLAUSDT",
+    ])
+  })
+
+  it("refuses a practice-network coin, whose prices are made up", () => {
+    const read = backtestSpecFromFlow(
+      flowOf({
+        a: wallet,
+        b: {
+          kind: tradeMarketsNode.kind,
+          settings: {
+            ...tradeMarketsNode.createSettings(),
+            marketKeys: ["hyperliquid:testnet:BTC"],
           },
         },
         c: ladder,
@@ -195,7 +219,7 @@ describe("a flow that is not one yet", () => {
     )
 
     expect(read.spec).toBeNull()
-    expect(read.problem).toContain("exchange shown")
+    expect(read.problem).toContain("mainnet")
   })
 })
 

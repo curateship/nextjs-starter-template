@@ -29,6 +29,7 @@ function trade(
     marketKey: "hyperliquid:mainnet:BTC",
     market: "BTC",
     side: "long",
+    orderKind: "manual",
     value: 100,
     profit: 10,
     profitShare: 0.1,
@@ -69,12 +70,13 @@ describe("the Active Trades widget", () => {
       (row) => row.textContent
     )
 
-    expect(headings).toEqual(["Ticker", "Type", "Value", "P/L"])
-    expect(document.querySelectorAll("tbody tr:first-child td")).toHaveLength(4)
+    expect(headings).toEqual(["Ticker", "Type", "Order", "Value", "P/L"])
+    expect(document.querySelectorAll("tbody tr:first-child td")).toHaveLength(5)
     expect(rows.some((row) => row?.includes("Long"))).toBe(true)
     expect(rows.some((row) => row?.includes("Short"))).toBe(true)
     expect(rows.every((row) => !row?.includes("Hyperliquid"))).toBe(true)
     expect(rows.every((row) => !row?.includes("Main"))).toBe(true)
+    expect(rows.every((row) => row?.includes("Manual"))).toBe(true)
   })
 
   it("uses the standard panel bars for its heading and footer", () => {
@@ -129,11 +131,28 @@ describe("the Active Trades widget", () => {
     const document = new DOMParser().parseFromString(html, "text/html")
     const footer = document.querySelector("tfoot")
 
-    expect(footer?.querySelectorAll("td")).toHaveLength(4)
+    expect(footer?.querySelectorAll("td")).toHaveLength(5)
     expect(footer?.textContent).toContain("Total")
     expect(footer?.textContent).not.toContain("Average")
     expect(footer?.textContent).toContain("$400.00")
     expect(footer?.textContent).toContain("+$8.00")
+  })
+
+  it("names the order managing an active trade", () => {
+    const html = renderToStaticMarkup(
+      <ActiveTradesWidget
+        overview={overview([
+          trade({ id: "ladder", orderKind: "dca" }),
+          trade({ id: "grid", orderKind: "grid" }),
+          trade({ id: "signal", orderKind: "signal" }),
+        ])}
+        className=""
+      />
+    )
+
+    expect(html).toContain("DCA ladder")
+    expect(html).toContain("Grid")
+    expect(html).toContain("Signal")
   })
 
   it("does not turn a missing market price into a partial tally", () => {

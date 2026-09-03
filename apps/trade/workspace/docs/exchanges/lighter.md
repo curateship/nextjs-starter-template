@@ -320,16 +320,13 @@ were refused. The count in the message said `34 read, 0 socket` — not one
 socket frame, so the feed, the polling and the split were all working. It was
 the chart.
 
-Every other venue's four-hour chart draws two years first and then chases the
-whole history behind it. That is nine pages of five hundred bars, then eight
-more: **seventeen requests for one coin.** Fine on Hyperliquid. On Lighter it
-is a quarter of the minute for a coin somebody glanced at.
+At the time, every other venue's four-hour chart drew two years first and then
+chased the whole history behind it: nine pages of five hundred bars, then
+eight more, **seventeen requests for one coin.** Fine on Hyperliquid. On
+Lighter it was a quarter of the minute for a coin somebody glanced at.
 
-So Lighter, and only Lighter:
-
-- **The first draw asks for ninety days**, not two years. One request.
-- **It does not chase the full history.** Scrolling back asks for more on its
-  own, which is when somebody has actually said they want it.
+So Lighter, and only Lighter, was cut to a ninety-day first draw with no
+chase:
 
 | clicking through 25 markets | before | after |
 | --- | ---: | ---: |
@@ -337,8 +334,13 @@ So Lighter, and only Lighter:
 | clicks refused | 18 of 25 | 4 of 25 |
 | at a normal clicking pace | — | **0 of 14** |
 
-The cost is that a Lighter coin opens on three months of history rather than
-two years. Scroll back and the rest arrives.
+Since 2 Sep 2026 the same rule holds on every venue, and Lighter is no longer
+the odd one out. A chart asks the venue for its own last 30 days, one request
+(two on the minute chart), and reads everything older from the candle store:
+Binance's rows for a coin, Dukascopy's for a stock, back to 2017 for TSLA
+rather than to the day Lighter listed it. `charts/candle-store.md` has the
+rule. A Lighter market no source can name keeps to its 30 days; it never
+walks its own history.
 
 ### What a browsing session costs now
 
@@ -588,11 +590,22 @@ refused, Trade throws its copy away and asks Lighter for the right one before
 the next order.
 
 The count also resets after ANY refused send (`send` in `orders.ts`), because a
-refused transaction may or may not have spent its number. That is why a nonce
-refusal shows up at most once and then heals: seen live on 31 Aug 2026, when a
-country-block refusal left the count out of step and the next send answered
-`21104`. Before `21104` was on the list it surfaced as "a reason Trade does not
-recognize", which reads like an outage and is only the count re-syncing.
+refused transaction may or may not have spent its number. Seen live on 31 Aug
+2026, when a country-block refusal left the count out of step and the next
+send answered `21104`. Before `21104` was on the list it surfaced as "a reason
+Trade does not recognize", which reads like an outage and is only the count
+re-syncing.
+
+**A refused sequence number is retried once before anything is shown.** In
+production the website and the trading engine are two processes signing for
+the same key, and each counts on its own, so whichever sends second carries a
+number the other already spent. Tyler saw this moving a stop on SOL on 1 and
+2 September 2026: the first press was refused, the same press went through a
+moment later. Since 2 September `send` does that second press itself. It
+throws the count away, asks Lighter for the right number, signs the same
+transaction again and sends it. A second refusal in a row is shown, because
+that is not a stale count. Every transaction goes through `send`, so orders,
+cancels, closes, stops, targets, leverage and margin all get the retry.
 
 ## The send proves nothing, so every order is read back
 

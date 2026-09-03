@@ -10,6 +10,8 @@
  * exchange package. `src/server/protocols/fence.test.ts` enforces both.
  */
 
+import { dukascopySymbol } from "@/lib/protocols/dukascopy/naming"
+
 /**
  * Every exchange this app knows how to talk to.
  *
@@ -18,7 +20,13 @@
  * new module behind it, never a stray name invented at a call site.
  */
 export type ProtocolId =
-  "hyperliquid" | "binance" | "phemex" | "kucoin" | "aster" | "lighter"
+  | "hyperliquid"
+  | "binance"
+  | "phemex"
+  | "kucoin"
+  | "aster"
+  | "lighter"
+  | "dukascopy"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -129,6 +137,7 @@ export const KNOWN_PROTOCOLS = [
   "kucoin",
   "aster",
   "lighter",
+  "dukascopy",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -144,6 +153,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   kucoin: "KuCoin",
   aster: "Aster",
   lighter: "Lighter",
+  dukascopy: "Dukascopy",
 }
 
 export function protocolLabel(id: ProtocolId): string {
@@ -187,46 +197,13 @@ export function parseMarketKey(key: string): MarketRef | null {
  * every panel says the same thing.
  */
 export function marketSymbol(key: string): string {
-  return parseMarketKey(key)?.marketId ?? key
-}
-
-/**
- * How much chart history an exchange is asked for on the first draw, and
- * whether the chart then chases the whole lot behind it.
- *
- * **A table rather than a comparison in the chart**, so adding an exchange
- * stays one folder and one entry — the fence test enforces exactly that.
- *
- * Only Lighter differs, because only Lighter cannot afford it: two years of
- * four-hour bars is nine pages of five hundred, and the chase behind it is
- * eight more, against an allowance of sixty requests a MINUTE for everything.
- * Measured 27 Aug 2026 by clicking through its market list — the chart was
- * refused after eight coins. Ninety days is one request, and scrolling back
- * asks for the rest when somebody actually wants it.
- */
-const TWO_YEARS_MS = 730 * 86_400_000
-const NINETY_DAYS_MS = 90 * 86_400_000
-
-const PROTOCOL_CHART_HISTORY: Record<
-  ProtocolId,
-  { firstPaintMs: number; chasesFullHistory: boolean }
-> = {
-  hyperliquid: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
-  binance: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
-  phemex: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
-  kucoin: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
-  aster: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
-  lighter: { firstPaintMs: NINETY_DAYS_MS, chasesFullHistory: false },
-}
-
-/** What the first draw of a chart asks this exchange for. */
-export function protocolFirstPaintMs(id: ProtocolId): number {
-  return PROTOCOL_CHART_HISTORY[id].firstPaintMs
-}
-
-/** Whether the chart follows the first draw with this venue's whole history. */
-export function protocolChasesFullHistory(id: ProtocolId): boolean {
-  return PROTOCOL_CHART_HISTORY[id].chasesFullHistory
+  const ref = parseMarketKey(key)
+  if (!ref) return key
+  // Dukascopy's ids are lowercase and carry the quote currency: `tslaususd`
+  // is TSLA. Everything else prints its id as it is.
+  return ref.protocol === "dukascopy"
+    ? dukascopySymbol(ref.marketId)
+    : ref.marketId
 }
 
 const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
@@ -274,8 +251,8 @@ export type MarketRow = {
   marketId: string
   /** What to print. The same as marketId on Hyperliquid. */
   symbol: string
-  /** The dollar token printed beside the market, such as USDC or USDT. */
-  quoteAsset: "USDC" | "USDT"
+  /** The dollar token printed beside the market, such as USDC or USDT. Plain USD on a price feed that settles nothing. */
+  quoteAsset: "USDC" | "USDT" | "USD"
   /**
    * The sub-exchange this market trades on, by its full name — the extra
    * venues an exchange hosts beside its main one — or null on the main one.

@@ -41,6 +41,15 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * no lending model to change mid-trade: its leverage decides the size at the
  * moment of the order and there is nothing to move afterwards. Offering a
  * window that pretended otherwise would make practice a worse guide than none.
+ *
+ * **One button at the foot does whatever was typed.** Each box used to have
+ * its own small button and the footer's Done only closed the window, and on
+ * 2 Sep 2026 Tyler typed a margin, pressed Done, and nothing happened. Now
+ * the footer button is named after the change it will send — "Put $200
+ * behind it", "Change to 3×", or both — and reads plain "Done" only when
+ * nothing was typed. The two changes are still two separate commands to the
+ * exchange, sent one after the other; a refusal on the first keeps the window
+ * open so the second is not sent behind it.
  */
 
 export function PositionMarginDialog({
@@ -66,8 +75,9 @@ export function PositionMarginDialog({
   canAdjustMargin: boolean
   marginRefusal: string | null
   busy: boolean
-  onSetLeverage: (position: TradePosition, leverage: number) => void
-  onAdjustMargin: (position: TradePosition, dollars: number) => void
+  /** Both answer whether the exchange took the change. */
+  onSetLeverage: (position: TradePosition, leverage: number) => Promise<boolean>
+  onAdjustMargin: (position: TradePosition, dollars: number) => Promise<boolean>
   onDismiss: () => void
 }) {
   return (
@@ -122,8 +132,8 @@ function MarginForm({
   canMargin: boolean
   marginRefusal: string | null
   busy: boolean
-  onSetLeverage: (position: TradePosition, leverage: number) => void
-  onAdjustMargin: (position: TradePosition, dollars: number) => void
+  onSetLeverage: (position: TradePosition, leverage: number) => Promise<boolean>
+  onAdjustMargin: (position: TradePosition, dollars: number) => Promise<boolean>
   onDismiss: () => void
 }) {
   const symbol = marketSymbol(position.marketKey)
@@ -140,8 +150,6 @@ function MarginForm({
   const [showLeverageValidation, setShowLeverageValidation] =
     React.useState(false)
   const [showMarginValidation, setShowMarginValidation] = React.useState(false)
-  const [leverageSubmitted, setLeverageSubmitted] = React.useState(false)
-  const [marginSubmitted, setMarginSubmitted] = React.useState(false)
 
   const typedLeverage = Number(leverage.trim())
   // An empty box means "leave it as it is", the same way an empty percent box
@@ -233,28 +241,59 @@ function MarginForm({
         : pastStop
           ? `Taking that out moves the liquidation price to about ${formatPrice(afterMargin ?? 0)}, which the market reaches before the stop at ${formatPrice(position.slPx ?? 0)}. The exchange would take the trade before the stop could. Take out less, or move the stop first.`
           : null
-  const leverageActionRefusal =
-    leverageBad ??
-    (leverageBlank
-      ? "Enter the leverage you want."
-      : !leverageChanged
-        ? `This position is already at ${leverageNow}× leverage.`
-        : null)
-  const marginActionRefusal =
-    marginBad ??
-    (margin.trim() === ""
-      ? "Enter how much cash to put behind the position, or a minus to take cash back."
-      : null)
-  const shownLeverageRefusal = showLeverageValidation
-    ? leverageSubmitted
-      ? leverageActionRefusal
-      : leverageBad
+  const shownLeverageRefusal = showLeverageValidation ? leverageBad : null
+  const shownMarginRefusal = showMarginValidation ? marginBad : null
+
+  /**
+   * What the foot button will send. A blank box, or a leverage equal to the
+   * current one, is not a change and is not a mistake either: with nothing
+   * pending the button is plain Done and closes the window.
+   */
+  const leveragePending =
+    canLeverage && !leverageBlank && typedLeverage !== leverageNow
+  const marginPending = canMargin && margin.trim() !== ""
+  const leverageWords = leveragePending
+    ? `Change to ${leverageOk ? typedLeverage : leverage.trim()}×`
     : null
-  const shownMarginRefusal = showMarginValidation
-    ? marginSubmitted
-      ? marginActionRefusal
-      : marginBad
+  const marginWords = marginPending
+    ? marginOk && typedMargin < 0
+      ? `take back ${formatUsd(-typedMargin)}`
+      : marginOk
+        ? `put ${formatUsd(typedMargin)} behind it`
+        : "move margin"
     : null
+  const buttonWords =
+    leverageWords && marginWords
+      ? `${leverageWords} and ${marginWords}`
+      : leverageWords
+        ? leverageWords
+        : marginWords
+          ? marginWords.charAt(0).toUpperCase() + marginWords.slice(1)
+          : "Done"
+
+  const apply = async () => {
+    // Every refusal at once, so a wrong figure in each box is said in one
+    // press rather than one at a time.
+    const refused = [
+      leveragePending ? leverageBad : null,
+      marginPending ? marginBad : null,
+    ].filter((one): one is string => one !== null)
+    if (refused.length > 0) {
+      setShowLeverageValidation(true)
+      setShowMarginValidation(true)
+      showErrorToast(refused[0])
+      return
+    }
+    if (leveragePending) {
+      const took = await onSetLeverage(position, typedLeverage)
+      if (!took) return
+    }
+    if (marginPending) {
+      const took = await onAdjustMargin(position, typedMargin)
+      if (!took) return
+    }
+    onDismiss()
+  }
 
   return (
     <>
@@ -311,13 +350,9 @@ function MarginForm({
                       disabled={busy}
                       onChange={(event) => {
                         setShowLeverageValidation(false)
-                        setLeverageSubmitted(false)
                         setLeverage(event.target.value)
                       }}
-                      onBlur={() => {
-                        setLeverageSubmitted(false)
-                        setShowLeverageValidation(true)
-                      }}
+                      onBlur={() => setShowLeverageValidation(true)}
                       aria-invalid={
                         showLeverageValidation && leverageBad !== null
                       }
@@ -339,27 +374,6 @@ function MarginForm({
                               : ""
                           }. This app's estimate. The row shows the exchange's own figure once it answers.`}
                     </p>
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => {
-                          if (leverageActionRefusal) {
-                            setLeverageSubmitted(true)
-                            setShowLeverageValidation(true)
-                            showErrorToast(leverageActionRefusal)
-                            return
-                          }
-                          onSetLeverage(position, typedLeverage)
-                        }}
-                      >
-                        {busy ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : null}
-                        Change to {leverageOk ? typedLeverage : leverageNow}×
-                      </Button>
-                    </div>
                   </>
                 ) : (
                   <p className="text-xs text-muted-foreground">
@@ -390,13 +404,9 @@ function MarginForm({
                       disabled={busy}
                       onChange={(event) => {
                         setShowMarginValidation(false)
-                        setMarginSubmitted(false)
                         setMargin(event.target.value)
                       }}
-                      onBlur={() => {
-                        setMarginSubmitted(false)
-                        setShowMarginValidation(true)
-                      }}
+                      onBlur={() => setShowMarginValidation(true)}
                       aria-invalid={showMarginValidation && marginBad !== null}
                       aria-describedby={
                         shownMarginRefusal
@@ -418,31 +428,6 @@ function MarginForm({
                                 : ""
                             }. This app's estimate. The row shows the exchange's own figure once it answers.`}
                     </p>
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => {
-                          if (marginActionRefusal) {
-                            setMarginSubmitted(true)
-                            setShowMarginValidation(true)
-                            showErrorToast(marginActionRefusal)
-                            return
-                          }
-                          onAdjustMargin(position, typedMargin)
-                        }}
-                      >
-                        {busy ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : null}
-                        {marginOk && typedMargin < 0
-                          ? `Take back ${formatUsd(-typedMargin)}`
-                          : marginOk
-                            ? `Put ${formatUsd(typedMargin)} behind it`
-                            : "Move margin"}
-                      </Button>
-                    </div>
                   </>
                 ) : (
                   <p className="text-xs text-muted-foreground">
@@ -456,16 +441,25 @@ function MarginForm({
       </DialogBody>
 
       <DialogFooter>
-        {/* One Done, because each change has its own button beside its own box:
-            there is nothing here to save all at once, and a Save would suggest
-            the two travelled together. */}
         <Button
           type="button"
           variant="outline"
           disabled={busy}
           onClick={onDismiss}
         >
-          Done
+          Cancel
+        </Button>
+        {/* Named after what it sends, so "Done" never quietly means "close
+            without doing what was typed". */}
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            void apply()
+          }}
+        >
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+          {buttonWords}
         </Button>
       </DialogFooter>
     </>

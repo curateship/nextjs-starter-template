@@ -251,6 +251,43 @@ export type ProtocolEntry = {
     /** How long one bar of a timeframe lasts, in milliseconds. */
     intervalMs(interval: CandleInterval): number
     /**
+     * True on a source whose markets only trade during their exchange's
+     * hours, so an empty night or weekend is silence and not a hole. The
+     * candle store reads this to decide what counts as a gap.
+     */
+    barsOnlyInSession?: boolean
+    /**
+     * True on a source that publishes what traded, splits and all, so a
+     * five-for-one split reads as the price falling to a fifth overnight.
+     * The candle store folds those back so the history is in today's units.
+     */
+    pricesCarrySplits?: boolean
+    /**
+     * The earliest moment this source could have a bar of this size for the
+     * market, so a full fill starts there rather than at a guess. Absent
+     * where the source does not say.
+     */
+    historyFloor?(marketId: string, interval: CandleInterval): number | null
+    /**
+     * The latest moment this source has published finished bars for, when
+     * that lags behind the clock. Dukascopy writes a day's files after the
+     * day ends, so a window reaching into today is only covered up to
+     * midnight. Absent where a source publishes every closed bar at once.
+     */
+    historyPublishedThrough?(now: number, interval: CandleInterval): number
+    /**
+     * False on a venue that cannot afford to hand over its whole history for
+     * a market no source covers. Lighter allows sixty requests a minute for
+     * everything, and one full walk is eight of them.
+     */
+    chartChasesFullHistory?: false
+    /**
+     * What this source's volume figure really is, when it is not the
+     * market's own. The chart prints it on the volume pane for the bars
+     * that came from here.
+     */
+    volumeNote?: string
+    /**
      * Today's price for these markets and nothing else — the cheap read the
      * practice engine settles against, where `fetch` is the whole catalogue.
      * A market the exchange would not price is left out of the answer rather
@@ -551,12 +588,26 @@ export type ProtocolEntry = {
 
 import {
   fetchBinanceCandleHistory,
+  binanceHistoryFloor,
   binanceIntervalMs,
   fetchBinanceCandles,
   fetchBinanceMarkets,
   fetchBinancePrices,
   roundBinancePx,
 } from "@/server/protocols/binance/markets"
+import { dukascopyFirstBar } from "@/lib/protocols/dukascopy/instruments"
+import {
+  DUKASCOPY_HISTORY_BATCH_BARS,
+  dukascopyPublishedThrough,
+  fetchDukascopyCandleHistory,
+  fetchDukascopyCandles,
+} from "@/server/protocols/dukascopy/candles"
+import {
+  dukascopyIntervalMs,
+  fetchDukascopyMarkets,
+  fetchDukascopyPrices,
+  roundDukascopyPx,
+} from "@/server/protocols/dukascopy/markets"
 
 const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
   hyperliquid: {
@@ -820,6 +871,11 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       candles: fetchLighterCandles,
       history: fetchLighterCandleHistory,
       historyBatchBars: LIGHTER_HISTORY_BATCH_BARS,
+      // Measured 27 Aug 2026: clicking through the market list ran the
+      // minute's sixty requests out after eight coins. A market with a
+      // history source never asks Lighter for more than 30 days now; one
+      // without keeps to those 30 days too.
+      chartChasesFullHistory: false,
       intervalMs: standardCandleIntervalMs,
       prices: fetchLighterPrices,
       roundPx: roundToTick,
@@ -886,6 +942,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fetch: fetchBinanceMarkets,
       candles: fetchBinanceCandles,
       history: fetchBinanceCandleHistory,
+      historyFloor: binanceHistoryFloor,
       intervalMs: binanceIntervalMs,
       prices: fetchBinancePrices,
       roundPx: roundBinancePx,
@@ -893,6 +950,32 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     funding: {
       fetch: fetchBinanceFunding,
       intervalMs: binanceFundingIntervalMs,
+    },
+  },
+  /**
+   * Years of stock, index, metal and currency history, and nothing else.
+   *
+   * Dukascopy publishes finished bars as public files, so this entry has no
+   * live prices, no funding and no accounts. The candle store reads it for
+   * every market `historySourceFor` sends here; no screen ever lists it as
+   * somewhere to trade.
+   */
+  dukascopy: {
+    ...protocolCore("dukascopy"),
+    markets: {
+      fetch: fetchDukascopyMarkets,
+      candles: fetchDukascopyCandles,
+      history: fetchDukascopyCandleHistory,
+      historyBatchBars: DUKASCOPY_HISTORY_BATCH_BARS,
+      historyFloor: dukascopyFirstBar,
+      historyPublishedThrough: dukascopyPublishedThrough,
+      intervalMs: dukascopyIntervalMs,
+      barsOnlyInSession: true,
+      pricesCarrySplits: true,
+      // Dukascopy's volume is its own brokerage volume, not the exchange's.
+      volumeNote: "Dukascopy volume",
+      prices: fetchDukascopyPrices,
+      roundPx: roundDukascopyPx,
     },
   },
 }

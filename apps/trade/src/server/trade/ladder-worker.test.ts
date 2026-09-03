@@ -151,8 +151,56 @@ vi.mock("@/server/trade/price-alerts", () => ({
   },
 }))
 
-const { advanceWorkingLadders, lastPass, resetLadderPassState } =
-  await import("@/server/trade/ladder-worker")
+const leader = vi.hoisted(() => ({ asked: 0 }))
+vi.mock("@/server/trade/leadership", () => ({
+  tryBecomeLeader: async () => {
+    leader.asked += 1
+    return { held: false }
+  },
+}))
+
+const {
+  advanceWorkingLadders,
+  ensureLadderLoop,
+  lastPass,
+  resetLadderPassState,
+} = await import("@/server/trade/ladder-worker")
+
+/**
+ * The website and the shell worker may stand in for the engine in
+ * development only. In production they are separate containers on whatever
+ * build they last got, and an old build standing in ended seven short grids
+ * on 3 Sep 2026. Nothing standing in beats something old standing in.
+ */
+describe("standing in for the engine", () => {
+  const env = { VITEST: process.env.VITEST, NODE_ENV: process.env.NODE_ENV }
+  beforeEach(() => {
+    leader.asked = 0
+    delete process.env.VITEST
+    // Offered to trade long ago, so the stand-back delay is not what stops it.
+    globalThis.__tradeLadderSince = 1
+    globalThis.__tradeLadderClaiming = undefined
+  })
+  afterEach(() => {
+    process.env.VITEST = env.VITEST
+    process.env.NODE_ENV = env.NODE_ENV
+    globalThis.__tradeLadderSince = undefined
+    globalThis.__tradeLadderClaiming = undefined
+  })
+
+  it("never happens in production", async () => {
+    process.env.NODE_ENV = "production"
+    ensureLadderLoop()
+    await new Promise((done) => setTimeout(done, 20))
+    expect(leader.asked).toBe(0)
+  })
+
+  it("happens in development once the stand-back has passed", async () => {
+    process.env.NODE_ENV = "development"
+    ensureLadderLoop()
+    await vi.waitFor(() => expect(leader.asked).toBe(1))
+  })
+})
 
 describe("the server's ladder job", () => {
   beforeEach(() => {

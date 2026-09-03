@@ -15,7 +15,7 @@ import {
   sql,
 } from "drizzle-orm"
 
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { marketSymbol, parseMarketKey } from "@/lib/protocols/contracts"
 import type { BacktestSpec } from "@/lib/trade/backtest/flow"
 import type {
   BacktestCoinSummary,
@@ -164,17 +164,10 @@ export async function createBacktest(
   const keys = [...new Set(input.spec.markets.marketKeys)].sort()
   const refs = keys.map(parseMarketKey)
   const first = refs[0]
-  if (
-    !first ||
-    refs.some(
-      (ref) =>
-        !ref ||
-        ref.protocol !== first.protocol ||
-        ref.network !== first.network ||
-        ref.protocol !== input.spec.markets.protocol ||
-        ref.network !== "mainnet"
-    )
-  ) {
+  // Coins and stocks share one list now, each on its own history source, so
+  // a list that mixes Binance and Dukascopy keys is the ordinary case. Only a
+  // key that is not a market, or a practice-network one, is refused.
+  if (!first || refs.some((ref) => !ref || ref.network !== "mainnet")) {
     throw new Error("BACKTEST_MARKET")
   }
 
@@ -206,7 +199,7 @@ export async function createBacktest(
         id: randomUUID(),
         groupId,
         marketKey,
-        symbol: parseMarketKey(marketKey)?.marketId ?? marketKey,
+        symbol: marketSymbol(marketKey),
         createdAt: new Date(input.now),
       }))
     )

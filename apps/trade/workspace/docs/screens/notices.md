@@ -73,9 +73,22 @@ and the wallet's own label:
 
 - **A fill:** "Bought $500 of ETH at $90 (Hyperliquid main)". Level `info`.
 - **A closing fill:** the same, with what it banked in the body — "Lost $55.00
-  on this close." A loss is level `warning`.
+  on this close. That is measured against the whole position's average entry
+  of $95.00, not the last buy." A loss is level `warning`.
 - **A liquidation:** "The exchange liquidated ETH: …". Level `critical`.
 - **A practice wallet** says so in the label: "(Test wallet, practice)".
+
+**The money on a close is the exchange's own figure, and it is measured
+against the whole position's average entry.** On 2 September 2026 Tyler bought
+782 ENA at 0.14737, sold them an hour later at 0.15105, and the bell said
+"Lost $3.81". Hyperliquid was right: the position also held 1,734 coins bought
+near 0.16, and an exchange never pairs a sale with one particular buy. The
+notice now says the average entry beside the figure, so the number can be
+checked against the position row. The entry is worked back from the
+exchange's own two numbers (the fill's price and what it banked, per coin) in
+`averageEntryOf` in `src/server/trade/live-fills.ts`. KuCoin gets no entry,
+because its closed money is the whole position's landed on the last fill, and
+that arithmetic does not hold there.
 
 A ladder with twenty rungs filling in a cascade is twenty notices. That is the
 rule — one per event — and it is loud on purpose; grouping is a later task.
@@ -156,9 +169,11 @@ untouched.
 The fifth refusal sends one warning notice. Its title names the coin and the
 kind of smart order, its body carries the exchange's plain explanation, and
 pressing it opens that coin's chart. Later engine passes send nothing for the
-paused strategy and no more notices. The Smart orders panel shows the same
-reason and a Resume button. Resume clears the count, but it never happens on
-its own.
+paused strategy and no more notices. A paused ladder or grid shows the same
+reason and a Resume button in the Smart orders panel; a paused watched price
+shows "Paused" and Resume on its Open orders row instead, because a watched
+price is never listed in that panel (`../orders/watched-orders.md`). Resume
+clears the count, but it never happens on its own.
 
 One accepted order resets the count to zero. A rate limit, timeout or exchange
 outage neither adds to the count nor clears it, because those problems belong

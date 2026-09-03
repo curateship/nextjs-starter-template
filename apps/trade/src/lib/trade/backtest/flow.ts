@@ -264,19 +264,15 @@ export function backtestSpecFromFlow(
     }
   }
 
+  // Any exchange's coins may sit on one list now: each is tested on its
+  // history source, and the run start maps them there. Only a practice
+  // network is refused, because its prices are made up.
   const marketRefs = market.data.marketKeys.map(parseMarketKey)
-  if (
-    marketRefs.some(
-      (ref) =>
-        !ref ||
-        ref.protocol !== market.data.protocol ||
-        ref.network !== "mainnet"
-    )
-  ) {
+  if (marketRefs.some((ref) => !ref || ref.network !== "mainnet")) {
     return {
       spec: null,
       problem:
-        "Choose every coin from the exchange shown in the Markets step. Backtests use mainnet price history.",
+        "Every coin in the Markets step has to be a real mainnet market. Backtests use mainnet price history.",
     }
   }
 

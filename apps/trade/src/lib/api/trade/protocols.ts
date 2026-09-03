@@ -193,6 +193,30 @@ export const PROTOCOL_DESCRIPTIONS = [
     },
     credentialForm: null,
   },
+  {
+    id: "dukascopy",
+    label: "Dukascopy",
+    // A public price feed, not an exchange: nobody holds an account there.
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: false,
+      orders: false,
+      gridStop: "watched",
+      changeLeverage: {
+        can: false,
+        because:
+          "Dukascopy is here for its candles only — no wallet trades on it.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Dukascopy is here for its candles only — no wallet trades on it.",
+      },
+    },
+    credentialForm: null,
+  },
 ] as const satisfies readonly ProtocolDescription[]
 
 const byId = new Map(

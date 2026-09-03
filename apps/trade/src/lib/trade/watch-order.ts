@@ -146,6 +146,11 @@ const watchPlanSchema = z.object({
 export type WatchPlan = z.infer<typeof watchPlanSchema>
 
 /** Reads a stored plan back, or null when it cannot be read. */
+/** Every top-level field this build knows a saved watch to have. */
+export const WATCH_PLAN_FIELDS: ReadonlySet<string> = new Set(
+  Object.keys(watchPlanSchema.shape)
+)
+
 export function readWatchPlan(value: unknown): WatchPlan | null {
   const parsed = watchPlanSchema.safeParse(value)
   return parsed.success ? parsed.data : null

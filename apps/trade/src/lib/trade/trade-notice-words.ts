@@ -39,6 +39,11 @@ export function fillNoticeWords(fill: {
   px: number
   sz: number
   closedPnl: number
+  /**
+   * The average entry the exchange measured the close against, when it can
+   * be said. Null leaves the sentence at the dollars alone.
+   */
+  entryPx?: number | null
   liquidation: boolean
   walletLabel: string
   practice: boolean
@@ -54,7 +59,7 @@ export function fillNoticeWords(fill: {
       title: `The exchange liquidated ${coin}: ${did.toLowerCase()} ${usd} at ${price} ${tag}`,
       body:
         fill.closedPnl !== 0
-          ? `${gainWords(fill.closedPnl)} The exchange closed this itself.`
+          ? `${gainWords(fill.closedPnl, null)} The exchange closed this itself.`
           : "The exchange closed this itself.",
       level: "critical",
     }
@@ -64,7 +69,7 @@ export function fillNoticeWords(fill: {
   if (fill.closedPnl !== 0) {
     return {
       title,
-      body: gainWords(fill.closedPnl),
+      body: gainWords(fill.closedPnl, fill.entryPx ?? null),
       level: fill.closedPnl < 0 ? "warning" : "info",
     }
   }
@@ -103,7 +108,19 @@ export function triggerNoticeWords(input: {
   }
 }
 
-/** "Made $55 on this close." / "Lost $55 on this close." */
-function gainWords(closedPnl: number): string {
-  return `${closedPnl < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(closedPnl))} on this close.`
+/**
+ * "Made $55 on this close." — and, when the entry is known, what the figure
+ * was measured against.
+ *
+ * **Said because the exchange's figure and the last buy disagree.** On 2 Sep
+ * 2026 a sale of 782 ENA at 0.15105, bought an hour earlier at 0.14737, rang
+ * the bell with "Lost $3.81". Hyperliquid was right: the position also held
+ * 1,734 coins bought near 0.16, and an exchange measures every close against
+ * the whole position's average entry, never against one buy. The number
+ * without the entry beside it read as a mistake, so the entry is named.
+ */
+function gainWords(closedPnl: number, entryPx: number | null): string {
+  const money = `${closedPnl < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(closedPnl))} on this close.`
+  if (entryPx === null) return money
+  return `${money} That is measured against the whole position's average entry of ${formatPrice(entryPx)}, not the last buy.`
 }

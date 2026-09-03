@@ -39,16 +39,16 @@ afterEach(async () => {
 })
 
 function Harness() {
-  const [firstExchange, setFirstExchange] = useState<string | null>(null)
-  const [firstWallet, setFirstWallet] = useState<string | null>(null)
-  const [secondExchange, setSecondExchange] = useState<string | null>(null)
-  const [secondWallet, setSecondWallet] = useState<string | null>(null)
+  const [firstExchange, setFirstExchange] = useState<string[] | null>(null)
+  const [firstWallet, setFirstWallet] = useState<string[] | null>(null)
+  const [secondExchange, setSecondExchange] = useState<string[] | null>(null)
+  const [secondWallet, setSecondWallet] = useState<string[] | null>(null)
 
   const filter = (
-    exchange: string | null,
-    wallet: string | null,
-    setExchange: (value: string | null) => void,
-    setWallet: (value: string | null) => void
+    exchange: string[] | null,
+    wallet: string[] | null,
+    setExchange: (value: string[] | null) => void,
+    setWallet: (value: string[] | null) => void
   ) => (
     <CountedFilterPopover
       items={items}
@@ -105,8 +105,18 @@ describe("the counted filter popover", () => {
     expect(buttons("Phemex1")).toHaveLength(1)
     expect(buttons("Second2")).toHaveLength(1)
     expect(buttons("Main1")).toHaveLength(1)
+    const aster = buttons("Aster2")[0]
+    const count = aster.querySelector('[data-slot="filter-option-count"]')
+    expect(count?.textContent).toBe("2")
+    expect(count?.previousElementSibling?.textContent).toBe("Aster")
+    expect(count?.className).toContain("bg-muted")
+    expect(aster.querySelector("svg")?.classList).toContain("ml-auto")
+    expect(buttons("Aster2")[0].getAttribute("aria-checked")).toBe("true")
+    expect(buttons("Phemex1")[0].getAttribute("aria-checked")).toBe("true")
 
     await act(async () => buttons("Aster2")[0].click())
+    expect(buttons("Aster2")[0].getAttribute("aria-checked")).toBe("false")
+    expect(buttons("Phemex1")[0].getAttribute("aria-checked")).toBe("true")
     expect(buttons("Filter (1)")).toHaveLength(1)
     expect(buttons("Filter")).toHaveLength(1)
 
@@ -120,6 +130,7 @@ describe("the counted filter popover", () => {
     await act(async () => buttons("Clear all")[0].click())
     expect(buttons("Filter (1)")).toHaveLength(1)
     expect(buttons("Filter")).toHaveLength(1)
+    expect(buttons("Aster2")[0].getAttribute("aria-checked")).toBe("true")
   })
 
   it("closes from the keyboard", async () => {

@@ -1,7 +1,24 @@
 import { ladderPlanSchema, type LadderPlan } from "@/lib/trade/dca"
-import { readGridPlan, type GridPlan } from "@/lib/trade/grid"
-import { readSignalPlan, type SignalPlan } from "@/lib/trade/signal-order"
-import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
+import {
+  GRID_PLAN_FIELDS,
+  readGridPlan,
+  type GridPlan,
+} from "@/lib/trade/grid"
+import {
+  SIGNAL_PLAN_FIELDS,
+  readSignalPlan,
+  type SignalPlan,
+} from "@/lib/trade/signal-order"
+import {
+  WATCH_PLAN_FIELDS,
+  readWatchPlan,
+  type WatchPlan,
+} from "@/lib/trade/watch-order"
+
+/** Every top-level field this build knows a saved DCA ladder to have. */
+const LADDER_PLAN_FIELDS: ReadonlySet<string> = new Set(
+  Object.keys(ladderPlanSchema.shape)
+)
 
 /**
  * The three kinds of smart order, and the one door every stored plan is read
@@ -109,15 +126,22 @@ export function laddersAndGridsYouPlaced(
  * and its position stays in the Positions tab because nothing else on this
  * screen shows it. A paused flow order is the exception. It needs the reason
  * and Resume button this panel owns, then disappears back to its run after it
- * resumes. A watched price is not here either unless it paused.
+ * resumes.
+ *
+ * A watched price is never here, paused or not. It is a plain order waiting
+ * at a price, and it lives under Open orders, on the Watched tab and on its
+ * chart; a paused one gets its Resume on the Open orders row. Listing it here
+ * used to take its coin off the Positions tab with it: on 2 Sep 2026 a half
+ * close of SOL paused, jumped into this panel, and the SOL position vanished
+ * from the bottom panel while the money was still on the exchange.
  */
 export function smartOrdersYouPlaced(
   orders: readonly SmartOrder[]
 ): SmartOrder[] {
   return orders.filter(
     (order) =>
-      order.plan.paused === true ||
-      (order.flowRunId === null && order.kind !== "watch")
+      order.kind !== "watch" &&
+      (order.plan.paused === true || order.flowRunId === null)
   )
 }
 
@@ -143,6 +167,37 @@ export function readSmartPlan(
   if (kind === "watch") return readWatchPlan(value)
   const parsed = ladderPlanSchema.safeParse(value)
   return parsed.success ? parsed.data : null
+}
+
+/**
+ * The fields in a saved plan that this build has never heard of.
+ *
+ * Empty for a plan this build could have written itself. Anything else means
+ * a NEWER build wrote the row: `readSmartPlan` would still parse it, because
+ * every plan change is additive and zod strips what it does not know — but
+ * "strips" cuts both ways. The engine saves the plan back after every pass,
+ * and an older engine writes it back without the fields, which is how a
+ * short grid became a buying grid holding a short and ended itself, seven
+ * times over, on 3 Sep 2026. So an engine that finds fields it does not know
+ * leaves the row exactly as it is: no trading, no saving, until a build that
+ * understands the row is the one holding the lock.
+ */
+export function unknownPlanFields(
+  kind: SmartOrderKind,
+  value: unknown
+): string[] {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return []
+  }
+  const known =
+    kind === "grid"
+      ? GRID_PLAN_FIELDS
+      : kind === "signal"
+        ? SIGNAL_PLAN_FIELDS
+        : kind === "watch"
+          ? WATCH_PLAN_FIELDS
+          : LADDER_PLAN_FIELDS
+  return Object.keys(value).filter((field) => !known.has(field))
 }
 
 /**

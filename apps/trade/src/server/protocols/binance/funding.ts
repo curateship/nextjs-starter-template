@@ -1,10 +1,8 @@
 import { z } from "zod"
 
+import { binanceSymbolFor } from "@/lib/protocols/binance/translate"
 import type { FundingRate, NetworkId } from "@/lib/protocols/contracts"
-import {
-  binanceSymbolFor,
-  isNotListedOnBinance,
-} from "@/server/protocols/binance/candles"
+import { isNotListedOnBinance } from "@/server/protocols/binance/candles"
 
 const BINANCE_FUNDING = "https://fapi.binance.com/fapi/v1/fundingRate"
 const PAGE_LIMIT = 1000

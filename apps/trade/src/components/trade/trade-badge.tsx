@@ -4,12 +4,11 @@ import {
   ALARM_SURFACE,
   LOST_MONEY_SURFACE,
   MADE_MONEY_SURFACE,
-  WARNING_SURFACE,
 } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 /**
- * The small word beside a market: Long, Real, Testnet, Practice, how a trade
+ * The small word beside a market: Long, Testnet, Practice, how a trade
  * ended.
  *
  * One component rather than the same four classes pasted into every table,
@@ -26,8 +25,6 @@ export type TradeBadgeTone =
   | "made"
   /** This went the other way: Short, a trade that lost money. */
   | "lost"
-  /** Real money is involved. Amber everywhere, so it is never missed. */
-  | "real"
   /** The practice network — pretend money on a real exchange. */
   | "testnet"
   /** Something happened TO the account: a liquidation. */
@@ -37,7 +34,6 @@ const TONES: Record<TradeBadgeTone, string> = {
   neutral: "bg-muted text-muted-foreground",
   made: MADE_MONEY_SURFACE,
   lost: LOST_MONEY_SURFACE,
-  real: WARNING_SURFACE,
   testnet: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
   alarm: ALARM_SURFACE,
 }

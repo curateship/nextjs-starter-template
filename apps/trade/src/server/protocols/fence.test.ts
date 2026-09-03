@@ -43,6 +43,13 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
       join("server", "protocols", "aster"),
     ],
   },
+  {
+    // The stock and forex history feed. Loaded through `createRequire` for
+    // the reason written in its client file, which is why the import check
+    // below also matches a `require(...)`.
+    pkg: "dukascopy-node",
+    homes: [join("server", "protocols", "dukascopy")],
+  },
 ]
 
 /**
@@ -82,10 +89,11 @@ describe("the protocol fence", () => {
 
   it("keeps each exchange package inside its own folders", () => {
     for (const { pkg, homes } of EXCHANGE_PACKAGES) {
-      // Real imports only — `from "pkg"` or `import("pkg")` — so this file
-      // may name the package in its own list without fencing itself in.
+      // Real imports only — `from "pkg"`, `import("pkg")` or `require("pkg")`
+      // — so this file may name the package in its own list without fencing
+      // itself in.
       const imports = new RegExp(
-        `(?:from\\s*|import\\s*\\()\\s*["'\`]${pkg.replace(/[/@]/g, "\\$&")}`
+        `(?:from\\s*|import\\s*\\(|require\\s*\\()\\s*["'\`]${pkg.replace(/[/@]/g, "\\$&")}`
       )
       const leaks = sources
         .filter(({ text }) => imports.test(text))
@@ -115,7 +123,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))

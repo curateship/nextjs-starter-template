@@ -829,6 +829,13 @@ export const backtestSummarySchema = z.object({
   liquidatedUsd: z.number().default(0),
   /** Things that make the result less believable, in plain words. */
   warnings: z.array(z.string()),
+  /**
+   * Coins whose history source has no funding at all, by symbol. Stocks on
+   * Dukascopy: a Hyperliquid or Lighter stock perpetual does charge funding
+   * in real life, and the result says plainly that this run did not count
+   * it. Defaulted for runs saved before stocks could be tested.
+   */
+  fundingNotCounted: z.array(z.string()).default([]),
 })
 
 export type BacktestSummary = z.infer<typeof backtestSummarySchema>

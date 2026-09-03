@@ -6,7 +6,7 @@ import {
   Loader2Icon,
 } from "lucide-react"
 
-import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
+import { ActiveTradesDropdown } from "@/components/trade/active-trades-dropdown"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -76,9 +76,7 @@ function useActiveTradesHeader() {
       try {
         const fresh = await loadActiveTradesHeader()
         setSnapshot((was) =>
-          was
-            ? mergeActiveTradesSnapshot(was, fresh.snapshot)
-            : fresh.snapshot
+          was ? mergeActiveTradesSnapshot(was, fresh.snapshot) : fresh.snapshot
         )
         if (visibilityVersion.current === version) {
           setProfitVisible(fresh.headerProfitVisible)
@@ -166,13 +164,8 @@ function useActiveTradesHeader() {
 }
 
 function AdminActiveTradesHeader() {
-  const {
-    snapshot,
-    failed,
-    refresh,
-    profitVisible,
-    updateProfitVisibility,
-  } = useActiveTradesHeader()
+  const { snapshot, failed, refresh, profitVisible, updateProfitVisibility } =
+    useActiveTradesHeader()
   const [open, setOpen] = React.useState(false)
   const closeTimer = React.useRef<number | null>(null)
   const hoverOpen = React.useRef(false)
@@ -265,15 +258,15 @@ function AdminActiveTradesHeader() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="h-[min(32rem,calc(100vh-5rem))] w-max max-w-[calc(100vw-1rem)] gap-0 p-0"
+        className="flex max-h-[calc(50vh-4rem)] w-max max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onMouseEnter={cancelClose}
         onMouseLeave={closeSoon}
       >
         {snapshot ? (
-          <ActiveTradesWidget
-            overview={snapshot}
-            className="w-max max-w-full rounded-[inherit] bg-popover shadow-none ring-0 [&_[data-slot=table-container]]:w-max [&_table]:w-max"
+          <ActiveTradesDropdown
+            snapshot={snapshot}
+            className="[&_[data-slot=table-container]]:w-max [&_table]:w-max"
             onTradeOpen={() => setOpen(false)}
             headerAction={
               <Tooltip>

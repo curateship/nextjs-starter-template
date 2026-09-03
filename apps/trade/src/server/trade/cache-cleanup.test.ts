@@ -35,7 +35,9 @@ afterEach(async () => {
 })
 
 async function seedCacheRows(): Promise<void> {
-  const old = CUTOFF - 1
+  // A whole minute before the cutoff, so the old coverage piece ends before
+  // it too; a piece running past the cutoff is trimmed rather than removed.
+  const old = CUTOFF - 60_001
   const kept = CUTOFF
 
   await db
@@ -74,6 +76,32 @@ describe("trade cache cleanup", () => {
       const [remaining] = await db.select({ value: count() }).from(table)
       expect(remaining.value).toBe(1)
     }
+  })
+
+  it("trims a coverage piece that runs past the cutoff rather than forgetting it", async () => {
+    // Gold's 4-hour coverage ran from 2003 to today in one piece. Deleting
+    // it forgot every year still stored, and the next open fetched them all.
+    await db.insert(tradeCandleCoverage).values({
+      marketKey: "dukascopy:mainnet:xauusd",
+      interval: "4h",
+      fromTime: CUTOFF - 10 * DAY_MS,
+      toTime: CUTOFF + 10 * DAY_MS,
+    })
+    await db.insert(tradeFundingCoverage).values({
+      marketKey: "binance:mainnet:BTC",
+      fromTime: CUTOFF - 10 * DAY_MS,
+      toTime: CUTOFF + 10 * DAY_MS,
+    })
+
+    const counts = await cleanTradeCaches(db, NOW)
+
+    expect(counts.candleCoverage).toBe(0)
+    expect(counts.fundingCoverage).toBe(0)
+    const [piece] = await db.select().from(tradeCandleCoverage)
+    expect(piece.fromTime).toBe(CUTOFF)
+    expect(piece.toTime).toBe(CUTOFF + 10 * DAY_MS)
+    const [funding] = await db.select().from(tradeFundingCoverage)
+    expect(funding.fromTime).toBe(CUTOFF)
   })
 
   it("leaves every cache alone while a backtest is waiting", async () => {

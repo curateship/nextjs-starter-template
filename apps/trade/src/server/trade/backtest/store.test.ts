@@ -214,9 +214,18 @@ describe("writing a run down", () => {
     ).rejects.toThrow("BACKTEST_WINDOW")
   })
 
-  it("refuses a run that mixes exchanges", async () => {
+  it("lets a run mix history sources", async () => {
+    // A coin on Binance and a stock on Dukascopy share one list now.
+    const made = await makeRun([
+      "dukascopy:mainnet:tslaususd",
+      "binance:mainnet:BTC",
+    ])
+    expect(made.coins).toBe(2)
+  })
+
+  it("refuses a practice-network coin", async () => {
     await expect(
-      makeRun(["hyperliquid:mainnet:AAA", "binance:mainnet:BTC"])
+      makeRun(["hyperliquid:testnet:AAA", "binance:mainnet:BTC"])
     ).rejects.toThrow("BACKTEST_MARKET")
   })
 })
@@ -357,6 +366,7 @@ describe("saving what a run found", () => {
     tradesLiquidated: 0,
     liquidatedUsd: 0,
     warnings: [],
+        fundingNotCounted: [],
   }
 
   it("keeps a skipped coin as a skipped row, never as an absence", async () => {

@@ -8,14 +8,19 @@ import {
   type CandleInterval,
 } from "@/lib/protocols/contracts"
 import { userGet } from "@/server/guards"
-import { loadProtocolCandles } from "@/server/trade/candles"
+import {
+  loadOlderCandles,
+  loadProtocolCandles,
+  type OlderCandles,
+} from "@/server/trade/candles"
 
 import { createErrorMessage } from "../error-message"
 
 /**
- * Price history for the chart. The market arrives as a full market key, so
- * this file resolves which protocol to ask through the registry and never
- * needs to know an exchange by name.
+ * Price history for the chart, in two reads: the venue's own recent slice,
+ * then the store's older rows behind it. The market arrives as a full market
+ * key, so this file resolves which protocol to ask through the registry and
+ * never needs to know an exchange by name.
  */
 
 const candlesInputSchema = z.object({
@@ -28,39 +33,39 @@ const candlesInputSchema = z.object({
       message: "Not a market key.",
     }),
   interval: z.enum(CANDLE_INTERVALS),
-  /**
-   * The oldest moment worth asking for, in epoch milliseconds. The chart
-   * sends it for its FIRST look at a timeframe that loads in full: two years
-   * arrives in well under a second where the whole history takes a second or
-   * two, so something is on screen while the rest is still coming.
-   *
-   * Pulled forward to a sane limit below before it reaches an exchange — the
-   * value arrives from a browser, and a far enough past turns one request
-   * into a hundred thousand. See `earliestAskable`.
-   */
-  since: z.number().int().positive().optional(),
 })
 
+/** The venue's own last 30 days, drawn the moment they arrive. */
 const loadCandlesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(candlesInputSchema)
   .handler(async ({ data }): Promise<{ candles: CandleBar[] }> => {
     return {
-      candles: await loadProtocolCandles(
-        data.marketKey,
-        data.interval,
-        data.since
-      ),
+      candles: await loadProtocolCandles(data.marketKey, data.interval),
     }
   })
 
-export function loadCandles(
-  marketKey: string,
-  interval: CandleInterval,
-  since?: number
-) {
-  return loadCandlesFn({ data: { marketKey, interval, since } })
+export function loadCandles(marketKey: string, interval: CandleInterval) {
+  return loadCandlesFn({ data: { marketKey, interval } })
 }
+
+/**
+ * Everything older, from the store. Filled from the market's history source
+ * the first time a market and timeframe are opened, read straight back after
+ * that, and stitched behind the venue's bars in the browser.
+ */
+const loadOlderCandlesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(candlesInputSchema)
+  .handler(async ({ data }): Promise<OlderCandles> => {
+    return loadOlderCandles(data.marketKey, data.interval)
+  })
+
+export function loadOlderCandlesFor(marketKey: string, interval: CandleInterval) {
+  return loadOlderCandlesFn({ data: { marketKey, interval } })
+}
+
+export type { OlderCandles }
 
 /**
  * `EXCHANGE_BUSY` means the venue would not answer right now, and NOT

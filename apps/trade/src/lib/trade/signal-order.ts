@@ -113,6 +113,11 @@ export type SignalPlan = z.infer<typeof signalPlanSchema>
  * other smart order follows, and for the same reason: a row written by a build
  * that meant something else by these fields has real orders behind it.
  */
+/** Every top-level field this build knows a saved signal trade to have. */
+export const SIGNAL_PLAN_FIELDS: ReadonlySet<string> = new Set(
+  Object.keys(signalPlanSchema.shape)
+)
+
 export function readSignalPlan(value: unknown): SignalPlan | null {
   const parsed = signalPlanSchema.safeParse(value)
   return parsed.success ? parsed.data : null

@@ -11,9 +11,20 @@ behind it makes it 2.5×. Asking for 2.5× puts $200 more behind it. So the
 window shows both, and each box says in dollars what the change comes to before
 anything is pressed.
 
-Each box has its own button. There is no Save: the two changes are separate
-commands to the exchange and a single Save would suggest they travelled
-together.
+One button at the foot of the window sends whatever was typed, and it is
+named after the change: "Put $200.00 behind it", "Take back $100.00", "Change
+to 3×", or "Change to 3× and put $200.00 behind it". With nothing typed it
+reads Done and only closes. Cancel beside it always just closes.
+
+The two changes are still two separate commands to the exchange. Leverage goes
+first, then margin, and a refusal on the first keeps the window open so the
+second is not sent behind it. The window closes on its own once the exchange
+has taken everything that was asked, and stays open with the refusal on screen
+when it has not.
+
+Until 2 September 2026 each box had its own small button and Done only closed
+the window, so a margin typed and Done pressed did nothing. That is why the
+foot button now does the work.
 
 ## The liquidation figure on the window is an estimate, and says so
 

@@ -422,6 +422,7 @@ export function ActivityPanel({
             markets={markets}
             // What a real position's fee total is added up from.
             fills={trading.fills}
+            smartOrders={trading.smartOrders}
             walletName={walletName}
             busy={trading.busy}
             settled={trading.settled}
@@ -455,6 +456,7 @@ export function ActivityPanel({
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onCancel={(order) => void trading.cancel(order)}
+            onResume={trading.resumeSmartOrder}
           />
         </ScrollArea>
       </TabsContent>
@@ -540,12 +542,8 @@ export function ActivityPanel({
             canAdjustMargin={canAdjustMargin}
             marginRefusal={marginRefusal}
             busy={trading.busy}
-            onSetLeverage={(position, leverage) =>
-              void trading.setPositionLeverage(position, leverage)
-            }
-            onAdjustMargin={(position, dollars) =>
-              void trading.adjustPositionMargin(position, dollars)
-            }
+            onSetLeverage={trading.setPositionLeverage}
+            onAdjustMargin={trading.adjustPositionMargin}
             onDismiss={() => setChangingMargin(null)}
           />
         </React.Suspense>

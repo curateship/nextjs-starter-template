@@ -1,4 +1,5 @@
 import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
+import { binanceSymbolFor } from "@/lib/protocols/binance/translate"
 
 /**
  * Binance USDT-perp klines — the Binance protocol's history source.
@@ -59,29 +60,6 @@ if (!guardScope.__backtestEconnresetGuard) {
     }
     throw error
   })
-}
-
-/**
- * A coin name as Binance's perp symbol, or null when it is not one.
- *
- * Null is an answer, not a failure: a Hyperliquid-only token, or one of the
- * sub-exchange markets whose names carry a prefix, simply cannot be tested
- * against Binance history — and the run says so as a skipped coin.
- */
-export function binanceSymbolFor(coin: string): string | null {
-  // An empty name would otherwise become the symbol "USDT", which looks real
-  // enough to be fetched and is not a market at all.
-  if (!/^[A-Za-z0-9:]+$/.test(coin)) return null
-  // Sub-exchange markets (`xyz:MSFT`, `hyna:HYPE`, `para:STX`) are not Binance
-  // perps at all. Refused by the shape check below, but named here so the
-  // reason is obvious rather than an accident of a regex.
-  if (coin.includes(":")) return null
-  const symbol = /^k[A-Z]/.test(coin)
-    ? `1000${coin.slice(1)}USDT`
-    : `${coin}USDT`
-  // Binance symbols are uppercase alphanumeric. Anything else is not a real
-  // market — and letting a stray name through would put it in a URL.
-  return /^[A-Z0-9]+$/.test(symbol) ? symbol : null
 }
 
 /**

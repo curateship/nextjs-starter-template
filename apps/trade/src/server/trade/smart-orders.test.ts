@@ -692,6 +692,47 @@ describe("cancelling a watched order", () => {
     expect(stored.status).toBe("done")
   })
 
+  it("lifts the pause when a paused watch is called off, so the engine reads the stop", async () => {
+    // The engine never looks at a paused row. A cancel that left the pause in
+    // place stayed "Paused" under Open orders for good (SOL, 2 Sep 2026).
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+    await saveLadderPlan(
+      userId,
+      watch.id,
+      {
+        ...watch.plan,
+        phase: "taking",
+        sent: true,
+        paused: true,
+        pauseReason: "The exchange refused this order.",
+        refusalStreak: 5,
+      },
+      "active"
+    )
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+
+    const [stored] = await ladderRows()
+    expect(stored.status).toBe("active")
+    expect(stored.plan).toMatchObject({
+      phase: "stopping",
+      paused: false,
+      pauseReason: null,
+      refusalStreak: 0,
+    })
+  })
+
   it("accepts a repeated cancel after a stale screen shows the row again", async () => {
     await placeWatchOrder(userId, wallet, {
       marketKey: BTC,

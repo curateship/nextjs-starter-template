@@ -7,28 +7,30 @@ import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import {
-  TradeTablePanel,
+  TradeTableContent,
   type ColumnSpec,
 } from "@/components/trade/trade-table"
 import { Badge } from "@/components/ui/badge"
-import { TableCell, TableRow } from "@/components/ui/table"
+import { TableCell, TableRow, TableSurface } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { marketChartHref } from "@/lib/protocols/contracts"
 import type {
   TradingOverview,
   TradingOverviewActiveTrade,
 } from "@/lib/trade/dashboard/overview"
+import { orderKindLabel } from "@/lib/trade/dashboard/order-kind"
 import { summarizeActiveTrades } from "@/lib/trade/dashboard/active-trades"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { cn } from "@/lib/utils"
 
-type ActiveTradeColumn = "market" | "type" | "value" | "profit"
+type ActiveTradeColumn = "market" | "type" | "order" | "value" | "profit"
 
 const ACTIVE_TRADE_COLUMNS = [
   { key: "market", label: "Ticker" },
   { key: "type", label: "Type" },
+  { key: "order", label: "Order" },
   { key: "value", label: "Value" },
   { key: "profit", label: "P/L" },
 ] as const satisfies readonly ColumnSpec<ActiveTradeColumn>[]
@@ -50,22 +52,77 @@ export function ActiveTradesWidget({
   onTradeOpen?: () => void
   headerAction?: React.ReactNode
 }) {
-  const navigate = useNavigate()
-  const [protocol, setProtocol] = React.useState<string | null>(null)
-  const [walletId, setWalletId] = React.useState<string | null>(null)
-  const { sort, direction, toggleSort } = useTableSort<ActiveTradeColumn>(
-    "profit",
-    "desc",
-    defaultDirection
-  )
+  const [protocols, setProtocols] = React.useState<string[] | null>(null)
+  const [walletIds, setWalletIds] = React.useState<string[] | null>(null)
   const filtered = React.useMemo(
     () =>
       overview.activeTrades.filter(
         (trade) =>
-          (!protocol || trade.protocol === protocol) &&
-          (!walletId || trade.walletId === walletId)
+          (!protocols || protocols.includes(trade.protocol)) &&
+          (!walletIds || walletIds.includes(trade.walletId))
       ),
-    [overview.activeTrades, protocol, walletId]
+    [overview.activeTrades, protocols, walletIds]
+  )
+  const emptyWords =
+    protocols || walletIds
+      ? "No active trades match these filters."
+      : overview.activeTradesUnavailable.length
+        ? "No active trades found in the wallets that answered."
+        : "No active trades across your wallets."
+
+  return (
+    <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
+      <DashboardCardTitleHeader
+        className="border-b-0"
+        icon={<ListChecksIcon />}
+        title={
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate">Active Trades</span>
+            <Badge variant="secondary">
+              {filtered.length.toLocaleString()}
+            </Badge>
+          </span>
+        }
+        action={
+          <div className="flex items-center gap-2">
+            {headerAction}
+            <ActiveTradeFilters
+              trades={overview.activeTrades}
+              protocols={protocols}
+              walletIds={walletIds}
+              onProtocolsChange={setProtocols}
+              onWalletsChange={setWalletIds}
+              onClear={() => {
+                setProtocols(null)
+                setWalletIds(null)
+              }}
+            />
+          </div>
+        }
+      />
+      <ActiveTradesTable
+        trades={filtered}
+        emptyWords={emptyWords}
+        onTradeOpen={onTradeOpen}
+      />
+    </TableSurface>
+  )
+}
+
+export function ActiveTradesTable({
+  trades: unsorted,
+  emptyWords,
+  onTradeOpen,
+}: {
+  trades: readonly TradingOverviewActiveTrade[]
+  emptyWords: string
+  onTradeOpen?: () => void
+}) {
+  const navigate = useNavigate()
+  const { sort, direction, toggleSort } = useTableSort<ActiveTradeColumn>(
+    "profit",
+    "desc",
+    defaultDirection
   )
   const trades = React.useMemo(() => {
     const valueOf = (trade: TradingOverviewActiveTrade): string | number => {
@@ -74,13 +131,15 @@ export function ActiveTradesWidget({
           return trade.market
         case "type":
           return trade.side
+        case "order":
+          return orderKindLabel(trade.orderKind)
         case "value":
           return trade.value ?? Number.NEGATIVE_INFINITY
         case "profit":
           return trade.profit ?? Number.NEGATIVE_INFINITY
       }
     }
-    return [...filtered].sort((left, right) => {
+    return [...unsorted].sort((left, right) => {
       if (
         (sort === "profit" || sort === "value") &&
         (left[sort] === null) !== (right[sort] === null)
@@ -95,48 +154,11 @@ export function ActiveTradesWidget({
           : String(a).localeCompare(String(b))
       return direction === "asc" ? compared : -compared
     })
-  }, [direction, filtered, sort])
+  }, [direction, sort, unsorted])
   const summary = React.useMemo(() => summarizeActiveTrades(trades), [trades])
-  const emptyWords =
-    protocol || walletId
-      ? "No active trades match these filters."
-      : overview.activeTradesUnavailable.length
-        ? "No active trades found in the wallets that answered."
-        : "No active trades across your wallets."
 
   return (
-    <TradeTablePanel
-      className={cn("min-h-0", className)}
-      header={
-        <DashboardCardTitleHeader
-          className="border-b-0"
-          icon={<ListChecksIcon />}
-          title={
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate">Active Trades</span>
-              <Badge variant="secondary">
-                {trades.length.toLocaleString()}
-              </Badge>
-            </span>
-          }
-          action={
-            <div className="flex items-center gap-2">
-              {headerAction}
-              <ActiveTradeFilters
-                trades={overview.activeTrades}
-                protocol={protocol}
-                walletId={walletId}
-                onProtocolChange={setProtocol}
-                onWalletChange={setWalletId}
-                onClear={() => {
-                  setProtocol(null)
-                  setWalletId(null)
-                }}
-              />
-            </div>
-          }
-        />
-      }
+    <TradeTableContent
       columns={ACTIVE_TRADE_COLUMNS}
       rows={trades}
       loading={false}
@@ -179,6 +201,7 @@ function ActiveTradesFooter({
         >
           Total
         </TableCell>
+        <TableCell column="meta" aria-hidden />
         <TableCell column="meta" aria-hidden />
         <TableCell
           column="meta"
@@ -245,6 +268,9 @@ function ActiveTradeRow({
           {trade.side === "long" ? "Long" : "Short"}
         </TradeBadge>
       </TableCell>
+      <TableCell column="meta" className="py-2.5 text-xs text-muted-foreground">
+        {orderKindLabel(trade.orderKind)}
+      </TableCell>
       <TableCell
         column="meta"
         className="py-2.5 text-left font-mono text-xs tabular-nums"
@@ -294,17 +320,17 @@ function AccountTypeBadge({
 
 function ActiveTradeFilters({
   trades,
-  protocol,
-  walletId,
-  onProtocolChange,
-  onWalletChange,
+  protocols,
+  walletIds,
+  onProtocolsChange,
+  onWalletsChange,
   onClear,
 }: {
   trades: TradingOverviewActiveTrade[]
-  protocol: string | null
-  walletId: string | null
-  onProtocolChange: (protocol: string | null) => void
-  onWalletChange: (walletId: string | null) => void
+  protocols: readonly string[] | null
+  walletIds: readonly string[] | null
+  onProtocolsChange: (protocols: string[] | null) => void
+  onWalletsChange: (walletIds: string[] | null) => void
   onClear: () => void
 }) {
   return (
@@ -313,16 +339,16 @@ function ActiveTradeFilters({
       groups={[
         {
           label: "Exchange",
-          value: protocol,
+          value: protocols,
           valueOf: (trade) => trade.protocol,
-          onChange: onProtocolChange,
+          onChange: onProtocolsChange,
         },
         {
           label: "Wallet",
-          value: walletId,
+          value: walletIds,
           valueOf: (trade) => trade.walletId,
           labelOf: (trade) => trade.walletLabel,
-          onChange: onWalletChange,
+          onChange: onWalletsChange,
         },
       ]}
       onClear={onClear}

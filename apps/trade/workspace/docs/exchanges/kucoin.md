@@ -32,9 +32,20 @@ checked on 24 August 2026, supplies the other families. Those cover orders
 below the minimum, a size or price between legal steps, too little cash, prices
 outside the market's allowed range, too much risk and too many requests.
 
-An unknown code keeps KuCoin's scrubbed code and words after a sentence that
-says Trade does not recognize the reason. The app does not guess that an
-unknown code means the order is safe to repeat.
+`100001 Leverage parameter invalid.` is KuCoin's whole answer when the
+leverage asked for is more than the market allows a position of that size.
+Seen in the Journal on 1 and 2 September 2026 while setting leverage on
+ETHUSDTM. It reads as "KuCoin will not accept that leverage on this market.
+KuCoin lowers the most it allows as a position gets bigger, so pick a lower
+leverage, or reduce the position and try again." 100001 is KuCoin's general
+bad-parameter code, so only an answer with the word "leverage" in it gets that
+sentence.
+
+An unknown code keeps KuCoin's scrubbed words after a sentence that says Trade
+does not recognize the reason and names the code once. The `KUCOIN_100001:`
+prefix the app puts on the raw answer is stripped before it is shown, because
+a code in the middle of the sentence is what made the refusal unreadable. The
+app does not guess that an unknown code means the order is safe to repeat.
 
 ## Market-order price bands
 

@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  fetchLighterCandleHistory,
-  fetchLighterCandles,
-} from "@/server/protocols/lighter/candles"
+import { fetchLighterCandleHistory } from "@/server/protocols/lighter/candles"
 import { lighterPublic } from "@/server/protocols/lighter/client"
 import { lighterMarketFacts } from "@/server/protocols/lighter/markets"
 import { clearHeldHistory } from "@/server/protocols/full-history"
@@ -18,7 +15,6 @@ vi.mock("@/server/protocols/lighter/markets", () => ({
 const publicRead = vi.mocked(lighterPublic)
 const marketFacts = vi.mocked(lighterMarketFacts)
 const MINUTE = 60_000
-const FOUR_HOURS = 14_400_000
 
 function row(openTime: number) {
   return { t: openTime, o: 100, h: 101, l: 99, c: 100.5, v: 2, V: 200 }
@@ -140,33 +136,5 @@ describe("Lighter candle history", () => {
 
     expect(publicRead).not.toHaveBeenCalled()
     expect(bars).toEqual([])
-  })
-})
-
-describe("the four-hour full history", () => {
-  it("stops at the market's first day instead of asking past it", async () => {
-    // A coin two hundred four-hour bars old: under half of one 500-bar page.
-    const bornAt = Date.now() - 200 * FOUR_HOURS
-    marketFacts.mockResolvedValue({ id: 7, bornAt, priceDecimals: 1, sizeDecimals: 5 })
-    publicRead.mockImplementation(barsFrom(bornAt, FOUR_HOURS))
-
-    const bars = await fetchLighterCandles("mainnet", "NEW", "4h")
-
-    // One page reaches past the birthday, so one request is all it takes.
-    expect(publicRead).toHaveBeenCalledTimes(1)
-    expect(bars.length).toBeGreaterThan(190)
-    expect(bars[0].openTime).toBeGreaterThanOrEqual(bornAt)
-  })
-
-  it("walks until the bars run out when no first day is stated", async () => {
-    const bornAt = Date.now() - 200 * FOUR_HOURS
-    marketFacts.mockResolvedValue({ id: 7, bornAt: null, priceDecimals: 1, sizeDecimals: 5 })
-    publicRead.mockImplementation(barsFrom(bornAt, FOUR_HOURS))
-
-    await fetchLighterCandles("mainnet", "NODATE", "4h")
-
-    // Six pages found bars, and the next batch of six came back empty before
-    // the walk could stop — the blind cost the birthday saves.
-    expect(publicRead).toHaveBeenCalledTimes(12)
   })
 })

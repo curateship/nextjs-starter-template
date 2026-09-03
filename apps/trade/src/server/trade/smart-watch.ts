@@ -281,9 +281,19 @@ export async function advanceWatch(
    * the holding has come down since — see `heldAtStart` on `WatchPlan`. A
    * position that has gone entirely leaves nothing to reduce, and the close is
    * over rather than resting an order against something that is not there.
+   *
+   * "Nothing left" is judged on the size the exchange would be sent, not the
+   * raw subtraction. Two decimals held the same way a computer holds them can
+   * leave a few quadrillionths of a coin behind: on 2 Sep 2026 a 25.95 SOL
+   * close filled in full, 51.91 less 25.96 came out to 25.949999999999996,
+   * and the leftover 0.0000000000000036 SOL went to Hyperliquid as an order
+   * for $0.00 five times over until the safety paused the close.
    */
   const stillToDo = plan.maker ? partCloseRemaining : plan.sz
-  if (plan.maker && (position === null || stillToDo <= 0)) {
+  if (
+    plan.maker &&
+    (position === null || floorSize(stillToDo, plan.sizeDecimals) <= 0)
+  ) {
     if (plan.orderId) deps.dropOrder(book, plan.orderId)
     plan.orderId = null
     plan.orderPx = null

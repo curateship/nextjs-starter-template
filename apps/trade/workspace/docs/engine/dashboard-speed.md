@@ -72,9 +72,9 @@ reads the same descriptions, and a test checks the registry's public answer.
 The first 4-hour chart slice rides with the exchange half of the opening
 answer for the remembered market. While that half is still streaming the
 chart shows its loading state rather than asking the server a second time for
-the same candles. Hyperliquid and the other unrestricted exchanges ask for the same
-two-year first slice as before, then the browser chases deeper history after it
-has painted. Lighter keeps its 90-day first slice and does not chase. The chart
+the same candles. Since 2 Sep 2026 that slice is the venue's own last 30 days
+on every exchange, and the browser then asks the candle store for everything
+older once the slice has painted (`charts/candle-store.md`). The chart
 timeframe lives in this browser's local storage, which the server cannot read.
 If that remembered choice is not 4h, the browser ignores the carried 4h slice
 and makes the normal request for the chosen timeframe.

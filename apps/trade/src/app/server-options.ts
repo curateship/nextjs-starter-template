@@ -1,5 +1,6 @@
 import type { AppServerOptions } from "@/server/app-options"
 import { backtestTick } from "@/server/trade/backtest/worker"
+import { refreshCandleStore } from "@/server/trade/candle-refresh"
 import { monitorTradingEngine } from "@/server/trade/engine-health"
 import {
   ensureLadderLoop,
@@ -38,6 +39,17 @@ export const appServerOptions: AppServerOptions = {
          * look when something is ticking.
          */
         tick: () => backtestTick(),
+      },
+      {
+        name: "trade-candle-refresh",
+        /**
+         * Tops up the candle store's newest bars for the markets somebody
+         * has opened, a bounded twenty requests a pass, so a chart or a
+         * backtest reads yesterday from the store rather than the source.
+         */
+        tick: async () => {
+          await refreshCandleStore()
+        },
       },
       {
         name: "trading-engine-health",

@@ -4,6 +4,15 @@ An order is placed by right-clicking the candles at the price you want, and
 from then on it lives on the chart as its own line with a coloured bar at the
 right-hand end.
 
+Under Recent the menu has two fold-out rows, Manual order and Smart order,
+drawn the way the Folders panel draws a folder: a chevron on the right that
+turns when the row is open, the open row in gray, and its choices under it.
+Manual order holds Long and Short. Smart order holds DCA ladder and Grid. Both
+start closed. Clicking a row opens it, clicking it again closes it, and
+opening one closes the other. Nothing is saved: the Recent list is what
+remembers. A wallet that cannot place smart
+orders gets no fold-out rows, just Long and Short.
+
 Once an order has been placed, the right-click menu starts with **Recent**.
 The latest kind is first, followed by the other unique kinds this account has
 placed. Long, Short, DCA ladder and Grid can all appear there. Picking one uses

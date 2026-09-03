@@ -111,6 +111,16 @@ const WEB_YIELDS_EVERY_MS = 5 * 60_000
 export function ensureLadderLoop(): void {
   // Tests drive each pass themselves; a timer would outlive the test run.
   if (process.env.VITEST || process.env.NODE_ENV === "test") return
+  // **In production only the engine trades. Ever.** The website and the
+  // shell worker are deployed as their own containers and are not rebuilt
+  // when the engine is, so whichever of them stands in while the engine
+  // restarts is running whatever build it last got. On 3 Sep 2026 the Trade
+  // Worker was a build from before short grids existed; in the thirty
+  // seconds the engine took to redeploy, that worker took the lock, read
+  // every short grid as a buying grid holding a short, and ended all seven
+  // of them. Nothing standing in is better than something old standing in:
+  // every stop rests on the exchange, and the engine is back within seconds.
+  if (process.env.NODE_ENV === "production") return
   if (globalThis.__tradeLadderLoop || globalThis.__tradeLadderClaiming) return
   globalThis.__tradeLadderClaiming = true
 

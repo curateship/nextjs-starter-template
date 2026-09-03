@@ -6,6 +6,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { createBacktest } from "@/server/trade/backtest/store"
 import { tradeBacktestGroups } from "@/server/trade/schema"
 import { marketFolderForRun } from "@/server/trade/market-folders"
+import { resolveHistorySource } from "@/server/trade/history-source"
 import {
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
@@ -86,6 +87,12 @@ export async function startBacktestForRecipe(
   if (!read.spec) {
     return { started: false, groupId: null, coins: 0, problem: read.problem }
   }
+  // Every coin is tested on its history source, and once: a folder holding
+  // BTC on Lighter and BTC on Aster tests Binance's BTC one time. A market
+  // no source covers keeps its own key and the venue's own history.
+  read.spec.markets.marketKeys = await sourceKeysFor(
+    read.spec.markets.marketKeys
+  )
 
   try {
     const created = await createBacktest(
@@ -133,6 +140,13 @@ export async function startBacktestForRecipe(
     }
     throw error
   }
+}
+
+async function sourceKeysFor(keys: readonly string[]): Promise<string[]> {
+  const sources = await Promise.all(
+    keys.map(async (key) => (await resolveHistorySource(key)) ?? key)
+  )
+  return [...new Set(sources)]
 }
 
 function isUniqueViolation(error: unknown): boolean {

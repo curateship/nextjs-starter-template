@@ -4,6 +4,7 @@ import {
   buildTradingOverviewBots,
   buildTradingOverviewProfit,
   buildTradingOverviewActiveTrades,
+  buildTradingOverviewWatchingOrders,
   isTradingOverviewWallet,
   mergeTradingOverviewRefresh,
   tradingOverviewWalletPerformance,
@@ -158,13 +159,23 @@ describe("trading overview money", () => {
       buildTradingOverviewActiveTrades(
         positions,
         wallets,
-        new Map([[positions[0].marketKey, 110]])
+        new Map([[positions[0].marketKey, 110]]),
+        [
+          {
+            id: "ladder-1",
+            walletId: "paper-1",
+            marketKey: positions[0].marketKey,
+            kind: "dca",
+            createdAt: 400,
+          },
+        ]
       )
     ).toEqual([
       expect.objectContaining({
         accountType: "Practice",
         protocol: "KuCoin",
         market: "SOLUSDTM",
+        orderKind: "dca",
         value: 220,
         profit: 20,
         profitShare: 0.5,
@@ -202,7 +213,66 @@ describe("trading overview money", () => {
 
     expect(
       buildTradingOverviewActiveTrades([position], [wallet], new Map())[0]
-    ).toEqual(expect.objectContaining({ value: null, profit: null }))
+    ).toEqual(
+      expect.objectContaining({
+        orderKind: "manual",
+        value: null,
+        profit: null,
+      })
+    )
+  })
+
+  it("lists manual prices, ladders, grids and signals under Watching", () => {
+    const wallet = {
+      id: "paper-1",
+      label: "Practice KuCoin",
+      kind: "paper" as const,
+      status: "active" as const,
+      protocol: "kucoin" as const,
+      network: "mainnet" as const,
+      startingBalance: 1_000,
+      address: null,
+      hasKey: false,
+      keyValidUntil: null,
+    }
+    const orders = (["watch", "dca", "grid", "signal"] as const).map(
+      (kind, index) => ({
+        id: `${kind}-1`,
+        walletId: wallet.id,
+        marketKey: `kucoin:mainnet:${kind.toUpperCase()}USDTM`,
+        kind,
+        createdAt: index,
+      })
+    )
+
+    expect(
+      buildTradingOverviewWatchingOrders(orders, [wallet]).map((order) => ({
+        market: order.market,
+        orderKind: order.orderKind,
+        accountType: order.accountType,
+      }))
+    ).toEqual([
+      {
+        market: "WATCHUSDTM",
+        orderKind: "manual",
+        accountType: "Practice",
+      },
+      {
+        market: "DCAUSDTM",
+        orderKind: "dca",
+        accountType: "Practice",
+      },
+      {
+        market: "GRIDUSDTM",
+        orderKind: "grid",
+        accountType: "Practice",
+      },
+      {
+        market: "SIGNALUSDTM",
+        orderKind: "signal",
+        accountType: "Practice",
+      },
+    ])
   })
 
   it("uses live mainnet wallets and excludes every kind of practice money", () => {
@@ -366,6 +436,7 @@ describe("a later overview read", () => {
         marketKey: "hyperliquid:mainnet:BTC",
         market: "BTC",
         side: "long",
+        orderKind: "manual",
         value: 500,
         profit: 20,
         profitShare: 0.2,

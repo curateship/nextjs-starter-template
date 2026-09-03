@@ -1,5 +1,5 @@
-import { inArray, lt, sql, type SQL } from "drizzle-orm"
-import type { PgTable } from "drizzle-orm/pg-core"
+import { and, gt, inArray, lt, sql, type SQL } from "drizzle-orm"
+import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 
 import { MAX_BACKTEST_DAYS } from "@/lib/recipes/trade-markets"
 import { db, type CustomShellDb } from "@/server/db"
@@ -51,44 +51,80 @@ export async function cleanTradeCaches(
   if (active) return { ...EMPTY_COUNTS }
 
   const cutoff = at.getTime() - TRADE_CACHE_KEEP_DAYS * DAY_MS
-  return database.transaction(async (tx) => ({
-    candles: await deleteCapped(
-      tx,
-      tradeCandles,
-      lt(tradeCandles.openTime, cutoff)
-    ),
-    candleCoverage: await deleteCapped(
-      tx,
-      tradeCandleCoverage,
-      lt(tradeCandleCoverage.fromTime, cutoff)
-    ),
-    candleGaps: await deleteCapped(
-      tx,
-      tradeCandleGaps,
-      lt(tradeCandleGaps.fromTime, cutoff)
-    ),
-    fundingRates: await deleteCapped(
-      tx,
-      tradeFundingRates,
-      lt(tradeFundingRates.time, cutoff)
-    ),
-    fundingCoverage: await deleteCapped(
-      tx,
-      tradeFundingCoverage,
-      lt(tradeFundingCoverage.fromTime, cutoff)
-    ),
-    fundingGaps: await deleteCapped(
-      tx,
-      tradeFundingGaps,
-      lt(tradeFundingGaps.fromTime, cutoff)
-    ),
-  }))
+  return database.transaction(async (tx) => {
+    // A coverage piece that starts before the cutoff and runs past it is
+    // trimmed, not deleted. Deleting it forgot the years still stored, and
+    // the next chart open fetched them all again, every day, for ever.
+    await tx
+      .update(tradeCandleCoverage)
+      .set({ fromTime: cutoff })
+      .where(
+        and(
+          lt(tradeCandleCoverage.fromTime, cutoff),
+          gt(tradeCandleCoverage.toTime, cutoff)
+        )
+      )
+    await tx
+      .update(tradeFundingCoverage)
+      .set({ fromTime: cutoff })
+      .where(
+        and(
+          lt(tradeFundingCoverage.fromTime, cutoff),
+          gt(tradeFundingCoverage.toTime, cutoff)
+        )
+      )
+    return {
+      candles: await deleteCapped(
+        tx,
+        tradeCandles,
+        tradeCandles.openTime,
+        lt(tradeCandles.openTime, cutoff)
+      ),
+      candleCoverage: await deleteCapped(
+        tx,
+        tradeCandleCoverage,
+        tradeCandleCoverage.fromTime,
+        lt(tradeCandleCoverage.fromTime, cutoff)
+      ),
+      candleGaps: await deleteCapped(
+        tx,
+        tradeCandleGaps,
+        tradeCandleGaps.fromTime,
+        lt(tradeCandleGaps.fromTime, cutoff)
+      ),
+      fundingRates: await deleteCapped(
+        tx,
+        tradeFundingRates,
+        tradeFundingRates.time,
+        lt(tradeFundingRates.time, cutoff)
+      ),
+      fundingCoverage: await deleteCapped(
+        tx,
+        tradeFundingCoverage,
+        tradeFundingCoverage.fromTime,
+        lt(tradeFundingCoverage.fromTime, cutoff)
+      ),
+      fundingGaps: await deleteCapped(
+        tx,
+        tradeFundingGaps,
+        tradeFundingGaps.fromTime,
+        lt(tradeFundingGaps.fromTime, cutoff)
+      ),
+    }
+  })
 }
 
-/** PostgreSQL has no DELETE LIMIT, so select physical rows before deleting. */
+/**
+ * PostgreSQL has no DELETE LIMIT, so select physical rows before deleting.
+ *
+ * Oldest first, so a capped batch leaves one clean edge. An unordered batch
+ * left gold's 2003 to 2016 bars half deleted for a day, and a chart drew the
+ * survivors with holes between them.
+ */
 async function deleteCapped(
   database: CustomShellDb,
   table: PgTable,
+  time: PgColumn,
   where: SQL
 ): Promise<number> {
   const deleted = await database.execute(sql`
@@ -96,6 +132,7 @@ async function deleteCapped(
       select ctid
       from ${table}
       where ${where}
+      order by ${time}
       limit ${TRADE_CACHE_SWEEP_BATCH}
     )
     delete from ${table}

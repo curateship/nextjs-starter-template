@@ -363,6 +363,26 @@ add up to.
   where the start is worked out from a clock, or where a screen writes the
   period as a fixed number of days instead of counting up from the start day.
 
+## Candles
+
+- Tyler, 2 Sep 2026: **"We only need the first 30 days of real data from the
+  protocol. The rest we can use our candle storage."** A chart asks the venue
+  for its own last 30 days and reads everything older from the candle store.
+  The store is filled once from the source with the longest memory and read
+  by every chart and every backtest.
+- Tyler, 2 Sep 2026: **"Dukascopy is for the stocks, Binance is for
+  cryptos."** Coins read Binance. Stocks, indices, metals and currency pairs
+  read Dukascopy. A market neither can name keeps the venue's own history, and
+  the chart and the backtest picker say so. Nothing is guessed.
+- **The chart says where its older bars came from.** "Older bars: Binance" or
+  "Older bars: Dukascopy" in the header, and nothing when the whole chart is
+  the venue's own.
+- **A stock's closed hours are not missing data.** Nights, weekends and single
+  holidays are silence, never gaps.
+- **A stock's history is drawn in today's units.** A split is folded back so
+  the chart is continuous and matches the venue's own bars, and every split
+  the store folded is on record in `trade_candle_splits`.
+
 ## Backtests
 
 - **A busy candle is walked on its real minutes, every coin on one clock.**

@@ -20,6 +20,13 @@ const FOUR_HOURS = 14_400_000
 const MINUTE = 60_000
 const START = 1_700_000_000_000 - (1_700_000_000_000 % FOUR_HOURS)
 
+// The store reads every coin under its history source. Here every scripted
+// market is its own source, so the worker's own concerns stay in view.
+vi.mock("@/server/trade/history-source", () => ({
+  resolveHistorySource: async (key: string) => key,
+  sourceLabelOf: (key: string) => key,
+}))
+
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({

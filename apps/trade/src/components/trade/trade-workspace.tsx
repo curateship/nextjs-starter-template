@@ -26,7 +26,11 @@ import {
 } from "@/components/trade/wallet-dialogs"
 import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
 import { ChartFullscreenButton } from "@/components/trade/chart-fullscreen-button"
-import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
+import {
+  ChartPanel,
+  IntervalPicker,
+  type OlderBarsStatus,
+} from "@/components/trade/chart-panel"
 import { IndicatorsMenu } from "@/components/trade/indicators-menu"
 import { useChartOptions } from "@/components/trade/use-chart-options"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
@@ -49,6 +53,7 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -746,6 +751,41 @@ export function TradeWorkspace({
   // the chart above draws it. Picking one in another market also switches the
   // chart to that market — otherwise the row would look broken.
   const [shownTrade, setShownTrade] = React.useState<LiveTrade | null>(null)
+  /**
+   * Where the chart's older bars came from, reported by the chart panel
+   * from its own fetch. Kept with the market-and-interval it is about, so a
+   * report that lands after a switch is simply not shown.
+   */
+  const [olderBars, setOlderBars] = React.useState<OlderBarsStatus | null>(
+    null
+  )
+  const olderBarsNote =
+    olderBars && selectedKey && olderBars.key === `${selectedKey}@${interval}`
+      ? olderBars.failed
+        ? (
+            <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
+              {olderBars.source
+                ? `Older bars: ${olderBars.source}, not all loaded.`
+                : "Older bars could not be loaded."}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={olderBars.retry}
+              >
+                Try again
+              </Button>
+            </span>
+          )
+        : olderBars.source
+          ? (
+              <span className="hidden text-xs text-muted-foreground md:inline">
+                Older bars: {olderBars.source}
+              </span>
+            )
+          : null
+      : null
   const showTrade = React.useCallback(
     (trade: LiveTrade | null) => {
       setShownTrade(trade)
@@ -990,6 +1030,7 @@ export function TradeWorkspace({
           // The chart's own controls live in the header row. Indicators sit
           // to the right of the timeframe: which candles first, then what to
           // draw on them.
+          note={olderBarsNote}
           toolbar={
             <>
               <IntervalPicker value={interval} onChange={setInterval} />
@@ -1060,6 +1101,7 @@ export function TradeWorkspace({
             equityOfWallet={equityOfWallet}
             shownTrade={shownTrade}
             onClearShownTrade={() => setShownTrade(null)}
+            onOlderBars={setOlderBars}
             // The gate: the chart is on that row's coin AND the traded wallet
             // is that row's wallet. Until both are true this stays null and
             // the order window does not open.

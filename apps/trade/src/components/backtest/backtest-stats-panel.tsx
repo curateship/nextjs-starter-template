@@ -1,4 +1,5 @@
 import { ChevronDownIcon, FlaskConicalIcon } from "lucide-react"
+import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 
 import {
   BacktestKpi,
@@ -458,6 +459,11 @@ export function BacktestStatsPanel({
                   label="Costs"
                   value={`${spec.takerFeePct}% / ${spec.makerFeePct}% / ${spec.slippagePct}%`}
                 />
+                {/* Whose candles the run walked. Binance for coins and
+                    Dukascopy for stocks on a run saved after the store
+                    gained sources; the venue itself on an older run, which
+                    is what that run really read. */}
+                <Line label="Prices from" value={pricesFrom(spec.marketKeys)} />
                 {/* The engine counts a charge as positive and a payment to
                     us as negative. Shown as "-$1,489" under a label reading
                     "paid" it looks like an enormous cost, when it is money the
@@ -475,6 +481,15 @@ export function BacktestStatsPanel({
                       : usd(Math.abs(summary.fundingPaid))
                   }
                 />
+                {/* A stock's source settles no funding. A Hyperliquid or
+                    Lighter stock perpetual does charge it in real life, so the
+                    result says plainly that this run did not count it. */}
+                {(summary.fundingNotCounted ?? []).length > 0 ? (
+                  <Line
+                    label="Funding not counted"
+                    value={`Stocks: no funding in this run (${summary.fundingNotCounted.join(", ")})`}
+                  />
+                ) : null}
                 {/* Not saved anywhere as one figure — it is the coins' own fee
                     totals added up, and a run too old to carry them says so
                     rather than reporting nothing spent. */}
@@ -531,6 +546,18 @@ function feesPaid(result: BacktestResult | null): string {
   }
   if (!known) return "—"
   return total > 0 ? `-${usd(total)}` : usd(0)
+}
+
+/** The sources behind a run's coins, by printed name, in the order first seen. */
+function pricesFrom(marketKeys: readonly string[]): string {
+  const labels: string[] = []
+  for (const key of marketKeys) {
+    const ref = parseMarketKey(key)
+    if (!ref) continue
+    const label = protocolLabel(ref.protocol)
+    if (!labels.includes(label)) labels.push(label)
+  }
+  return labels.length > 0 ? labels.join(", ") : "—"
 }
 
 function Line({ label, value }: { label: string; value: string }) {

@@ -23,6 +23,8 @@ const SENTENCES = {
     "KuCoin only changes leverage on a market using cross margin. This position is isolated, so keep its current leverage or close it and open it again with the leverage you want.",
   KUCOIN_MARGIN_CROSS:
     "KuCoin only lets Trade add margin to an isolated position. This position uses cross margin, where the account balance already stands behind it.",
+  KUCOIN_LEVERAGE_INVALID:
+    "KuCoin will not accept that leverage on this market. KuCoin lowers the most it allows as a position gets bigger, so pick a lower leverage, or reduce the position and try again.",
 } as const
 
 export type KucoinRefusal = keyof typeof SENTENCES
@@ -56,6 +58,12 @@ export function kucoinRefusalCode(reason: string): KucoinRefusal | null {
   if (["300011", "300012", "106170", "106171"].includes(code))
     return "KUCOIN_PRICE_RANGE"
   if (["300005", "106174"].includes(code)) return "KUCOIN_RISK_LIMIT"
+  // Seen live 1 and 2 Sep 2026: `100001 Leverage parameter invalid.` is
+  // KuCoin's whole answer when a leverage above what the market allows the
+  // position at that size is asked for. 100001 is KuCoin's general "bad
+  // parameter" code, so the word is what tells it apart.
+  if (code === "100001" && /leverage/i.test(reason))
+    return "KUCOIN_LEVERAGE_INVALID"
   return null
 }
 
@@ -64,7 +72,11 @@ export function kucoinRefusalError(reason: string): Error {
   const code = kucoinRefusalCode(safeReason)
   if (code) return new Error(SENTENCES[code])
   const exchangeCode = kucoinCode(safeReason) || "unknown"
+  // KuCoin's own words, without the code prefix this app put in front of
+  // them: the code is already named once, and "KUCOIN_100001:" in the middle
+  // of a sentence is what made the refusal unreadable.
+  const said = safeReason.replace(/^KUCOIN_[^:]+:\s*/i, "").replace(/\.+$/, "")
   return new Error(
-    `KuCoin refused the request for a reason Trade does not recognize (code ${exchangeCode}): ${safeReason}. Check KuCoin's status before trying again.`
+    `KuCoin refused the request for a reason Trade does not recognize (code ${exchangeCode}): ${said}. Check KuCoin's status before trying again.`
   )
 }

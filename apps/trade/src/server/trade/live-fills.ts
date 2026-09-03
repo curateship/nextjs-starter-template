@@ -365,6 +365,7 @@ async function announceFills(
           px: fill.px,
           sz: fill.sz,
           closedPnl: fill.closedPnl,
+          entryPx: averageEntryOf(wallet.protocol, fill),
           liquidation: fill.liquidation,
           walletLabel: wallet.label,
           practice,
@@ -391,6 +392,26 @@ async function announceFills(
       console.error("trade fill notice failed", error)
     }
   }
+}
+
+/**
+ * The average entry the exchange measured a close against, worked back from
+ * its own two numbers: a long banks (sale price − entry) × size, a short banks
+ * (entry − buy-back price) × size, so the entry is the price less or plus the
+ * money per coin.
+ *
+ * Null on KuCoin, whose closed money is the whole position's, landed on the
+ * last fill of that market — the arithmetic above only holds when the money
+ * belongs to the very fill it sits on.
+ */
+function averageEntryOf(
+  protocol: TradeWallet["protocol"],
+  fill: Pick<WalletOrderFill, "side" | "px" | "sz" | "closedPnl">
+): number | null {
+  if (protocol === "kucoin" || fill.sz <= 0 || fill.closedPnl === 0) return null
+  const perCoin = fill.closedPnl / fill.sz
+  const entry = fill.side === "sell" ? fill.px - perCoin : fill.px + perCoin
+  return Number.isFinite(entry) && entry > 0 ? entry : null
 }
 
 type TriggerNoticeRow = {

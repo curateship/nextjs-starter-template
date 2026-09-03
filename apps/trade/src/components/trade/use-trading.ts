@@ -298,8 +298,14 @@ export type Trading = {
   olderTradesDone: boolean
   /** Every smart order still working across every wallet, of either kind. */
   smartOrders: SmartOrder[]
-  /** Restarts one strategy after its refusal has been fixed. */
-  resumeSmartOrder: (order: SmartOrder) => Promise<boolean>
+  /**
+   * Restarts one strategy after its refusal has been fixed. Takes any row that
+   * names the smart order: the panel's own, or an Open orders row standing in
+   * for a paused watch.
+   */
+  resumeSmartOrder: (
+    order: Pick<SmartOrder, "id" | "walletId" | "marketKey">
+  ) => Promise<boolean>
   /** Just the DCA ladders, for the screens that only know about those. */
   ladders: SmartLadder[]
   /** Each wallet's name, for the Wallet column. */
@@ -569,7 +575,7 @@ export type Trading = {
   setPositionLeverage: (
     position: TradePosition,
     leverage: number
-  ) => Promise<void>
+  ) => Promise<boolean>
   /**
    * Adds or takes back the cash behind one real isolated position. Signed:
    * a minus takes margin out, which is refused when it would bring the
@@ -578,7 +584,7 @@ export type Trading = {
   adjustPositionMargin: (
     position: TradePosition,
     dollars: number
-  ) => Promise<void>
+  ) => Promise<boolean>
 }
 
 type PaperAnswer = {
@@ -1419,7 +1425,13 @@ export function useTrading(
         // the watch as well put the same single order on the chart twice
         // under two labels — one LINK order on Phemex showed as two rows in
         // the app on 20 Aug 2026.
-        (order.plan.phase === "waiting" ||
+        //
+        // A paused watch is always drawn. The engine has put it down, nothing
+        // is resting, and the position it was closing may well be there — so
+        // every rule above would hide it, and there would be no row to read
+        // the refusal from or press Resume on.
+        (order.plan.paused === true ||
+          order.plan.phase === "waiting" ||
           (order.plan.phase === "taking" &&
             order.plan.orderId === null &&
             !allPositions.some(
@@ -1449,6 +1461,9 @@ export function useTrading(
                 // `TradeOrder`. Everything that would reach for one steps
                 // aside; the × still works and goes the smart-order way.
                 watched: true,
+                ...(order.plan.paused === true
+                  ? { paused: true as const }
+                  : {}),
                 triggerDirection: order.plan.triggerDirection,
               },
             ]
@@ -2577,9 +2592,9 @@ export function useTrading(
         showErrorToast(
           "A practice position's leverage decided how big it was when it was placed — there is nothing behind it to move now. Close it and open again at the leverage you want."
         )
-        return
+        return false
       }
-      await runWith(
+      return runWith(
         getLiveErrorMessage,
         () =>
           changeLiveLeverage({
@@ -2602,9 +2617,9 @@ export function useTrading(
           showErrorToast(
             "A practice wallet has no lender to take cash from. Close the position and open again at the size you want."
           )
-          return
+          return false
         }
-        await runWith(
+        return runWith(
           getLiveErrorMessage,
           () =>
             changeLiveMargin({

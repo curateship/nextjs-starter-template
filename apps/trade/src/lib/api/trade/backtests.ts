@@ -2,7 +2,12 @@ import { createServerFn } from "@tanstack/react-start"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import { CANDLE_INTERVALS, parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  CANDLE_INTERVALS,
+  parseMarketKey,
+  type MarketCategory,
+  type MarketRow,
+} from "@/lib/protocols/contracts"
 import type {
   BacktestListRow,
   BacktestTrade,
@@ -22,7 +27,9 @@ import {
   setBacktestFlag,
 } from "@/server/trade/backtest/actions"
 import { listBacktests, readBacktestGroup } from "@/server/trade/backtest/store"
-import { listProtocols } from "@/server/protocols/registry"
+import { getProtocol, listProtocols } from "@/server/protocols/registry"
+import { loadRawMarketCatalog } from "@/server/protocols/market-catalog"
+import { resolveHistorySource } from "@/server/trade/history-source"
 import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
 
 import { createErrorMessage } from "../error-message"
@@ -39,11 +46,11 @@ import { createErrorMessage } from "../error-message"
  */
 
 /**
- * One exchange's markets, for the step that picks which coins to work on.
+ * One exchange's markets, for a flow that trades with a named wallet.
  *
- * History follows the selected protocol, so every market in that protocol's
- * catalogue can be selected. Missing or shallow history is recorded by the
- * candle store rather than guessed from another exchange's catalogue.
+ * A wallet can only trade its own exchange, so the list follows the Wallet
+ * step. Every coin in that exchange's catalogue can be chosen; missing or
+ * shallow history is the backtest's concern, not this list's.
  */
 const testableMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -84,23 +91,98 @@ export function loadTestableMarkets(
   return testableMarketsFn({ data: { network, protocol } })
 }
 
-/** Every exchange that can list markets, for the step's exchange picker. */
-const marketProtocolsFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async () =>
-    listProtocols()
-      .filter((one) => one.capabilities.markets)
-      .map((one) => ({
-        id: one.id,
-        label: one.label,
-        defaultNetwork: one.defaultNetwork,
-        /** False means its coins can be tested but not traded — yet. */
-        tradeable: one.capabilities.orders,
-      }))
-  )
+/** One row of the one backtest catalogue. */
+export type BacktestMarket = {
+  /** The history source's key, or the venue's own when no source covers it. */
+  key: string
+  symbol: string
+  category: MarketCategory
+  /** The exchanges that list it, by printed name. */
+  listedOn: string[]
+  /** The highest 24-hour dollar volume any of those exchanges reported. */
+  volume24hUsd: number
+  /** The source's first bar for this market, or null when the source does not say. */
+  firstBar: number | null
+  /** True when no source covers it: the run reads the venue's own history. */
+  historyFromExchangeOnly: boolean
+}
 
-export function loadMarketProtocols() {
-  return marketProtocolsFn()
+/**
+ * One catalogue for every backtest: every trading venue's markets, each
+ * mapped to its history source, one row per source.
+ *
+ * BTC on five venues is one row keyed by Binance's BTC. TSLA on three is one
+ * row keyed by Dukascopy's. A market no source covers is still listed, under
+ * its own key, marked so. The venue catalogues are already cached for a
+ * minute, so the union costs no new exchange calls.
+ *
+ * Only venues that can trade are walked. Binance and Dukascopy are where the
+ * history comes from, not somewhere to pick coins nobody could trade.
+ */
+const backtestMarketsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async (): Promise<{ rows: BacktestMarket[] }> => {
+    const venues = listProtocols().filter(
+      (one) =>
+        one.capabilities.markets &&
+        one.capabilities.orders &&
+        one.networks.includes("mainnet")
+    )
+    const catalogs = await Promise.all(
+      venues.map((venue) =>
+        loadRawMarketCatalog(venue.id, "mainnet").then(
+          (catalog) => catalog,
+          // A dead exchange leaves its coins out rather than taking the
+          // whole list down; the picker says which exchanges answered.
+          () => null
+        )
+      )
+    )
+
+    const bySource = new Map<string, BacktestMarket>()
+    for (const catalog of catalogs) {
+      if (!catalog) continue
+      for (const row of catalog.rows) {
+        const source = await resolveHistorySource(row.key)
+        const key = source ?? row.key
+        const sourceRow = source ? await catalogRow(source) : null
+        const found = bySource.get(key)
+        if (found) {
+          if (!found.listedOn.includes(catalog.protocolLabel)) {
+            found.listedOn.push(catalog.protocolLabel)
+          }
+          found.volume24hUsd = Math.max(found.volume24hUsd, row.volume24hUsd)
+          continue
+        }
+        bySource.set(key, {
+          key,
+          symbol: sourceRow?.symbol ?? row.symbol,
+          // The venue's own word for what it is, unless it has none, in which
+          // case the source's word: a Dukascopy instrument's kind is in its
+          // id, and everything Binance holds is a coin.
+          category:
+            row.category !== "other"
+              ? row.category
+              : (sourceRow?.category ?? "other"),
+          listedOn: [catalog.protocolLabel],
+          volume24hUsd: row.volume24hUsd,
+          firstBar: sourceRow ? await sourceFirstBar(sourceRow.key) : null,
+          historyFromExchangeOnly: source === null,
+        })
+      }
+    }
+
+    return {
+      rows: [...bySource.values()].sort(
+        (left, right) =>
+          right.volume24hUsd - left.volume24hUsd ||
+          left.symbol.localeCompare(right.symbol)
+      ),
+    }
+  })
+
+export function loadBacktestMarkets() {
+  return backtestMarketsFn()
 }
 
 const groupIdSchema = z.object({ groupId: z.string().max(36) })
@@ -208,8 +290,9 @@ const readBacktestCoinFn = createServerFn({ method: "GET" })
       // needing every one of them run again.
       fills: fillMarksFromStored(storedFills, matching),
       interval: spec.interval,
+      // Under the coin's history source, which is where the run read them.
       bars: await loadStoredCandles(
-        data.marketKey,
+        (await resolveHistorySource(data.marketKey)) ?? data.marketKey,
         spec.interval,
         spec.from,
         spec.to
@@ -397,6 +480,24 @@ export function deleteBacktests(groupIds: string[]) {
 
 export function stopBacktest(groupId: string) {
   return stopBacktestFn({ data: { groupId } })
+}
+
+/** A source's own catalogue row for one of its keys. Cached with the catalogue. */
+async function catalogRow(key: string): Promise<MarketRow | null> {
+  const ref = parseMarketKey(key)
+  if (!ref) return null
+  const catalog = await loadRawMarketCatalog(ref.protocol, ref.network)
+  return catalog.rows.find((row) => row.key === key) ?? null
+}
+
+/** The first hour bar a source could have for this market, when it says. */
+async function sourceFirstBar(key: string): Promise<number | null> {
+  const ref = parseMarketKey(key)
+  if (!ref) return null
+  return (
+    getProtocol(ref.protocol).markets.historyFloor?.(ref.marketId, "1h") ??
+    null
+  )
 }
 
 export const getBacktestErrorMessage = createErrorMessage(

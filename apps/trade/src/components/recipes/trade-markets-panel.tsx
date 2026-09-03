@@ -22,8 +22,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  loadMarketProtocols,
+  loadBacktestMarkets,
   loadTestableMarkets,
+  type BacktestMarket,
 } from "@/lib/api/trade/backtests"
 import { getMarketsErrorMessage } from "@/lib/api/trade/markets"
 import {
@@ -49,9 +50,15 @@ import {
   DEFAULT_BACKTEST_INTERVAL,
   tradeDcaNode,
 } from "@/lib/recipes/trade-dca"
-import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
+import {
+  CANDLE_INTERVALS,
+  KNOWN_PROTOCOLS,
+  MARKET_CATEGORIES,
+  protocolLabel,
+  type MarketCategory,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import { chosenWallet, tradeWalletNode } from "@/lib/recipes/trade-wallet"
-import type { MarketRow } from "@/lib/protocols/contracts"
 import { plural } from "@/lib/format/plural"
 import type { MarketFolder } from "@/lib/trade/market-folders"
 import { formatCompactUsd } from "@/lib/trade/format"
@@ -70,10 +77,11 @@ import {
  *
  * **The step has two shapes, and the Wallet step decides which.** With pretend
  * money this is a backtest: a window of history to walk, mainnet only, and a
- * count of candles to read. With a wallet named there is no history to walk and
- * no candles to load — the coins have to be ones that wallet could really
- * trade, so the exchange and the network follow the wallet rather than being
- * chosen here.
+ * count of candles to read from one list of every market any venue trades,
+ * each on its history source. With a wallet named there is no history to walk
+ * and no candles to load — the coins have to be ones that wallet could really
+ * trade, so the list is that wallet's exchange. Nothing here picks an
+ * exchange; the wallet does, or nobody does.
  *
  * A backtest is mainnet only, deliberately: testnet prices are made up, so a
  * strategy tested against them has been tested against nothing.
@@ -102,8 +110,59 @@ const RETRY_PAUSE_MS = 400
 const LIST_CACHE_MS = 10 * 60 * 1000
 const listCache = new Map<
   string,
-  { at: number; rows: MarketRow[]; tradeable: boolean }
+  { at: number; rows: PickRow[]; tradeable: boolean }
 >()
+
+/** One coin as the list draws it, whichever list it came from. */
+type PickRow = {
+  key: string
+  symbol: string
+  category: MarketCategory
+  volume24hUsd: number
+  /** Where it is listed and how far its history goes, or why it has none. */
+  note: string | null
+}
+
+/** The category tabs, in the order the rest of Trade shows them. */
+const CATEGORY_TABS: ReadonlyArray<{ value: MarketCategory | "all"; label: string }> =
+  [
+    { value: "all", label: "All" },
+    { value: "crypto", label: "Crypto" },
+    { value: "stocks", label: "Stocks" },
+    { value: "indices", label: "Indices" },
+    { value: "commodities", label: "Commodities" },
+    { value: "forex", label: "Forex" },
+  ]
+
+function backtestRow(row: BacktestMarket): PickRow {
+  // Short on purpose: the inspector is a narrow column, and the note sits
+  // on its own line under the name.
+  const listed = row.listedOn.join(", ")
+  const since =
+    row.firstBar === null
+      ? null
+      : `since ${new Date(row.firstBar).getUTCFullYear()}`
+  return {
+    key: row.key,
+    symbol: row.symbol,
+    category: row.category,
+    volume24hUsd: row.volume24hUsd,
+    note: row.historyFromExchangeOnly
+      ? `${listed} · history from the exchange only`
+      : since
+        ? `${listed} · ${since}`
+        : listed,
+  }
+}
+
+/** An exchange's proper name, or the id capitalised for one this build does not know. */
+function nameOfProtocol(id: string): string {
+  return (KNOWN_PROTOCOLS as readonly string[]).includes(id)
+    ? protocolLabel(id as ProtocolId)
+    : id
+      ? id.charAt(0).toUpperCase() + id.slice(1)
+      : id
+}
 
 /**
  * The same stretch a day count describes, written as its two ends.
@@ -187,31 +246,18 @@ export default function TradeMarketsFields({
       ? node.settings.protocol
       : fallback.protocol
   /**
-   * The exchange this list comes from — always the one saved on the step.
-   *
-   * **The wallet never overrides it.** It did for one build, and the control
-   * went dead in the hand: choosing a different exchange saved the choice,
-   * cleared the coins, and left the box still reading the wallet's exchange, so
-   * nothing appeared to happen. A dropdown that swallows a choice is worse than
-   * one that lets you make a choice the step then refuses out loud, which is
-   * what it does below.
+   * The exchange the coins come from. A wallet can only trade its own, so
+   * with a wallet named this is the wallet's; with pretend money there is no
+   * exchange to choose, because the backtest list is every venue's markets
+   * on their history sources, and the saved value is only what an older
+   * step wrote.
    */
-  const protocol = savedProtocol
+  const protocol = wallet?.protocol ?? savedProtocol
   /** Coins saved from an exchange this wallet cannot reach. */
   const wrongProtocol =
     wallet?.protocol != null && savedProtocol !== wallet.protocol
-  /**
-   * The network to list from.
-   *
-   * The wallet's, but only while the exchange is the wallet's too — asking
-   * Binance for the network a Hyperliquid wallet sits on is a question with no
-   * answer. While they disagree this shows the real network, and the sentence
-   * under the dropdown is what says the flow cannot run.
-   */
-  const network =
-    wallet && !wrongProtocol
-      ? (wallet.network ?? BACKTEST_NETWORK)
-      : BACKTEST_NETWORK
+  /** The network to list from: the wallet's, or mainnet for a backtest. */
+  const network = wallet ? (wallet.network ?? BACKTEST_NETWORK) : BACKTEST_NETWORK
   /**
    * A wallet named before this step learned to follow one. Nothing is wrong and
    * nothing is lost — opening the Wallet step fills it in — but until then this
@@ -251,7 +297,7 @@ export default function TradeMarketsFields({
    */
   const [fetched, setFetched] = React.useState<{
     key: string
-    rows: MarketRow[] | null
+    rows: PickRow[] | null
     tradeable: boolean
     error: string | null
   } | null>(null)
@@ -268,8 +314,9 @@ export default function TradeMarketsFields({
   // offer coins the wallet cannot reach.
   // The wallet is part of the key, because the list it produces depends on it:
   // a live wallet is only offered coins on markets its money can actually pay
-  // for, and two wallets can be funded on different ones.
-  const listKey = `${network}:${protocol}:${wallet?.id ?? ""}`
+  // for, and two wallets can be funded on different ones. A backtest has one
+  // list whatever the flow, so its key names no exchange.
+  const listKey = wallet ? `${network}:${protocol}:${wallet.id}` : "backtest"
   const answer = fetched?.key === listKey ? fetched : null
   const held = listCache.get(listKey)
   const markets = answer ? answer.rows : (held?.rows ?? null)
@@ -277,10 +324,8 @@ export default function TradeMarketsFields({
   const tradeable = answer ? answer.tradeable : (held?.tradeable ?? true)
   const error = answer?.error ?? null
 
-  const [protocols, setProtocols] = React.useState<
-    ReadonlyArray<{ id: string; label: string; tradeable: boolean }>
-  >([])
   const [search, setSearch] = React.useState("")
+  const [category, setCategory] = React.useState<MarketCategory | "all">("all")
   const [folderAttempt, setFolderAttempt] = React.useState(0)
   const folderKey = `${protocol}:${network}`
   const [folderAnswer, setFolderAnswer] = React.useState<{
@@ -311,22 +356,10 @@ export default function TradeMarketsFields({
     }
   }, [folderAttempt, folderKey, network, protocol])
 
-  /**
-   * An exchange's proper name, falling back to its id.
-   *
-   * The registry is what knows the name, and it arrives a moment after the
-   * panel draws. A sentence naming "hyperliquid" beside a dropdown reading
-   * "Hyperliquid" reads as two different things.
-   */
-  const nameOfProtocol = (id: string) =>
-    protocols.find((one) => one.id === id)?.label ??
-    // The registry arrives a moment after the panel draws, so until it does
-    // this is all there is. Capitalised the way the registry would, rather than
-    // showing the raw "binance" for a beat and then swapping it.
-    (id ? id.charAt(0).toUpperCase() + id.slice(1) : id)
-
   /** Bumped by "Try again", which asks again past the cache. */
   const [attemptKey, setAttemptKey] = React.useState(0)
+  /** Which list to ask for: the wallet's exchange, or the one backtest list. */
+  const forWallet = wallet !== null
 
   // One effect, keyed on the exchange, rather than a memoised function.
   //
@@ -351,7 +384,23 @@ export default function TradeMarketsFields({
       }
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const loaded = await loadTestableMarkets(network, protocol)
+          const loaded = forWallet
+            ? await loadTestableMarkets(network, protocol).then((answer) => ({
+                rows: answer.rows.map(
+                  (row): PickRow => ({
+                    key: row.key,
+                    symbol: row.symbol,
+                    category: row.category,
+                    volume24hUsd: row.volume24hUsd,
+                    note: null,
+                  })
+                ),
+                tradeable: answer.tradeable,
+              }))
+            : await loadBacktestMarkets().then((answer) => ({
+                rows: answer.rows.map(backtestRow),
+                tradeable: true,
+              }))
           listCache.set(listKey, {
             at: Date.now(),
             rows: loaded.rows,
@@ -386,21 +435,7 @@ export default function TradeMarketsFields({
     return () => {
       alive = false
     }
-  }, [listKey, network, protocol, wallet?.id, attemptKey])
-
-  // The exchanges on offer, asked once. Read from the registry rather than
-  // written down here, so adding an exchange never touches this panel.
-  React.useEffect(() => {
-    let alive = true
-    void loadMarketProtocols()
-      .then((rows) => {
-        if (alive) setProtocols(rows)
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [])
+  }, [listKey, network, protocol, forWallet, attemptKey])
 
   const chosen = React.useMemo(() => new Set(marketKeys), [marketKeys])
 
@@ -438,7 +473,9 @@ export default function TradeMarketsFields({
     onChange({
       ...node,
       settings: trimMarketsToFit(
-        settings,
+        // The exchange follows the wallet, so it is written with every change
+        // rather than left as whatever an older step saved.
+        { ...settings, protocol },
         interval,
         wallet !== null
       ) as AutomationNode["settings"],
@@ -476,9 +513,17 @@ export default function TradeMarketsFields({
     parsedMinimum !== null &&
     parsedMaximum !== null &&
     parsedMinimum <= parsedMaximum
+  const inCategory = (markets ?? []).filter(
+    (row) => category === "all" || row.category === category
+  )
   const visible = rangeIsValid
-    ? filterMarketsByVolume(markets ?? [], parsedMinimum, parsedMaximum, search)
+    ? filterMarketsByVolume(inCategory, parsedMinimum, parsedMaximum, search)
     : []
+  /** Only a list that really mixes kinds gets the tabs. */
+  const categoriesShown = MARKET_CATEGORIES.filter((one) =>
+    (markets ?? []).some((row) => row.category === one)
+  )
+  const showCategoryTabs = !wallet && categoriesShown.length > 1
 
   const visibleKeys = visible.map((row) => row.key)
   const visibleChosen = visibleKeys.filter((key) => chosen.has(key)).length
@@ -636,71 +681,8 @@ export default function TradeMarketsFields({
         </InspectorCard>
       )}
 
-      <InspectorCard title="Protocol">
-        <div className="grid gap-1.5">
-          <FieldLabel
-            htmlFor={`markets-${node.id}-protocol`}
-            className="text-xs"
-            hint={
-              wallet?.protocol
-                ? "A wallet can only trade its own exchange, so this follows the Wallet step rather than being chosen here. Change it by naming a different wallet."
-                : "Where these coins come from. Switching exchange clears the old list so one run can never mix two exchanges' rules."
-            }
-          >
-            Markets from
-          </FieldLabel>
-          <Select
-            value={protocol}
-            onValueChange={(next) => {
-              setFolderModeRequested(false)
-              onChange({
-                ...node,
-                settings: {
-                  ...node.settings,
-                  protocol: next,
-                  folderId: null,
-                  folderName: null,
-                  folderCount: null,
-                  marketKeys: [],
-                },
-              })
-            }}
-          >
-            <SelectTrigger
-              id={`markets-${node.id}-protocol`}
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Every exchange stays choosable, including the ones this
-                  wallet cannot trade. Hiding them made the list shorter and
-                  the step a trap: once you moved to the wallet's exchange
-                  there was no way back to the one you came from without going
-                  and changing the wallet first. They are marked instead, and
-                  choosing one is answered by the sentence underneath. */}
-              {(protocols.length > 0
-                ? protocols
-                : [
-                    {
-                      id: protocol,
-                      label: nameOfProtocol(protocol),
-                      tradeable: true,
-                    },
-                  ]
-              ).map((one) => (
-                <SelectItem key={one.id} value={one.id}>
-                  {one.label}
-                  {wallet?.protocol != null && one.id !== wallet.protocol
-                    ? " — not on this wallet"
-                    : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {wallet ? (
+      {wallet ? (
+        <InspectorCard title="Exchange">
           <p
             className={
               wrongProtocol || walletNotReadYet
@@ -709,13 +691,13 @@ export default function TradeMarketsFields({
             }
           >
             {wrongProtocol
-              ? `${wallet.label} cannot trade ${nameOfProtocol(savedProtocol)} coins, so this flow will not run as it stands. Choose ${nameOfProtocol(wallet.protocol ?? "")} above — it clears the list, so pick the coins again after.`
+              ? `${wallet.label} trades on ${nameOfProtocol(wallet.protocol ?? "")}, and these coins were picked on ${nameOfProtocol(savedProtocol)}. This flow will not run as it stands — pick the coins again from the list below.`
               : walletNotReadYet
                 ? `Open the Wallet step once so this can follow ${wallet.label}'s exchange. Nothing is lost — it just has not been read yet.`
                 : `Follows ${wallet.label}${network === "testnet" ? " — the practice network, where the money is pretend" : ""}.`}
           </p>
-        ) : null}
-      </InspectorCard>
+        </InspectorCard>
+      ) : null}
 
       <InspectorCard title="Coins">
         <div className="grid gap-1.5">
@@ -821,6 +803,32 @@ export default function TradeMarketsFields({
 
         {!folderMode && markets !== null ? (
           <>
+            {showCategoryTabs ? (
+              <Tabs
+                value={category}
+                onValueChange={(next) =>
+                  setCategory(next as MarketCategory | "all")
+                }
+              >
+                {/* Six tabs do not fit the inspector's width on one line,
+                    so the list wraps rather than running off the edge. */}
+                <TabsList
+                  aria-label="Market kinds"
+                  className="h-auto w-full max-w-full flex-wrap justify-start"
+                >
+                  {CATEGORY_TABS.filter(
+                    (tab) =>
+                      tab.value === "all" ||
+                      categoriesShown.includes(tab.value)
+                  ).map((tab) => (
+                    <TabsTrigger key={tab.value} value={tab.value}>
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            ) : null}
+
             <div className="grid gap-2">
               <FieldLabel
                 className="text-xs"
@@ -936,6 +944,7 @@ export default function TradeMarketsFields({
                       key={row.key}
                       marketKey={row.key}
                       symbol={row.symbol}
+                      note={row.note}
                       volume24hUsd={row.volume24hUsd}
                       checked={chosen.has(row.key)}
                       full={full}
@@ -964,11 +973,9 @@ export default function TradeMarketsFields({
               {!wallet && full && !over
                 ? ` That is as many as fit at ${interval} over ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} — shorten the window to hold more.`
                 : ""}
-              {tradeable
+              {tradeable || !wallet
                 ? ""
-                : wallet
-                  ? " These cannot be traded — this exchange gives prices, not orders."
-                  : " These can be tested but not traded yet — this one gives prices, not orders."}
+                : " These cannot be traded — this exchange gives prices, not orders."}
             </p>
 
             {over ? (
@@ -1018,6 +1025,7 @@ export default function TradeMarketsFields({
 const CoinRow = React.memo(function CoinRow({
   marketKey,
   symbol,
+  note,
   volume24hUsd,
   checked,
   full,
@@ -1025,6 +1033,8 @@ const CoinRow = React.memo(function CoinRow({
 }: {
   marketKey: string
   symbol: string
+  /** Which exchanges list it and how far its history goes, on a backtest. */
+  note: string | null
   volume24hUsd: number
   checked: boolean
   /**
@@ -1052,8 +1062,15 @@ const CoinRow = React.memo(function CoinRow({
         disabled={blocked}
         onCheckedChange={(next) => onToggle(marketKey, next === true)}
       />
-      <span className="min-w-0 flex-1 truncate text-xs font-medium">
-        {symbol}
+      <span className="min-w-0 flex-1 text-xs">
+        <span className="block truncate font-medium">{symbol}</span>
+        {note ? (
+          // Wraps rather than truncates: a stock on three venues is a
+          // sentence, and cutting it mid-word hides which venue was cut.
+          <span className="block text-[10px] leading-tight text-muted-foreground">
+            {note}
+          </span>
+        ) : null}
       </span>
       <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
         {formatCompactUsd(volume24hUsd)} a day

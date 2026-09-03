@@ -23,6 +23,7 @@ import type { GridPlan } from "@/lib/trade/grid"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import { readSmartOrderKind, readSmartPlan } from "@/lib/trade/smart-plan"
+import { leftForANewerBuild } from "@/server/trade/left-for-newer-build"
 import {
   holdUntil,
   marketIsCascading,
@@ -276,6 +277,7 @@ export async function advanceLadders(
   for (const raw of rows) {
     const kind = readSmartOrderKind(raw.kind)
     if (!kind) continue
+    if (leftForANewerBuild(raw.id, kind, raw.plan)) continue
     const plan = readSmartPlan(kind, raw.plan)
     if (!plan) continue
     // Built per row rather than once, so every order this smart order sends

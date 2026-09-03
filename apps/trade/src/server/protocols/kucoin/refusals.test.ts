@@ -18,15 +18,21 @@ describe("KuCoin refusals", () => {
     ["KUCOIN_300005:Maximum risk limit", "KUCOIN_RISK_LIMIT"],
     ["KUCOIN_ISOLATED_LEVERAGE", "KUCOIN_ISOLATED_LEVERAGE"],
     ["KUCOIN_MARGIN_CROSS", "KUCOIN_MARGIN_CROSS"],
+    ["KUCOIN_100001:Leverage parameter invalid.", "KUCOIN_LEVERAGE_INVALID"],
   ])("maps %s", (reason, code) => {
     expect(kucoinRefusalCode(reason)).toBe(code)
     expect(kucoinRefusalError(reason).message).toContain("KuCoin")
   })
 
-  it("keeps an unknown exchange reason", () => {
-    const message = kucoinRefusalError("KUCOIN_777:new reason").message
-    expect(message).toContain("reason Trade does not recognize")
-    expect(message).toContain("KUCOIN_777:new reason")
+  it("keeps an unknown exchange reason, without the code said twice", () => {
+    const message = kucoinRefusalError("KUCOIN_777:new reason..").message
+    expect(message).toContain("reason Trade does not recognize (code 777)")
+    expect(message).toContain(": new reason. Check")
+    expect(message).not.toContain("KUCOIN_777")
+  })
+
+  it("leaves a plain 100001 without the word leverage unrecognised", () => {
+    expect(kucoinRefusalCode("KUCOIN_100001:Symbol not found")).toBeNull()
   })
 
   it("strikes a key-shaped value from an unknown reason", () => {

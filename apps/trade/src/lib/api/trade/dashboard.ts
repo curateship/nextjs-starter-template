@@ -4,7 +4,6 @@ import { z } from "zod"
 import {
   KNOWN_PROTOCOLS,
   parseMarketKey,
-  protocolFirstPaintMs,
   type CandleBar,
   type CandleInterval,
   type NetworkId,
@@ -291,7 +290,6 @@ const loadDashboardExchangeFn = createServerFn({ method: "GET" })
   .inputValidator(bootstrapSchema)
   .handler(async ({ data, context }): Promise<DashboardExchange> => {
     requireNetwork(data.protocol, data.network)
-    const openedAt = Date.now()
     // Read again rather than passed in from the browser: the remembered
     // market and the volume cutoff stay the server's own saved row, and the
     // catalogue and wallet reads below do not wait for it.
@@ -315,11 +313,7 @@ const loadDashboardExchangeFn = createServerFn({ method: "GET" })
         )
         if (!marketKey) return null
         const interval = DEFAULT_CHART_INTERVAL
-        return loadProtocolCandles(
-          marketKey,
-          interval,
-          openedAt - protocolFirstPaintMs(data.protocol)
-        ).then(
+        return loadProtocolCandles(marketKey, interval).then(
           (candles) => ({
             key: `${marketKey}@${interval}`,
             interval,
