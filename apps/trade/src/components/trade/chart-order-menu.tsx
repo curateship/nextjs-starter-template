@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   BellRingIcon,
+  ChevronRightIcon,
   Grid2x2Icon,
   LayersIcon,
   ShieldAlertIcon,
@@ -19,8 +20,13 @@ import { cn } from "@/lib/utils"
 /**
  * The little menu a right-click on the chart puts under the pointer.
  *
- * Buy at the level clicked, sell at it — and under a "Smart order" heading,
- * the presets that place a whole plan at once, starting with the DCA ladder.
+ * Buy at the level clicked, sell at it — or the presets that place a whole
+ * plan at once, the DCA ladder and the grid. The two kinds are two fold-out
+ * rows, "Manual order" and "Smart order", drawn the way the Folders panel
+ * draws a folder: a chevron on the right that turns when the row is open, and
+ * the choices under it. Both start closed. Clicking one opens it, clicking
+ * it again closes it, and opening one closes the other, the way the Folders
+ * panel works.
  *
  * With a position open on this market and room for another exit, a
  * "Take profit" or "Stop loss" row sits above everything: the fastest way to
@@ -37,8 +43,12 @@ export type ChartMenuState = { price: number; x: number; y: number }
 /** The presets the Smart order group offers. */
 export type SmartOrderPreset = "dca" | "grid"
 
+
 /** How close to the window's edge the menu may sit. */
 const EDGE = 8
+
+/** Which fold-out row is open: plain Long and Short, or the smart presets. */
+type OrderFold = "manual" | "smart"
 
 export function ChartOrderMenu({
   menu,
@@ -96,6 +106,11 @@ export function ChartOrderMenu({
    */
   const boxRef = React.useRef<HTMLDivElement | null>(null)
   const [at, setAt] = React.useState({ left: menu.x, top: menu.y })
+  // Both closed until one is clicked. Nothing is saved: the Recent list
+  // above already remembers what was placed.
+  const [open, setOpen] = React.useState<OrderFold | null>(null)
+  const toggle = (fold: OrderFold) =>
+    setOpen((current) => (current === fold ? null : fold))
 
   React.useLayoutEffect(() => {
     const box = boxRef.current
@@ -110,6 +125,7 @@ export function ChartOrderMenu({
     menu.y,
     orders,
     smartOrders,
+    open,
     recentOrderTypes.length,
     onPickTakeProfit,
     onPickStopLoss,
@@ -174,24 +190,21 @@ export function ChartOrderMenu({
           <div role="presentation" className="my-1 border-t" />
         </>
       ) : null}
-      {orders ? (
-        <>
-          <MenuRow side="buy" onPick={() => onPick("buy")} />
-          <MenuRow side="sell" onPick={() => onPick("sell")} />
-        </>
-      ) : null}
       {orders && smartOrders ? (
         <>
-          <div role="presentation" className="my-1 border-t" />
-          {/* A labelled group, not a stray heading: everything inside a menu
-                has to be a menu item or a group, or the heading reads as one. */}
-          <div role="group" aria-label="Smart order">
-            <p
-              role="presentation"
-              className="px-2 pb-0.5 text-xs font-medium text-muted-foreground"
-            >
-              Smart order
-            </p>
+          <FoldRow
+            label="Manual order"
+            open={open === "manual"}
+            onToggle={() => toggle("manual")}
+          >
+            <MenuRow side="buy" onPick={() => onPick("buy")} />
+            <MenuRow side="sell" onPick={() => onPick("sell")} />
+          </FoldRow>
+          <FoldRow
+            label="Smart order"
+            open={open === "smart"}
+            onToggle={() => toggle("smart")}
+          >
             <IconRow
               label="DCA ladder"
               icon={<LayersIcon className="size-4 text-muted-foreground" />}
@@ -202,7 +215,12 @@ export function ChartOrderMenu({
               icon={<Grid2x2Icon className="size-4 text-muted-foreground" />}
               onPick={() => onPickSmart("grid")}
             />
-          </div>
+          </FoldRow>
+        </>
+      ) : orders ? (
+        <>
+          <MenuRow side="buy" onPick={() => onPick("buy")} />
+          <MenuRow side="sell" onPick={() => onPick("sell")} />
         </>
       ) : null}
       {orders ? <div role="presentation" className="my-1 border-t" /> : null}
@@ -242,6 +260,45 @@ function OrderTypeRow({
       icon={<Grid2x2Icon className="size-4 text-muted-foreground" />}
       onPick={() => onPickSmart("grid")}
     />
+  )
+}
+
+/**
+ * A row that opens to show its choices, drawn like a folder in the Folders
+ * panel: the name, a chevron on the right that turns when open, and the open
+ * row wearing the same gray fill so which one is open never depends on the
+ * chevron alone.
+ */
+function FoldRow({
+  label,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div role="group" aria-label={label}>
+      <button
+        type="button"
+        role="menuitem"
+        aria-expanded={open}
+        onClick={onToggle}
+        className={cn(
+          "flex min-h-11 w-full items-center gap-2 px-2 py-1.5 text-left text-sm font-medium focus-visible:outline-none min-[1280px]:min-h-0",
+          open ? "bg-muted" : "hover:bg-accent focus-visible:bg-accent"
+        )}
+      >
+        <span className="min-w-0 flex-1">{label}</span>
+        <ChevronRightIcon
+          className={cn("size-4 transition-transform", open && "rotate-90")}
+        />
+      </button>
+      {open ? <div className="bg-muted/30 pl-2">{children}</div> : null}
+    </div>
   )
 }
 

@@ -73,9 +73,22 @@ and the wallet's own label:
 
 - **A fill:** "Bought $500 of ETH at $90 (Hyperliquid main)". Level `info`.
 - **A closing fill:** the same, with what it banked in the body — "Lost $55.00
-  on this close." A loss is level `warning`.
+  on this close. That is measured against the whole position's average entry
+  of $95.00, not the last buy." A loss is level `warning`.
 - **A liquidation:** "The exchange liquidated ETH: …". Level `critical`.
 - **A practice wallet** says so in the label: "(Test wallet, practice)".
+
+**The money on a close is the exchange's own figure, and it is measured
+against the whole position's average entry.** On 2 September 2026 Tyler bought
+782 ENA at 0.14737, sold them an hour later at 0.15105, and the bell said
+"Lost $3.81". Hyperliquid was right: the position also held 1,734 coins bought
+near 0.16, and an exchange never pairs a sale with one particular buy. The
+notice now says the average entry beside the figure, so the number can be
+checked against the position row. The entry is worked back from the
+exchange's own two numbers (the fill's price and what it banked, per coin) in
+`averageEntryOf` in `src/server/trade/live-fills.ts`. KuCoin gets no entry,
+because its closed money is the whole position's landed on the last fill, and
+that arithmetic does not hold there.
 
 A ladder with twenty rungs filling in a cascade is twenty notices. That is the
 rule — one per event — and it is loud on purpose; grouping is a later task.

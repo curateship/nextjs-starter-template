@@ -125,18 +125,29 @@ async function orderContext(
 }
 
 /**
- * Sends one signed transaction, and throws the nonce count away if Lighter
- * refuses it.
+ * Numbers, signs and sends one transaction, and sends it a second time with a
+ * fresh number when Lighter refuses the first one's sequence number.
  *
- * **The reset is the point.** A refused transaction may or may not have spent
- * its number, and guessing wrong leaves the wallet unable to send anything at
- * all until somebody notices — a far worse outcome than one extra request.
+ * **The count goes wrong on its own.** In production the website and the
+ * trading engine are two processes signing for the same key, and each counts
+ * on its own, so whichever sends second carries a number the other already
+ * spent. Measured 1 and 2 Sep 2026: moving a stop on SOL was refused with
+ * "invalid nonce" and went through untouched on the next press. That next
+ * press is what this does by itself — the count is thrown away, Lighter is
+ * asked where the sequence really is, and the same transaction is signed
+ * again with that number. Once only: a second refusal in a row is not a stale
+ * count, and it is shown.
+ *
+ * **Any refusal throws the count away**, nonce or not. A refused transaction
+ * may or may not have spent its number, and guessing wrong leaves the wallet
+ * unable to send anything at all until somebody notices — a far worse outcome
+ * than one extra request.
  */
 async function send(
   network: NetworkId,
   where: { accountIndex: number; apiKeyIndex: number },
   txType: number,
-  txInfo: string
+  sign: (nonce: number) => Promise<{ txInfo: string }>
 ): Promise<void> {
   /**
    * **Whatever is held is about to stop being true.** Anything sent here
@@ -148,12 +159,31 @@ async function send(
    * one is a stop taken off the wrong position.
    */
   forgetLighterHeldReads(network, where.accountIndex)
+  const attempt = async () => {
+    const nonce = await nextLighterNonce(
+      network,
+      where.accountIndex,
+      where.apiKeyIndex
+    )
+    const signed = await sign(nonce)
+    await lighterSendTx(network, { txType, txInfo: signed.txInfo })
+  }
   try {
-    await lighterSendTx(network, { txType, txInfo })
+    await attempt()
   } catch (error) {
     forgetLighterNonce(network, where.accountIndex, where.apiKeyIndex)
-    throw asLiveRefusal(error)
+    if (!isNonceRefusal(error)) throw asLiveRefusal(error)
+    try {
+      await attempt()
+    } catch (again) {
+      forgetLighterNonce(network, where.accountIndex, where.apiKeyIndex)
+      throw asLiveRefusal(again)
+    }
   }
+}
+
+function isNonceRefusal(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith("LIGHTER_NONCE:")
 }
 
 /**
@@ -218,22 +248,18 @@ async function applyLighterLeverage(
       `LIVE_EXCHANGE:Lighter cannot carry ${leverage}x on this market. Pick a leverage it can state exactly.`
     )
   }
-  const nonce = await nextLighterNonce(
-    network,
-    where.accountIndex,
-    where.apiKeyIndex
+  await send(network, where, LIGHTER_TX_TYPE.updateLeverage, (nonce) =>
+    signLighterUpdateLeverage({
+      accountIndex: where.accountIndex,
+      marketIndex: where.marketIndex,
+      marginFraction,
+      marginMode:
+        marginMode === "isolated"
+          ? LIGHTER_MARGIN_MODE.isolated
+          : LIGHTER_MARGIN_MODE.cross,
+      nonce,
+    })
   )
-  const signed = await signLighterUpdateLeverage({
-    accountIndex: where.accountIndex,
-    marketIndex: where.marketIndex,
-    marginFraction,
-    marginMode:
-      marginMode === "isolated"
-        ? LIGHTER_MARGIN_MODE.isolated
-        : LIGHTER_MARGIN_MODE.cross,
-    nonce,
-  })
-  await send(network, where, LIGHTER_TX_TYPE.updateLeverage, signed.txInfo)
 }
 
 /**
@@ -435,27 +461,22 @@ export async function placeLighterOrder(
     const clientOrderIndex = await auth.allocateNonce(
       `lighter:${where.accountIndex}`
     )
-    const nonce = await nextLighterNonce(
-      network,
-      where.accountIndex,
-      where.apiKeyIndex
+    await send(network, where, LIGHTER_TX_TYPE.createOrder, (nonce) =>
+      signLighterOrder({
+        accountIndex: where.accountIndex,
+        marketIndex: where.marketIndex,
+        clientOrderIndex,
+        baseAmount: size,
+        price,
+        side: params.side,
+        orderType: LIGHTER_ORDER_TYPE.limit,
+        // Never `market`. A post-only order that would take the market is
+        // refused by Lighter instead of filling, which is the rule.
+        timeInForce: LIGHTER_TIME_IN_FORCE.postOnly,
+        reduceOnly: params.reduceOnly,
+        nonce,
+      })
     )
-
-    const signed = await signLighterOrder({
-      accountIndex: where.accountIndex,
-      marketIndex: where.marketIndex,
-      clientOrderIndex,
-      baseAmount: size,
-      price,
-      side: params.side,
-      orderType: LIGHTER_ORDER_TYPE.limit,
-      // Never `market`. A post-only order that would take the market is
-      // refused by Lighter instead of filling, which is the rule.
-      timeInForce: LIGHTER_TIME_IN_FORCE.postOnly,
-      reduceOnly: params.reduceOnly,
-      nonce,
-    })
-    await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
 
     /**
      * The send proves nothing — Lighter cancels a crossing post-only order
@@ -499,18 +520,14 @@ export async function cancelLighterOrder(
 ): Promise<void> {
   return saying(async () => {
     const where = await orderContext(network, auth, params.marketId)
-    const nonce = await nextLighterNonce(
-      network,
-      where.accountIndex,
-      where.apiKeyIndex
+    await send(network, where, LIGHTER_TX_TYPE.cancelOrder, (nonce) =>
+      signLighterCancel({
+        accountIndex: where.accountIndex,
+        marketIndex: where.marketIndex,
+        orderIndex: params.orderId,
+        nonce,
+      })
     )
-    const signed = await signLighterCancel({
-      accountIndex: where.accountIndex,
-      marketIndex: where.marketIndex,
-      orderIndex: params.orderId,
-      nonce,
-    })
-    await send(network, where, LIGHTER_TX_TYPE.cancelOrder, signed.txInfo)
   })
 }
 
@@ -554,22 +571,18 @@ export async function adjustLighterMargin(
         "LIVE_EXCHANGE:That is too small an amount for Lighter to move."
       )
     }
-    const nonce = await nextLighterNonce(
-      network,
-      where.accountIndex,
-      where.apiKeyIndex
+    await send(network, where, LIGHTER_TX_TYPE.updateMargin, (nonce) =>
+      signLighterUpdateMargin({
+        accountIndex: where.accountIndex,
+        marketIndex: where.marketIndex,
+        usdcAmount: millionths,
+        direction:
+          params.dollars < 0
+            ? LIGHTER_MARGIN_DIRECTION.remove
+            : LIGHTER_MARGIN_DIRECTION.add,
+        nonce,
+      })
     )
-    const signed = await signLighterUpdateMargin({
-      accountIndex: where.accountIndex,
-      marketIndex: where.marketIndex,
-      usdcAmount: millionths,
-      direction:
-        params.dollars < 0
-          ? LIGHTER_MARGIN_DIRECTION.remove
-          : LIGHTER_MARGIN_DIRECTION.add,
-      nonce,
-    })
-    await send(network, where, LIGHTER_TX_TYPE.updateMargin, signed.txInfo)
   })
 }
 
@@ -863,33 +876,29 @@ export async function closeLighterPosition(
     const clientOrderIndex = await auth.allocateNonce(
       `lighter:${where.accountIndex}`
     )
-    const nonce = await nextLighterNonce(
-      network,
-      where.accountIndex,
-      where.apiKeyIndex
+    await send(network, where, LIGHTER_TX_TYPE.createOrder, (nonce) =>
+      signLighterOrder({
+        accountIndex: where.accountIndex,
+        marketIndex: where.marketIndex,
+        clientOrderIndex,
+        baseAmount: size,
+        price,
+        side: selling ? "sell" : "buy",
+        orderType: LIGHTER_ORDER_TYPE.limit,
+        timeInForce: LIGHTER_TIME_IN_FORCE.immediateOrCancel,
+        reduceOnly: true,
+        /**
+         * **Zero, and it has to be.** An order that lives only for this
+         * instant cannot also carry an expiry weeks away, and Lighter's own
+         * signer refuses the transaction outright with "OrderExpiry is
+         * invalid" — so a close never even reached the exchange. The default
+         * of -1 means "Lighter's usual 28 days", which is right for a resting
+         * order and nonsense for this one.
+         */
+        orderExpiry: 0,
+        nonce,
+      })
     )
-    const signed = await signLighterOrder({
-      accountIndex: where.accountIndex,
-      marketIndex: where.marketIndex,
-      clientOrderIndex,
-      baseAmount: size,
-      price,
-      side: selling ? "sell" : "buy",
-      orderType: LIGHTER_ORDER_TYPE.limit,
-      timeInForce: LIGHTER_TIME_IN_FORCE.immediateOrCancel,
-      reduceOnly: true,
-      /**
-       * **Zero, and it has to be.** An order that lives only for this instant
-       * cannot also carry an expiry weeks away, and Lighter's own signer
-       * refuses the transaction outright with "OrderExpiry is invalid" — so a
-       * close never even reached the exchange. The default of -1 means
-       * "Lighter's usual 28 days", which is right for a resting order and
-       * nonsense for this one.
-       */
-      orderExpiry: 0,
-      nonce,
-    })
-    await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
     // Lighter answers the send, not the fill. What actually filled arrives on
     // the trade history, so claiming a price here would be inventing one.
     return { avgPx: null, filledSz: null }
@@ -998,35 +1007,31 @@ async function placeTriggerOrder(
   const clientOrderIndex = await auth.allocateNonce(
     `lighter:${where.accountIndex}`
   )
-  const nonce = await nextLighterNonce(
-    network,
-    where.accountIndex,
-    where.apiKeyIndex
+  await send(network, where, LIGHTER_TX_TYPE.createOrder, (nonce) =>
+    signLighterOrder({
+      accountIndex: where.accountIndex,
+      marketIndex: where.marketIndex,
+      clientOrderIndex,
+      baseAmount: size,
+      price,
+      side: leg.side,
+      // The LIMIT kinds, never the plain stop-loss or take-profit, because
+      // those fill at whatever the market is and this app sends no market
+      // orders.
+      orderType:
+        leg.kind === "stop"
+          ? LIGHTER_ORDER_TYPE.stopLossLimit
+          : LIGHTER_ORDER_TYPE.takeProfitLimit,
+      // Good till time: a protective order has to wait for its trigger, and a
+      // post-only one would be refused for crossing when it fires.
+      timeInForce: LIGHTER_TIME_IN_FORCE.goodTillTime,
+      // Reduce-only, so a stop can only ever shrink the position it guards and
+      // never open one the other way.
+      reduceOnly: true,
+      triggerPrice: trigger,
+      nonce,
+    })
   )
-  const signed = await signLighterOrder({
-    accountIndex: where.accountIndex,
-    marketIndex: where.marketIndex,
-    clientOrderIndex,
-    baseAmount: size,
-    price,
-    side: leg.side,
-    // The LIMIT kinds, never the plain stop-loss or take-profit, because
-    // those fill at whatever the market is and this app sends no market
-    // orders.
-    orderType:
-      leg.kind === "stop"
-        ? LIGHTER_ORDER_TYPE.stopLossLimit
-        : LIGHTER_ORDER_TYPE.takeProfitLimit,
-    // Good till time: a protective order has to wait for its trigger, and a
-    // post-only one would be refused for crossing when it fires.
-    timeInForce: LIGHTER_TIME_IN_FORCE.goodTillTime,
-    // Reduce-only, so a stop can only ever shrink the position it guards and
-    // never open one the other way.
-    reduceOnly: true,
-    triggerPrice: trigger,
-    nonce,
-  })
-  await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
   /**
    * The send proves nothing here either. Lighter answers 200 and can still
    * cancel the order in silence — the same behaviour that killed a real

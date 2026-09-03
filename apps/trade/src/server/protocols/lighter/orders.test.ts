@@ -296,6 +296,44 @@ describe("cancelling a Lighter order", () => {
     expect(body.MarketIndex).toBe(1)
     expect(body.Index).toBe(12_345)
   }, 60_000)
+
+  /**
+   * The website and the engine both sign for one key in production, each
+   * counting on its own, so a stale number is ordinary — and the same press
+   * went through on the next try every time it was seen. The retry is that
+   * next try, done before anything reaches the screen.
+   */
+  it("sends again with a fresh number when Lighter refuses the sequence number", async () => {
+    sent.mockRejectedValueOnce(
+      new Error("LIGHTER_NONCE:Lighter refused the transaction's sequence number.")
+    )
+    await cancelLighterOrder("mainnet", auth(), {
+      marketId: "BTC",
+      orderId: "12345",
+    })
+    expect(sent).toHaveBeenCalledTimes(2)
+    // Thrown away between the two, so the second asks Lighter for the number.
+    expect(vi.mocked(forgetLighterNonce)).toHaveBeenCalledWith("mainnet", 5, 2)
+  }, 60_000)
+
+  it("shows a second sequence-number refusal in a row instead of looping", async () => {
+    sent.mockRejectedValue(
+      new Error("LIGHTER_NONCE:Lighter refused the transaction's sequence number.")
+    )
+    await expect(
+      cancelLighterOrder("mainnet", auth(), { marketId: "BTC", orderId: "1" })
+    ).rejects.toThrow(/^LIVE_EXCHANGE:Lighter refused the transaction's sequence number/)
+    expect(sent).toHaveBeenCalledTimes(2)
+  }, 60_000)
+
+  it("does not send a refusal about anything else twice", async () => {
+    sent.mockRejectedValue(new Error("LIGHTER_REFUSED:Lighter refused (code 21500)."))
+    await expect(
+      cancelLighterOrder("mainnet", auth(), { marketId: "BTC", orderId: "1" })
+    ).rejects.toThrow(/^LIVE_EXCHANGE:/)
+    expect(sent).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(forgetLighterNonce)).toHaveBeenCalledWith("mainnet", 5, 2)
+  }, 60_000)
 })
 
 describe("moving a Lighter order", () => {

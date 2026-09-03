@@ -77,8 +77,35 @@ describe("the chart order menu's position exits", () => {
   })
 })
 
+describe("the chart order menu's Manual and Smart fold-out rows", () => {
+  it("shows the two rows only when the wallet can place smart orders", () => {
+    const html = draw({ smartOrders: true })
+    expect(html).toContain("Manual order")
+    expect(html).toContain("Smart order")
+    expect(html.match(/aria-expanded=/g)).toHaveLength(2)
+    expect(draw()).not.toContain("Manual order")
+    expect(draw()).toContain(">Long<")
+  })
+
+  it("starts with both rows closed", () => {
+    const html = draw({ smartOrders: true })
+    expect(html.match(/aria-expanded="false"/g)).toHaveLength(2)
+    expect(html).not.toContain(">Long<")
+    expect(html).not.toContain(">Short<")
+    expect(html).not.toContain("DCA ladder")
+    expect(html).not.toContain(">Grid<")
+  })
+
+  it("keeps both closed whatever was placed last", () => {
+    const html = draw({ recentOrderTypes: ["grid", "buy"], smartOrders: true })
+    const afterRecent = html.slice(html.indexOf("Manual order"))
+    expect(afterRecent).not.toContain("DCA ladder")
+    expect(afterRecent).not.toContain(">Long<")
+  })
+})
+
 describe("the chart order menu's recent orders", () => {
-  it("lists the latest placed kind first above the Long and Short rows", () => {
+  it("lists the latest placed kind first, above the fold-out rows", () => {
     const html = draw({
       recentOrderTypes: ["grid", "buy", "dca"],
       smartOrders: true,
@@ -87,12 +114,12 @@ describe("the chart order menu's recent orders", () => {
     const gridAt = html.indexOf("Grid", recentAt)
     const buyAt = html.indexOf("Long", recentAt)
     const dcaAt = html.indexOf("DCA ladder", recentAt)
-    const ordinaryBuyAt = html.indexOf("Long", buyAt + 1)
+    const switchAt = html.indexOf("Manual order")
 
     expect(recentAt).toBeGreaterThan(-1)
     expect(gridAt).toBeLessThan(buyAt)
     expect(buyAt).toBeLessThan(dcaAt)
-    expect(dcaAt).toBeLessThan(ordinaryBuyAt)
+    expect(dcaAt).toBeLessThan(switchAt)
   })
 
   it("leaves saved smart kinds out when the wallet cannot place them", () => {

@@ -541,12 +541,8 @@ export function ActivityPanel({
             canAdjustMargin={canAdjustMargin}
             marginRefusal={marginRefusal}
             busy={trading.busy}
-            onSetLeverage={(position, leverage) =>
-              void trading.setPositionLeverage(position, leverage)
-            }
-            onAdjustMargin={(position, dollars) =>
-              void trading.adjustPositionMargin(position, dollars)
-            }
+            onSetLeverage={trading.setPositionLeverage}
+            onAdjustMargin={trading.adjustPositionMargin}
             onDismiss={() => setChangingMargin(null)}
           />
         </React.Suspense>

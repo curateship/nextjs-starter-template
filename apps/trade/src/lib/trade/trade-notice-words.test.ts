@@ -74,6 +74,25 @@ describe("a fill's notice", () => {
     expect(words.level).toBe("info")
   })
 
+  it("names the average entry the exchange measured a close against", () => {
+    // Bought once at 0.14737 and sold higher, yet the exchange counts a loss:
+    // the rest of the position was bought near 0.16, and a close is measured
+    // against the whole position's average entry.
+    const words = fillNoticeWords({
+      marketKey: "hyperliquid:mainnet:ENA",
+      side: "sell",
+      px: 0.15105,
+      sz: 782,
+      closedPnl: -3.805212,
+      entryPx: 0.155916,
+      liquidation: false,
+      ...wallet,
+    })
+    expect(words.body).toBe(
+      "Lost $3.81 on this close. That is measured against the whole position's average entry of $0.15592, not the last buy."
+    )
+  })
+
   it("is loudest when the exchange took the trade itself", () => {
     const words = fillNoticeWords({
       marketKey: "hyperliquid:mainnet:ETH",

@@ -575,7 +575,7 @@ export type Trading = {
   setPositionLeverage: (
     position: TradePosition,
     leverage: number
-  ) => Promise<void>
+  ) => Promise<boolean>
   /**
    * Adds or takes back the cash behind one real isolated position. Signed:
    * a minus takes margin out, which is refused when it would bring the
@@ -584,7 +584,7 @@ export type Trading = {
   adjustPositionMargin: (
     position: TradePosition,
     dollars: number
-  ) => Promise<void>
+  ) => Promise<boolean>
 }
 
 type PaperAnswer = {
@@ -2592,9 +2592,9 @@ export function useTrading(
         showErrorToast(
           "A practice position's leverage decided how big it was when it was placed — there is nothing behind it to move now. Close it and open again at the leverage you want."
         )
-        return
+        return false
       }
-      await runWith(
+      return runWith(
         getLiveErrorMessage,
         () =>
           changeLiveLeverage({
@@ -2617,9 +2617,9 @@ export function useTrading(
           showErrorToast(
             "A practice wallet has no lender to take cash from. Close the position and open again at the size you want."
           )
-          return
+          return false
         }
-        await runWith(
+        return runWith(
           getLiveErrorMessage,
           () =>
             changeLiveMargin({

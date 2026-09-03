@@ -47,13 +47,18 @@ function live(over: Partial<TradePosition> = {}): TradePosition {
   }
 }
 
-type Pressed = { leverage: number[]; dollars: number[] }
+type Pressed = { leverage: number[]; dollars: number[]; dismissed: number }
 
-async function open(position: TradePosition, maxLeverage: number | null = 20) {
+async function open(
+  position: TradePosition,
+  maxLeverage: number | null = 20,
+  /** What the exchange answers to each change. */
+  took = true
+) {
   const host = document.createElement("div")
   document.body.append(host)
   const root = createRoot(host)
-  const pressed: Pressed = { leverage: [], dollars: [] }
+  const pressed: Pressed = { leverage: [], dollars: [], dismissed: 0 }
   await act(async () => {
     root.render(
       <TooltipProvider>
@@ -66,9 +71,17 @@ async function open(position: TradePosition, maxLeverage: number | null = 20) {
           canAdjustMargin={true}
           marginRefusal={null}
           busy={false}
-          onSetLeverage={(_one, leverage) => pressed.leverage.push(leverage)}
-          onAdjustMargin={(_one, dollars) => pressed.dollars.push(dollars)}
-          onDismiss={() => {}}
+          onSetLeverage={async (_one, leverage) => {
+            pressed.leverage.push(leverage)
+            return took
+          }}
+          onAdjustMargin={async (_one, dollars) => {
+            pressed.dollars.push(dollars)
+            return took
+          }}
+          onDismiss={() => {
+            pressed.dismissed += 1
+          }}
         />
       </TooltipProvider>
     )
@@ -111,17 +124,61 @@ async function open(position: TradePosition, maxLeverage: number | null = 20) {
 }
 
 describe("changing leverage and margin on an open position", () => {
-  it("keeps unchanged actions pressable so they can explain themselves", async () => {
+  it("reads Done and only closes when nothing was changed", async () => {
     const window = await open(live())
     expect(
       document.querySelector<HTMLInputElement>("#margin-leverage")?.value
     ).toBe("5")
-    const leverage = window.button("Change to 5×")
-    const margin = window.button("Move margin")
-    expect(leverage?.disabled).toBe(false)
-    expect(margin?.disabled).toBe(false)
-    await act(async () => leverage?.click())
-    expect(window.refusal("margin-leverage-refusal")).toContain("already at 5×")
+    const done = window.button("Done")
+    expect(done?.disabled).toBe(false)
+    await act(async () => done?.click())
+    expect(window.pressed.leverage).toEqual([])
+    expect(window.pressed.dollars).toEqual([])
+    expect(window.pressed.dismissed).toBe(1)
+    await window.close()
+  })
+
+  it("is named after the change it will send", async () => {
+    const window = await open(live())
+    await window.type("#margin-dollars", "200")
+    expect(window.button("Put $200.00 behind it")).toBeDefined()
+    await window.type("#margin-leverage", "3")
+    expect(window.button("Change to 3× and put $200.00 behind it")).toBeDefined()
+    await window.close()
+  })
+
+  /**
+   * The bug this window was rebuilt for: a margin typed and Done pressed did
+   * nothing, because Done only closed the window and the sending sat on a
+   * smaller button beside the box.
+   */
+  it("sends what was typed and closes once the exchange took it", async () => {
+    const window = await open(live())
+    await window.type("#margin-dollars", "200")
+    await act(async () => window.button("Put ")?.click())
+    expect(window.pressed.dollars).toEqual([200])
+    expect(window.pressed.dismissed).toBe(1)
+    await window.close()
+  })
+
+  it("stays open when the exchange refused the change", async () => {
+    const window = await open(live(), 20, false)
+    await window.type("#margin-dollars", "200")
+    await act(async () => window.button("Put ")?.click())
+    expect(window.pressed.dollars).toEqual([200])
+    expect(window.pressed.dismissed).toBe(0)
+    await window.close()
+  })
+
+  it("sends leverage first, then margin, and stops after a refusal", async () => {
+    const window = await open(live(), 20, false)
+    await window.type("#margin-leverage", "3")
+    await window.type("#margin-dollars", "200")
+    await act(async () => window.button("Change to 3× and")?.click())
+    expect(window.pressed.leverage).toEqual([3])
+    // The leverage change was refused, so the margin was never sent behind it.
+    expect(window.pressed.dollars).toEqual([])
+    expect(window.pressed.dismissed).toBe(0)
     await window.close()
   })
 
@@ -142,14 +199,12 @@ describe("changing leverage and margin on an open position", () => {
   it("treats an empty leverage box as leaving it alone, not as a mistake", async () => {
     const window = await open(live())
     await window.type("#margin-leverage", "")
-    // Typing does not mark the field. Pressing the action explains what it needs.
     expect(window.refusal("margin-leverage-refusal")).toBeNull()
     expect(window.invalid("#margin-leverage")).toBe(false)
-    expect(window.button("Change to")?.disabled).toBe(false)
-    await act(async () => window.button("Change to")?.click())
-    expect(window.refusal("margin-leverage-refusal")).toContain(
-      "Enter the leverage"
-    )
+    // Nothing to send, so the button is plain Done and just closes.
+    await act(async () => window.button("Done")?.click())
+    expect(window.pressed.leverage).toEqual([])
+    expect(window.pressed.dismissed).toBe(1)
     await window.close()
   })
 
@@ -265,8 +320,8 @@ describe("changing leverage and margin on an open position", () => {
             canAdjustMargin={false}
             marginRefusal="Adding or taking back the cash behind one KuCoin position has not been built."
             busy={false}
-            onSetLeverage={() => {}}
-            onAdjustMargin={() => {}}
+            onSetLeverage={async () => true}
+            onAdjustMargin={async () => true}
             onDismiss={() => {}}
           />
         </TooltipProvider>

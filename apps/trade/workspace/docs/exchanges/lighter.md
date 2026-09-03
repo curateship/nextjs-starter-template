@@ -590,11 +590,22 @@ refused, Trade throws its copy away and asks Lighter for the right one before
 the next order.
 
 The count also resets after ANY refused send (`send` in `orders.ts`), because a
-refused transaction may or may not have spent its number. That is why a nonce
-refusal shows up at most once and then heals: seen live on 31 Aug 2026, when a
-country-block refusal left the count out of step and the next send answered
-`21104`. Before `21104` was on the list it surfaced as "a reason Trade does not
-recognize", which reads like an outage and is only the count re-syncing.
+refused transaction may or may not have spent its number. Seen live on 31 Aug
+2026, when a country-block refusal left the count out of step and the next
+send answered `21104`. Before `21104` was on the list it surfaced as "a reason
+Trade does not recognize", which reads like an outage and is only the count
+re-syncing.
+
+**A refused sequence number is retried once before anything is shown.** In
+production the website and the trading engine are two processes signing for
+the same key, and each counts on its own, so whichever sends second carries a
+number the other already spent. Tyler saw this moving a stop on SOL on 1 and
+2 September 2026: the first press was refused, the same press went through a
+moment later. Since 2 September `send` does that second press itself. It
+throws the count away, asks Lighter for the right number, signs the same
+transaction again and sends it. A second refusal in a row is shown, because
+that is not a stale count. Every transaction goes through `send`, so orders,
+cancels, closes, stops, targets, leverage and margin all get the retry.
 
 ## The send proves nothing, so every order is read back
 
