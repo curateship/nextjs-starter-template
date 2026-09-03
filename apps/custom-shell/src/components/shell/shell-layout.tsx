@@ -65,6 +65,7 @@ import {
   normalizePublicTheme,
 } from "@/lib/public-theme"
 import { normalizePublicFontAsset } from "@/lib/public-font"
+import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import {
   normalizePublicFaviconSet,
@@ -732,6 +733,7 @@ function normalizeConfig(
     socialCardType: normalizeSocialCardType(settings.socialCardType),
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: Array.isArray(settings.publicNavigation)
       ? settings.publicNavigation
       : fallback.publicNavigation,

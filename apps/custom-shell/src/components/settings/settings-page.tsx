@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router"
 import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
+import { FrontPageRowsSettings } from "@/components/settings/front-page-rows-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
@@ -19,6 +20,7 @@ import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
+import { CardGroup } from "@/components/ui/card"
 import {
   appHeaderRightActionForRole,
   appSettingsTabs,
@@ -205,10 +207,18 @@ export function SettingsPage({
           />
         ) : null}
         {activeTab === "public-pages" ? (
-          <PublicSystemPagesSettings
-            config={config}
-            onConfigChange={onConfigChange}
-          />
+          <CardGroup>
+            <FrontPageRowsSettings
+              rows={config.frontPageRows}
+              onRowsChange={(frontPageRows) =>
+                onConfigChange({ ...config, frontPageRows })
+              }
+            />
+            <PublicSystemPagesSettings
+              config={config}
+              onConfigChange={onConfigChange}
+            />
+          </CardGroup>
         ) : null}
         {activeTab === "public-social" ? (
           <PublicSocialSettings

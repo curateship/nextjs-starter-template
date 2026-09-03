@@ -39,6 +39,10 @@ import {
   normalizePublicFontAsset,
   type PublicFontAsset,
 } from "@/lib/public-font"
+import {
+  normalizeFrontPageRows,
+  type FrontPageRow,
+} from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -107,6 +111,7 @@ export async function readBranding(
   socialCardType: SocialCardType
   socialHandle: string
   publicSystemCopy: PublicSystemCopy
+  frontPageRows: FrontPageRow[]
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -142,6 +147,7 @@ export async function readBranding(
       socialCardType: globals.socialCardType,
       socialHandle: globals.socialHandle,
       publicSystemCopy: globals.publicSystemCopy,
+      frontPageRows: globals.frontPageRows,
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
@@ -175,6 +181,7 @@ export async function readBranding(
     socialCardType: globals.socialCardType,
     socialHandle: globals.socialHandle,
     publicSystemCopy: globals.publicSystemCopy,
+    frontPageRows: globals.frontPageRows,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -281,6 +288,7 @@ export function parseShellGlobals(value: unknown) {
     socialCardType: normalizeSocialCardType(settings.socialCardType),
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
@@ -363,6 +371,7 @@ export function pickShellGlobals(
     | "socialCardType"
     | "socialHandle"
     | "publicSystemCopy"
+    | "frontPageRows"
     | "publicFont"
     | "publicTheme"
     | "dashboardRowsPerPage"
@@ -392,6 +401,7 @@ export function pickShellGlobals(
     socialCardType: normalizeSocialCardType(settings.socialCardType),
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,

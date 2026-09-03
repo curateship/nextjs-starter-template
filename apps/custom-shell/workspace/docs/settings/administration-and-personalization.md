@@ -106,6 +106,12 @@ maintenance pages. Empty fields use the former built-in wording. The preview
 uses the same fallback rules as the public page, so clearing a field shows what
 a visitor will get before the settings save.
 
+Public Pages also holds the app-wide front page row editor. An admin can add up
+to six plain-text or plans rows, edit the heading and optional introduction,
+choose full or narrow width, and drag rows into their public order. A heading is
+required before the dialog accepts a row. Removing every row brings back the
+built-in pricing front page, so an untouched app does not change.
+
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the
 header and above the footer. These choices are app-wide. Their defaults keep

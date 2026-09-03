@@ -13,6 +13,7 @@ import { serializeUser, type AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
 import type { PublicFontAsset } from "@/lib/public-font"
+import type { FrontPageRow } from "@/lib/pages/front-page"
 import type { PublicTheme } from "@/lib/public-theme"
 import {
   createDefaultPublicSystemCopy,
@@ -169,6 +170,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     socialCardType: SocialCardType
     socialHandle: string
     publicSystemCopy: PublicSystemCopy
+    frontPageRows: FrontPageRow[]
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
@@ -196,6 +198,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
         socialHandle: "",
         publicSystemCopy: createDefaultPublicSystemCopy(),
+        frontPageRows: [],
         publicNavigation: [],
         publicFooter: [],
         publicFooterCopyright: "",

@@ -108,6 +108,19 @@ admin and Home directly for a member. The action does not pass through the
 configurable home redirect, because a stale home setting must not turn the
 front page into a missing-page link.
 
+Public > Pages can replace that built-in front page with up to six ordered
+rows. A plain-text row shows its heading and optional introduction. A plans row
+adds the app's current public plans beneath the same two fields. Full-width rows
+use the configured public page width, while narrow rows stop at 768px and still
+follow the site's content alignment. The first row owns the page's main
+heading, and later rows use section headings.
+
+Rows are app-wide and render in the order saved by the drag editor. A saved row
+without its required heading is dropped before it reaches the public page. If
+no usable rows remain, the former pricing front page renders unchanged. An app
+that answers `/` through its catch-all or replaces the landing page through app
+options still wins before the shell considers these rows.
+
 ## Robots and sitemap
 
 `robots.txt` and `sitemap.xml` come from the public page registry and the active

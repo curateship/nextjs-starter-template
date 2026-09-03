@@ -20,6 +20,7 @@ import {
 } from "@/lib/pages/public-metadata"
 import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
 import type { PublicFontAsset } from "@/lib/public-font"
+import type { FrontPageRow } from "@/lib/pages/front-page"
 import type { PublicFaviconSet } from "@/lib/favicon"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
@@ -451,6 +452,8 @@ export type ShellConfig = {
   socialHandle: string
   /** Editable headings and bodies for the public 404 and maintenance pages. */
   publicSystemCopy: PublicSystemCopy
+  /** Ordered app-wide rows that replace the built-in public front page. */
+  frontPageRows: FrontPageRow[]
   /** Links shown across the public site's header, saved per workspace. */
   publicNavigation: PublicNavigationLink[]
   /** Links shown in the public site's footer, saved per workspace. */
@@ -1031,6 +1034,7 @@ export function createDefaultShellConfig(): ShellConfig {
     socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
     socialHandle: "",
     publicSystemCopy: createDefaultPublicSystemCopy(),
+    frontPageRows: [],
     publicNavigation: [],
     publicFooter: [],
     publicFooterCopyright: "",

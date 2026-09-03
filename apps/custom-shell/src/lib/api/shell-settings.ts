@@ -23,6 +23,15 @@ import type {
 } from "@/lib/favicon"
 import type { PublicFontAsset } from "@/lib/public-font"
 import {
+  FRONT_PAGE_ROW_KINDS,
+  FRONT_PAGE_ROW_LAYOUTS,
+  MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
+  MAX_FRONT_PAGE_ROW_ID_LENGTH,
+  MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  MAX_FRONT_PAGE_ROWS,
+  normalizeFrontPageRows,
+} from "@/lib/pages/front-page"
+import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationLinks,
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
@@ -231,6 +240,19 @@ const publicThemeSchema = z.object({
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
+const frontPageRowsSchema = z
+  .array(
+    z.object({
+      id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
+      heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
+      intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
+      kind: z.enum(FRONT_PAGE_ROW_KINDS),
+      layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+    })
+  )
+  .max(MAX_FRONT_PAGE_ROWS)
+  .transform(normalizeFrontPageRows)
+
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
  * the handler is what decides which ids survive, and it drops anything no
@@ -292,6 +314,7 @@ const shellConfigSchema = z.object({
     maintenanceHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
     maintenanceBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
   }),
+  frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
   publicFooter: publicNavigationSchema,
   publicFooterCopyright: z
