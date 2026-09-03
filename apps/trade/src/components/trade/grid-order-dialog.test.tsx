@@ -933,7 +933,7 @@ describe("the grid window's saved settings", () => {
       )
     })
 
-    it("opens an old partial split as one complete, even pot", async () => {
+    it("keeps remembered weights and still uses the complete pot", async () => {
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: {
           ...defaultGridParams(),
@@ -945,10 +945,8 @@ describe("the grid window's saved settings", () => {
       await renderDialog()
       await act(async () => Promise.resolve())
 
-      const split = rungBoxes().map((one) => Number(one.value))
-      expect(split.reduce((sum, pct) => sum + pct, 0)).toBe(100)
-      expect(Math.max(...split) - Math.min(...split)).toBeCloseTo(0.01, 9)
-      expect(host.textContent).toContain("Adds up to100% · $")
+      expect(rungBoxes().map((one) => Number(one.value))).toEqual([10, 15, 20])
+      expect(host.textContent).toContain("Grid uses100% · $")
     })
 
     it("sends the mirror after the direction is switched", async () => {
@@ -993,11 +991,11 @@ describe("the grid window's saved settings", () => {
       ])
     })
 
-    it("refuses rows that do not add up to the complete grid pot", async () => {
+    it("accepts weights with any positive total and uses the complete grid pot", async () => {
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: { ...defaultGridParams(), levels: 4 },
       })
-      const onPlace = vi.fn(async () => true)
+      const onPlace = vi.fn(async () => false)
       await renderDialog(onPlace)
       await act(async () => Promise.resolve())
       await switchOn()
@@ -1007,22 +1005,69 @@ describe("the grid window's saved settings", () => {
       await typeInto(rungBoxes()[2], "30")
       await typeInto(rungBoxes()[3], "20")
 
-      // The running total shows the problem before any order is sent.
-      expect(host.textContent).toContain("Adds up to80% · $")
-      expect(host.querySelector(".text-destructive")?.textContent).toContain(
-        "80%"
-      )
+      expect(host.textContent).toContain("Grid uses100% · $")
 
       const place = [
         ...host.querySelectorAll<HTMLButtonElement>("button"),
       ].find((button) => button.textContent?.includes("Place"))
       await act(async () => place?.click())
-      expect(host.textContent).toContain("have to add up to 100%")
-      expect(onPlace).not.toHaveBeenCalled()
+      expect(onPlace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            manualRungPcts: [10, 20, 30, 20],
+          }),
+        })
+      )
+    })
+
+    it("leaves existing weights alone when the rung count changes", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 3 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      await typeInto(rungBoxes()[0], "10")
+      await typeInto(rungBoxes()[1], "20")
+      await typeInto(rungBoxes()[2], "70")
+
+      const add = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent?.includes("Add rung")
+      )
+      await act(async () => add?.click())
+      expect(rungBoxes().map((one) => one.value)).toEqual([
+        "10",
+        "20",
+        "70",
+        "70",
+      ])
+
+      const remove = host.querySelector<HTMLButtonElement>(
+        'button[aria-label="Remove rung 4"]'
+      )
+      await act(async () => remove?.click())
+      expect(rungBoxes().map((one) => one.value)).toEqual(["10", "20", "70"])
+    })
+
+    it("updates a rung's dollar amount while always using the complete pot", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 3 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      const firstRow = () => rungBoxes()[0]?.closest("div")?.parentElement
+      const before = firstRow()?.textContent
+      await typeInto(rungBoxes()[0], "20")
+
+      expect(firstRow()?.textContent).not.toBe(before)
+      expect(host.textContent).toContain("Grid uses100% · $")
     })
 
     it("shows each rung as a share and its money, without the price", async () => {
-      // The row reads like the DCA ladder's: the typed %, then the dollars.
+      // The row reads like the DCA ladder's: the typed weight, then the dollars.
       // The prices live on the chart.
       vi.mocked(loadSmartGridParams).mockResolvedValue({
         params: { ...defaultGridParams(), levels: 4 },
@@ -1032,8 +1077,8 @@ describe("the grid window's saved settings", () => {
       await switchOn()
 
       const row = rungBoxes()[0]?.closest("div")?.parentElement
-      expect(row?.textContent).toContain("%")
       expect(row?.textContent).toContain("$")
+      expect(row?.textContent).not.toContain("%")
       expect(row?.textContent).not.toMatch(/\$[\d,.]+ · \$/)
     })
   })

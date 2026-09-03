@@ -41,7 +41,6 @@ import {
   gridRowPctsFromLevels,
   gridRangeReshapable,
   gridRowRungNumber,
-  gridRungPctsAddTo100,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridStopBeyond,
@@ -54,7 +53,6 @@ import {
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 /** One row of the Rungs card. Its id is minted once — see the placement window. */
 type Rung = { id: string; value: string }
@@ -300,7 +298,6 @@ function StopForm({
 
   const rungPcts = rungs.map((one) => Number(one.value))
   const rungSum = gridRungPctsSum(rungPcts)
-  const rungTotalIs100 = gridRungPctsAddTo100(rungPcts)
   const badRung = rungPcts.findIndex(
     (pct) => !(Number.isFinite(pct) && pct > 0 && pct <= 100)
   )
@@ -326,13 +323,10 @@ function StopForm({
     (!manualOn && parsedLevels !== plan.levels.length) ||
     parsedPot !== plan.potPct ||
     parsedLeverage !== plan.leverage
-  // An old running grid may have been placed under the former free-total rule.
-  // Its frozen rungs keep working, and changing only the stop or End Grid must
-  // stay possible. The 100% rule applies as soon as its sizing is changed.
   const badRungs =
     manualOn &&
     sliceSettingsChanged &&
-    (badRung !== -1 || badRungCount || !rungTotalIs100)
+    (badRung !== -1 || badRungCount)
   const resliced =
     !badLevels && !badPot && !badLeverage && !badRungs && sliceSettingsChanged
 
@@ -408,12 +402,10 @@ function StopForm({
       : badLeverage
         ? `Borrowing has to be a whole number between 1× and ${maxBorrowing}×.`
         : manualOn && sliceSettingsChanged && badRung !== -1
-          ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a share above zero.`
+          ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a weight above zero and no more than 100.`
           : manualOn && sliceSettingsChanged && badRungCount
             ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
-            : manualOn && sliceSettingsChanged && !rungTotalIs100
-              ? "The rung shares have to add up to 100%."
-              : badEnd
+            : badEnd
                 ? "Above price or range % has to be a number above zero and no more than 999."
                 : badUnder
                   ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
@@ -655,14 +647,10 @@ function StopForm({
                 setManualOn(next)
               },
             }}
-            summary={
-              manualOn
-                ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
-                : null
-            }
+            summary={manualOn ? `${rungs.length} rungs · 100% used` : null}
             hint={
               canReshape
-                ? `Each rung takes its own share of the money set aside for the grid. The shares must add up to 100%. Rung 1 is the first ${entryWord(plan.direction)}.`
+                ? `The numbers are relative weights. The grid always divides all of its money between them. Rung 1 is the first ${entryWord(plan.direction)}.`
                 : "The split can change only while the grid holds no coin — re-sizing under held coins would mis-price their sells."
             }
           >
@@ -676,7 +664,9 @@ function StopForm({
               )
               const pct = Number(rung.value)
               const dollars =
-                Number.isFinite(pct) && pct > 0 ? (potNow * pct) / 100 : null
+                Number.isFinite(pct) && pct > 0 && rungSum > 0
+                  ? (potNow * pct) / rungSum
+                  : null
               return (
                 <div key={rung.id} className="flex items-center gap-2">
                   <span className="w-4 text-right text-xs text-muted-foreground">
@@ -688,13 +678,12 @@ function StopForm({
                       inputMode="decimal"
                       value={rung.value}
                       disabled={busy || !canReshape}
-                      aria-label={`Rung ${number}, percent of the grid's money`}
+                      aria-label={`Rung ${number} weight`}
                       aria-invalid={showValidation && !(pct > 0 && pct <= 100)}
                       onChange={(event) => setRung(rung.id, event.target.value)}
                       onBlur={() => setShowValidation(true)}
                       className="min-w-0 bg-background"
                     />
-                    <span className="text-xs text-muted-foreground">%</span>
                   </div>
                   {/* The money, the way the DCA ladder's rows say it. The
                       price is on the chart, where prices live. */}
@@ -717,17 +706,11 @@ function StopForm({
                 </div>
               )
             })}
-            {/* The total is the rule: every valid split uses the complete pot. */}
+            {/* Weights can add to any number; the orders always use one pot. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Adds up to</span>
-              <span
-                className={cn(
-                  "tabular-nums",
-                  rungTotalIs100 ? "text-muted-foreground" : "text-destructive"
-                )}
-              >
-                {Math.round(rungSum * 100) / 100}%
-                {` · ${formatUsd((potNow * rungSum) / 100)}`}
+              <span className="text-muted-foreground">Grid uses</span>
+              <span className="text-muted-foreground tabular-nums">
+                100% · {formatUsd(potNow)}
               </span>
             </div>
             <div className="flex items-center gap-2">

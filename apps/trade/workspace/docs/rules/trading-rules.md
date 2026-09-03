@@ -273,10 +273,11 @@ add up to.
 - Tyler, 27 Aug 2026: **New grids divide their account share evenly between
   every level.** There is no doubled sizing choice. A grid placed before this
   rule keeps the level amounts it already has until it ends.
-- Tyler, 3 Sep 2026: **"The rungs should always be at 100%."** The rung shares
-  divide all of the money set aside for a new grid. A $100 grid split over two
-  equal rungs gives each rung $50. A hand-set split cannot be placed or saved
-  until its shares add up to exactly 100%.
+- Tyler, 3 Sep 2026: **"The rungs should always be at 100%."** This means the
+  grid always uses all of the money set aside, not that the typed weights must
+  add to 100. One rung gets the whole $100 grid, two equal weights get $50
+  each, and weights 20 and 30 get $40 and $60. Adding or deleting a rung leaves
+  every other typed weight alone and recalculates the dollars.
 - Tyler, 26 Aug 2026: **With both follow switches on, the grid moves forever in
   either direction.** Selling the highest rung moves every rung up one step at
   once. Buying the lowest rung moves every rung down one step at once. Reaching

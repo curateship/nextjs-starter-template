@@ -226,14 +226,18 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   the window or moves its preview. The DCA window follows the same rule, and
   the full rule lives in `../rules/instant-first.md`.
 - **Rungs** sits under Range and is switched off by default. On, it lists one
-  row per rung, each holding that rung's percentage of the money Share of
-  account % set aside, with the row's price and dollars beside it. The rows run
-  down the range, top first, and each row's share lands at the price beside it,
+  row per rung, each holding that rung's relative weight and the dollars it
+  receives from Share of account %. The rows run
+  down the range, top first, and each row's weight lands at the price beside it,
   so the card and the chart always agree. The NUMBER on each row is what
   reverses: rung 1 is the first trade the grid makes, the top of the range on a
   buying grid and the bottom on a selling one. Switching Long to Short turns the
   values over in the boxes, which mirrors the grid on the chart. A line under
-  the rows says what they add up to, in the refusal colour until it is 100. **Add rung** stops at 20 and the bin stops at 2. **Even split** fills the rows with an equal share that adds to exactly 100.
+  the rows confirms that the weights always use the complete grid amount. The
+  weights themselves can add to any positive number. **Add rung** stops at 20
+  and copies the last weight without changing the others. The bin stops at 2
+  and removes only its own row. **Even split** deliberately replaces every
+  weight with an equal split.
   Switching the card on for the first time starts from the split the grid was
   already using, so nothing about the grid moves. While it is on, the Levels
   box in Range is hidden, because the rows are what count the levels and the

@@ -22,7 +22,6 @@ import {
   gridRowPctsFromLevels,
   gridRowRungNumber,
   gridRungNumber,
-  gridRungPctsAddTo100,
   gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridShares,
@@ -647,6 +646,19 @@ describe("splitting the pot by hand", () => {
     expect(plan.tooSmallIndex).toBeNull()
   })
 
+  it("uses the complete pot when the typed weights do not add to 100", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, levels: 2, manualRungPcts: [20, 30] },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [1200, 800])
+    expect(plan.totalCost).toBeCloseTo(2000, 3)
+  })
+
   it("puts each row's share at that row's price, either direction", () => {
     // The rows are held against PRICES, so the same list lands the same way
     // up whichever direction the grid runs. What mirrors a selling grid is
@@ -674,7 +686,7 @@ describe("splitting the pot by hand", () => {
     expectDollars(plan, [2400, 1800, 1200, 600])
   })
 
-  it("flags the level a typed share leaves too small to be an order", () => {
+  it("flags the level a typed weight leaves too small to be an order", () => {
     const plan = gridOrderPlan({
       topPx: 120,
       bottomPx: 80,
@@ -690,7 +702,7 @@ describe("splitting the pot by hand", () => {
     expect(gridRungNumber(0, 4, "long")).toBe(4)
   })
 
-  it("still caps a typed share on a thin coin", () => {
+  it("still caps a typed weight on a thin coin", () => {
     const plan = gridOrderPlan({
       topPx: 120,
       bottomPx: 80,
@@ -802,9 +814,7 @@ describe("splitting the pot by hand", () => {
       const pcts = gridEvenRungPcts(count)
       expect(pcts).toHaveLength(count)
       expect(gridRungPctsSum(pcts)).toBeCloseTo(100, 9)
-      expect(gridRungPctsAddTo100(pcts)).toBe(true)
     }
-    expect(gridRungPctsAddTo100([20, 20, 20, 20])).toBe(false)
   })
 
   it("is remembered and read back with the rest of the settings", () => {

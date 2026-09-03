@@ -44,7 +44,7 @@ describe("the Grid step panel", () => {
       "Range and the number of rungs set how far apart the rung prices are"
     )
     expect(html).toContain("Use Add rung or the trash button")
-    expect(html).toContain("percentages only divide the grid&#x27;s money")
+    expect(html).toContain("weights only divide the grid&#x27;s money")
     expect(html).toContain("Emergency stop past the losing edge")
     expect(html).toContain("Only Stop on the flow ends the EMA loop")
     expect(html).not.toContain("End Grid past the winning edge")
@@ -79,7 +79,7 @@ describe("the Grid step panel", () => {
     expect(html).toContain("Rung 4")
     expect(html).toContain('value="10"')
     expect(html).toContain('value="40"')
-    expect(html).toContain("Adds up to")
+    expect(html).toContain("Grid uses")
     expect(html).toContain("100%")
   })
 

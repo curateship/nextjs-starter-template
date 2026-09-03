@@ -21,7 +21,6 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { accountOf, getProtocol, ordersOf } from "@/server/protocols/registry"
 import {
-  assertCompleteGridRungSplit,
   draftGridOrder,
   gridPlanAfterRangeMove,
   gridById,
@@ -117,7 +116,6 @@ async function placeLiveGridOrderOnce(
   wallet: TradeWallet,
   input: PlaceGridInput
 ): Promise<PlacedGrid> {
-  assertCompleteGridRungSplit(input.params)
   if (wallet.kind !== "live" || !wallet.address || !wallet.hasKey) {
     throw new Error("LIVE_WALLET_KEY")
   }
@@ -532,7 +530,6 @@ export async function reshapeLiveGrid(
         : null
       if (input.rangeMove && !movedRange) throw new Error("SMART_GRID_RANGE")
       const split = reshapedGridSplit(plan, input)
-      if (changesSlices) assertCompleteGridRungSplit(split)
       const draft = draftGridOrder({
         marketKey: grid.marketKey,
         params: {

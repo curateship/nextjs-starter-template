@@ -250,7 +250,7 @@ describe("placing a grid", () => {
     }
   })
 
-  it("splits the pot by the typed shares when the rungs are set by hand", async () => {
+  it("splits the pot by the typed weights when the rungs are set by hand", async () => {
     // Rung order in, level order stored. Rung 1 is the top of a buying
     // grid's range, so 10% at the top and 40% at the $80 bottom.
     await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
@@ -263,11 +263,15 @@ describe("placing a grid", () => {
     ])
   })
 
-  it("refuses a hand-set split that does not use the complete pot", async () => {
-    await expect(
-      place({ manualSizing: true, manualRungPcts: [10, 20, 30, 20] })
-    ).rejects.toThrow("SMART_GRID_RUNG_TOTAL")
-    expect(await gridRows()).toHaveLength(0)
+  it("scales rung weights with any positive total to the complete pot", async () => {
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 20] })
+    const grid = await onlyGrid()
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      500, 750, 500, 250,
+    ])
+    expect(
+      grid.plan.levels.reduce((sum, one) => sum + one.budget, 0)
+    ).toBeCloseTo(2000, 0)
   })
 
   it("names the rung that was typed, not the level, when one is too small", async () => {

@@ -58,9 +58,7 @@ import {
   gridRowLevelIndex,
   gridRowRungNumber,
   gridRungNumber,
-  gridRungPctsAddTo100,
   gridRungRowsWithLargestFurthest,
-  gridRungPctsSum,
   gridStopBeyond,
   reachedEntry,
   winEdge,
@@ -177,12 +175,7 @@ function rungsFrom(pcts: readonly number[]): Rung[] {
   }))
 }
 
-/**
- * Old remembered splits were allowed to use less or more than the complete
- * pot. A new order has not spent anything yet, so open those old preferences
- * on the equal 100% split instead of making the first thing somebody sees an
- * invalid grid.
- */
+/** Keep every valid remembered weight exactly as it was typed. */
 function rememberedRungRows(params: GridParams | null): number[] {
   const pcts = params?.manualRungPcts ?? []
   if (
@@ -190,7 +183,7 @@ function rememberedRungRows(params: GridParams | null): number[] {
     pcts.length <= MAX_GRID_LEVELS &&
     pcts.every((pct) => pct > 0 && pct <= 100)
   ) {
-    return gridRungPctsAddTo100(pcts) ? pcts : gridEvenRungPcts(pcts.length)
+    return pcts
   }
   if (!params?.manualSizing) return []
   const count = Math.min(
@@ -388,7 +381,7 @@ export function GridOrderDialog({
     borrowing < 1 ||
     borrowing > maxBorrowing
 
-  // The typed shares, in the card's row order — the top of the range first,
+  // The typed weights, in the card's row order — the top of the range first,
   // both directions. A row that is not a number reads as -1 so the refusal
   // below can name it.
   //
@@ -399,13 +392,10 @@ export function GridOrderDialog({
     () => rungs.map((one) => parsed(one.value) ?? -1),
     [rungs]
   )
-  const rungSum = gridRungPctsSum(rungPcts)
-  const rungTotalIs100 = gridRungPctsAddTo100(rungPcts)
   const rungsUsable =
     rungs.length >= MIN_GRID_LEVELS &&
     rungs.length <= MAX_GRID_LEVELS &&
-    rungPcts.every((pct) => pct > 0 && pct <= 100) &&
-    rungTotalIs100
+    rungPcts.every((pct) => pct > 0 && pct <= 100)
   const badRung = rungPcts.findIndex((pct) => !(pct > 0 && pct <= 100))
 
   /**
@@ -896,14 +886,11 @@ export function GridOrderDialog({
             : borrowingInvalid
               ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
               : manualOn && badRung !== -1
-                ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a share above zero.`
+                ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a weight above zero and no more than 100.`
                 : manualOn && !rungsUsable
-                  ? rungs.length < MIN_GRID_LEVELS ||
-                    rungs.length > MAX_GRID_LEVELS
-                    ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
-                    : "The rung shares have to add up to 100%."
+                  ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
                   : !params
-                    ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
+                    ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a weight above zero.`
                     : plan &&
                         plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
                       ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
@@ -947,9 +934,8 @@ export function GridOrderDialog({
     )
   const removeRung = (id: string) =>
     setRungs((held) => held.filter((one) => one.id !== id))
-  // A new row copies the last one rather than changing the custom split behind
-  // somebody's back. The total then explains what needs fixing, and "Even
-  // split" remains one click away.
+  // A new row copies the last weight and leaves every existing row alone.
+  // The dollar amounts re-scale because the weights still divide one pot.
   const addRung = () =>
     setRungs((held) => {
       const last = parsed(held[held.length - 1]?.value ?? "")
@@ -1259,12 +1245,8 @@ export function GridOrderDialog({
               disabled: busy,
               onChange: touched(toggleManual),
             }}
-            summary={
-              manualOn
-                ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
-                : null
-            }
-            hint={`Each rung takes its own share of the money set aside for the grid. The shares must add up to 100%. Rung 1 is the first ${entryWord(direction)}.`}
+            summary={manualOn ? `${rungs.length} rungs · 100% used` : null}
+            hint={`The numbers are relative weights. The grid always divides all of its money between them. Rung 1 is the first ${entryWord(direction)}.`}
           >
             {rungs.map((rung, index) => {
               // Rows read top of the range first; levels read bottom first.
@@ -1284,7 +1266,7 @@ export function GridOrderDialog({
                       inputMode="decimal"
                       value={rung.value}
                       disabled={busy}
-                      aria-label={`Rung ${number}, percent of the grid's money`}
+                      aria-label={`Rung ${number} weight`}
                       aria-invalid={
                         showValidation && parsed(rung.value) === null
                       }
@@ -1294,7 +1276,6 @@ export function GridOrderDialog({
                       onBlur={() => setShowValidation(true)}
                       className="min-w-0 bg-background"
                     />
-                    <span className="text-xs text-muted-foreground">%</span>
                   </div>
                   {/* The money, the way the DCA ladder's rows say it. The
                       price is on the chart, where prices live. */}
@@ -1315,17 +1296,11 @@ export function GridOrderDialog({
                 </div>
               )
             })}
-            {/* The total is the rule: every valid split uses the complete pot. */}
+            {/* Weights can add to any number; the orders always use one pot. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Adds up to</span>
-              <span
-                className={cn(
-                  "tabular-nums",
-                  rungTotalIs100 ? "text-muted-foreground" : "text-destructive"
-                )}
-              >
-                {Math.round(rungSum * 100) / 100}%
-                {plan === null ? "" : ` · ${formatUsd(plan.totalCost)}`}
+              <span className="text-muted-foreground">Grid uses</span>
+              <span className="text-muted-foreground tabular-nums">
+                100%{plan === null ? "" : ` · ${formatUsd(plan.totalCost)}`}
               </span>
             </div>
             <div className="flex items-center gap-2">

@@ -310,28 +310,28 @@ then divides that money between its levels, and there are two ways it can:
 equally, which is what it does by default, or by hand.
 
 **By hand is the Rungs card.** Switching it on lists one row per rung, each
-holding a percentage of the money Share of account % set aside, shown the way
-the DCA ladder's rows are: the typed %, then the dollars it comes to. The
-price is on the chart, where prices live. A grid on 20% of a $10,000 account
-has $2,000 behind it, and four rungs at 10/20/30/40 give the levels $200,
-$400, $600 and $800.
+holding a relative weight and the dollars that weight receives. The price is
+on the chart, where prices live. A grid on 20% of a $10,000 account has $2,000
+behind it, and four weights at 10/20/30/40 give the levels $200, $400, $600
+and $800.
 
-**The rows always divide 100% of the money set aside for the grid.** Tyler's
-latest rule, 3 Sep 2026: "The rungs should always be at 100%." A $100 grid has
-$100 on one rung, $50 each on two equal rungs and $25 each on four equal rungs.
-A hand-set split can still make the rungs different sizes, but the shares must
-add up to exactly 100%. The total turns red and Place or Save changes refuses
-the split until it does.
+**The grid always uses 100% of the money set aside, not a required weight
+total.** Tyler's clarified rule, 3 Sep 2026. One rung gets the whole $100 grid.
+Two equal weights get $50 each. Weights 20 and 30 do not need to be rewritten
+as 40 and 60; the grid reads their 20:30 relationship and gives the rungs $40
+and $60. Each weight can be any positive number up to 100, and their total can
+be anything positive.
 
-A remembered setup from the older rule may add up to another number. Since a
-setup has not placed money, the next new-grid window opens those old rungs as
-an equal 100% split. Two rungs open at 50% each, four at 25% each. A saved
-custom split that already adds to 100% stays exactly as it was typed.
+Typing, adding and deleting never rewrites the other weights. Add rung copies
+the last weight into a new row. Deleting removes only that row. The dollar
+amounts recalculate immediately so the surviving weights still divide the full
+grid amount. Even split is the deliberate button for replacing every weight.
+Remembered weights reopen exactly as saved, whatever number they add up to.
 
 An older running grid keeps the dollar amount already frozen onto each rung.
 Changing those amounts in the background could change real orders. Opening its
-settings shows the current split, and any deliberate re-slice must follow the
-100% rule before it can be saved.
+settings shows the current weights, and a deliberate re-slice scales those
+weights across the full grid amount when it is saved.
 
 **The window's tooltips are one or two short sentences.** Tyler, 1 Sep 2026:
 "the tooltips are way too long. Condense them." The long explanations live in
@@ -340,31 +340,31 @@ this doc instead.
 **A selling grid's rungs run backwards down the chart from a buying grid's.**
 Tyler, 29 Aug 2026: _"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2, 1"_.
 
-The card's rows always run down the range, top first, and each row's share
+The card's rows always run down the range, top first, and each row's weight
 lands at the price beside it. What reverses with the direction is the number on
 the row: rung 1 is the first trade the grid makes, which is the top of the range
 on a buying grid, reached on the way down, and the bottom on a selling grid,
 reached on the way up.
 
-Switching between Long and Short turns the typed shares over in the boxes, so
-each rung keeps its share and the grid comes out mirrored:
+Switching between Long and Short turns the typed weights over in the boxes, so
+each rung keeps its weight and the grid comes out mirrored:
 
 ```
 LONG (buying) grid            SHORT (selling) grid
 range $80-$120                after switching the direction
 
- rung   %   price  money      rung   %   price  money
-   1    5%   $112    $50        5   45%   $120   $450
-   2   10%   $104   $100        4   25%   $112   $250
-   3   15%    $96   $150        3   15%   $104   $150
-   4   25%    $88   $250        2   10%    $96   $100
-   5   45%    $80   $450        1    5%    $88    $50
+ rung weight price  money      rung weight price  money
+   1     5    $112    $50        5    45    $120   $450
+   2    10    $104   $100        4    25    $112   $250
+   3    15     $96   $150        3    15    $104   $150
+   4    25     $88   $250        2    10     $96   $100
+   5    45     $80   $450        1     5     $88    $50
 ```
 
 A buying grid buys more the further price falls; the selling grid over the same
 range sells more the further price climbs.
 
-**The shares are held against prices, never against rung numbers.** That is a
+**The weights are held against prices, never against rung numbers.** That is a
 rule learned the hard way: three attempts held them against rung numbers, and
 each time the meaning of what was already saved changed under the new mapping,
 the card silently flipped what had been typed, and the grid on the chart came
@@ -392,8 +392,8 @@ the equal split and keeps the typed rows for next time.
 
 **A hand-set split never changes size when price moves.** A grid that follows
 price up or down redraws its levels at new prices, and each rung keeps exactly
-the share that was typed for it. Dragging the range does the same, including
-when one entry is open. A grid reversing from long to short turns the shares
+the weight that was typed for it. Dragging the range does the same, including
+when one entry is open. A grid reversing from long to short turns the weights
 over, the same move the window makes when the direction is switched by hand,
 so the reversed grid comes out as the mirror of the one it replaced.
 

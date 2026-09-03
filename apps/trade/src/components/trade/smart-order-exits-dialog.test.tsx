@@ -287,7 +287,7 @@ it("does not let a running grid remove its stop loss", async () => {
   expect(control("grid-stop-pct").disabled).toBe(false)
 })
 
-it("does not save running-grid rung shares unless they add up to 100%", async () => {
+it("saves running-grid rung weights with any positive total", async () => {
   const reshape = vi.fn(async () => true)
   await act(async () => {
     root.render(
@@ -319,8 +319,64 @@ it("does not save running-grid rung shares unless they add up to 100%", async ()
   )
   await act(async () => save?.click())
 
-  expect(document.body.textContent).toContain("have to add up to 100%")
-  expect(reshape).not.toHaveBeenCalled()
+  expect(reshape).toHaveBeenCalledWith(
+    grid,
+    expect.objectContaining({ manualRungPcts: [40, 50] })
+  )
+})
+
+it("leaves a running grid's other weights alone when one is deleted", async () => {
+  const editable = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      levels: grid.plan.levels.map((level) => ({ ...level, budget: 50 })),
+      manualSizing: true,
+      manualRungPcts: [50, 50],
+    },
+  } as SmartGrid
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={editable}
+          wallet="Test wallet"
+          mark={100}
+          busy={false}
+          onSave={async () => true}
+          onReshape={async () => true}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  const add = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Add rung")
+  )
+  await act(async () => add?.click())
+
+  const split = [
+    ...document.querySelectorAll<HTMLInputElement>(
+      'input[id^="grid-edit-rung-"]'
+    ),
+  ]
+  expect(split).toHaveLength(3)
+  await type(split[0]?.id ?? "", "10")
+  await type(split[1]?.id ?? "", "20")
+  await type(split[2]?.id ?? "", "70")
+
+  const remove = split[1]?.closest("div")?.parentElement?.querySelector("button")
+  await act(async () => remove?.click())
+  expect(
+    [
+      ...document.querySelectorAll<HTMLInputElement>(
+        'input[id^="grid-edit-rung-"]'
+      ),
+    ].map((one) => one.value)
+  ).toEqual(["10", "70"])
 })
 
 it("still lets an older partial-split grid move its stop", async () => {

@@ -496,7 +496,7 @@ export type Trading = {
       leverage?: number
       /** Split the pot by hand instead of evenly. See the Rungs card. */
       manualSizing?: boolean
-      /** The typed shares in the card's row order, top of the range first. */
+      /** The typed weights in the card's row order, top of the range first. */
       manualRungPcts?: number[]
     }
   ) => Promise<boolean>

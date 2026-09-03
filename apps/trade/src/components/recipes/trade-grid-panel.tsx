@@ -31,7 +31,6 @@ import {
   GRID_SPACING_LABELS,
   GRID_SPACINGS,
   gridEvenRungPcts,
-  gridRungPctsSum,
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
@@ -55,7 +54,6 @@ export default function TradeGridFields({
     savedRungs && savedRungs.length === settings.grid.levels
       ? savedRungs
       : gridEvenRungPcts(settings.grid.levels)
-  const rungSum = gridRungPctsSum(rungPcts)
 
   const setRungs = (manualRungPcts: number[]) =>
     setGrid({ levels: manualRungPcts.length, manualRungPcts })
@@ -195,7 +193,7 @@ export default function TradeGridFields({
         <InspectorNote>
           Range and the number of rungs set how far apart the rung prices are.
           Use Add rung or the trash button when custom rungs are on. Custom rung
-          percentages only divide the grid&apos;s money.
+          weights only divide the grid&apos;s money.
         </InspectorNote>
         <div className="flex items-center gap-2">
           <Checkbox
@@ -206,7 +204,7 @@ export default function TradeGridFields({
           <FieldLabel
             htmlFor={`grid-${node.id}-manual-rungs`}
             className="text-xs"
-            hint="Give each rung its own share of the grid's money. The shares must add up to 100."
+            hint="The numbers are relative weights. The grid always divides all of its money between them."
           >
             Set each rung by hand
           </FieldLabel>
@@ -226,11 +224,10 @@ export default function TradeGridFields({
                 <TradeNumberField
                   id={`grid-${node.id}-rung-${index + 1}`}
                   label={`Rung ${index + 1}`}
-                  hint="This rung's share of the money set by Share of wallet."
+                  hint="This rung's weight compared with the other rungs."
                   value={pct}
                   min={0.01}
                   max={100}
-                  suffix="%"
                   onChange={(next) =>
                     setRungs(
                       rungPcts.map((held, heldIndex) =>
@@ -255,12 +252,10 @@ export default function TradeGridFields({
                 </Button>
               </div>
             ))}
-            {/* Information, not a rule: the grid uses whatever the rows add
-                up to. Tyler's rule, 1 Sep 2026. */}
             <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Adds up to</span>
+              <span className="text-muted-foreground">Grid uses</span>
               <span className="text-muted-foreground tabular-nums">
-                {Math.round(rungSum * 100) / 100}%
+                100%
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
