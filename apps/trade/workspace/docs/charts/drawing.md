@@ -66,6 +66,7 @@ panel changes size. A selected named workspace layout remembers the same place.
   one; the question is asked before it runs instead.
 - **The chart underneath still pans, zooms and shows its crosshair.** Only a
   line itself takes the pointer, plus the whole chart while a tool is held.
-- Out of scope by the standing decision: alerts on lines and orders on lines.
-  Each attaches to the same surface in its own task. Indicators now do —
-  see below.
+- **A picked-out trendline also shows a cog beside its x**, which opens its
+  alert window; double-clicking the line does the same. That is the first
+  smart tool, in `smart-tools.md`. Orders on lines are still out of scope and
+  attach to the same surface in their own task.

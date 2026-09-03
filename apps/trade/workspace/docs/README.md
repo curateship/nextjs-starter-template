@@ -59,6 +59,8 @@ screen: anything not written there has not been agreed yet.
 ## charts/ — the chart itself
 
 - `drawing.md` — the paint tools, by mouse and by touch.
+- `smart-tools.md` — alerts carried by drawn lines: the cog, the alert
+  window, and what fires it.
 - `indicators.md` — the indicator list and how each one draws.
 - `orders-on-the-chart.md` — dragging orders on the chart, buying more, selling
   part, leverage, and which chart line wins an overlap.

@@ -2,7 +2,11 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { DRAWINGS_FULL, MAX_DRAWINGS_PER_MARKET } from "@/lib/trade/drawings"
+import {
+  DRAWING_ALERT_NEEDS_LINE,
+  DRAWINGS_FULL,
+  MAX_DRAWINGS_PER_MARKET,
+} from "@/lib/trade/drawings"
 import { type CustomShellDb } from "@/server/db"
 import { uuid } from "@/server/auth/security"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -11,6 +15,7 @@ import {
   deleteChartDrawing,
   loadChartDrawings,
   saveChartDrawing,
+  setChartDrawingAlert,
 } from "@/server/trade/drawings"
 import { tradeChartDrawings } from "@/server/trade/schema"
 
@@ -44,7 +49,7 @@ describe("the drawings on a chart", () => {
     })
 
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id, shape: { kind: "level", price: 61_500 } },
+      { id, shape: { kind: "level", price: 61_500 }, alert: null },
     ])
   })
 
@@ -61,10 +66,10 @@ describe("the drawings on a chart", () => {
 
     expect(await loadChartDrawings(userId, BTC)).toHaveLength(1)
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id: expect.any(String), shape: { kind: "level", price: 61_500 } },
+      { id: expect.any(String), shape: { kind: "level", price: 61_500 }, alert: null },
     ])
     expect(await loadChartDrawings(userId, ETH)).toEqual([
-      { id: expect.any(String), shape: { kind: "level", price: 2_400 } },
+      { id: expect.any(String), shape: { kind: "level", price: 2_400 }, alert: null },
     ])
   })
 
@@ -92,7 +97,7 @@ describe("the drawings on a chart", () => {
     })
 
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id, shape: { kind: "level", price: 58_000 } },
+      { id, shape: { kind: "level", price: 58_000 }, alert: null },
     ])
   })
 
@@ -112,10 +117,10 @@ describe("the drawings on a chart", () => {
     })
 
     expect(await loadChartDrawings(theirs, BTC)).toEqual([
-      { id, shape: { kind: "level", price: 61_500 } },
+      { id, shape: { kind: "level", price: 61_500 }, alert: null },
     ])
     expect(await loadChartDrawings(mine, BTC)).toEqual([
-      { id, shape: { kind: "level", price: 1 } },
+      { id, shape: { kind: "level", price: 1 }, alert: null },
     ])
   })
 
@@ -132,7 +137,7 @@ describe("the drawings on a chart", () => {
     })
 
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id, shape: { kind: "level", price: 2_400 } },
+      { id, shape: { kind: "level", price: 2_400 }, alert: null },
     ])
     expect(await loadChartDrawings(userId, ETH)).toEqual([])
   })
@@ -153,7 +158,7 @@ describe("the drawings on a chart", () => {
     })
 
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id: good, shape: { kind: "level", price: 61_500 } },
+      { id: good, shape: { kind: "level", price: 61_500 }, alert: null },
     ])
     const rows = await database
       .select()
@@ -197,7 +202,7 @@ describe("deleting a drawing", () => {
     await deleteChartDrawing(userId, id)
     await saveChartDrawing(userId, BTC, { id, shape })
 
-    expect(await loadChartDrawings(userId, BTC)).toEqual([{ id, shape }])
+    expect(await loadChartDrawings(userId, BTC)).toEqual([{ id, shape, alert: null }])
   })
 })
 
@@ -295,5 +300,93 @@ describe("the cap on one market", () => {
       shape: { kind: "level", price: 2_400 },
     })
     expect(await loadChartDrawings(userId, ETH)).toHaveLength(1)
+  })
+})
+
+describe("the alert a trendline carries", () => {
+  const line = {
+    kind: "trendline" as const,
+    from: { time: 0, price: 100 },
+    to: { time: 1_000, price: 110 },
+  }
+
+  it("arms from the live price, reads back, and switches off", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, { id, shape: line })
+
+    // At time 2,000 the line is at $120; a price of $100 sits below it.
+    const armed = await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 100 },
+      2_000
+    )
+    expect(armed.alert).toEqual({
+      direction: "above",
+      armedAt: 2_000,
+      firedAt: null,
+    })
+    expect(await loadChartDrawings(userId, BTC)).toEqual([
+      { id, shape: line, alert: armed.alert },
+    ])
+
+    const off = await setChartDrawingAlert(userId, {
+      id,
+      on: false,
+      currentPrice: 100,
+    })
+    expect(off.alert).toBeNull()
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert).toBeNull()
+  })
+
+  it("refuses a level, and a line that is not there", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { kind: "level", price: 100 },
+    })
+    await expect(
+      setChartDrawingAlert(userId, { id, on: true, currentPrice: 90 })
+    ).rejects.toThrow(DRAWING_ALERT_NEEDS_LINE)
+    await expect(
+      setChartDrawingAlert(userId, { id: uuid(), on: true, currentPrice: 90 })
+    ).rejects.toThrow("DRAWING_NOT_FOUND")
+  })
+
+  it("points a moved line's alert at the price again, but leaves a fired one", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, { id, shape: line })
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 100 }, 2_000)
+
+    // Dragged up to $200 and above, with the price still at $150: waits for a rise.
+    const higher = { ...line, from: { time: 0, price: 200 }, to: { time: 1_000, price: 210 } }
+    await saveChartDrawing(userId, BTC, { id, shape: higher }, 150, 2_000)
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.direction).toBe(
+      "above"
+    )
+    // Dragged below the price: now waits for a fall.
+    const lower = { ...line, from: { time: 0, price: 50 }, to: { time: 1_000, price: 60 } }
+    await saveChartDrawing(userId, BTC, { id, shape: lower }, 150, 2_000)
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.direction).toBe(
+      "below"
+    )
+    // A move with no live price on the screen changes nothing about the alert.
+    await saveChartDrawing(userId, BTC, { id, shape: higher })
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.direction).toBe(
+      "below"
+    )
+
+    await database
+      .update(tradeChartDrawings)
+      .set({ alert: { direction: "below", armedAt: 2_000, firedAt: 3_000 } })
+      .where(eq(tradeChartDrawings.id, id))
+    await saveChartDrawing(userId, BTC, { id, shape: higher }, 150, 4_000)
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert).toEqual({
+      direction: "below",
+      armedAt: 2_000,
+      firedAt: 3_000,
+    })
   })
 })

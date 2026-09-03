@@ -53,6 +53,10 @@ notice opens that market. Price alerts have their own sound switch in Settings,
 separate from fills and stops. Sound needs an open Trade tab and the browser's
 audio permission; the inbox notice does not.
 
+Alerts carried by drawn lines share the same two tabs and counts. Their rows
+say the word trendline and where the line is in dollars, and pressing one
+picks the line out on its chart. See `charts/smart-tools.md`.
+
 An account may have 100 active alerts. The next one is refused until one fires
 or is deleted. Fired rows appear newest first in **Fired** and cannot re-arm
 themselves. Deleting one removes only its saved history row.

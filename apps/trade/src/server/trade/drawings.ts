@@ -1,12 +1,18 @@
-import { and, asc, count, eq } from "drizzle-orm"
+import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm"
 
 import {
   DRAWINGS_FULL,
+  DRAWING_ALERT_NEEDS_LINE,
+  DRAWING_ALERT_NO_PRICE,
   MAX_DRAWINGS_PER_MARKET,
+  priceAtTime,
+  readDrawingAlert,
   readDrawingShape,
   type Drawing,
+  type DrawingAlert,
   type DrawingShape,
 } from "@/lib/trade/drawings"
+import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import { db } from "@/server/db"
 import { tradeChartDrawings } from "@/server/trade/schema"
 
@@ -26,6 +32,7 @@ export async function loadChartDrawings(
     .select({
       id: tradeChartDrawings.id,
       shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
     })
     .from(tradeChartDrawings)
     .where(
@@ -39,7 +46,9 @@ export async function loadChartDrawings(
   const drawings: Drawing[] = []
   for (const row of rows) {
     const shape = readDrawingShape(row.shape)
-    if (shape) drawings.push({ id: row.id, shape })
+    if (shape) {
+      drawings.push({ id: row.id, shape, alert: readDrawingAlert(row.alert) })
+    }
   }
   return drawings
 }
@@ -53,11 +62,20 @@ export async function loadChartDrawings(
  * touching theirs. The market key is only set on the way in — moving a drawing
  * cannot move it to another market, because the update never writes that
  * column.
+ *
+ * **A moved line keeps its alert, pointed the right way.** The alert waits for
+ * the price to cross the line from one side, fixed when the switch went on.
+ * Dragging the line to the other side of the price would make that side wrong
+ * and fire it on the next pass for nothing, so when the screen says where the
+ * price is, the direction is set again from the line's new place. Only an
+ * alert still waiting is touched: one that has fired stays fired.
  */
 export async function saveChartDrawing(
   userId: string,
   marketKey: string,
-  drawing: { id: string; shape: DrawingShape }
+  drawing: { id: string; shape: DrawingShape },
+  currentPrice: number | null = null,
+  now = Date.now()
 ): Promise<void> {
   const existing = await db
     .select({ id: tradeChartDrawings.id })
@@ -98,6 +116,80 @@ export async function saveChartDrawing(
       target: [tradeChartDrawings.userId, tradeChartDrawings.id],
       set: { shape: drawing.shape, updatedAt: new Date() },
     })
+
+  if (currentPrice === null) return
+  const linePrice = priceAtTime(drawing.shape, now)
+  if (linePrice === null) return
+  const direction = priceAlertDirection(linePrice, currentPrice)
+  await db
+    .update(tradeChartDrawings)
+    .set({
+      alert: sql`jsonb_set(${tradeChartDrawings.alert}, '{direction}', ${JSON.stringify(direction)}::jsonb)`,
+    })
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, drawing.id),
+        isNotNull(tradeChartDrawings.alert),
+        sql`${tradeChartDrawings.alert}->>'firedAt' IS NULL`
+      )
+    )
+}
+
+/**
+ * Switch a line's alert on or off.
+ *
+ * On: the direction is fixed from where the line is right now against the
+ * live price, and the record starts fresh, so a line that fired before can be
+ * armed again. Off: the record goes, fired or not. Only a trendline takes an
+ * alert for now; a level's alert is its own task.
+ */
+export async function setChartDrawingAlert(
+  userId: string,
+  input: { id: string; on: boolean; currentPrice: number | null },
+  now = Date.now()
+): Promise<Drawing> {
+  const [row] = await db
+    .select({
+      id: tradeChartDrawings.id,
+      shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
+    })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+    .limit(1)
+  const shape = row ? readDrawingShape(row.shape) : null
+  if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+
+  let alert: DrawingAlert | null = null
+  if (input.on) {
+    if (shape.kind !== "trendline") throw new Error(DRAWING_ALERT_NEEDS_LINE)
+    const linePrice = priceAtTime(shape, now)
+    if (linePrice === null || input.currentPrice === null) {
+      throw new Error(DRAWING_ALERT_NO_PRICE)
+    }
+    alert = {
+      direction: priceAlertDirection(linePrice, input.currentPrice),
+      armedAt: now,
+      firedAt: null,
+    }
+  }
+
+  await db
+    .update(tradeChartDrawings)
+    .set({ alert, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+  return { id: row.id, shape, alert }
 }
 
 /** Remove one, and say whether there was one to remove. */

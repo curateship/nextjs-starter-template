@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { moveShape, readDrawingShape } from "@/lib/trade/drawings"
+import {
+  drawingAlertArmed,
+  moveShape,
+  priceAtTime,
+  readDrawingAlert,
+  readDrawingShape,
+} from "@/lib/trade/drawings"
 
 describe("reading a saved drawing", () => {
   it("reads a level and a trendline", () => {
@@ -89,5 +95,51 @@ describe("moving a drawing", () => {
       0
     )
     expect(readDrawingShape(moved)).toEqual(moved)
+  })
+})
+
+describe("where a drawing is at one moment", () => {
+  const line = {
+    kind: "trendline" as const,
+    from: { time: 1_000, price: 10 },
+    to: { time: 3_000, price: 30 },
+  }
+
+  it("reads a trendline before, between and after its two ends", () => {
+    expect(priceAtTime(line, 0)).toBe(0)
+    expect(priceAtTime(line, 2_000)).toBe(20)
+    expect(priceAtTime(line, 5_000)).toBe(50)
+  })
+
+  it("reads a level as the same price at every moment", () => {
+    expect(priceAtTime({ kind: "level", price: 7 }, 0)).toBe(7)
+    expect(priceAtTime({ kind: "level", price: 7 }, 9_999)).toBe(7)
+  })
+
+  it("has no one price for a line straight up and down", () => {
+    expect(
+      priceAtTime({ ...line, to: { time: 1_000, price: 30 } }, 1_000)
+    ).toBeNull()
+  })
+})
+
+describe("reading a saved alert", () => {
+  it("reads an armed and a fired record, and nothing as no alert", () => {
+    expect(
+      readDrawingAlert({ direction: "above", armedAt: 5, firedAt: null })
+    ).toEqual({ direction: "above", armedAt: 5, firedAt: null })
+    expect(
+      drawingAlertArmed(
+        readDrawingAlert({ direction: "below", armedAt: 5, firedAt: 9 })
+      )
+    ).toBe(false)
+    expect(
+      drawingAlertArmed(
+        readDrawingAlert({ direction: "below", armedAt: 5, firedAt: null })
+      )
+    ).toBe(true)
+    expect(readDrawingAlert(null)).toBeNull()
+    expect(readDrawingAlert(undefined)).toBeNull()
+    expect(readDrawingAlert({ direction: "sideways", armedAt: 5 })).toBeNull()
   })
 })

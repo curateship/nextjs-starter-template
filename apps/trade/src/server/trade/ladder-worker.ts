@@ -580,6 +580,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       { advanceRunningFlows },
       { checkLiquidationWarnings },
       { checkPriceAlerts },
+      { checkDrawingAlerts },
     ] = await Promise.all([
       import("@/server/trade/paper"),
       import("@/server/trade/live-smart-orders"),
@@ -587,6 +588,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       import("@/server/trade/flow-run"),
       import("@/server/trade/liquidation-warning"),
       import("@/server/trade/price-alerts"),
+      import("@/server/trade/drawing-alerts"),
     ])
 
     // Alerts belong to accounts and markets, not wallets. Start their one
@@ -595,11 +597,18 @@ export async function advanceWorkingLadders(): Promise<void> {
     if (!checkingPriceAlerts) {
       checkingPriceAlerts = true
       started.push(
-        checkPriceAlerts({ pushedMarks })
-          .catch((error) => console.error("Price alert pass failed", error))
-          .finally(() => {
-            checkingPriceAlerts = false
-          })
+        Promise.all([
+          checkPriceAlerts({ pushedMarks }).catch((error) =>
+            console.error("Price alert pass failed", error)
+          ),
+          // The alerts drawn lines carry, checked the same way and from the
+          // same prices. Its own catch, so one failing never silences the other.
+          checkDrawingAlerts({ pushedMarks }).catch((error) =>
+            console.error("Drawing alert pass failed", error)
+          ),
+        ]).finally(() => {
+          checkingPriceAlerts = false
+        })
       )
     }
 

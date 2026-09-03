@@ -385,6 +385,9 @@ export function ChartPanel({
   chartToolbarPosition,
   onChartToolbarPositionChange,
   initialDrawings,
+  onDrawingAlertChange,
+  selectDrawing = null,
+  onDrawingSelected,
   initialQuickOrder,
   priceAlerts = NO_PRICE_ALERTS,
   onCreatePriceAlert = IGNORE_PRICE_ALERT,
@@ -424,6 +427,14 @@ export function ChartPanel({
     error: string | null
   }
   /**
+  /** Told after a drawn line's alert is switched on or off and saved. */
+  onDrawingAlertChange?: () => void
+  /**
+   * A line to pick out once its market's drawings have arrived, from a row in
+   * the Alerts panel. Answered with `onDrawingSelected` once done.
+   */
+  selectDrawing?: { marketKey: string; id: string } | null
+  onDrawingSelected?: () => void
    * How the right-click order window was last set up, from the same loader.
    * The window opens on a click, so anything read after it is on screen would
    * arrive too late to be any use to somebody already typing.
@@ -552,12 +563,34 @@ export function ChartPanel({
 
   // The lines drawn on this market. They belong to the market, not to the
   // timeframe, so switching between 4h and 1d leaves them where they are.
-  const paint = useChartDrawings(selectedKey, initialDrawings)
+  const paint = useChartDrawings(
+    selectedKey,
+    initialDrawings,
+    onDrawingAlertChange
+  )
   const setPaintTool = paint.setTool
   const setSelectedDrawing = paint.setSelectedId
   const clearPaintDrawings = paint.clearAll
   const paintTool = options.drawings ? paint.tool : null
 
+
+  // A row in the Alerts panel names a line on another market. The market is
+  // opened first, and the line is picked out here once its drawings have
+  // actually arrived, rather than the moment the market was asked for.
+  const paintDrawings = paint.drawings
+  React.useEffect(() => {
+    if (!selectDrawing || selectDrawing.marketKey !== selectedKey) return
+    if (!paintDrawings.some((drawing) => drawing.id === selectDrawing.id))
+      return
+    setSelectedDrawing(selectDrawing.id)
+    onDrawingSelected?.()
+  }, [
+    selectDrawing,
+    selectedKey,
+    paintDrawings,
+    setSelectedDrawing,
+    onDrawingSelected,
+  ])
   // Hiding drawings also puts down the active tool and lets go of the picked
   // line. The drawings themselves stay loaded and saved, ready to be shown
   // again in the same positions.
@@ -1524,6 +1557,8 @@ export function ChartPanel({
           />
         ) : null}
         <SmartLadderLayer
+            onSetAlert={paint.setAlert}
+            onAlertOpen={paint.refresh}
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
@@ -1660,6 +1695,8 @@ export function ChartPanel({
       onDeletePriceAlert,
       selectedKey,
       linePositions,
+      paint.setAlert,
+      paint.refresh,
       looseOrders,
       walletNameOf,
       onMoveOrder,

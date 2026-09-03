@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   fillNoticeWords,
+  drawingAlertNoticeWords,
   priceAlertNoticeWords,
   triggerNoticeWords,
 } from "./trade-notice-words"
@@ -13,6 +14,22 @@ import {
  */
 
 const wallet = { walletLabel: "Hyperliquid main", practice: false }
+
+describe("a drawn line's alert notice", () => {
+  it("names the coin, where the line was, and which way the price came", () => {
+    expect(
+      drawingAlertNoticeWords({
+        marketKey: "hyperliquid:mainnet:BTC",
+        price: 61_200,
+        direction: "below",
+      })
+    ).toEqual({
+      title: "BTC crossed your trendline at $61,200 (was falling)",
+      body: "The line's alert fired once and is now off. The line is still on the chart.",
+      level: "info",
+    })
+  })
+})
 
 describe("a price alert's notice", () => {
   it("says which way the price was moving", () => {

@@ -4,17 +4,22 @@ import { z } from "zod"
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   drawingShapeSchema,
+  DRAWING_ALERT_NEEDS_LINE,
+  DRAWING_ALERT_NO_PRICE,
   DRAWINGS_FULL,
   MAX_DRAWINGS_PER_MARKET,
   type Drawing,
   type DrawingShape,
 } from "@/lib/trade/drawings"
+import { lineAlertListSchema } from "@/lib/trade/line-alerts"
 import { userGet, userPost } from "@/server/guards"
+import { loadDrawingAlerts } from "@/server/trade/drawing-alerts"
 import {
   clearChartDrawings,
   deleteChartDrawing,
   loadChartDrawings,
   saveChartDrawing,
+  setChartDrawingAlert,
 } from "@/server/trade/drawings"
 
 import { createErrorMessage } from "../error-message"
@@ -46,13 +51,24 @@ const drawingIdSchema = z.string().min(1).max(36)
 // each of them.
 const marketSchema = z.object({ marketKey: marketKeySchema })
 
+// The live price on the screen, when it has one. It only matters to a line
+// carrying an alert, which points itself at the price again after a move.
+const currentPriceSchema = z.number().positive().finite().nullable()
+
 const saveDrawingSchema = z.object({
   marketKey: marketKeySchema,
   id: drawingIdSchema,
   shape: drawingShapeSchema,
+  currentPrice: currentPriceSchema.optional(),
 })
 
 const deleteDrawingSchema = z.object({ id: drawingIdSchema })
+
+const setAlertSchema = z.object({
+  id: drawingIdSchema,
+  on: z.boolean(),
+  currentPrice: currentPriceSchema,
+})
 
 const loadChartDrawingsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -67,11 +83,26 @@ const saveChartDrawingFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(saveDrawingSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
-    await saveChartDrawing(context.user.id, data.marketKey, {
-      id: data.id,
-      shape: data.shape,
-    })
+    await saveChartDrawing(
+      context.user.id,
+      data.marketKey,
+      { id: data.id, shape: data.shape },
+      data.currentPrice ?? null
+    )
     return { saved: true }
+  })
+
+const loadLineAlertsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) =>
+    lineAlertListSchema.parse(await loadDrawingAlerts(context.user.id))
+  )
+
+const setChartDrawingAlertFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(setAlertSchema)
+  .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
+    return { drawing: await setChartDrawingAlert(context.user.id, data) }
   })
 
 const deleteChartDrawingFn = createServerFn({ method: "POST" })
@@ -96,13 +127,32 @@ export function loadDrawings(marketKey: string) {
 
 export async function saveDrawing(
   marketKey: string,
-  drawing: { id: string; shape: DrawingShape }
+  drawing: { id: string; shape: DrawingShape },
+  currentPrice: number | null = null
 ) {
   const answer = await saveChartDrawingFn({
-    data: { marketKey, id: drawing.id, shape: drawing.shape },
+    data: { marketKey, id: drawing.id, shape: drawing.shape, currentPrice },
   })
   invalidateDashboardBootstrap()
   return answer
+}
+
+/** Every line alert on the account, armed and fired, for the Alerts panel. */
+export function loadLineAlerts() {
+  return loadLineAlertsFn()
+}
+
+/** Switch one line's alert on or off, and get the line back as saved. */
+export async function setDrawingAlert(
+  id: string,
+  on: boolean,
+  currentPrice: number | null
+) {
+  const answer = await setChartDrawingAlertFn({
+    data: { id, on, currentPrice },
+  })
+  invalidateDashboardBootstrap()
+  return answer.drawing
 }
 
 export async function deleteDrawing(id: string) {
@@ -122,6 +172,21 @@ export const getDrawingsErrorMessage = createErrorMessage(
     [DRAWINGS_FULL]: `This market already has ${MAX_DRAWINGS_PER_MARKET} drawings. Delete one to make room.`,
   },
   "That drawing did not save. Try it again."
+)
+
+export const getLineAlertsLoadErrorMessage = createErrorMessage(
+  {},
+  "Your line alerts could not be loaded. Try again."
+)
+
+export const getDrawingAlertErrorMessage = createErrorMessage(
+  {
+    [DRAWING_ALERT_NEEDS_LINE]:
+      "Only a trendline can carry an alert for now.",
+    [DRAWING_ALERT_NO_PRICE]:
+      "There is no live price to set the alert from yet. Try again in a moment.",
+  },
+  "The alert did not save. Try it again."
 )
 
 export const getDrawingsLoadErrorMessage = createErrorMessage(

@@ -42,6 +42,7 @@ import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { useLineAlerts } from "@/components/trade/use-line-alerts"
 import { PriceAlertsPanel } from "@/components/trade/price-alerts-panel"
 import { usePriceAlerts } from "@/components/trade/use-price-alerts"
 import { PanelLayoutsMenu } from "@/components/trade/panel-layouts-menu"
@@ -485,6 +486,33 @@ export function TradeWorkspace({
   // answer. They belong to the account rather than to the market, exactly like
   // the zoom — an indicator is how you read a chart, not a fact about a coin.
   const indicators = useChartIndicators(initialIndicators)
+  const lineAlerts = useLineAlerts()
+  // The line a panel row asked for, until the chart has picked it out.
+  const [drawingToSelect, setDrawingToSelect] = React.useState<{
+    marketKey: string
+    id: string
+  } | null>(null)
+  const onSelectLine = React.useCallback(
+    (marketKey: string, id: string) => {
+      onSelectMarket(marketKey)
+      setDrawingToSelect({ marketKey, id })
+    },
+    [onSelectMarket]
+  )
+  const onDrawingSelected = React.useCallback(
+    () => setDrawingToSelect(null),
+    []
+  )
+  // Not memoised: the panel is not a memo component, and the list object
+  // behind this is new on every render anyway.
+  const linesForPanel = {
+    armed: lineAlerts.armed,
+    fired: lineAlerts.fired,
+    error: lineAlerts.error,
+    onRetry: () => void lineAlerts.refresh(),
+    onSelect: onSelectLine,
+    onSwitchOff: lineAlerts.switchOff,
+  }
   const chartOptions = useChartOptions(initialChartOptions)
   const priceAlerts = usePriceAlerts(initialPriceAlerts)
 
@@ -947,6 +975,7 @@ export function TradeWorkspace({
       >
         <WorkspacePanel
           collapsed={marketsCollapsed}
+            lines={linesForPanel}
           headerOnly={alertsCollapsed}
           onDoubleClick={alertsDoubleClick}
           className="flex w-full min-w-0 flex-col"
@@ -1070,6 +1099,9 @@ export function TradeWorkspace({
           }
         />
       ) : chartFullscreen ? (
+            onDrawingAlertChange={lineAlerts.refresh}
+            selectDrawing={drawingToSelect}
+            onDrawingSelected={onDrawingSelected}
         <div className="flex justify-end border-b p-1">
           <ChartFullscreenButton active onToggle={exitChartFullscreen} />
         </div>
