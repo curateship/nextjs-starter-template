@@ -113,7 +113,13 @@ function drawPositions(state: { settled: boolean; failed: boolean }): string {
 
 function drawOrders(state: { settled: boolean; failed: boolean }): string {
   return renderToStaticMarkup(
-    <OpenOrdersTable {...shared} {...state} orders={[]} onCancel={() => {}} />
+    <OpenOrdersTable
+      {...shared}
+      {...state}
+      orders={[]}
+      onCancel={() => {}}
+      onResume={async () => true}
+    />
   )
 }
 
@@ -164,6 +170,7 @@ describe("the bottom panel's tables say what they know", () => {
           settled={true}
           failed={false}
           onCancel={(order) => cancelled.push(order)}
+          onResume={async () => true}
         />
       )
     })
@@ -207,6 +214,7 @@ describe("the bottom panel's tables say what they know", () => {
           settled={true}
           failed={false}
           onCancel={(order) => cancelKinds.push(orderCancelKind(order))}
+          onResume={async () => true}
         />
       )
     })
@@ -217,6 +225,59 @@ describe("the bottom panel's tables say what they know", () => {
     await act(async () => cancel?.click())
 
     expect(cancelKinds).toEqual(["watch"])
+    await act(async () => root.unmount())
+  })
+
+  it("says a watched row is paused and sends Resume to the watch, not the cancel", async () => {
+    // A half close of SOL that Hyperliquid refused five times on 2 Sep 2026.
+    // Nothing rests on the exchange, so the row is the only place to see it
+    // stopped and start it again.
+    const paused: TradeOrder = {
+      id: "watch-sol",
+      walletId: "live-wallet",
+      marketKey: "hyperliquid:mainnet:SOL",
+      side: "buy",
+      px: 99.45,
+      sz: 25.95,
+      leverage: 1,
+      maxLeverage: 20,
+      reduceOnly: true,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+      paused: true,
+    }
+    const resumed: string[] = []
+    const cancelled: string[] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <OpenOrdersTable
+          {...shared}
+          orders={[paused]}
+          settled={true}
+          failed={false}
+          onCancel={(order) => cancelled.push(order.id)}
+          onResume={async (order) => {
+            resumed.push(order.id)
+            return true
+          }}
+        />
+      )
+    })
+    expect(host.textContent).toContain("Paused")
+    const resume = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Resume the SOL order"]'
+    )
+    expect(resume).not.toBeNull()
+    await act(async () => resume?.click())
+
+    expect(resumed).toEqual(["watch-sol"])
+    expect(cancelled).toEqual([])
     await act(async () => root.unmount())
   })
 

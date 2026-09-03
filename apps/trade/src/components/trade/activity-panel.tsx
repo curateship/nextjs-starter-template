@@ -455,6 +455,7 @@ export function ActivityPanel({
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onCancel={(order) => void trading.cancel(order)}
+            onResume={trading.resumeSmartOrder}
           />
         </ScrollArea>
       </TabsContent>

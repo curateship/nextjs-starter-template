@@ -3,6 +3,7 @@ import {
   ArrowLeftRightIcon,
   GaugeIcon,
   InfoIcon,
+  PlayIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -693,6 +694,7 @@ export function OpenOrdersTable({
   onRetry,
   onSelectMarket,
   onCancel,
+  onResume,
 }: {
   orders: readonly TradeOrder[]
   markets: ReadonlyMap<string, MarketRow>
@@ -711,6 +713,12 @@ export function OpenOrdersTable({
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   onCancel: (order: TradeOrder) => void
+  /**
+   * Starts a paused watched price working again — see `paused` on
+   * `TradeOrder`. Only a watched row can be paused, so only that row shows the
+   * button. Resolves once the server has answered, so the button can settle.
+   */
+  onResume: (order: TradeOrder) => Promise<boolean>
 }) {
   const { sort, direction, toggleSort } = useTableSort<OrderColumn>(
     "price",
@@ -773,6 +781,9 @@ export function OpenOrdersTable({
               <>
                 {order.reduceOnly ? <TradeBadge>Reduce only</TradeBadge> : null}
                 {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
+                {order.paused ? (
+                  <span className={cn("text-xs", WARNING)}>Paused</span>
+                ) : null}
               </>
             }
           />
@@ -795,6 +806,9 @@ export function OpenOrdersTable({
             className="px-3 py-2 text-left whitespace-nowrap"
           >
             <span className="flex items-center gap-0.5">
+              {order.paused ? (
+                <ResumeOrderButton order={order} onResume={onResume} />
+              ) : null}
               <Button
                 type="button"
                 size="icon-sm"
@@ -810,6 +824,36 @@ export function OpenOrdersTable({
         </TableRow>
       )}
     />
+  )
+}
+
+/**
+ * Resume for a paused watched price, beside its cancel. Holds itself down
+ * while the server answers so a second press cannot send a second resume.
+ */
+function ResumeOrderButton({
+  order,
+  onResume,
+}: {
+  order: TradeOrder
+  onResume: (order: TradeOrder) => Promise<boolean>
+}) {
+  const [resuming, setResuming] = React.useState(false)
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      disabled={resuming}
+      aria-label={`Resume the ${marketSymbol(order.marketKey)} order`}
+      onClick={() => {
+        setResuming(true)
+        void onResume(order).finally(() => setResuming(false))
+      }}
+    >
+      <PlayIcon className="size-3" />
+      {resuming ? "Resuming" : "Resume"}
+    </Button>
   )
 }
 

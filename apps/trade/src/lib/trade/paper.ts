@@ -206,6 +206,12 @@ export type TradeOrder = {
    * a real exchange.
    */
   watched?: true
+  /**
+   * A watched price the engine has stopped working after the exchange refused
+   * it five times running. Nothing is resting anywhere. The row stays on
+   * screen so the refusal can be read and the watch resumed or called off.
+   */
+  paused?: true
   /** Which way price must touch a watched level. Missing on older watches. */
   triggerDirection?: "up" | "down"
   /**

@@ -109,15 +109,22 @@ export function laddersAndGridsYouPlaced(
  * and its position stays in the Positions tab because nothing else on this
  * screen shows it. A paused flow order is the exception. It needs the reason
  * and Resume button this panel owns, then disappears back to its run after it
- * resumes. A watched price is not here either unless it paused.
+ * resumes.
+ *
+ * A watched price is never here, paused or not. It is a plain order waiting
+ * at a price, and it lives under Open orders, on the Watched tab and on its
+ * chart; a paused one gets its Resume on the Open orders row. Listing it here
+ * used to take its coin off the Positions tab with it: on 2 Sep 2026 a half
+ * close of SOL paused, jumped into this panel, and the SOL position vanished
+ * from the bottom panel while the money was still on the exchange.
  */
 export function smartOrdersYouPlaced(
   orders: readonly SmartOrder[]
 ): SmartOrder[] {
   return orders.filter(
     (order) =>
-      order.plan.paused === true ||
-      (order.flowRunId === null && order.kind !== "watch")
+      order.kind !== "watch" &&
+      (order.plan.paused === true || order.flowRunId === null)
   )
 }
 

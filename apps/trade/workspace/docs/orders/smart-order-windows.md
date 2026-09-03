@@ -298,8 +298,10 @@ name remains the control that opens its market on the chart. The tooltip names
 the wallet and shows progress, money still held, open profit, and the sale
 history. A grid says how many levels are
 waiting and completed and how many dollars it still holds to sell. A paused
-smart order keeps its reason in the tooltip and puts Resume beneath its ticker,
-so removing the old three-dot button does not remove the recovery action.
+ladder or grid keeps its reason in the tooltip and puts Resume beneath its
+ticker, so removing the old three-dot button does not remove the recovery
+action. A paused watched price is not here; its Resume is on its Open orders
+row (`watched-orders.md`).
 
 Pressing a row opens its market on the chart and keeps the whole row light gray
 while that market is selected. Pressing a heading sorts that column. PnL is the

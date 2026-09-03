@@ -64,16 +64,19 @@ describe("the ladders and grids one press stands down", () => {
 })
 
 describe("the smart orders panel", () => {
-  it("shows a paused watched or flow order so it can be resumed", () => {
-    const watch = order("BTC", "watch")
+  it("shows a paused flow order so it can be resumed", () => {
     const flow = order("ETH", "dca", "run-1")
-    watch.plan.paused = true
     flow.plan.paused = true
 
-    expect(smartOrdersYouPlaced([watch, flow]).map((one) => one.id)).toEqual([
-      "BTC",
-      "ETH",
-    ])
+    expect(smartOrdersYouPlaced([flow]).map((one) => one.id)).toEqual(["ETH"])
+  })
+
+  it("never lists a watched price, even a paused one — it is not a strategy", () => {
+    const watch = order("BTC", "watch")
+    watch.plan.paused = true
+
+    expect(smartOrdersYouPlaced([watch, order("SOL", "grid")])).toHaveLength(1)
+    expect(smartOrdersYouPlaced([watch])).toEqual([])
   })
 })
 

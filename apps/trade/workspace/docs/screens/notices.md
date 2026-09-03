@@ -156,9 +156,11 @@ untouched.
 The fifth refusal sends one warning notice. Its title names the coin and the
 kind of smart order, its body carries the exchange's plain explanation, and
 pressing it opens that coin's chart. Later engine passes send nothing for the
-paused strategy and no more notices. The Smart orders panel shows the same
-reason and a Resume button. Resume clears the count, but it never happens on
-its own.
+paused strategy and no more notices. A paused ladder or grid shows the same
+reason and a Resume button in the Smart orders panel; a paused watched price
+shows "Paused" and Resume on its Open orders row instead, because a watched
+price is never listed in that panel (`../orders/watched-orders.md`). Resume
+clears the count, but it never happens on its own.
 
 One accepted order resets the count to zero. A rate limit, timeout or exchange
 outage neither adds to the count nor clears it, because those problems belong

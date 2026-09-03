@@ -1518,6 +1518,61 @@ describe("live Smart orders", () => {
     )
   })
 
+  it("ends a real part close whose leftover is rounding dust, sending nothing", async () => {
+    // 2 Sep 2026: a 25.95 SOL close filled in full, but 51.91 less 25.96 is
+    // 25.949999999999996 to a computer, and the 0.0000000000000036 SOL left
+    // over went to Hyperliquid as an order for $0.00 five times running.
+    marketFloor = 10
+    clearMarketRulesCache()
+    await watchThroughTheLevel({
+      side: "buy",
+      sz: 25.95,
+      sizeDecimals: 2,
+      minOrderValueUsd: 10,
+      reduceOnly: true,
+      maker: true,
+      heldAtStart: 51.91,
+      phase: "taking",
+      sent: true,
+      orderId: null,
+      heldWhenPlaced: -51.91,
+    })
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: -25.96,
+          entryPx: 99.47,
+          leverage: 1,
+          marginUsed: 2570,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).not.toHaveBeenCalled()
+    const [watch] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    expect(watch.status).toBe("done")
+    const refusals = await database
+      .select()
+      .from(tradeLiveJournal)
+      .where(eq(tradeLiveJournal.action, "refused"))
+    expect(refusals).toHaveLength(0)
+  })
+
   it("pauses one strategy after five refusals and writes one notice", async () => {
     await insertWorkspace(database, { userId })
     await watchThroughTheLevel()

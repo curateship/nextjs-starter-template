@@ -257,6 +257,34 @@ Any answer NOT on the list still freezes the watch on purpose, because a
 timeout mid-order may have filled, and spending again on top of that fill is
 worse than standing still.
 
+### A level refused five times running pauses, and stays on its own rows
+
+After five order-specific refusals in a row the engine puts the watch down:
+nothing rests on the exchange, later passes skip it, and the fifth refusal
+sends one notice (`../screens/notices.md` has the counting rule). A paused
+watch does not move anywhere. It stays under Open orders, on the Watched tab
+with the refusal under it, and on its chart, exactly where an unpaused one
+sits.
+
+- **Open orders says "Paused" beside the coin and puts Resume beside the ×.**
+  Resume clears the count and lets the next engine pass act; × calls the
+  watch off. Nothing resumes on its own. Calling it off also lifts the pause,
+  because the engine never reads a paused row and a stop it cannot read would
+  never be carried out.
+- **It is never listed in the Smart orders panel.** Until 2 Sep 2026 a paused
+  watch was the one exception to the rule above, because that panel owned the
+  only Resume button. The panel's list also decides which coins the Positions
+  tab leaves out, so the paused half close of SOL that day took the SOL
+  position off the bottom panel while 25.96 SOL short was still on
+  Hyperliquid. The Positions tab now keeps every coin a watch touches.
+- **A half close that has already filled ends instead of pausing.** The same
+  SOL close paused because 51.91 less 25.96 came out to 25.949999999999996 on
+  the computer, and the leftover 0.0000000000000036 SOL went to Hyperliquid
+  as an order for $0.00, five times. What is left to sell is now rounded to
+  the coin's size step before the watch decides whether it is finished, so a
+  leftover smaller than one step counts as done. `part-close.md` covers the
+  close itself.
+
 ### The Watched tab opens on last time's levels
 
 The rows come from the trading read, and that read takes about three and a half
