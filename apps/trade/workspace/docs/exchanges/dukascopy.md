@@ -19,7 +19,11 @@ proved. The measurements came from the `dukascopy-node` package, version
   inside that folder.
 - The package's ES module build imports named functions from `fs-extra`, which
   Node 24 refuses at load time. The folder loads the CommonJS build through
-  `createRequire`, in dev and in the production bundle alike.
+  `createRequire`, in dev and in the production bundle alike. The worker build
+  in `scripts/build-worker.mjs` also imports `createRequire` in its banner,
+  under a private name, because the banner sits outside esbuild's renaming and
+  a second plain `createRequire` import would make Node refuse the whole
+  worker bundle at start-up. Keep the two names different.
 - Its market list is the instruments this app can map a venue market onto:
   every US stock and the aliased metals, energy, indices and pairs. Rows carry
   no live price or volume, because Dukascopy publishes finished bars and this
