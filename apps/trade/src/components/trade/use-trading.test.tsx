@@ -10,7 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const api = vi.hoisted(() => ({
   loadLiveTrading: vi.fn(),
+  loadOlderLiveTrades: vi.fn(),
   loadPaperPortfolio: vi.fn(),
+  loadOlderPaperTrades: vi.fn(),
   placeLiveOrder: vi.fn(),
   closeLivePositions: vi.fn(),
   closeAllPaperPositions: vi.fn(),
@@ -36,7 +38,7 @@ vi.mock("@/lib/api/trade/live", () => ({
   getLiveErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Live order refused",
   hideLiveTrade: api.hideLiveTrade,
-  loadOlderLiveTrades: vi.fn(),
+  loadOlderLiveTrades: api.loadOlderLiveTrades,
   loadLiveTrading: api.loadLiveTrading,
   moveLiveOrder: vi.fn(),
   placeLiveOrder: api.placeLiveOrder,
@@ -51,7 +53,7 @@ vi.mock("@/lib/api/trade/paper", () => ({
   getPaperErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Practice order refused",
   hidePaperTrade: api.hidePaperTrade,
-  loadOlderPaperTrades: vi.fn(),
+  loadOlderPaperTrades: api.loadOlderPaperTrades,
   loadPaperPortfolio: api.loadPaperPortfolio,
   movePaperOrder: vi.fn(),
   placePaperOrder: vi.fn(),
@@ -156,6 +158,8 @@ beforeEach(() => {
   latest = null
   api.loadPaperPortfolio.mockReset().mockResolvedValue(emptyPaperAnswer)
   api.loadLiveTrading.mockReset().mockResolvedValue(emptyLiveAnswer)
+  api.loadOlderLiveTrades.mockReset()
+  api.loadOlderPaperTrades.mockReset()
   api.placeLiveOrder.mockReset()
   api.closeLivePositions.mockReset().mockResolvedValue({
     closed: 0,
@@ -286,6 +290,34 @@ describe("removing stale fill history", () => {
     expect(api.showErrorToast).toHaveBeenCalledWith(
       "History could not be saved"
     )
+  })
+})
+
+describe("loading older Journal history", () => {
+  it("keeps unmatched exchange fills visible without mixing them into current fills", async () => {
+    const fill = {
+      ...stalePaperFill(),
+      fillId: "older-live-fill",
+      walletId: wallet.id,
+      live: true,
+    }
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      nextBefore: 2_000,
+    })
+    api.loadOlderLiveTrades.mockResolvedValue({
+      fills: [fill],
+      trades: [],
+      nextBefore: null,
+    })
+
+    await finishFirstRead()
+    await act(async () => {
+      await latest!.loadOlderTrades()
+    })
+
+    expect(latest?.journalFills).toEqual([fill])
+    expect(latest?.fills).toEqual([])
   })
 })
 

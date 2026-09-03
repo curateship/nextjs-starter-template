@@ -18,6 +18,12 @@ add up to.
   automatically be saved. I don't need to save them."** Dashboard choices save
   as they change. A selected named layout updates itself, and its menu has no
   separate save button.
+- Tyler, 3 Sep 2026: **"Don't hide unmatched history. The Journal not showing
+  unmatched history is what made me lose money today, not knowing there were
+  still trades not showing up in the table."** Every saved fill appears in the
+  Journal. When missing exchange history stops Trade from rebuilding the whole
+  trade, the row says History incomplete. If the exchange still holds the
+  position, the row says Open, history incomplete and cannot be removed.
 
 ## Exchange connections
 

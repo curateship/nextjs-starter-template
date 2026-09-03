@@ -198,8 +198,10 @@ real exchange cannot send the history straight back.
 Old fills do not always add back to exactly zero. The chart checks for a real
 position with the same wallet and market before treating those unmatched fills
 as current. When no such position exists, the fills are old history and every
-arrow in that group offers **Remove trade**. A position in another wallet does
-not block the removal.
+arrow in that group offers **Remove trade**. The Journal also keeps the group
+visible as History incomplete, so those fills can never exist only as chart
+arrows or money in a total. A position in another wallet does not block the
+removal.
 
 An arrow tied to a position that still exists does not offer removal. The app
 still needs those fills to work out the open position. Right-clicking a current

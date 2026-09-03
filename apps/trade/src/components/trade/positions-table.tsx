@@ -43,6 +43,8 @@ import {
   tradeEndingLabel,
   type LiveFill,
   type LiveTrade,
+  type RemovableTradeHistory,
+  type UnmatchedTradeHistory,
 } from "@/lib/trade/live-trades"
 import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
@@ -928,6 +930,7 @@ function endingTone(trade: LiveTrade): TradeBadgeTone {
  */
 export function TradesTable({
   trades,
+  unmatchedHistory = [],
   markets,
   walletName,
   selectedId,
@@ -947,6 +950,8 @@ export function TradesTable({
   tickAllState,
 }: {
   trades: readonly LiveTrade[]
+  /** Saved fills that cannot be paired into a finished trade. */
+  unmatchedHistory?: readonly UnmatchedTradeHistory[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   /** The trade drawn on the chart right now, or null. */
@@ -965,7 +970,7 @@ export function TradesTable({
   onRetry: () => void
   onSelectTrade: (trade: LiveTrade) => void
   onSelectMarket: (marketKey: string) => void
-  onRemove: (trade: LiveTrade) => void
+  onRemove: (trade: RemovableTradeHistory) => void
   onLoadOlder?: () => void
   olderBusy?: boolean
   olderDone?: boolean
@@ -985,36 +990,65 @@ export function TradesTable({
 
   // Memoised: this table can hold thousands of rows, and the panel around
   // it re-renders on every poll and every price tick of a held market.
-  const rows = React.useMemo(
-    () =>
-      sortRows(trades, direction, (trade) => {
-        switch (sort) {
-          case "market":
-            return marketSymbol(trade.marketKey)
-          case "wallet":
-            return walletName(trade.walletId)
-          case "side":
-            return trade.direction
-          case "held":
-            return trade.heldMs
-          case "entry":
-            return trade.entryPx
-          case "exit":
-            return trade.exitPx
-          case "size":
-            return trade.sz
-          case "pnl":
-            return trade.pnl
-          case "ending":
-            return tradeEndingLabel(trade)
-          default:
-            return trade.openedAt
-        }
-      }),
-    [trades, direction, sort, walletName]
-  )
+  const rows = React.useMemo(() => {
+    const journalRows: Array<
+      | { kind: "finished"; id: string; trade: LiveTrade }
+      | { kind: "unmatched"; id: string; history: UnmatchedTradeHistory }
+    > = [
+      ...trades.map((trade) => ({
+        kind: "finished" as const,
+        id: trade.id,
+        trade,
+      })),
+      ...unmatchedHistory.map((history) => ({
+        kind: "unmatched" as const,
+        id: history.id,
+        history,
+      })),
+    ]
+    return sortRows(journalRows, direction, (row) => {
+      const trade = row.kind === "finished" ? row.trade : null
+      const history = row.kind === "unmatched" ? row.history : null
+      const marketKey = trade?.marketKey ?? history!.marketKey
+      const walletId = trade?.walletId ?? history!.walletId
+      const position = history?.position ?? null
+      const direction = position
+        ? position.szi > 0
+          ? "long"
+          : "short"
+        : "unknown"
+      switch (sort) {
+        case "market":
+          return marketSymbol(marketKey)
+        case "wallet":
+          return walletName(walletId)
+        case "side":
+          return trade?.direction ?? direction
+        case "held":
+          return trade?.heldMs ?? 0
+        case "entry":
+          return trade?.entryPx ?? position?.entryPx ?? 0
+        case "exit":
+          return trade?.exitPx ?? 0
+        case "size":
+          return trade?.sz ?? Math.abs(position?.szi ?? 0)
+        case "pnl":
+          return trade?.pnl ?? 0
+        case "ending":
+          return trade
+            ? tradeEndingLabel(trade)
+            : history?.open
+              ? "Open, history incomplete"
+              : "History incomplete"
+        default:
+          return trade?.openedAt ?? history!.firstAt
+      }
+    })
+  }, [trades, unmatchedHistory, direction, sort, walletName])
 
-  const listedIds = rows.map((trade) => trade.id)
+  const listedIds = rows.flatMap((row) =>
+    row.kind === "finished" || !row.history.open ? [row.id] : []
+  )
 
   return (
     <TradeTable
@@ -1022,9 +1056,9 @@ export function TradesTable({
       rows={rows}
       loading={!settled}
       failed={failed}
-      loadingLabel="Reading your finished trades"
+      loadingLabel="Reading your trade history"
       failedWords="The journal could not be read, so it is not known how past trades went."
-      emptyWords="No finished trades yet. Once a position is closed it lands here, with what it made and what ended it."
+      emptyWords="No trade history yet. Every saved fill appears here, even when its matching entry or exit is missing."
       onRetry={onRetry}
       sort={sort}
       direction={direction}
@@ -1033,89 +1067,196 @@ export function TradesTable({
         <Checkbox
           checked={tickAllState(listedIds)}
           onCheckedChange={() => onTickVisible(listedIds)}
-          aria-label="Select every finished trade"
+          aria-label="Select every removable Journal row"
         />
       }
-      renderRow={(trade) => (
-        <TableRow
-          key={trade.id}
-          rowAction={() => onSelectTrade(trade)}
-          data-state={trade.id === selectedId ? "selected" : undefined}
-          className="border-t"
-        >
-          {/* Marked as the select column so ticking a row never also fires
+      renderRow={(row) =>
+        row.kind === "finished" ? (
+          <TableRow
+            key={row.id}
+            rowAction={() => onSelectTrade(row.trade)}
+            data-state={row.id === selectedId ? "selected" : undefined}
+            className="border-t"
+          >
+            {/* Marked as the select column so ticking a row never also fires
                 the row action and draws the trade on the chart. */}
-          <td data-column="select" className="w-8 px-3 py-2">
-            <Checkbox
-              checked={ticked.has(trade.id)}
-              onCheckedChange={() => onTickTrade(trade.id)}
-              aria-label={`Select the ${marketSymbol(trade.marketKey)} trade`}
+            <td data-column="select" className="w-8 px-3 py-2">
+              <Checkbox
+                checked={ticked.has(row.id)}
+                onCheckedChange={() => onTickTrade(row.id)}
+                aria-label={`Select the ${marketSymbol(row.trade.marketKey)} trade`}
+              />
+            </td>
+            <MarketCell
+              marketKey={row.trade.marketKey}
+              market={markets.get(row.trade.marketKey) ?? null}
+              onSelect={() => onSelectMarket(row.trade.marketKey)}
+              badge={
+                row.trade.live ? (
+                  <TestnetBadge marketKey={row.trade.marketKey} />
+                ) : (
+                  <PracticeBadge />
+                )
+              }
             />
-          </td>
-          <MarketCell
-            marketKey={trade.marketKey}
-            market={markets.get(trade.marketKey) ?? null}
-            onSelect={() => onSelectMarket(trade.marketKey)}
-            badge={
-              trade.live ? (
-                <TestnetBadge marketKey={trade.marketKey} />
-              ) : (
-                <PracticeBadge />
-              )
-            }
-          />
-          <WalletCell wallet={walletName(trade.walletId)} />
-          <Cell>
-            <TradeBadge tone={trade.direction === "long" ? "made" : "lost"}>
-              {trade.direction === "long" ? "Long" : "Short"}
-            </TradeBadge>
-          </Cell>
-          <Cell className="text-muted-foreground">
-            {formatDateTime(new Date(trade.openedAt))}
-          </Cell>
-          <Cell className="text-muted-foreground">
-            {formatDuration(trade.heldMs)}
-          </Cell>
-          <Cell>{formatPrice(trade.entryPx)}</Cell>
-          <Cell>{formatPrice(trade.exitPx)}</Cell>
-          <Cell>{formatSize(trade.sz)}</Cell>
-          <Cell className={moneyTone(trade.pnl)}>
-            {formatSignedUsd(trade.pnl)}
-            {/* The dollars are the answer; the percentage is only there to
+            <WalletCell wallet={walletName(row.trade.walletId)} />
+            <Cell>
+              <TradeBadge
+                tone={row.trade.direction === "long" ? "made" : "lost"}
+              >
+                {row.trade.direction === "long" ? "Long" : "Short"}
+              </TradeBadge>
+            </Cell>
+            <Cell className="text-muted-foreground">
+              {formatDateTime(new Date(row.trade.openedAt))}
+            </Cell>
+            <Cell className="text-muted-foreground">
+              {formatDuration(row.trade.heldMs)}
+            </Cell>
+            <Cell>{formatPrice(row.trade.entryPx)}</Cell>
+            <Cell>{formatPrice(row.trade.exitPx)}</Cell>
+            <Cell>{formatSize(row.trade.sz)}</Cell>
+            <Cell className={moneyTone(row.trade.pnl)}>
+              {formatSignedUsd(row.trade.pnl)}
+              {/* The dollars are the answer; the percentage is only there to
                   say whether they were a lot for the money that was in. */}
-            <span className="ml-1.5 text-muted-foreground">
-              {trade.returnPct >= 0 ? "+" : ""}
-              {trade.returnPct.toFixed(1)}%
-            </span>
-          </Cell>
-          <Cell>
-            <TradeBadge tone={endingTone(trade)}>
-              {tradeEndingLabel(trade)}
-              {trade.stopPx !== null ? ` at ${formatPrice(trade.stopPx)}` : ""}
-            </TradeBadge>
-          </Cell>
-          {/* Marked as the actions column so a press on the bin — or on the
+              <span className="ml-1.5 text-muted-foreground">
+                {row.trade.returnPct >= 0 ? "+" : ""}
+                {row.trade.returnPct.toFixed(1)}%
+              </span>
+            </Cell>
+            <Cell>
+              <TradeBadge tone={endingTone(row.trade)}>
+                {tradeEndingLabel(row.trade)}
+                {row.trade.stopPx !== null
+                  ? ` at ${formatPrice(row.trade.stopPx)}`
+                  : ""}
+              </TradeBadge>
+            </Cell>
+            {/* Marked as the actions column so a press on the bin — or on the
                 blank around a greyed-out one — never also fires the row and
                 draws the trade you were trying to be rid of. */}
-          <td
-            data-column="actions"
-            className="px-3 py-2 text-left whitespace-nowrap"
-          >
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`Remove the ${marketSymbol(trade.marketKey)} trade from the Journal`}
-              onClick={() => onRemove(trade)}
+            <td
+              data-column="actions"
+              className="px-3 py-2 text-left whitespace-nowrap"
             >
-              <Trash2Icon className="size-4" />
-            </Button>
-          </td>
-        </TableRow>
-      )}
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`Remove the ${marketSymbol(row.trade.marketKey)} trade from the Journal`}
+                onClick={() => onRemove(row.trade)}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
+            </td>
+          </TableRow>
+        ) : (
+          <TableRow key={row.id} className="border-t">
+            <td data-column="select" className="w-8 px-3 py-2">
+              <Checkbox
+                checked={row.history.open ? false : ticked.has(row.id)}
+                disabled={row.history.open}
+                onCheckedChange={() => onTickTrade(row.id)}
+                aria-label={
+                  row.history.open
+                    ? `${marketSymbol(row.history.marketKey)} is still open and cannot be removed`
+                    : `Select the incomplete ${marketSymbol(row.history.marketKey)} history`
+                }
+              />
+            </td>
+            <MarketCell
+              marketKey={row.history.marketKey}
+              market={markets.get(row.history.marketKey) ?? null}
+              onSelect={() => onSelectMarket(row.history.marketKey)}
+              badge={
+                row.history.live ? (
+                  <TestnetBadge marketKey={row.history.marketKey} />
+                ) : (
+                  <PracticeBadge />
+                )
+              }
+            />
+            <WalletCell wallet={walletName(row.history.walletId)} />
+            <Cell>
+              {row.history.position ? (
+                <TradeBadge
+                  tone={row.history.position.szi > 0 ? "made" : "lost"}
+                >
+                  {row.history.position.szi > 0 ? "Long" : "Short"}
+                </TradeBadge>
+              ) : (
+                <span className="text-muted-foreground">&mdash;</span>
+              )}
+            </Cell>
+            <Cell className="text-muted-foreground">
+              <span className="block">Unknown</span>
+              <span className="block text-xs whitespace-nowrap">
+                First saved {formatDateTime(new Date(row.history.firstAt))}
+              </span>
+            </Cell>
+            <Cell className="text-muted-foreground">
+              {row.history.open ? "Still open" : <>&mdash;</>}
+            </Cell>
+            <Cell>
+              {row.history.position?.entryPx === null ||
+              row.history.position?.entryPx === undefined ? (
+                <>&mdash;</>
+              ) : (
+                formatPrice(row.history.position.entryPx)
+              )}
+            </Cell>
+            <Cell>&mdash;</Cell>
+            <Cell>
+              {row.history.position ? (
+                formatSize(Math.abs(row.history.position.szi))
+              ) : (
+                <>&mdash;</>
+              )}
+            </Cell>
+            <Cell>&mdash;</Cell>
+            <Cell>
+              <span className="inline-flex items-center gap-1.5">
+                <TradeBadge tone="alarm">
+                  {row.history.open
+                    ? "Open, history incomplete"
+                    : "History incomplete"}
+                </TradeBadge>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {row.history.fills.length.toLocaleString()} saved{" "}
+                  {row.history.fills.length === 1 ? "fill" : "fills"}
+                </span>
+                <InfoMark label="About incomplete trade history">
+                  Trade has {row.history.fills.length.toLocaleString()} saved{" "}
+                  {row.history.fills.length === 1 ? "fill" : "fills"}, but its
+                  matching entry or exit is missing. The Journal keeps it
+                  visible because the history and its money still exist.
+                </InfoMark>
+              </span>
+            </Cell>
+            <td
+              data-column="actions"
+              className="px-3 py-2 text-left whitespace-nowrap"
+            >
+              {row.history.open ? null : (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={busy}
+                  aria-label={`Remove the incomplete ${marketSymbol(row.history.marketKey)} history from the Journal`}
+                  onClick={() => onRemove(row.history)}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              )}
+            </td>
+          </TableRow>
+        )
+      }
       footer={
-        settled && trades.length > 0 && onLoadOlder ? (
+        settled && rows.length > 0 && onLoadOlder ? (
           <tfoot>
             <tr className={panelSectionBarClassName}>
               <td

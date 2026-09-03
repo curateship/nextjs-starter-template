@@ -25,6 +25,16 @@ Practice mark. Positions keep their close actions. Open orders keep the cancel
 action for the exact order shown. The Journal alone keeps selection and removal
 because finished trades do not disappear while a person is choosing them.
 
+The Journal never drops saved fills because they do not make a complete trade.
+It groups those fills by wallet and market and shows History incomplete in the
+same table, along with the number of saved fills in the group. The row leaves
+figures it cannot know blank instead of inventing an entry, exit, size, or
+result. The Opened column says Unknown and gives the first saved fill time
+separately. When the exchange still holds that wallet and market, the row says
+Open, history incomplete, shows the exchange's side, entry, and size, and cannot
+be selected or removed. Old incomplete history may be removed only with the
+same explicit confirmation as a finished trade.
+
 ## Positions without a stop
 
 Once the practice and real-wallet reads have both finished, a position with no

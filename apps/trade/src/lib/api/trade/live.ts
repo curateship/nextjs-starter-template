@@ -190,12 +190,12 @@ const loadOlderLiveTradesFn = createServerFn({ method: "GET" })
     const wallets = (await listWallets(context.user.id)).filter(
       (wallet) => wallet.kind === "live"
     )
-    const { trades, nextBefore } = await loadLiveHistoryBefore(
+    const { fills, trades, nextBefore } = await loadLiveHistoryBefore(
       context.user.id,
       wallets.map((wallet) => wallet.id),
       data.before
     )
-    return { trades, nextBefore }
+    return { fills, trades, nextBefore }
   })
 
 const placeLiveOrderFn = createServerFn({ method: "POST" })

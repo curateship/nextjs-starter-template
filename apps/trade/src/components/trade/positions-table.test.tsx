@@ -14,7 +14,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveTrade, UnmatchedTradeHistory } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 
 ;(
@@ -139,6 +139,43 @@ function liveTrade(network: "mainnet" | "testnet"): LiveTrade {
   }
 }
 
+function incompleteHistory(
+  symbol: string,
+  open: boolean,
+  fillCount = 1
+): UnmatchedTradeHistory {
+  const marketKey = `hyperliquid:mainnet:${symbol}`
+  const fill = {
+    fillId: `${symbol}-fill`,
+    orderId: `${symbol}-order`,
+    walletId: "live-wallet",
+    marketKey,
+    side: "buy" as const,
+    px: 100,
+    sz: 1,
+    at: 1_000,
+    closedPnl: 0,
+    fee: 0.05,
+    dir: "Buy",
+    liquidation: false,
+    live: true,
+  }
+  return {
+    id: `unpaired:live-wallet:${marketKey}:${fill.fillId}`,
+    walletId: "live-wallet",
+    marketKey,
+    live: true,
+    fills: Array.from({ length: fillCount }, (_, index) => ({
+      ...fill,
+      fillId: `${fill.fillId}-${index}`,
+    })),
+    open,
+    position: open ? { szi: -1, entryPx: 100 } : null,
+    firstAt: fill.at,
+    lastAt: fill.at,
+  }
+}
+
 /**
  * The provider the app's root already wraps every screen in. Needed here
  * because the Fees column carries an info mark saying whose figure it is.
@@ -193,6 +230,44 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("keeps incomplete and open history visible in the Journal", () => {
+    const stale = incompleteHistory("BTC", false, 26)
+    const open = incompleteHistory("ETH", true)
+    const html = draw(
+      <TradesTable
+        {...shared}
+        trades={[]}
+        unmatchedHistory={[stale, open]}
+        settled={true}
+        failed={false}
+        selectedId={null}
+        onSelectTrade={() => {}}
+        onRemove={() => {}}
+        ticked={new Set<string>()}
+        onTickTrade={() => {}}
+        onTickVisible={() => {}}
+        tickAllState={() => false}
+      />
+    )
+
+    expect(html).toContain("History incomplete")
+    expect(html).toContain("Open, history incomplete")
+    expect(html).toContain("26 saved fills")
+    expect(html).toContain("1 saved fill")
+    expect(html).toContain("Unknown")
+    expect(html).toContain("First saved")
+    expect(html).toContain('aria-label="About incomplete trade history"')
+    expect(html).toContain(
+      'aria-label="Remove the incomplete BTC history from the Journal"'
+    )
+    expect(html).not.toContain(
+      'aria-label="Remove the incomplete ETH history from the Journal"'
+    )
+    expect(html).toContain(
+      'aria-label="ETH is still open and cannot be removed"'
+    )
+  })
+
   it("keeps the Real chip off every mainnet row", () => {
     const mainnetPosition: TradePosition = {
       ...position("BTC", 1),
@@ -453,7 +528,7 @@ describe("the bottom panel's tables say what they know", () => {
     expect(rowTick).not.toBeNull()
     await act(async () => rowTick?.click())
     const headerTick = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Select every finished trade"]'
+      '[aria-label="Select every removable Journal row"]'
     )
     expect(headerTick).not.toBeNull()
     await act(async () => headerTick?.click())
@@ -599,7 +674,7 @@ describe("the bottom panel's tables say what they know", () => {
     for (const [draw, words] of [
       [drawPositions, "No open positions"],
       [drawOrders, "No open orders"],
-      [drawTrades, "No finished trades yet"],
+      [drawTrades, "No trade history yet"],
     ] as const) {
       const html = draw({ settled: true, failed: false })
       expect(html).toContain(words)
@@ -650,7 +725,7 @@ describe("the bottom panel's tables say what they know", () => {
     for (const [draw, label] of [
       [drawPositions, "Reading what you are holding"],
       [drawOrders, "Reading your open orders"],
-      [drawTrades, "Reading your finished trades"],
+      [drawTrades, "Reading your trade history"],
     ] as const) {
       const html = draw({ settled: false, failed: false })
       expect(html).toContain(label)
