@@ -24,6 +24,10 @@ import {
   type PublicFaviconSet,
 } from "@/lib/favicon"
 import {
+  publicFontHref,
+  type PublicFontAsset,
+} from "@/lib/public-font"
+import {
   noFlashThemeScript,
   publicThemeStyle,
   type PublicTheme,
@@ -125,6 +129,7 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
       favicon={branding?.favicon}
       faviconDark={branding?.faviconDark}
       faviconSet={branding?.faviconSet}
+      publicFont={branding?.publicFont}
     >
       <ThemeProvider
         forcedTheme={
@@ -208,7 +213,7 @@ function RootComponent() {
   // Drawn here rather than thrown from the loader: this route's own `<head>`
   // and document are built from that same loader data, so throwing leaves them
   // with nothing and the render fails before any not-found page is reached.
-  const { favicon, faviconDark, faviconSet, hostIsUnknown } =
+  const { favicon, faviconDark, faviconSet, publicFont, hostIsUnknown } =
     Route.useLoaderData()
 
   return (
@@ -217,6 +222,7 @@ function RootComponent() {
       favicon={favicon}
       faviconDark={faviconDark}
       faviconSet={faviconSet}
+      publicFont={publicFont}
     >
       <ThemeProvider
         forcedTheme={
@@ -268,16 +274,22 @@ function RootDocument({
   favicon = "",
   faviconDark = "",
   faviconSet = null,
+  publicFont = null,
 }: Readonly<{
   children: ReactNode
   publicTheme?: PublicTheme | null
   favicon?: string
   faviconDark?: string
   faviconSet?: PublicFaviconSet | null
+  publicFont?: PublicFontAsset | null
 }>) {
   const signedInPage = useSignedInPage()
   const style = publicTheme ? publicThemeStyle(publicTheme) : undefined
-  const wantsInter = signedInPage || publicTheme?.font === "inter"
+  const customFontHref =
+    publicTheme?.useCustomFont && publicFont ? publicFontHref(publicFont) : ""
+  const wantsInter =
+    signedInPage ||
+    (publicTheme?.font === "inter" && !publicTheme.useCustomFont)
   const faviconLinks = publicFaviconLinks({
     favicon,
     faviconDark,
@@ -318,6 +330,18 @@ function RootDocument({
             type="font/woff2"
             crossOrigin="anonymous"
           />
+        ) : null}
+        {customFontHref ? (
+          <>
+            <link
+              rel="preload"
+              href={customFontHref}
+              as="font"
+              type="font/woff2"
+              crossOrigin="anonymous"
+            />
+            <style data-public-font="true">{`@font-face{font-family:"Custom public font";src:url("${customFontHref}") format("woff2");font-display:swap;font-style:normal;font-weight:400;}`}</style>
+          </>
         ) : null}
         <script
           dangerouslySetInnerHTML={{

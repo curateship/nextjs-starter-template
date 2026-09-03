@@ -43,8 +43,6 @@ export async function uploadToR2(
   data: Uint8Array,
   contentType: string
 ) {
-  getPublicMediaUrl(storagePath)
-
   await getR2Client().send(
     new PutObjectCommand({
       Bucket: getBucketName(),

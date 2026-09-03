@@ -21,6 +21,16 @@ import type {
   PublicFaviconSet,
   PublicFaviconVariant,
 } from "@/lib/favicon"
+import type { PublicFontAsset } from "@/lib/public-font"
+import {
+  FRONT_PAGE_ROW_KINDS,
+  FRONT_PAGE_ROW_LAYOUTS,
+  MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
+  MAX_FRONT_PAGE_ROW_ID_LENGTH,
+  MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  MAX_FRONT_PAGE_ROWS,
+  normalizeFrontPageRows,
+} from "@/lib/pages/front-page"
 import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationLinks,
@@ -79,6 +89,12 @@ import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
 const faviconSourceSchema = z.string().trim().max(2048)
+const publicFontAssetSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    version: z.string().uuid(),
+  })
+  .nullable()
 
 const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
 
@@ -219,9 +235,23 @@ const publicThemeSchema = z.object({
   headerBorder: z.boolean(),
   footerBorder: z.boolean(),
   colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
+  useCustomFont: z.boolean(),
   font: z.enum(PUBLIC_THEME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
+
+const frontPageRowsSchema = z
+  .array(
+    z.object({
+      id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
+      heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
+      intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
+      kind: z.enum(FRONT_PAGE_ROW_KINDS),
+      layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+    })
+  )
+  .max(MAX_FRONT_PAGE_ROWS)
+  .transform(normalizeFrontPageRows)
 
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
@@ -284,12 +314,14 @@ const shellConfigSchema = z.object({
     maintenanceHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
     maintenanceBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
   }),
+  frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
   publicFooter: publicNavigationSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
     .transform(cleanPublicFooterCopyright),
+  publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
@@ -331,6 +363,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
 
     let previousFaviconSet: PublicFaviconSet | null = null
     let savedFaviconSet: PublicFaviconSet | null = null
+    let savedPublicFont: PublicFontAsset | null = null
     const generatedFaviconSet: PublicFaviconSet = {}
     const startingGlobals = await readShellGlobals()
 
@@ -399,6 +432,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
       previousFaviconSet = existingGlobals.faviconSet
+      savedPublicFont = existingGlobals.publicFont
 
       // The logos are drawn on the signed-out pages, so what gets stored has to
       // be a picture somebody here really uploaded — not any address a browser
@@ -460,6 +494,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           faviconSet: savedFaviconSet,
+          // A dedicated upload action owns the stored font. A stale settings
+          // tab may choose whether to use it, but cannot replace its identity.
+          publicFont: existingGlobals.publicFont,
           shareImageVersion:
             data.shareImage === existingGlobals.shareImage
               ? existingGlobals.shareImageVersion
@@ -516,7 +553,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     // not throw away a cache that still matches the database.
     dropWorkspaceCache()
 
-    return { faviconSet: savedFaviconSet }
+    return { faviconSet: savedFaviconSet, publicFont: savedPublicFont }
   })
 
 export function saveShellSettings(settings: ShellConfig) {

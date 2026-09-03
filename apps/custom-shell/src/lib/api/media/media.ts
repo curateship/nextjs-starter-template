@@ -20,7 +20,12 @@ import {
   type MediaSortBy,
   type MediaSortDirection,
 } from "@/server/media/library"
-import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media/storage"
+import {
+  deleteFromR2,
+  getPublicMediaUrl,
+  R2StorageNotConfiguredError,
+  uploadToR2,
+} from "@/server/media/storage"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { customShellMedia } from "@/server/schema"
 import { now } from "@/server/auth/security"
@@ -123,6 +128,9 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const storagePath = `${context.user.id}/${filename}`
 
     try {
+      // Library records hand this address to browsers, so fail before writing
+      // anything if direct public delivery is not configured.
+      getPublicMediaUrl(storagePath)
       await uploadToR2(storagePath, fileData, mimeType)
     } catch (error) {
       if (error instanceof R2StorageNotConfiguredError) {

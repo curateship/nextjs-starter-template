@@ -106,6 +106,12 @@ maintenance pages. Empty fields use the former built-in wording. The preview
 uses the same fallback rules as the public page, so clearing a field shows what
 a visitor will get before the settings save.
 
+Public Pages also holds the app-wide front page row editor. An admin can add up
+to six plain-text or plans rows, edit the heading and optional introduction,
+choose full or narrow width, and drag rows into their public order. A heading is
+required before the dialog accepts a row. Removing every row brings back the
+built-in pricing front page, so an untouched app does not change.
+
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the
 header and above the footer. These choices are app-wide. Their defaults keep
@@ -124,6 +130,13 @@ signed-in app. Solid is the default primary style. Outline gives primary
 buttons a brand-coloured border and transparent fill. Labels can stay as
 written or display in capitals. Destructive, ghost, and deliberately secondary
 button styles keep their own treatment.
+
+The Type & corners card accepts one app-wide WOFF2 font up to 1 MB. Uploading a
+font selects it for the public site and adds its filename to the Font menu. The
+built-in font choice stays saved underneath it. Selecting a built-in font keeps
+the upload available for later, while removing the upload deletes its stored
+file and returns the public site to that built-in choice. The signed-in app
+continues to use Inter.
 
 Colour mode in the same card can follow the visitor's device or pin every
 public page to light or dark. Follow device is the default and shows a public

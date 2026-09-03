@@ -1,4 +1,11 @@
-import { TriangleAlertIcon } from "lucide-react"
+import * as React from "react"
+import {
+  Loader2Icon,
+  Trash2Icon,
+  TriangleAlertIcon,
+  UploadIcon,
+} from "lucide-react"
+import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
@@ -6,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ColorSwatch } from "@/components/ui/color-swatch"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,6 +54,16 @@ import {
   type PublicThemeFont,
 } from "@/lib/public-theme"
 import {
+  getPublicFontUploadError,
+  PUBLIC_FONT_ACCEPT,
+  type PublicFontAsset,
+} from "@/lib/public-font"
+import {
+  getPublicFontErrorMessage,
+  removePublicFont,
+  uploadPublicFont,
+} from "@/lib/api/media/public-font"
+import {
   derivePublicBrandColors,
   publicThemeContrast,
 } from "@/lib/public-theme-colors"
@@ -53,13 +71,28 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 type PublicThemeSettingsProps = {
   theme: PublicTheme
+  publicFont: PublicFontAsset | null
   onThemeChange: (theme: PublicTheme) => void
+  onFontStateChange: (
+    theme: PublicTheme,
+    publicFont: PublicFontAsset | null
+  ) => void
+  onSaveConfig: () => Promise<boolean>
 }
 
 export function PublicThemeSettings({
   theme,
+  publicFont,
   onThemeChange,
+  onFontStateChange,
+  onSaveConfig,
 }: PublicThemeSettingsProps) {
+  const fontInputId = React.useId()
+  const fontInputRef = React.useRef<HTMLInputElement>(null)
+  const [fontBusy, setFontBusy] = React.useState<"upload" | "remove" | null>(
+    null
+  )
+  const [removeFontOpen, setRemoveFontOpen] = React.useState(false)
   const update = (patch: Partial<PublicTheme>) =>
     onThemeChange({ ...theme, ...patch })
   const brandColorInvalid = !isPublicBrandColor(theme.brandColor)
@@ -92,6 +125,55 @@ export function PublicThemeSettings({
     const brandOverrides = { ...theme.brandOverrides }
     delete brandOverrides[key]
     update({ brandOverrides })
+  }
+
+  const changeFont = (value: string) => {
+    if (value === "custom") {
+      if (publicFont) update({ useCustomFont: true })
+      return
+    }
+    update({ font: value as PublicThemeFont, useCustomFont: false })
+  }
+
+  const handleFontUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+
+    const error = getPublicFontUploadError(file)
+    if (error) {
+      showErrorToast(error)
+      return
+    }
+
+    setFontBusy("upload")
+    try {
+      if (!(await onSaveConfig())) return
+      const state = await uploadPublicFont(file)
+      onFontStateChange(state.publicTheme, state.publicFont)
+      toast.success("Public font uploaded.")
+    } catch (uploadError) {
+      showErrorToast(getPublicFontErrorMessage(uploadError))
+    } finally {
+      setFontBusy(null)
+    }
+  }
+
+  const handleFontRemove = async () => {
+    setFontBusy("remove")
+    try {
+      if (!(await onSaveConfig())) return
+      const state = await removePublicFont()
+      onFontStateChange(state.publicTheme, state.publicFont)
+      setRemoveFontOpen(false)
+      toast.success("Uploaded font removed.")
+    } catch (removeError) {
+      showErrorToast(getPublicFontErrorMessage(removeError))
+    } finally {
+      setFontBusy(null)
+    }
   }
 
   return (
@@ -551,13 +633,13 @@ export function PublicThemeSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="public-theme-font"
-            hint="All choices use fonts already on the device or bundled with this app."
+            hint="Built-in choices use the device or this app. An uploaded font is served through this app too."
           >
             Font
           </FieldLabel>
           <Select
-            value={theme.font}
-            onValueChange={(font) => update({ font: font as PublicThemeFont })}
+            value={theme.useCustomFont && publicFont ? "custom" : theme.font}
+            onValueChange={changeFont}
           >
             <SelectTrigger id="public-theme-font" className="w-full sm:w-fit">
               <SelectValue />
@@ -568,8 +650,60 @@ export function PublicThemeSettings({
                   {PUBLIC_THEME_FONT_LABELS[font]}
                 </SelectItem>
               ))}
+              {publicFont ? (
+                <SelectItem value="custom">{publicFont.name}</SelectItem>
+              ) : null}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor={fontInputId}
+            hint="WOFF2 only, up to 1 MB. One file supplies the public site's regular typeface."
+          >
+            Uploaded font
+          </FieldLabel>
+          <input
+            ref={fontInputRef}
+            id={fontInputId}
+            className="sr-only"
+            type="file"
+            accept={PUBLIC_FONT_ACCEPT}
+            disabled={fontBusy !== null}
+            onChange={(event) => void handleFontUpload(event)}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {publicFont ? (
+              <span className="min-w-0 truncate text-sm text-muted-foreground">
+                {publicFont.name}
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={fontBusy !== null}
+              onClick={() => fontInputRef.current?.click()}
+            >
+              {fontBusy === "upload" ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <UploadIcon className="size-4" />
+              )}
+              {publicFont ? "Replace font" : "Upload font"}
+            </Button>
+            {publicFont ? (
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={fontBusy !== null}
+                onClick={() => setRemoveFontOpen(true)}
+              >
+                <Trash2Icon className="size-4" />
+                Remove font
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <SettingsSliderRow
@@ -582,6 +716,16 @@ export function PublicThemeSettings({
           onChange={(radius) => update({ radius })}
         />
       </CollapsibleSettingsCard>
+
+      <ConfirmDialog
+        open={removeFontOpen}
+        onOpenChange={setRemoveFontOpen}
+        title="Remove uploaded font?"
+        description="The public site will return to the built-in font selected before the upload. The uploaded file will be deleted."
+        confirmLabel="Remove font"
+        loading={fontBusy === "remove"}
+        onConfirm={() => void handleFontRemove()}
+      />
     </CardGroup>
   )
 }

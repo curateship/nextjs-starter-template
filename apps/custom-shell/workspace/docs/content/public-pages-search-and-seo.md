@@ -46,6 +46,13 @@ font, and corner choices are app-wide. Apps with public workspace domains keep
 a brand colour per site. An app without
 those domains uses one brand colour for its public frontend.
 
+An admin can also upload one WOFF2 font under Public > Styling. The first page
+response preloads the font and declares it before the browser paints. The
+browser requests `/public-font.woff2` from the same site rather than
+contacting the object store or a font service. The address includes the upload
+version, so a replacement gets a fresh browser cache entry. If the file cannot
+load, the saved built-in font remains the CSS fallback.
+
 The app-wide colour mode follows the visitor's device by default. In that mode,
 the public header or top-right corner offers Light, Dark, and System choices and
 remembers the visitor's choice in the browser. An admin can instead pin the
@@ -100,6 +107,19 @@ The signed-in action on the public front page opens Overview directly for an
 admin and Home directly for a member. The action does not pass through the
 configurable home redirect, because a stale home setting must not turn the
 front page into a missing-page link.
+
+Public > Pages can replace that built-in front page with up to six ordered
+rows. A plain-text row shows its heading and optional introduction. A plans row
+adds the app's current public plans beneath the same two fields. Full-width rows
+use the configured public page width, while narrow rows stop at 768px and still
+follow the site's content alignment. The first row owns the page's main
+heading, and later rows use section headings.
+
+Rows are app-wide and render in the order saved by the drag editor. A saved row
+without its required heading is dropped before it reaches the public page. If
+no usable rows remain, the former pricing front page renders unchanged. An app
+that answers `/` through its catch-all or replaces the landing page through app
+options still wins before the shell considers these rows.
 
 ## Robots and sitemap
 

@@ -19,6 +19,8 @@ import {
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
 import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
+import type { PublicFontAsset } from "@/lib/public-font"
+import type { FrontPageRow } from "@/lib/pages/front-page"
 import type { PublicFaviconSet } from "@/lib/favicon"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
@@ -450,6 +452,8 @@ export type ShellConfig = {
   socialHandle: string
   /** Editable headings and bodies for the public 404 and maintenance pages. */
   publicSystemCopy: PublicSystemCopy
+  /** Ordered app-wide rows that replace the built-in public front page. */
+  frontPageRows: FrontPageRow[]
   /** Links shown across the public site's header, saved per workspace. */
   publicNavigation: PublicNavigationLink[]
   /** Links shown in the public site's footer, saved per workspace. */
@@ -458,6 +462,8 @@ export type ShellConfig = {
   publicFooterCopyright: string
   /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
+  /** One app-wide uploaded WOFF2 font, or null when none has been added. */
+  publicFont: PublicFontAsset | null
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -1028,10 +1034,12 @@ export function createDefaultShellConfig(): ShellConfig {
     socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
     socialHandle: "",
     publicSystemCopy: createDefaultPublicSystemCopy(),
+    frontPageRows: [],
     publicNavigation: [],
     publicFooter: [],
     publicFooterCopyright: "",
     publicTheme: createDefaultPublicTheme(),
+    publicFont: null,
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.

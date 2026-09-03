@@ -26,6 +26,14 @@ Uploads pass several checks:
 - The library creates thumbnails where possible and uses a type fallback when
   it cannot create a preview.
 
+The public font upload uses the same object store but stays out of the image,
+video, and audio library. It accepts one WOFF2 file up to 1 MB. The server
+checks the WOFF2 header and its declared byte length before writing the file
+under the managed public-font folder. Visitors receive the bytes through the
+app's versioned `/public-font.woff2` route with a one-year immutable
+cache. A replacement or removal clears the old managed object after the
+settings record has safely changed.
+
 Account images such as avatars must resolve to an owned image record. A pasted
 external address cannot bypass media ownership checks.
 

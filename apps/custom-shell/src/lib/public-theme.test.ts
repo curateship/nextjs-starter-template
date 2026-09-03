@@ -188,6 +188,7 @@ describe("public theme", () => {
       footerBorder: true,
       colorScheme: "system",
       contentAlignment: "center",
+      useCustomFont: false,
       font: "system",
       radius: 24,
     })

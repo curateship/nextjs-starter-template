@@ -25,6 +25,7 @@ const appPublicTheme = vi.hoisted(() => ({
   headerBorder: true,
   footerBorder: true,
   colorScheme: "dark",
+  useCustomFont: false,
   font: "serif",
   radius: 4,
 }))
@@ -76,6 +77,47 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
+  it("returns app-wide front page rows in order and drops incomplete rows", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        frontPageRows: [
+          {
+            id: "welcome",
+            heading: "Welcome",
+            intro: "Start here.",
+            kind: "text",
+            layout: "narrow",
+          },
+          {
+            id: "blank",
+            heading: " ",
+            intro: "This row is incomplete.",
+            kind: "text",
+            layout: "wide",
+          },
+          {
+            id: "plans",
+            heading: "Plans",
+            intro: "Choose what works.",
+            kind: "plans",
+            layout: "wide",
+          },
+        ],
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.frontPageRows.map((row) => row.id)).toEqual([
+      "welcome",
+      "plans",
+    ])
+  })
+
   it("uses app-wide icons, social metadata, and system copy on public domains", async () => {
     const timestamp = now()
     const light = {
@@ -258,6 +300,7 @@ describe("public site branding", () => {
       headerBorder: false,
       footerBorder: true,
       colorScheme: "dark",
+      useCustomFont: false,
       font: "serif",
       radius: 4,
     })
