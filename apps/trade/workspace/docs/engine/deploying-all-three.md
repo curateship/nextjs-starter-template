@@ -39,6 +39,19 @@ types it, or asks for it in the same message. It needs, in the gitignored
 Pressing the three buttons in Coolify by hand still works. The rule is the
 same either way: all three, engine first.
 
+### When a build fails while downloading packages
+
+The first run of `npm run deploy` on 4 Sep 2026 failed inside `pnpm install`
+with "Lockfile failed supply-chain policy check" after four minutes. pnpm 11
+holds every newly published version back for a day and, on each install,
+re-checks every lockfile entry by downloading the package's full registry
+metadata for its publish dates. That is 1467 documents, and the Solana
+codecs package's document alone is 10 MB, which the box's slow registry link
+could not finish. `trustLockfile: true` in the root `pnpm-workspace.yaml`
+skips that re-check when installing from the committed lockfile. The
+day-long hold still applies on the laptop whenever a package is added, which
+is where it does its work.
+
 ## The newest build leads, and an older one hands the lock back
 
 Every build is stamped with the moment it was built, and in a Coolify build

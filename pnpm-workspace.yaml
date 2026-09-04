@@ -17,6 +17,18 @@ allowBuilds:
   unrs-resolver: true # native resolver used by eslint import plugin
   utf-8-validate: false # optional websocket speed-up; ws works without it
 
+# pnpm 11 holds every newly published version back for a day
+# (minimumReleaseAge, default 1440 minutes) and, on every install, re-checks
+# each lockfile entry against that rule by downloading the package's FULL
+# registry metadata for its publish dates: 1467 documents, one of them 10 MB.
+# The Hetzner box's registry link is slow (10-15 s a request), so the Docker
+# builds for Trade's web, worker and engine timed out in that pass on 4 Sep
+# 2026 and no image was produced. The lockfile is committed and the rule was
+# already applied on the laptop when each package was added, so an install
+# FROM the lockfile does not need to redo it. The rule still applies whenever
+# a package is added or updated.
+trustLockfile: true
+
 overrides:
   esbuild: "^0.28.1"
   tsx: "^4.22.4"
