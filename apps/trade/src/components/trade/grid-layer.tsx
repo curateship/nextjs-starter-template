@@ -57,7 +57,9 @@ import { cn } from "@/lib/utils"
  * last rung's own prices — Tyler's rule, 3 Sep 2026 — so each boundary sits
  * where that rung trades. A buying grid does not draw the winning edge until
  * rung 1 buys. It then draws that sell as "Rung 1 exit and move up" until the
- * round trip finishes. Everything a grid draws is green when it buys the dips
+ * round trip finishes. A selling grid mirrors it: once rung 1 sells, its
+ * buy-back is drawn at the bottom edge as "Rung 1 exit and move down"
+ * (Tyler, 4 Sep 2026). Everything a grid draws is green when it buys the dips
  * and red when it shorts the rallies, and the End Grid line is orange so it
  * cannot be read as a level.
  */
@@ -565,7 +567,7 @@ function levelTitle(
     return `Past your stop — it cannot ${opens} without the stop firing first. It wakes up if the stop moves clear of it.`
   }
   if (at.carried) {
-    return `This level belongs to an older range. It keeps its original ${closes} and finishes when that trade fills.`
+    return `Opened at ${price}, then carried out of the range when it moved. It keeps its own ${closes} one step ${exitWay}, drawn as a dashed line, and is gone once that fills.`
   }
   if (holding) {
     return `Opened at ${price}. When its ${closes} one step ${exitWay} fills, a ${opens} goes back on here.`
@@ -1066,10 +1068,43 @@ function GridLines({
         ? level
         : best
   )
-  const drawRungOneExit =
-    direction === "long" &&
-    nearSaved.status === "holding" &&
-    nearSaved.heldSz > 0
+  // Rung 1's exit line, at the range's winning edge, while rung 1 holds. A
+  // buying grid sells up at the top; a selling grid buys back down at the
+  // bottom, and says so (Tyler, 4 Sep 2026).
+  const drawRungOneExit = nearSaved.status === "holding" && nearSaved.heldSz > 0
+  const rungOneExitPin = direction === "long" ? pinTop : pinBottom
+  const rungOneExitName =
+    direction === "long"
+      ? "Rung 1 exit and move up"
+      : "Rung 1 exit and move down"
+  const rungOneExitTitle =
+    direction === "long"
+      ? "Rung 1 sells here. Once it sells, the grid moves up."
+      : "Rung 1 buys back here. Once it buys back, the grid moves down."
+  // Where each carried level closes. A carried level is a held rung the range
+  // left behind when it moved. Its entry is drawn in the range's own list of
+  // prices, but nothing drew its way out, so an open short below a selling
+  // grid read as an exit rather than the trade still waiting to close (AZTEC,
+  // Tyler, 4 Sep 2026). One line per price, holding every coin closing there.
+  const carriedExits = (() => {
+    const byPrice = new Map<string, { px: number; heldSz: number }>()
+    for (const level of plan.carriedLevels) {
+      if (level.status !== "holding" || !(level.heldSz > 0)) continue
+      const key = priceKey(level.sellPx)
+      const found = byPrice.get(key)
+      if (found) found.heldSz += level.heldSz
+      else byPrice.set(key, { px: level.sellPx, heldSz: level.heldSz })
+    }
+    return [...byPrice.values()]
+  })()
+  const carriedExitName =
+    direction === "long"
+      ? "Carried buy sells here"
+      : "Carried short buys back here"
+  const carriedExitTitle = (heldSz: number, px: number) =>
+    direction === "long"
+      ? `A buy carried from an older range sells its ${heldSz} coins here, at ${formatPrice(px)}. The level is gone once it sells.`
+      : `A short carried from an older range buys back its ${heldSz} coins here, at ${formatPrice(px)}. The level is gone once it buys back.`
   // `gridLevels` hands the moving levels back lowest price first.
   const nearIndex = direction === "long" ? levelCount - 1 : 0
   const nearLevel =
@@ -1413,24 +1448,49 @@ function GridLines({
           )
         })}
 
-      {drawRungOneExit && pinTop ? (
+      {drawRungOneExit && rungOneExitPin ? (
         <ChartLine
-          y={pinTop.y}
+          y={rungOneExitPin.y}
           usdSlot={usdSlot}
-          colour={sideColour("sell")}
+          colour={sideColour(exitSide(direction))}
           name={null}
           nameNode={
             <NameChip
-              colour={sideColour("sell")}
-              name="Rung 1 exit and move up"
+              colour={sideColour(exitSide(direction))}
+              name={rungOneExitName}
               className="w-auto shrink-0 whitespace-nowrap"
-              title="Rung 1 sells here. Once it sells, the grid moves up."
+              title={rungOneExitTitle}
             />
           }
-          dashed={pinTop.off !== null}
-          title="Rung 1 sells here. Once it sells, the grid moves up."
+          dashed={rungOneExitPin.off !== null}
+          title={rungOneExitTitle}
         />
       ) : null}
+
+      {carriedExits.map(({ px, heldSz }) => {
+        const y = yFor(px)
+        if (y === null) return null
+        return (
+          <ChartLine
+            key={`carried-exit-${priceKey(px)}`}
+            y={y}
+            usdSlot={usdSlot}
+            usd={px * heldSz}
+            colour={sideColour(exitSide(direction))}
+            name={null}
+            nameNode={
+              <NameChip
+                colour={sideColour(exitSide(direction))}
+                name={carriedExitName}
+                className="w-auto shrink-0 whitespace-nowrap"
+                title={carriedExitTitle(heldSz, px)}
+              />
+            }
+            dashed
+            title={carriedExitTitle(heldSz, px)}
+          />
+        )
+      })}
 
       {/* The two named rungs. One open level stays fixed while these
           compress or expand the other prices around it. */}
@@ -1565,11 +1625,12 @@ function lineLook(
  * read. What a level puts in, in dollars, is a fact the axis cannot give you,
  * so that badge stays.
  *
- * The four lines you set get a name. A buying grid adds Rung 1's exit name
- * while Rung 1 holds coins. The levels in between stay unnamed, because a
- * dozen labelled ones is a wall of text over the price action. UPPER PRICE and
- * LOWER PRICE sit on the first and last rung, so those two lines carry a name
- * AND the rung's money and ×.
+ * The four lines you set get a name. Rung 1's exit gets one while Rung 1 is
+ * open, whichever way the grid runs, and so does the way out of a carried
+ * level. The levels in between stay unnamed, because a dozen labelled ones is
+ * a wall of text over the price action. UPPER PRICE and LOWER PRICE sit on the
+ * first and last rung, so those two lines carry a name AND the rung's money
+ * and ×.
  */
 function ChartLine({
   y,

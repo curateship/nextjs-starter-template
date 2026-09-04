@@ -546,6 +546,14 @@ The grid calls it a carried level and never recycles it after the sale. The
 active range keeps the original number of levels and splits its next buys by
 the same money rule the grid was placed with.
 
+On the chart a carried level is two lines. Its entry is a solid line in the
+closing colour at the price it opened, carrying the dollars it holds, and its
+way out is a dashed line one step past it named "Carried buy sells here" on a
+buying grid or "Carried short buys back here" on a selling one. Before 4
+September 2026 only the entry was drawn, so on AZTEC an open short carried
+below the range read as the grid's exit (Tyler asked what it meant). Hovering
+the entry says it was carried out of the range and where it closes.
+
 Percentage-spaced ranges keep every overlapping level at its existing price
 when they move. The moved range is rounded to the market's price step first,
 and the levels are drawn from that rounded range, so the next move redraws the
@@ -829,8 +837,11 @@ longer looks like another rung. The placement preview follows the same rule, so
 it shades only the real rungs even though it keeps the later exit price for its
 placement maths. Once rung 1 buys, its sell line appears at the winning edge
 with the full label "Rung 1 exit and move up". The line and the extra strip leave
-again after that sell moves the range up. The two named range lines carry the
-rung's money chip and its ×, so a rung is never drawn twice.
+again after that sell moves the range up. A selling grid mirrors it: once rung 1
+sells, its buy-back line at the bottom edge is labelled "Rung 1 exit and move
+down", in the buy colour (Tyler, 4 Sep 2026). Before that the selling grid's
+band still reaches the bottom edge, with no line on it. The two named range
+lines carry the rung's money chip and its ×, so a rung is never drawn twice.
 
 Dragging a named line moves the RUNG under the hand. On a buying grid, dropping
 UPPER PRICE at $110 with the bottom held at $92 over four rungs puts rung 1 at

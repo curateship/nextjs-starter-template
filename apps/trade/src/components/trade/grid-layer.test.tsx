@@ -541,6 +541,43 @@ describe("the names on a placed grid's range", () => {
     expect(html).not.toContain('style="top:110px"')
   })
 
+  it("draws where a carried rung closes, on either grid", () => {
+    // The fixture carries 0.5 coins: a buy at $110 that sells at $120
+    // (y=80), or a short at $90 that buys back at $80 (y=120). Nothing drew
+    // that way out before 4 Sep 2026, so the carried entry read as an exit.
+    const long = render(grid("long"))
+    expect(yOfName(long, "Carried buy sells here")).toBe("80px")
+    expect(colourOfName(long, "Carried buy sells here")).toBe("theme-down")
+    expect(long).toContain("sells its 0.5 coins here, at $120")
+
+    const short = render(grid("short"))
+    expect(yOfName(short, "Carried short buys back here")).toBe("120px")
+    expect(colourOfName(short, "Carried short buys back here")).toBe("theme-up")
+    expect(short).toContain("buys back its 0.5 coins here, at $80")
+
+    expect(render(grid("long", false))).not.toContain("Carried buy")
+  })
+
+  it("shows rung 1's exit and move-down line after rung 1 sells", () => {
+    // Tyler, 4 Sep 2026: the selling grid says where rung 1 buys back, the
+    // same way the buying grid says where rung 1 sells.
+    const one = grid("short", false)
+    expect(render(one)).not.toContain("Rung 1 exit and move down")
+    const rungOne = one.plan.levels.reduce((nearest, level) =>
+      level.buyPx < nearest.buyPx ? level : nearest
+    )
+    rungOne.status = "holding"
+    rungOne.sz = 2
+    rungOne.heldSz = 2
+
+    const html = render(one)
+    expect(html).toContain("Rung 1 exit and move down")
+    expect(html).not.toContain("Rung 1 exit and move up")
+    // Rung 1 sells at $100 (y=100) and buys back at $90, the bottom edge.
+    expect(yOfName(html, "Rung 1 exit and move down")).toBe("110px")
+    expect(colourOfName(html, "Rung 1 exit and move down")).toBe("theme-up")
+  })
+
   it("colours the range by direction and End Grid orange", () => {
     const long = grid("long", false)
     long.plan.takeProfitPx = 120
