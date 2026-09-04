@@ -23,6 +23,11 @@ import {
   type WrittenPageView,
 } from "@/server/content/pages"
 import { findSessionContext } from "@/server/auth/security"
+import { readBranding } from "@/server/shell-settings"
+import type {
+  PublicSeo,
+  SocialCardType,
+} from "@/lib/pages/public-metadata"
 import type { PublicNotFoundDiscovery } from "@/lib/pages/not-found-discovery"
 import {
   createWrittenPage,
@@ -36,6 +41,20 @@ import {
 import { createErrorMessage, describeAuthError } from "../error-message"
 
 export type { PagesOverview, PublicPageRow, WrittenPage, WrittenPageView }
+
+type WrittenPageRouteView =
+  | Exclude<WrittenPageView, { status: "ok" }>
+  | {
+      status: "ok"
+      page: WrittenPage
+      branding: {
+        appName: string
+        shareImage: string
+        socialCardType: SocialCardType
+        socialHandle: string
+        publicSeo: PublicSeo
+      }
+    }
 
 export const getPagesErrorMessage = createErrorMessage(
   { FORBIDDEN: "Only an admin can see the pages list." },
@@ -206,7 +225,7 @@ const deleteWrittenPageFn = createServerFn({ method: "POST" })
  */
 const readWrittenPageFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ path: z.string().min(1).max(160) }))
-  .handler(async ({ data }): Promise<WrittenPageView> => {
+  .handler(async ({ data }): Promise<WrittenPageRouteView> => {
     // The domain decides which site's page this is — never the reader's own
     // site, or an admin signed in to Alpha would be served Alpha's `/about`
     // while standing on Beta's domain.
@@ -216,7 +235,24 @@ const readWrittenPageFn = createServerFn({ method: "GET" })
     ])
     if (!workspaceId) return { status: "missing" }
 
-    return readWrittenPageForViewer(workspaceId, data.path, Boolean(session))
+    const view = await readWrittenPageForViewer(
+      workspaceId,
+      data.path,
+      Boolean(session)
+    )
+    if (view.status !== "ok") return view
+
+    const branding = await readBranding()
+    return {
+      ...view,
+      branding: {
+        appName: branding.appName,
+        shareImage: branding.shareImage,
+        socialCardType: branding.socialCardType,
+        socialHandle: branding.socialHandle,
+        publicSeo: branding.publicSeo,
+      },
+    }
   })
 
 /**

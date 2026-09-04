@@ -11,6 +11,8 @@ export const MAX_PUBLIC_SEO_DESCRIPTION_LENGTH = 500
 export type PublicSeo = {
   homeTitle: string
   homeDescription: string
+  writtenTitleTemplate: string
+  writtenDescriptionTemplate: string
   siteDescription: string
 }
 
@@ -21,6 +23,8 @@ export function createDefaultPublicSeo(): PublicSeo {
   return {
     homeTitle: "",
     homeDescription: "",
+    writtenTitleTemplate: "",
+    writtenDescriptionTemplate: "",
     siteDescription: "",
   }
 }
@@ -37,6 +41,14 @@ export function normalizePublicSeo(value: unknown): PublicSeo {
     homeTitle: cleanText(seo.homeTitle, MAX_PUBLIC_SEO_TITLE_LENGTH),
     homeDescription: cleanText(
       seo.homeDescription,
+      MAX_PUBLIC_SEO_DESCRIPTION_LENGTH
+    ),
+    writtenTitleTemplate: cleanText(
+      seo.writtenTitleTemplate,
+      MAX_PUBLIC_SEO_TITLE_LENGTH
+    ),
+    writtenDescriptionTemplate: cleanText(
+      seo.writtenDescriptionTemplate,
       MAX_PUBLIC_SEO_DESCRIPTION_LENGTH
     ),
     siteDescription: cleanText(
@@ -163,6 +175,67 @@ export function defaultPublicDescription(appName: string) {
   return `Visit ${appName}.`
 }
 
+/** Replaces the two written-page codes and removes a separator left at an end. */
+export function renderSeoTemplate(
+  template: string,
+  values: { pageTitle?: string | null; siteTitle?: string | null }
+) {
+  const codes: Record<string, string> = {
+    page_title: cleanTemplateText(values.pageTitle),
+    site_title: cleanTemplateText(values.siteTitle),
+  }
+
+  return cleanTemplateText(template)
+    .replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_, code: string) =>
+      Object.prototype.hasOwnProperty.call(codes, code) ? codes[code] : ""
+    )
+    .replace(/^\s*[-|:]\s*/, "")
+    .replace(/\s*[-|:]\s*$/, "")
+    .trim()
+}
+
+/** Applies written-page SEO without changing the old empty-settings result. */
+export function resolveWrittenPageSeoMetadata(input: {
+  pageTitle: string
+  pageSeoTitle?: string | null
+  pageSeoDescription?: string | null
+  appName: string
+  seo?: PublicSeo | null
+}) {
+  const seo = normalizePublicSeo(input.seo)
+  const values = {
+    pageTitle: input.pageTitle,
+    siteTitle: input.appName,
+  }
+  const savedTitle = cleanText(
+    input.pageSeoTitle,
+    MAX_PUBLIC_SEO_TITLE_LENGTH
+  )
+  const savedDescription = cleanText(
+    input.pageSeoDescription,
+    MAX_PUBLIC_SEO_DESCRIPTION_LENGTH
+  )
+  const templateTitle = renderSeoTemplate(seo.writtenTitleTemplate, values)
+  const templateDescription = renderSeoTemplate(
+    seo.writtenDescriptionTemplate,
+    values
+  )
+  const configuredTitle = savedTitle || templateTitle
+  const metadata = resolvePublicSeoMetadata({
+    title: configuredTitle || `${input.pageTitle} · ${input.appName}`,
+    description: savedDescription || templateDescription,
+    appName: input.appName,
+    home: false,
+    seo,
+  })
+
+  return {
+    title: configuredTitle || input.pageTitle,
+    socialTitle: metadata.title,
+    description: metadata.description,
+  }
+}
+
 /** One fallback order for browser titles and descriptions on public pages. */
 export function resolvePublicSeoMetadata(input: {
   title: string
@@ -216,4 +289,10 @@ export function publicSocialMeta(input: {
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : ""
+}
+
+function cleanTemplateText(value: unknown) {
+  return typeof value === "string"
+    ? value.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
+    : ""
 }

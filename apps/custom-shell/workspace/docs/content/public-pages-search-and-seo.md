@@ -119,13 +119,31 @@ Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search
 must apply the same visibility rule as opening the result.
 
-Public SEO settings hold a home-page title, a home-page description, a default
-description for pages without one, and a default share image. The two home
-fields apply only at `/`. Other pages keep their own description when they have
-one and use the site default only when they do not. Empty settings preserve the
-former browser title and description. The default share image is the same
-app-wide image used by Open Graph and X preview tags, and the server changes its
-address when an admin replaces it so cached previews can refresh.
+Public SEO settings hold a home-page title, a home-page description, title and
+description templates for written pages, a default description for pages
+without one, and a default share image. A written-page template accepts
+`{{page_title}}` and `{{site_title}}`. The server replaces those codes with the
+current page and site names, removes HTML and extra whitespace, and trims a
+leading or trailing `|`, `-`, or `:` when one code is empty. A written page's
+own SEO value takes priority when per-page SEO supplies one. Empty templates
+preserve the former browser and social titles.
+
+The two home fields apply only at `/`. Other pages keep their own description
+when they have one and use the site default only when they do not. Empty
+settings preserve the former browser title and description. The default share
+image is the same app-wide image used by Open Graph and X preview tags, and the
+server changes its address when an admin replaces it so cached previews can
+refresh.
+
+Every real public page also includes one JSON-LD structured-data script in its
+first HTML response. The script holds one `Organization` record with the
+current site name and visited site address, plus one `WebPage` record with the
+resolved browser title, public address, and description. The same path covers
+the front page, coded pages, and written pages, so their machine-readable text
+cannot drift from their visible search metadata. Signed-in screens, unknown
+domains, and missing pages do not claim to be public web pages. Empty optional
+organization fields are left out. The emitter already accepts a logo and
+social profile addresses for Technical SEO to supply later.
 
 The missing-page card includes the public search field while Search is
 available and lists the site's saved main-menu links in their saved order. A

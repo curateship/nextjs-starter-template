@@ -150,6 +150,50 @@ export function PublicSeoSettings({
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
+        storageId="public-seo-written-pages"
+        title="Written pages"
+        description="Set one pattern for every public page created in Pages."
+        contentClassName="grid gap-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-seo-written-title-template"
+            hint="Use {{page_title}} for the page name and {{site_title}} for the site name. Leave empty to keep the current title."
+          >
+            Title template
+          </FieldLabel>
+          <Input
+            id="public-seo-written-title-template"
+            value={config.publicSeo.writtenTitleTemplate}
+            maxLength={MAX_PUBLIC_SEO_TITLE_LENGTH}
+            placeholder="{{page_title}} | {{site_title}}"
+            onChange={(event) =>
+              updateSeo({ writtenTitleTemplate: event.target.value })
+            }
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-seo-written-description-template"
+            hint="Use {{page_title}} for the page name and {{site_title}} for the site name. Leave empty to use the default page description."
+          >
+            Description template
+          </FieldLabel>
+          <Textarea
+            id="public-seo-written-description-template"
+            rows={1}
+            value={config.publicSeo.writtenDescriptionTemplate}
+            maxLength={MAX_PUBLIC_SEO_DESCRIPTION_LENGTH}
+            placeholder="Read {{page_title}} on {{site_title}}"
+            onChange={(event) =>
+              updateSeo({ writtenDescriptionTemplate: event.target.value })
+            }
+          />
+        </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
         storageId="public-seo-defaults"
         title="Site defaults"
         description="Fill gaps on public pages that do not have their own description or share image."

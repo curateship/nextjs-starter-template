@@ -69,6 +69,7 @@ import {
 } from "@/server/people/workspaces"
 import {
   answerForRequest,
+  currentPublicOrigin,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
 import { visitorWorkspaceId } from "@/server/workspaces/for-request"
@@ -123,6 +124,7 @@ export async function readBranding(
   shareImage: string
   socialCardType: SocialCardType
   socialHandle: string
+  publicOrigin: string
   publicSeo: PublicSeo
   publicSystemCopy: PublicSystemCopy
   frontPageRows: FrontPageRow[]
@@ -168,6 +170,7 @@ export async function readBranding(
       ),
       socialCardType: globals.socialCardType,
       socialHandle: globals.socialHandle,
+      publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
       frontPageRows: globals.frontPageRows,
@@ -210,6 +213,7 @@ export async function readBranding(
     ),
     socialCardType: globals.socialCardType,
     socialHandle: globals.socialHandle,
+    publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
     frontPageRows: globals.frontPageRows,
