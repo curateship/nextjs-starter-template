@@ -9,6 +9,7 @@ import {
   type MarketCatalog,
 } from "@/lib/protocols/contracts"
 import { getLiveAdapter } from "@/lib/protocols/live-registry"
+import { refreshMarketPrices } from "@/lib/api/trade/markets"
 
 /**
  * The app's one live-data store, and the hooks screens read it through.
@@ -91,9 +92,16 @@ export function startLiveMarketData(
 ): () => void {
   const stops = catalogs.flatMap((catalog) => {
     const adapter = getLiveAdapter(catalog.protocol)
-    // An exchange the app only reads markets from has nothing to stream, so it
-    // contributes no subscriptions. Its rows still draw — they just do not tick.
-    if (!adapter) return []
+    if (!adapter) {
+      // No socket here. A venue that has none may still say how often its
+      // screen is allowed to ASK — see `priceRefresh` on the catalogue, and
+      // `startPriceRefresh` below for why that is not a live feed. A venue
+      // that says nothing contributes nothing: its rows still draw, they
+      // just do not move until the page reads the list again.
+      return catalog.priceRefresh
+        ? [startPriceRefresh(catalog, catalog.priceRefresh)]
+        : []
+    }
     return [
       // An exchange whose socket cannot follow a whole list contributes no
       // figures watch; its rows draw from the catalogue and redraw when the
@@ -122,6 +130,99 @@ export function startLiveMarketData(
   return () => {
     // An exchange with no figures watch contributed nothing to stop.
     for (const stop of stops) stop?.()
+  }
+}
+
+/**
+ * Prices for a venue with no socket, asked for on that venue's own clock.
+ *
+ * **This is a refresh, not a live feed, and the difference is the point.**
+ * `rules/trading-rules.md` forbids asking an exchange on a timer as the live
+ * path, because an old snapshot that looks live is how a stale price reaches
+ * a decision about money. So this drives the SCREEN only. The trading engine
+ * never reads it: when the engine acts it asks for a price at that moment.
+ * The server refuses a refresh outright for any venue that does publish a
+ * feed, so the rule holds even if a future dashboard forgets it.
+ *
+ * Solana is the case it was written for. Jupiter publishes no socket, and a
+ * Solana coin's price is the best path across several pools rather than one
+ * pool's numbers, so there is nothing to subscribe to yet.
+ *
+ * Three things keep it cheap: only the busiest markets are asked about, a
+ * hidden tab asks nothing at all, and a failed turn changes nothing on
+ * screen and simply waits for the next one.
+ */
+function startPriceRefresh(
+  catalog: MarketCatalog,
+  refresh: NonNullable<MarketCatalog["priceRefresh"]>
+): () => void {
+  // Busiest first: one refresh cannot carry a catalogue of thousands, and
+  // the markets worth watching are the ones being traded.
+  const watched = [...catalog.rows]
+    .sort((left, right) => right.volume24hUsd - left.volume24hUsd)
+    .slice(0, refresh.mostMarkets)
+  if (watched.length === 0) return () => {}
+  const rowById = new Map(watched.map((row) => [row.marketId, row]))
+
+  let stopped = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const askLater = () => {
+    if (stopped) return
+    timer = setTimeout(() => void ask(), refresh.everyMs)
+  }
+
+  const ask = async () => {
+    if (stopped) return
+    // A tab nobody is looking at spends nobody's allowance.
+    const hidden =
+      typeof document !== "undefined" && document.visibilityState === "hidden"
+    if (hidden) {
+      askLater()
+      return
+    }
+    try {
+      const { prices } = await refreshMarketPrices(
+        catalog.protocol,
+        catalog.network,
+        [...rowById.keys()]
+      )
+      const changed: string[] = []
+      for (const [marketId, price] of prices) {
+        const row = rowById.get(marketId)
+        if (!row || !(price > 0)) continue
+        const key = marketKey({
+          protocol: catalog.protocol,
+          network: catalog.network,
+          marketId,
+        })
+        const was = figures.get(key)
+        if (was?.price === price) continue
+        figures.set(key, {
+          // Only the price is refreshed. The day's move and volume come from
+          // the list's own read; overwriting them with nothing would blank
+          // the columns beside a price that had just moved.
+          change24h: was?.change24h ?? row.change24h,
+          volume24hUsd: was?.volume24hUsd ?? row.volume24hUsd,
+          fundingHourly: was?.fundingHourly ?? row.fundingHourly,
+          openInterestUsd: was?.openInterestUsd ?? row.openInterestUsd,
+          price,
+        })
+        changed.push(key)
+      }
+      notifyKeys(changed)
+    } catch {
+      // The venue would not answer, or the minute had no room. What is on
+      // screen stays, and the next turn asks again.
+    }
+    askLater()
+  }
+
+  // The first ask waits a full turn: the list's own prices arrived with the
+  // page and are the freshest thing there is.
+  askLater()
+  return () => {
+    stopped = true
+    if (timer !== null) clearTimeout(timer)
   }
 }
 

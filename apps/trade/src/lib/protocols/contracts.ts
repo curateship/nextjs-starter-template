@@ -341,6 +341,24 @@ export type MarketCatalog = {
   networkLabel: string
   /** What this exchange can truthfully show in the full market picker. */
   picker: MarketPickerCapabilities
+  /**
+   * How a venue with NO pushed price feed keeps the screen's prices moving.
+   *
+   * **Absent on every venue that has a socket, and that is the point.** The
+   * rules file forbids asking an exchange on a timer as the live path, so
+   * this is not a live feed and never reaches the trading engine: it is the
+   * screen refreshing figures it already has. A venue that publishes a socket
+   * has nothing to say here and must leave it out, and the server refuses to
+   * answer a refresh for one that does.
+   *
+   * The venue states both numbers because only it knows its own allowance.
+   */
+  priceRefresh?: {
+    /** How long between refreshes. */
+    everyMs: number
+    /** The most markets one refresh may ask about, busiest first. */
+    mostMarkets: number
+  }
   rows: MarketRow[]
 }
 

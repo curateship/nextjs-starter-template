@@ -160,6 +160,43 @@ assumes will hold.
   nothing today". The only refusal that reaches the screen is the missing
   key, because there is no list to fall back on.
 
+## How the prices move
+
+Jupiter publishes no websocket, so the Solana page asks. That is a refresh
+and never a live feed, and the difference is what keeps it on the right side
+of `../rules/trading-rules.md`.
+
+- **Every ten seconds, for the 200 busiest markets on the page.** Four pages
+  of fifty coins, so four requests a refresh and 24 a minute. The market
+  list's own two a minute sit on top, which leaves 14 of the 40 a read is
+  allowed, and never touches the 20 kept back for swaps.
+- **Only the price is refreshed.** The day's move and volume come from the
+  list's own read; overwriting them with nothing would blank the columns
+  beside a price that had just moved. The market list row shows the day's
+  move and volume rather than the price, so the tick shows in the market
+  picker's Last price column and on the chart, not in the panel rows.
+- **The trading engine never reads it.** When the engine acts it asks for a
+  price at that moment, through the same rationed, paged, briefly shared read.
+  A refresh and a settle in the same second cost one request between them.
+- **The server refuses a refresh for any venue that publishes a socket.**
+  The rule is enforced where it cannot be forgotten rather than left to
+  whoever writes the next dashboard.
+- **A hidden tab asks nothing.** It picks up again when it is looked at.
+- **A failed or refused turn changes nothing on screen** and waits for the
+  next one. There is no "prices may be stale" label: one existed briefly and
+  Tyler had it removed on 7 Aug 2026, and nothing has claimed freshness since.
+- **Measured in the running app on 4 Sep 2026:** three refreshes in 35
+  seconds, none at all across 25 seconds with the tab hidden, and SOL moving
+  from $101.16 to $101.46 inside one 26-second window.
+
+**Why not a socket.** Solana's own node does push: `accountSubscribe` on a
+live pool answered and pushed changes within seconds, free and keyless. It is
+not enough on its own, because a coin's price here is the best path across
+several pools rather than one pool's numbers — eight of the day's busiest
+coins routed through nine different venues, and most took two or three hops.
+Pricing from the chain means rebuilding that routing, which is its own piece
+of work.
+
 ## The coin's name, where only the key is in hand
 
 - **A Solana market id is the mint address, so it is not a name.** Every

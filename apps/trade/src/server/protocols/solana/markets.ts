@@ -45,6 +45,31 @@ export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 /** Jupiter's price call takes this many mints at once. */
 export const PRICE_PAGE_SIZE = 50
 
+/**
+ * How the Solana page keeps its prices moving, and why these two numbers.
+ *
+ * **Jupiter publishes no socket.** Measured 4 Sep 2026: its docs list no
+ * streaming section and four websocket addresses all closed without a frame.
+ * Solana's own node does push (`accountSubscribe` works), but a coin's price
+ * there is the best path across several pools — eight of the day's busiest
+ * coins routed through nine different venues — so a price off one pool is not
+ * the price. Until that is built, the screen asks.
+ *
+ * **This is a refresh, not a live feed.** It never reaches the trading
+ * engine, which asks for a price at the moment it acts. `trading-rules.md`
+ * is the rule it is staying on the right side of.
+ *
+ * The arithmetic, on the free key's sixty requests a minute with forty of
+ * them for reads: 200 coins is four pages of fifty, so one refresh costs four
+ * requests, and six refreshes a minute costs 24. That leaves the market
+ * list's two a minute and room for lookups, and still never touches the
+ * twenty kept back for swaps.
+ */
+export const SOLANA_PRICE_REFRESH = {
+  everyMs: 10_000,
+  mostMarkets: 4 * PRICE_PAGE_SIZE,
+} as const
+
 const numberOrNull = z.number().nullable().optional()
 
 const tokenSchema = z.object({
@@ -186,6 +211,7 @@ export function toSolanaMarketCatalog(input: {
       openInterest: false,
       search: true,
     },
+    priceRefresh: SOLANA_PRICE_REFRESH,
     rows: translateSolanaTokens(input.network, [
       input.verified,
       input.topTraded,
