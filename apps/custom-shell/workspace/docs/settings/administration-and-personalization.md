@@ -107,10 +107,17 @@ uses the same fallback rules as the public page, so clearing a field shows what
 a visitor will get before the settings save.
 
 Public Pages also holds the app-wide front page row editor. An admin can add up
-to six plain-text or plans rows, edit the heading and optional introduction,
-choose full or narrow width, and drag rows into their public order. A heading is
-required before the dialog accepts a row. Removing every row brings back the
-built-in pricing front page, so an untouched app does not change.
+to six plain-text, plans, testimonial, FAQ, logo-strip, or screenshot rows. Each
+row has a heading, an optional introduction, full or narrow width, and a fixed
+set of fields for its kind. The editor accepts up to six testimonials or
+screenshots and up to twelve FAQ entries or logos in one row. It uses the media
+library for every picture and keeps the picker inside the row window.
+
+A heading and at least one complete entry are required for content rows. The
+server removes incomplete saved entries and refuses a newly selected image that
+does not belong to the current admin's media library. Dragging changes the
+public order. Removing every row brings back the built-in pricing front page,
+so an untouched app does not change.
 
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the

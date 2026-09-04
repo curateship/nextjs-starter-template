@@ -118,6 +118,44 @@ describe("MediaPicker", () => {
     host.remove()
   })
 
+  it("closes an inline picker on Escape without closing its owner", async () => {
+    mediaApi.listMedia.mockResolvedValue(page())
+    const onOpenChange = vi.fn()
+    const ownerKeyDown = vi.fn()
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    document.addEventListener("keydown", ownerKeyDown)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <Dialog open>
+          <MediaPicker
+            inline
+            open
+            onOpenChange={onOpenChange}
+            onSelectMedia={vi.fn()}
+          />
+        </Dialog>
+      )
+    })
+
+    const escape = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    })
+    await act(async () => document.body.dispatchEvent(escape))
+
+    expect(escape.defaultPrevented).toBe(true)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(ownerKeyDown).not.toHaveBeenCalled()
+
+    document.removeEventListener("keydown", ownerKeyDown)
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("refuses a file after a search removes it from the visible results", async () => {
     vi.useFakeTimers()
     mediaApi.listMedia

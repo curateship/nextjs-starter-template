@@ -287,8 +287,8 @@ function MediaPickerSession({
       event.stopPropagation()
       handleOpenChange(false)
     }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [handleOpenChange, inline, open])
 
   const pickerContent = (

@@ -104,6 +104,28 @@ describe("public site branding", () => {
             kind: "plans",
             layout: "wide",
           },
+          {
+            id: "empty-faq",
+            heading: "Empty questions",
+            intro: "Nothing complete lives here.",
+            kind: "faq",
+            layout: "wide",
+            items: [{ id: "empty", question: "Question", answer: "" }],
+          },
+          {
+            id: "faq",
+            heading: "Questions",
+            intro: "Answers before signup.",
+            kind: "faq",
+            layout: "narrow",
+            items: [
+              {
+                id: "billing",
+                question: "How does billing work?",
+                answer: "Choose a public plan.",
+              },
+            ],
+          },
         ],
       },
       createdAt: timestamp,
@@ -115,6 +137,7 @@ describe("public site branding", () => {
     expect(branding.frontPageRows.map((row) => row.id)).toEqual([
       "welcome",
       "plans",
+      "faq",
     ])
   })
 

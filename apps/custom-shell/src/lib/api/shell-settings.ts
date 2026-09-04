@@ -23,12 +23,25 @@ import type {
 } from "@/lib/favicon"
 import type { PublicFontAsset } from "@/lib/public-font"
 import {
-  FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUTS,
+  MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
+  MAX_FRONT_PAGE_FAQ_ITEMS,
+  MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+  MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
+  MAX_FRONT_PAGE_ITEM_ROLE_LENGTH,
+  MAX_FRONT_PAGE_LOGOS,
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_ID_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   MAX_FRONT_PAGE_ROWS,
+  MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH,
+  MAX_FRONT_PAGE_SCREENSHOTS,
+  MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
+  MAX_FRONT_PAGE_TESTIMONIALS,
+  frontPageRowImageUrls,
+  normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
 import {
@@ -240,15 +253,83 @@ const publicThemeSchema = z.object({
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
+const frontPageRowBaseShape = {
+  id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
+  heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
+  intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
+  layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+}
+
+const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)
+const frontPageImageSchema = z
+  .string()
+  .trim()
+  .max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH)
+  .refine(
+    (value) => !value || normalizeFrontPageImageUrl(value) === value,
+    "Choose an image from the media library."
+  )
+
 const frontPageRowsSchema = z
   .array(
-    z.object({
-      id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
-      heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
-      intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
-      kind: z.enum(FRONT_PAGE_ROW_KINDS),
-      layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
-    })
+    z.discriminatedUnion("kind", [
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("testimonials"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              quote: z.string().max(MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH),
+              name: z.string().max(MAX_FRONT_PAGE_ITEM_NAME_LENGTH),
+              role: z.string().max(MAX_FRONT_PAGE_ITEM_ROLE_LENGTH),
+              picture: frontPageImageSchema,
+            })
+          )
+          .max(MAX_FRONT_PAGE_TESTIMONIALS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("faq"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              question: z.string().max(MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH),
+              answer: z.string().max(MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_FAQ_ITEMS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("logos"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_LOGOS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("screenshots"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              caption: z.string().max(MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_SCREENSHOTS),
+      }),
+    ])
   )
   .max(MAX_FRONT_PAGE_ROWS)
   .transform(normalizeFrontPageRows)
@@ -462,6 +543,20 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         throw new Error(
           "That share image is no longer in your media library. Pick another one."
         )
+      }
+
+      const savedFrontPageImages = new Set(
+        frontPageRowImageUrls(existingGlobals.frontPageRows)
+      )
+      for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
+        if (
+          !savedFrontPageImages.has(image) &&
+          !(await isOwnedImageUrl(context.user.id, image, tx))
+        ) {
+          throw new Error(
+            "A front page image is no longer in your media library. Pick another one."
+          )
+        }
       }
 
       const light = faviconVariantForLockedSave(

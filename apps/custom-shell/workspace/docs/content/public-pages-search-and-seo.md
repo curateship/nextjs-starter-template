@@ -115,11 +115,21 @@ use the configured public page width, while narrow rows stop at 768px and still
 follow the site's content alignment. The first row owns the page's main
 heading, and later rows use section headings.
 
+Testimonials, FAQ, logo-strip, and screenshot rows add fixed marketing content
+without allowing arbitrary page blocks. Testimonials hold a required quote and
+name plus an optional role and picture. FAQ entries require a question and
+answer. Logos require an image and accessible name, while screenshots require
+an image and caption. Testimonial and screenshot rows hold up to six entries;
+FAQ and logo rows hold up to twelve. Cards and images collapse into a readable
+single column on phones.
+
 Rows are app-wide and render in the order saved by the drag editor. A saved row
-without its required heading is dropped before it reaches the public page. If
-no usable rows remain, the former pricing front page renders unchanged. An app
-that answers `/` through its catch-all or replaces the landing page through app
-options still wins before the shell considers these rows.
+without its required heading is dropped before it reaches the public page. An
+incomplete content entry is dropped too, and a content row with no complete
+entries does not render. If no usable rows remain, the former pricing front page
+renders unchanged. An app that answers `/` through its catch-all or replaces
+the landing page through app options still wins before the shell considers
+these rows.
 
 ## Robots and sitemap
 
