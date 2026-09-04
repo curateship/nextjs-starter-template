@@ -161,15 +161,17 @@ export const GridLayer = React.memo(function GridLayer({
   })()
   const previewOffset = previewMove?.offset ?? 0
 
-  // The preview's own band: from its highest line to its lowest.
+  // A buying preview's band runs only between the rungs people can see. The
+  // outer winning edge still exists in `previewEdges` for placing and dragging,
+  // but shading it before rung 1 buys makes it look like another rung.
   const previewBand = (() => {
     if (!preview || preview.lines.length === 0) return null
     const inRange = preview.lines.filter(
       (one) =>
         one.kind === "upper" ||
         one.kind === "lower" ||
-        one.kind === "edge" ||
-        one.kind === "level"
+        one.kind === "level" ||
+        (one.kind === "edge" && preview.direction === "short")
     )
     if (inRange.length === 0) return null
     const top = yPinned(
@@ -418,8 +420,8 @@ export const GridLayer = React.memo(function GridLayer({
       ) : null}
       {previewDrawn?.map((one) => {
         // The range's winning edge is not drawn: a line past rung 1 with no
-        // name confused more than it explained (Tyler, 3 Sep 2026). The band
-        // still reaches it, and the drag maths still uses it.
+        // name confused more than it explained (Tyler, 3 Sep 2026). The drag
+        // maths still uses it. A buying preview's band stops at the real rungs.
         if (one === null || one.line.kind === "edge") return null
         const { line, index, y, look, draggable } = one
         return (

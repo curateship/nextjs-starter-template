@@ -825,10 +825,12 @@ position's Entry pill, so they all start and end on the same x. A name too long 
 Five round trips still need six prices. The sixth is the range's winning edge,
 one step past rung 1, where rung 1 closes. Before rung 1 buys, a buying grid does
 not draw that edge and stops the shaded band at UPPER PRICE. The empty strip no
-longer looks like another rung. Once rung 1 buys, its sell line appears at the
-winning edge with the full label "Rung 1 exit and move up". The line and the
-extra strip leave again after that sell moves the range up. The two named range
-lines carry the rung's money chip and its ×, so a rung is never drawn twice.
+longer looks like another rung. The placement preview follows the same rule, so
+it shades only the real rungs even though it keeps the later exit price for its
+placement maths. Once rung 1 buys, its sell line appears at the winning edge
+with the full label "Rung 1 exit and move up". The line and the extra strip leave
+again after that sell moves the range up. The two named range lines carry the
+rung's money chip and its ×, so a rung is never drawn twice.
 
 Dragging a named line moves the RUNG under the hand. On a buying grid, dropping
 UPPER PRICE at $110 with the bottom held at $92 over four rungs puts rung 1 at

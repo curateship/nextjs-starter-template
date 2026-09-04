@@ -164,7 +164,8 @@ function layer(
 }
 
 function previewLayer(
-  onMoveGrid: (range: { topPx: number; bottomPx: number }) => void
+  onMoveGrid: (range: { topPx: number; bottomPx: number }) => void,
+  includeWinningEdge = false
 ) {
   return (
     <GridLayer
@@ -177,6 +178,7 @@ function previewLayer(
         direction: "long",
         levelCount: 2,
         lines: [
+          ...(includeWinningEdge ? [{ px: 120, kind: "edge" as const }] : []),
           { px: 110, kind: "upper", grip: true },
           { px: 100, kind: "level" },
           { px: 90, kind: "lower", grip: true },
@@ -327,6 +329,18 @@ describe("the grid stop-loss line", () => {
 })
 
 describe("the grid preview's whole-grid grip", () => {
+  it("does not shade the unused winning-edge rung", () => {
+    const html = renderToStaticMarkup(previewLayer(vi.fn(), true))
+    // The real rungs run from $110 to $90. The unused $120 exit still exists
+    // for range maths, but it must not add another shaded rung to the preview.
+    expect(html).toContain(
+      "top:90px;height:20px;background-color:theme-up;opacity:0.05"
+    )
+    expect(html).not.toContain(
+      "top:80px;height:30px;background-color:theme-up;opacity:0.05"
+    )
+  })
+
   it("moves both range edges by the same price amount", async () => {
     const host = document.createElement("div")
     const root = createRoot(host)
