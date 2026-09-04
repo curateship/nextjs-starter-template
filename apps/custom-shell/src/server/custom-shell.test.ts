@@ -4707,6 +4707,8 @@ describe("member sidebar", () => {
       publicSeo: {
         homeTitle: "Public home",
         homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
         siteDescription: "The public site default.",
       },
       publicSystemCopy: {
@@ -4725,6 +4727,8 @@ describe("member sidebar", () => {
       publicSeo: {
         homeTitle: "Public home",
         homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
         siteDescription: "The public site default.",
       },
       publicSystemCopy: {
@@ -4743,6 +4747,8 @@ describe("member sidebar", () => {
       publicSeo: {
         homeTitle: "",
         homeDescription: "",
+        writtenTitleTemplate: "",
+        writtenDescriptionTemplate: "",
         siteDescription: "",
       },
       publicSystemCopy: {

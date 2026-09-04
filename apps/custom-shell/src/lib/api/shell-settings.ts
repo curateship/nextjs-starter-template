@@ -413,6 +413,10 @@ const shellConfigSchema = z.object({
   publicSeo: z.object({
     homeTitle: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
     homeDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+    writtenTitleTemplate: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
+    writtenDescriptionTemplate: z
+      .string()
+      .max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
     siteDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
   }),
   publicSystemCopy: z.object({

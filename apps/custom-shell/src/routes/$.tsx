@@ -12,9 +12,7 @@ import { loadWrittenPage } from "@/lib/api/content/pages"
 import { resolveAppName } from "@/lib/branding"
 import {
   publicSocialMeta,
-  resolvePublicSeoMetadata,
-  type PublicSeo,
-  type SocialCardType,
+  resolveWrittenPageSeoMetadata,
 } from "@/lib/pages/public-metadata"
 
 /**
@@ -70,42 +68,36 @@ export const Route = createFileRoute("/$")({
       throw redirect({ to: "/login", search: { redirect: path } })
     }
 
-    return { source: "written" as const, page: view.page }
+    return {
+      source: "written" as const,
+      page: view.page,
+      branding: view.branding,
+    }
   },
   errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   component: CatchAllRoute,
-  head: ({ loaderData, matches }) => {
+  head: ({ loaderData }) => {
     if (!loaderData) return {}
     if (loaderData.source === "app") {
       return appPage?.head?.({ data: loaderData.data }) ?? {}
     }
 
-    const branding = matches[0]?.loaderData as
-      | {
-          appName?: string
-          shareImage?: string
-          socialCardType?: SocialCardType
-          socialHandle?: string
-          publicSeo?: PublicSeo
-        }
-      | undefined
-    const appName = resolveAppName(branding?.appName)
-    const metadata = resolvePublicSeoMetadata({
-      title: `${loaderData.page.title} · ${appName}`,
+    const appName = resolveAppName(loaderData.branding.appName)
+    const metadata = resolveWrittenPageSeoMetadata({
+      pageTitle: loaderData.page.title,
       appName,
-      home: false,
-      seo: branding?.publicSeo,
+      seo: loaderData.branding.publicSeo,
     })
 
     return {
       meta: [
-        { title: loaderData.page.title },
+        { title: metadata.title },
         ...publicSocialMeta({
-          title: metadata.title,
+          title: metadata.socialTitle,
           description: metadata.description,
-          image: branding?.shareImage ?? "",
-          cardType: branding?.socialCardType ?? "summary",
-          handle: branding?.socialHandle ?? "",
+          image: loaderData.branding.shareImage,
+          cardType: loaderData.branding.socialCardType,
+          handle: loaderData.branding.socialHandle,
         }),
       ],
     }

@@ -10,9 +10,11 @@ import {
   normalizeSocialCardType,
   normalizeSocialHandle,
   publicSocialMeta,
+  renderSeoTemplate,
   resolveMaintenanceCopy,
   resolveNotFoundCopy,
   resolvePublicSeoMetadata,
+  resolveWrittenPageSeoMetadata,
   versionedShareImage,
 } from "@/lib/pages/public-metadata"
 
@@ -117,16 +119,22 @@ describe("public metadata", () => {
       normalizePublicSeo({
         homeTitle: "  Acme home  ",
         homeDescription: 42,
+        writtenTitleTemplate: "  {{page_title}} | {{site_title}}  ",
+        writtenDescriptionTemplate: "  Read {{page_title}}.  ",
         siteDescription: "  The Acme site.  ",
       })
     ).toEqual({
       homeTitle: "Acme home",
       homeDescription: "",
+      writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+      writtenDescriptionTemplate: "Read {{page_title}}.",
       siteDescription: "The Acme site.",
     })
     expect(normalizePublicSeo(null)).toEqual({
       homeTitle: "",
       homeDescription: "",
+      writtenTitleTemplate: "",
+      writtenDescriptionTemplate: "",
       siteDescription: "",
     })
   })
@@ -196,6 +204,79 @@ describe("public metadata", () => {
     ).toEqual({
       title: "Written page · Acme",
       description: "Visit Acme.",
+    })
+  })
+
+  it("renders the supported short codes and cleans unsafe or unknown markup", () => {
+    expect(
+      renderSeoTemplate(" <b>{{page_title}}</b>  |  {{site_title}} ", {
+        pageTitle: "About",
+        siteTitle: "Acme",
+      })
+    ).toBe("About | Acme")
+    expect(
+      renderSeoTemplate("{{page_title}} | {{unknown}}", {
+        pageTitle: "About",
+        siteTitle: "Acme",
+      })
+    ).toBe("About")
+  })
+
+  it("removes a dangling separator when either short code is empty", () => {
+    expect(
+      renderSeoTemplate("{{page_title}} | {{site_title}}", {
+        pageTitle: "",
+        siteTitle: "Acme",
+      })
+    ).toBe("Acme")
+    expect(
+      renderSeoTemplate("{{page_title}}: {{site_title}}", {
+        pageTitle: "About",
+        siteTitle: "",
+      })
+    ).toBe("About")
+  })
+
+  it("uses written-page templates while an empty template keeps today's titles", () => {
+    expect(
+      resolveWrittenPageSeoMetadata({
+        pageTitle: "About",
+        appName: "Acme",
+      })
+    ).toEqual({
+      title: "About",
+      socialTitle: "About · Acme",
+      description: "Visit Acme.",
+    })
+
+    const seo = normalizePublicSeo({
+      writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+      writtenDescriptionTemplate: "Read {{page_title}} on {{site_title}}.",
+      siteDescription: "The Acme site.",
+    })
+    expect(
+      resolveWrittenPageSeoMetadata({
+        pageTitle: "About",
+        appName: "Acme",
+        seo,
+      })
+    ).toEqual({
+      title: "About | Acme",
+      socialTitle: "About | Acme",
+      description: "Read About on Acme.",
+    })
+    expect(
+      resolveWrittenPageSeoMetadata({
+        pageTitle: "About",
+        pageSeoTitle: "About us",
+        pageSeoDescription: "Meet the Acme team.",
+        appName: "Acme",
+        seo,
+      })
+    ).toEqual({
+      title: "About us",
+      socialTitle: "About us",
+      description: "Meet the Acme team.",
     })
   })
 })

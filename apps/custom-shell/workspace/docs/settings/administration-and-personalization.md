@@ -127,11 +127,15 @@ button label that falls below the same line gets a plain warning beside the
 setting for the mode that fails. Contrast warnings update while the admin types
 and never block saving a valid colour.
 
-Public SEO holds the title and description used only on the home page, plus the
-description and share image used when another public page has no value of its
-own. Empty fields keep the former built-in text. The server checks that a new
-image belongs to the current admin and changes its URL version when the image
-changes.
+Public SEO holds the title and description used only on the home page, plus a
+title template and description template for written pages. The templates use
+`{{page_title}}` for the page name and `{{site_title}}` for the current site
+name. Empty template fields keep the former written-page title and description.
+A page's own SEO fields take priority when the per-page editor supplies them.
+
+The same tab holds the description and share image used when another public
+page has no value of its own. The server checks that a new image belongs to the
+current admin and changes its URL version when the image changes.
 
 Public Social chooses the small or large X presentation and saves an optional X
 account without `@`. Small is the default so older installs keep their previous

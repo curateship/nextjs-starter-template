@@ -236,6 +236,8 @@ describe("public site branding", () => {
         publicSeo: {
           homeTitle: "Public home",
           homeDescription: "The public front page.",
+          writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+          writtenDescriptionTemplate: "Read {{page_title}}.",
           siteDescription: "The public site default.",
         },
         publicSystemCopy: {
@@ -268,6 +270,8 @@ describe("public site branding", () => {
       publicSeo: {
         homeTitle: "Public home",
         homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
         siteDescription: "The public site default.",
       },
       publicSystemCopy: {
