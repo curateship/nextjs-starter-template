@@ -19,7 +19,6 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import {
-  accountOf,
   agentOf,
   getProtocol,
   credentialsOf,
@@ -234,6 +233,12 @@ export async function createWallet(
     secret?: string
     /** Live only: the passphrase, where the exchange demands a third value. */
     passphrase?: string
+    /**
+     * Live only: have the exchange's module make the wallet instead of
+     * pasting one. The secret is made here and encrypted here; the browser
+     * only ever sees the address.
+     */
+    makeWallet?: boolean
   }
 ): Promise<TradeWallet> {
   const existing = await listWallets(userId)
@@ -259,19 +264,29 @@ export async function createWallet(
     // `credentialsOf` also refuses a live wallet on an exchange that cannot
     // hold accounts at all (Binance), with the exchange's name in the error.
     const creds = credentialsOf(entry)
-    if (!input.address) throw new Error("WALLET_CREDENTIALS_REQUIRED")
-    if (!new RegExp(creds.form.addressPattern).test(input.address.trim())) {
-      throw new Error("WALLET_ADDRESS_SHAPE")
+    let blob: string
+    if (input.makeWallet) {
+      // The exchange's module makes the keypair; the secret exists only on
+      // this path between being made and being encrypted a few lines down.
+      if (!creds.make) throw new Error("WALLET_MAKE_UNSUPPORTED")
+      const made = creds.make()
+      address = made.address
+      blob = creds.pack({ address, secret: made.secret })
+    } else {
+      if (!input.address) throw new Error("WALLET_CREDENTIALS_REQUIRED")
+      if (!new RegExp(creds.form.addressPattern).test(input.address.trim())) {
+        throw new Error("WALLET_ADDRESS_SHAPE")
+      }
+      address = input.address.trim()
+      // The protocol folds the pasted fields into its own blob — and refuses
+      // a missing required field with a KEY_ code before anything is stored.
+      blob = creds.pack({
+        address,
+        agentKey: input.agentKey,
+        secret: input.secret,
+        passphrase: input.passphrase,
+      })
     }
-    address = input.address.trim()
-    // The protocol folds the pasted fields into its own blob — and refuses a
-    // missing required field with a KEY_ code before anything is stored.
-    const blob = creds.pack({
-      address,
-      agentKey: input.agentKey,
-      secret: input.secret,
-      passphrase: input.passphrase,
-    })
     // Encrypt before anything can fail after it: a wallet is only ever
     // inserted with ciphertext, and a missing encryption key stops the whole
     // add rather than quietly storing nothing.
@@ -284,14 +299,21 @@ export async function createWallet(
     agentValidUntil =
       verified.validUntil !== null ? new Date(verified.validUntil) : null
     positionMode = verified.positionMode ?? null
-    // Reading the account proves it is reachable and records the fixed sizing
-    // baseline used when compounding is off.
-    // An account the exchange cannot answer for is refused, not saved broken.
-    const figures = await accountOf(entry)
-      .fetch(input.network, address, () => blob)
-      .catch(() => null)
-    if (!figures) throw new Error("WALLET_UNREACHABLE")
-    startingBalance = figures.equity
+    if (entry.account) {
+      // Reading the account proves it is reachable and records the fixed
+      // sizing baseline used when compounding is off. An account the
+      // exchange cannot answer for is refused, not saved broken.
+      const figures = await entry.account
+        .fetch(input.network, address, () => blob)
+        .catch(() => null)
+      if (!figures) throw new Error("WALLET_UNREACHABLE")
+      startingBalance = figures.equity
+    } else {
+      // An exchange that cannot read what a wallet holds yet has no figure
+      // to save. Zero is the honest baseline; nothing sizes an order off it
+      // because such an exchange takes no orders either.
+      startingBalance = 0
+    }
   }
 
   const row = {
@@ -525,8 +547,19 @@ export async function loadWalletSummaries(
           unpricedFills: 0,
         })
       }
+      const entry = getProtocol(wallet.protocol)
+      if (!entry.account) {
+        // Saved, never asked: this build cannot read what a wallet on this
+        // exchange holds. Said as its own state rather than "unreachable",
+        // because nothing failed and a retry would not change it.
+        return {
+          walletId: wallet.id,
+          state: "unread",
+          reason: `Trade cannot read what a ${entry.label} wallet holds yet, so its figures are blank. The wallet is saved and its address is ready to receive coins.`,
+        }
+      }
       let refusal: string | null = null
-      const figures = await accountOf(getProtocol(wallet.protocol))
+      const figures = await entry.account
         .fetch(wallet.network, wallet.address ?? "", () =>
           credentialFor({
             agentKeyEncrypted: cipherById.get(wallet.id) ?? null,

@@ -410,6 +410,7 @@ function ladderPlan(
       : null,
     aimedTpPx: null,
     aimedSlPx: null,
+    handSetAt: null,
     twoGreen: input.params.twoGreen,
     greenInterval: input.params.twoGreen ? input.interval : null,
     green: null,

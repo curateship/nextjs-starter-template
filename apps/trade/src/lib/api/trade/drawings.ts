@@ -5,7 +5,9 @@ import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   drawingShapeSchema,
   DRAWING_ALERT_NO_PRICE,
+  DRAWING_ALERT_NOT_ARMED,
   DRAWINGS_FULL,
+  MAX_DRAWING_BUFFER_PCT,
   MAX_DRAWINGS_PER_MARKET,
   type Drawing,
   type DrawingShape,
@@ -19,6 +21,7 @@ import {
   loadChartDrawings,
   saveChartDrawing,
   setChartDrawingAlert,
+  setChartDrawingAlertBuffer,
 } from "@/server/trade/drawings"
 
 import { createErrorMessage } from "../error-message"
@@ -69,6 +72,14 @@ const setAlertSchema = z.object({
   currentPrice: currentPriceSchema,
 })
 
+// A percentage past the line, or null for none. Bounded the same way the
+// stored record is, so a hand-made request cannot write a number the reader
+// would later refuse.
+const setBufferSchema = z.object({
+  id: drawingIdSchema,
+  buffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).nullable(),
+})
+
 const loadChartDrawingsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(marketSchema)
@@ -102,6 +113,15 @@ const setChartDrawingAlertFn = createServerFn({ method: "POST" })
   .inputValidator(setAlertSchema)
   .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
     return { drawing: await setChartDrawingAlert(context.user.id, data) }
+  })
+
+const setChartDrawingAlertBufferFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(setBufferSchema)
+  .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
+    return {
+      drawing: await setChartDrawingAlertBuffer(context.user.id, data),
+    }
   })
 
 const deleteChartDrawingFn = createServerFn({ method: "POST" })
@@ -154,6 +174,16 @@ export async function setDrawingAlert(
   return answer.drawing
 }
 
+/** Set or clear how far past the line one armed alert waits, as a percent. */
+export async function setDrawingAlertBuffer(
+  id: string,
+  buffer: number | null
+) {
+  const answer = await setChartDrawingAlertBufferFn({ data: { id, buffer } })
+  invalidateDashboardBootstrap()
+  return answer.drawing
+}
+
 export async function deleteDrawing(id: string) {
   const answer = await deleteChartDrawingFn({ data: { id } })
   invalidateDashboardBootstrap()
@@ -182,6 +212,8 @@ export const getDrawingAlertErrorMessage = createErrorMessage(
   {
     [DRAWING_ALERT_NO_PRICE]:
       "There is no live price to set the alert from yet. Try again in a moment.",
+    [DRAWING_ALERT_NOT_ARMED]:
+      "That line's alert is no longer on, so there is nothing to set a buffer on. Switch it on again.",
   },
   "The alert did not save. Try it again."
 )

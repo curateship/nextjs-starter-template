@@ -50,7 +50,22 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
     pkg: "dukascopy-node",
     homes: [join("server", "protocols", "dukascopy")],
   },
+  {
+    // Solana's own library: it makes and reads the keypair that HOLDS the
+    // coins, and later signs the swap Jupiter hands back. Anywhere else it
+    // appears is a place that key could leak toward.
+    pkg: "@solana/web3.js",
+    homes: [join("server", "protocols", "solana")],
+  },
 ]
+
+/**
+ * The addresses only Solana's client file may know. A node or Jupiter
+ * address named anywhere else is a second door onto the chain, and a second
+ * door is exactly how a paid node or a key ends up in the wrong file.
+ */
+const SOLANA_HOME = join("server", "protocols", "solana")
+const SOLANA_ADDRESSES = /api\.jup\.ag|mainnet-beta\.solana\.com|devnet\.solana\.com/
 
 /**
  * Lighter ships a compiled signer rather than a package, so the fence around
@@ -123,7 +138,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))
@@ -145,6 +160,17 @@ describe("the protocol fence", () => {
       .filter(({ path }) => !path.startsWith(SIGNER_HOME + sep))
       .filter(({ path }) => path !== relative(SRC, __filename))
       .filter(({ text }) => loadsSigner.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Solana's node and Jupiter addresses inside its own folder", () => {
+    // This file has to leave itself out, for the same reason the signer
+    // check above does: the pattern names the addresses it forbids.
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(SOLANA_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => SOLANA_ADDRESSES.test(text))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })

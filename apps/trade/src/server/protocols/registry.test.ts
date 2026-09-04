@@ -27,6 +27,7 @@ describe("the protocol registry", () => {
         .sort()
     ).toEqual([...KNOWN_PROTOCOLS].sort())
     expect(listProtocols().map((one) => one.label)).toContain("Aster")
+    expect(listProtocols().map((one) => one.label)).toContain("Solana")
   })
 
   it("carries the trading blocks exactly where the flags say they are", () => {
@@ -34,11 +35,49 @@ describe("the protocol registry", () => {
       const entry = getProtocol(id)
       expect(Boolean(entry.account)).toBe(entry.capabilities.accounts)
       expect(Boolean(entry.orders)).toBe(entry.capabilities.orders)
-      // The sign-in form travels with accounts: an exchange someone can hold
-      // a wallet on must say how that wallet signs in, and one they cannot
-      // must not offer a form for it.
-      expect(Boolean(entry.credentials)).toBe(entry.capabilities.accounts)
+      // An exchange whose accounts can be read must say how a wallet there
+      // signs in. The form may also exist without an account block — a
+      // chain wallet that is made and funded before its holdings can be
+      // read — but never without a way to prove the credential first.
+      if (entry.capabilities.accounts) {
+        expect(entry.credentials, `${entry.label} has no sign-in form`).toBeTruthy()
+      }
+      if (entry.credentials) {
+        expect(entry.agent, `${entry.label} stores a key it cannot prove`).toBeTruthy()
+        // The dialog offers "Make a new wallet" exactly where the entry can.
+        expect(Boolean(entry.credentials.make)).toBe(
+          entry.credentials.form.canMakeWallet
+        )
+      }
     }
+  })
+
+  it("lets a Solana wallet be added before its holdings can be read", () => {
+    // The one venue with a sign-in form and no account block: the wallet
+    // exists so it can be made and funded first. Every other capability is
+    // off until the task that builds it switches it on.
+    const entry = getProtocol("solana")
+    expect(entry.networks).toEqual(["mainnet"])
+    expect(entry.capabilities).toMatchObject({
+      markets: true,
+      accounts: false,
+      orders: false,
+    })
+    expect(entry.account).toBeUndefined()
+    expect(entry.orders).toBeUndefined()
+    expect(entry.livePrices).toBeUndefined()
+    // An open network lists more coins than any list holds, so Solana is
+    // the one venue with a lookup beside its list.
+    expect(entry.markets.search).toBeTypeOf("function")
+    expect(entry.funding).toBeUndefined()
+    expect(entry.credentials?.make).toBeTypeOf("function")
+    const form = entry.credentials?.form
+    // A Solana key is not an EVM agent key: the 64-hex shape check would
+    // refuse every real one.
+    expect(form?.secretIsAgentKey).toBe(false)
+    expect(form?.needsPassphrase).toBe(false)
+    expect(form?.canMakeWallet).toBe(true)
+    expect(form?.keyHelp).toContain("only what you mean to trade")
   })
 
   it("does not call Lighter's key an EVM agent key, because it is not one", () => {

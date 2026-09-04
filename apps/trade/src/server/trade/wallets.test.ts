@@ -22,6 +22,18 @@ import {
 // and the key check answers approved unless a test says otherwise.
 const fetchAccount = vi.fn()
 const verifyAgent = vi.fn()
+/**
+ * What shape the mock exchange takes. `account` off is a venue that cannot
+ * read holdings yet (Solana before its holdings task); `make` on is one whose
+ * wallet the app can make itself.
+ */
+const shape = {
+  account: true,
+  make: false,
+  addressPattern: "^0x[0-9a-fA-F]{40}$",
+}
+const MADE_ADDRESS = "0xfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed"
+const MADE_SECRET = "cd".repeat(32)
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
@@ -29,27 +41,32 @@ const verifyAgent = vi.fn()
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    label: "Mock",
     networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
-    account: { fetch: fetchAccount },
+    account: shape.account ? { fetch: fetchAccount } : undefined,
     agent: { verify: verifyAgent },
     credentials: {
       form: {
         addressLabel: "Account address",
         addressHint: "0x…",
-        addressPattern: "^0x[0-9a-fA-F]{40}$",
+        addressPattern: shape.addressPattern,
         secretLabel: "Trading key",
         needsPassphrase: false,
         secretIsAgentKey: true,
+        canMakeWallet: shape.make,
         keyHelp: "",
       },
       // The store's own tests speak the wallet-shaped dialect: the blob IS
       // the pasted key, exactly as the Hyperliquid entry packs it.
-      pack: (input: { agentKey?: string }) => {
-        const agentKey = input.agentKey?.trim() ?? ""
+      pack: (input: { agentKey?: string; secret?: string }) => {
+        const agentKey = (input.agentKey ?? input.secret)?.trim() ?? ""
         if (!agentKey) throw new Error("KEY_REQUIRED")
         return agentKey
       },
+      make: shape.make
+        ? () => ({ address: MADE_ADDRESS, secret: MADE_SECRET })
+        : undefined,
     },
   }),
 }))
@@ -75,6 +92,9 @@ beforeEach(async () => {
   })
   verifyAgent.mockReset()
   verifyAgent.mockResolvedValue({ validUntil: null })
+  shape.account = true
+  shape.make = false
+  shape.addressPattern = "^0x[0-9a-fA-F]{40}$"
 })
 
 afterEach(async () => {
@@ -224,6 +244,71 @@ describe("adding wallets", () => {
       "ENCRYPTION_NOT_CONFIGURED"
     )
     expect(await listWallets(userId)).toEqual([])
+  })
+
+  it("makes a wallet on the exchange's behalf and shows only the address", async () => {
+    const userId = await person()
+    shape.make = true
+    const wallet = await createWallet(userId, {
+      label: "Made",
+      kind: "live",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      makeWallet: true,
+    })
+
+    expect(wallet.address).toBe(MADE_ADDRESS)
+    expect(wallet.hasKey).toBe(true)
+    // The made secret is proved and encrypted like a pasted one, and the
+    // answer never carries it.
+    expect(verifyAgent).toHaveBeenCalledWith("mainnet", MADE_ADDRESS, MADE_SECRET)
+    const rows = await database
+      .select()
+      .from(tradeWallets)
+      .where(eq(tradeWallets.userId, userId))
+    expect(rows[0].agentKeyEncrypted).toMatch(CIPHERTEXT_SHAPE)
+    expect(rows[0].agentKeyEncrypted).not.toContain(MADE_SECRET)
+    expect(JSON.stringify(wallet)).not.toContain(MADE_SECRET)
+  })
+
+  it("refuses to make a wallet where the exchange cannot, saving nothing", async () => {
+    const userId = await person()
+    await expect(
+      createWallet(userId, {
+        label: "Made",
+        kind: "live",
+        protocol: "hyperliquid",
+        network: "mainnet",
+        makeWallet: true,
+      })
+    ).rejects.toThrow("WALLET_MAKE_UNSUPPORTED")
+    expect(await listWallets(userId)).toEqual([])
+  })
+
+  it("saves a wallet on an exchange that cannot read holdings yet, at a zero baseline", async () => {
+    const userId = await person()
+    shape.account = false
+    const wallet = await createWallet(userId, liveInput())
+
+    // Nothing to read means nothing to ask: the exchange is never called,
+    // and the baseline is the honest zero rather than a made-up figure.
+    expect(fetchAccount).not.toHaveBeenCalled()
+    expect(wallet.startingBalance).toBe(0)
+    expect(wallet.hasKey).toBe(true)
+    expect(wallet.address).toBe(ADDRESS)
+  })
+
+  it("keeps a 44-character base58 address whole", async () => {
+    // The column was sized for a 42-character Ethereum address, and the
+    // first Solana wallet was refused by Postgres with "value too long".
+    const userId = await person()
+    shape.account = false
+    shape.addressPattern = "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+    const address = "6rF3e9bmmBSdE2dLMyW7N5bT6Q3455WwJ1QzkZBMErBe"
+    expect(address).toHaveLength(44)
+    const wallet = await createWallet(userId, { ...liveInput(), address })
+    expect(wallet.address).toBe(address)
+    expect((await listWallets(userId))[0]?.address).toBe(address)
   })
 
   it("stops at the cap", async () => {
@@ -400,6 +485,23 @@ describe("the figures sweep", () => {
     // spend any of it.
     expect(fetchAccount).not.toHaveBeenCalled()
     expect(summaries).toEqual([{ walletId: wallet.id, state: "inactive" }])
+  })
+
+  it("says a wallet is unread, not unreachable, where holdings cannot be read yet", async () => {
+    const userId = await person()
+    shape.account = false
+    const wallet = await createWallet(userId, liveInput())
+
+    const { summaries } = await loadWalletSummaries(userId)
+
+    expect(fetchAccount).not.toHaveBeenCalled()
+    expect(summaries).toEqual([
+      {
+        walletId: wallet.id,
+        state: "unread",
+        reason: expect.stringContaining("cannot read what a Mock wallet holds yet"),
+      },
+    ])
   })
 
   it("uses settled profit since the start day instead of the wallet baseline", async () => {

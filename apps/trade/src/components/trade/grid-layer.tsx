@@ -34,6 +34,7 @@ import {
   winEdge,
   GRID_DIRECTION_LABELS,
   type GridDirection,
+  type GridLevelState,
   type GridRangeMove,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
@@ -53,11 +54,12 @@ import { cn } from "@/lib/utils"
  * or expand the waiting prices around that fixed entry.
  *
  * The two named range lines, UPPER PRICE and LOWER PRICE, sit on the first and
- * last rung's own prices — Tyler's rule, 3 Sep 2026 — so the line that says
- * RUNG 1 is where rung 1 trades. The range's winning edge, one step past rung
- * 1 where it closes, is drawn as a plain line with no name. Everything a grid
- * draws is green when it buys the dips and red when it shorts the rallies, and
- * the End Grid line is orange so it cannot be read as a level.
+ * last rung's own prices — Tyler's rule, 3 Sep 2026 — so each boundary sits
+ * where that rung trades. A buying grid does not draw the winning edge until
+ * rung 1 buys. It then draws that sell as "Rung 1 exit and move up" until the
+ * round trip finishes. Everything a grid draws is green when it buys the dips
+ * and red when it shorts the rallies, and the End Grid line is orange so it
+ * cannot be read as a level.
  */
 
 export const GridLayer = React.memo(function GridLayer({
@@ -159,15 +161,17 @@ export const GridLayer = React.memo(function GridLayer({
   })()
   const previewOffset = previewMove?.offset ?? 0
 
-  // The preview's own band: from its highest line to its lowest.
+  // A buying preview's band runs only between the rungs people can see. The
+  // outer winning edge still exists in `previewEdges` for placing and dragging,
+  // but shading it before rung 1 buys makes it look like another rung.
   const previewBand = (() => {
     if (!preview || preview.lines.length === 0) return null
     const inRange = preview.lines.filter(
       (one) =>
         one.kind === "upper" ||
         one.kind === "lower" ||
-        one.kind === "edge" ||
-        one.kind === "level"
+        one.kind === "level" ||
+        (one.kind === "edge" && preview.direction === "short")
     )
     if (inRange.length === 0) return null
     const top = yPinned(
@@ -416,8 +420,8 @@ export const GridLayer = React.memo(function GridLayer({
       ) : null}
       {previewDrawn?.map((one) => {
         // The range's winning edge is not drawn: a line past rung 1 with no
-        // name confused more than it explained (Tyler, 3 Sep 2026). The band
-        // still reaches it, and the drag maths still uses it.
+        // name confused more than it explained (Tyler, 3 Sep 2026). The drag
+        // maths still uses it. A buying preview's band stops at the real rungs.
         if (one === null || one.line.kind === "edge") return null
         const { line, index, y, look, draggable } = one
         return (
@@ -569,6 +573,30 @@ function levelTitle(
   return `Waiting to ${opens} ${price}. When it fills, a ${closes} goes on one step ${exitWay} — and when THAT fills, this ${opens} comes back at ${price}.`
 }
 
+/**
+ * The money one level puts on its own line.
+ *
+ * A level that has bought shows what it is HOLDING at its own price. A level
+ * still waiting shows the stake it will put in when it fills. `heldSz` and
+ * `sz` are deliberately different numbers — `grid.ts` keeps them apart so a
+ * part-filled sell shrinks what is left to sell without shrinking what the
+ * next cycle may spend — so reading the wrong one is silent and wrong, not a
+ * type error.
+ *
+ * Every line on the drawing reads this one function: the range rungs, a rung
+ * carried from an older range, and the moving preview. It exists because they
+ * did not. Until 3 Sep 2026 the range rungs used `sz` while the carried rung
+ * and the preview used `heldSz`, so on a KuCoin BR grid one rung holding 149
+ * coins printed $13.94, the stake of the 44 it was planned with, beside a
+ * carried rung printing the $105 it really held. One pill cannot mean
+ * "holding" on one line and "planned" on the next.
+ */
+function levelUsd(level: GridLevelState): number {
+  return level.status === "holding"
+    ? level.buyPx * level.heldSz
+    : level.buyPx * level.sz
+}
+
 function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
   const at = new Map<string, AtPrice>()
   const slot = (px: number): AtPrice => {
@@ -594,12 +622,12 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     if (level.status === "waiting") {
       const one = slot(level.buyPx)
       one.entry = index
-      one.usd = level.buyPx * level.sz
+      one.usd = levelUsd(level)
       if (level.dead) one.dead = true
     } else {
       const one = slot(level.buyPx)
       one.holding = index
-      one.usd = level.buyPx * level.sz
+      one.usd = levelUsd(level)
     }
   }
   for (const level of plan.carriedLevels) {
@@ -607,7 +635,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     const one = slot(level.buyPx)
     one.holding = -1
     one.carried = true
-    one.usd += level.buyPx * level.heldSz
+    one.usd += levelUsd(level)
   }
   // The ends of the range are not separate things to draw. One of them IS the
   // deepest level's own price — the bottom on a buying grid, the top on a
@@ -1038,6 +1066,10 @@ function GridLines({
         ? level
         : best
   )
+  const drawRungOneExit =
+    direction === "long" &&
+    nearSaved.status === "holding" &&
+    nearSaved.heldSz > 0
   // `gridLevels` hands the moving levels back lowest price first.
   const nearIndex = direction === "long" ? levelCount - 1 : 0
   const nearLevel =
@@ -1127,6 +1159,11 @@ function GridLines({
   // its bar goes to the LEFT of the rung's furniture instead of on top of it.
   const upperY = pinUpper?.y ?? null
   const lowerY = pinLower?.y ?? null
+  // Before rung 1 buys, the buying grid has no order at its winning edge. End
+  // the shade at rung 1 so the empty strip above it cannot look like another
+  // rung. Once rung 1 is open, the band reaches its real sell and move-up line.
+  const drawnBandTop =
+    direction === "long" && !drawRungOneExit ? upperY : bandTop
   const stopOnRow = sharesRow(stopY, lowerY)
     ? "lower"
     : sharesRow(stopY, upperY)
@@ -1157,22 +1194,39 @@ function GridLines({
         title={endTitle}
       />
     ) : null
-  // One money column for the whole grid, as wide as its widest chip.
-  const usdSlot = Math.max(
-    0,
-    ...prices.map((at) => usdChipWidth(at.usd)),
-    ...(movingLevels
-      ? plan.levels
-          .filter((level) => level.status === "holding")
-          .map((level) => usdChipWidth(level.buyPx * level.heldSz))
-      : [])
-  )
+  // One money column for the whole grid, as wide as its widest chip. Every
+  // line's figure comes from `prices`, including the ones drawn while the
+  // range moves, so the column keeps one width from the first pixel of a drag
+  // to the last.
+  const usdSlot = Math.max(0, ...prices.map((at) => usdChipWidth(at.usd)))
   const sharedChips = (row: "upper" | "lower") => (
     <>
       {endOnRow === row ? endChip : null}
       {stopOnRow === row ? stopChip : null}
     </>
   )
+
+  /**
+   * The rungs drawn as plain lines while the range is moving: the ones between
+   * the two named ends.
+   *
+   * The named lines are drawn separately, and while the range moves they land
+   * on a rung's own price — rung 1's, and the deepest rung's, which IS the
+   * losing edge. Drawing those two here as well would stack a second line and
+   * a second money chip on the same row. A level called off by hand is left
+   * out for the same reason it is when the range is still: it is gone for
+   * good.
+   */
+  const movingMiddles =
+    movingLevels?.flatMap((level, index) => {
+      const saved = plan.levels[index]
+      if (saved.status === "cancelled") return []
+      const holding = saved.status === "holding"
+      const px = holding ? saved.buyPx : level.buyPx
+      const key = priceKey(px)
+      if (key === priceKey(upperPx) || key === priceKey(lowerPx)) return []
+      return [{ key: `moving-${index}`, px, saved, holding }]
+    }) ?? null
 
   /**
    * Where the grip and the badge go: the middle between UPPER PRICE and LOWER
@@ -1184,14 +1238,8 @@ function GridLines({
     upperY !== null && lowerY !== null ? (upperY + lowerY) / 2 : null
   const knobRow = (() => {
     if (badgeY === null) return null
-    const lines = movingLevels
-      ? movingLevels.map((level, index) => {
-          const saved = plan.levels[index]
-          return {
-            key: `moving-${index}`,
-            y: yFor(saved.status === "holding" ? saved.buyPx : level.buyPx),
-          }
-        })
+    const lines = movingMiddles
+      ? movingMiddles.map((one) => ({ key: one.key, y: yFor(one.px) }))
       : prices
           .filter((at) => at !== deepLevel && at !== nearLevel)
           .map((at) => ({ key: priceKey(at.px), y: yFor(at.px) }))
@@ -1284,13 +1332,15 @@ function GridLines({
           does not exist. A band has no line to collide with, and it says the
           thing the edges were there to say much better: this is the stretch of
           chart the grid works in. */}
-      {bandTop !== null && bandBottom !== null && bandBottom > bandTop ? (
+      {drawnBandTop !== null &&
+      bandBottom !== null &&
+      bandBottom > drawnBandTop ? (
         <>
           <div
             className="absolute inset-x-0"
             style={{
-              top: bandTop,
-              height: bandBottom - bandTop,
+              top: drawnBandTop,
+              height: bandBottom - drawnBandTop,
               backgroundColor: rangeColour,
               opacity: dragging ? 0.1 : 0.05,
             }}
@@ -1307,20 +1357,22 @@ function GridLines({
           Green where the grid buys, red where it sells — the two things you
           actually want to tell apart at a glance. */}
       {/* While the range is moving, the levels it WOULD have — plain lines with
-          a price, since they are not yet anything to cancel. */}
-      {movingLevels?.map((level, index) => {
-        const saved = plan.levels[index]
-        const holding = saved.status === "holding"
-        const px = holding ? saved.buyPx : level.buyPx
+          their money, since they are not yet anything to cancel. */}
+      {movingMiddles?.map(({ key, px, saved, holding }) => {
         const y = yFor(px)
         if (y === null) return null
         return (
           <ChartLine
-            key={`moving-${index}`}
+            key={key}
             y={y}
             usdSlot={usdSlot}
-            nameNode={knobRow === `moving-${index}` ? optionsBar : undefined}
-            usd={holding ? saved.buyPx * saved.heldSz : undefined}
+            nameNode={knobRow === key ? optionsBar : undefined}
+            // What a rung puts in is its share of the account, set by Share of
+            // account and the split. The price decides how many coins that
+            // buys, never how many dollars, so the figure holds still while
+            // the range is dragged. Blanking it left every waiting rung
+            // looking empty mid-drag (Tyler, 4 Sep 2026).
+            usd={levelUsd(saved)}
             colour={sideColour(
               holding ? exitSide(direction) : entrySide(direction)
             )}
@@ -1360,6 +1412,25 @@ function GridLines({
             />
           )
         })}
+
+      {drawRungOneExit && pinTop ? (
+        <ChartLine
+          y={pinTop.y}
+          usdSlot={usdSlot}
+          colour={sideColour("sell")}
+          name={null}
+          nameNode={
+            <NameChip
+              colour={sideColour("sell")}
+              name="Rung 1 exit and move up"
+              className="w-auto shrink-0 whitespace-nowrap"
+              title="Rung 1 sells here. Once it sells, the grid moves up."
+            />
+          }
+          dashed={pinTop.off !== null}
+          title="Rung 1 sells here. Once it sells, the grid moves up."
+        />
+      ) : null}
 
       {/* The two named rungs. One open level stays fixed while these
           compress or expand the other prices around it. */}
@@ -1458,7 +1529,8 @@ function lineLook(
       dashed: false,
     }
   }
-  // The range's winning edge, one step past rung 1. A line and nothing else.
+  // The preview's winning edge stays unnamed. The placed grid decides whether
+  // to show that line from rung 1's live state.
   if (kind === "edge") {
     return { colour: rangeColour, name: null, dashed: false }
   }
@@ -1493,10 +1565,11 @@ function lineLook(
  * read. What a level puts in, in dollars, is a fact the axis cannot give you,
  * so that badge stays.
  *
- * Only the four lines you set get a name; the levels in between are just a
- * line, because a dozen labelled ones is a wall of text over the price action.
- * UPPER PRICE and LOWER PRICE sit on the first and last rung, so those two
- * lines carry a name AND the rung's money and ×.
+ * The four lines you set get a name. A buying grid adds Rung 1's exit name
+ * while Rung 1 holds coins. The levels in between stay unnamed, because a
+ * dozen labelled ones is a wall of text over the price action. UPPER PRICE and
+ * LOWER PRICE sit on the first and last rung, so those two lines carry a name
+ * AND the rung's money and ×.
  */
 function ChartLine({
   y,
@@ -1618,26 +1691,28 @@ function usdChipWidth(usd: number): number {
 function NameChip({
   colour,
   name,
+  className,
   grip,
   onGripDown,
   title,
 }: {
   colour: string
   name: string
+  className?: string
   grip?: boolean
   onGripDown?: (event: React.PointerEvent) => void
   title?: string
 }) {
   return (
     <span
-      // One width for every bar — Tyler, 3 Sep 2026 — so UPPER PRICE, LOWER
-      // PRICE, END GRID and SL all start and end on the same x. A name
-      // longer than the bar is cut short with an ellipsis rather than
-      // widening it.
+      // One width for the four bars Tyler sets, so UPPER PRICE, LOWER PRICE,
+      // END GRID and SL all start and end on the same x. Rung 1's conditional
+      // exit passes its own width so its instruction is never cut short.
       className={cn(
         BAR_WIDTH,
         "flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-xs font-semibold select-none",
-        grip && "cursor-ns-resize"
+        grip && "cursor-ns-resize",
+        className
       )}
       style={{
         borderColor: colour,

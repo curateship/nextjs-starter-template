@@ -61,10 +61,13 @@ screen: anything not written there has not been agreed yet.
 
 - `drawing.md` — the paint tools, by mouse and by touch.
 - `smart-tools.md` — alerts carried by drawn lines: the cog, the alert
-  window, and what fires it.
+  window, every way into it without a mouse, naming a line, the bell and the
+  dot on the chart, what fires it, the percentage past the line it waits for,
+  and the master switch that pauses the lot.
 - `indicators.md` — the indicator list and how each one draws.
 - `orders-on-the-chart.md` — dragging orders on the chart, buying more, selling
-  part, leverage, and which chart line wins an overlap.
+  part, leverage, the one rule for the money beside each grid line, and which
+  chart line wins an overlap.
 - `timezone.md` — the one clock the chart is on, where it is set, and why it is
   stored as a place rather than as an offset.
 - `loading.md` — which candles arrive with a dashboard, when a chart asks on
@@ -94,10 +97,16 @@ screen: anything not written there has not been agreed yet.
 - `grid-above-ladder.md` — the one allowed pairing of two smart orders on a
   coin: a grid working a range above a DCA ladder, the grid's own fixed-size
   stop, and every reason the pairing is refused.
-- `watched-orders.md` — how a plain order works now, and what dragging does.
+- `watched-orders.md` — how a plain order works now, what dragging does, why
+  adding to a position starts working at once instead of waiting at a level,
+  and how the chase follows a market that walks away.
+- `orders-you-cannot-afford.md` — why an order placed by hand is refused when
+  the wallet does not hold the margin, which orders that applies to, and how a
+  fill smaller than the ask says so.
 - `position-protection.md` — the stop and target riding on an open position:
   how a position ends up carrying spares, why replacing one takes every leg
-  off, and how replacement prices stay on the market's legal steps.
+  off, how a stop you move by hand is written onto the smart order working that
+  coin, and how replacement prices stay on the market's legal steps.
 - `take-profit-levels.md` — how one position banks profit at up to three fixed
   prices, and how the app replaces, reads and fills those targets safely.
 - `part-close.md` — selling some of a position instead of all of it: why a part
@@ -150,6 +159,11 @@ screen: anything not written there has not been agreed yet.
   each one asks for.
 - `kucoin.md` — which KuCoin stop rows count as open, the refusal codes seen
   locally and the published order families Trade translates.
+- `solana.md` — Solana as a network the app holds a wallet on: why it is spot
+  only, what the node and Jupiter each do, the three `.env` settings, why
+  there is no practice network, the wallet rule, what a wallet looks like
+  before its holdings can be read, the market list and its measured counts,
+  the lookup for a coin outside the list, and the sixty-a-minute budget.
 
 ## backtests/
 

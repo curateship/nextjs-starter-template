@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { type CustomShellDb } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
+import type { GridPlan } from "@/lib/trade/grid"
 import { snapToTick } from "@/lib/protocols/tick"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
@@ -15,6 +16,9 @@ import {
   setLiveBrackets,
 } from "@/server/trade/live-orders"
 import { loadLiveRefusals } from "@/server/trade/live-fills"
+import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
+import { setBracketsByHand } from "@/server/trade/hand-brackets"
+import { findWallet } from "@/server/trade/wallets"
 import { randomUUID } from "node:crypto"
 import {
   tradeLiveFills,
@@ -34,6 +38,7 @@ const fills = vi.fn()
 const setBrackets = vi.fn()
 const portfolio = vi.fn()
 const actionPortfolio = vi.fn()
+const accountFetch = vi.fn()
 let marketFloor: number | null = null
 let marketMinSize: number | null = null
 let marketTick: number | null = null
@@ -76,8 +81,14 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
             tick: number | null
           ) => snapToTick(px, tick),
         },
-        account: actual.account?.portfolio
-          ? { ...actual.account, portfolio: actionPortfolio }
+        account: actual.account
+          ? {
+              ...actual.account,
+              fetch: accountFetch,
+              ...(actual.account.portfolio
+                ? { portfolio: actionPortfolio }
+                : {}),
+            }
           : undefined,
         orders: { place, cancel, close, fills, setBrackets, portfolio },
       }
@@ -106,9 +117,23 @@ beforeEach(async () => {
     setBrackets,
     portfolio,
     actionPortfolio,
+    accountFetch,
   ]) {
     mock.mockReset()
   }
+  // The affordability check shares the engine's five-second account answer, so
+  // one test's wallet must not answer for the next one's.
+  dropEngineExchangeReads({
+    protocol: "hyperliquid",
+    network: "mainnet",
+    address: ADDRESS,
+  })
+  accountFetch.mockResolvedValue({
+    equity: 100_000,
+    free: 100_000,
+    inTrades: 0,
+    openProfit: 0,
+  })
   prices.mockResolvedValue(new Map([["BTC", 100_000]]))
   marketFloor = null
   marketMinSize = null
@@ -178,6 +203,115 @@ async function journalRows(userId: string) {
 }
 
 describe("the rails around placing", () => {
+  describe("money the wallet does not have", () => {
+    it("refuses an order by hand that the wallet cannot pay for, and names both figures", async () => {
+      // Tyler, 3 Sep 2026: "If I have $10 left and I enter a position for
+      // $100. It still lets me enter but it only order $1." Hyperliquid fills
+      // what the margin reaches and calls it filled, so the refusal has to be
+      // ours and it has to happen before anything is signed.
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      accountFetch.mockResolvedValue({
+        equity: 10,
+        free: 10,
+        inTrades: 0,
+        openProfit: 0,
+      })
+
+      // Half a Bitcoin at the $90,000 asked is $45,000 of coin; at 5x that is
+      // $9,000 of margin against $10 free.
+      await expect(
+        placeLiveOrder(userId, { ...orderInput(walletId), byHand: true })
+      ).rejects.toThrow(
+        /This order needs \$9,000\.00 and Live has \$10\.00 free/
+      )
+      expect(place).not.toHaveBeenCalled()
+
+      const refusals = (await journalRows(userId)).filter(
+        (row) => row.action === "refused"
+      )
+      expect(refusals).toHaveLength(1)
+      expect(refusals[0].note).toContain("$10.00 free")
+    })
+
+    it("lets the same order through when the margin is covered", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      accountFetch.mockResolvedValue({
+        equity: 10_000,
+        free: 10_000,
+        inTrades: 0,
+        openProfit: 0,
+      })
+
+      await placeLiveOrder(userId, { ...orderInput(walletId), byHand: true })
+      expect(place).toHaveBeenCalled()
+    })
+
+    it("never refuses a closing order, which needs no margin at all", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      accountFetch.mockResolvedValue({
+        equity: 0,
+        free: 0,
+        inTrades: 0,
+        openProfit: 0,
+      })
+
+      await placeLiveOrder(userId, {
+        ...orderInput(walletId),
+        side: "sell",
+        px: 110_000,
+        reduceOnly: true,
+        byHand: true,
+      })
+      expect(place).toHaveBeenCalled()
+    })
+
+    it("leaves the engine's own orders alone — they wait rather than refuse", async () => {
+      // A rung, a grid level and a watched price each have their own
+      // affordability rule that keeps them waiting. A refusal here would turn
+      // a patient level into a failed one.
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      accountFetch.mockResolvedValue({
+        equity: 10,
+        free: 10,
+        inTrades: 0,
+        openProfit: 0,
+      })
+
+      await placeLiveOrder(userId, orderInput(walletId))
+      expect(place).toHaveBeenCalled()
+    })
+
+    it("says how much of the ask was really filled", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      place.mockResolvedValue({
+        status: "filled",
+        orderId: "77",
+        avgPx: 100_000,
+        // A tenth of the half-Bitcoin asked for.
+        filledSz: 0.05,
+        protection: null,
+        protectionNote: null,
+      })
+
+      await placeLiveOrder(userId, {
+        ...orderInput(walletId),
+        px: 110_000,
+        byHand: true,
+      })
+      await vi.waitFor(async () => {
+        const fill = (await journalRows(userId)).find(
+          (row) => row.action === "fill"
+        )
+        expect(fill?.note).toBe("Filled $5,000.00 of the $50,000.00 asked for.")
+      })
+    })
+  })
+
   it("refuses a new order from an inactive wallet", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId, { status: "inactive" })
@@ -1245,5 +1379,125 @@ describe("a guarded smart-order market fire", () => {
     // This is the caller's cue to put the smart order back to waiting, not a
     // venue refusal to record in the journal.
     expect(await journalRows(userId)).toEqual([])
+  })
+})
+
+describe("a stop set by hand", () => {
+  /** A grid whose stop follows the range, holding one Bitcoin. */
+  async function gridHolding(userId: string, walletId: string) {
+    const level = (buyPx: number) => ({
+      buyPx,
+      sellPx: buyPx * 1.02,
+      sz: 0.2,
+      budget: buyPx * 0.2,
+      heldSz: 0.2,
+      status: "holding" as const,
+      armed: true,
+      dead: false,
+      cycles: 0,
+    })
+    const plan = readSmartPlan("grid", {
+      topPx: 100_000,
+      bottomPx: 95_000,
+      potPct: 20,
+      startedAt: 1,
+      sizeDecimals: 3,
+      maxLeverage: 20,
+      levels: [level(95_000), level(96_000)],
+      stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
+      aimedSlPx: 90_250,
+    })
+    if (!plan) throw new Error("the test's grid plan did not parse")
+    const id = crypto.randomUUID()
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id,
+      walletId,
+      marketKey: MARKET,
+      kind: "grid",
+      status: "active",
+      plan,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 96_000,
+          leverage: 5,
+          marginUsed: 19_200,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: 90_250,
+          tpOrderId: null,
+          slOrderId: "old-stop",
+          protectionOrderIds: ["old-stop"],
+        },
+      ],
+      orders: [],
+    })
+    return id
+  }
+
+  async function gridPlan(id: string) {
+    const rows = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, id))
+    return rows[0].plan as GridPlan
+  }
+
+  it("writes the dragged price onto the grid, so the engine has nothing to put back", async () => {
+    // The bug: the drag told only the exchange, so the grid found a stop it
+    // had not placed and guessed. A guess made from a reading a few seconds
+    // old cancelled the dragged stop and re-placed the grid's own price,
+    // five seconds later, four times on the evening of 3 Sep 2026.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const id = await gridHolding(userId, walletId)
+    const wallet = await findWallet(userId, walletId)
+    if (!wallet) throw new Error("no wallet")
+
+    await setBracketsByHand(userId, wallet, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 88_000,
+    })
+
+    const plan = await gridPlan(id)
+    expect(plan.stopLoss).toMatchObject({ mode: "fixed", px: 88_000 })
+    expect(plan.aimedSlPx).toBe(88_000)
+    expect(plan.handSetAt).not.toBeNull()
+    expect(setBrackets).toHaveBeenCalled()
+  })
+
+  it("leaves the grid following the range when the stop did not actually move", async () => {
+    // Dragging a take-profit sends the stop back beside it, unchanged.
+    // Freezing the grid's stop on the strength of that would stop it
+    // following the range for a move nobody made.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const id = await gridHolding(userId, walletId)
+    const wallet = await findWallet(userId, walletId)
+    if (!wallet) throw new Error("no wallet")
+
+    await setBracketsByHand(userId, wallet, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 90_250,
+    })
+
+    const plan = await gridPlan(id)
+    expect(plan.stopLoss).toMatchObject({ mode: "percent", px: null })
+    expect(plan.aimedSlPx).toBe(90_250)
+    // The wait still applies: the readings the engine holds are just as old
+    // whichever line was dragged.
+    expect(plan.handSetAt).not.toBeNull()
   })
 })

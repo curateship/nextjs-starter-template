@@ -56,6 +56,8 @@ const createWalletSchema = z
     agentKey: credentialFieldSchema.optional(),
     secret: credentialFieldSchema.optional(),
     passphrase: credentialFieldSchema.optional(),
+    /** Have the exchange make the wallet; no address or key is sent. */
+    makeWallet: z.boolean().optional(),
   })
   // The per-kind requirements are enforced again in the store; checking here
   // too means a half-filled form is refused before it costs a round trip.
@@ -65,6 +67,7 @@ const createWalletSchema = z
   .refine(
     (input) =>
       input.kind !== "live" ||
+      input.makeWallet ||
       (input.address && (input.agentKey || input.secret)),
     { message: "WALLET_CREDENTIALS_REQUIRED" }
   )
@@ -183,6 +186,8 @@ const baseWalletErrorMessage = createErrorMessage(
       "That exchange does not run this network, so the wallet was not saved.",
     WALLET_ADDRESS_SHAPE:
       "That does not look like this exchange's identifier — check it against the hint under the field.",
+    WALLET_MAKE_UNSUPPORTED:
+      "This exchange cannot make a wallet for you. Paste one instead.",
     KEY_REQUIRED: "Paste the key before saving.",
     KEY_SECRET_REQUIRED: "Paste the API secret before saving.",
     KEY_PASSPHRASE_REQUIRED:

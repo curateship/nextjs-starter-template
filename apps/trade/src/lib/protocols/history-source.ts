@@ -60,6 +60,11 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
       )
     case "phemex":
       return coinSource(ref.marketId.replace(/USDT$/, ""))
+    case "solana":
+      // A Solana market id is the coin's mint address, not a name, and the
+      // same ticker can belong to two different mints. Nothing is guessed:
+      // the chart task decides which coins map to Binance, by symbol.
+      return null
   }
 }
 

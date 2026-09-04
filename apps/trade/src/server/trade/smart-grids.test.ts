@@ -16,7 +16,10 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import type { WalletBook } from "@/server/trade/paper-replay"
-import type { LadderEngineDeps } from "@/server/trade/smart-engine"
+import {
+  HAND_PROTECTION_QUIET_MS,
+  type LadderEngineDeps,
+} from "@/server/trade/smart-engine"
 import {
   advanceGrid,
   resetGridPositionGoneMemory,
@@ -796,6 +799,58 @@ describe("the stop", () => {
     expect((await positions())[0].slPx).toBeCloseTo(76, 9)
     expect(grid.plan.aimedSlPx).toBeCloseTo(76, 9)
     expect(grid.plan.stopLoss?.px ?? 76).toBeCloseTo(76, 9)
+  })
+
+  it("leaves a stop a hand has just set alone, then follows its own rule again", async () => {
+    // The bug this exists for: a stop dragged on the chart was cancelled five
+    // seconds later and the grid's own price put back. The engine had read the
+    // exchange before the drag, and neither an old reading nor a reading taken
+    // mid-replacement can be told apart from a stop that was never moved.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await priceTo(109)
+    const before = await onlyGrid()
+    expect(before.plan.aimedSlPx).toBeCloseTo(76, 9)
+
+    // The drag: the exchange has the hand's price, the plan was told, and the
+    // moment is written down. What the engine reads next is the stale answer —
+    // no stop at all, which is what the live reads were showing.
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: {
+          ...before.plan,
+          aimedSlPx: 70,
+          stopLoss: { underPct: 5, base: null, mode: "fixed", px: 70 },
+          handSetAt: Date.now(),
+        },
+      })
+      .where(eq(tradeSmartLadders.userId, userId))
+    await database
+      .update(tradePaperPositions)
+      .set({ slPx: null })
+      .where(eq(tradePaperPositions.userId, userId))
+    await priceTo(108)
+
+    const held = await onlyGrid()
+    expect(held.plan.stopLoss?.px).toBeCloseTo(70, 9)
+    expect(held.plan.aimedSlPx).toBeCloseTo(70, 9)
+    expect((await positions())[0].slPx).toBeNull()
+
+    // Once the wait is over the grid manages the stop again, and a position
+    // showing none gets the hand's price put back on it — not the grid's old
+    // one, because the hand's price is what the plan now says.
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: {
+          ...held.plan,
+          handSetAt: Date.now() - HAND_PROTECTION_QUIET_MS - 1_000,
+        },
+      })
+      .where(eq(tradeSmartLadders.userId, userId))
+    await priceTo(107)
+
+    expect((await positions())[0].slPx).toBeCloseTo(70, 9)
   })
 
   it("heals a grid saved with a frozen stop and no price", async () => {
@@ -2034,6 +2089,37 @@ describe("a grid that sells first", () => {
     // Existing shorts still buy back when price returns through their exits.
     await priceTo(30)
     expect(await positions()).toHaveLength(0)
+  })
+
+  it("keeps the complete pot when hand-set weights do not add to 100", async () => {
+    // BR's 10 / 15 / 20 split exposed the missing normalization here. The
+    // numbers are relative weights, so they still divide one complete pot
+    // when a selling grid follows price up.
+    await priceTo(70)
+    await placeShort({
+      levels: 3,
+      potPct: 0.5,
+      follow: true,
+      manualSizing: true,
+      manualRungPcts: [20, 15, 10],
+    })
+    const before = await onlyGrid()
+    const potBefore = before.plan.levels.reduce(
+      (sum, level) => sum + level.budget,
+      0
+    )
+    expect(before.plan.manualRungPcts).toEqual([10, 15, 20])
+
+    await priceTo(121)
+
+    const followed = await onlyGrid()
+    const potAfter = followed.plan.levels.reduce(
+      (sum, level) => sum + level.budget,
+      0
+    )
+    expect(followed.plan.paused).not.toBe(true)
+    expect(followed.plan.downShifts).toBe(1)
+    expect(potAfter).toBeCloseTo(potBefore, 0)
   })
 
   it("makes a level wait for a one percent FALL after a nearby buy-back", async () => {

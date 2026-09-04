@@ -4,6 +4,7 @@ import type {
   CredentialForm,
   FundingRate,
   MarketCatalog,
+  MarketRow,
   NetworkId,
   OrderAuth,
   PlaceOrderOutcome,
@@ -208,6 +209,17 @@ import {
   setLighterBrackets,
   setLighterLeverage,
 } from "@/server/protocols/lighter/orders"
+import {
+  fetchSolanaMarkets,
+  fetchSolanaPrices,
+  searchSolanaMarkets,
+  solanaCandlesNotBuilt,
+} from "@/server/protocols/solana/markets"
+import {
+  makeSolanaWallet,
+  packSolanaCredential,
+  verifySolanaWallet,
+} from "@/server/protocols/solana/wallet"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -321,6 +333,13 @@ export type ProtocolEntry = {
      * prices layer never rations.
      */
     pricesWereRationed?(network: NetworkId, marketId: string): boolean
+    /**
+     * A market that is not in the list, found by name or address. Present on
+     * an open network whose coins outnumber any list (Solana); absent where
+     * `fetch` is the whole catalogue. `picker.search` on the catalogue is the
+     * flag the screen reads.
+     */
+    search?(network: NetworkId, query: string): Promise<MarketRow[]>
   }
   /**
    * The pushed-price line the trading engine reads instead of asking — one
@@ -429,9 +448,12 @@ export type ProtocolEntry = {
     }>
   }
   /**
-   * How this exchange's sign-in fields are drawn and packed. Present exactly
-   * where `account` is — a venue that cannot hold an account has nothing to
-   * sign in to.
+   * How this exchange's sign-in fields are drawn and packed. Present wherever
+   * a wallet can be added: every venue with `account`, and a chain wallet
+   * (Solana) before its holdings can be read, so it can be made and funded
+   * first. A venue that cannot hold an account at all has nothing to sign
+   * in to and no block here. Wherever this is, `agent` is too — nothing is
+   * stored unproven.
    */
   credentials?: {
     /** The dialog's labels, patterns and help copy, as data. */
@@ -449,6 +471,13 @@ export type ProtocolEntry = {
       secret?: string
       passphrase?: string
     }): string
+    /**
+     * A fresh wallet made here on the server, on a chain where a wallet is
+     * just a keypair. The secret goes straight through `pack` into the
+     * store's encrypt step; only the address ever reaches the browser.
+     * Present exactly where `form.canMakeWallet` is true.
+     */
+    make?(): { address: string; secret: string }
   }
   /**
    * Absent on an exchange that cannot place one. See `account` above.
@@ -976,6 +1005,45 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       volumeNote: "Dukascopy volume",
       prices: fetchDukascopyPrices,
       roundPx: roundDukascopyPx,
+    },
+  },
+  /**
+   * Markets and a wallet, no chart and no orders — yet.
+   *
+   * Solana is a chain, not an exchange: the app holds its own wallet, reads
+   * the chain through a node, and will buy and sell through Jupiter, the
+   * swap router. Spot only, so there is no leverage, short side, funding or
+   * liquidation anywhere in this entry, and there never will be.
+   *
+   * The market list and prices come from Jupiter's token API, and a coin
+   * outside the list can be found by name or address (`search`). Candles
+   * arrive with the chart task and refuse in plain words until then.
+   * `account` and `orders` are absent — an absent block is how this app
+   * says "cannot" — which is why this is the one venue with `credentials`
+   * and no `account`: the wallet exists so it can be made and funded before
+   * the holdings task teaches the app to read it.
+   *
+   * Mainnet only. Solana's devnet has a faucet but Jupiter cannot swap on
+   * it, so there is no practice network to list.
+   */
+  solana: {
+    ...protocolCore("solana"),
+    markets: {
+      fetch: fetchSolanaMarkets,
+      candles: solanaCandlesNotBuilt,
+      history: solanaCandlesNotBuilt,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchSolanaPrices,
+      // A swap has no price grid; `priceTick` is null on every row, and the
+      // shared rounding leaves such a price alone.
+      roundPx: roundToTick,
+      search: searchSolanaMarkets,
+    },
+    agent: { verify: verifySolanaWallet },
+    credentials: {
+      form: protocolDescription("solana").credentialForm!,
+      pack: packSolanaCredential,
+      make: makeSolanaWallet,
     },
   },
 }

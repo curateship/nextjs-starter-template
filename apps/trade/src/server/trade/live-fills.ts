@@ -27,7 +27,11 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { db } from "@/server/db"
-import { getProtocol, ordersOf } from "@/server/protocols/registry"
+import {
+  getProtocol,
+  ordersOf,
+  pricesEverySale,
+} from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
 import {
   bumpTradeHistory,
@@ -447,15 +451,22 @@ function groupFillNoticePieces(
  * (entry − buy-back price) × size, so the entry is the price less or plus the
  * money per coin.
  *
- * Null on KuCoin, whose closed money is the whole position's, landed on the
- * last fill of that market — the arithmetic above only holds when the money
- * belongs to the very fill it sits on.
+ * **Null on an exchange that does not price every sale.** The arithmetic only
+ * holds when the money belongs to the very fill it sits on. KuCoin and
+ * Lighter pay out the whole position's figure and land it on one fill, so an
+ * entry worked back from it would be a number nobody can check.
+ *
+ * Asked of the exchange's own entry rather than by name. Which venues those
+ * are is the exchange's fact, written once beside it, and
+ * `fence.test.ts` fails any shared file that asks which exchange it holds.
  */
 function averageEntryOf(
   protocol: TradeWallet["protocol"],
   fill: Pick<WalletOrderFill, "side" | "px" | "sz" | "closedPnl">
 ): number | null {
-  if (protocol === "kucoin" || fill.sz <= 0 || fill.closedPnl === 0) return null
+  if (!pricesEverySale(protocol) || fill.sz <= 0 || fill.closedPnl === 0) {
+    return null
+  }
   const perCoin = fill.closedPnl / fill.sz
   const entry = fill.side === "sell" ? fill.px - perCoin : fill.px + perCoin
   return Number.isFinite(entry) && entry > 0 ? entry : null

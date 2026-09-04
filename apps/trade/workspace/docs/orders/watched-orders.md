@@ -90,6 +90,37 @@ When the market reaches a watched buy:
    to the position the moment it opens. Either line can travel without the
    other.
 
+### Adding to a position starts at once
+
+Adding to a position picks no level. The window opens at whatever price the
+chart happened to be showing, so waiting there means waiting for the market to
+come back to a price it may have left while a size was being typed. Buy more
+therefore skips the wait entirely: the order goes straight into the post-only
+chase at today's price.
+
+- Nothing about it is a market order and it pays no spread. The chase still
+  rests just off the price and follows it, which is the rule for everything
+  this app sends.
+- Before this, adding to a position on a market that had moved sat waiting for
+  a price behind it. Tyler, 3 Sep 2026: "Hyperliquid takes about 2 minutes to
+  execute when adding more to position."
+- A Long or a Short is unchanged. Those are placed at a level somebody chose on
+  the chart, and waiting at that level is the whole point of them.
+
+### The chase follows a market that walks away
+
+The chase rests the order a fifth of a tenth of a percent behind the price and
+moves it only once the price it wants is a tenth of a percent away. Those two
+numbers together mean a market drifting slowly in one direction leaves the
+order permanently just out of reach: it never quite fills, and then fills all
+at once when price comes back. That is the "it got stuck and went a few minutes
+later" shape.
+
+An order that has rested a whole minute without filling now follows the price
+on any difference at all. The ten-second wait between moves still applies, so
+this costs at most one extra cancel-and-place a minute for a wallet — two of
+Hyperliquid's sixty order calls a minute.
+
 A watched Long or Short always enters through this post-only chase. The side of
 the level decides what the touch means: a Long or Short placed above the market
 waits for price to rise to it, and either one below waits for price to fall to

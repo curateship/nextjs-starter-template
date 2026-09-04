@@ -23,6 +23,7 @@ import {
   loadChartDrawings,
   saveChartDrawing,
   setChartDrawingAlert,
+  setChartDrawingAlertBuffer,
 } from "@/server/trade/drawings"
 import { saveLineAlertsPaused } from "@/server/trade/prefs"
 
@@ -261,15 +262,168 @@ describe("alerts on drawn lines", () => {
   })
 })
 
+describe("the break buffer", () => {
+  /** A level at $60,000 armed from below, so it waits for a rise. */
+  async function levelWaitingForARise(userId: string, buffer: number | null) {
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { kind: "level", price: 60_000 },
+    })
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 59_000 }, 1_000)
+    if (buffer !== null) await setChartDrawingAlertBuffer(userId, { id, buffer })
+    return id
+  }
+
+  const at = (mark: number) => () => ({
+    marks: new Map([[BTC, mark]]),
+    missing: [] as string[],
+  })
+
+  it("stays quiet until the price is that percentage past the line, then fires once", async () => {
+    const userId = await person()
+    // A tenth of a percent of $60,000 is $60, so it fires at $60,060.
+    await levelWaitingForARise(userId, 0.1)
+
+    // Past the line, but a wick that only kisses it is not a break.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(60_030),
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(0)
+    expect(await database.select().from(customShellNotifications)).toEqual([])
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(60_060),
+        checkedAt: new Date(3_000),
+        database,
+      })
+    ).toBe(1)
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(60_060),
+        checkedAt: new Date(4_000),
+        database,
+      })
+    ).toBe(0)
+
+    const notices = await database.select().from(customShellAnnouncements)
+    // The title names the line, which is the level somebody drew; the body
+    // says how far past it the price had to go.
+    expect(notices.map((notice) => notice.title)).toEqual([
+      "BTC crossed your level at $60,000 (was rising)",
+    ])
+    expect(notices[0]?.body).toContain("The price had to go 0.1% past the level.")
+  })
+
+  it("is the same instruction on a coin worth twenty cents", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { kind: "level", price: 0.21 },
+    })
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 0.2 }, 1_000)
+    await setChartDrawingAlertBuffer(userId, { id, buffer: 1 })
+
+    // One percent of twenty-one cents is a fifth of a cent, so it fires at
+    // $0.2121. A fixed number of dollars could never have been reached here.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(0.212),
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(0)
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(0.2121),
+        checkedAt: new Date(3_000),
+        database,
+      })
+    ).toBe(1)
+  })
+
+  it("takes the buffer off the other side when the alert waits for a fall", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { kind: "level", price: 60_000 },
+    })
+    // Armed from above, so it waits for a fall.
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 61_000 }, 1_000)
+    await setChartDrawingAlertBuffer(userId, { id, buffer: 0.1 })
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(59_970),
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(0)
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(59_940),
+        checkedAt: new Date(3_000),
+        database,
+      })
+    ).toBe(1)
+  })
+
+  it("fires at the line itself once the buffer is cleared", async () => {
+    const userId = await person()
+    const id = await levelWaitingForARise(userId, 0.1)
+    await setChartDrawingAlertBuffer(userId, { id, buffer: null })
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: at(60_010),
+        checkedAt: new Date(2_000),
+        database,
+      })
+    ).toBe(1)
+    const notices = await database.select().from(customShellAnnouncements)
+    expect(notices[0]?.body).not.toContain("past the level")
+  })
+
+  it("keeps the buffer when a fired line is switched on again", async () => {
+    const userId = await person()
+    const id = await levelWaitingForARise(userId, 0.1)
+    await checkDrawingAlerts({
+      pushedMarks: at(60_060),
+      checkedAt: new Date(2_000),
+      database,
+    })
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBe(2_000)
+
+    // The same watch carried on, so it waits the same $50 past the line.
+    const again = await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 59_000 },
+      3_000
+    )
+    expect(again.alert).toEqual({
+      direction: "above",
+      armedAt: 3_000,
+      firedAt: null,
+      buffer: 0.1,
+    })
+  })
+})
+
 describe("the master switch in Settings", () => {
-  it("rings nothing while paused, waits for the price to come back, then rings once", async () => {
+  it("fires nothing while paused, waits for the price to come back, then fires once", async () => {
     const userId = await person()
     const id = await armedLine(userId, 100)
     await saveLineAlertsPaused(userId, true, database)
     const silence = { marks: new Map([[BTC, 125]]), missing: [] }
 
     // At 2 seconds the line is at $120 and the price is $125: a cross, and
-    // nothing rings.
+    // nothing fires.
     expect(
       await checkDrawingAlerts({
         pushedMarks: () => silence,
@@ -307,7 +461,7 @@ describe("the master switch in Settings", () => {
     expect((await loadChartDrawings(userId, BTC))[0]?.id).toBe(id)
   })
 
-  it("leaves another account's lines ringing", async () => {
+  it("leaves another account's lines firing", async () => {
     const paused = await person()
     const watching = await person()
     await armedLine(paused, 100)

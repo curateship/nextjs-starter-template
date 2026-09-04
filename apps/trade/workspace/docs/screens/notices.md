@@ -94,9 +94,15 @@ near 0.16, and an exchange never pairs a sale with one particular buy. The
 notice now says the average entry beside the figure, so the number can be
 checked against the position row. The entry is worked back from the
 exchange's own two numbers (the fill's price and what it banked, per coin) in
-`averageEntryOf` in `src/server/trade/live-fills.ts`. KuCoin gets no entry,
-because its closed money is the whole position's landed on the last fill, and
-that arithmetic does not hold there.
+`averageEntryOf` in `src/server/trade/live-fills.ts`.
+
+**An exchange that does not price every sale gets no entry beside the money.**
+The arithmetic only holds when the money on a fill belongs to that fill.
+KuCoin and Lighter pay out the whole position's figure and land it on one
+sale, so an entry worked back from it would be a number nobody could check,
+and the notice stops at the dollars. The notice never asks which exchange it
+is holding: it asks whether that exchange prices every sale, which is written
+once beside the exchange itself in the registry.
 
 A ladder with twenty rungs filling in a cascade is still twenty notices. Each
 rung is its own order. Only the pieces of one rung's immediate execution share

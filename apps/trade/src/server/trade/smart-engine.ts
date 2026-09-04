@@ -288,6 +288,45 @@ export function makeFillClaimer(
  * A DCA ladder's stop is optional, so it keeps `"honour"`: clearing it by hand
  * is a choice the ladder respects.
  */
+/**
+ * How long the engine leaves one coin's stop and target alone after a hand has
+ * set them.
+ *
+ * **The hand-moved test compares two readings, and a reading can be old.** The
+ * engine holds a wallet's exchange answer for five seconds and the Hyperliquid
+ * adapter holds a portfolio for four, and on the live server the engine runs in
+ * a different container from the screen the drag happened on, so nothing the
+ * drag clears reaches it. A pass that read the exchange before the drag sees
+ * either the old stop or, mid-replacement, no stop at all — and both readings
+ * are answered by putting the plan's own stop back over the top of the one a
+ * hand just placed.
+ *
+ * Measured on the real account on 3 Sep 2026: every dragged stop on kSHIB, TAO
+ * and HYPE was cancelled five to six seconds later and the grid's own price
+ * re-placed, four times in one evening.
+ *
+ * Fifteen seconds because the readings it has to outlast add up to about nine —
+ * four for the venue's portfolio answer, five for the engine's hold — and the
+ * request that carries them takes the rest. The stop is on the exchange the
+ * whole time; what waits is only the engine's opinion about it.
+ */
+export const HAND_PROTECTION_QUIET_MS = 15_000
+
+/**
+ * Whether a hand set this coin's protection too recently for the engine to
+ * judge what it is looking at.
+ *
+ * Null means no hand ever has, which is every plan placed before the drag
+ * started writing it down.
+ */
+export function handProtectionSettling(
+  plan: { handSetAt?: number | null },
+  now: number
+): boolean {
+  const at = plan.handSetAt ?? null
+  return at !== null && now - at < HAND_PROTECTION_QUIET_MS
+}
+
 export function aimStop(
   aimed: { aimedSlPx: number | null },
   position: { slPx: number | null; updatedAt: number },

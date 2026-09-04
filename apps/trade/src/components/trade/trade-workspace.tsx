@@ -72,11 +72,16 @@ import {
   CANDLE_INTERVALS,
   marketSymbol,
   parseMarketKey,
+  protocolLabel,
   type CandleInterval,
   type MarketRow,
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
+import {
+  DashboardCardHeader,
+  dashboardCardHeadingClassName,
+} from "@/components/shared/dashboard-card-header"
 import type { TradePosition } from "@/lib/trade/paper"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
@@ -207,6 +212,7 @@ export function TradeWorkspace({
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
+  onSearchMarkets,
 }: {
   /**
    * The exchange this whole page belongs to — the route says which. Carried
@@ -254,6 +260,8 @@ export function TradeWorkspace({
   selectedKey: string | null
   onSelectMarket: (key: string) => void
   onRetryMarkets: () => void
+  /** The venue's lookup for a market outside the list, where it has one. */
+  onSearchMarkets?: (query: string) => Promise<MarketRow[]>
 }) {
   // Known before the first render on both sides, so the page opens in the
   // layout it is going to keep instead of painting the phone version and
@@ -1025,6 +1033,7 @@ export function TradeWorkspace({
           // stays one press away; less frequent choices share the three-dot
           // menu before the wallet. Full screen lives on the chart itself.
           note={olderBarsNote}
+          onSearchBeyond={onSearchMarkets}
           toolbar={
             <>
               <IntervalPicker value={interval} onChange={setInterval} />
@@ -1066,7 +1075,19 @@ export function TradeWorkspace({
               : () => setSideSheet({ side: "smart-orders", open: true })
           }
         />
-      ) : null}
+      ) : (
+        // No market on the chart yet — a fresh visit, or an exchange with no
+        // market list. The wallets still have to be reachable: on Solana a
+        // wallet is made and funded before the market list exists at all, and
+        // the wallet control lives in this row, so the row is drawn with the
+        // exchange's name where the market would be.
+        <DashboardCardHeader>
+          <span className={dashboardCardHeadingClassName}>
+            {protocolLabel(protocol)}
+          </span>
+          <div className="ml-auto shrink-0">{walletManagement}</div>
+        </DashboardCardHeader>
+      )}
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
           <ChartPanel

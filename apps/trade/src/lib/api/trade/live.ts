@@ -19,9 +19,10 @@ import { userGet, userPost } from "@/server/guards"
 import {
   cancelLiveOrder as cancelOrderRow,
   closeLivePosition as closePositionRow,
+  liveWallet as liveWalletRow,
   loadLivePortfolio,
   placeLiveOrder as placeOrderRow,
-  setLiveBrackets as setBracketsRow,
+  refuseWhatTheWalletCannotPayFor,
   moveLiveOrder as moveOrderRow,
   changeLiveLeverage as changeLeverageRow,
   changeLiveMargin as changeMarginRow,
@@ -33,6 +34,7 @@ import {
 import { closeLivePositions as closePositionRows } from "@/server/trade/close-live-positions"
 import { loadOrderStyle } from "@/server/trade/prefs"
 import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
+import { setBracketsByHand } from "@/server/trade/hand-brackets"
 import {
   listActiveSmartOrdersIfChanged,
   placeWatchOrder,
@@ -70,6 +72,16 @@ const placeSchema = z.object({
   leverage: z.number().min(1).max(100),
   reduceOnly: z.boolean(),
   market: z.boolean().optional(),
+  /**
+   * Work this order from today's price rather than waiting for `px`.
+   *
+   * Adding to a position sets it: that window opens at whatever the chart was
+   * showing rather than at a level anybody chose, so waiting there means
+   * waiting for the market to come back to a price it may already have left.
+   * It never turns the order into a market order — the post-only chase still
+   * rests just off the price and follows it.
+   */
+  startNow: z.boolean().optional(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
 })
@@ -217,6 +229,17 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
         const watch = async () => {
           const wallet = await findWallet(context.user.id, order.walletId)
           if (!wallet) throw new Error("LIVE_WALLET")
+          // A level waiting for a price commits no money and is never blocked
+          // by today's cash. One that starts working immediately is a different
+          // thing and is checked like any other order going out now.
+          if (order.startNow) {
+            const row = await liveWalletRow(context.user.id, order.walletId)
+            await refuseWhatTheWalletCannotPayFor(row, {
+              reduceOnly: order.reduceOnly,
+              orderUsd: order.px * order.sz,
+              leverage: order.leverage,
+            })
+          }
           await placeWatchOrder(context.user.id, wallet, order)
           return {
             outcome: {
@@ -238,6 +261,7 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
             outcome: await placeOrderRow(context.user.id, {
               ...order,
               marketOnly: true,
+              byHand: true,
             }),
           }
         }
@@ -255,6 +279,7 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
             outcome: await placeOrderRow(context.user.id, {
               ...order,
               restingOnly: true,
+              byHand: true,
             }),
           }
         } catch (error) {
@@ -307,8 +332,14 @@ const setLiveBracketsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(bracketsSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    // Every route into here is a hand: the drag on the chart, the × on a pill,
+    // the take-profit window. So the smart order working this coin is told what
+    // was set, rather than being left to work it out from a later reading of
+    // the exchange — see `setBracketsByHand`.
+    const wallet = await findWallet(context.user.id, data.walletId)
+    if (!wallet) throw new Error("LIVE_WALLET")
     return await runLiveOrderAction(context.user.id, "order", async () => {
-      await setBracketsRow(context.user.id, data)
+      await setBracketsByHand(context.user.id, wallet, data)
       return { saved: true }
     })
   })
@@ -570,6 +601,10 @@ export function getLiveErrorMessage(error: unknown): string {
   if (move) return move[1].trim()
   const tooSmall = message.match(/LIVE_ORDER_TOO_SMALL:(.*)$/s)
   if (tooSmall) return tooSmall[1].trim()
+  // Names both figures — what the order needs and what is free — so the next
+  // step is arithmetic the person can do rather than a guess.
+  const unaffordable = message.match(/LIVE_ORDER_UNAFFORDABLE:(.*)$/s)
+  if (unaffordable) return unaffordable[1].trim()
   const setting = message.match(/LIVE_(?:LEVERAGE|MARGIN_MODE):(.*)$/s)
   if (setting) return setting[1].trim()
   // The rails' own refusals about leverage and margin on an open position.

@@ -85,6 +85,7 @@ function grid(direction: "long" | "short", holding = true): SmartGrid {
     updatedAt: 1,
     kind: "grid",
     plan: {
+      handSetAt: null,
       direction,
       topPx: 110,
       bottomPx: 90,
@@ -164,7 +165,8 @@ function layer(
 }
 
 function previewLayer(
-  onMoveGrid: (range: { topPx: number; bottomPx: number }) => void
+  onMoveGrid: (range: { topPx: number; bottomPx: number }) => void,
+  includeWinningEdge = false
 ) {
   return (
     <GridLayer
@@ -177,6 +179,7 @@ function previewLayer(
         direction: "long",
         levelCount: 2,
         lines: [
+          ...(includeWinningEdge ? [{ px: 120, kind: "edge" as const }] : []),
           { px: 110, kind: "upper", grip: true },
           { px: 100, kind: "level" },
           { px: 90, kind: "lower", grip: true },
@@ -200,6 +203,79 @@ function previewLayer(
 function render(grid: SmartGrid): string {
   return renderToStaticMarkup(layer(grid))
 }
+
+describe("the money on each grid line", () => {
+  /**
+   * A grid where `sz` and `heldSz` are different numbers on every level.
+   *
+   * The `grid()` helper above sets them equal, which is exactly why the bug
+   * this guards against went unseen: with 2 planned and 2 held, reading the
+   * wrong field looks right. These figures are the KuCoin BR grid from
+   * 3 Sep 2026, where a rung planned with 44 coins was holding 149 and the
+   * chart printed the 44.
+   */
+  function mixed(): SmartGrid {
+    const one = grid("short")
+    return {
+      ...one,
+      plan: {
+        ...one.plan,
+        levels: [
+          {
+            ...one.plan.levels[0],
+            buyPx: 100,
+            sz: 1,
+            heldSz: 4,
+            status: "holding" as const,
+          },
+          {
+            ...one.plan.levels[1],
+            buyPx: 110,
+            sz: 2,
+            heldSz: 0,
+            status: "waiting" as const,
+          },
+        ],
+        carriedLevels: [
+          {
+            ...one.plan.carriedLevels[0],
+            buyPx: 90,
+            sz: 3,
+            heldSz: 7,
+            status: "holding" as const,
+          },
+        ],
+      },
+    }
+  }
+
+  function moneyOnLines(html: string): string[] {
+    const box = document.createElement("div")
+    box.innerHTML = html
+    return [...box.querySelectorAll("span")]
+      .map((one) => one.textContent ?? "")
+      .filter((text) => /^\$[\d,.]+$/.test(text))
+  }
+
+  it("prints what a holding rung holds, not the stake it was planned with", () => {
+    // 4 coins at $100, not the $100 its planned size of 1 would give.
+    const money = moneyOnLines(render(mixed()))
+    expect(money).toContain("$400")
+    expect(money).not.toContain("$100")
+  })
+
+  it("prints the planned stake on a rung that has bought nothing", () => {
+    // 2 coins at $110, because nothing is held there yet.
+    expect(moneyOnLines(render(mixed()))).toContain("$220")
+  })
+
+  it("reads a carried rung by the same rule as a rung inside the range", () => {
+    // 7 coins at $90, not the $270 its planned size of 3 would give.
+    const money = moneyOnLines(render(mixed()))
+    expect(money).toContain("$630")
+    expect(money).not.toContain("$270")
+  })
+})
 
 describe("the grid stop-loss line", () => {
   it.each(["long", "short"] as const)(
@@ -254,6 +330,18 @@ describe("the grid stop-loss line", () => {
 })
 
 describe("the grid preview's whole-grid grip", () => {
+  it("does not shade the unused winning-edge rung", () => {
+    const html = renderToStaticMarkup(previewLayer(vi.fn(), true))
+    // The real rungs run from $110 to $90. The unused $120 exit still exists
+    // for range maths, but it must not add another shaded rung to the preview.
+    expect(html).toContain(
+      "top:90px;height:20px;background-color:theme-up;opacity:0.05"
+    )
+    expect(html).not.toContain(
+      "top:80px;height:30px;background-color:theme-up;opacity:0.05"
+    )
+  })
+
   it("moves both range edges by the same price amount", async () => {
     const host = document.createElement("div")
     const root = createRoot(host)
@@ -392,15 +480,56 @@ describe("the names on a placed grid's range", () => {
     return node?.style.top ?? null
   }
 
+  /** The border colour of a named line's bar. */
+  function colourOfName(html: string, name: string): string | null {
+    const box = document.createElement("div")
+    box.innerHTML = html
+    const span = [...box.querySelectorAll("span")].find(
+      (one) => one.textContent === name && one.hasAttribute("style")
+    )
+    return (
+      span?.getAttribute("style")?.match(/(?:^|;)border-color:([^;]+)/)?.[1] ??
+      null
+    )
+  }
+
   it("puts UPPER PRICE on rung 1's own price on a buying grid", () => {
     const html = render(grid("long", false))
     expect(html).toContain("UPPER PRICE")
     expect(html).toContain("LOWER PRICE")
     // $100 is drawn at y=100 and $90 at y=110. The top edge, $110 at y=90,
-    // is not drawn at all; the band reaches it.
+    // stays out until rung 1 buys.
     expect(yOfName(html, "UPPER PRICE")).toBe("100px")
     expect(yOfName(html, "LOWER PRICE")).toBe("110px")
     expect(html).not.toContain('style="top:90px"')
+  })
+
+  it("does not draw the winning-edge strip before rung 1 buys", () => {
+    const html = render(grid("long", false))
+    expect(html).not.toContain("Rung 1 exit and move up")
+    // The visible band stops at rung 1 on $100 instead of implying another
+    // rung at its $110 exit.
+    expect(html).toContain(
+      "top:100px;height:10px;background-color:theme-up;opacity:0.05"
+    )
+  })
+
+  it("shows rung 1's exit and move-up line after rung 1 buys", () => {
+    const one = grid("long", false)
+    const rungOne = one.plan.levels.reduce((nearest, level) =>
+      level.buyPx > nearest.buyPx ? level : nearest
+    )
+    rungOne.status = "holding"
+    rungOne.sz = 2
+    rungOne.heldSz = 2
+
+    const html = render(one)
+    expect(html).toContain("Rung 1 exit and move up")
+    expect(yOfName(html, "Rung 1 exit and move up")).toBe("90px")
+    expect(colourOfName(html, "Rung 1 exit and move up")).toBe("theme-down")
+    expect(html).toContain(
+      "top:90px;height:20px;background-color:theme-up;opacity:0.05"
+    )
   })
 
   it("puts LOWER PRICE on rung 1's own price on a selling grid", () => {
@@ -577,5 +706,90 @@ describe("a rung with no bar", () => {
     const last = row?.lastElementChild as HTMLElement
     expect(last.className).toContain("w-28")
     expect(row?.children[0]?.textContent).toBe("$190")
+  })
+})
+
+describe("the money on the rungs while the range is dragged", () => {
+  /**
+   * A flat buying grid with four rungs at $100, $110, $120 and $130, staking
+   * $100, $220, $360 and $520. The two middle rungs are the ones that have no
+   * name of their own, which is where the money used to vanish mid-drag.
+   */
+  function four(): SmartGrid {
+    const one = grid("long", false)
+    const spare = one.plan.levels[0]
+    return {
+      ...one,
+      plan: {
+        ...one.plan,
+        topPx: 140,
+        bottomPx: 100,
+        levels: [1, 2, 3, 4].map((coins, index) => ({
+          ...spare,
+          buyPx: 100 + index * 10,
+          sellPx: 110 + index * 10,
+          sz: coins,
+          heldSz: 0,
+          status: "waiting" as const,
+        })),
+      },
+    }
+  }
+
+  /** Drops UPPER PRICE five pixels up and leaves the move unanswered. */
+  async function dragged(): Promise<{ host: HTMLElement; stop: () => void }> {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        layer(
+          four(),
+          async () => true,
+          () => 0,
+          // Never answers, so the drawing stays as the drag left it.
+          () => new Promise<boolean>(() => undefined)
+        )
+      )
+    )
+    const upper = [...host.querySelectorAll("span")].find((one) =>
+      one.textContent?.includes("UPPER PRICE")
+    )
+    // Rung 1 is $130, drawn at y=70. Dropping it at y=65 widens the range.
+    await act(async () => {
+      upper?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 70 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 65 })
+      )
+    })
+    return { host, stop: () => void act(() => root.unmount()) }
+  }
+
+  const moneyIn = (host: HTMLElement): string[] =>
+    [...host.querySelectorAll("span")]
+      // The chip itself, not the empty slot that reserves its column: both
+      // read back the same text, and the slot would count every amount twice.
+      .filter((one) => one.children.length === 0)
+      .map((one) => one.textContent ?? "")
+      .filter((text) => /^\$[\d,.]+$/.test(text))
+
+  it("keeps the stake on the rungs that have no name of their own", async () => {
+    const { host, stop } = await dragged()
+    // The $220 and $360 rungs are the two between UPPER PRICE and LOWER
+    // PRICE. Their stake is a share of the account, so moving the range
+    // cannot change it and it must not disappear either.
+    expect(moneyIn(host)).toContain("$220")
+    expect(moneyIn(host)).toContain("$360")
+    stop()
+  })
+
+  it("prints every rung's stake exactly once, with no second chip on a named rung", async () => {
+    const { host, stop } = await dragged()
+    const money = moneyIn(host)
+    for (const amount of ["$100", "$220", "$360", "$520"]) {
+      expect(money.filter((text) => text === amount)).toHaveLength(1)
+    }
+    stop()
   })
 })

@@ -58,6 +58,41 @@ because ending it at the stop would close no coin. Profit and fees already
 banked by completed rounds are not part of the figure. A grid shows a dash when
 the fills on hand do not add up to the amount its plan says it holds.
 
+## The money beside each grid line
+
+Every line of a grid carries a grey figure in dollars beside its price. It is
+money, never a price. On a coin trading at $0.31 the figures still read $28.29
+or $105, because they say what the level is worth, not where it sits.
+
+One rule decides the figure, and it is the same rule on every line: **a level
+that has bought shows what it is holding at its own price, and a level still
+waiting shows the stake it will put in when it fills.** A rung carried from an
+older range is holding by definition, so it shows what it holds, exactly like a
+holding rung inside the range.
+
+Before 3 September 2026 the rungs inside the range broke that rule. They showed
+the size the level was planned with rather than the size it holds, so a KuCoin
+BR rung holding 149 coins printed $13.94, the value of the 44 it was planned
+with, while the carried rung beside it printed the $105 it really held. Two
+meanings in one column is unreadable, and the wrong one understated real money.
+`levelUsd` in `src/components/trade/grid-layer.tsx` is now the only place the
+figure is worked out, and `grid-layer.test.tsx` fails if any line goes back to
+the planned size while it is holding.
+
+**Dragging the range does not change any of those figures.** A rung's stake is
+its share of the account, set by Share of account, leverage and the split
+across the rungs. The price only decides how many coins that stake buys, so
+moving the range leaves every figure where it was and the whole column holds
+still under the hand. Until 4 September 2026 the rungs between UPPER PRICE and
+LOWER PRICE were handed no figure at all while the range moved, so a four rung
+grid lost the two chips in the middle the moment it was dragged and got them
+back on the drop. The two named rungs kept theirs, because a different part of
+the layer draws them, which is what made the gap so obvious.
+
+While the range moves, the rungs between the ends are the only ones drawn as
+plain lines. Rung 1 and the deepest rung are drawn once each as the named
+lines, so nothing stacks a second line or a second chip on their row.
+
 The Entry line, border and name are chart blue. Its current dollar profit is
 green and its loss is red; exactly zero stays blue. The figure updates with the
 market price and stays out until a price has arrived, rather than showing a

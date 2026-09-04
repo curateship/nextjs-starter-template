@@ -77,6 +77,12 @@ export type WalletAccountSummary =
    * not answer.
    */
   | { walletId: string; state: "inactive" }
+  /**
+   * Saved on an exchange this build cannot read holdings from yet, so it was
+   * never asked. Nothing failed and a retry changes nothing, which is why it
+   * is not "unreachable". `reason` is the sentence the details window shows.
+   */
+  | { walletId: string; state: "unread"; reason: string }
 
 /**
  * How many reads in a row must come back empty before the card says so.
@@ -117,6 +123,7 @@ export function keepGoodSummaries(
     if (
       summary.state === "ok" ||
       summary.state === "inactive" ||
+      summary.state === "unread" ||
       (summary.state === "unreachable" && summary.reason)
     ) {
       summaries.set(summary.walletId, summary)

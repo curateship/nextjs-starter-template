@@ -4,6 +4,7 @@ import { z } from "zod"
 import {
   KNOWN_PROTOCOLS,
   parseMarketKey,
+  type MarketRow,
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
@@ -71,6 +72,32 @@ const loadMarketsFn = createServerFn({ method: "GET" })
   )
 
 /**
+ * A market that is not in the loaded list, looked up on the venue by name or
+ * address. Only a venue that says it can (`markets.search`) is asked; the
+ * picker offers the lookup only where the catalogue's `picker.search` is
+ * true, so a refusal here is a bug rather than a person's mistake.
+ */
+const searchMarketsSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS),
+  network: z.enum(["mainnet", "testnet"]),
+  query: z.string().trim().min(2).max(64),
+})
+
+const searchMarketsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(searchMarketsSchema)
+  .handler(async ({ data }): Promise<{ rows: MarketRow[] }> => {
+    const protocol = getProtocol(data.protocol)
+    if (!protocol.networks.includes(data.network)) {
+      throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
+    }
+    if (!protocol.markets.search) {
+      throw new Error(`PROTOCOL_NO_SEARCH:${data.protocol}`)
+    }
+    return { rows: await protocol.markets.search(data.network, data.query) }
+  })
+
+/**
  * The market this account was last looking at. Saved best-effort on every
  * selection; a failed save loses the memory, never the current view.
  */
@@ -104,6 +131,14 @@ export function loadMarkets(protocol: ProtocolId, network: NetworkId) {
   return loadMarketsFn({ data: { protocol, network } })
 }
 
+export function searchMarkets(
+  protocol: ProtocolId,
+  network: NetworkId,
+  query: string
+) {
+  return searchMarketsFn({ data: { protocol, network, query } })
+}
+
 export function loadLastMarket(protocol: ProtocolId) {
   return loadLastMarketFn({ data: { protocol } })
 }
@@ -112,10 +147,33 @@ export function saveLastMarket(marketKey: string) {
   return saveLastMarketFn({ data: { marketKey } })
 }
 
-export const getMarketsErrorMessage = createErrorMessage(
+const baseMarketsErrorMessage = createErrorMessage(
   {
     ASTER_IP_BANNED:
       "Aster has blocked this internet address. Trade has stopped asking Aster. Check Aster before restarting the app.",
+    EXCHANGE_BUSY:
+      "The exchange is asking Trade to slow down. Wait a moment and try again.",
   },
   "The exchange did not answer. Nothing is wrong on your side — try again in a moment."
 )
+
+/**
+ * The sentence the market list shows when the exchange would not answer.
+ *
+ * An exchange that KNOWS why it has no list — a key missing from `.env`, a
+ * list not built yet — throws `MARKETS_UNAVAILABLE:` with its own sentence
+ * after the code, and that sentence is shown as it is. It says what to do;
+ * the generic "try again in a moment" would be wrong for both. This file
+ * never learns which exchange wrote it.
+ */
+export function getMarketsErrorMessage(error: unknown): string {
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ""
+  const explained = /^MARKETS_UNAVAILABLE:([^]+)/.exec(message.trim())
+  const detail = explained?.[1]?.trim()
+  return detail ? detail : baseMarketsErrorMessage(error)
+}

@@ -326,8 +326,10 @@ export const tradeWallets = pgTable(
     // Paper: the pretend cash it began with. Live: the account value saved as
     // its fixed sizing baseline for orders that do not compound.
     startingBalance: doublePrecision("starting_balance").notNull(),
-    // Live wallets only: the public account address, 0x + 40 hex.
-    address: varchar("address", { length: 42 }),
+    // Live wallets only: the public identifier. An Ethereum address is 0x
+    // plus 40 hex (42 characters); a Solana address is base58 and up to 44.
+    // 64 is the cap the wallet API enforces on the way in.
+    address: varchar("address", { length: 64 }),
     agentKeyEncrypted: text("agent_key_encrypted"),
     // When the exchange says the trading key's approval runs out, recorded at
     // save time so the wallet card can warn BEFORE orders start being refused.

@@ -167,6 +167,19 @@ describe("holding a wallet's figures through a missed read", () => {
     expect(held.summaries.get("w1")).toEqual(MISSED)
   })
 
+  it("keeps an unread answer as it is, and counts no miss for it", () => {
+    // A wallet on an exchange whose holdings this build cannot read yet was
+    // never asked, so nothing was missed and there is nothing to keep.
+    const UNREAD = {
+      walletId: "w1",
+      state: "unread",
+      reason: "Trade cannot read what a Solana wallet holds yet.",
+    } as const
+    const held = keepGoodSummaries(new Map(), [UNREAD], new Map())
+    expect(held.summaries.get("w1")).toEqual(UNREAD)
+    expect(held.misses.has("w1")).toBe(false)
+  })
+
   it("forgets the misses the moment a read lands", () => {
     let held = keepGoodSummaries(new Map(), [GOOD], new Map())
     held = keepGoodSummaries(held.summaries, [MISSED], held.misses)

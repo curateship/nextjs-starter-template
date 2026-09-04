@@ -120,6 +120,8 @@ export function ChartQuickOrder({
     leverage: number
     reduceOnly: boolean
     market: boolean
+    /** Start working the order at today's price instead of waiting at `px`. */
+    startNow?: boolean
     tpPx: number | null
     slPx: number | null
   }) => void
@@ -139,7 +141,19 @@ export function ChartQuickOrder({
   const live = useLiveFigures(market.key)
   const mark = live?.price ?? market.price
   const [marketOrder, setMarketOrder] = React.useState(false)
-  const entryPx = marketOrder ? mark : quick.px
+  /**
+   * The price this order works from.
+   *
+   * **Adding to a position uses the live price, not the one the window opened
+   * at.** Long and Short are placed at a level somebody chose on the chart, and
+   * waiting at that level is the whole point of them. Adding to a position
+   * chooses no level: the window opens wherever the chart happened to be, and
+   * pinning the order there means waiting for the market to come back to a
+   * price it may have left while the size was being typed. That is what made
+   * adding take minutes — see `startNow` in `smart-orders.ts`.
+   */
+  const addingNow = addingTo !== null
+  const entryPx = marketOrder || addingNow ? mark : quick.px
 
   // How this window was left the last time it placed something. Every field
   // below opens on that answer, so a way of sizing trades is chosen once
@@ -309,7 +323,11 @@ export function ChartQuickOrder({
     // already on the chart, and a refusal arrives as a toast if one comes.
     onPlace({
       side: quick.side,
-      px: marketOrder ? mark : quick.px,
+      px: entryPx,
+      // Adding starts chasing the market straight away rather than waiting for
+      // a level. Nothing here becomes a market order: the chase still rests a
+      // post-only order just off the price and follows it.
+      startNow: addingNow,
       sz: sizeCoin,
       leverage,
       reduceOnly,

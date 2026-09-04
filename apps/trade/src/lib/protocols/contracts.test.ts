@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   marketChartHref,
   marketKey,
+  marketSymbol,
   parseMarketKey,
 } from "@/lib/protocols/contracts"
 
@@ -15,6 +16,22 @@ describe("market keys", () => {
     expect(marketChartHref("aster:testnet:BTCUSDT")).toBe(
       "/admin/aster?market=aster%3Atestnet%3ABTCUSDT"
     )
+  })
+
+  it("shortens a Solana mint, because the ticker is not in the key", () => {
+    // A Solana id is the coin's mint address: two coins can share a ticker
+    // there, so only the address is unique. Printed raw it is 44 characters
+    // and fills a browser tab with nothing readable. Every caller that HAS
+    // the row prints `row.symbol` and shows the real ticker instead.
+    const mint = "CbyTNf7UPzvewHh4Zp6umogM2RWahhmGRJWLJnPwpump"
+    expect(marketSymbol(`solana:mainnet:${mint}`)).toBe("CbyTNf…pump")
+    // Every other venue's id is its own name and is printed as it is.
+    expect(marketSymbol("hyperliquid:mainnet:BTC")).toBe("BTC")
+    expect(marketSymbol("aster:mainnet:BTCUSDT")).toBe("BTCUSDT")
+    // Dukascopy's lowercase ids carry the quote currency and are translated.
+    expect(marketSymbol("dukascopy:mainnet:tslaususd")).toBe("TSLA")
+    // A key that cannot be read still says something rather than nothing.
+    expect(marketSymbol("not-a-market")).toBe("not-a-market")
   })
 
   it("builds and reads back the same reference", () => {

@@ -7,6 +7,7 @@ import {
   gridLevelSize,
   gridManualPcts,
   gridRungNumber,
+  gridRungPctsSum,
   gridShares,
   gridShiftAway,
   gridShiftInto,
@@ -31,6 +32,7 @@ import { getProtocol } from "@/server/protocols/registry"
 import type { WalletBook } from "@/server/trade/paper"
 import {
   aimStop,
+  handProtectionSettling,
   ladderBarsKey,
   near,
   readBaseWatch,
@@ -641,6 +643,11 @@ export async function advanceGrid(
       plan.aimedSlPx = null
       changed = true
     }
+  } else if (handProtectionSettling(plan, now)) {
+    // A hand has just set this coin's stop. Every reading the engine holds may
+    // still be from before that, and the hand-moved test cannot tell an old
+    // reading from a real change — see `HAND_PROTECTION_QUIET_MS`. The stop the
+    // hand placed is on the exchange throughout; only this opinion waits.
   } else if (!after || !holdsEntry(direction, after.szi)) {
     // Nothing held, so there is nothing to remember aiming at.
     //
@@ -893,12 +900,16 @@ function followTheRangeInto(
 
   const pot = plan.levels.reduce((sum, level) => sum + level.budget, 0)
   // **The one place a placed grid's money is divided again.** A hand-set grid
-  // divides it by the percentages that were typed, so the shape survives every
-  // downward move: the prices change, the split does not. Everything else
-  // re-splits evenly, as it always has.
+  // divides it by the relative weights that were typed, so the shape survives
+  // every move: the prices change, the split does not. The weights may total
+  // anything positive, and still use the complete pot just as placement does.
+  // Everything else re-splits evenly, as it always has.
   const manualPcts = gridManualPcts(plan, count)
+  const manualTotal = manualPcts === null ? 0 : gridRungPctsSum(manualPcts)
   const shares =
-    manualPcts?.map((pct) => pct / 100) ?? gridShares(count, plan.sizing)
+    manualPcts === null || !(manualTotal > 0)
+      ? gridShares(count, plan.sizing)
+      : manualPcts.map((pct) => pct / manualTotal)
   const sized = prices.map((level, index) => {
     const sz = floorSize((pot * shares[index]) / level.buyPx, plan.sizeDecimals)
     return { ...level, sz, budget: sz * level.buyPx }

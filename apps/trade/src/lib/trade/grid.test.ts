@@ -295,6 +295,7 @@ describe("gridStopPx", () => {
 
 describe("reading a stored grid back", () => {
   const plan: GridPlan = {
+    handSetAt: null,
     direction: "long",
     reverseWhenStopped: false,
     reversedFrom: null,

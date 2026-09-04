@@ -159,6 +159,24 @@ const CHASE_DRIFT = 0.001
 export const CHASE_EVERY_MS = 10_000
 
 /**
+ * How long an order may sit unfilled before the chase follows the price on any
+ * difference at all, rather than waiting for the drift above.
+ *
+ * **Why it is needed.** The order rests {@link CHASE_OFFSET} behind the market
+ * and only moves once the price it wants is {@link CHASE_DRIFT} away — so on a
+ * market drifting slowly in one direction the order stays permanently just out
+ * of reach, and fills only if price comes back. That is the "it got stuck and
+ * then went a few minutes later" shape.
+ *
+ * A minute, and the wallet's ten-second gate still applies on top, so this can
+ * cost at most one extra cancel-and-place a minute per wallet: two calls, forty
+ * of Hyperliquid's twelve hundred weight. The drift rule still does the work
+ * everywhere else, which is what keeps a price wobbling in its fourth decimal
+ * from re-placing an order every pass.
+ */
+export const CHASE_PATIENCE_MS = 60_000
+
+/**
  * The furthest off the touch this will go looking for a price that rests.
  *
  * A coin whose price grid is coarser than this cannot be chased at all, and

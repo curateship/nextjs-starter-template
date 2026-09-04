@@ -8,6 +8,7 @@ import { ChartQuickOrder } from "@/components/trade/chart-quick-order"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import type { TradePosition } from "@/lib/trade/paper"
 
 Object.assign(globalThis, {
   IS_REACT_ACT_ENVIRONMENT: true,
@@ -65,12 +66,31 @@ afterEach(async () => {
   host.remove()
 })
 
+/** A long already open, for the window that adds to one. */
+const heldLong: TradePosition = {
+  id: "hyperliquid:mainnet:BTC",
+  walletId: "w1",
+  marketKey: market.key,
+  szi: 5,
+  entryPx: 95,
+  leverage: 2,
+  maxLeverage: 20,
+  targets: [],
+  tpPx: null,
+  tpSz: null,
+  slPx: null,
+  feesPaid: 0,
+  updatedAt: 0,
+}
+
 async function draw({
   side = "buy",
   initialPrefs = prefs,
+  addingTo = null,
 }: {
   side?: "buy" | "sell"
   initialPrefs?: typeof prefs
+  addingTo?: TradePosition | null
 }) {
   const onPlace = vi.fn()
   const onRemember = vi.fn()
@@ -86,7 +106,7 @@ async function draw({
           }}
           market={market}
           wallet="Practice"
-          addingTo={null}
+          addingTo={addingTo}
           free={10_000}
           equity={10_000}
           prefs={initialPrefs}
@@ -134,6 +154,38 @@ describe("the chart's Long, Short and Market window", () => {
         sz: 100 / 110,
         market: false,
       })
+    )
+  })
+
+  it("adds to a position at today's price and starts working at once", async () => {
+    // The window opens wherever the chart was — 110 here — while the market is
+    // at 100. Pinning the order to 110 is what made adding wait for a price
+    // the market had already left, sometimes for minutes.
+    const { onPlace } = await draw({ addingTo: heldLong })
+
+    // The size box opens empty when adding: how much MORE to buy has nothing
+    // to do with what the last order was for.
+    await type("#quick-size", "100")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        side: "buy",
+        px: 100,
+        startNow: true,
+        // Still not a market order: the post-only chase does the work.
+        market: false,
+      })
+    )
+  })
+
+  it("leaves an ordinary Long waiting at the level it was clicked at", async () => {
+    const { onPlace } = await draw({})
+
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ px: 110, startNow: false })
     )
   })
 

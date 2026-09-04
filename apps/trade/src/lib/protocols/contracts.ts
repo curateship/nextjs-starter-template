@@ -27,6 +27,7 @@ export type ProtocolId =
   | "aster"
   | "lighter"
   | "dukascopy"
+  | "solana"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -63,6 +64,13 @@ export type CredentialForm = {
    * make sense for that family.
    */
   secretIsAgentKey: boolean
+  /**
+   * True on a venue whose wallet the app can make for you: the dialog then
+   * offers "Make a new wallet" beside the paste fields. Only a chain wallet
+   * can be made this way — an exchange account has to be opened on the
+   * exchange.
+   */
+  canMakeWallet: boolean
   /** One short paragraph: where to make the credential and what it may do. */
   keyHelp: string
 }
@@ -138,6 +146,7 @@ export const KNOWN_PROTOCOLS = [
   "aster",
   "lighter",
   "dukascopy",
+  "solana",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -154,6 +163,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   aster: "Aster",
   lighter: "Lighter",
   dukascopy: "Dukascopy",
+  solana: "Solana",
 }
 
 export function protocolLabel(id: ProtocolId): string {
@@ -200,10 +210,18 @@ export function marketSymbol(key: string): string {
   const ref = parseMarketKey(key)
   if (!ref) return key
   // Dukascopy's ids are lowercase and carry the quote currency: `tslaususd`
-  // is TSLA. Everything else prints its id as it is.
-  return ref.protocol === "dukascopy"
-    ? dukascopySymbol(ref.marketId)
-    : ref.marketId
+  // is TSLA.
+  if (ref.protocol === "dukascopy") return dukascopySymbol(ref.marketId)
+  // A Solana id is the coin's mint address, because two coins can share a
+  // ticker there and only the address is unique. The ticker is not in the
+  // key and cannot be derived from it, so a caller holding only a key shows
+  // the address shortened the way every other address here is shown. Every
+  // caller that HAS the row — the list, the picker, the market header —
+  // prints `row.symbol` and shows the real ticker.
+  if (ref.protocol === "solana" && ref.marketId.length > 12) {
+    return `${ref.marketId.slice(0, 6)}…${ref.marketId.slice(-4)}`
+  }
+  return ref.marketId
 }
 
 const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
@@ -212,6 +230,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   kucoin: "/admin/kucoin",
   aster: "/admin/aster",
   lighter: "/admin/lighter",
+  solana: "/admin/solana",
 }
 
 /** The chart address for a market whose protocol has a trading dashboard. */
@@ -300,6 +319,14 @@ export type MarketRow = {
   fundingHourly: number | null
   /** Open interest in dollars, or null where the exchange does not say. */
   openInterestUsd: number | null
+  /**
+   * A coin the venue itself warns about. Absent on an exchange that vets
+   * every listing; set on an open network where anyone can mint a coin
+   * (Solana), where "unverified" means nobody has vouched for it and
+   * "suspicious" means the venue's own audit flagged it. The list prints
+   * the word beside the name and never hides the coin.
+   */
+  caution?: "unverified" | "suspicious" | null
 }
 
 /**
@@ -323,6 +350,12 @@ export type MarketPickerCapabilities = {
   hip3: boolean
   funding: boolean
   openInterest: boolean
+  /**
+   * True where the venue can find a market that is not in the loaded list,
+   * by name or address — an open network lists more coins than any list
+   * holds. The picker then offers a lookup when a search matches nothing.
+   */
+  search?: boolean
 }
 
 /**

@@ -156,16 +156,22 @@ function walletRowState(summary: WalletAccountSummary | null) {
   const inactive = summary?.state === "inactive"
   const stale = summary?.state === "ok" && summary.stale === true
   const refusal = summary?.state === "unreachable" ? summary.reason : undefined
+  // Saved but never asked: this build cannot read the exchange's holdings
+  // yet. Not a failure, so it neither counts as unreachable nor offers a
+  // retry.
+  const unread = summary?.state === "unread" ? summary.reason : undefined
   const status = inactive
     ? "Not switched on"
     : ok
       ? stale
         ? "Figures a moment old"
         : "Connected"
-      : refusal
-        ? "Two-sided. Change to one-way mode"
-        : "Can't reach it"
-  return { figures, inactive, ok, refusal, stale, status }
+      : unread
+        ? "Holdings not read yet"
+        : refusal
+          ? "Two-sided. Change to one-way mode"
+          : "Can't reach it"
+  return { figures, inactive, ok, refusal, stale, status, unread }
 }
 
 /** The one name, state and money grid shared by every wallet tab. */
@@ -217,12 +223,12 @@ function WalletStatusDot({
 }: {
   state: ReturnType<typeof walletRowState>
 }) {
-  const { inactive, ok, stale } = state
+  const { inactive, ok, stale, unread } = state
   return (
     <span
       className={cn(
         "size-1.5 shrink-0 rounded-full",
-        inactive
+        inactive || unread
           ? "bg-muted-foreground"
           : !ok
             ? "bg-destructive"
@@ -441,7 +447,7 @@ export function WalletDetailsDialog({
   if (!wallet) return null
 
   const state = walletRowState(summary)
-  const { figures, inactive, refusal } = state
+  const { figures, inactive, refusal, unread } = state
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -531,6 +537,8 @@ export function WalletDetailsDialog({
                   This wallet is not switched on. Edit the wallet to make it
                   active again.
                 </p>
+              ) : unread ? (
+                <p className="text-sm text-muted-foreground">{unread}</p>
               ) : refusal ? (
                 <p className="text-sm text-muted-foreground">{refusal}</p>
               ) : (

@@ -28,11 +28,15 @@ import type { GridPlan } from "@/lib/trade/grid"
 import { reattributePairedStops } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
 import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
+import { formatUsd } from "@/lib/trade/format"
 import { db } from "@/server/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
-import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
+import {
+  dropEngineExchangeReads,
+  heldEngineAccount,
+} from "@/server/trade/engine-exchange-reads"
 import { openingMarginMode } from "@/server/protocols/order-settings"
 import { pairedStopRefs } from "@/server/trade/smart-pairing"
 import {
@@ -182,7 +186,7 @@ async function recordRefusal(
     // The move codes carry a whole written sentence rather than a bare
     // reason, so stripping the code leaves the Journal reading properly.
     note: message.replace(
-      /^LIVE_(EXCHANGE|ORDER_REFUSED|ORDER_TOO_SMALL|MOVE_REFUSED|MOVE_DOUBLED|BRACKET_REPLACE_PARTIAL|BRACKET_REPLACE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
+      /^LIVE_(EXCHANGE|ORDER_REFUSED|ORDER_TOO_SMALL|ORDER_UNAFFORDABLE|MOVE_REFUSED|MOVE_DOUBLED|BRACKET_REPLACE_PARTIAL|BRACKET_REPLACE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
       ""
     ),
   })
@@ -198,6 +202,46 @@ async function refuse(
 ): Promise<never> {
   await recordRefusal(userId, walletId, marketKey, side, error)
   throw error
+}
+
+/**
+ * Refuses an order the wallet cannot pay for, before anything is signed.
+ *
+ * **Why the exchange refusing is not good enough.** Hyperliquid does not turn
+ * down a buy it cannot fully fund: it fills whatever the margin reaches and
+ * answers "filled", so a $100 order on a wallet with $10 left came back as a $1
+ * position and nothing anywhere said that was not what was asked for. The
+ * app's own rule, in Tyler's words on 26 Aug 2026, is that a buy the wallet
+ * cannot afford is refused, never made smaller — `rules/trading-rules.md`.
+ *
+ * **What "afford" means here.** The size box is the position's worth, and
+ * leverage decides how much of it the wallet actually puts up: $100 at 10x
+ * needs $10. So the comparison is the margin, not the order.
+ *
+ * A closing order needs no margin and is never refused. Neither is an order
+ * whose account cannot be read: not knowing is not the same as knowing there is
+ * not enough, and a person pressing a button deserves the exchange's own answer
+ * over a guess.
+ *
+ * **Only ever asked about an order that is going out now.** A level waiting for
+ * a price commits no money and is deliberately not blocked by today's cash —
+ * `rules/trading-rules.md` — so the one watched order this is asked about is
+ * the kind that starts working immediately.
+ */
+export async function refuseWhatTheWalletCannotPayFor(
+  row: LiveWalletRow,
+  order: { reduceOnly: boolean; orderUsd: number; leverage: number }
+): Promise<void> {
+  if (order.reduceOnly) return
+  const account = await heldEngineAccount(row, () => credentialFor(row)).catch(
+    () => null
+  )
+  if (!account) return
+  const needed = order.orderUsd / Math.max(1, order.leverage)
+  if (needed <= account.free + 1e-9) return
+  throw new Error(
+    `LIVE_ORDER_UNAFFORDABLE:This order needs ${formatUsd(needed)} and ${row.label} has ${formatUsd(account.free)} free. Use a smaller size, more leverage, or close something first.`
+  )
 }
 
 export async function placeLiveOrder(
@@ -218,6 +262,17 @@ export async function placeLiveOrder(
     marketOnly?: boolean
     /** A smart order is skipped if the fresh quote left its trigger level. */
     marketGuardPx?: number
+    /**
+     * A person pressed a button for this order, so it is checked against what
+     * the wallet can actually pay for and refused if it cannot — see
+     * `refuseWhatTheWalletCannotPayFor`.
+     *
+     * Off for everything the engine sends. A rung, a grid level and a watched
+     * price each have their own affordability rule that waits rather than
+     * refusing, and a second answer here would turn a level that is patiently
+     * waiting into one that has failed.
+     */
+    byHand?: boolean
   }
 ): Promise<PlaceOrderOutcome> {
   // The stopwatch every real placement reports — one line per order saying
@@ -246,6 +301,13 @@ export async function placeLiveOrder(
     // engine uses, so the two kinds of wallet never disagree about what a
     // click means — and the portfolio is only read at all to learn whether
     // this market is already held, which decides the leverage below.
+    // Warmed here rather than read where it is used, because the affordability
+    // check below sits between the click and the order and a second round trip
+    // there is exactly the wait this app is trying not to add. The read holds
+    // for five seconds, so the check picks up this same answer.
+    if (input.byHand) {
+      void heldEngineAccount(row, () => credentialFor(row)).catch(() => null)
+    }
     const [prices, rules, portfolio] = await Promise.all([
       protocol.markets.prices(row.network, [ref.marketId]),
       marketRules(row.protocol, row.network, ref.marketId),
@@ -308,6 +370,18 @@ export async function placeLiveOrder(
       (one) => one.marketId === ref.marketId
     )
 
+    if (input.byHand) {
+      await refuseWhatTheWalletCannotPayFor(row, {
+        reduceOnly: input.reduceOnly,
+        orderUsd: entryPx * orderSize,
+        // Adding to a position runs at the position's own leverage, the same
+        // rule the order below follows. Checking the asked-for leverage would
+        // pass an order the exchange is about to refuse, or refuse one it
+        // would have taken.
+        leverage: held ? held.leverage : input.leverage,
+      })
+    }
+
     const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
       marketId: ref.marketId,
       side: input.side,
@@ -330,6 +404,19 @@ export async function placeLiveOrder(
       `[trade] placeLiveOrder ${input.marketKey}: wallet ${tWallet - t0}ms, fetch ${tFetch - tWallet}ms, place ${Date.now() - tFetch}ms, total ${Date.now() - t0}ms`
     )
 
+    // **A fill smaller than the ask is not a plain fill.** Hyperliquid answers
+    // "filled" for whatever its margin reached, so a $100 order that only had
+    // $10 behind it came back looking exactly like a $100 order that worked.
+    // The Journal now says which it was, and says both amounts at the one
+    // price the fill really got, so the two figures can be compared.
+    const filledPx = outcome.avgPx ?? entryPx
+    const shortFill =
+      outcome.status === "filled" &&
+      outcome.filledSz !== null &&
+      outcome.filledSz < orderSize * (1 - 1e-6)
+        ? outcome.filledSz
+        : null
+
     // The journal rides behind the answer, not in front of it — `journal`
     // never throws and logs its own losses, so awaiting it here only slowed
     // the reply. The two entries still land in order. A refusal is different:
@@ -338,12 +425,14 @@ export async function placeLiveOrder(
       await journal(userId, row.id, input.marketKey, {
         action: outcome.status === "filled" ? "fill" : "placed",
         side: input.side,
-        px: outcome.avgPx ?? entryPx,
+        px: filledPx,
         sz: outcome.filledSz ?? orderSize,
         note:
-          outcome.status === "filled"
-            ? "Filled straight away."
-            : "Resting on the exchange.",
+          shortFill !== null
+            ? `Filled ${formatUsd(shortFill * filledPx)} of the ${formatUsd(orderSize * filledPx)} asked for.`
+            : outcome.status === "filled"
+              ? "Filled straight away."
+              : "Resting on the exchange.",
       })
       if (outcome.protection === "partial") {
         await journal(userId, row.id, input.marketKey, {

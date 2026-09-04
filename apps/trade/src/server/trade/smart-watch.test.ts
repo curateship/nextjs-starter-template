@@ -4,7 +4,10 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { isMarketable } from "@/lib/trade/paper"
-import { CHASE_EVERY_MS } from "@/lib/trade/signal-order"
+import {
+  CHASE_EVERY_MS,
+  CHASE_PATIENCE_MS,
+} from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
@@ -300,6 +303,40 @@ describe("a price being watched", () => {
 
     expect(await orders()).toHaveLength(1)
     expect(await positions()).toHaveLength(0)
+  })
+
+  it("starts chasing at once when the order was told to start now", async () => {
+    // Adding to a position picks no level. Before this it was pinned to
+    // whatever the chart showed when the window opened, so a market that moved
+    // while a size was typed left the order waiting for a price it had already
+    // left — minutes, and sometimes forever.
+    await watchAt({ phase: "taking", triggerPx: 100 })
+    // Price never reaches the level and never has to: the order rests just
+    // under the market on the very first pass.
+    await priceTo(100)
+
+    const resting = await orders()
+    expect(resting).toHaveLength(1)
+    expect(resting[0].px).toBeLessThan(100)
+    expect((await row()).plan.orderId).not.toBeNull()
+  })
+
+  it("follows a market walking away once the order has waited a whole minute", async () => {
+    // The drift rule holds an order still until the price it wants is 0.1%
+    // away, so a market creeping in one direction leaves it permanently just
+    // out of reach. After a minute it follows on any difference at all.
+    await watchAt()
+    await priceTo(95)
+    const first = (await orders())[0].px
+
+    // A creep far too small for the drift rule: 0.03%, where it wants 0.1%.
+    vi.setSystemTime(new Date(Date.now() + CHASE_EVERY_MS + 1_000))
+    await priceTo(95.03)
+    expect((await orders())[0].px).toBeCloseTo(first, 9)
+
+    vi.setSystemTime(new Date(Date.now() + CHASE_PATIENCE_MS + 1_000))
+    await priceTo(95.03)
+    expect((await orders())[0].px).toBeGreaterThan(first)
   })
 
   it("keeps waiting at the level when price ticks back away", async () => {

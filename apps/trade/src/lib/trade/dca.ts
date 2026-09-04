@@ -809,6 +809,12 @@ export const ladderPlanSchema = z.object({
    */
   aimedTpPx: z.number().nullable(),
   aimedSlPx: z.number().nullable(),
+  /**
+   * When a hand last set this coin's protection, in epoch milliseconds, or
+   * null if it never has. Same field, same reason and same rule as the grid's
+   * — see `handSetAt` in `grid.ts` and `HAND_PROTECTION_QUIET_MS`.
+   */
+  handSetAt: z.number().nullable().default(null),
   /** Two-green mode: candles are watched instead of orders resting. */
   twoGreen: z.boolean(),
   greenInterval: z.string().nullable(),

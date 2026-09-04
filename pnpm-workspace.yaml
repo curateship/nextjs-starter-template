@@ -9,11 +9,13 @@ packages:
 # of them already ran under npm, so this preserves existing behaviour rather
 # than granting anything new.
 allowBuilds:
-  '@sentry/cli': true      # downloads the sentry-cli binary
-  argon2: true             # native password hashing addon
-  esbuild: true            # downloads the platform esbuild binary
-  sharp: true              # native image-processing addon
-  unrs-resolver: true      # native resolver used by eslint import plugin
+  '@sentry/cli': true # downloads the sentry-cli binary
+  argon2: true # native password hashing addon
+  bufferutil: false # optional websocket speed-up; ws works without it
+  esbuild: true # downloads the platform esbuild binary
+  sharp: true # native image-processing addon
+  unrs-resolver: true # native resolver used by eslint import plugin
+  utf-8-validate: false # optional websocket speed-up; ws works without it
 
 overrides:
   esbuild: "^0.28.1"

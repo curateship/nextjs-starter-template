@@ -61,6 +61,7 @@ import { Route as AuthenticatedAdminRecipesRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminSolanaRouteImport } from './routes/_authenticated/admin/solana'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
 import { Route as AuthenticatedAdminTradingOverviewRouteImport } from './routes/_authenticated/admin/trading-overview'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
@@ -366,6 +367,12 @@ const AuthenticatedAdminSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminSolanaRoute =
+  AuthenticatedAdminSolanaRouteImport.update({
+    id: '/solana',
+    path: '/solana',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSystemEmailsRoute =
   AuthenticatedAdminSystemEmailsRouteImport.update({
     id: '/system-emails',
@@ -567,6 +574,7 @@ export interface FileRoutesByFullPath {
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/solana': typeof AuthenticatedAdminSolanaRoute
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
@@ -644,6 +652,7 @@ export interface FileRoutesByTo {
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/solana': typeof AuthenticatedAdminSolanaRoute
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
@@ -725,6 +734,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/solana': typeof AuthenticatedAdminSolanaRoute
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/_authenticated/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
@@ -806,6 +816,7 @@ export interface FileRouteTypes {
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
+    | '/admin/solana'
     | '/admin/system-emails'
     | '/admin/trading-overview'
     | '/admin/traffic'
@@ -883,6 +894,7 @@ export interface FileRouteTypes {
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
+    | '/admin/solana'
     | '/admin/system-emails'
     | '/admin/trading-overview'
     | '/admin/traffic'
@@ -963,6 +975,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/solana'
     | '/_authenticated/admin/system-emails'
     | '/_authenticated/admin/trading-overview'
     | '/_authenticated/admin/traffic'
@@ -1387,6 +1400,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/solana': {
+      id: '/_authenticated/admin/solana'
+      path: '/solana'
+      fullPath: '/admin/solana'
+      preLoaderRoute: typeof AuthenticatedAdminSolanaRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/system-emails': {
       id: '/_authenticated/admin/system-emails'
       path: '/system-emails'
@@ -1623,6 +1643,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminSolanaRoute: typeof AuthenticatedAdminSolanaRoute
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
   AuthenticatedAdminTradingOverviewRoute: typeof AuthenticatedAdminTradingOverviewRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
@@ -1664,6 +1685,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminSolanaRoute: AuthenticatedAdminSolanaRoute,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
   AuthenticatedAdminTradingOverviewRoute:
     AuthenticatedAdminTradingOverviewRoute,

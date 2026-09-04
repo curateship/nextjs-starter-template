@@ -39,6 +39,29 @@ describe("a drawn line's alert notice", () => {
     ).toBe("BTC crossed your level at $61,200 (was rising)")
   })
 
+  it("says how far past the line the price had to go, when a buffer was set", () => {
+    const said = drawingAlertNoticeWords({
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "level",
+      price: 60_000,
+      direction: "above",
+      buffer: 0.1,
+    })
+    expect(said.title).toBe("BTC crossed your level at $60,000 (was rising)")
+    expect(said.body).toBe(
+      "The price had to go 0.1% past the level. The level's alert fired once and is now off. The level is still on the chart."
+    )
+    // Nothing said about it when there was none.
+    expect(
+      drawingAlertNoticeWords({
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "level",
+        price: 60_000,
+        direction: "above",
+      }).body
+    ).not.toContain("past the")
+  })
+
   it("calls a named line by its name, and puts the price in the body", () => {
     expect(
       drawingAlertNoticeWords({

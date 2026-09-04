@@ -9,6 +9,7 @@ import {
 import { marketChartHref } from "@/lib/protocols/contracts"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
+  alertFirePrice,
   drawingAlertArmed,
   priceAtTime,
   readDrawingAlert,
@@ -74,7 +75,7 @@ export async function loadDrawingAlerts(
 }
 
 /**
- * Ring the bell for every armed drawn line the price has crossed.
+ * Fire every armed drawn line the price has crossed.
  *
  * The same shape as `checkPriceAlerts`, and run beside it once per engine
  * pass. A level is the same price at every moment. A trendline's price at
@@ -88,10 +89,10 @@ export async function loadDrawingAlerts(
  * changes it writes the notice.
  *
  * An account whose master switch in Settings is off is read too, but a cross
- * on one of its lines rings nothing. Instead the alert is turned to face the
+ * on one of its lines fires nothing. Instead the alert is turned to face the
  * price again, so it waits for the price to come back across. That is what
  * makes a cross that happened while paused stay silent after the switch goes
- * back on: the line has to be crossed once more, and then it rings once.
+ * back on: the line has to be crossed once more, and then it fires once.
  */
 export async function checkDrawingAlerts({
   pushedMarks,
@@ -153,8 +154,15 @@ export async function checkDrawingAlerts({
     if (mark === undefined) continue
     const linePrice = priceAtTime(row.shape, now)
     if (linePrice === null) continue
+    // Not the line, but the line moved by however far past it the person
+    // asked the price to go before this counts as a break.
+    const firePrice = alertFirePrice(
+      linePrice,
+      row.alert.direction,
+      row.alert.buffer
+    )
     const crossed =
-      row.alert.direction === "above" ? mark >= linePrice : mark <= linePrice
+      row.alert.direction === "above" ? mark >= firePrice : mark <= firePrice
     if (!crossed) continue
 
     // The same guarded write either way, so a line moved or switched off
@@ -193,6 +201,7 @@ export async function checkDrawingAlerts({
         price: linePrice,
         direction: row.alert.direction,
         name: row.shape.name ?? null,
+        buffer: row.alert.buffer ?? null,
       })
       await writeTradeNotice({
         userId: row.userId,

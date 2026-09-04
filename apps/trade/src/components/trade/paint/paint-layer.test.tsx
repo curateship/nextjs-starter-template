@@ -95,6 +95,7 @@ async function draw({
     (id: string, shape: DrawingShape, currentPrice: number | null) => void
   >(),
   onSetAlert,
+  onSetBuffer,
 }: {
   tool: "level" | "trendline" | null
   drawings?: Drawing[]
@@ -105,6 +106,7 @@ async function draw({
   onCreate?: (shape: DrawingShape) => void
   onMove?: (id: string, shape: DrawingShape, currentPrice: number | null) => void
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
+  onSetBuffer?: (id: string, buffer: number | null) => void
 }) {
   await act(async () => {
     root.render(
@@ -120,6 +122,7 @@ async function draw({
         onMove={onMove}
         onDelete={() => undefined}
         onSetAlert={onSetAlert}
+        onSetBuffer={onSetBuffer}
         wide={wide}
         lineAlertsPaused={lineAlertsPaused}
       />
@@ -531,7 +534,7 @@ describe("the alert a trendline carries", () => {
 
     const toggle = document.getElementById("line-alert-line-1")
     expect(toggle?.getAttribute("aria-checked")).toBe("true")
-    expect(document.body.textContent).toContain("Rings once when the price crosses up through the line")
+    expect(document.body.textContent).toContain("Fires once when the price crosses up through the line")
   })
 
   it("says when a fired alert went off and at what price", async () => {
@@ -971,6 +974,132 @@ describe("a line with a name", () => {
       },
       105
     )
+  })
+})
+
+describe("the break buffer on a line's alert", () => {
+  const level: Drawing = {
+    id: "line-1",
+    shape: { kind: "level", price: 100 },
+    alert: { direction: "above", armedAt: 1, firedAt: null },
+  }
+
+  /** What the window says beside the box. */
+  function readout() {
+    return document.getElementById("line-buffer-line-1-fires")?.textContent
+  }
+
+  async function openOn(drawing: Drawing, onSetBuffer = vi.fn()) {
+    await draw({
+      tool: null,
+      drawings: [drawing],
+      selectedId: drawing.id,
+      onSetAlert: vi.fn(),
+      onSetBuffer,
+    })
+    await act(async () => {
+      lineBody().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    })
+    return {
+      field: document.getElementById("line-buffer-line-1") as HTMLInputElement,
+      onSetBuffer,
+    }
+  }
+
+  it("is offered on an armed line only, and says nothing until a number is typed", async () => {
+    const { field } = await openOn(level)
+    expect(field).not.toBeNull()
+    expect(field.value).toBe("")
+    // Exactly one of each. This field and the name field below it were once
+    // keyed the same way when both were empty, and React drew one twice.
+    expect(document.querySelectorAll("#line-buffer-line-1")).toHaveLength(1)
+    expect(document.querySelectorAll("#line-name-line-1")).toHaveLength(1)
+    // Nothing to say beside an empty box.
+    expect(readout()).toBe("")
+  })
+
+  it("is not offered while the alert is off, or once it has fired", async () => {
+    await openOn({ ...level, alert: null })
+    expect(document.getElementById("line-buffer-line-1")).toBeNull()
+
+    await openOn({
+      ...level,
+      alert: { direction: "above", armedAt: 1, firedAt: 2 },
+    })
+    expect(document.getElementById("line-buffer-line-1")).toBeNull()
+  })
+
+  it("says the percentage and the side as it is typed, before it is saved", async () => {
+    const { field, onSetBuffer } = await openOn(level)
+    await act(async () => typeInto(field, "50"))
+    expect(document.body.textContent).toContain("50% above the level")
+    expect(onSetBuffer).not.toHaveBeenCalled()
+
+    await act(async () => {
+      field.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+    expect(onSetBuffer).toHaveBeenCalledWith("line-1", 50)
+  })
+
+  it("says the percentage and the side, never a price", async () => {
+    const { field } = await openOn({
+      ...level,
+      shape: { kind: "level", price: 20 },
+    })
+    await act(async () => typeInto(field, "10"))
+    // The price it works out to is nobody's business here. Tyler: "i dont
+    // need to read the price".
+    expect(document.body.textContent).toContain("10% above the level")
+    expect(document.body.textContent).not.toContain("$22")
+  })
+
+  it("takes the buffer off the other side when the alert waits for a fall", async () => {
+    const { field } = await openOn({
+      ...level,
+      alert: { direction: "below", armedAt: 1, firedAt: null },
+    })
+    await act(async () => typeInto(field, "50"))
+    expect(document.body.textContent).toContain("50% below the level")
+  })
+
+  it("shows the saved buffer, and clears it when the box is emptied", async () => {
+    const { field, onSetBuffer } = await openOn({
+      ...level,
+      alert: { direction: "above", armedAt: 1, firedAt: null, buffer: 50 },
+    })
+    expect(field.value).toBe("50")
+    expect(document.body.textContent).toContain("50% above the level")
+
+    await act(async () => typeInto(field, ""))
+    await act(async () => {
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    })
+    expect(onSetBuffer).toHaveBeenCalledWith("line-1", null)
+  })
+
+  it("marks a number it cannot read and saves nothing", async () => {
+    const { field, onSetBuffer } = await openOn(level)
+    await act(async () => typeInto(field, "abc"))
+    expect(field.getAttribute("aria-invalid")).toBe("true")
+    expect(readout()).toBe("")
+
+    await act(async () => {
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    })
+    expect(onSetBuffer).not.toHaveBeenCalled()
+  })
+
+  it("saves nothing when the number was not changed", async () => {
+    const { field, onSetBuffer } = await openOn({
+      ...level,
+      alert: { direction: "above", armedAt: 1, firedAt: null, buffer: 50 },
+    })
+    await act(async () => {
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    })
+    expect(onSetBuffer).not.toHaveBeenCalled()
   })
 })
 

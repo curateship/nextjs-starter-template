@@ -10,10 +10,12 @@ import {
   loadDrawings,
   saveDrawing,
   setDrawingAlert,
+  setDrawingAlertBuffer,
 } from "@/lib/api/trade/drawings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
+  bufferedAlert,
   drawingAlertArmed,
   extendedRight,
   priceAtTime,
@@ -265,6 +267,46 @@ export function useChartDrawings(
   )
 
   /**
+   * Set or clear how far past the line an armed alert waits, as a percentage.
+   * The number shows at once and the server's answer replaces it; a refused
+   * save puts the old one back and says why.
+   */
+  const setBuffer = React.useCallback(
+    (id: string, buffer: number | null) => {
+      if (!marketKey) return
+      const key = marketKey
+      const previous = drawings.find((candidate) => candidate.id === id)
+      if (!previous?.alert) return
+      const guess = bufferedAlert(previous.alert, buffer)
+      revise(key, (current) =>
+        current.map((candidate) =>
+          candidate.id === id ? { ...candidate, alert: guess } : candidate
+        )
+      )
+      setDrawingAlertBuffer(id, buffer)
+        .then((saved) => {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id
+                ? { ...candidate, shape: saved.shape, alert: saved.alert }
+                : candidate
+            )
+          )
+          onAlertChange?.()
+        })
+        .catch((error: unknown) => {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id ? previous : candidate
+            )
+          )
+          showErrorToast(getDrawingAlertErrorMessage(error))
+        })
+    },
+    [drawings, marketKey, revise, onAlertChange]
+  )
+
+  /**
    * Read this market's lines again. The popover asks for this as it opens,
    * because an alert fires in the engine and the chart only hears about it by
    * asking; without this the switch could read on for a line that already
@@ -367,6 +409,7 @@ export function useChartDrawings(
     move,
     remove,
     setAlert,
+    setBuffer,
     refresh,
     clearAll,
   }

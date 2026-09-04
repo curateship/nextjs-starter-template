@@ -355,6 +355,13 @@ export type Trading = {
     reduceOnly: boolean
     /** Fill at the venue's current price instead of waiting at `px`. */
     market?: boolean
+    /**
+     * Work the order from today's price instead of waiting for `px` to be
+     * reached. Adding to a position uses it: no level was chosen, so there is
+     * nothing to wait for. It is not a market order — the post-only chase
+     * still rests just off the price and follows it.
+     */
+    startNow?: boolean
     tpPx: number | null
     slPx: number | null
   }) => void
@@ -1593,6 +1600,21 @@ export function useTrading(
             const { outcome } = await placeLiveOrder({ walletId, ...input })
             if (outcome.protection === "partial" && outcome.protectionNote) {
               showErrorToast(outcome.protectionNote)
+            }
+            // **A fill smaller than the ask is said out loud.** The exchange
+            // fills what the margin reaches and calls it filled, so without
+            // this the only sign that a $100 order became a $1 position was
+            // the position itself, which nobody reads as a refusal.
+            const got = outcome.filledSz
+            if (
+              outcome.status === "filled" &&
+              got !== null &&
+              got < input.sz * (1 - 1e-6)
+            ) {
+              const px = outcome.avgPx ?? input.px
+              showErrorToast(
+                `Only ${formatUsd(got * px)} of the ${formatUsd(input.sz * px)} asked for was filled. The exchange took what the wallet could cover.`
+              )
             }
             // The answer already names the resting order, so the ghost turns
             // into it now instead of wearing "sending" until the next full

@@ -3,7 +3,10 @@ import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm"
 import {
   DRAWINGS_FULL,
   DRAWING_ALERT_NO_PRICE,
+  DRAWING_ALERT_NOT_ARMED,
   MAX_DRAWINGS_PER_MARKET,
+  bufferedAlert,
+  drawingAlertArmed,
   extendedRight,
   priceAtTime,
   readDrawingAlert,
@@ -144,6 +147,12 @@ export async function saveChartDrawing(
  * armed again. A trendline is also drawn on to the right edge from then on,
  * so the place the alert will fire is on screen. Off: the record goes, fired
  * or not, and the line keeps drawing the way it was.
+ *
+ * **A break buffer survives a firing.** Switching a line that has already
+ * fired back on is the same watch carried on, so the percentage it waits past
+ * the line comes with it. Switching the alert off by hand takes the whole
+ * record, buffer included, because that is somebody saying they are done
+ * with this line.
  */
 export async function setChartDrawingAlert(
   userId: string,
@@ -174,11 +183,14 @@ export async function setChartDrawingAlert(
     if (linePrice === null || input.currentPrice === null) {
       throw new Error(DRAWING_ALERT_NO_PRICE)
     }
-    alert = {
-      direction: priceAlertDirection(linePrice, input.currentPrice),
-      armedAt: now,
-      firedAt: null,
-    }
+    alert = bufferedAlert(
+      {
+        direction: priceAlertDirection(linePrice, input.currentPrice),
+        armedAt: now,
+        firedAt: null,
+      },
+      readDrawingAlert(row.alert)?.buffer ?? null
+    )
     saved = extendedRight(shape)
   }
 
@@ -198,6 +210,56 @@ export async function setChartDrawingAlert(
       )
     )
   return { id: row.id, shape: saved, alert }
+}
+
+/**
+ * Set or clear how far past the line an armed alert waits, as a percentage.
+ *
+ * Its own door rather than a second job for `setChartDrawingAlert`, because
+ * that one arms and disarms: putting the buffer through it would reset the
+ * direction and the armed time every time somebody corrected a number.
+ *
+ * Only an armed alert takes one. A window left open while the engine rang the
+ * alert underneath it is refused rather than quietly writing a buffer onto a
+ * record nobody is watching.
+ */
+export async function setChartDrawingAlertBuffer(
+  userId: string,
+  input: { id: string; buffer: number | null }
+): Promise<Drawing> {
+  const [row] = await db
+    .select({
+      id: tradeChartDrawings.id,
+      shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
+    })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+    .limit(1)
+  const shape = row ? readDrawingShape(row.shape) : null
+  if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+
+  const alert = readDrawingAlert(row.alert)
+  if (!drawingAlertArmed(alert) || !alert) {
+    throw new Error(DRAWING_ALERT_NOT_ARMED)
+  }
+
+  const saved = bufferedAlert(alert, input.buffer)
+  await db
+    .update(tradeChartDrawings)
+    .set({ alert: saved, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+  return { id: row.id, shape, alert: saved }
 }
 
 /** Remove one, and say whether there was one to remove. */
