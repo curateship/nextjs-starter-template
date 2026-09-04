@@ -831,17 +831,19 @@ position's Entry pill, so they all start and end on the same x. A name too long 
 ("RUNG 1 BUYS", "RUNG 3 SHORTS"); Tyler had that removed the same day.
 
 Five round trips still need six prices. The sixth is the range's winning edge,
-one step past rung 1, where rung 1 closes. Before rung 1 buys, a buying grid does
-not draw that edge and stops the shaded band at UPPER PRICE. The empty strip no
-longer looks like another rung. The placement preview follows the same rule, so
-it shades only the real rungs even though it keeps the later exit price for its
-placement maths. Once rung 1 buys, its sell line appears at the winning edge
-with the full label "Rung 1 exit and move up". The line and the extra strip leave
-again after that sell moves the range up. A selling grid mirrors it: once rung 1
-sells, its buy-back line at the bottom edge is labelled "Rung 1 exit and move
-down", in the buy colour (Tyler, 4 Sep 2026). Before that the selling grid's
-band still reaches the bottom edge, with no line on it. The two named range
-lines carry the rung's money chip and its ×, so a rung is never drawn twice.
+one step past rung 1, where rung 1 closes. Before rung 1 trades, the grid does
+not draw that edge and stops the shaded band at rung 1: UPPER PRICE on a buying
+grid, LOWER PRICE on a selling one. The empty strip no longer looks like another
+rung. The placement preview follows the same rule, so it shades only the real
+rungs even though it keeps the later exit price for its placement maths. Once
+rung 1 buys, its sell line appears at the winning edge with the full label
+"Rung 1 exit and move up" and the band grows to meet it. The line and the extra
+strip leave again after that sell moves the range up. The selling grid copies
+that pattern exactly: nothing at the bottom edge in the preview or on the placed
+grid, and once rung 1 sells, its buy-back line appears at the bottom edge
+labelled "Rung 1 exit and move down", in the buy colour, with the band reaching
+down to it (Tyler, 4 Sep 2026). The two named range lines carry the rung's money
+chip and its ×, so a rung is never drawn twice.
 
 Dragging a named line moves the RUNG under the hand. On a buying grid, dropping
 UPPER PRICE at $110 with the bottom held at $92 over four rungs puts rung 1 at

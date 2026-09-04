@@ -166,7 +166,8 @@ function layer(
 
 function previewLayer(
   onMoveGrid: (range: { topPx: number; bottomPx: number }) => void,
-  includeWinningEdge = false
+  includeWinningEdge = false,
+  direction: "long" | "short" = "long"
 ) {
   return (
     <GridLayer
@@ -176,10 +177,12 @@ function previewLayer(
       currentPx={100}
       grids={[]}
       preview={{
-        direction: "long",
+        direction,
         levelCount: 2,
         lines: [
-          ...(includeWinningEdge ? [{ px: 120, kind: "edge" as const }] : []),
+          ...(includeWinningEdge
+            ? [{ px: direction === "long" ? 120 : 80, kind: "edge" as const }]
+            : []),
           { px: 110, kind: "upper", grip: true },
           { px: 100, kind: "level" },
           { px: 90, kind: "lower", grip: true },
@@ -340,6 +343,19 @@ describe("the grid preview's whole-grid grip", () => {
     expect(html).not.toContain(
       "top:80px;height:30px;background-color:theme-up;opacity:0.05"
     )
+  })
+
+  it("shades a selling preview only down to its lowest short, like the buying one", () => {
+    // Tyler, 4 Sep 2026: the selling grid copies the buying grid's pattern.
+    // Nothing is drawn or shaded at the $80 buy-back edge before rung 1 sells.
+    const html = renderToStaticMarkup(previewLayer(vi.fn(), true, "short"))
+    expect(html).toContain(
+      "top:90px;height:20px;background-color:theme-down;opacity:0.05"
+    )
+    expect(html).not.toContain(
+      "top:90px;height:30px;background-color:theme-down;opacity:0.05"
+    )
+    expect(html).not.toContain("Rung 1 exit and move down")
   })
 
   it("moves both range edges by the same price amount", async () => {
@@ -558,11 +574,16 @@ describe("the names on a placed grid's range", () => {
     expect(render(grid("long", false))).not.toContain("Carried buy")
   })
 
-  it("shows rung 1's exit and move-down line after rung 1 sells", () => {
-    // Tyler, 4 Sep 2026: the selling grid says where rung 1 buys back, the
-    // same way the buying grid says where rung 1 sells.
+  it("shows the selling grid's strip and move-down line only once rung 1 sells", () => {
+    // Tyler, 4 Sep 2026: copy the buying grid's pattern. Before rung 1 sells
+    // the band stops at rung 1 on $100 and nothing sits at the $90 edge.
     const one = grid("short", false)
-    expect(render(one)).not.toContain("Rung 1 exit and move down")
+    const waiting = render(one)
+    expect(waiting).not.toContain("Rung 1 exit and move down")
+    expect(waiting).toContain(
+      "top:90px;height:10px;background-color:theme-down;opacity:0.05"
+    )
+
     const rungOne = one.plan.levels.reduce((nearest, level) =>
       level.buyPx < nearest.buyPx ? level : nearest
     )
@@ -573,9 +594,13 @@ describe("the names on a placed grid's range", () => {
     const html = render(one)
     expect(html).toContain("Rung 1 exit and move down")
     expect(html).not.toContain("Rung 1 exit and move up")
-    // Rung 1 sells at $100 (y=100) and buys back at $90, the bottom edge.
+    // Rung 1 sells at $100 (y=100) and buys back at $90, the bottom edge, so
+    // the band now reaches down to that line.
     expect(yOfName(html, "Rung 1 exit and move down")).toBe("110px")
     expect(colourOfName(html, "Rung 1 exit and move down")).toBe("theme-up")
+    expect(html).toContain(
+      "top:90px;height:20px;background-color:theme-down;opacity:0.05"
+    )
   })
 
   it("colours the range by direction and End Grid orange", () => {

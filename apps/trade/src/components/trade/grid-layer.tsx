@@ -163,17 +163,15 @@ export const GridLayer = React.memo(function GridLayer({
   })()
   const previewOffset = previewMove?.offset ?? 0
 
-  // A buying preview's band runs only between the rungs people can see. The
-  // outer winning edge still exists in `previewEdges` for placing and dragging,
-  // but shading it before rung 1 buys makes it look like another rung.
+  // The preview's band runs only between the rungs people can see. The outer
+  // winning edge still exists in `previewEdges` for placing and dragging, but
+  // shading it before rung 1 trades makes it look like another rung. The
+  // selling grid follows the buying grid's pattern exactly (Tyler, 4 Sep 2026).
   const previewBand = (() => {
     if (!preview || preview.lines.length === 0) return null
     const inRange = preview.lines.filter(
       (one) =>
-        one.kind === "upper" ||
-        one.kind === "lower" ||
-        one.kind === "level" ||
-        (one.kind === "edge" && preview.direction === "short")
+        one.kind === "upper" || one.kind === "lower" || one.kind === "level"
     )
     if (inRange.length === 0) return null
     const top = yPinned(
@@ -421,9 +419,9 @@ export const GridLayer = React.memo(function GridLayer({
         </BarRow>
       ) : null}
       {previewDrawn?.map((one) => {
-        // The range's winning edge is not drawn: a line past rung 1 with no
-        // name confused more than it explained (Tyler, 3 Sep 2026). The drag
-        // maths still uses it. A buying preview's band stops at the real rungs.
+        // The range's winning edge is not drawn on either grid: a line past
+        // rung 1 with no name confused more than it explained (Tyler, 3 Sep
+        // 2026). The drag maths still uses it. The band stops at the real rungs.
         if (one === null || one.line.kind === "edge") return null
         const { line, index, y, look, draggable } = one
         return (
@@ -1068,9 +1066,11 @@ function GridLines({
         ? level
         : best
   )
-  // Rung 1's exit line, at the range's winning edge, while rung 1 holds. A
-  // buying grid sells up at the top; a selling grid buys back down at the
-  // bottom, and says so (Tyler, 4 Sep 2026).
+  // Rung 1's exit line, at the range's winning edge, only while rung 1 holds
+  // and its exit is really resting there. A buying grid sells up at the top; a
+  // selling grid buys back down at the bottom, and follows the buying grid's
+  // pattern exactly: nothing at that edge before rung 1 trades (Tyler, 4 Sep
+  // 2026).
   const drawRungOneExit = nearSaved.status === "holding" && nearSaved.heldSz > 0
   const rungOneExitPin = direction === "long" ? pinTop : pinBottom
   const rungOneExitName =
@@ -1194,11 +1194,14 @@ function GridLines({
   // its bar goes to the LEFT of the rung's furniture instead of on top of it.
   const upperY = pinUpper?.y ?? null
   const lowerY = pinLower?.y ?? null
-  // Before rung 1 buys, the buying grid has no order at its winning edge. End
-  // the shade at rung 1 so the empty strip above it cannot look like another
-  // rung. Once rung 1 is open, the band reaches its real sell and move-up line.
+  // Before rung 1 trades, the grid has no order at its winning edge. End the
+  // shade at rung 1 so the empty strip past it cannot look like another rung.
+  // Once rung 1 is open, the band reaches its real exit and move line: the top
+  // on a buying grid, the bottom on a selling grid.
   const drawnBandTop =
     direction === "long" && !drawRungOneExit ? upperY : bandTop
+  const drawnBandBottom =
+    direction === "short" && !drawRungOneExit ? lowerY : bandBottom
   const stopOnRow = sharesRow(stopY, lowerY)
     ? "lower"
     : sharesRow(stopY, upperY)
@@ -1368,14 +1371,14 @@ function GridLines({
           thing the edges were there to say much better: this is the stretch of
           chart the grid works in. */}
       {drawnBandTop !== null &&
-      bandBottom !== null &&
-      bandBottom > drawnBandTop ? (
+      drawnBandBottom !== null &&
+      drawnBandBottom > drawnBandTop ? (
         <>
           <div
             className="absolute inset-x-0"
             style={{
               top: drawnBandTop,
-              height: bandBottom - drawnBandTop,
+              height: drawnBandBottom - drawnBandTop,
               backgroundColor: rangeColour,
               opacity: dragging ? 0.1 : 0.05,
             }}
@@ -1589,8 +1592,8 @@ function lineLook(
       dashed: false,
     }
   }
-  // The preview's winning edge stays unnamed. The placed grid decides whether
-  // to show that line from rung 1's live state.
+  // The preview's winning edge stays unnamed and undrawn. The placed grid
+  // decides whether to show that line from rung 1's live state.
   if (kind === "edge") {
     return { colour: rangeColour, name: null, dashed: false }
   }
