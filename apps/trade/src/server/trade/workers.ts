@@ -10,6 +10,7 @@ import {
   type WorkersDashboard,
   type WorkerStatus,
 } from "@/lib/trade/workers"
+import { describeBuild, type BuildStamp } from "@/lib/build-stamp"
 import { db, type CustomShellDb } from "@/server/db"
 import { forgetRealMoneySwitch } from "@/server/protocols/real-money-memory"
 import {
@@ -69,6 +70,22 @@ export async function engineCanMarketBuyFirstDca(
 }
 
 /** How long a stopped copy's last beat is kept, so "when did it last run" has an answer. */
+/**
+ * The build a heartbeat says it is. "Not reported" for a copy built before
+ * the stamp existed and for a dev copy, which carries none.
+ */
+function buildLine(value: unknown): string {
+  if (typeof value !== "object" || value === null) return "Not reported"
+  const { builtAt, commit } = value as Partial<BuildStamp>
+  if (typeof builtAt !== "number" || !Number.isFinite(builtAt)) {
+    return "Not reported"
+  }
+  return describeBuild({
+    builtAt,
+    commit: typeof commit === "string" ? commit : null,
+  })
+}
+
 const HEARTBEAT_KEEP_MS = 3 * 24 * 60 * 60_000
 
 async function listWorkerControls(database: CustomShellDb = db) {
@@ -381,6 +398,9 @@ export async function workersDashboard(
       figures: [
         { label: "Ladders working", value: String(ladderCount) },
         { label: "Copies alive", value: String(alive.length) },
+        // Which build the speaking copy is, so a container left behind on an
+        // old build is found by reading the card, not guessed at.
+        { label: "Build", value: buildLine(meta.build) },
         {
           label: "Prices",
           value:

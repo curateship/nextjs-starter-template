@@ -44,6 +44,7 @@ import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
  */
 const SIGNAL_PHASES = ["buying", "holding", "selling", "stopping"] as const
 
+// `.loose()`: see the note on gridPlanSchema in grid.ts. Unknown fields survive a save.
 const signalPlanSchema = z.object({
   ...smartOrderPauseFields,
   /**
@@ -118,9 +119,12 @@ export const SIGNAL_PLAN_FIELDS: ReadonlySet<string> = new Set(
   Object.keys(signalPlanSchema.shape)
 )
 
+// Reads keep fields this build does not know. See `gridPlanReader` in grid.ts.
+const signalPlanReader = signalPlanSchema.loose()
+
 export function readSignalPlan(value: unknown): SignalPlan | null {
-  const parsed = signalPlanSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
+  const parsed = signalPlanReader.safeParse(value)
+  return parsed.success ? (parsed.data as SignalPlan) : null
 }
 
 /**

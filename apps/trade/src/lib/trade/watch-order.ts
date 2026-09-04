@@ -32,6 +32,7 @@ const WATCH_PHASES = [
 export const WATCH_TRIGGER_DIRECTIONS = ["up", "down"] as const
 export type WatchTriggerDirection = (typeof WATCH_TRIGGER_DIRECTIONS)[number]
 
+// `.loose()`: see the note on gridPlanSchema in grid.ts. Unknown fields survive a save.
 const watchPlanSchema = z.object({
   ...smartOrderPauseFields,
   /** The price that starts it: the level that was clicked. */
@@ -151,9 +152,12 @@ export const WATCH_PLAN_FIELDS: ReadonlySet<string> = new Set(
   Object.keys(watchPlanSchema.shape)
 )
 
+// Reads keep fields this build does not know. See `gridPlanReader` in grid.ts.
+const watchPlanReader = watchPlanSchema.loose()
+
 export function readWatchPlan(value: unknown): WatchPlan | null {
-  const parsed = watchPlanSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
+  const parsed = watchPlanReader.safeParse(value)
+  return parsed.success ? (parsed.data as WatchPlan) : null
 }
 
 /**

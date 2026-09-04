@@ -1,4 +1,8 @@
-import { ladderPlanSchema, type LadderPlan } from "@/lib/trade/dca"
+import {
+  ladderPlanSchema,
+  readLadderPlan,
+  type LadderPlan,
+} from "@/lib/trade/dca"
 import {
   GRID_PLAN_FIELDS,
   readGridPlan,
@@ -165,8 +169,7 @@ export function readSmartPlan(
   if (kind === "grid") return readGridPlan(value)
   if (kind === "signal") return readSignalPlan(value)
   if (kind === "watch") return readWatchPlan(value)
-  const parsed = ladderPlanSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
+  return readLadderPlan(value)
 }
 
 /**

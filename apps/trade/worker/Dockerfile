@@ -26,6 +26,11 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/trade/package.json ./apps/trade/
 RUN pnpm install --frozen-lockfile --config.node-linker=hoisted --filter trade...
 COPY . .
+# Coolify hands the commit it is building as SOURCE_COMMIT. Declared here so
+# the build script can write it into the engine's build stamp; an undeclared
+# build argument is dropped. See src/lib/build-stamp.ts.
+ARG SOURCE_COMMIT
+ENV SOURCE_COMMIT=$SOURCE_COMMIT
 RUN pnpm --filter trade run build:worker
 
 # --- Runtime dependencies ---

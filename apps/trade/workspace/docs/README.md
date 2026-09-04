@@ -198,6 +198,10 @@ screen: anything not written there has not been agreed yet.
   one wait, not a parade of database trips: reads that go out together, the
   journal behind the answer, the two-second real-money memory, and what
   stayed slow on purpose.
+- `deploying-all-three.md` — `npm run deploy`, which rebuilds engine, worker
+  and web in that order; why the newest build leads and an older container
+  hands the trading lock back; and why a saved plan keeps fields a build does
+  not know.
 - `worker-restart.md` — the Restart button on the Workers screen: how the
   engine sees the request, why a pass in flight finishes first, and who does
   the starting.

@@ -1481,9 +1481,33 @@ export const GRID_PLAN_FIELDS: ReadonlySet<string> = new Set(
   Object.keys(gridPlanSchema.shape)
 )
 
+/**
+ * The schema a saved grid is READ with. Same fields as `gridPlanSchema`, but
+ * every object keeps the fields this build has never heard of, so a plan
+ * written by a newer build survives being saved back by this one.
+ *
+ * On 3 and 4 Sep 2026 a container weeks behind the engine saved live grids
+ * back without their direction, split and leverage, because zod drops what a
+ * schema does not name. The engine leaves such a row alone now
+ * (`leftForANewerBuild`); this is the second lock on the same door, for the
+ * website's own saves. The reader is a separate value because a loose
+ * schema's TYPE carries an index signature, and that type breaks the server
+ * function typing every plan travels through. The cast below says: read
+ * everything, type what this build knows.
+ */
+const gridPlanReader = gridPlanSchema
+  .extend({
+    levels: z
+      .array(gridLevelStateSchema.loose())
+      .min(MIN_GRID_LEVELS)
+      .max(MAX_GRID_LEVELS),
+    carriedLevels: z.array(gridLevelStateSchema.loose()).default([]),
+  })
+  .loose()
+
 export function readGridPlan(value: unknown): GridPlan | null {
-  const parsed = gridPlanSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
+  const parsed = gridPlanReader.safeParse(value)
+  return parsed.success ? (parsed.data as GridPlan) : null
 }
 
 /**

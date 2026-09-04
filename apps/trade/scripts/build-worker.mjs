@@ -36,6 +36,16 @@ import { build } from "esbuild"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const outdir = path.join(root, "worker/dist")
 
+// When this build ran and, inside a Coolify build, which commit it was given
+// (`SOURCE_COMMIT`, declared in worker/Dockerfile). The engine reads it back
+// through `src/lib/build-stamp.ts` and refuses the trading lock when a newer
+// build has already led, so a container built weeks ago cannot trade during
+// a redeploy. The website gets the same stamp from vite.config.ts.
+const buildStamp = {
+  builtAt: Date.now(),
+  commit: process.env.SOURCE_COMMIT?.trim() || null,
+}
+
 await build({
   entryPoints: {
     worker: path.join(root, "worker/src/worker.ts"),
@@ -51,6 +61,9 @@ await build({
   sourcemap: true,
   sourcesContent: false,
   packages: "external",
+  define: {
+    __TRADE_BUILD_STAMP__: JSON.stringify(JSON.stringify(buildStamp)),
+  },
   alias: {
     "@": path.join(root, "src"),
     // `lucide-react` ships no "exports" map, so Node cannot find the

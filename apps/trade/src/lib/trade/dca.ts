@@ -889,6 +889,24 @@ export const ladderPlanSchema = z.object({
 export type LadderPlan = z.infer<typeof ladderPlanSchema>
 
 /**
+ * The schema a saved ladder is READ with: the same fields, keeping every
+ * field this build does not know so a save cannot drop them. See the note on
+ * `gridPlanReader` in grid.ts for the day that mattered and for why the
+ * reader is a separate value from the schema the type comes from.
+ */
+const ladderPlanReader = ladderPlanSchema
+  .extend({
+    rungs: z.array(ladderRungStateSchema.loose()).min(1).max(20),
+    exitRungs: z.array(exitLadderRungSchema.loose()).max(20).default([]),
+  })
+  .loose()
+
+export function readLadderPlan(value: unknown): LadderPlan | null {
+  const parsed = ladderPlanReader.safeParse(value)
+  return parsed.success ? (parsed.data as LadderPlan) : null
+}
+
+/**
  * Read an editable setup back from a placed plan.
  *
  * Plans written before the editor existed do not carry the three placement

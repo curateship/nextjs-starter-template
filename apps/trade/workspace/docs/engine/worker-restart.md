@@ -61,7 +61,9 @@ their coins. A stand-in that runs old code is worse than no stand-in.
 
 **Deploy Web, Worker and Engine together.** Each Coolify app builds whatever
 `develop` is at the moment its button is pressed, so pressing one leaves the
-other two on older builds.
+other two on older builds. `npm run deploy` presses all three in order, and
+since 4 Sep 2026 a copy built before the newest leader is refused the lock
+whichever button was pressed. `deploying-all-three.md` has both.
 
 ## A row written by a newer build is left alone
 

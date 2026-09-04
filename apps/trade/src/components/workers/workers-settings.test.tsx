@@ -80,6 +80,10 @@ describe("the trading engine error", () => {
                       { label: "Ladders working", value: "1" },
                       { label: "Copies alive", value: "1" },
                       { label: "Prices", value: "Hyperliquid: live" },
+                      {
+                        label: "Build",
+                        value: "built 2026-09-04 12:55 UTC (abc1234)",
+                      },
                     ],
                   },
                 ],
@@ -99,6 +103,10 @@ describe("the trading engine error", () => {
     expect(host.textContent).toContain(
       "Last error · Wallet Main wallet has been working for 2 minutes and has not finished."
     )
+    // The build the copy runs, so a container left on an old build is read
+    // off the card rather than guessed at.
+    expect(host.textContent).toContain("Build")
+    expect(host.textContent).toContain("built 2026-09-04 12:55 UTC (abc1234)")
     const notice = [...host.querySelectorAll("div")].find((element) =>
       element.className.includes("bg-destructive/10")
     )

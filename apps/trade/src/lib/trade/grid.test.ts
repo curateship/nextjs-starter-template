@@ -355,6 +355,23 @@ describe("reading a stored grid back", () => {
     closedReason: null,
   }
 
+  it("keeps every field a newer build added, on the plan and on its levels", () => {
+    // A stale container once saved live grids back without their direction,
+    // split and leverage (3 and 4 Sep 2026): zod dropped what the schema did
+    // not name. Reading keeps unknown fields now, so a save cannot lose them.
+    const newer = {
+      ...plan,
+      addedLater: { keep: "me" },
+      levels: plan.levels.map((level) => ({ ...level, pausedUntil: 42 })),
+    }
+
+    const read = readGridPlan(newer) as unknown as Record<string, unknown>
+
+    expect(read.addedLater).toEqual({ keep: "me" })
+    expect((read.levels as Record<string, unknown>[])[0].pausedUntil).toBe(42)
+    expect(read.direction).toBe("long")
+  })
+
   it("reads its own back and refuses junk rather than half-obeying it", () => {
     expect(readSmartPlan("grid", plan)).toEqual(plan)
     expect(readSmartPlan("grid", null)).toBeNull()

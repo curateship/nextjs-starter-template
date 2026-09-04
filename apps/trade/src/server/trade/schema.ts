@@ -1248,6 +1248,14 @@ export const tradeWorkerControls = pgTable("trade_worker_controls", {
   flowScanRequestedAt: timestamp("flow_scan_requested_at", {
     withTimezone: true,
   }),
+  /**
+   * When the newest copy that has held the trading lock was built, and its
+   * commit. A copy built before this hands the lock straight back, so a
+   * container left on an old build cannot trade during a redeploy. Written
+   * by `buildAllowedToLead` in `leadership.ts`, on the ladders row only.
+   */
+  leaderBuildAt: timestamp("leader_build_at", { withTimezone: true }),
+  leaderBuild: varchar("leader_build", { length: 80 }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

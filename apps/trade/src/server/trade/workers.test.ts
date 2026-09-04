@@ -11,6 +11,7 @@ import {
   requestFlowScan,
   setRealMoneySwitch,
   setWorkerSwitch,
+  workersDashboard,
 } from "@/server/trade/workers"
 import {
   tradeWorkerControls,
@@ -96,6 +97,33 @@ describe("the ladders switch", () => {
       meta: {},
     })
     expect(await engineCanMarketBuyFirstDca(db, now)).toBe(false)
+  })
+
+  it("says which build the speaking copy is, so a stale container is found by reading the card", async () => {
+    const now = new Date()
+    await db.insert(tradeWorkerHeartbeats).values({
+      id: "stamped",
+      kind: "ladders",
+      startedAt: now,
+      lastSeenAt: now,
+      role: "leader",
+      meta: { build: { builtAt: Date.UTC(2026, 8, 4, 12, 55), commit: "abc1234def" } },
+    })
+    const stamped = await workersDashboard(true, db)
+    const figures = Object.fromEntries(
+      stamped.workers[0].figures.map((one) => [one.label, one.value])
+    )
+    expect(figures.Build).toBe("built 2026-09-04 12:55 UTC (abc1234)")
+
+    // A copy from before the stamp existed, or a dev copy, carries none.
+    await db
+      .update(tradeWorkerHeartbeats)
+      .set({ meta: { host: "engine" } })
+      .where(eq(tradeWorkerHeartbeats.id, "stamped"))
+    const unstamped = await workersDashboard(true, db)
+    expect(
+      unstamped.workers[0].figures.find((one) => one.label === "Build")?.value
+    ).toBe("Not reported")
   })
 
   it("does not clear a newer folder scan request", async () => {

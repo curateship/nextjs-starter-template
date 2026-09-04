@@ -283,6 +283,7 @@ export default function WorkersSettings() {
                   }
                 />
                 <Line label="Where" value={worker.host ?? "—"} />
+                <Line label="Build" value={figures.Build ?? "Not reported"} />
                 <Line
                   label="Copies alive"
                   value={figures["Copies alive"] ?? "—"}

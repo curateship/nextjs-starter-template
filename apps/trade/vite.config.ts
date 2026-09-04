@@ -8,8 +8,23 @@ import tsconfigPaths from "vite-tsconfig-paths"
 
 import { DEV_APP_PORT } from "./app-port"
 
+/**
+ * The build stamp the website carries: when `vite build` ran and, in a
+ * Coolify build, the commit it was given. Only a real build gets one; the
+ * dev server stays unstamped so it never counts as the newest build in
+ * `src/server/trade/leadership.ts`. Read through `src/lib/build-stamp.ts`.
+ */
+function buildStampDefine(command: "build" | "serve"): Record<string, string> {
+  if (command !== "build") return {}
+  const stamp = {
+    builtAt: Date.now(),
+    commit: process.env.SOURCE_COMMIT?.trim() || null,
+  }
+  return { __TRADE_BUILD_STAMP__: JSON.stringify(JSON.stringify(stamp)) }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     tanstackStart({
       router: {
@@ -36,9 +51,10 @@ export default defineConfig({
   // own dev address without the port being written out a second time.
   define: {
     __DEV_APP_PORT__: JSON.stringify(DEV_APP_PORT),
+    ...buildStampDefine(command),
   },
   server: {
     port: DEV_APP_PORT,
     strictPort: true,
   },
-})
+}))
