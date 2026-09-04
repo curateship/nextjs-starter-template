@@ -4,6 +4,7 @@ import type { TradePosition } from "@/lib/trade/paper"
 import type { TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
+import { nonEngineProcessMayTrade } from "@/server/trade/leadership"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallets, walletMapKey } from "@/server/trade/wallets"
 
@@ -19,8 +20,8 @@ import { findWallets, walletMapKey } from "@/server/trade/wallets"
  *
  * **Where it runs.** Properly, in `worker/` — its own program, started
  * separately, so a deploy or a crash of the website cannot touch money that is
- * in a trade. The website can also run it, but only when no worker has claimed
- * the job; see `WEB_STANDS_BACK_MS`.
+ * in a trade. In local development the website can also run it, but only when
+ * no worker has claimed the job; see `WEB_STANDS_BACK_MS`.
  *
  * **Why it is not on the shell's ticker.** That loop is shared by every job in
  * every app and turns once every fifteen seconds. Trading is the one thing here
@@ -120,7 +121,7 @@ export function ensureLadderLoop(): void {
   // every short grid as a buying grid holding a short, and ended all seven
   // of them. Nothing standing in is better than something old standing in:
   // every stop rests on the exchange, and the engine is back within seconds.
-  if (process.env.NODE_ENV === "production") return
+  if (!nonEngineProcessMayTrade()) return
   if (globalThis.__tradeLadderLoop || globalThis.__tradeLadderClaiming) return
   globalThis.__tradeLadderClaiming = true
 

@@ -62,6 +62,20 @@ export type Leadership = {
 }
 
 /**
+ * Whether a process other than the dedicated engine may trade.
+ *
+ * Production has a dedicated engine. The deployed website can be on the build
+ * from just before an engine rollout, so it must never stand in during the
+ * few seconds when the engine's lock is free. Development has no separate
+ * engine by default and keeps the one-pass fallback.
+ */
+export function nonEngineProcessMayTrade(
+  env: Readonly<{ NODE_ENV?: string }> = process.env
+): boolean {
+  return env.NODE_ENV === "development"
+}
+
+/**
  * **The newest build leads, and an older one never takes the lock again.**
  *
  * The website, the shell worker and the engine are three containers rebuilt
@@ -89,7 +103,10 @@ export function olderThanLastLeader(
 ): string | null {
   if (lastLeaderBuiltAt === null) return null
   if (lastLeaderBuiltAt.getTime() <= mine.builtAt) return null
-  const newest = describeBuild({ builtAt: lastLeaderBuiltAt.getTime(), commit: null })
+  const newest = describeBuild({
+    builtAt: lastLeaderBuiltAt.getTime(),
+    commit: null,
+  })
   return `this copy was ${describeBuild(mine)}, and a copy ${newest} has led since. Redeploy this container so it runs the current build.`
 }
 
@@ -240,11 +257,12 @@ export async function tryBecomeLeader(): Promise<Leadership> {
  * The lock for ONE short pass, on a connection that is kept warm between
  * passes.
  *
- * The website asks for the lock every four seconds from every open dashboard
- * tab, holds it for one reconcile pass, and lets it go. `tryBecomeLeader`
- * opens a brand-new connection each time — connect, TLS, sign in — which
- * measured at half a second against the database this app runs on. Half a
- * second of plumbing every four seconds, per tab, before any work starts.
+ * In local development the website asks for the lock every four seconds from
+ * every open dashboard tab, holds it for one reconcile pass, and lets it go.
+ * Production blocks that call before it gets here. `tryBecomeLeader` opens a
+ * brand-new connection each time — connect, TLS, sign in — which measured at
+ * half a second against the database this app runs on. Half a second of
+ * plumbing every four seconds, per tab, before any work starts.
  *
  * This keeps a pool of one connection for that job. The lock still lives on
  * a connection, so the guarantee above holds: the connection stays checked

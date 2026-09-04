@@ -153,6 +153,7 @@ vi.mock("@/server/trade/price-alerts", () => ({
 
 const leader = vi.hoisted(() => ({ asked: 0 }))
 vi.mock("@/server/trade/leadership", () => ({
+  nonEngineProcessMayTrade: () => process.env.NODE_ENV === "development",
   tryBecomeLeader: async () => {
     leader.asked += 1
     return { held: false }

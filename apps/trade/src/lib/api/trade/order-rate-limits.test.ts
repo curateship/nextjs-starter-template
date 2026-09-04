@@ -68,6 +68,15 @@ describe("every signed-in door that can reach an exchange order", () => {
     const body = serverFunctionBody(apiFiles.smart, "reconcileLiveLaddersFn")
     expect(body).not.toContain("runWalletOrderAction(")
   })
+
+  it("never lets the deployed website stand in for the trading engine", () => {
+    const body = serverFunctionBody(apiFiles.smart, "reconcileLiveLaddersFn")
+    const refusal = body.indexOf("if (!nonEngineProcessMayTrade())")
+    const lock = body.indexOf("tryBecomeLeaderForOnePass()")
+
+    expect(refusal).toBeGreaterThanOrEqual(0)
+    expect(lock).toBeGreaterThan(refusal)
+  })
 })
 
 describe("the refusal shown on screen", () => {

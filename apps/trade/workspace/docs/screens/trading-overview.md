@@ -135,6 +135,11 @@ its P/L column either way. A wallet that misses a read keeps its last known
 rows, and the header uses dashes rather than claiming a partial account-wide
 total.
 
+The header reads the wallet list and then the open positions that supply its
+menu and total. It does not ask every exchange for a full account balance first.
+That balance is not part of the Active Trades answer, and waiting for it left
+the header on loading dashes long after the rest of the workspace had opened.
+
 Running bots is the fourth trading-overview widget. A new or reset dashboard
 puts it in the left column, beside All trades. A saved arrangement keeps its
 choices and finds Running bots under Settings → Widgets until somebody places

@@ -19,7 +19,10 @@ import {
 } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { tradeLiveFills } from "@/server/trade/schema"
-import { loadWalletSummaries } from "@/server/trade/wallets"
+import {
+  listWalletsWithCredentials,
+  loadWalletSummaries,
+} from "@/server/trade/wallets"
 import { loadLivePortfolio } from "@/server/trade/live-orders"
 import { pricesEverySale } from "@/server/protocols/registry"
 import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
@@ -181,23 +184,31 @@ export async function loadTradingOverview(
 export async function loadActiveTradesSnapshot(
   userId: string
 ): Promise<ActiveTradesSnapshot> {
-  const walletRead = await loadWalletSummaries(userId)
+  // The header needs the wallet list so it can read positions. Asking every
+  // exchange for balances first duplicated the slowest part of the account
+  // poll and left the header on dashes while an answer it never used arrived.
+  const walletRead = await listWalletsWithCredentials(userId)
   return {
     readAt: Date.now(),
-    ...(await loadActiveTrades(userId, walletRead.wallets)),
+    ...(await loadActiveTrades(
+      userId,
+      walletRead.wallets,
+      walletRead.credentials
+    )),
   }
 }
 
 async function loadActiveTrades(
   userId: string,
-  wallets: Awaited<ReturnType<typeof loadWalletSummaries>>["wallets"]
+  wallets: Awaited<ReturnType<typeof loadWalletSummaries>>["wallets"],
+  credentials?: ReadonlyMap<string, () => string | null>
 ) {
   const [paperPortfolio, livePortfolio, smartOrders] = await Promise.all([
     loadPaperPortfolio(userId, wallets).catch((error) => {
       console.error("Active practice trades could not be read", error)
       return null
     }),
-    loadLivePortfolio(userId, wallets).catch((error) => {
+    loadLivePortfolio(userId, wallets, { credentials }).catch((error) => {
       console.error("Active live trades could not be read", error)
       return null
     }),

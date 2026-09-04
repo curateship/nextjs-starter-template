@@ -169,15 +169,16 @@ exchanges' rows away. They now say which exchange they are for, and the server
 reads only those wallets. The rule that screens never compare exchange ids
 still holds: the exchange arrives as data and the server filters by it.
 
-**The nudge (`reconcileLiveSmartOrders`).** It takes the engine's lock for one
-pass. It used to open a brand-new database connection to do that, which cost
-half a second every four seconds from every open tab. It now borrows one
-kept-warm connection (`tryBecomeLeaderForOnePass` in `leadership.ts`), and
-skips the lock entirely when the account has no live wallet with a key. A
-second tab finds that one connection busy and is told "not held" at once,
-the same answer it got before; it never queues behind the first tab's pass. The
-dedicated engine and the ladder worker, which hold the lock for hours, keep
-their own connections as before.
+**The nudge (`reconcileLiveSmartOrders`).** In local development it takes the
+engine's lock for one pass. It used to open a brand-new database connection to
+do that, which cost half a second every four seconds from every open tab. It
+now borrows one kept-warm connection (`tryBecomeLeaderForOnePass` in
+`leadership.ts`), and skips the lock entirely when the account has no live
+wallet with a key. A second tab finds that one connection busy and is told
+"not held" at once, the same answer it got before; it never queues behind the
+first tab's pass. In production it returns before reading wallets or asking for
+the lock. Only the dedicated engine trades there, including during its own
+rolling deployment.
 
 **The practice read (`loadPaperPortfolio`).** Practice wallets were settled
 one after the other, each in its own transaction, and each wrote its touched

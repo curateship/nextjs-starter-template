@@ -16,7 +16,10 @@ import {
 } from "@/lib/trade/grid"
 import { userGet, userPost } from "@/server/guards"
 import { marketBaseInForce } from "@/server/trade/base-level"
-import { tryBecomeLeaderForOnePass } from "@/server/trade/leadership"
+import {
+  tryBecomeLeaderForOnePass,
+  nonEngineProcessMayTrade,
+} from "@/server/trade/leadership"
 import {
   cancelLiveGridLevel,
   cancelLiveGridRest,
@@ -500,12 +503,16 @@ const updateLadderExitsFn = createServerFn({ method: "POST" })
  * the engine's HEARTBEAT still left a thirty-second window where a freshly
  * dead engine read as alive. The lock has no window: while any engine holds
  * it this cannot take it, and the moment none does, this becomes the engine
- * for one pass — which is the whole reason the door exists, for a laptop
- * with no worker running beside it.
+ * for one pass. That fallback exists for a development laptop with no worker
+ * running beside it. Production returns before asking for the lock.
  */
 const reconcileLiveLaddersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }): Promise<{ checked: true }> => {
+    // Production has its own engine. During a rolling deploy its lock is free
+    // for a few seconds while the website still runs the previous build. That
+    // website must wait, not work live grids with older rules.
+    if (!nonEngineProcessMayTrade()) return { checked: true }
     // The wallet list comes first, so an account with nothing that could
     // trade never touches the lock at all.
     const wallets = (await listWallets(context.user.id)).filter(

@@ -50,6 +50,13 @@ while the engine is restarting nothing trades. Every stop already rests on
 the exchange, and the engine is back within seconds, so nothing is lost by
 waiting.
 
+Both ways the website used to trade are switched off in production. Its
+background loop never starts, and the dashboard's four-second refresh never
+takes the lock for a one-off pass. The second path matters during a rolling
+deploy: the old website remains available while the engine changes containers,
+and the engine's lock is briefly free. The refresh now waits for the new engine
+instead of running the previous website build over live grids.
+
 They used to stand in after a minute without an engine. That is what ended
 seven short grids on 3 Sep 2026. Tyler redeployed the engine on its own, and
 in the thirty seconds it was away the Trade Worker container took the lock.

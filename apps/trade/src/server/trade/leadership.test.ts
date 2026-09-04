@@ -36,7 +36,9 @@ vi.mock("@/server/db", () => ({
 }))
 
 /** The build this copy claims to be; null is a dev server or a test run. */
-const build = vi.hoisted(() => ({ stamp: null as { builtAt: number; commit: string | null } | null }))
+const build = vi.hoisted(() => ({
+  stamp: null as { builtAt: number; commit: string | null } | null,
+}))
 
 vi.mock("@/lib/build-stamp", async (importActual) => {
   const actual = await importActual<typeof import("@/lib/build-stamp")>()
@@ -48,6 +50,7 @@ import {
   tryBecomeLeader,
   tryBecomeLeaderForOnePass,
   waitToBecomeLeader,
+  nonEngineProcessMayTrade,
 } from "@/server/trade/leadership"
 
 describe("trade engine leadership", () => {
@@ -193,11 +196,9 @@ describe("trade engine leadership", () => {
 
     it("refuses the queued engine the same way", async () => {
       build.stamp = { builtAt: BUILT_3_SEP, commit: null }
-      pg.query
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({
-          rows: [{ leader_build_at: new Date(BUILT_4_SEP) }],
-        })
+      pg.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({
+        rows: [{ leader_build_at: new Date(BUILT_4_SEP) }],
+      })
 
       const leadership = await waitToBecomeLeader()
 
@@ -258,5 +259,19 @@ describe("trade engine leadership", () => {
         "this copy was built 2026-09-03 12:00 UTC (abc1234), and a copy built 2026-09-04 12:55 UTC has led since. Redeploy this container so it runs the current build."
       )
     })
+  })
+})
+
+describe("trading outside the dedicated engine", () => {
+  it("is refused in production", () => {
+    expect(nonEngineProcessMayTrade({ NODE_ENV: "production" })).toBe(false)
+  })
+
+  it("is refused when the environment is not identified", () => {
+    expect(nonEngineProcessMayTrade({})).toBe(false)
+  })
+
+  it("remains available to local development", () => {
+    expect(nonEngineProcessMayTrade({ NODE_ENV: "development" })).toBe(true)
   })
 })
