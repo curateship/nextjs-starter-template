@@ -465,15 +465,56 @@ describe("the names on a placed grid's range", () => {
     return node?.style.top ?? null
   }
 
+  /** The border colour of a named line's bar. */
+  function colourOfName(html: string, name: string): string | null {
+    const box = document.createElement("div")
+    box.innerHTML = html
+    const span = [...box.querySelectorAll("span")].find(
+      (one) => one.textContent === name && one.hasAttribute("style")
+    )
+    return (
+      span?.getAttribute("style")?.match(/(?:^|;)border-color:([^;]+)/)?.[1] ??
+      null
+    )
+  }
+
   it("puts UPPER PRICE on rung 1's own price on a buying grid", () => {
     const html = render(grid("long", false))
     expect(html).toContain("UPPER PRICE")
     expect(html).toContain("LOWER PRICE")
     // $100 is drawn at y=100 and $90 at y=110. The top edge, $110 at y=90,
-    // is not drawn at all; the band reaches it.
+    // stays out until rung 1 buys.
     expect(yOfName(html, "UPPER PRICE")).toBe("100px")
     expect(yOfName(html, "LOWER PRICE")).toBe("110px")
     expect(html).not.toContain('style="top:90px"')
+  })
+
+  it("does not draw the winning-edge strip before rung 1 buys", () => {
+    const html = render(grid("long", false))
+    expect(html).not.toContain("Rung 1 exit and move up")
+    // The visible band stops at rung 1 on $100 instead of implying another
+    // rung at its $110 exit.
+    expect(html).toContain(
+      "top:100px;height:10px;background-color:theme-up;opacity:0.05"
+    )
+  })
+
+  it("shows rung 1's exit and move-up line after rung 1 buys", () => {
+    const one = grid("long", false)
+    const rungOne = one.plan.levels.reduce((nearest, level) =>
+      level.buyPx > nearest.buyPx ? level : nearest
+    )
+    rungOne.status = "holding"
+    rungOne.sz = 2
+    rungOne.heldSz = 2
+
+    const html = render(one)
+    expect(html).toContain("Rung 1 exit and move up")
+    expect(yOfName(html, "Rung 1 exit and move up")).toBe("90px")
+    expect(colourOfName(html, "Rung 1 exit and move up")).toBe("theme-down")
+    expect(html).toContain(
+      "top:90px;height:20px;background-color:theme-up;opacity:0.05"
+    )
   })
 
   it("puts LOWER PRICE on rung 1's own price on a selling grid", () => {

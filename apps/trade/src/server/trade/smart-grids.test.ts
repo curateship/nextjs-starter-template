@@ -2036,6 +2036,37 @@ describe("a grid that sells first", () => {
     expect(await positions()).toHaveLength(0)
   })
 
+  it("keeps the complete pot when hand-set weights do not add to 100", async () => {
+    // BR's 10 / 15 / 20 split exposed the missing normalization here. The
+    // numbers are relative weights, so they still divide one complete pot
+    // when a selling grid follows price up.
+    await priceTo(70)
+    await placeShort({
+      levels: 3,
+      potPct: 0.5,
+      follow: true,
+      manualSizing: true,
+      manualRungPcts: [20, 15, 10],
+    })
+    const before = await onlyGrid()
+    const potBefore = before.plan.levels.reduce(
+      (sum, level) => sum + level.budget,
+      0
+    )
+    expect(before.plan.manualRungPcts).toEqual([10, 15, 20])
+
+    await priceTo(121)
+
+    const followed = await onlyGrid()
+    const potAfter = followed.plan.levels.reduce(
+      (sum, level) => sum + level.budget,
+      0
+    )
+    expect(followed.plan.paused).not.toBe(true)
+    expect(followed.plan.downShifts).toBe(1)
+    expect(potAfter).toBeCloseTo(potBefore, 0)
+  })
+
   it("makes a level wait for a one percent FALL after a nearby buy-back", async () => {
     await priceTo(70)
     await placeShort()
