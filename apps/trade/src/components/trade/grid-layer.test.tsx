@@ -201,6 +201,79 @@ function render(grid: SmartGrid): string {
   return renderToStaticMarkup(layer(grid))
 }
 
+describe("the money on each grid line", () => {
+  /**
+   * A grid where `sz` and `heldSz` are different numbers on every level.
+   *
+   * The `grid()` helper above sets them equal, which is exactly why the bug
+   * this guards against went unseen: with 2 planned and 2 held, reading the
+   * wrong field looks right. These figures are the KuCoin BR grid from
+   * 3 Sep 2026, where a rung planned with 44 coins was holding 149 and the
+   * chart printed the 44.
+   */
+  function mixed(): SmartGrid {
+    const one = grid("short")
+    return {
+      ...one,
+      plan: {
+        ...one.plan,
+        levels: [
+          {
+            ...one.plan.levels[0],
+            buyPx: 100,
+            sz: 1,
+            heldSz: 4,
+            status: "holding" as const,
+          },
+          {
+            ...one.plan.levels[1],
+            buyPx: 110,
+            sz: 2,
+            heldSz: 0,
+            status: "waiting" as const,
+          },
+        ],
+        carriedLevels: [
+          {
+            ...one.plan.carriedLevels[0],
+            buyPx: 90,
+            sz: 3,
+            heldSz: 7,
+            status: "holding" as const,
+          },
+        ],
+      },
+    }
+  }
+
+  function moneyOnLines(html: string): string[] {
+    const box = document.createElement("div")
+    box.innerHTML = html
+    return [...box.querySelectorAll("span")]
+      .map((one) => one.textContent ?? "")
+      .filter((text) => /^\$[\d,.]+$/.test(text))
+  }
+
+  it("prints what a holding rung holds, not the stake it was planned with", () => {
+    // 4 coins at $100, not the $100 its planned size of 1 would give.
+    const money = moneyOnLines(render(mixed()))
+    expect(money).toContain("$400")
+    expect(money).not.toContain("$100")
+  })
+
+  it("prints the planned stake on a rung that has bought nothing", () => {
+    // 2 coins at $110, because nothing is held there yet.
+    expect(moneyOnLines(render(mixed()))).toContain("$220")
+  })
+
+  it("reads a carried rung by the same rule as a rung inside the range", () => {
+    // 7 coins at $90, not the $270 its planned size of 3 would give.
+    const money = moneyOnLines(render(mixed()))
+    expect(money).toContain("$630")
+    expect(money).not.toContain("$270")
+  })
+})
+
 describe("the grid stop-loss line", () => {
   it.each(["long", "short"] as const)(
     "shows what the held %s grid would lose at its stop after fees",

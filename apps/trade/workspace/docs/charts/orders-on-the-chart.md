@@ -58,6 +58,27 @@ because ending it at the stop would close no coin. Profit and fees already
 banked by completed rounds are not part of the figure. A grid shows a dash when
 the fills on hand do not add up to the amount its plan says it holds.
 
+## The money beside each grid line
+
+Every line of a grid carries a grey figure in dollars beside its price. It is
+money, never a price. On a coin trading at $0.31 the figures still read $28.29
+or $105, because they say what the level is worth, not where it sits.
+
+One rule decides the figure, and it is the same rule on every line: **a level
+that has bought shows what it is holding at its own price, and a level still
+waiting shows the stake it will put in when it fills.** A rung carried from an
+older range is holding by definition, so it shows what it holds, exactly like a
+holding rung inside the range.
+
+Before 3 September 2026 the rungs inside the range broke that rule. They showed
+the size the level was planned with rather than the size it holds, so a KuCoin
+BR rung holding 149 coins printed $13.94, the value of the 44 it was planned
+with, while the carried rung beside it printed the $105 it really held. Two
+meanings in one column is unreadable, and the wrong one understated real money.
+`levelUsd` in `src/components/trade/grid-layer.tsx` is now the only place the
+figure is worked out, and `grid-layer.test.tsx` fails if any line goes back to
+the planned size while it is holding.
+
 The Entry line, border and name are chart blue. Its current dollar profit is
 green and its loss is red; exactly zero stays blue. The figure updates with the
 market price and stays out until a price has arrived, rather than showing a

@@ -34,6 +34,7 @@ import {
   winEdge,
   GRID_DIRECTION_LABELS,
   type GridDirection,
+  type GridLevelState,
   type GridRangeMove,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
@@ -569,6 +570,30 @@ function levelTitle(
   return `Waiting to ${opens} ${price}. When it fills, a ${closes} goes on one step ${exitWay} — and when THAT fills, this ${opens} comes back at ${price}.`
 }
 
+/**
+ * The money one level puts on its own line.
+ *
+ * A level that has bought shows what it is HOLDING at its own price. A level
+ * still waiting shows the stake it will put in when it fills. `heldSz` and
+ * `sz` are deliberately different numbers — `grid.ts` keeps them apart so a
+ * part-filled sell shrinks what is left to sell without shrinking what the
+ * next cycle may spend — so reading the wrong one is silent and wrong, not a
+ * type error.
+ *
+ * Every line on the drawing reads this one function: the range rungs, a rung
+ * carried from an older range, and the moving preview. It exists because they
+ * did not. Until 3 Sep 2026 the range rungs used `sz` while the carried rung
+ * and the preview used `heldSz`, so on a KuCoin BR grid one rung holding 149
+ * coins printed $13.94, the stake of the 44 it was planned with, beside a
+ * carried rung printing the $105 it really held. One pill cannot mean
+ * "holding" on one line and "planned" on the next.
+ */
+function levelUsd(level: GridLevelState): number {
+  return level.status === "holding"
+    ? level.buyPx * level.heldSz
+    : level.buyPx * level.sz
+}
+
 function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
   const at = new Map<string, AtPrice>()
   const slot = (px: number): AtPrice => {
@@ -594,12 +619,12 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     if (level.status === "waiting") {
       const one = slot(level.buyPx)
       one.entry = index
-      one.usd = level.buyPx * level.sz
+      one.usd = levelUsd(level)
       if (level.dead) one.dead = true
     } else {
       const one = slot(level.buyPx)
       one.holding = index
-      one.usd = level.buyPx * level.sz
+      one.usd = levelUsd(level)
     }
   }
   for (const level of plan.carriedLevels) {
@@ -607,7 +632,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     const one = slot(level.buyPx)
     one.holding = -1
     one.carried = true
-    one.usd += level.buyPx * level.heldSz
+    one.usd += levelUsd(level)
   }
   // The ends of the range are not separate things to draw. One of them IS the
   // deepest level's own price — the bottom on a buying grid, the top on a
@@ -1164,7 +1189,7 @@ function GridLines({
     ...(movingLevels
       ? plan.levels
           .filter((level) => level.status === "holding")
-          .map((level) => usdChipWidth(level.buyPx * level.heldSz))
+          .map((level) => usdChipWidth(levelUsd(level)))
       : [])
   )
   const sharedChips = (row: "upper" | "lower") => (
@@ -1320,7 +1345,7 @@ function GridLines({
             y={y}
             usdSlot={usdSlot}
             nameNode={knobRow === `moving-${index}` ? optionsBar : undefined}
-            usd={holding ? saved.buyPx * saved.heldSz : undefined}
+            usd={holding ? levelUsd(saved) : undefined}
             colour={sideColour(
               holding ? exitSide(direction) : entrySide(direction)
             )}

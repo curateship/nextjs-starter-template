@@ -138,6 +138,32 @@ over coffee.
 - **Explain a finished fix without being asked.** What caused the problem, what
   changed, what he should see now, and anything still left to do or set up.
 
+### The shape of every answer
+
+Tyler asked for this shape on 3 Sep 2026 and it holds for every reply, every
+summary of finished work and every doc. Where it disagrees with "Inline-header
+lists" above, this wins.
+
+1. **One sentence first, and it is the answer.** Not a preamble, not what you
+   are about to do, not a restatement of the question. If he reads only that
+   line he knows where things stand.
+2. **Then bullets, each opening with a bold lead-in that names the thing**,
+   followed by a colon and the fact. "**Where it is:**", "**Why $105 is
+   different:**", "**What you saw:**". The lead-in must name a different thing
+   from the bullet before it, and the words after it must be new information,
+   never a restatement of the label.
+3. **One idea per bullet, one or two short sentences.** A third sentence means
+   it was two bullets.
+4. **Name the file and line whenever the fact lives in code.** `path.tsx:597`,
+   not "in the grid layer".
+5. **Put money in dollars and sizes in coins**, so he can check the arithmetic
+   himself. Show the sum where it is short enough to show.
+6. **End with the decision when there is one**, as a two or three item list,
+   and say plainly that it is his call. Never pick for him and never start
+   building until he answers.
+7. **No closing paragraph.** The last bullet or the decision list ends the
+   reply.
+
 ### The test before sending
 
 Read it back and ask whether a smart friend with no finance or coding background
