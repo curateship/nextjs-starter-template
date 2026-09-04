@@ -2,7 +2,7 @@ import { and, eq, gte, sql } from "drizzle-orm"
 
 import type { PageDescriptor } from "@/lib/pages/page-descriptor"
 import type { PublicNotFoundDiscovery } from "@/lib/pages/not-found-discovery"
-import { isPublicNavigationLink } from "@/lib/pages/public-navigation"
+import { flattenPublicNavigationLinks } from "@/lib/pages/public-navigation"
 import { pageForPath, publicPages } from "@/lib/pages/page-registry"
 import {
   pageVisibility,
@@ -339,7 +339,7 @@ export async function readPublicNotFoundDiscovery(
     : (await readShellGlobals(database)).publicNavigation
 
   return {
-    publicNavigation: publicNavigation.filter(isPublicNavigationLink),
+    publicNavigation: flattenPublicNavigationLinks(publicNavigation),
     publicSearchEnabled:
       searchPage !== null &&
       pageVisibility(settings.pages, searchPage) !== "off",

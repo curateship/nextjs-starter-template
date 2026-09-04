@@ -72,6 +72,13 @@ describe("readPublicNotFoundDiscovery", () => {
           publicNavigation: [
             { type: "search" },
             { label: "Workspace", href: "/workspace" },
+            {
+              type: "group",
+              label: "Workspace group",
+              links: [
+                { label: "Workspace child", href: "/workspace-child" },
+              ],
+            },
           ],
         },
       })
@@ -82,6 +89,11 @@ describe("readPublicNotFoundDiscovery", () => {
         publicNavigation: [
           { type: "search" },
           { label: "App", href: "/app" },
+          {
+            type: "group",
+            label: "App group",
+            links: [{ label: "App child", href: "/app-child" }],
+          },
         ],
       },
       createdAt: at,
@@ -92,13 +104,19 @@ describe("readPublicNotFoundDiscovery", () => {
     try {
       process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
       expect(await readPublicNotFoundDiscovery(site, database)).toMatchObject({
-        publicNavigation: [{ label: "App", href: "/app" }],
+        publicNavigation: [
+          { label: "App", href: "/app" },
+          { label: "App child", href: "/app-child" },
+        ],
         publicSearchEnabled: true,
       })
 
       process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = "localhost"
       expect(await readPublicNotFoundDiscovery(site, database)).toMatchObject({
-        publicNavigation: [{ label: "Workspace", href: "/workspace" }],
+        publicNavigation: [
+          { label: "Workspace", href: "/workspace" },
+          { label: "Workspace child", href: "/workspace-child" },
+        ],
         publicSearchEnabled: true,
       })
     } finally {

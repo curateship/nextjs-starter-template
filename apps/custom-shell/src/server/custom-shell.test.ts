@@ -1111,7 +1111,14 @@ describe("custom shell workspaces", () => {
   it("carries one-site public links through an app-wide settings save", () => {
     const saved = pickShellGlobals({
       ...createDefaultShellConfig(),
-      publicNavigation: [{ label: "About", href: "/about" }],
+      publicNavigation: [
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
       publicFooter: [{ label: "Privacy", href: "/privacy" }],
       publicFooterCopyright: "Copyright",
     })
@@ -1120,6 +1127,11 @@ describe("custom shell workspaces", () => {
       publicNavigation: [
         { type: "search", visible: true },
         { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
       ],
       publicFooter: [{ label: "Privacy", href: "/privacy" }],
       publicFooterCopyright: "Copyright",

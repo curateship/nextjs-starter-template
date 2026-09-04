@@ -86,6 +86,15 @@ The Visible checkbox hides Search from both headers but leaves its chip in the
 editor so it can be switched on again. Search also disappears from the public
 header when the Search page is switched off.
 
+The same Public menu card can add a direct link or a named dropdown group.
+Opening a group edits its name and ordered links in one window. Group-link
+changes stay in that window until Save changes, so Cancel can discard them.
+Trying to create a group without a name marks the Name field and shows its
+message beside the field instead of raising a page-level toast.
+Each child link has the same label, address checks, drag handle, and delete
+control as the flat menu. Groups are one level deep and the menu has no
+menu-specific link limit. Existing flat menus need no conversion.
+
 The menu, footer links, and footer copyright are app-wide when workspace
 domains are off. Saving them from any workspace changes the same public site.
 When workspace domains are on, each workspace keeps its own menu and footer.

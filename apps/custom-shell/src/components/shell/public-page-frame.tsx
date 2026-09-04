@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useLocation } from "@tanstack/react-router"
-import { MenuIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, MenuIcon, SearchIcon } from "lucide-react"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { BrandLogo } from "@/components/shell/brand-logo"
@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -27,7 +28,9 @@ import {
   usePublicTheme,
 } from "@/lib/branding"
 import {
+  isPublicNavigationGroup,
   isPublicNavigationSearchItem,
+  type PublicNavigationGroup,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
 import {
@@ -120,9 +123,12 @@ export function PublicPageFrame({
     : "place-items-center"
   const visitorCanChooseTheme = theme.colorScheme === "system"
   const visibleNavigation = navigation.filter(
-    (item) =>
-      !isPublicNavigationSearchItem(item) ||
-      (item.visible && publicSearchEnabled && pathname !== "/search")
+    (item) => {
+      if (isPublicNavigationSearchItem(item)) {
+        return item.visible && publicSearchEnabled && pathname !== "/search"
+      }
+      return !isPublicNavigationGroup(item) || item.links.length > 0
+    }
   )
   const centeredMenu =
     publicHeader.menuAlignment === "center" && visibleNavigation.length > 0
@@ -172,6 +178,10 @@ export function PublicPageFrame({
                 />
               </SiteSearchForm>
             </li>
+          ) : isPublicNavigationGroup(item) ? (
+            <li key={`${item.label}-group-${index}`}>
+              <PublicMenuGroup group={item} />
+            </li>
           ) : (
             <li key={`${item.label}-${item.href}-${index}`}>
               <PublicLink link={item} className="px-2.5 py-1.5" />
@@ -203,6 +213,19 @@ export function PublicPageFrame({
                 Search
               </Link>
             </DropdownMenuItem>
+          ) : isPublicNavigationGroup(item) ? (
+            <React.Fragment key={`${item.label}-group-${index}`}>
+              <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
+              {item.links.map((link, linkIndex) => (
+                <DropdownMenuItem
+                  key={`${link.label}-${link.href}-${linkIndex}`}
+                  asChild
+                  inset
+                >
+                  <PublicLink link={link} />
+                </DropdownMenuItem>
+              ))}
+            </React.Fragment>
           ) : (
             <DropdownMenuItem
               key={`${item.label}-${item.href}-${index}`}
@@ -319,6 +342,33 @@ export function PublicPageFrame({
         </footer>
       ) : null}
     </div>
+  )
+}
+
+function PublicMenuGroup({ group }: { group: PublicNavigationGroup }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          className="gap-1 px-2.5 text-sm font-normal text-muted-foreground"
+        >
+          {group.label}
+          <ChevronDownIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-48">
+        {group.links.map((link, index) => (
+          <DropdownMenuItem
+            key={`${link.label}-${link.href}-${index}`}
+            asChild
+          >
+            <PublicLink link={link} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

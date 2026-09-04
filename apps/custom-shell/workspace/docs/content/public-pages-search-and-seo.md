@@ -33,6 +33,21 @@ The Search chip's Visible checkbox hides both versions without removing the
 chip or its saved position. Switching off the public search page also hides the
 item from the public header and keeps its position for later.
 
+Public menu links can stay in the header as individual links or sit inside a
+named dropdown group such as Product or Resources. A group opens on click on
+desktop and supports the usual keyboard controls, including Enter, arrow keys,
+Escape, and moving focus through its links. The phone menu shows the group name
+as a heading with its links beneath it. Groups stop at one level, so a group
+cannot contain another group. The same address checks used by direct menu links
+remove unsafe addresses inside groups too.
+
+The public menu has no menu-specific link limit. The old 20-link limit existed
+because every link occupied the flat header, which groups no longer require.
+Menus saved before dropdown groups continue to render as the same flat list.
+The missing-page screen flattens group links into its existing discovery list,
+so a page does not disappear there just because its menu link moved into a
+group.
+
 A one-site app has one app-wide public menu and footer, so switching workspaces
 in the admin area does not change the public site. A deployment with workspace
 domains reads the menu and footer from the workspace named by the domain. Page

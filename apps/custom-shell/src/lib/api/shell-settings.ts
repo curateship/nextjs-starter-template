@@ -49,10 +49,9 @@ import {
   cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
+  MAX_PUBLIC_FOOTER_LINKS,
   MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
-  MAX_PUBLIC_NAVIGATION_ITEMS,
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
-  MAX_PUBLIC_NAVIGATION_LINKS,
 } from "@/lib/pages/public-navigation"
 import {
   PUBLIC_HEADER_LOGO_SIZES,
@@ -213,14 +212,18 @@ const publicNavigationSchema = z
     z.union([
       publicNavigationLinkSchema,
       z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
+      z.object({
+        type: z.literal("group"),
+        label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
+        links: z.array(publicNavigationLinkSchema),
+      }),
     ])
   )
-  .max(MAX_PUBLIC_NAVIGATION_ITEMS)
   .transform(cleanPublicNavigationItems)
 
 const publicFooterSchema = z
   .array(publicNavigationLinkSchema)
-  .max(MAX_PUBLIC_NAVIGATION_LINKS)
+  .max(MAX_PUBLIC_FOOTER_LINKS)
   .transform(cleanPublicNavigationLinks)
 
 const publicBrandOverridesSchema = z.object(

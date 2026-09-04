@@ -439,6 +439,70 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
+  it("opens a grouped menu by keyboard and shows the group as a phone section", async () => {
+    publicSite.navigation = [
+      { type: "search", visible: true },
+      {
+        type: "group",
+        label: "Resources",
+        links: [
+          { label: "Guides", href: "/guides" },
+          { label: "Support", href: "https://example.com/support" },
+        ],
+      },
+      { label: "About", href: "/about" },
+    ]
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const groupTrigger = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Resources"
+    )
+    await act(async () => {
+      groupTrigger?.focus()
+      groupTrigger?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+    expect(
+      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
+        (item) => item.textContent?.trim()
+      )
+    ).toEqual(["Guides", "Support"])
+
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+    expect(document.body.querySelector('[role="menuitem"]')).toBeNull()
+
+    const phoneTrigger = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open navigation menu"]'
+    )
+    await act(async () => {
+      phoneTrigger?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+      )
+    })
+    expect(
+      document.body.querySelector('[data-slot="dropdown-menu-label"]')
+        ?.textContent
+    ).toBe("Resources")
+    expect(
+      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
+        (item) => item.textContent?.trim()
+      )
+    ).toEqual(["Search", "Guides", "Support", "About"])
+
+    await act(async () => root.unmount())
+  })
+
   it("does not offer search when the public search page is switched off", async () => {
     publicSearch.enabled = false
     const host = document.createElement("div")
