@@ -28,7 +28,11 @@ const protocolMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/server/trade/notices", () => ({ writeTradeNotice: vi.fn() }))
-vi.mock("@/server/protocols/registry", () => {
+// Only the two order-facing doors are replaced. The rest of the registry
+// comes through as itself, because `pricesEverySale` is asked here for what
+// each exchange says about its own closed money, and a mock listing just
+// these two left it undefined.
+vi.mock("@/server/protocols/registry", async (importOriginal) => {
   const orders = {
     fills: protocolMocks.fills,
     orderInfo: protocolMocks.orderInfo,
@@ -36,6 +40,7 @@ vi.mock("@/server/protocols/registry", () => {
     fillsNeedRecovery: protocolMocks.fillsNeedRecovery,
   }
   return {
+    ...(await importOriginal<object>()),
     getProtocol: () => ({ orders }),
     ordersOf: () => orders,
   }
@@ -217,6 +222,63 @@ describe("live fill storage", () => {
       .from(tradeLiveFills)
       .where(eq(tradeLiveFills.userId, user.id))
     expect(saved).toHaveLength(2)
+  })
+
+  it("names the average entry only where the exchange prices every sale", async () => {
+    // Working an entry back from a closing fill only holds when the money on
+    // that fill belongs to that fill. KuCoin and Lighter pay out the whole
+    // position's figure and land it on one sale, so there is no entry to
+    // name. The venue is never asked by name: it is asked whether it prices
+    // every sale, which is written once beside the venue itself.
+    const user = await insertUser(database)
+    for (const protocol of ["hyperliquid", "kucoin"] as const) {
+      const wallet: TradeWallet = {
+        id: crypto.randomUUID(),
+        label: `W-${protocol}`,
+        kind: "live",
+        status: "active",
+        protocol,
+        network: "mainnet",
+        startingBalance: 0,
+        address: `${protocol}-account`,
+        hasKey: true,
+        keyValidUntil: null,
+      }
+      await database.insert(tradeWallets).values({
+        userId: user.id,
+        id: wallet.id,
+        label: wallet.label,
+        kind: wallet.kind,
+        status: wallet.status,
+        protocol: wallet.protocol,
+        network: wallet.network,
+        startingBalance: 0,
+        address: wallet.address,
+      })
+      await recordLiveFills(user.id, wallet, [
+        {
+          fillId: `${protocol}-close`,
+          orderId: `${protocol}-order`,
+          marketId: "BTC",
+          side: "sell",
+          px: 100,
+          sz: 2,
+          at: Date.now(),
+          closedPnl: 20,
+          fee: 0.1,
+          dir: "Close Long",
+          liquidation: false,
+        },
+      ])
+    }
+
+    const bodies = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice.body)
+    expect(bodies).toHaveLength(2)
+    // $20 banked on 2 coins sold at $100 each puts the entry at $90.
+    expect(bodies[0]).toContain("average entry of $90")
+    expect(bodies[1]).not.toContain("average entry")
   })
 
   it("reads fills for newly learnt triggers in one query", async () => {
