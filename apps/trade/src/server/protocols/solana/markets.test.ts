@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import fixture from "@/server/protocols/solana/jupiter.fixture.json"
-import { clearSolanaClientState } from "@/server/protocols/solana/client"
+import {
+  clearSolanaClientState,
+  JUPITER_REQUESTS_PER_MINUTE,
+} from "@/server/protocols/solana/client"
 import {
   clearSolanaMarketState,
   fetchSolanaMarkets,
@@ -9,6 +12,7 @@ import {
   jupiterTokenRow,
   PRICE_PAGE_SIZE,
   searchSolanaMarkets,
+  SOLANA_PRICE_REFRESH,
   solanaCandlesNotBuilt,
   toSolanaMarketCatalog,
   translateSolanaTokens,
@@ -182,6 +186,36 @@ describe("the whole list", () => {
     // Eight verified less the unpriced one and USDC itself, plus the three
     // top traded.
     expect(catalog.rows).toHaveLength(9)
+  })
+
+  it("tells the screen how often it may ask, because there is no socket", () => {
+    const catalog = toSolanaMarketCatalog({
+      network: "mainnet",
+      verified,
+      topTraded,
+    })
+    expect(catalog.priceRefresh).toEqual(SOLANA_PRICE_REFRESH)
+  })
+
+  it("keeps the screen's refreshes inside the free key's read allowance", () => {
+    // The arithmetic the page rests on, pinned so a change to either number
+    // has to face it. Jupiter's free key allows sixty requests a minute and
+    // twenty of those are kept back for swaps, so reads may spend forty.
+    const pagesEachRefresh = Math.ceil(
+      SOLANA_PRICE_REFRESH.mostMarkets / PRICE_PAGE_SIZE
+    )
+    const refreshesAMinute = 60_000 / SOLANA_PRICE_REFRESH.everyMs
+    const readsAMinute = pagesEachRefresh * refreshesAMinute
+    expect(pagesEachRefresh).toBe(4)
+    expect(refreshesAMinute).toBe(6)
+    expect(readsAMinute).toBe(24)
+    // Plus the market list's own two calls a minute, and still short of the
+    // forty a read is allowed.
+    const readAllowance = JUPITER_REQUESTS_PER_MINUTE - 20
+    expect(readsAMinute + 2).toBeLessThanOrEqual(readAllowance)
+    // Room left over for a lookup or two rather than sailing exactly to the
+    // line.
+    expect(readAllowance - (readsAMinute + 2)).toBeGreaterThanOrEqual(10)
   })
 })
 

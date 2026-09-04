@@ -268,3 +268,13 @@ working bar streams beside it.
   lingers on screen.
 - **A hidden tab lets the connection go** and reconnects — with the same
   catch-up — when you come back.
+- **A venue with no socket refreshes instead, and it is never called live.**
+  Solana is the one: Jupiter publishes no websocket, so the screen asks for
+  the busiest markets' prices on that venue's own clock, every ten seconds
+  for up to 200 coins. It drives the screen alone. The trading engine never
+  reads it and asks for a price at the moment it acts, which is what keeps
+  the rule in `../rules/trading-rules.md` intact. The server refuses a
+  refresh for any venue that does publish a socket, so a future dashboard
+  cannot quietly start polling one. A hidden tab asks nothing, and a refused
+  or failed turn leaves the figures already on screen rather than blanking
+  them. `../exchanges/solana.md` has the arithmetic.

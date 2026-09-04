@@ -72,6 +72,62 @@ const loadMarketsFn = createServerFn({ method: "GET" })
   )
 
 /**
+ * Fresh prices for markets the screen is showing, on a venue that has no
+ * pushed feed.
+ *
+ * **Refused for any venue that HAS a feed.** Asking an exchange for prices on
+ * a timer is the thing `rules/trading-rules.md` forbids, and a socket is the
+ * answer wherever one exists. The refusal is here rather than left to the
+ * screen's good manners, so the rule is enforced by the server and not by
+ * whoever writes the next dashboard.
+ *
+ * **A venue must have said it may be asked**, and its own number bounds how
+ * many markets one call may carry. Both live on the catalogue, so a browser
+ * asking for more than the venue offers is trimmed rather than trusted: the
+ * cost of a refresh is the venue's decision, not the caller's.
+ *
+ * Prices come from the same rationed, paged, briefly-shared read the engine
+ * uses, so a refresh and a settle in the same second cost one request
+ * between them.
+ */
+const refreshPricesSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS),
+  network: z.enum(["mainnet", "testnet"]),
+  // A loose ceiling that keeps an absurd payload out before any work starts.
+  // The real limit is the venue's own, applied below.
+  marketIds: z.array(z.string().trim().min(1).max(64)).min(1).max(500),
+})
+
+const refreshMarketPricesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(refreshPricesSchema)
+  .handler(
+    async ({ data }): Promise<{ prices: Array<[string, number]> }> => {
+      const protocol = getProtocol(data.protocol)
+      if (!protocol.networks.includes(data.network)) {
+        throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
+      }
+      // The rule, stated where it cannot be forgotten: a venue that pushes
+      // its prices is never asked for them on a timer.
+      if (protocol.livePrices) {
+        throw new Error(`PROTOCOL_HAS_LIVE_FEED:${data.protocol}`)
+      }
+      const catalog = await loadRawMarketCatalog(data.protocol, data.network)
+      const most = catalog.priceRefresh?.mostMarkets
+      if (!most) {
+        throw new Error(`PROTOCOL_NO_PRICE_REFRESH:${data.protocol}`)
+      }
+      const prices = await protocol.markets.prices(
+        data.network,
+        // Busiest first is the browser's order; trimming from the end keeps
+        // the markets the venue would have chosen itself.
+        data.marketIds.slice(0, most)
+      )
+      return { prices: [...prices] }
+    }
+  )
+
+/**
  * A market that is not in the loaded list, looked up on the venue by name or
  * address. Only a venue that says it can (`markets.search`) is asked; the
  * picker offers the lookup only where the catalogue's `picker.search` is
@@ -137,6 +193,16 @@ export function searchMarkets(
   query: string
 ) {
   return searchMarketsFn({ data: { protocol, network, query } })
+}
+
+export function refreshMarketPrices(
+  protocol: ProtocolId,
+  network: NetworkId,
+  marketIds: readonly string[]
+) {
+  return refreshMarketPricesFn({
+    data: { protocol, network, marketIds: [...marketIds] },
+  })
 }
 
 export function loadLastMarket(protocol: ProtocolId) {
