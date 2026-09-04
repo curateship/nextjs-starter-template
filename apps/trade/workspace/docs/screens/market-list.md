@@ -100,6 +100,19 @@ line in the body, share the panel's one 12px gutter.
   with no reported volume stay hidden. When the cutoff hides every market, All
   says none meet the setting. A folder with no visible markets names the folder
   and points back to the star control.
+- **A market you will never trade can be hidden by hand.** Right-click a row in
+  All markets and pick "Hide X from All markets". The row goes at once and the
+  save runs behind it; a refused save puts the row back with a toast. The
+  hidden market still shows in Watched, in every named folder, in the market
+  picker, in backtests and in recipes: only the All markets row leaves it
+  out, and its count leaves it out too. This is a different thing from the
+  volume cutoff. The cutoff is one number in Settings and a market comes back
+  the moment its volume rises; a market hidden by hand stays hidden until the
+  folder cog's Hidden markets card shows it again (`market-folders.md`). Each
+  exchange and network keeps its own list, capped at 200 markets with a plain
+  message. The charted market can be hidden too; the chart stays on it until
+  another market is chosen. When every listed market is hidden by hand, All
+  markets says so and points at the cog.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists. The selected row keeps its gray fill and adds

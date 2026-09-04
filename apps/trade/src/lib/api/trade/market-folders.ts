@@ -20,6 +20,7 @@ import {
   loadMarketFolders,
   renameMarketFolder,
   saveMarketPanelLayout,
+  setMarketHidden,
   setMarketInFolder,
 } from "@/server/trade/market-folders"
 
@@ -92,6 +93,13 @@ const saveMarketPanelLayoutFn = createServerFn({ method: "POST" })
   .inputValidator(panelLayoutSchema)
   .handler(({ data, context }) => saveMarketPanelLayout(context.user.id, data))
 
+const setMarketHiddenFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    scopeSchema.extend({ marketKey: marketKeySchema, hidden: z.boolean() })
+  )
+  .handler(({ data, context }) => setMarketHidden(context.user.id, data))
+
 const deleteMarketFolderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ folderId: folderIdSchema }))
@@ -129,6 +137,18 @@ export function savePanelLayout(input: {
 }): Promise<{ folders: MarketFolder[]; panelRows: MarketPanelRows }> {
   return saveMarketPanelLayoutFn({ data: input })
 }
+/**
+ * Hide one market from All markets by hand, or show it again. Answers with the
+ * exchange's whole row settings, hidden list included.
+ */
+export function setHiddenMarket(input: {
+  protocol: ProtocolId
+  network: NetworkId
+  marketKey: string
+  hidden: boolean
+}): Promise<MarketPanelRows> {
+  return setMarketHiddenFn({ data: input })
+}
 export function deleteFolder(folderId: string) {
   return deleteMarketFolderFn({ data: { folderId } })
 }
@@ -149,6 +169,8 @@ export const getMarketFolderErrorMessage = createErrorMessage(
     "That market folder no longer exists":
       "That market folder no longer exists.",
     "Fav cannot be deleted": "Fav cannot be deleted.",
+    "You can hide at most 200 markets on one exchange":
+      "You can hide at most 200 markets on one exchange. Show one from the folder cog first.",
     "That folder arrangement could not be saved":
       "That folder arrangement could not be saved. Reload the page and try it again.",
   },

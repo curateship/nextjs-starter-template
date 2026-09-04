@@ -69,6 +69,16 @@ folder, and All markets. All four kinds of row behave the same way there.
 
 Hiding every row leaves the panel saying so and pointing back at the cog.
 
+The Hidden markets card under Order lists every market hidden by hand from All
+markets on this exchange, with a Show button beside each. Show puts the market
+back in All markets at once and saves behind it. A market the exchange no
+longer lists still appears here under its bare market id, so it can always
+be shown again. The card says nothing about markets under the daily volume
+setting, because that is a different list that comes back on its own. With
+nothing hidden by hand the card says so and names the right-click that hides
+one. The Hide choice lives on the market row's right-click menu in All
+markets (`market-list.md`).
+
 A drag or an eye saves the whole arrangement in one go, because moving one row
 moves every row under it. The panel shows the change straight away and puts
 back what it had if the save is refused.
@@ -89,8 +99,14 @@ deletes its rows when the folder is deleted.
 
 Watched and All markets are not folders, so they have no row in that table.
 Where those two sit and whether each shows lives in `trade_prefs`, in
-`market_panel_rows`, keyed by exchange and network. A drag writes both places
-inside one transaction, so a half-saved arrangement cannot be read back.
+`market_panel_rows`, keyed by exchange and network. The same entry carries
+`hiddenMarketKeys`, the markets hidden by hand from All markets, as full market
+keys. An entry saved before that list existed reads as nothing hidden. A save
+merges into the exchange's entry in the database rather than replacing it, so
+a drag keeps the hidden markets and a hide keeps the drag. A drag writes both
+places inside one transaction, so a half-saved arrangement cannot be read
+back. Hiding a market locks the preference row for its read and write, so two
+quick hides cannot drop one another.
 Migration 0144 adds both. A dashboard whose database is missing them fails its
 single server call, and a failed call is what strips the market header down to
 a plain title with no star and no buttons.

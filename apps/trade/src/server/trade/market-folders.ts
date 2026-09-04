@@ -8,14 +8,18 @@ import {
 } from "@/lib/protocols/contracts"
 import {
   ALL_ROW,
+  MAX_HIDDEN_MARKETS,
   WATCHED_ROW,
+  readMarketPanelRows,
   type MarketFolder,
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
+import { marketPanelScopeKey } from "@/lib/trade/panel-layout"
 import { db, type CustomShellDb } from "@/server/db"
 import { saveMarketPanelRows } from "@/server/trade/prefs"
 import {
   tradeFlowRuns,
+  tradePrefs,
   tradeMarketFolderItems,
   tradeMarketFolders,
   tradeWallets,
@@ -598,6 +602,54 @@ export async function saveMarketPanelLayout(
     ),
     panelRows,
   }
+}
+
+/**
+ * Hide one market from the All markets row by hand, or show it again.
+ *
+ * Kept beside the row layout in `trade_prefs` rather than in a folder,
+ * because the market is not saved anywhere: it is one the account never
+ * wants to see in the catalogue. Named folders and Watched still list it, and so do
+ * backtests, recipes and the market picker. The preference row is locked for
+ * the read-and-write so two quick hides cannot drop one another.
+ */
+export async function setMarketHidden(
+  userId: string,
+  input: {
+    protocol: ProtocolId
+    network: NetworkId
+    marketKey: string
+    hidden: boolean
+  },
+  database: CustomShellDb = db
+): Promise<MarketPanelRows> {
+  const ref = parseMarketKey(input.marketKey)
+  if (!ref || ref.protocol !== input.protocol || ref.network !== input.network) {
+    throw new Error("That coin belongs to another exchange.")
+  }
+  const scope = { protocol: input.protocol, network: input.network }
+  return database.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ marketPanelRows: tradePrefs.marketPanelRows })
+      .from(tradePrefs)
+      .where(eq(tradePrefs.userId, userId))
+      .for("update")
+    const current = readMarketPanelRows(
+      row?.marketPanelRows?.[marketPanelScopeKey(scope)]
+    ).hiddenMarketKeys
+    const already = current.includes(input.marketKey)
+    if (input.hidden && !already && current.length >= MAX_HIDDEN_MARKETS) {
+      throw new Error(
+        `You can hide at most ${MAX_HIDDEN_MARKETS} markets on one exchange.`
+      )
+    }
+    const hiddenMarketKeys = input.hidden
+      ? already
+        ? current
+        : [...current, input.marketKey]
+      : current.filter((key) => key !== input.marketKey)
+    return saveMarketPanelRows(userId, scope, { hiddenMarketKeys }, tx)
+  })
 }
 
 export async function deleteMarketFolder(

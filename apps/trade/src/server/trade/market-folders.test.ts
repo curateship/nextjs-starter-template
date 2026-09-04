@@ -14,6 +14,7 @@ import {
   loadMarketFolders,
   renameMarketFolder,
   saveMarketPanelLayout,
+  setMarketHidden,
   setMarketInFolder,
 } from "@/server/trade/market-folders"
 import {
@@ -243,6 +244,7 @@ describe("market folders", () => {
     expect(saved.panelRows).toEqual({
       all: { position: 0, hidden: false },
       watched: { position: 2, hidden: true },
+      hiddenMarketKeys: [],
     })
     expect(await savedPanelRows("hyperliquid", "mainnet")).toEqual(
       saved.panelRows
@@ -251,7 +253,91 @@ describe("market folders", () => {
     expect(await savedPanelRows("phemex", "mainnet")).toEqual({
       watched: { position: -1, hidden: false },
       all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+      hiddenMarketKeys: [],
     })
+  })
+
+  it("hides a coin by hand, keeps it through a drag, and shows it again", async () => {
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
+    const hidden = await setMarketHidden(
+      userId,
+      { ...scope, marketKey: "hyperliquid:mainnet:DOGE", hidden: true },
+      database
+    )
+    expect(hidden.hiddenMarketKeys).toEqual(["hyperliquid:mainnet:DOGE"])
+    // The row layout was never saved, so it reads as the original order.
+    expect(hidden.watched.position).toBe(-1)
+
+    await setMarketHidden(
+      userId,
+      { ...scope, marketKey: "hyperliquid:mainnet:PEPE", hidden: true },
+      database
+    )
+    // Hiding the same coin twice does not list it twice.
+    await setMarketHidden(
+      userId,
+      { ...scope, marketKey: "hyperliquid:mainnet:PEPE", hidden: true },
+      database
+    )
+
+    // A drag of the rows leaves the hidden coins alone, and the other way.
+    const folders = await loadMarketFolders(userId, "hyperliquid", "mainnet", database)
+    const dragged = await saveMarketPanelLayout(
+      userId,
+      { ...scope, rowIds: ["all", "watched", folders[0]!.id], hiddenRowIds: [] },
+      database
+    )
+    expect(dragged.panelRows).toEqual({
+      all: { position: 0, hidden: false },
+      watched: { position: 1, hidden: false },
+      hiddenMarketKeys: ["hyperliquid:mainnet:DOGE", "hyperliquid:mainnet:PEPE"],
+    })
+
+    const shown = await setMarketHidden(
+      userId,
+      { ...scope, marketKey: "hyperliquid:mainnet:DOGE", hidden: false },
+      database
+    )
+    expect(shown).toEqual({
+      all: { position: 0, hidden: false },
+      watched: { position: 1, hidden: false },
+      hiddenMarketKeys: ["hyperliquid:mainnet:PEPE"],
+    })
+    // Another exchange's list is its own.
+    expect((await savedPanelRows("phemex", "mainnet")).hiddenMarketKeys).toEqual([])
+
+    await expect(
+      setMarketHidden(
+        userId,
+        { ...scope, marketKey: "phemex:mainnet:DOGE", hidden: true },
+        database
+      )
+    ).rejects.toThrow("another exchange")
+  })
+
+  it("stops the hidden list at 200 coins", async () => {
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
+    for (let index = 0; index < 200; index += 1) {
+      await setMarketHidden(
+        userId,
+        { ...scope, marketKey: `hyperliquid:mainnet:C${index}`, hidden: true },
+        database
+      )
+    }
+    await expect(
+      setMarketHidden(
+        userId,
+        { ...scope, marketKey: "hyperliquid:mainnet:ONEMORE", hidden: true },
+        database
+      )
+    ).rejects.toThrow("at most 200")
+    // One already on the list is fine to send again.
+    const same = await setMarketHidden(
+      userId,
+      { ...scope, marketKey: "hyperliquid:mainnet:C7", hidden: true },
+      database
+    )
+    expect(same.hiddenMarketKeys).toHaveLength(200)
   })
 
   it("refuses a list of rows that is not the panel's own", async () => {
@@ -299,6 +385,7 @@ describe("market folders", () => {
     expect(await savedPanelRows("hyperliquid", "mainnet")).toEqual({
       watched: { position: -1, hidden: false },
       all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+      hiddenMarketKeys: [],
     })
   })
 })

@@ -26,7 +26,20 @@ export type MarketFolderActions = {
 
 /** Where Watched and All markets sit in the panel, and whether they show. */
 export type MarketPanelRow = { position: number; hidden: boolean }
-export type MarketPanelRows = { watched: MarketPanelRow; all: MarketPanelRow }
+export type MarketPanelRows = {
+  watched: MarketPanelRow
+  all: MarketPanelRow
+  /**
+   * Markets hidden from the All markets row by hand, as full market keys.
+   * Separate from the volume cutoff: that one is a number in Settings and
+   * comes back on its own when volume rises; these stay hidden until the
+   * cog's Show button. A named folder or Watched still shows the coin.
+   */
+  hiddenMarketKeys: string[]
+}
+
+/** More than this on one exchange and the Hide choice refuses with a note. */
+export const MAX_HIDDEN_MARKETS = 200
 
 /**
  * Watched above every folder and All markets below them, which is where the
@@ -37,6 +50,7 @@ export type MarketPanelRows = { watched: MarketPanelRow; all: MarketPanelRow }
 export const DEFAULT_MARKET_PANEL_ROWS: MarketPanelRows = {
   watched: { position: -1, hidden: false },
   all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+  hiddenMarketKeys: [],
 }
 
 const panelRowSchema = z.object({
@@ -47,6 +61,13 @@ const panelRowSchema = z.object({
 export const marketPanelRowsSchema = z.object({
   watched: panelRowSchema,
   all: panelRowSchema,
+  // Additive: rows saved before the list existed have no key and read as
+  // nothing hidden. Duplicates are dropped so one coin cannot fill the cap.
+  hiddenMarketKeys: z
+    .array(z.string().max(180))
+    .max(MAX_HIDDEN_MARKETS)
+    .default([])
+    .transform((keys) => [...new Set(keys)]),
 })
 
 /** A stored layout, with the original panel order for a first or bad value. */

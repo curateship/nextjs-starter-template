@@ -42,6 +42,7 @@ import {
   readMinimumMarketVolume,
 } from "@/lib/trade/market-volume"
 import {
+  DEFAULT_MARKET_PANEL_ROWS,
   readMarketPanelRows,
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
@@ -645,28 +646,38 @@ export async function saveOrderStyle(
  * exchange's arrangement alone. Written inside the same transaction as the
  * folder places it was dragged with, so the panel can never come back with
  * half of one drag.
+ *
+ * Only the fields handed in change. The exchange's entry is merged in the
+ * database, so a drag keeps the markets hidden by hand and a hide keeps the
+ * drag, and two saves landing together each keep the other's field.
  */
 export async function saveMarketPanelRows(
   userId: string,
   scope: MarketPanelScope,
-  rows: MarketPanelRows,
+  rows: Partial<MarketPanelRows>,
   database: CustomShellDb = db
 ): Promise<MarketPanelRows> {
-  const patch = { [marketPanelScopeKey(scope)]: rows }
-  await database
+  const key = marketPanelScopeKey(scope)
+  const patch = JSON.stringify(rows)
+  const [saved] = await database
     .insert(tradePrefs)
-    .values({ userId, marketPanelRows: patch, updatedAt: new Date() })
+    .values({
+      userId,
+      marketPanelRows: { [key]: { ...DEFAULT_MARKET_PANEL_ROWS, ...rows } },
+      updatedAt: new Date(),
+    })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: {
         // Merged by the database, not read out and written back. Two exchanges
         // arranged at the same moment each keep their own entry; a read first
         // would have let the slower one drop the faster one's.
-        marketPanelRows: sql`${tradePrefs.marketPanelRows} || ${JSON.stringify(patch)}::jsonb`,
+        marketPanelRows: sql`${tradePrefs.marketPanelRows} || jsonb_build_object(${key}::text, coalesce(${tradePrefs.marketPanelRows} -> ${key}, '{}'::jsonb) || ${patch}::jsonb)`,
         updatedAt: new Date(),
       },
     })
-  return rows
+    .returning({ marketPanelRows: tradePrefs.marketPanelRows })
+  return readMarketPanelRows(saved?.marketPanelRows?.[key])
 }
 
 /** Every trade workspace's divider positions, read from the preference row. */

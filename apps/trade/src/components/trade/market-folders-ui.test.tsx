@@ -30,12 +30,25 @@ const savePanelLayout = vi.fn(
     panelRows: DEFAULT_MARKET_PANEL_ROWS,
   })
 )
+const setHiddenMarket = vi.fn(
+  async (input: {
+    protocol: string
+    network: string
+    marketKey: string
+    hidden: boolean
+  }) => ({
+    ...DEFAULT_MARKET_PANEL_ROWS,
+    hiddenMarketKeys: input.hidden ? [input.marketKey] : [],
+  })
+)
 vi.mock("@/lib/api/trade/market-folders", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/trade/market-folders")>()),
   // Called rather than passed: `vi.mock` is hoisted above the const above it,
   // so the stub can only be reached once the module is actually used.
   savePanelLayout: (input: Parameters<typeof savePanelLayout>[0]) =>
     savePanelLayout(input),
+  setHiddenMarket: (input: Parameters<typeof setHiddenMarket>[0]) =>
+    setHiddenMarket(input),
 }))
 
 const fav: MarketFolder = {
@@ -504,6 +517,7 @@ describe("the market folder controls", () => {
             panelRows={{
               all: { position: -2, hidden: false },
               watched: { position: -1, hidden: true },
+              hiddenMarketKeys: [],
             }}
           />
         </TooltipProvider>
@@ -620,5 +634,90 @@ describe("the market folder controls", () => {
       "Fav's markets are hidden by your daily volume setting."
     )
     expect(host.textContent).not.toContain("Fav is empty")
+  })
+
+  it("hides a coin from All markets by right-click and leaves the folder alone", async () => {
+    setHiddenMarket.mockClear()
+    const eth: MarketRow = {
+      ...btc,
+      key: "hyperliquid:mainnet:ETH" as MarketKey,
+      marketId: "ETH",
+      symbol: "ETH",
+    }
+    const onPanelRowsChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <TestMarketFoldersPanel
+            {...shared}
+            folders={[{ ...fav, marketKeys: [eth.key] }]}
+            catalogs={[{ ...catalogs[0], rows: [btc, eth] }]}
+            panelRows={{
+              ...DEFAULT_MARKET_PANEL_ROWS,
+              hiddenMarketKeys: [eth.key],
+            }}
+            onPanelRowsChange={onPanelRowsChange}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const marketNames = () =>
+      Array.from(host.querySelectorAll<HTMLElement>("button span[title]")).map(
+        (element) => element.title
+      )
+    const toggle = (name: string) =>
+      Array.from(host.querySelectorAll("button[aria-expanded]")).find(
+        (button) => button.textContent?.includes(name)
+      )!
+    // The folder still lists ETH; All markets does not, and its count
+    // leaves ETH out.
+    await act(async () => click(toggle("Fav")))
+    expect(marketNames()).toEqual(["ETH"])
+    await act(async () => click(toggle("All markets")))
+    expect(marketNames()).toEqual(["BTC"])
+    expect(toggle("All markets").textContent).toContain("1 market")
+
+    // Right-click BTC and pick Hide: the screen answers first, then the save.
+    const btcRow = host.querySelector<HTMLElement>('button span[title="BTC"]')!
+      .closest("button")!
+    await act(async () =>
+      btcRow.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, clientX: 5, clientY: 5 })
+      )
+    )
+    const hideItem = Array.from(
+      document.body.querySelectorAll('[role="menuitem"]')
+    ).find((item) => item.textContent?.includes("Hide BTC"))!
+    expect(hideItem).toBeTruthy()
+    await act(async () => (hideItem as HTMLElement).click())
+    expect(onPanelRowsChange).toHaveBeenCalledWith({
+      ...DEFAULT_MARKET_PANEL_ROWS,
+      hiddenMarketKeys: [eth.key, btc.key],
+    })
+    expect(setHiddenMarket).toHaveBeenCalledWith({
+      protocol: "hyperliquid",
+      network: "mainnet",
+      marketKey: btc.key,
+      hidden: true,
+    })
+
+    // The cog lists the hidden market and Show sends it back.
+    await act(async () =>
+      click(host.querySelector('button[aria-label="Manage folders"]')!)
+    )
+    expect(document.body.textContent).toContain("Hidden markets")
+    const showEth = document.body.querySelector<HTMLElement>(
+      'button[aria-label="Show ETH"]'
+    )!
+    expect(showEth).toBeTruthy()
+    await act(async () => click(showEth))
+    expect(setHiddenMarket).toHaveBeenLastCalledWith({
+      protocol: "hyperliquid",
+      network: "mainnet",
+      marketKey: eth.key,
+      hidden: false,
+    })
+    expect(onPanelRowsChange).toHaveBeenLastCalledWith(DEFAULT_MARKET_PANEL_ROWS)
   })
 })

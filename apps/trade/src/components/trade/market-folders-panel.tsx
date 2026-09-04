@@ -62,6 +62,7 @@ import {
   getMarketFolderErrorMessage,
   renameFolder,
   savePanelLayout,
+  setHiddenMarket,
 } from "@/lib/api/trade/market-folders"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { TradeOrder } from "@/lib/trade/paper"
@@ -73,7 +74,11 @@ import {
 } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { compareMarketChange24h } from "@/lib/trade/market-sort"
-import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import {
+  parseMarketKey,
+  type NetworkId,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -179,7 +184,18 @@ export function MarketFoldersPanel({
     () => catalogs.flatMap((catalog) => catalog.rows),
     [catalogs]
   )
+  // Markets hidden by hand. Only the All markets row leaves them out; a named
+  // folder still lists a market it holds, because the folder is a choice too.
+  const hiddenByHand = React.useMemo(
+    () => new Set(panelRows.hiddenMarketKeys),
+    [panelRows.hiddenMarketKeys]
+  )
+  const allMarketsCount = React.useMemo(
+    () => marketRows.filter((row) => !hiddenByHand.has(row.key)).length,
+    [marketRows, hiddenByHand]
+  )
   const sensors = useNavSensors()
+  const hideRequest = React.useRef(0)
 
   // Every row of the panel, drawn one way: Watched, the saved folders, then
   // the whole catalogue. Watched and All are not folders, but they wear a
@@ -271,17 +287,19 @@ export function MarketFoldersPanel({
       count:
         marketsError || marketsPending
           ? ""
-          : `${marketRows.length} ${marketRows.length === 1 ? "market" : "markets"}`,
+          : `${allMarketsCount} ${allMarketsCount === 1 ? "market" : "markets"}`,
       position: panelRows.all.position,
       hidden: panelRows.all.hidden,
       folder: null,
       body: (
         <AllMarketsList
           catalogs={catalogs}
+          hiddenKeys={hiddenByHand}
           marketsError={marketsError}
           marketsPending={marketsPending}
           selectedKey={selectedMarketKey}
           onSelect={onSelectMarket}
+          onHide={(row) => setMarketHiddenByHand(row.key, true)}
           onRetry={onRetryMarkets}
         />
       ),
@@ -322,6 +340,7 @@ export function MarketFoldersPanel({
       }))
     )
     onPanelRowsChange({
+      ...panelRows,
       watched: {
         position: rowIds.indexOf(WATCHED_ROW),
         hidden: hidden.has(WATCHED_ROW),
@@ -343,6 +362,51 @@ export function MarketFoldersPanel({
   }
 
   const hiddenIds = rows.filter((row) => row.hidden).map((row) => row.id)
+
+  /**
+   * Hide one market from All markets, or show it again. The row goes at once
+   * and the save runs behind it; a refused save puts the market back and
+   * says why. Not tied to `busy`, because hiding a market is not a layout
+   * save and should not wait for one. Only the newest save's answer is
+   * applied: two quick hides each answer with the list as it stood when
+   * they ran, and the older answer would flip the newer market back.
+   */
+  function setMarketHiddenByHand(marketKey: string, hidden: boolean) {
+    const previous = panelRows
+    const without = panelRows.hiddenMarketKeys.filter((key) => key !== marketKey)
+    onPanelRowsChange({
+      ...panelRows,
+      hiddenMarketKeys: hidden ? [...without, marketKey] : without,
+    })
+    const request = ++hideRequest.current
+    void setHiddenMarket({ protocol, network, marketKey, hidden })
+      .then((saved) => {
+        if (request === hideRequest.current) onPanelRowsChange(saved)
+      })
+      .catch((error) => {
+        if (request === hideRequest.current) onPanelRowsChange(previous)
+        showErrorToast(getMarketFolderErrorMessage(error))
+      })
+  }
+
+  // What to call a hidden market in the cog: its row where the list has one,
+  // otherwise the bare market id from its key, so a delisted market still
+  // has a name and a Show button.
+  const hiddenByHandRows = React.useMemo(() => {
+    const byVolume = new Map(
+      catalogs
+        .flatMap((catalog) => catalog.hiddenByVolumeRows)
+        .map((row) => [row.key, row.symbol])
+    )
+    return panelRows.hiddenMarketKeys.map((key) => ({
+      key,
+      symbol:
+        markets.get(key)?.symbol ??
+        byVolume.get(key) ??
+        parseMarketKey(key)?.marketId ??
+        key,
+    }))
+  }, [panelRows.hiddenMarketKeys, markets, catalogs])
 
   function reorder(event: DragEndEvent) {
     if (!event.over || event.active.id === event.over.id || busy) return
@@ -581,6 +645,48 @@ export function MarketFoldersPanel({
                     </div>
                   </SortableContext>
                 </DndContext>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Hidden markets</CardTitle>
+                <CardDescription>
+                  Markets you hid by right-clicking them in All markets.
+                  Markets under your daily volume setting are a different
+                  list and come back on their own when the setting changes.
+                </CardDescription>
+                <CardAction className="text-xs text-muted-foreground tabular-nums">
+                  {hiddenByHandRows.length}{" "}
+                  {hiddenByHandRows.length === 1 ? "market" : "markets"}
+                </CardAction>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {hiddenByHandRows.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nothing is hidden by hand. Right-click a market in All
+                    markets to hide it.
+                  </p>
+                ) : (
+                  hiddenByHandRows.map((market) => (
+                    <div
+                      key={market.key}
+                      className="flex h-10 items-center gap-3 rounded-lg px-1"
+                    >
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {market.symbol}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-label={`Show ${market.symbol}`}
+                        onClick={() => setMarketHiddenByHand(market.key, false)}
+                      >
+                        Show
+                      </Button>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </DialogBody>

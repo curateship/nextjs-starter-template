@@ -1,10 +1,17 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
+import { EyeOffIcon } from "lucide-react"
 
 import { focusRing } from "@/lib/layout/focus-ring"
 
 import { CautionBadge } from "@/components/trade/caution-badge"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { TableSortButton } from "@/components/ui/table"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
@@ -70,19 +77,24 @@ function tickerLabel(symbol: string) {
  */
 export function AllMarketsList({
   catalogs,
+  hiddenKeys,
   marketsError,
   marketsPending,
   selectedKey,
   onSelect,
+  onHide,
   onRetry,
 }: {
   catalogs: readonly FilteredMarketCatalog[]
+  /** Markets hidden by hand through the row's right-click menu. */
+  hiddenKeys: ReadonlySet<string>
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
   /** The list is still streaming in with the opening answer. */
   marketsPending: boolean
   selectedKey: string | null
   onSelect: (key: string) => void
+  onHide: (row: MarketRow) => void
   onRetry: () => void
 }) {
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
@@ -99,11 +111,32 @@ export function AllMarketsList({
     )
 
   const rows = React.useMemo(
-    () => catalogs.flatMap((catalog) => catalog.rows),
-    [catalogs]
+    () =>
+      catalogs
+        .flatMap((catalog) => catalog.rows)
+        .filter((row) => !hiddenKeys.has(row.key)),
+    [catalogs, hiddenKeys]
   )
   const hasVolumeHiddenMarkets = catalogs.some(
     (catalog) => catalog.hiddenByVolumeRows.length > 0
+  )
+  const hasHandHiddenMarkets = catalogs.some((catalog) =>
+    catalog.rows.some((row) => hiddenKeys.has(row.key))
+  )
+  // One menu for the whole list, opened where the right-click landed. The
+  // row only reports the click; the menu is not one per row because a
+  // thousand closed menus would be a thousand portals.
+  const [menu, setMenu] = React.useState<{
+    x: number
+    y: number
+    row: MarketRow
+  } | null>(null)
+  const openMenu = React.useCallback(
+    (row: MarketRow, event: React.MouseEvent) => {
+      event.preventDefault()
+      setMenu({ x: event.clientX, y: event.clientY, row })
+    },
+    []
   )
 
   const visible = React.useMemo(() => {
@@ -136,9 +169,11 @@ export function AllMarketsList({
         {/* Searching lives in the market name at the top of the chart,
             which opens the whole catalogue with its own search — one search
             box for markets rather than two that filter different lists. */}
-        {hasVolumeHiddenMarkets
-          ? "No markets meet your daily volume setting."
-          : "The exchange is not listing any markets right now."}
+        {hasHandHiddenMarkets
+          ? "Every market here is hidden by hand. Open the folder cog to show one."
+          : hasVolumeHiddenMarkets
+            ? "No markets meet your daily volume setting."
+            : "The exchange is not listing any markets right now."}
       </p>
     )
   }
@@ -188,8 +223,35 @@ export function AllMarketsList({
           row={row}
           selected={row.key === selectedKey}
           onSelect={onSelect}
+          onContextMenu={openMenu}
         />
       ))}
+      {menu ? (
+        <DropdownMenu
+          open
+          onOpenChange={(open) => {
+            if (!open) setMenu(null)
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={`${menu.row.symbol} actions`}
+              className="pointer-events-none fixed z-50 size-px opacity-0"
+              style={{ left: menu.x, top: menu.y }}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            onCloseAutoFocus={(event) => event.preventDefault()}
+          >
+            <DropdownMenuItem onSelect={() => onHide(menu.row)}>
+              <EyeOffIcon />
+              Hide {menu.row.symbol} from All markets
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
   )
 }
@@ -239,11 +301,14 @@ export const MarketRowLine = React.memo(function MarketRowLine({
   row,
   selected,
   onSelect,
+  onContextMenu,
   className,
 }: {
   row: MarketRow
   selected: boolean
   onSelect: (key: string) => void
+  /** A right-click, where the list wants one; folder rows pass nothing. */
+  onContextMenu?: (row: MarketRow, event: React.MouseEvent) => void
   className?: string
 }) {
   // Subscribed per row, so a tick repaints exactly the rows whose numbers
@@ -258,6 +323,9 @@ export const MarketRowLine = React.memo(function MarketRowLine({
     <button
       type="button"
       onClick={() => onSelect(row.key)}
+      onContextMenu={
+        onContextMenu ? (event) => onContextMenu(row, event) : undefined
+      }
       aria-current={selected ? "true" : undefined}
       className={cn(
         "flex h-9 min-w-0 items-center border-r-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
