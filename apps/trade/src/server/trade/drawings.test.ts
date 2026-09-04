@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
   DRAWINGS_FULL,
+  DRAWING_ALERT_NOT_ARMED,
   MAX_DRAWINGS_PER_MARKET,
 } from "@/lib/trade/drawings"
 import { type CustomShellDb } from "@/server/db"
@@ -15,6 +16,7 @@ import {
   loadChartDrawings,
   saveChartDrawing,
   setChartDrawingAlert,
+  setChartDrawingAlertBuffer,
 } from "@/server/trade/drawings"
 import { tradeChartDrawings } from "@/server/trade/schema"
 
@@ -386,6 +388,61 @@ describe("the alert a trendline carries", () => {
     await expect(
       setChartDrawingAlert(userId, { id: uuid(), on: true, currentPrice: 90 })
     ).rejects.toThrow("DRAWING_NOT_FOUND")
+  })
+
+  it("sets and clears the break buffer without re-arming the alert", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, { id, shape: line })
+    const armed = await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 100 },
+      2_000
+    )
+
+    const set = await setChartDrawingAlertBuffer(userId, { id, buffer: 0.1 })
+    expect(set.alert).toEqual({ ...armed.alert, buffer: 0.1 })
+    // The direction and the armed time are untouched: correcting a number is
+    // not arming the alert again.
+    expect(set.alert?.armedAt).toBe(2_000)
+
+    const cleared = await setChartDrawingAlertBuffer(userId, { id, buffer: null })
+    expect(cleared.alert).toEqual(armed.alert)
+    expect(cleared.alert).not.toHaveProperty("buffer")
+  })
+
+  it("refuses a buffer on a line whose alert is off or has already rung", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, { id, shape: line })
+
+    await expect(
+      setChartDrawingAlertBuffer(userId, { id, buffer: 0.1 })
+    ).rejects.toThrow(DRAWING_ALERT_NOT_ARMED)
+
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 100 }, 2_000)
+    await database
+      .update(tradeChartDrawings)
+      .set({ alert: { direction: "above", armedAt: 2_000, firedAt: 3_000 } })
+      .where(eq(tradeChartDrawings.id, id))
+    await expect(
+      setChartDrawingAlertBuffer(userId, { id, buffer: 0.1 })
+    ).rejects.toThrow(DRAWING_ALERT_NOT_ARMED)
+  })
+
+  it("will not put a buffer on somebody else's line", async () => {
+    const mine = await person()
+    const theirs = await person()
+    const id = uuid()
+    await saveChartDrawing(theirs, BTC, { id, shape: line })
+    await setChartDrawingAlert(theirs, { id, on: true, currentPrice: 100 }, 2_000)
+
+    await expect(
+      setChartDrawingAlertBuffer(mine, { id, buffer: 0.1 })
+    ).rejects.toThrow("DRAWING_NOT_FOUND")
+    expect((await loadChartDrawings(theirs, BTC))[0]?.alert).not.toHaveProperty(
+      "buffer"
+    )
   })
 
   it("points a moved line's alert at the price again, but leaves a fired one", async () => {

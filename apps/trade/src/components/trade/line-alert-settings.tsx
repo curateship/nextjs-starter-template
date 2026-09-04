@@ -62,7 +62,7 @@ export function LineAlertSettings() {
       if (mounted.current) setPaused(saved)
       toast.success(
         saved
-          ? "Line alerts are paused. Every line keeps its alert, and none rings until this is back on."
+          ? "Line alerts are paused. Every line keeps its alert, and none fires until this is back on."
           : "Line alerts are on."
       )
     } catch (error) {
@@ -109,7 +109,7 @@ export function LineAlertSettings() {
               <span className="mt-1 block text-sm text-muted-foreground">
                 Off pauses every line alert on the account without switching
                 any of them off. They start watching again when this goes back
-                on, and a cross that happened while paused does not ring.
+                on, and a cross that happened while paused does not fire.
               </span>
             </label>
             <Switch

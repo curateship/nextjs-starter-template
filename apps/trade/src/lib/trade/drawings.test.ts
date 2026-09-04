@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  alertFirePrice,
+  bufferedAlert,
   describeDrawing,
   describeDrawingInline,
   drawingAlertArmed,
@@ -9,6 +11,7 @@ import {
   namedShape,
   priceAtTime,
   readDrawingAlert,
+  readDrawingBuffer,
   readDrawingShape,
 } from "@/lib/trade/drawings"
 
@@ -245,6 +248,70 @@ describe("naming a line", () => {
       price: 1,
       name: "a",
     })
+  })
+})
+
+describe("the break buffer", () => {
+  const armed = {
+    direction: "above" as const,
+    armedAt: 1,
+    firedAt: null,
+  }
+
+  it("reads a percentage typed in, and blank as none", () => {
+    expect(readDrawingBuffer("")).toBeNull()
+    expect(readDrawingBuffer("   ")).toBeNull()
+    expect(readDrawingBuffer("0.1")).toBe(0.1)
+    // The percent sign is what a person types.
+    expect(readDrawingBuffer("0.1%")).toBe(0.1)
+    expect(readDrawingBuffer(" 50 % ")).toBe(50)
+  })
+
+  it("refuses anything that is not a percentage above zero", () => {
+    expect(readDrawingBuffer("abc")).toBe(false)
+    expect(readDrawingBuffer("0")).toBe(false)
+    expect(readDrawingBuffer("-5")).toBe(false)
+    expect(readDrawingBuffer("101")).toBe(false)
+  })
+
+  it("fires that percentage past the line, on the side it waits for", () => {
+    expect(alertFirePrice(60_000, "above", 0.1)).toBe(60_060)
+    expect(alertFirePrice(60_000, "below", 0.1)).toBe(59_940)
+    // No buffer is the line itself, whichever way it waits.
+    expect(alertFirePrice(60_000, "above", null)).toBe(60_000)
+    expect(alertFirePrice(60_000, "below", undefined)).toBe(60_000)
+  })
+
+  it("means the same thing on a coin worth twenty cents", () => {
+    // The reason it is a percentage. A fixed number of dollars that is a
+    // sensible break on Bitcoin can never be reached on a cheap coin.
+    expect(alertFirePrice(0.21, "above", 1)).toBeCloseTo(0.2121, 6)
+    expect(alertFirePrice(0.21, "below", 1)).toBeCloseTo(0.2079, 6)
+  })
+
+  it("moves the way the words say even on a line dragged below zero", () => {
+    expect(alertFirePrice(-100, "above", 10)).toBe(-90)
+    expect(alertFirePrice(-100, "below", 10)).toBe(-110)
+  })
+
+  it("sets a buffer and drops the key when it is cleared", () => {
+    expect(bufferedAlert(armed, 0.1)).toEqual({ ...armed, buffer: 0.1 })
+    expect(bufferedAlert({ ...armed, buffer: 0.1 }, null)).toEqual(armed)
+    expect(bufferedAlert({ ...armed, buffer: 0.1 }, null)).not.toHaveProperty(
+      "buffer"
+    )
+    // Nothing to change means the same record, so no save follows.
+    expect(bufferedAlert(armed, null)).toBe(armed)
+  })
+
+  it("reads a stored buffer, and refuses one no field could have typed", () => {
+    expect(readDrawingAlert({ ...armed, buffer: 0.1 })).toEqual({
+      ...armed,
+      buffer: 0.1,
+    })
+    expect(readDrawingAlert({ ...armed, buffer: 0 })).toBeNull()
+    expect(readDrawingAlert({ ...armed, buffer: -1 })).toBeNull()
+    expect(readDrawingAlert({ ...armed, buffer: 101 })).toBeNull()
   })
 })
 

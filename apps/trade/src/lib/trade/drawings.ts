@@ -42,6 +42,13 @@ export type DrawingShape =
 export const MAX_DRAWING_NAME_LENGTH = 24
 
 /**
+ * The largest break buffer that can be stored, as a percentage. Far past
+ * anything anybody would type; it is here because this is a number arriving
+ * from a browser and every one of those needs a ceiling.
+ */
+export const MAX_DRAWING_BUFFER_PCT = 100
+
+/**
  * The alert a line carries, once somebody has switched it on.
  *
  * The direction is fixed from the live price at the moment the switch goes
@@ -59,6 +66,22 @@ export type DrawingAlert = {
    * there. Left out on rows fired before the dot existed.
    */
   firedPrice?: number
+  /**
+   * How far past the line the price has to go before this fires, as a
+   * percentage of where the line is. Left out for none, which is the line
+   * itself.
+   *
+   * A percentage rather than dollars, in Tyler's words on 3 Sep 2026: "It
+   * should be percentage. NOt price". Dollars only work on one coin. The same
+   * "$50 past it" that is a sensible break on Bitcoin is meaningless on a coin
+   * at twenty cents, and one line on that coin was armed with a $50 buffer it
+   * could never reach. A percentage is the same instruction on every coin.
+   *
+   * The key keeps the name it had while it briefly held dollars. The name says
+   * nothing about the unit, and renaming it would leave the one row already
+   * carrying a number unreadable, which would quietly stop that line firing.
+   */
+  buffer?: number
 }
 
 /** One saved drawing: its id, where it sits, and the alert it carries. */
@@ -131,6 +154,13 @@ export const DRAWINGS_FULL = "DRAWINGS_FULL"
  */
 export const DRAWING_ALERT_NO_PRICE = "DRAWING_ALERT_NO_PRICE"
 
+/**
+ * Thrown when a buffer is sent for a line whose alert is off or has already
+ * rung. The window only offers the field on an armed line, so this is a
+ * window left open while the engine fired the alert underneath it.
+ */
+export const DRAWING_ALERT_NOT_ARMED = "DRAWING_ALERT_NOT_ARMED"
+
 /** A stored shape, or null when the row cannot be read. */
 export function readDrawingShape(value: unknown): DrawingShape | null {
   const parsed = drawingShapeSchema.safeParse(value)
@@ -142,6 +172,7 @@ export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
   armedAt: z.number().int().min(0).max(MAX_TIME_MS),
   firedAt: z.number().int().min(0).max(MAX_TIME_MS).nullable(),
   firedPrice: z.number().finite().optional(),
+  buffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).optional(),
 })
 
 /**
@@ -158,6 +189,54 @@ export function readDrawingAlert(value: unknown): DrawingAlert | null {
 /** Switched on and not yet fired. */
 export function drawingAlertArmed(alert: DrawingAlert | null): boolean {
   return alert !== null && alert.firedAt === null
+}
+
+/**
+ * Where an alert actually fires: the line's price at that moment, moved that
+ * percentage onto the side the alert is waiting for. Without a buffer it is
+ * the line itself.
+ *
+ * One place, because the engine compares against it and the line's window
+ * says it out loud. Two copies of this sum would be two answers.
+ *
+ * Measured off the size of the price rather than the price itself, so a line
+ * dragged below zero still moves the way the words say. A chart whose axis
+ * has been pulled under zero can genuinely be clicked there.
+ */
+export function alertFirePrice(
+  linePrice: number,
+  direction: "above" | "below",
+  bufferPct: number | null | undefined
+): number {
+  const past = Math.abs(linePrice) * ((bufferPct ?? 0) / 100)
+  return direction === "above" ? linePrice + past : linePrice - past
+}
+
+/**
+ * A break buffer typed into the line's window, as a percentage. Blank is
+ * none, which is null. Text that is not a percentage above zero answers
+ * `false`, which marks the field and saves nothing rather than storing a
+ * guess. A trailing percent sign is taken off, because that is what a person
+ * types.
+ */
+export function readDrawingBuffer(raw: string): number | null | false {
+  const text = raw.trim().replace(/%$/, "").trim()
+  if (text === "") return null
+  const pct = Number(text)
+  if (!Number.isFinite(pct) || pct <= 0) return false
+  return pct > MAX_DRAWING_BUFFER_PCT ? false : pct
+}
+
+/** The same alert with its buffer set, or with none once it is cleared. */
+export function bufferedAlert(
+  alert: DrawingAlert,
+  buffer: number | null
+): DrawingAlert {
+  if (buffer !== null) return { ...alert, buffer }
+  if (alert.buffer === undefined) return alert
+  const without = { ...alert }
+  delete without.buffer
+  return without
 }
 
 /**

@@ -12,9 +12,12 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { formatTimeAgo } from "@/lib/format/format-time"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   drawingAlertArmed,
+  MAX_DRAWING_BUFFER_PCT,
   MAX_DRAWING_NAME_LENGTH,
+  readDrawingBuffer,
   type Drawing,
 } from "@/lib/trade/drawings"
 import { formatPrice } from "@/lib/trade/format"
@@ -45,6 +48,7 @@ export function LineAlertPopover({
   onSetAlert,
   onSetExtend,
   onSetName,
+  onSetBuffer,
 }: {
   drawing: Drawing
   /** Where the line was when the window opened, or null for a vertical line. */
@@ -72,6 +76,8 @@ export function LineAlertPopover({
   onSetExtend: (on: boolean) => void
   /** The name typed for the line, trimmed; blank means no name. */
   onSetName: (name: string) => void
+  /** The percentage past the line before it fires, or null for none. */
+  onSetBuffer: (buffer: number | null) => void
 }) {
   // A pretend element for the popover to hang off: a zero-size box at one
   // point, measured off the layer each time the popover asks.
@@ -109,6 +115,7 @@ export function LineAlertPopover({
       onSetAlert={onSetAlert}
       onSetExtend={onSetExtend}
       onSetName={onSetName}
+      onSetBuffer={onSetBuffer}
     />
   )
 
@@ -167,6 +174,7 @@ function LineAlertBody({
   onSetAlert,
   onSetExtend,
   onSetName,
+  onSetBuffer,
 }: {
   drawing: Drawing
   linePrice: number | null
@@ -177,6 +185,7 @@ function LineAlertBody({
   onSetAlert: (on: boolean) => void
   onSetExtend: (on: boolean) => void
   onSetName: (name: string) => void
+  onSetBuffer: (buffer: number | null) => void
 }) {
   const armed = drawingAlertArmed(drawing.alert)
   const fired = drawing.alert?.firedAt ?? null
@@ -189,6 +198,7 @@ function LineAlertBody({
   const switchId = `line-alert-${drawing.id}`
   const extendId = `line-extend-${drawing.id}`
   const nameId = `line-name-${drawing.id}`
+  const bufferId = `line-buffer-${drawing.id}`
   const shape = drawing.shape
   const noun = shape.kind === "level" ? "level" : "line"
 
@@ -206,8 +216,8 @@ function LineAlertBody({
       </PopoverHeader>
       {paused ? (
         <p role="status" className="text-xs text-muted-foreground">
-          Paused in Settings. No line alert rings until the Line alerts switch
-          there goes back on.
+          Paused in Settings. No line alert fires until the Line alerts
+          switch there goes back on.
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-4">
@@ -235,12 +245,27 @@ function LineAlertBody({
           />
         </div>
       ) : null}
+      {/* Only offered while the alert is on, because that is the record the
+          dollars are kept on. */}
+      {armed && drawing.alert ? (
+        <BufferField
+          id={bufferId}
+          noun={noun}
+          // Prefixed, because the field below is keyed the same way and two
+          // siblings both keyed "" is a collision React resolves by drawing
+          // one of them twice.
+          key={`buffer-${drawing.alert.buffer ?? ""}`}
+          buffer={drawing.alert.buffer}
+          direction={drawing.alert.direction}
+          onSetBuffer={onSetBuffer}
+        />
+      ) : null}
       {/* Only once there is something to say. A line with no alert used to
           carry a sentence explaining what the switch above it would do, which
           is what the switch itself says. */}
       {armed ? (
         <p className="text-xs text-muted-foreground">
-          {`Rings once when the price crosses ${drawing.alert?.direction === "above" ? "up through" : "down through"} the ${noun}, then switches itself off.`}
+          {`Fires once when the price crosses ${drawing.alert?.direction === "above" ? "up through" : "down through"} the ${noun}, then switches itself off.`}
         </p>
       ) : fired !== null ? (
         <p className="text-xs text-muted-foreground">
@@ -249,11 +274,103 @@ function LineAlertBody({
       ) : null}
       <NameField
         id={nameId}
-        key={shape.name ?? ""}
+        key={`name-${shape.name ?? ""}`}
         name={shape.name ?? ""}
         onSetName={onSetName}
       />
     </>
+  )
+}
+
+/**
+ * How far past the line the price has to go before the alert fires, as a
+ * percentage, so a wick that only kisses the line stays quiet. Blank is none.
+ *
+ * Beside the box it says that percentage and which side of the line it sits
+ * on, read from what is being typed rather than from what is saved. It used
+ * to work the percentage out into a price and show that instead, which is a
+ * number nobody needs to read off this field.
+ */
+function BufferField({
+  id,
+  noun,
+  buffer,
+  direction,
+  onSetBuffer,
+}: {
+  id: string
+  /** What this drawing is called in a sentence: "line" or "level". */
+  noun: string
+  /** The saved percentage, or undefined for none. */
+  buffer: number | undefined
+  direction: "above" | "below"
+  onSetBuffer: (buffer: number | null) => void
+}) {
+  const saved = buffer ?? null
+  const [draft, setDraft] = React.useState(
+    buffer === undefined ? "" : String(buffer)
+  )
+  const typed = readDrawingBuffer(draft)
+  const unreadable = typed === false
+
+  const commit = () => {
+    if (unreadable) {
+      showErrorToast(
+        `A break buffer is a percentage above zero and no more than ${MAX_DRAWING_BUFFER_PCT}, or nothing at all.`
+      )
+      return
+    }
+    if (typed === saved) return
+    onSetBuffer(typed)
+  }
+
+  return (
+    <div className="grid gap-2">
+      <label htmlFor={id} className="text-sm">
+        Break buffer
+      </label>
+      <div className="flex items-center gap-2">
+        {/* Only as wide as the two or three characters a buffer ever is, with
+            the percent sign inside the box rather than trailing after it. */}
+        <div className="relative w-20 shrink-0">
+          <Input
+            id={id}
+            className="pr-7"
+            inputMode="decimal"
+            value={draft}
+            placeholder="None"
+            autoComplete="off"
+            aria-invalid={unreadable || undefined}
+            aria-describedby={`${id}-fires`}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                commit()
+              }
+            }}
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground"
+          >
+            %
+          </span>
+        </div>
+        {/* The percentage and which side of the line it is, not the price it
+            works out to. Tyler, 3 Sep 2026: "It should say % at below or above
+            line. At makes no sense and i dont need to read the price." */}
+        <span
+          id={`${id}-fires`}
+          className="min-w-0 text-xs text-muted-foreground"
+        >
+          {typed === null || typed === false
+            ? ""
+            : `${typed}% ${direction} the ${noun}`}
+        </span>
+      </div>
+    </div>
   )
 }
 

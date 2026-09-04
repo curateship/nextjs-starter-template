@@ -36,17 +36,19 @@ the same one.
 The window hangs off the foot of the line's column. It opens with a header
 saying which drawing it is and where that line is right now in dollars, with a
 divider under it running the full width of the window. Then a switch, Alert,
-then Continuous line on a trendline, then a Name field.
+then Continuous line on a trendline, then Break buffer once the alert is on,
+then a Name field.
 
-**A line with no alert says nothing under the switches.** There used to be a
-sentence there reading "Rings the bell once when the price crosses the line",
-which is what the switch beside it already said. Words appear under the
-switches only once there is something to report: what an armed line is waiting
-for, or when a fired one went off. A
-level's price is its price. A trendline's price "right now" is its slope
+A level's price is its price. A trendline's price "right now" is its slope
 carried on past its second point. A line straight up and down has no one
 price, and the switch stays off with the reason in a tooltip. The same
 tooltip explains a switch that is waiting for the first live price.
+
+**A line with no alert says nothing under the switches.** There used to be a
+sentence there explaining what the Alert switch would do, which is what the
+switch itself already said. Words appear under the switches only once there is
+something to report: what an armed line is waiting for, or when a fired one
+went off.
 
 ## Without a mouse
 
@@ -130,6 +132,46 @@ otherwise read on for a line that already rang the bell.
 Backtest and flow-run charts draw the same lines but offer no cog and no
 double-click. Only the live chart's lines are watched.
 
+## Break buffer
+
+A line drawn on a wick gets touched by wicks. The window's **Break buffer**
+field is how far past the line the price has to go before the alert fires, so
+a touch has to become a break. Tyler's words: "Fire only once price is a set
+number past the line, so a wick that just kisses it stays quiet."
+
+These docs and the screen both say an alert **fires**. They used to say it
+rang, which was nobody's word but mine. Tyler, 3 Sep 2026: "What the hell is
+ring?"
+
+**It is a percentage, not a number of dollars.** Tyler, 3 Sep 2026: "It should
+be percentage. NOt price". A fixed number of dollars only works on one coin.
+The same "$50 past it" that is a sensible break on Bitcoin cannot be reached
+at all on a coin worth twenty cents, and a line on such a coin was armed with
+exactly that and would have waited forever. A percentage is the same
+instruction on every coin.
+
+- **Blank is none**, which fires at the line itself.
+- **Beside the box is the percentage and which side of the line it is**, read
+  from what is being typed rather than from what is saved: "0.1% above the
+  level". It used to work the percentage out into a price and show that.
+  Tyler, 3 Sep 2026: "It should say % at below or above line. At makes no
+  sense and i dont need to read the price."
+- **An empty box says nothing beside it.** There is no offset to describe.
+- **The buffer goes on the side the alert waits for**, which is the side the
+  words beside the box name. A line waiting for a rise fires that far above
+  it, one waiting for a fall fires that far below.
+- **It is offered only while the alert is on**, because it is kept on the
+  alert record beside the direction. Switching the alert off takes the whole
+  record, buffer included. A line that has rung keeps its buffer, so switching
+  it on again watches the same line the same way.
+- **At most 100.** That ceiling is there because this is a number arriving
+  from a browser, not because anybody would type near it.
+- The notice says it: "The price had to go 0.1% past the level." Without that
+  sentence the title reads as though the alert fired late.
+
+The engine compares the price against the line moved by that percentage. The percentage is measured off the size of the
+price, so a line dragged below zero still moves the way the words say.
+
 ## What the switch does
 
 On, the direction is fixed from the live price at that moment, the same rule
@@ -150,8 +192,9 @@ alert that has already fired is never changed by a move.
 The trading engine reads every armed line once per pass, beside the price
 alerts, and asks the pushed-price feeds for their markets. It works out where
 the line is at that moment, a level's own price or a trendline's slope carried
-on, and compares the price to it. A rise fires at or above the line, a fall
-at or below it. A market with no pushed price waits.
+on, and moves it by the break buffer if the line carries one. A rise fires at
+or above that price, a fall at or below it. A market with no pushed price
+waits.
 
 Firing is claimed with one conditional update that names the line's points
 and the alert as they were read. A line moved after the read, or an alert
@@ -165,7 +208,7 @@ name instead**: "BTC crossed 4h base (was rising)", with the price moved into
 the sentence underneath. A price in a notice needs translating and a name the
 person typed does not. The alert then switches itself off and the line stays
 on the chart. Opening the window again says when it fired, and the switch can
-go on again for another single ring.
+go on again for one more.
 
 ## The master switch in Settings
 
@@ -177,12 +220,12 @@ switch back.
 - **Every line keeps its armed state.** The switch pauses the engine, not the
   lines, and the line's own window still switches its alert on and off.
 - **The line's window says "Paused in Settings"** above its own switch, so the
-  reason a line is not ringing is on the line rather than only in Settings.
-- **A cross that happens while paused rings nothing, and does not ring later
+  reason a line is not firing is on the line rather than only in Settings.
+- **A cross that happens while paused fires nothing, and does not fire later
   either.** The engine turns that line to face the price again, the same rule
   a dragged line follows, so the line then waits for the price to come back
   across it. Switching the master switch on with the price already past a line
-  is silent; the next real cross rings once.
+  is silent. The next real cross fires once.
 - Purple price alerts are not affected. This switch is only about lines.
 
 ## A level is not a purple price alert
@@ -220,6 +263,7 @@ the list to read again at once.
 
 ## Not yet
 
-Rules beyond a plain cross, repeat firing, a full history of every fire on one
-line, extending a trendline to the left, and orders from a line. Each is its
+Waiting for a candle to close past the line, repeat firing, a full history of
+every fire on one line, extending a trendline to the left, and orders from a
+line. Each is its
 own task in `workspace/tasks/Smart tools/`.

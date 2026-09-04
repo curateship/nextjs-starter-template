@@ -485,6 +485,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   onMove,
   onDelete,
   onSetAlert,
+  onSetBuffer,
   onAlertOpen,
   wide = true,
   lineAlertsPaused = false,
@@ -506,6 +507,8 @@ export const PaintLayer = React.memo(function PaintLayer({
    * offered at all.
    */
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
+  /** The percentage past the line before an armed alert fires, or none. */
+  onSetBuffer?: (id: string, buffer: number | null) => void
   /** The alert window is opening: a chance to read the lines again. */
   onAlertOpen?: () => void
   /** The shell's 1280-pixel layout answer. Narrow puts the window in a sheet. */
@@ -1198,6 +1201,9 @@ export const PaintLayer = React.memo(function PaintLayer({
                     namedShape(alertDrawing.shape, name),
                     currentPrice()
                   )
+                }
+                onSetBuffer={(buffer) =>
+                  onSetBuffer?.(alertDrawing.id, buffer)
                 }
               />
             )

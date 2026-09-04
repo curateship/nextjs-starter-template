@@ -41,10 +41,19 @@ export function drawingAlertNoticeWords(input: {
   price: number
   direction: "above" | "below"
   name?: string | null
+  /** How far past the line the price had to go, as a percentage. */
+  buffer?: number | null
 }): { title: string; body: string; level: TradeNoticeLevel } {
   const coin = marketSymbol(input.marketKey)
   const movement = input.direction === "above" ? "rising" : "falling"
-  const rest = `The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
+  // Said before the rest, because it explains the price in the line above it:
+  // the price went further than the number in the title.
+  // Printed as it was typed rather than through a formatter, so 0.1 reads as
+  // "0.1%" and not "0.10%".
+  const past = input.buffer
+    ? `The price had to go ${input.buffer}% past the ${input.kind}. `
+    : ""
+  const rest = `${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
   if (input.name) {
     return {
       title: `${coin} crossed ${input.name} (was ${movement})`,

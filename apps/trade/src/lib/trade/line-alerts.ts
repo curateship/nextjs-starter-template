@@ -27,7 +27,7 @@ export const lineAlertListSchema = z.object({
   fired: z.array(lineAlertSchema),
   /**
    * The master switch in Settings is off: every line keeps its armed state
-   * but none rings until it goes back on.
+   * but none fires until it goes back on.
    */
   paused: z.boolean(),
 })

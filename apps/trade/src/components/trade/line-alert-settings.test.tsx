@@ -55,7 +55,7 @@ describe("the master switch for line alerts", () => {
     expect(api.save).toHaveBeenCalledWith(true)
     expect(toggle()?.getAttribute("aria-checked")).toBe("false")
     expect(toasts.success).toHaveBeenCalledWith(
-      "Line alerts are paused. Every line keeps its alert, and none rings until this is back on."
+      "Line alerts are paused. Every line keeps its alert, and none fires until this is back on."
     )
   })
 

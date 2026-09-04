@@ -1570,6 +1570,7 @@ export function ChartPanel({
             onMove={paint.move}
             onDelete={paint.remove}
             onSetAlert={paint.setAlert}
+            onSetBuffer={paint.setBuffer}
             onAlertOpen={onAlertOpen}
             wide={wide}
             lineAlertsPaused={lineAlertsPaused}
@@ -1710,6 +1711,7 @@ export function ChartPanel({
       paint.create,
       paint.move,
       paint.setAlert,
+      paint.setBuffer,
       paint.remove,
       paintTool,
       onAlertOpen,
