@@ -7,6 +7,7 @@ import {
   DRAWING_ALERT_NO_PRICE,
   DRAWING_ALERT_NOT_ARMED,
   DRAWINGS_FULL,
+  DEFAULT_DRAWING_BUFFER_PCT,
   MAX_DRAWING_BUFFER_PCT,
   MAX_DRAWINGS_PER_MARKET,
   type Drawing,
@@ -70,6 +71,13 @@ const setAlertSchema = z.object({
   id: drawingIdSchema,
   on: z.boolean(),
   currentPrice: currentPriceSchema,
+  buffer: z
+    .number()
+    .positive()
+    .max(MAX_DRAWING_BUFFER_PCT)
+    .nullable()
+    .optional()
+    .default(DEFAULT_DRAWING_BUFFER_PCT),
 })
 
 // A percentage past the line, or null for none. Bounded the same way the
@@ -165,10 +173,11 @@ export function loadLineAlerts() {
 export async function setDrawingAlert(
   id: string,
   on: boolean,
-  currentPrice: number | null
+  currentPrice: number | null,
+  buffer: number | null = DEFAULT_DRAWING_BUFFER_PCT
 ) {
   const answer = await setChartDrawingAlertFn({
-    data: { id, on, currentPrice },
+    data: { id, on, currentPrice, buffer },
   })
   invalidateDashboardBootstrap()
   return answer.drawing

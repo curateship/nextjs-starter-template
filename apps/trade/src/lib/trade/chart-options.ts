@@ -4,6 +4,10 @@ import {
   DEFAULT_TRADING_ZONE,
   readTradingZone,
 } from "@/lib/trade/chart-timezone"
+import {
+  DEFAULT_DRAWING_BUFFER_PCT,
+  MAX_DRAWING_BUFFER_PCT,
+} from "@/lib/trade/drawings"
 
 export const CHART_TYPES = ["candles", "line", "heikin-ashi"] as const
 export type ChartType = (typeof CHART_TYPES)[number]
@@ -36,6 +40,12 @@ export const chartOptionsSchema = z.object({
    * answer for the next line drawn.
    */
   extendTrendlines: z.boolean(),
+  /** The buffer a newly switched-on line starts with. Null means none. */
+  lineAlertBuffer: z
+    .number()
+    .positive()
+    .max(MAX_DRAWING_BUFFER_PCT)
+    .nullable(),
   /**
    * The one timezone — the axis, the crosshair and every session boundary read
    * it. See `chart-timezone.ts`; a name this build no longer offers falls back
@@ -49,7 +59,11 @@ export type ChartOptions = z.infer<typeof chartOptionsSchema>
 /** The boolean parts that are simply shown or hidden. */
 export type ChartOptionToggle = Exclude<
   keyof ChartOptions,
-  "chartType" | "zone" | "orderArrowTrades" | "extendTrendlines"
+  | "chartType"
+  | "zone"
+  | "orderArrowTrades"
+  | "extendTrendlines"
+  | "lineAlertBuffer"
 >
 
 export const DEFAULT_CHART_OPTIONS: ChartOptions = {
@@ -61,6 +75,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   orderArrowTrades: null,
   drawings: true,
   extendTrendlines: true,
+  lineAlertBuffer: DEFAULT_DRAWING_BUFFER_PCT,
   zone: DEFAULT_TRADING_ZONE,
 }
 
@@ -80,6 +95,12 @@ export function readChartOptions(value: unknown): ChartOptions {
       orderArrowTrades: z.number().int().positive().nullable().optional(),
       drawings: z.boolean().optional(),
       extendTrendlines: z.boolean().optional(),
+      lineAlertBuffer: z
+        .number()
+        .positive()
+        .max(MAX_DRAWING_BUFFER_PCT)
+        .nullable()
+        .optional(),
       zone: z.string().max(40).optional(),
     })
     .safeParse(value)
@@ -91,6 +112,10 @@ export function readChartOptions(value: unknown): ChartOptions {
         orderArrowTrades: parsed.data.orderArrowTrades ?? null,
         drawings: parsed.data.drawings ?? true,
         extendTrendlines: parsed.data.extendTrendlines ?? true,
+        lineAlertBuffer:
+          parsed.data.lineAlertBuffer === undefined
+            ? DEFAULT_DRAWING_BUFFER_PCT
+            : parsed.data.lineAlertBuffer,
         zone: readTradingZone(parsed.data.zone),
       }
     : DEFAULT_CHART_OPTIONS

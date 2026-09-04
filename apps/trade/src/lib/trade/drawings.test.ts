@@ -182,7 +182,7 @@ describe("drawing a line on to the right", () => {
   })
 })
 
-describe("naming a line", () => {
+describe("describing a line", () => {
   const line = {
     kind: "trendline" as const,
     from: { time: 1_000, price: 10 },
@@ -206,15 +206,16 @@ describe("naming a line", () => {
     expect(moveShape({ ...line, name: "4h base" }, 500, 5).name).toBe("4h base")
   })
 
-  it("reads a saved name, and refuses one too long to have been typed", () => {
+  it("reads a saved description, and refuses one too long to have been typed", () => {
     expect(readDrawingShape({ ...line, name: "4h base" })).toEqual({
       ...line,
       name: "4h base",
     })
-    expect(readDrawingShape({ kind: "level", price: 1, name: "x".repeat(24) }))
-      .not.toBeNull()
     expect(
-      readDrawingShape({ kind: "level", price: 1, name: "x".repeat(25) })
+      readDrawingShape({ kind: "level", price: 1, name: "x".repeat(240) })
+    ).not.toBeNull()
+    expect(
+      readDrawingShape({ kind: "level", price: 1, name: "x".repeat(241) })
     ).toBeNull()
     expect(readDrawingShape({ kind: "level", price: 1, name: "" })).toBeNull()
   })

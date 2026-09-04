@@ -37,7 +37,7 @@ The window hangs off the foot of the line's column. It opens with a header
 saying which drawing it is and where that line is right now in dollars, with a
 divider under it running the full width of the window. Then a switch, Alert,
 then Continuous line on a trendline, then Break buffer once the alert is on,
-then a Name field.
+then a Description field.
 
 A level's price is its price. A trendline's price "right now" is its slope
 carried on past its second point. A line straight up and down has no one
@@ -70,25 +70,26 @@ Every way into the window opens the same window on the same line.
   windows and the side panels use, rather than a small box hanging off the
   edge of a phone screen.
 
-## Naming a line
+## Describing a line
 
-The window's Name field takes up to 24 characters, saved on the drawing the
-way a drag is saved. The field stops at 24 itself rather than refusing the
-25th afterwards. It is saved when the field is left or Enter is pressed, not
-on every keystroke, because each save is a write of the whole line. Emptying
-it takes the name away.
+The window's Description field takes up to 240 characters, enough for at least
+20 normal words. The box starts at one line and grows as the description wraps.
+The description is saved when the field is left, not on every keystroke,
+because each save is a write of the whole line. Emptying the box takes the
+description away.
 
-The name runs **along the line**, turned to the line's own angle, sitting five
-pixels above it and starting at its left-hand end. Tyler's words, 3 Sep 2026:
+The description runs **along the line**, turned to the line's own angle,
+sitting five pixels above it and starting at its left-hand end. Tyler's words,
+3 Sep 2026:
 "the text should line up againts the line". It is always the left end,
 whichever end was drawn first, so the words read left to right rather than
 upside down on a line drawn backwards. A line whose left end is off the side
 of the chart is labelled where it comes into view, read along its own slope,
-so the name never scrolls away with the end. It is in the line's own colour
-and takes no pointer. A screen reader hears the name first and then what the line is:
-"4h base, trendline from $100 to $120".
+so the description never scrolls away with the end. It is in the line's own
+colour and takes no pointer. A screen reader hears the description first and
+then what the line is: "4h base, trendline from $100 to $120".
 
-A name is not only for alerts. A line with no alert can carry one.
+A description is not only for alerts. A line with no alert can carry one.
 
 ## What a line's alert draws on the chart
 
@@ -150,7 +151,12 @@ at all on a coin worth twenty cents, and a line on such a coin was armed with
 exactly that and would have waited forever. A percentage is the same
 instruction on every coin.
 
-- **Blank is none**, which fires at the line itself.
+- **The first buffer is 1%.** The box starts there until the account saves a
+  different choice.
+- **The last saved input becomes the next line's starting buffer.** Typing 2.5%
+  on one line makes the next switched-on line start at 2.5%, across markets and
+  after a reload. Clearing the box remembers none, so the next line fires at
+  the line itself.
 - **Beside the box is the percentage and which side of the line it is**, read
   from what is being typed rather than from what is saved: "0.1% above the
   level". It used to work the percentage out into a price and show that.
@@ -160,10 +166,11 @@ instruction on every coin.
 - **The buffer goes on the side the alert waits for**, which is the side the
   words beside the box name. A line waiting for a rise fires that far above
   it, one waiting for a fall fires that far below.
-- **It is offered only while the alert is on**, because it is kept on the
-  alert record beside the direction. Switching the alert off takes the whole
-  record, buffer included. A line that has rung keeps its buffer, so switching
-  it on again watches the same line the same way.
+- **It is offered only while the alert is on.** Each line keeps its own buffer
+  beside the direction. Switching the alert off takes that line's alert record,
+  but the account still remembers the last input for the next alert. A line
+  that has fired keeps its own buffer, so switching it on again watches the
+  same line the same way.
 - **At most 100.** That ceiling is there because this is a number arriving
   from a browser, not because anybody would type near it.
 - The notice says it: "The price had to go 0.1% past the level." Without that
@@ -203,12 +210,12 @@ containers cannot both announce the same line.
 
 The bell and inbox say, for example, "BTC crossed your trendline at $61,200
 (was rising)" or "BTC crossed your level at $61,200 (was falling)", the alert
-sound plays, and the notice opens that market. **A named line is called by its
-name instead**: "BTC crossed 4h base (was rising)", with the price moved into
-the sentence underneath. A price in a notice needs translating and a name the
-person typed does not. The alert then switches itself off and the line stays
-on the chart. Opening the window again says when it fired, and the switch can
-go on again for one more.
+sound plays, and the notice opens that market. **A line with a description is
+called by its description instead**: "BTC crossed 4h base (was rising)", with
+the price moved into the sentence underneath. A price in a notice needs
+translating and a description the person typed does not. The alert then
+switches itself off and the line stays on the chart. Opening the window again
+says when it fired, and the switch can go on again for one more.
 
 ## The master switch in Settings
 
@@ -242,7 +249,7 @@ while the line was armed, and the bell beside it now says that on its own.
 ## In the Alerts menu
 
 Every armed line has a row in the header bell's Alert tab, beside the price
-alerts, oldest first. The row says the coin, the line's name or else the word
+alerts, oldest first. The row says the coin, the line's description or else the word
 trendline or level, where the line is right now in dollars, and the direction
 it waits for. A fired line has
 a row in Fired, newest first, priced at where the line was when it fired and

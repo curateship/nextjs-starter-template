@@ -59,6 +59,8 @@ describe("the chart tools menu", () => {
       setOption: vi.fn(),
       setZone: vi.fn(),
       setOrderArrowTrades: vi.fn(),
+      setExtendTrendlines: vi.fn(),
+      setLineAlertBuffer: vi.fn(),
       replace: vi.fn(),
     }
 

@@ -57,8 +57,8 @@ separate from fills and stops. Sound needs an open Trade tab and the browser's
 audio permission; the inbox notice does not.
 
 Alerts carried by drawn lines share the same two tabs and counts. Their rows
-say the line's name, or else the word trendline or level, and where the line
-is in dollars, and pressing one picks the line out on its chart. A master
+say the line's description, or else the word trendline or level, and where the
+line is in dollars, and pressing one picks the line out on its chart. A master
 switch in Settings pauses every one of them at once without switching any of
 them off. See `charts/smart-tools.md`.
 

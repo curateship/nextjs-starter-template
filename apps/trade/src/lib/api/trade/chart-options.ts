@@ -6,6 +6,7 @@ import {
   type ChartOptions,
 } from "@/lib/trade/chart-options"
 import { createErrorMessage } from "@/lib/api/error-message"
+import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 import { userGet, userPost } from "@/server/guards"
 import { loadChartOptions, saveChartOptions } from "@/server/trade/prefs"
 
@@ -29,11 +30,15 @@ export function loadRememberedChartOptions() {
   return loadChartOptionsFn()
 }
 
-export function saveRememberedChartOptions(options: ChartOptions) {
-  return saveChartOptionsFn({ data: { options } })
+export async function saveRememberedChartOptions(options: ChartOptions) {
+  const answer = await saveChartOptionsFn({ data: { options } })
+  // The dashboard carries these options in its opening answer. A reload must
+  // not replay the minute-old copy from before this save.
+  invalidateDashboardBootstrap()
+  return answer
 }
 
 export const getChartOptionsErrorMessage = createErrorMessage(
   {},
-  "That view option was not saved. The chart is still showing your choice, but it will be back to how it was after a reload."
+  "That chart preference was not saved. The chart is still showing your choice, but it will be back to how it was after a reload."
 )

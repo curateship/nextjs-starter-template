@@ -16,6 +16,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   bufferedAlert,
+  DEFAULT_DRAWING_BUFFER_PCT,
   drawingAlertArmed,
   extendedRight,
   priceAtTime,
@@ -68,7 +69,11 @@ export function useChartDrawings(
     error: string | null
   },
   /** Told after a line's alert has been switched on or off and saved. */
-  onAlertChange?: () => void
+  onAlertChange?: () => void,
+  /** The buffer a line with no earlier alert starts with. */
+  defaultBuffer: number | null = DEFAULT_DRAWING_BUFFER_PCT,
+  /** Told after a buffer saves, so the next line starts with the same value. */
+  onBufferPreference?: (buffer: number | null) => void
 ) {
   // Tagged with the market it belongs to, so an answer that lands after
   // another market was picked is dropped rather than drawn on the wrong chart.
@@ -85,6 +90,11 @@ export function useChartDrawings(
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const showedInitialError = React.useRef(false)
   const handledInitial = React.useRef(false)
+  // The buffer field appears with the optimistic alert. If somebody types in
+  // it straight away, its write must wait until that alert exists in storage.
+  const pendingAlertSaves = React.useRef(
+    new Map<string, Promise<boolean>>()
+  )
   // When each line was last changed on this screen, so a read that was
   // already on its way when the change was made cannot put the old copy back.
   const touchedAt = React.useRef(new Map<string, number>())
@@ -266,13 +276,19 @@ export function useChartDrawings(
       if (!previous) return
       const now = Date.now()
       const linePrice = priceAtTime(previous.shape, now)
+      const buffer = previous.alert
+        ? (previous.alert.buffer ?? null)
+        : defaultBuffer
       const guess =
         on && linePrice !== null && currentPrice !== null
-          ? {
-              direction: priceAlertDirection(linePrice, currentPrice),
-              armedAt: now,
-              firedAt: null,
-            }
+          ? bufferedAlert(
+              {
+                direction: priceAlertDirection(linePrice, currentPrice),
+                armedAt: now,
+                firedAt: null,
+              },
+              buffer
+            )
           : null
       const shape = guess ? extendedRight(previous.shape) : previous.shape
       revise(key, (current) =>
@@ -280,7 +296,7 @@ export function useChartDrawings(
           candidate.id === id ? { ...candidate, shape, alert: guess } : candidate
         )
       )
-      setDrawingAlert(id, on, currentPrice)
+      const request = setDrawingAlert(id, on, currentPrice, defaultBuffer)
         .then((saved) => {
           revise(key, (current) =>
             current.map((candidate) =>
@@ -290,6 +306,7 @@ export function useChartDrawings(
             )
           )
           onAlertChange?.()
+          return true
         })
         .catch((error: unknown) => {
           revise(key, (current) =>
@@ -298,9 +315,16 @@ export function useChartDrawings(
             )
           )
           showErrorToast(getDrawingAlertErrorMessage(error))
+          return false
         })
+      pendingAlertSaves.current.set(id, request)
+      void request.finally(() => {
+        if (pendingAlertSaves.current.get(id) === request) {
+          pendingAlertSaves.current.delete(id)
+        }
+      })
     },
-    [drawings, marketKey, revise, onAlertChange]
+    [drawings, marketKey, revise, onAlertChange, defaultBuffer]
   )
 
   /**
@@ -320,8 +344,11 @@ export function useChartDrawings(
           candidate.id === id ? { ...candidate, alert: guess } : candidate
         )
       )
-      setDrawingAlertBuffer(id, buffer)
-        .then((saved) => {
+      void (async () => {
+        const alertSaved = await pendingAlertSaves.current.get(id)
+        if (alertSaved === false) return
+        try {
+          const saved = await setDrawingAlertBuffer(id, buffer)
           revise(key, (current) =>
             current.map((candidate) =>
               candidate.id === id
@@ -329,18 +356,19 @@ export function useChartDrawings(
                 : candidate
             )
           )
+          onBufferPreference?.(buffer)
           onAlertChange?.()
-        })
-        .catch((error: unknown) => {
+        } catch (error) {
           revise(key, (current) =>
             current.map((candidate) =>
               candidate.id === id ? previous : candidate
             )
           )
           showErrorToast(getDrawingAlertErrorMessage(error))
-        })
+        }
+      })()
     },
-    [drawings, marketKey, revise, onAlertChange]
+    [drawings, marketKey, revise, onAlertChange, onBufferPreference]
   )
 
   /**

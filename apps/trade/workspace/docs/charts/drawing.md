@@ -80,10 +80,11 @@ The grip has no hover message.
   second all open the same window, and Escape closes it and puts the keyboard
   back on the line. On a narrow screen the window is the bottom sheet the
   order windows use.
-- **That window also names the line and switches its alert on**, and on a
+- **That window also describes the line and switches its alert on**, and on a
   trendline has a Continuous line switch that draws the line on to the right
-  edge, dashed. A named line shows its name beside its start, and an armed one
-  shows a bell at the head of that same column.
+  edge, dashed. A described line shows its description beside its start, and
+  an armed one shows a bell at the head of that same column. The Description
+  box grows with the text and accepts up to 240 characters.
 - **Continuous line is on for every new trendline until it is switched off
   once.** Tyler asked for this on 4 Sep 2026. Flipping the switch on any line
   changes that line and is remembered against the account as the answer for
@@ -92,5 +93,7 @@ The grip has no hover message.
   on makes the next one continuous again. The memory sits with the chart's
   other view options, and it is not on the options menu. Lines drawn before
   4 Sep 2026 stay as they were.
+  Break buffer follows the same account-wide rule: it starts at 1%, and the
+  last saved input on any line becomes the starting value for the next alert.
   All of it is smart tools, in `smart-tools.md`. Orders on lines are still out
   of scope and attach to the same surface in their own task.

@@ -67,6 +67,8 @@ describe("the remembered chart options", () => {
       orderArrows: false,
       orderArrowTrades: 7,
       drawings: false,
+      extendTrendlines: false,
+      lineAlertBuffer: 2.5,
       zone: "America/New_York" as const,
     }
     await saveChartOptions(id, options)
@@ -84,6 +86,8 @@ describe("the remembered chart options", () => {
       orderArrows: false,
       orderArrowTrades: 43,
       drawings: false,
+      extendTrendlines: true,
+      lineAlertBuffer: null,
       zone: "Europe/London" as const,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)

@@ -1125,6 +1125,7 @@ export function TradeWorkspace({
             onDrawingAlertChange={lineAlerts.refresh}
             lineAlertsPaused={lineAlerts.paused}
             onExtendPreference={chartOptions.setExtendTrendlines}
+            onBufferPreference={chartOptions.setLineAlertBuffer}
             selectDrawing={drawingToSelect}
             onDrawingSelected={onDrawingSelected}
             priceAlerts={priceAlerts.alerts}

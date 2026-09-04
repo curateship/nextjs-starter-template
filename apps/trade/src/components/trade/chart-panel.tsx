@@ -419,6 +419,7 @@ export function ChartPanel({
   onDrawingAlertChange,
   lineAlertsPaused = false,
   onExtendPreference,
+  onBufferPreference,
   selectDrawing = null,
   onDrawingSelected,
   initialQuickOrder,
@@ -467,6 +468,8 @@ export function ChartPanel({
   lineAlertsPaused?: boolean
   /** The Continuous line switch was flipped: remember it for the next line. */
   onExtendPreference?: (on: boolean) => void
+  /** A break buffer saved on one line: remember it for the next line. */
+  onBufferPreference?: (buffer: number | null) => void
   /**
    * A line to pick out once its market's drawings have arrived, from a row in
    * the Alerts panel. Answered with `onDrawingSelected` once done.
@@ -612,7 +615,9 @@ export function ChartPanel({
   const paint = useChartDrawings(
     selectedKey,
     initialDrawings,
-    onDrawingAlertChange
+    onDrawingAlertChange,
+    options.lineAlertBuffer,
+    onBufferPreference
   )
   const setPaintTool = paint.setTool
   const setSelectedDrawing = paint.setSelectedId

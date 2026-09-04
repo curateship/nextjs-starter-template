@@ -1093,7 +1093,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                 line's own label. */}
             {shape.name ? (
               <text
-                data-line-name
+                data-line-description
                 aria-hidden
                 // Turned with the line and measured from it, so the words sit
                 // along the line rather than lying flat beside it. Five pixels

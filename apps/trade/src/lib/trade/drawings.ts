@@ -17,9 +17,10 @@ import { z } from "zod"
 export type DrawingPoint = { time: number; price: number }
 
 /**
- * What every shape carries besides its geometry: a short name typed in the
+ * What every shape carries besides its geometry: a description typed in the
  * line's window, shown beside the line and said in the notice instead of a
- * price. Left out when the line has none.
+ * price. The stored key stays `name` so drawings saved before the field was
+ * renamed remain readable. Left out when the line has no description.
  */
 type Named = { name?: string }
 
@@ -38,8 +39,8 @@ export type DrawingShape =
       extendRight?: boolean
     } & Named)
 
-/** How long a line's name may be. Enough for "4h base" or "weekly low". */
-export const MAX_DRAWING_NAME_LENGTH = 24
+/** Enough room for a useful sentence without accepting unbounded browser input. */
+export const MAX_DRAWING_DESCRIPTION_LENGTH = 240
 
 /**
  * The largest break buffer that can be stored, as a percentage. Far past
@@ -47,6 +48,9 @@ export const MAX_DRAWING_NAME_LENGTH = 24
  * from a browser and every one of those needs a ceiling.
  */
 export const MAX_DRAWING_BUFFER_PCT = 100
+
+/** The first break buffer before the account has saved a different choice. */
+export const DEFAULT_DRAWING_BUFFER_PCT = 1
 
 /**
  * The alert a line carries, once somebody has switched it on.
@@ -98,13 +102,13 @@ const pointSchema = z.object({
   price: z.number().finite(),
 })
 
-// Trimmed before it is measured, so a name of nothing but spaces is refused
-// rather than stored as a name that draws as blank and reads as blank.
+// Trimmed before it is measured, so a description of nothing but spaces is
+// refused rather than stored as text that draws as blank and reads as blank.
 const nameSchema = z
   .string()
   .trim()
   .min(1)
-  .max(MAX_DRAWING_NAME_LENGTH)
+  .max(MAX_DRAWING_DESCRIPTION_LENGTH)
   .optional()
 
 /**

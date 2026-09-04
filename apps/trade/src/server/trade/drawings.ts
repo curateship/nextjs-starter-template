@@ -156,7 +156,13 @@ export async function saveChartDrawing(
  */
 export async function setChartDrawingAlert(
   userId: string,
-  input: { id: string; on: boolean; currentPrice: number | null },
+  input: {
+    id: string
+    on: boolean
+    currentPrice: number | null
+    /** The account's last choice. Left out by older internal callers. */
+    buffer?: number | null
+  },
   now = Date.now()
 ): Promise<Drawing> {
   const [row] = await db
@@ -183,13 +189,14 @@ export async function setChartDrawingAlert(
     if (linePrice === null || input.currentPrice === null) {
       throw new Error(DRAWING_ALERT_NO_PRICE)
     }
+    const previousAlert = readDrawingAlert(row.alert)
     alert = bufferedAlert(
       {
         direction: priceAlertDirection(linePrice, input.currentPrice),
         armedAt: now,
         firedAt: null,
       },
-      readDrawingAlert(row.alert)?.buffer ?? null
+      previousAlert ? (previousAlert.buffer ?? null) : (input.buffer ?? null)
     )
     saved = extendedRight(shape)
   }

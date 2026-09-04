@@ -373,13 +373,13 @@ describe("the alert a trendline carries", () => {
     })
     const armed = await setChartDrawingAlert(
       userId,
-      { id, on: true, currentPrice: 90 },
+      { id, on: true, currentPrice: 90, buffer: 1 },
       2_000
     )
     expect(armed).toEqual({
       id,
       shape: { kind: "level", price: 100 },
-      alert: { direction: "above", armedAt: 2_000, firedAt: null },
+      alert: { direction: "above", armedAt: 2_000, firedAt: null, buffer: 1 },
     })
   })
 

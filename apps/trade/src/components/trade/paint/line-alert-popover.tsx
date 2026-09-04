@@ -11,12 +11,13 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   drawingAlertArmed,
   MAX_DRAWING_BUFFER_PCT,
-  MAX_DRAWING_NAME_LENGTH,
+  MAX_DRAWING_DESCRIPTION_LENGTH,
   readDrawingBuffer,
   type Drawing,
 } from "@/lib/trade/drawings"
@@ -25,8 +26,8 @@ import { formatPrice } from "@/lib/trade/format"
 /**
  * The small window a picked-out line opens: a header saying which line and
  * where it is in dollars, then a switch, Alert, on a trendline a second
- * switch that carries the line on to the right edge, and a name for the
- * line.
+ * switch that carries the line on to the right edge, and a description for
+ * the line.
  *
  * It hangs off a point on the chart rather than a button, because every way
  * in — the cog, a double-click, Enter on the line, a long press on it — means
@@ -74,7 +75,7 @@ export function LineAlertPopover({
   onSetAlert: (on: boolean) => void
   /** Draw a trendline on to the right edge, or stop. Never asked of a level. */
   onSetExtend: (on: boolean) => void
-  /** The name typed for the line, trimmed; blank means no name. */
+  /** The description typed for the line, trimmed; blank removes it. */
   onSetName: (name: string) => void
   /** The percentage past the line before it fires, or null for none. */
   onSetBuffer: (buffer: number | null) => void
@@ -197,7 +198,7 @@ function LineAlertBody({
       : "Waiting for a live price before the alert can be set."
   const switchId = `line-alert-${drawing.id}`
   const extendId = `line-extend-${drawing.id}`
-  const nameId = `line-name-${drawing.id}`
+  const descriptionId = `line-description-${drawing.id}`
   const bufferId = `line-buffer-${drawing.id}`
   const shape = drawing.shape
   const noun = shape.kind === "level" ? "level" : "line"
@@ -272,8 +273,8 @@ function LineAlertBody({
           {`Fired ${formatTimeAgo(new Date(fired))}${firedPrice === undefined ? "" : ` at ${formatPrice(firedPrice)}`}. Switch it on again to watch the ${noun} once more.`}
         </p>
       ) : null}
-      <NameField
-        id={nameId}
+      <DescriptionField
+        id={descriptionId}
         key={`name-${shape.name ?? ""}`}
         name={shape.name ?? ""}
         onSetName={onSetName}
@@ -375,12 +376,12 @@ function BufferField({
 }
 
 /**
- * The line's name. Saved when the field is left or Enter is pressed, not on
- * every keystroke, because each save is a write of the whole line. The field
- * stops at 24 characters itself, which is plainer than refusing the 25th
- * afterwards, and the same cap guards the server fn.
+ * The line's description. Saved when the field is left, not on every
+ * keystroke, because each save is a write of the whole line. The box grows as
+ * words wrap and has room for a normal sentence. The same cap guards the
+ * server function.
  */
-function NameField({
+function DescriptionField({
   id,
   name,
   onSetName,
@@ -399,22 +400,17 @@ function NameField({
   return (
     <div className="grid gap-2">
       <label htmlFor={id} className="text-sm">
-        Name
+        Description
       </label>
-      <Input
+      <Textarea
         id={id}
+        rows={1}
         value={draft}
-        maxLength={MAX_DRAWING_NAME_LENGTH}
-        placeholder="For example, 4h base"
+        maxLength={MAX_DRAWING_DESCRIPTION_LENGTH}
+        placeholder="For example, price must stay above this line"
         autoComplete="off"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault()
-            commit()
-          }
-        }}
       />
     </div>
   )

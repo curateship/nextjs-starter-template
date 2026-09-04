@@ -8,6 +8,7 @@ import {
 describe("chart view options", () => {
   it("shows everything on a first visit", () => {
     expect(readChartOptions(null)).toEqual(DEFAULT_CHART_OPTIONS)
+    expect(readChartOptions(null).lineAlertBuffer).toBe(1)
   })
 
   it("reads a complete saved choice", () => {
@@ -21,6 +22,7 @@ describe("chart view options", () => {
         orderArrowTrades: 7,
         drawings: false,
         extendTrendlines: false,
+        lineAlertBuffer: 2.5,
         zone: "Europe/London",
       })
     ).toEqual({
@@ -32,6 +34,7 @@ describe("chart view options", () => {
       orderArrowTrades: 7,
       drawings: false,
       extendTrendlines: false,
+      lineAlertBuffer: 2.5,
       zone: "Europe/London",
     })
   })
@@ -50,8 +53,16 @@ describe("chart view options", () => {
       orderArrowTrades: null,
       drawings: true,
       extendTrendlines: true,
+      lineAlertBuffer: 1,
       zone: "UTC",
     })
+  })
+
+  it("keeps a cleared break buffer as none", () => {
+    expect(
+      readChartOptions({ ...DEFAULT_CHART_OPTIONS, lineAlertBuffer: null })
+        .lineAlertBuffer
+    ).toBeNull()
   })
 
   it("falls back to UTC for a timezone this build no longer offers", () => {

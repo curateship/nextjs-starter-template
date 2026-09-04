@@ -146,11 +146,15 @@ async function draw({
  * straight leaves React's own tracker thinking nothing changed, so the
  * change never reaches the component.
  */
-function typeInto(field: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value"
-  )?.set
+function typeInto(
+  field: HTMLInputElement | HTMLTextAreaElement,
+  value: string
+) {
+  const prototype =
+    field instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set
   setter?.call(field, value)
   field.dispatchEvent(new Event("input", { bubbles: true }))
 }
@@ -855,7 +859,7 @@ describe("the marks a line's alert leaves on the chart", () => {
   })
 })
 
-describe("a line with a name", () => {
+describe("a line with a description", () => {
   const named: Drawing = {
     id: "line-1",
     shape: {
@@ -869,7 +873,9 @@ describe("a line with a name", () => {
 
   it("draws the name at the line's start and tells a screen reader the same", async () => {
     await draw({ tool: null, drawings: [named], selectedId: null })
-    const label = host.querySelector<SVGTextElement>("[data-line-name]")!
+    const label = host.querySelector<SVGTextElement>(
+      "[data-line-description]"
+    )!
     expect(label.textContent).toBe("4h base")
     expect(label.getAttribute("aria-hidden")).toBe("true")
     expect(label.style.pointerEvents).toBe("none")
@@ -908,7 +914,7 @@ describe("a line with a name", () => {
     // Still hung off the left-hand end, leaning the same way, so the words
     // never come out upside down.
     expect(
-      host.querySelector("[data-line-name]")?.getAttribute("transform")
+      host.querySelector("[data-line-description]")?.getAttribute("transform")
     ).toBe("translate(100 100) rotate(-26.57)")
 
     const offScreen: Drawing = {
@@ -931,11 +937,11 @@ describe("a line with a name", () => {
       selectedId: null,
     })
     expect(
-      host.querySelector("[data-line-name]")?.getAttribute("transform")
+      host.querySelector("[data-line-description]")?.getAttribute("transform")
     ).toBe("translate(0 100) rotate(0)")
   })
 
-  it("saves a typed name as a move of the same line", async () => {
+  it("saves a description of at least 20 words as a move of the same line", async () => {
     const onMove = vi.fn()
     const plain: Drawing = {
       ...named,
@@ -955,12 +961,17 @@ describe("a line with a name", () => {
     await act(async () => {
       lineBody().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
     })
-    const field = document.getElementById("line-name-line-1") as HTMLInputElement
-    await act(async () => typeInto(field, "  4h base  "))
+    const field = document.getElementById(
+      "line-description-line-1"
+    ) as HTMLTextAreaElement
+    const description =
+      "As long as price stays under this trendline, wait for a clean break before considering an entry into the market again"
+    expect(field.tagName).toBe("TEXTAREA")
+    expect(description.trim().split(/\s+/)).toHaveLength(21)
+    expect(description.length).toBeLessThanOrEqual(field.maxLength)
+    await act(async () => typeInto(field, `  ${description}  `))
     await act(async () => {
-      field.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
-      )
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
     })
     expect(onMove).toHaveBeenCalledWith(
       "line-1",
@@ -968,13 +979,13 @@ describe("a line with a name", () => {
         kind: "trendline",
         from: { time: 1_000, price: 100 },
         to: { time: 1_400, price: 120 },
-        name: "4h base",
+        name: description,
       },
       105
     )
   })
 
-  it("takes a name away when the field is emptied, and saves nothing when it did not change", async () => {
+  it("takes a description away when emptied and saves nothing when unchanged", async () => {
     const onMove = vi.fn()
     await draw({
       tool: null,
@@ -986,9 +997,11 @@ describe("a line with a name", () => {
     await act(async () => {
       lineBody().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
     })
-    const field = document.getElementById("line-name-line-1") as HTMLInputElement
+    const field = document.getElementById(
+      "line-description-line-1"
+    ) as HTMLTextAreaElement
     expect(field.value).toBe("4h base")
-    expect(field.maxLength).toBe(24)
+    expect(field.maxLength).toBe(240)
 
     await act(async () => {
       field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
@@ -1044,10 +1057,12 @@ describe("the break buffer on a line's alert", () => {
     const { field } = await openOn(level)
     expect(field).not.toBeNull()
     expect(field.value).toBe("")
-    // Exactly one of each. This field and the name field below it were once
-    // keyed the same way when both were empty, and React drew one twice.
+    // Exactly one of each. This field and the description field below it were
+    // once keyed the same way when both were empty, and React drew one twice.
     expect(document.querySelectorAll("#line-buffer-line-1")).toHaveLength(1)
-    expect(document.querySelectorAll("#line-name-line-1")).toHaveLength(1)
+    expect(document.querySelectorAll("#line-description-line-1")).toHaveLength(
+      1
+    )
     // Nothing to say beside an empty box.
     expect(readout()).toBe("")
   })
