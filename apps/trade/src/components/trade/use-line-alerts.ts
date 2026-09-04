@@ -11,7 +11,7 @@ import type { LineAlert, LineAlertList } from "@/lib/trade/line-alerts"
 
 const REFRESH_MS = 2_000
 
-const NONE: LineAlertList = { armed: [], fired: [] }
+const NONE: LineAlertList = { armed: [], fired: [], paused: false }
 
 /**
  * The line alerts the Alerts panel lists beside the price alerts.
@@ -41,6 +41,7 @@ export function useLineAlerts() {
       setList({
         armed: answer.armed.filter((one) => !pendingOff.current.has(one.id)),
         fired: answer.fired.filter((one) => !pendingOff.current.has(one.id)),
+        paused: answer.paused,
       })
       setError(null)
     } catch (caught) {
@@ -73,6 +74,7 @@ export function useLineAlerts() {
       pendingOff.current.add(id)
       revision.current += 1
       setList((current) => ({
+        ...current,
         armed: current.armed.filter((one) => one.id !== id),
         fired: current.fired.filter((one) => one.id !== id),
       }))

@@ -10,7 +10,11 @@ that are still waiting, and **Fired** holds the 100 most recent lines that
 already went off. Each label has the same rounded count badge used by the
 Positions tab. The bell itself gets a red count badge whenever fired price or
 drawing alerts are waiting in Fired.
-Selecting a row in either tab opens that market. The chart line
+Selecting a row in either tab opens that market and leaves the dropdown open,
+so a list of alerts can be walked down one row at a time. The dropdown closes
+when the pointer leaves it, or on Escape. A row belonging to another exchange
+is the exception: it opens that exchange's screen, and the dropdown goes with
+the old page. The chart line
 uses the same bar as an order: the dotted grip drags it to a new price and the
 X closes it without leaving the chart. The solid purple price tag stays on the
 axis. Saving continues in the background; a refused save puts the line back
@@ -53,8 +57,10 @@ separate from fills and stops. Sound needs an open Trade tab and the browser's
 audio permission; the inbox notice does not.
 
 Alerts carried by drawn lines share the same two tabs and counts. Their rows
-say the word trendline or level and where the line is in dollars, and pressing one
-picks the line out on its chart. See `charts/smart-tools.md`.
+say the line's name, or else the word trendline or level, and where the line
+is in dollars, and pressing one picks the line out on its chart. A master
+switch in Settings pauses every one of them at once without switching any of
+them off. See `charts/smart-tools.md`.
 
 An account may have 100 active alerts. The next one is refused until one fires
 or is deleted. Fired rows appear newest first in **Fired** and cannot re-arm

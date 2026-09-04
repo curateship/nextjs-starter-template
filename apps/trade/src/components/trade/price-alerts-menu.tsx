@@ -44,16 +44,6 @@ export function PriceAlertsMenu({
   const closeTimer = React.useRef<number | null>(null)
   const fired = useFiredPriceAlerts()
   const firedCount = fired.alerts.length + lines.fired.length
-  const menuLines = React.useMemo(
-    () => ({
-      ...lines,
-      onSelect: (marketKey: string, id: string) => {
-        setOpen(false)
-        lines.onSelect(marketKey, id)
-      },
-    }),
-    [lines]
-  )
   const clear = React.useCallback(
     async (kind: "active" | "fired") => {
       if (clearing) return
@@ -129,12 +119,14 @@ export function PriceAlertsMenu({
             alerts={alerts}
             error={error}
             onRetry={onRetry}
-            onSelectMarket={(marketKey) => {
-              setOpen(false)
-              onSelectMarket(marketKey)
-            }}
+            // Both of these put a market on the chart and leave the menu
+            // up, so a list of alerts can be walked down one row at a time.
+            // Moving the pointer off the menu closes it, and so does Escape.
+            // A row for another exchange is the exception: it opens that
+            // exchange's screen, and the menu goes with the old page.
+            onSelectMarket={onSelectMarket}
             onDelete={onDelete}
-            lines={menuLines}
+            lines={lines}
             fired={fired}
             onClear={(kind) => {
               setOpen(false)

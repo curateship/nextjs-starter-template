@@ -16,6 +16,8 @@ export const lineAlertSchema = z.object({
   direction: z.enum(["above", "below"]),
   armedAt: z.number().int().nonnegative(),
   firedAt: z.number().int().nonnegative().nullable(),
+  /** The name typed in the line's window, shown in place of the kind word. */
+  name: z.string().nullable().optional(),
 })
 
 export type LineAlert = z.infer<typeof lineAlertSchema>
@@ -23,6 +25,11 @@ export type LineAlert = z.infer<typeof lineAlertSchema>
 export const lineAlertListSchema = z.object({
   armed: z.array(lineAlertSchema),
   fired: z.array(lineAlertSchema),
+  /**
+   * The master switch in Settings is off: every line keeps its armed state
+   * but none rings until it goes back on.
+   */
+  paused: z.boolean(),
 })
 
 export type LineAlertList = z.infer<typeof lineAlertListSchema>

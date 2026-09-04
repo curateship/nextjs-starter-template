@@ -3,7 +3,10 @@
 ### By touch
 
 A finger opens the chart's order menu by staying still for half a second. A
-finger that moves more than eight pixels pans the chart and opens nothing.
+finger that moves more than eight pixels pans the chart and opens nothing. A
+finger resting on a drawn line for the same half second opens that line's
+alert window instead, and the press never reaches the chart, so one finger
+never opens two things.
 Below the 1280-pixel wide layout, the order menu and every order window open in
 the same bottom sheet used by the workspace side panels. A tap outside closes
 the sheet and does not pass through to the chart.
@@ -57,8 +60,9 @@ The grip has no hover message.
   running corner to corner that is a grey rectangle over half the chart.
 - **The Tab key reaches every line**, and landing on one picks it out. Delete
   or Backspace throws the focused one away.
-- **One line at a time goes from the line itself** — the small × over its
-  middle while it is picked out, or Delete on the keyboard — and it comes back
+- **One line at a time goes from the line itself** — the small × in the column
+  under its right-hand end while it is picked out, or Delete on the keyboard —
+  and it comes back
   with **Undo** in the toast that follows. A marked base is work, and a slip of
   the mouse must not quietly erase it.
 - **The bin in the toolbar clears the whole chart**, and asks first. It only
@@ -67,8 +71,15 @@ The grip has no hover message.
   one; the question is asked before it runs instead.
 - **The chart underneath still pans, zooms and shows its crosshair.** Only a
   line itself takes the pointer, plus the whole chart while a tool is held.
-- **A picked-out line, level or trendline, also shows a cog beside its x**,
-  which opens its alert window; double-clicking the line does the same. A
-  trendline's window can also draw the line on to the right edge, dashed.
-  Both are smart tools, in `smart-tools.md`. Orders on lines are still out of
-  scope and attach to the same surface in their own task.
+- **A picked-out line, level or trendline, also shows a cog above its x**,
+  which opens its alert window. Double-clicking the line, pressing Enter or
+  Space on the line the Tab key is on, and resting a finger on it for half a
+  second all open the same window, and Escape closes it and puts the keyboard
+  back on the line. On a narrow screen the window is the bottom sheet the
+  order windows use.
+- **That window also names the line and switches its alert on**, and on a
+  trendline draws the line on to the right edge, dashed. A named line shows
+  its name beside its start, and an armed one shows a bell at the head of that
+  same column.
+  All of it is smart tools, in `smart-tools.md`. Orders on lines are still out
+  of scope and attach to the same surface in their own task.

@@ -11,8 +11,10 @@ import {
 import type { CandleBar } from "@/lib/protocols/contracts"
 import {
   describeDrawing,
+  describeDrawingInline,
   drawingAlertArmed,
   moveShape,
+  namedShape,
   priceAtTime,
   type Drawing,
   type DrawingPoint,
@@ -38,7 +40,11 @@ import { formatPrice } from "@/lib/trade/format"
 const DRAG_SLOP = 3
 /** Candle highs and lows inside this screen-pixel circle take the point. */
 const WICK_SNAP_RADIUS = 8
-/** A still touch held this long switches snapping off for that drawing. */
+/**
+ * A still touch held this long switches snapping off for a drawing in
+ * progress, and on a line already there opens its window. The same numbers
+ * the chart's order menu uses, so one finger learns one rule.
+ */
 const TOUCH_HOLD_MS = 500
 const TOUCH_HOLD_SLOP = 8
 
@@ -85,6 +91,15 @@ type TouchHold = {
   point: DrawingPoint
   timer: ReturnType<typeof setTimeout> | null
   skipped: boolean
+}
+
+/** A finger resting on a line, on its way to opening the line's window. */
+type LineHold = {
+  id: string
+  pointerId: number
+  target: Element
+  from: ScreenPoint
+  timer: ReturnType<typeof setTimeout>
 }
 
 function useLiveCandleReader(
@@ -194,36 +209,148 @@ function extensionOf(shape: DrawingShape, surface: ChartSurface): Segment | null
   return { x1, y1, x2: surface.width, y2 }
 }
 
-/** How far apart the two buttons over a line sit, centre to centre. */
-const BUTTON_GAP = 22
+/**
+ * Where a fired alert went off, on screen, or null while the alert is armed,
+ * gone, from before the fire point was kept, or off the chart's left or
+ * right edge. Kept until the alert is switched on again, which replaces the
+ * record, or the line is deleted.
+ */
+function fireMarkOf(drawing: Drawing, surface: ChartSurface): ScreenPoint | null {
+  const alert = drawing.alert
+  if (!alert || alert.firedAt === null || alert.firedPrice === undefined) {
+    return null
+  }
+  const x = surface.xOf(alert.firedAt)
+  const y = surface.yOf(alert.firedPrice)
+  if (y === null || x < 0 || x > surface.width) return null
+  return { x, y }
+}
 
 /**
- * Where a line's own buttons sit: over its middle, clear of the line. The x
- * is on the left and the cog on the right, a button's width apart, so neither
- * can land on top of the other.
+ * Where a line's name sits and which way it leans: at the line's left-hand
+ * end, turned to the line's own angle so it runs along it.
+ *
+ * Always the left end, whichever end was drawn first, so the words read left
+ * to right rather than upside down on a line drawn backwards. A line whose
+ * left end is off the side of the plot is labelled where it comes into view,
+ * read along its own slope, so the name never scrolls off with the end.
  */
-function buttonsOf(
+function labelAnchor(
+  segment: Segment
+): { x: number; y: number; angle: number } {
+  const [from, to] =
+    segment.x1 <= segment.x2
+      ? [
+          { x: segment.x1, y: segment.y1 },
+          { x: segment.x2, y: segment.y2 },
+        ]
+      : [
+          { x: segment.x2, y: segment.y2 },
+          { x: segment.x1, y: segment.y1 },
+        ]
+  const across = to.x - from.x
+  const angle =
+    Math.round((Math.atan2(to.y - from.y, across) * 18000) / Math.PI) / 100
+  const x = Math.max(from.x, 0)
+  const y = across === 0 ? from.y : from.y + ((to.y - from.y) / across) * (x - from.x)
+  return { x, y, angle }
+}
+
+/** Every mark over a line is drawn on a chip this big. */
+const MARK_RADIUS = 9
+/** Centre to centre down the column. */
+const MARK_GAP = 20
+/**
+ * From the line to the first mark's centre. Far enough that the chip clears
+ * the round handle on a trendline's end, which is five pixels of its own.
+ */
+const MARK_INSET = 22
+/** How close a chip's centre may come to the edge of the plot. */
+const MARK_EDGE = 12
+/**
+ * Every glyph is drawn on the same 24-unit grid the icon set uses and brought
+ * down by the same scale, so the three are one size and one weight by
+ * construction rather than by three sets of hand-picked numbers.
+ */
+const GLYPH_SCALE = 0.45
+/** On the 24-unit grid. What lands on screen is this times the scale. */
+const GLYPH_STROKE = 3
+
+/**
+ * Where a line's marks sit: one column under the line, tucked in at its
+ * right-hand end.
+ *
+ * Under the line and at its end rather than across its middle, because a row
+ * of buttons over the middle covers the candles the line was drawn through,
+ * which is the part of the chart the line was drawn to point at. The first
+ * slot is nearest the line and never moves, so switching an alert on cannot
+ * shuffle the buttons out from under the pointer. A line lying too near the
+ * bottom of the plot stacks its marks upwards instead.
+ */
+function markColumn(
   segment: Segment,
   surface: ChartSurface,
-  withCog: boolean
-): { remove: ScreenPoint; alert: ScreenPoint } {
-  const x = (segment.x1 + segment.x2) / 2
-  const y = (segment.y1 + segment.y2) / 2 - 16
-  // Kept inside the plot, so a line drawn along the top edge still has a
-  // button somebody can reach.
-  const spread = withCog ? BUTTON_GAP / 2 : 0
-  const middle = Math.min(
-    Math.max(x, 12 + spread),
-    surface.width - 12 - spread
+  count: number
+): { points: ScreenPoint[]; down: boolean } {
+  const end =
+    segment.x2 >= segment.x1
+      ? { x: segment.x2, y: segment.y2 }
+      : { x: segment.x1, y: segment.y1 }
+  const x = Math.min(
+    Math.max(end.x - MARK_RADIUS - 2, MARK_EDGE),
+    surface.width - MARK_EDGE
   )
-  const clampedY = Math.min(Math.max(y, 12), surface.height - 12)
+  const furthest = end.y + MARK_INSET + MARK_GAP * (count - 1)
+  const down = furthest <= surface.height - MARK_EDGE
+  const first = down ? end.y + MARK_INSET : end.y - MARK_INSET
   return {
-    remove: { x: middle - spread, y: clampedY },
-    alert: { x: middle + spread, y: clampedY },
+    down,
+    points: Array.from({ length: Math.max(count, 0) }, (_, index) => ({
+      x,
+      y: first + (down ? 1 : -1) * MARK_GAP * index,
+    })),
   }
 }
 
-/** The small round button over a picked-out line: the x and the cog share it. */
+/**
+ * The chip every mark shares: one circle, and a glyph drawn on the shared
+ * 24-unit grid in the chip's own middle.
+ *
+ * The bell wears it too, though it is not a button, and every one of them is
+ * the muted grey. Three marks at three sizes in three colours read as three
+ * unrelated things rather than as one line's own row.
+ */
+function MarkChip({
+  at,
+  children,
+}: {
+  at: ScreenPoint
+  children: React.ReactNode
+}) {
+  return (
+    <>
+      <circle
+        cx={at.x}
+        cy={at.y}
+        r={MARK_RADIUS}
+        className="fill-card stroke-foreground/15"
+        strokeWidth={1}
+      />
+      <g
+        transform={`translate(${at.x} ${at.y}) scale(${GLYPH_SCALE}) translate(-12 -12)`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={GLYPH_STROKE}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {children}
+      </g>
+    </>
+  )
+}
+
+/** The two chips that are buttons: a press, and a keyboard way in. */
 function LineButton({
   at,
   label,
@@ -258,19 +385,12 @@ function LineButton({
         }
       }}
     >
-      <circle
-        cx={at.x}
-        cy={at.y}
-        r={9}
-        className="fill-card stroke-foreground/15"
-        strokeWidth={1}
-      />
-      {children}
+      <MarkChip at={at}>{children}</MarkChip>
     </g>
   )
 }
 
-/** The small × over a picked-out line. */
+/** The × that throws the line away, at the foot of the column. */
 function RemoveButton({
   at,
   label,
@@ -287,60 +407,69 @@ function RemoveButton({
       className="text-muted-foreground hover:text-destructive focus-visible:text-destructive"
       onPress={onRemove}
     >
-      <path
-        d={`M${at.x - 3.5} ${at.y - 3.5} L${at.x + 3.5} ${at.y + 3.5} M${at.x + 3.5} ${at.y - 3.5} L${at.x - 3.5} ${at.y + 3.5}`}
-        stroke="currentColor"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
+      <path d="M19 5 5 19M5 5l14 14" />
     </LineButton>
   )
 }
 
 /**
- * The cog beside the x, which opens the line's alert window. Drawn in the
- * alert colour while the line is armed, so a watched line can be told from a
- * plain one without opening anything.
+ * The cog above the x, which opens the line's alert window. Grey like the
+ * other two: it used to go the primary colour while the line was armed, and
+ * the bell beside it now says that on its own.
  */
 function AlertButton({
   at,
   label,
-  armed,
   onOpen,
 }: {
   at: ScreenPoint
   label: string
-  armed: boolean
   onOpen: () => void
 }) {
   return (
     <LineButton
       at={at}
       label={label}
-      className={
-        armed
-          ? "text-primary hover:text-foreground focus-visible:text-foreground"
-          : "text-muted-foreground hover:text-foreground focus-visible:text-foreground"
-      }
+      className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
       onPress={onOpen}
     >
-      <g data-line-alert-cog transform={`translate(${at.x} ${at.y})`}>
+      <g data-line-alert-cog>
         {Array.from({ length: 4 }, (_, index) => (
           <line
             key={index}
-            x1={0}
-            y1={-4.5}
-            x2={0}
-            y2={4.5}
-            transform={`rotate(${index * 45})`}
-            stroke="currentColor"
-            strokeWidth={1.8}
-            strokeLinecap="round"
+            x1={12}
+            y1={2}
+            x2={12}
+            y2={22}
+            transform={`rotate(${index * 45} 12 12)`}
           />
         ))}
-        <circle r={2.2} className="fill-card" stroke="currentColor" strokeWidth={1.5} />
+        {/* Small enough that a length of each spoke still shows outside it.
+            A wider hole eats the spokes and the cog reads as a blot. */}
+        <circle cx={12} cy={12} r={3} className="fill-card" />
       </g>
     </LineButton>
+  )
+}
+
+/**
+ * The bell at the head of an armed line's column, nearest the line. It takes
+ * no pointer and says nothing to a screen reader, which hears the line's own
+ * label instead.
+ */
+function ArmedBell({ at }: { at: ScreenPoint }) {
+  return (
+    <g
+      data-line-bell
+      aria-hidden
+      className="text-muted-foreground"
+      style={{ pointerEvents: "none" }}
+    >
+      <MarkChip at={at}>
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </MarkChip>
+    </g>
   )
 }
 
@@ -357,6 +486,8 @@ export const PaintLayer = React.memo(function PaintLayer({
   onDelete,
   onSetAlert,
   onAlertOpen,
+  wide = true,
+  lineAlertsPaused = false,
 }: {
   surface: ChartSurface
   candles: readonly CandleBar[]
@@ -377,6 +508,10 @@ export const PaintLayer = React.memo(function PaintLayer({
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
   /** The alert window is opening: a chance to read the lines again. */
   onAlertOpen?: () => void
+  /** The shell's 1280-pixel layout answer. Narrow puts the window in a sheet. */
+  wide?: boolean
+  /** The master switch in Settings is off, which the window says. */
+  lineAlertsPaused?: boolean
 }) {
   const svgRef = React.useRef<SVGSVGElement>(null)
   // The moment the window opened and the live price then, so "where the line
@@ -385,8 +520,11 @@ export const PaintLayer = React.memo(function PaintLayer({
     id: string
     openedAt: number
     price: number | null
+    /** Opened from the keyboard, so the keyboard should follow it in. */
+    autoFocus: boolean
   } | null>(null)
   const [grab, setGrab] = React.useState<Grab | null>(null)
+  const lineHold = React.useRef<LineHold | null>(null)
   const [hover, setHover] = React.useState<ScreenPoint | null>(null)
   const [pending, setPending] = React.useState<PendingLine | null>(null)
   const [snapTip, setSnapTip] = React.useState<WickTip | null>(null)
@@ -427,6 +565,14 @@ export const PaintLayer = React.memo(function PaintLayer({
   }, [])
 
   React.useEffect(() => clearTouchHold, [clearTouchHold, tool])
+
+  const clearLineHold = React.useCallback(() => {
+    const held = lineHold.current
+    if (held) clearTimeout(held.timer)
+    lineHold.current = null
+  }, [])
+
+  React.useEffect(() => clearLineHold, [clearLineHold])
 
   // Changing tools — including putting one down with Escape, and the tool
   // putting itself down once it has drawn something — takes the half-finished
@@ -520,13 +666,13 @@ export const PaintLayer = React.memo(function PaintLayer({
     event: React.PointerEvent<SVGElement>,
     drawing: Drawing,
     part: GrabPart
-  ) => {
+  ): ScreenPoint | null => {
     // A press with a tool in hand is meant for the sheet above — it is drawing
     // a new line, not taking hold of the one that happens to be under it.
-    if (tool) return
+    if (tool) return null
     const at = pointerReading(event, true)?.point
     const from = localPoint(event)
-    if (!at || !from) return
+    if (!at || !from) return null
     event.currentTarget.setPointerCapture(event.pointerId)
     onSelect(drawing.id)
     setGrab({
@@ -538,6 +684,58 @@ export const PaintLayer = React.memo(function PaintLayer({
       shape: drawing.shape,
       moved: false,
     })
+    return from
+  }
+
+  /**
+   * A press on the line itself, which is also where the touch hold that opens
+   * the line's window starts. The line is looked up from the element the
+   * press landed on so this stays one function for every line, rather than a
+   * new one per line on every render.
+   */
+  const beginBodyGrab = (event: React.PointerEvent<SVGElement>) => {
+    const id = event.currentTarget.getAttribute("data-drawing-id")
+    const drawing = drawings.find((candidate) => candidate.id === id)
+    if (!drawing) return
+    const from = beginGrab(event, drawing, "body")
+    if (!from) return
+    if (event.pointerType !== "touch" || event.isPrimary === false) return
+    // A finger resting on the line opens its window, the way a finger resting
+    // on the chart opens the order menu. Kept from reaching the chart, so the
+    // same press cannot start that hold as well and open both.
+    event.stopPropagation()
+    startLineHold(event, drawing.id, from)
+  }
+
+  const startLineHold = (
+    event: React.PointerEvent<SVGElement>,
+    id: string,
+    from: ScreenPoint
+  ) => {
+    clearLineHold()
+    if (!onSetAlert) return
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    const hold: LineHold = {
+      id,
+      pointerId,
+      target,
+      from,
+      // Reaching here means the finger neither moved nor lifted: every one
+      // of those clears the hold first. So the line is still under it,
+      // unmoved, and letting the grab go stops the lift saving a move.
+      timer: setTimeout(() => {
+        if (lineHold.current !== hold) return
+        lineHold.current = null
+        if (target.hasPointerCapture(pointerId)) {
+          target.releasePointerCapture(pointerId)
+        }
+        setGrab(null)
+        setSnapTip(null)
+        openAlert(id, false)
+      }, TOUCH_HOLD_MS),
+    }
+    lineHold.current = hold
   }
 
   const continueGrab = (event: React.PointerEvent<SVGElement>) => {
@@ -545,6 +743,10 @@ export const PaintLayer = React.memo(function PaintLayer({
     const canSnap = grab.original.kind === "level" || grab.part !== "body"
     const reading = pointerReading(event, !canSnap || event.altKey || altHeld)
     if (!reading) return
+    const held = lineHold.current
+    if (held && movedPast(reading.local, held.from, TOUCH_HOLD_SLOP)) {
+      clearLineHold()
+    }
     if (!grab.moved && !apart(reading.local, grab.from)) return
     const shape =
       reading.snap && grab.original.kind === "level"
@@ -555,6 +757,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   }
 
   const endGrab = (event: React.PointerEvent<SVGElement>) => {
+    clearLineHold()
     if (!grab) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
@@ -588,13 +791,39 @@ export const PaintLayer = React.memo(function PaintLayer({
   )
 
   const openAlert = React.useCallback(
-    (id: string) => {
+    (id: string, autoFocus: boolean) => {
       onSelect(id)
       onAlertOpen?.()
-      setAlertOpen({ id, openedAt: Date.now(), price: currentPrice() })
+      setAlertOpen({
+        id,
+        openedAt: Date.now(),
+        price: currentPrice(),
+        autoFocus,
+      })
     },
     [onSelect, onAlertOpen, currentPrice]
   )
+
+  /**
+   * Close the window and put the keyboard back on the line it belonged to,
+   * so Escape lands where Tab left off rather than at the top of the page.
+   */
+  const closeAlertWindow = (open: boolean) => {
+    if (open) return
+    const id = alertOpen?.id
+    setAlertOpen(null)
+    if (id === undefined) return
+    // Matched rather than looked up by a selector built from the id: an id is
+    // only bounded in length on the way in, and a stray quote in one would
+    // throw here and leave the keyboard nowhere.
+    const lines = svgRef.current?.querySelectorAll<SVGElement>("[data-drawing-id]")
+    for (const line of lines ?? []) {
+      if (line.getAttribute("data-drawing-id") === id) {
+        line.focus()
+        return
+      }
+    }
+  }
 
   // A line that has gone, or a chart that lost its alerts, closes the window
   // during the same render rather than leaving it hanging over nothing.
@@ -744,6 +973,24 @@ export const PaintLayer = React.memo(function PaintLayer({
         if (!segment) return null
         const selected = drawing.id === selectedId
         const extension = extensionOf(shape, surface)
+        const armed = drawingAlertArmed(drawing.alert)
+        const firedAt = fireMarkOf(drawing, surface)
+        const label = labelAnchor(segment)
+        // One column under the line's end holds every mark it carries: the
+        // bell nearest the line, then the cog, then the x. The buttons hide
+        // while a tool is in hand, where the sheet above would swallow the
+        // click anyway.
+        const showButtons = selected && !tool
+        const withCog = onSetAlert !== undefined
+        const marks = markColumn(
+          segment,
+          surface,
+          (armed ? 1 : 0) + (showButtons ? (withCog ? 2 : 1) : 0)
+        ).points
+        const bellAt = armed ? marks[0] : null
+        const cogAt = showButtons && withCog ? marks[armed ? 1 : 0] : null
+        const removeAt = showButtons ? marks[marks.length - 1] : null
+        const name = describeDrawingInline(shape, formatPrice)
 
         return (
           <g
@@ -795,9 +1042,10 @@ export const PaintLayer = React.memo(function PaintLayer({
               }}
               tabIndex={0}
               role="button"
+              data-drawing-id={drawing.id}
               aria-label={describeDrawing(shape, formatPrice)}
               onFocus={() => onSelect(drawing.id)}
-              onPointerDown={(event) => beginGrab(event, drawing, "body")}
+              onPointerDown={beginBodyGrab}
               onPointerMove={continueGrab}
               onPointerUp={endGrab}
               onPointerCancel={endGrab}
@@ -805,15 +1053,61 @@ export const PaintLayer = React.memo(function PaintLayer({
               // travelled, so no drag starts; and a tool in hand means the
               // sheet above has the pointer, so this never arrives then.
               onDoubleClick={
-                onSetAlert ? () => openAlert(drawing.id) : undefined
+                onSetAlert ? () => openAlert(drawing.id, false) : undefined
               }
               onKeyDown={(event) => {
                 if (event.key === "Delete" || event.key === "Backspace") {
                   event.preventDefault()
                   onDelete(drawing.id)
                 }
+                // Enter and Space are the keyboard's double-click. Only on
+                // a watched chart, where the window exists to open.
+                if ((event.key === "Enter" || event.key === " ") && onSetAlert) {
+                  event.preventDefault()
+                  openAlert(drawing.id, true)
+                }
               }}
             />
+            {/* The name, at the line's start, in the line's own colour. It
+                takes no pointer, and a screen reader already hears it in the
+                line's own label. */}
+            {shape.name ? (
+              <text
+                data-line-name
+                aria-hidden
+                // Turned with the line and measured from it, so the words sit
+                // along the line rather than lying flat beside it. Five pixels
+                // clear of the stroke, whichever way the line leans.
+                transform={`translate(${label.x} ${label.y}) rotate(${label.angle})`}
+                x={6}
+                y={-5}
+                fontSize={11}
+                fill="currentColor"
+                paintOrder="stroke"
+                className="stroke-background"
+                strokeWidth={3}
+                style={{ pointerEvents: "none", userSelect: "none" }}
+              >
+                {shape.name}
+              </text>
+            ) : null}
+            {/* A bell on every armed line, picked out or not, so which lines
+                are watched can be read off the chart. */}
+            {bellAt ? <ArmedBell at={bellAt} /> : null}
+            {/* Where the price crossed, kept until the alert is switched on
+                again or the line goes. */}
+            {firedAt ? (
+              <circle
+                data-line-fired
+                aria-hidden
+                cx={firedAt.x}
+                cy={firedAt.y}
+                r={3.5}
+                className="fill-primary stroke-background"
+                strokeWidth={1.5}
+                style={{ pointerEvents: "none" }}
+              />
+            ) : null}
             {/* Only the picked-out line shows its ends, and only a trendline
                 has ends to show — a level runs the whole width, so there is
                 nothing to take hold of but the line itself. */}
@@ -833,35 +1127,24 @@ export const PaintLayer = React.memo(function PaintLayer({
                   />
                 ))
               : null}
-            {/* The picked-out line's own way out, for a mouse. The toolbar's bin
-                clears the whole chart, and Delete only reaches a line the
+            {cogAt ? (
+              <AlertButton
+                at={cogAt}
+                label={`Alert on ${name}`}
+                onOpen={() => openAlert(drawing.id, false)}
+              />
+            ) : null}
+            {/* The picked-out line's own way out, for a mouse. The toolbar's
+                bin clears the whole chart, and Delete only reaches a line the
                 keyboard is on, so without this there is no way to throw away
-                one line with the pointer. It hides while a tool is in hand,
-                where the sheet above would swallow the click anyway. */}
-            {selected && !tool
-              ? (() => {
-                  const withCog = onSetAlert !== undefined
-                  const at = buttonsOf(segment, surface, withCog)
-                  const name = describeDrawing(shape, formatPrice).toLowerCase()
-                  return (
-                    <>
-                      <RemoveButton
-                        at={at.remove}
-                        label={`Delete ${name}`}
-                        onRemove={() => onDelete(drawing.id)}
-                      />
-                      {withCog ? (
-                        <AlertButton
-                          at={at.alert}
-                          label={`Alert on ${name}`}
-                          armed={drawingAlertArmed(drawing.alert)}
-                          onOpen={() => openAlert(drawing.id)}
-                        />
-                      ) : null}
-                    </>
-                  )
-                })()
-              : null}
+                one line with the pointer. */}
+            {removeAt ? (
+              <RemoveButton
+                at={removeAt}
+                label={`Delete ${name}`}
+                onRemove={() => onDelete(drawing.id)}
+              />
+            ) : null}
           </g>
         )
       })}
@@ -869,8 +1152,16 @@ export const PaintLayer = React.memo(function PaintLayer({
       {alertDrawing && alertOpen && onSetAlert
         ? (() => {
             const segment = segmentOf(alertDrawing.shape, surface)
-            const at = segment
-              ? buttonsOf(segment, surface, true).alert
+            // Hung off the foot of a full column, whether or not the line is
+            // armed, so switching the alert on does not slide the window it
+            // was switched from.
+            const column = segment ? markColumn(segment, surface, 3) : null
+            const foot = column?.points.at(-1)
+            const at = foot
+              ? {
+                  x: foot.x,
+                  y: foot.y + (column?.down ? MARK_RADIUS : -MARK_RADIUS),
+                }
               : { x: surface.width / 2, y: surface.height / 2 }
             return (
               <LineAlertPopover
@@ -878,11 +1169,12 @@ export const PaintLayer = React.memo(function PaintLayer({
                 linePrice={priceAtTime(alertDrawing.shape, alertOpen.openedAt)}
                 currentPrice={alertOpen.price}
                 svg={svgRef}
-                at={{ x: at.x, y: at.y + 9 }}
+                at={at}
                 open={true}
-                onOpenChange={(open) => {
-                  if (!open) setAlertOpen(null)
-                }}
+                wide={wide}
+                autoFocus={alertOpen.autoFocus}
+                paused={lineAlertsPaused}
+                onOpenChange={closeAlertWindow}
                 // The price is read again at the flip, not at the open: the
                 // window can sit there a while and the direction should come
                 // from the price at the moment the switch goes on.
@@ -899,6 +1191,14 @@ export const PaintLayer = React.memo(function PaintLayer({
                     currentPrice()
                   )
                 }}
+                // The name rides on the shape, so it is saved the same way.
+                onSetName={(name) =>
+                  onMove(
+                    alertDrawing.id,
+                    namedShape(alertDrawing.shape, name),
+                    currentPrice()
+                  )
+                }
               />
             )
           })()

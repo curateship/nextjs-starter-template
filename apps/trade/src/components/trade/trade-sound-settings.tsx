@@ -2,11 +2,13 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { useTradePageTitle } from "@/app/page-title"
+import { LineAlertSettings } from "@/components/trade/line-alert-settings"
 import { useRememberedTradeSoundSetting } from "@/components/trade/trade-sounds"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardGroup,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -29,8 +31,22 @@ import {
   type TradeSoundSettings,
 } from "@/lib/trade/trade-sounds"
 
+/**
+ * The Sounds tab: the two sound switches, and under them the master switch
+ * for alerts on drawn lines, which sits beside them because a sound and an
+ * alert are the two things this app can do to interrupt somebody.
+ */
 export default function TradeSoundSettings() {
   useTradePageTitle("Settings")
+  return (
+    <CardGroup>
+      <TradeSoundSettingsCard />
+      <LineAlertSettings />
+    </CardGroup>
+  )
+}
+
+function TradeSoundSettingsCard() {
   const mounted = React.useRef(false)
   const rememberedSetting = useRememberedTradeSoundSetting()
   const settings = rememberedSetting ?? TRADE_SOUNDS_OFF

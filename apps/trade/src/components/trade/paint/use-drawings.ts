@@ -327,6 +327,9 @@ export function useChartDrawings(
     if (!tool && !selectedId) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
+      // An open window over a line takes the Escape for itself and marks it
+      // handled. The line then stays picked, with the keyboard back on it.
+      if (event.defaultPrevented) return
       if (tool) setTool(null)
       else setSelectedId(null)
     }

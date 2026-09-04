@@ -77,6 +77,7 @@ afterEach(async () => {
 describe("the alerts menu", () => {
   it("shows the fired badge and clears only the visible tab", async () => {
     const onCleared = vi.fn().mockResolvedValue(undefined)
+    const onSelectMarket = vi.fn()
     await act(async () => {
       root.render(
         <TooltipProvider>
@@ -94,7 +95,7 @@ describe("the alerts menu", () => {
             ]}
             error={null}
             onRetry={() => {}}
-            onSelectMarket={() => {}}
+            onSelectMarket={onSelectMarket}
             onDelete={() => {}}
             lines={{
               armed: [],
@@ -123,6 +124,14 @@ describe("the alerts menu", () => {
     })
     expect(document.body.textContent).toContain("Alert")
     expect(document.body.textContent).toContain("Fired")
+
+    // A row puts its market on the chart and leaves the menu up, so a list of
+    // alerts is walked down one row at a time.
+    await act(async () => buttonStartingWith("BTC").click())
+    expect(onSelectMarket).toHaveBeenCalledWith("hyperliquid:mainnet:BTC")
+    expect(
+      document.body.querySelector('[data-slot="popover-content"]')
+    ).not.toBeNull()
 
     await act(async () => buttonWithText("Clear all").click())
     expect(api.clear).not.toHaveBeenCalled()
@@ -158,6 +167,14 @@ function button(name: string) {
     `button[aria-label="${name}"]`
   )
   if (!found) throw new Error(`Missing ${name}`)
+  return found
+}
+
+function buttonStartingWith(text: string) {
+  const found = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("button")
+  ).find((candidate) => candidate.textContent?.startsWith(text))
+  if (!found) throw new Error(`Missing ${text}`)
   return found
 }
 

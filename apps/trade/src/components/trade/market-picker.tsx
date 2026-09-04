@@ -388,10 +388,11 @@ export function MarketPicker({
                   folders={folders}
                   folderActions={folderActions}
                   capabilities={capabilities}
-                  onSelect={() => {
-                    onSelect(row.key)
-                    setOpen(false)
-                  }}
+                  // The list stays up after a pick. Putting one market
+                  // after another on the chart is a single pass down the
+                  // rows, not a reopen each time. Moving the pointer off the
+                  // panel closes it, and so does Escape.
+                  onSelect={() => onSelect(row.key)}
                 />
               ))}
             </TableBody>

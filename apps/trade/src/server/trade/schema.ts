@@ -276,6 +276,14 @@ export const tradePrefs = pgTable("trade_prefs", {
   tradeAlertSoundsEnabled: boolean("trade_alert_sounds_enabled")
     .notNull()
     .default(false),
+  /**
+   * The master switch for alerts on drawn lines, off by default. While true
+   * no line on the account rings, and every line keeps its armed state, so a
+   * week away does not mean re-arming twenty lines. A line the price crosses
+   * meanwhile is turned to face the price again rather than skipped, which is
+   * what keeps that cross silent once the switch goes back on.
+   */
+  lineAlertsPaused: boolean("line_alerts_paused").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
