@@ -16,6 +16,7 @@ import {
   ladderShapeMovable,
 } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
+import type { TradeOrder } from "@/lib/trade/paper"
 import {
   formatPrice,
   formatSignedUsd,
@@ -86,6 +87,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   colors,
   marketKey,
   ladders,
+  orders = [],
   preview,
   tool,
   readOnly = false,
@@ -100,6 +102,8 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   marketKey: string | null
   /** Every live ladder, whichever wallet holds it; this market's are drawn. */
   ladders: readonly SmartLadder[]
+  /** Resting orders supply the price the exchange is actually working. */
+  orders?: readonly Pick<TradeOrder, "id" | "px">[]
   /** The placement window's rung prices as edited, or null when it is shut. */
   preview: DcaPreview | null
   /** A paint tool in hand takes the pointer; these controls step aside. */
@@ -151,6 +155,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
         <LadderLines
           key={ladder.id}
           ladder={ladder}
+          orders={orders}
           colors={colors}
           yFor={yFor}
           chartHeight={surface.height}
@@ -488,6 +493,7 @@ function PreviewLines({
 
 function LadderLines({
   ladder,
+  orders,
   colors,
   yFor,
   chartHeight,
@@ -502,6 +508,7 @@ function LadderLines({
   priceFrom,
 }: {
   ladder: SmartLadder
+  orders: readonly Pick<TradeOrder, "id" | "px">[]
   colors: ChartColors
   yFor: (price: number) => number | null
   chartHeight: number
@@ -527,6 +534,7 @@ function LadderLines({
     (rung) => rung.status === "filled" || rung.status === "sold"
   )
   const exits = ladderExitLevels(plan)
+  const orderPrices = new Map(orders.map((order) => [order.id, order.px]))
   const mirroredExits =
     plan.takeProfit?.mode === "exitLadder" ? exitLadderLevels(plan) : []
   const shapeMoves =
@@ -685,7 +693,8 @@ function LadderLines({
 
       {plan.rungs.map((rung, index) => {
         if (!rung.sellOrderId) return null
-        const y = yFor(exits[index])
+        const exitPx = orderPrices.get(rung.sellOrderId) ?? exits[index]
+        const y = yFor(exitPx)
         if (y === null) return null
         return (
           <div
@@ -706,7 +715,7 @@ function LadderLines({
               }}
               title="Rung sell — managed by the ladder, so it cannot be dragged. Change the exit rules to move it."
             >
-              Rung {index + 1} sell · {formatUsdRounded(exits[index] * rung.sz)}
+              Rung {index + 1} sell · {formatUsdRounded(exitPx * rung.sz)}
             </span>
           </div>
         )

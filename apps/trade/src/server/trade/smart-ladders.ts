@@ -734,7 +734,14 @@ export async function advanceOne(
     // A hand that has just set this coin's stop or target outranks the aim: the
     // reading this pass is working from may be older than the change, and the
     // hand-moved test cannot tell those apart. See `HAND_PROTECTION_QUIET_MS`.
-    if (!handProtectionSettling(plan, now) && aimBrackets(plan, held, roundPx)) {
+    // A market-first buy is only a shadow position until the exchange reports
+    // it on the next pass. Sending protection now can be refused as missing,
+    // and an exit must never race the buy it belongs to.
+    if (
+      !boughtMarketFirstThisPass &&
+      !handProtectionSettling(plan, now) &&
+      aimBrackets(plan, held, input.marks.get(row.marketKey) ?? null, roundPx)
+    ) {
       // The aim changed the position row, so the save has to know — and the
       // stamp moves so a bracket cannot be fired by candles older than itself.
       held.updatedAt = now
@@ -772,7 +779,13 @@ export async function advanceOne(
         // Below the market it is untouched, which is every ordinary sale.
         const exitPx =
           plan.marketBuyFirst && index === 0
-            ? restingLadderSellPx(exits[index], mark, roundPx)
+            ? marketFirstLadderSellPx(
+                plan,
+                exits[index],
+                held.entryPx,
+                mark,
+                roundPx
+              )
             : roundPx(
                 mark !== null && mark > exits[index] ? mark : exits[index]
               )
@@ -799,6 +812,12 @@ export async function advanceOne(
       const exits = exitLadderLevels(plan)
       const mark = input.marks.get(row.marketKey) ?? null
       let remainingHeld = Math.min(held.szi, ladderHeldSz(plan))
+      const onlyMarketFirstBought =
+        plan.marketBuyFirst &&
+        plan.rungs[0]?.status === "filled" &&
+        plan.rungs
+          .slice(1)
+          .every((rung) => rung.status !== "filled" && rung.status !== "sold")
 
       for (const [index, exit] of plan.exitRungs.entries()) {
         if (exit.status === "sold") continue
@@ -820,9 +839,23 @@ export async function advanceOne(
         }
         if (!(wantedSz > 0)) continue
 
-        const exitPx = plan.marketBuyFirst
-          ? restingLadderSellPx(exits[index], mark, roundPx)
-          : roundPx(mark !== null && mark > exits[index] ? mark : exits[index])
+        const exitPx = onlyMarketFirstBought
+          ? marketFirstLadderSellPx(
+              plan,
+              exits[index],
+              held.entryPx,
+              mark,
+              roundPx
+            )
+          : plan.marketBuyFirst
+            ? restingLadderSellPx(
+                exits[index],
+                Math.max(mark ?? 0, held.entryPx),
+                roundPx
+              )
+            : roundPx(
+                mark !== null && mark > exits[index] ? mark : exits[index]
+              )
         if (exitPx === null) continue
         exit.orderId = await deps.insertOrder({
           marketKey: row.marketKey,
@@ -855,13 +888,35 @@ export async function advanceOne(
 /** A reduce-only sell that stays on the resting side of today's market. */
 function restingLadderSellPx(
   wantedPx: number,
-  mark: number | null,
+  restingAbovePx: number,
   roundPx: (px: number) => number
 ): number | null {
   const wanted = roundPx(wantedPx)
-  return mark !== null && wanted <= mark
-    ? restingChasePx("sell", mark, roundPx)
+  return wanted <= restingAbovePx
+    ? restingChasePx("sell", restingAbovePx, roundPx)
     : wanted
+}
+
+/** Keep the first rung's planned climb when its buy moved up to the market. */
+function marketFirstLadderSellPx(
+  plan: Pick<LadderPlan, "anchorPx" | "rungs">,
+  wantedPx: number,
+  entryPx: number,
+  mark: number | null,
+  roundPx: (px: number) => number
+): number | null {
+  const plannedFirstPx = plan.rungs[0]?.px
+  const firstRungPct = plannedFirstPx ? 1 - plannedFirstPx / plan.anchorPx : 0
+  const extraExitPct = wantedPx / plan.anchorPx - 1
+  const shiftedWanted =
+    plannedFirstPx && plannedFirstPx > 0
+      ? entryPx * (1 + firstRungPct + extraExitPct)
+      : wantedPx
+  return restingLadderSellPx(
+    shiftedWanted,
+    Math.max(mark ?? 0, entryPx),
+    roundPx
+  )
 }
 
 /**
@@ -878,6 +933,7 @@ function aimBrackets(
     entryPx: number
     updatedAt: number
   },
+  mark: number | null,
   roundPx: (px: number) => number
 ): boolean {
   let changed = false
@@ -898,7 +954,7 @@ function aimBrackets(
       const desired =
         tp.mode === "average"
           ? roundPx(position.entryPx * (1 + (tp.pct ?? 0) / 100))
-          : nearestRungExit(plan, roundPx)
+          : nearestRungExit(plan, position.entryPx, mark, roundPx)
       if (desired !== null && !nearNullable(desired, position.tpPx)) {
         position.tpPx = desired
         plan.aimedTpPx = desired
@@ -958,6 +1014,8 @@ export function wantedStopPx(
  */
 function nearestRungExit(
   plan: LadderPlan,
+  entryPx: number,
+  mark: number | null,
   roundPx: (px: number) => number
 ): number | null {
   let deepest = -1
@@ -965,7 +1023,10 @@ function nearestRungExit(
     if (rung.status === "filled" || rung.status === "sold") deepest = index
   }
   if (deepest < 0) return null
-  return roundPx(ladderExitLevels(plan)[deepest])
+  const wanted = ladderExitLevels(plan)[deepest]
+  return plan.marketBuyFirst && deepest === 0
+    ? marketFirstLadderSellPx(plan, wanted, entryPx, mark, roundPx)
+    : roundPx(wanted)
 }
 
 /**

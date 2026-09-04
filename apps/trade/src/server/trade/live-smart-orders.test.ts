@@ -719,8 +719,71 @@ describe("live Smart orders", () => {
       })
     )
     const exitRequest = place.mock.calls[1]?.[2]
-    expect(exitRequest?.px).toBeGreaterThan(100)
+    expect(exitRequest?.px).toBeCloseTo(105, 9)
     expect((await ladder()).rungs[0].sellOrderId).toBe("first-exit")
+  })
+
+  it("keeps a live nearest-rung target above the market-first buy", async () => {
+    prices.mockResolvedValue(new Map([["BTC", 200]]))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "first-rung",
+      avgPx: 200,
+      filledSz: null,
+    })
+
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 200,
+      interval: "1m",
+      params: params({
+        marketBuyFirst: true,
+        takeProfit: { mode: "nearestRung", pct: 2 },
+      }),
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+    await reconcileLiveLadders(userId, wallet)
+
+    const bought = (await ladder()).rungs[0]
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: bought.sz,
+          entryPx: 200,
+          leverage: 1,
+          marginUsed: bought.budget,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, result.ladder.id))
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(setBrackets).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({
+        targets: [expect.objectContaining({ px: expect.any(Number) })],
+      })
+    )
+    const target = setBrackets.mock.calls.at(-1)?.[2]?.targets?.[0]?.px
+    expect(target).toBeCloseTo(210, 9)
   })
 
   it("buys only rung 1 when market-first overrides two-green confirmation", async () => {

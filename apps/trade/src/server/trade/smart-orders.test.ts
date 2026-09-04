@@ -1101,7 +1101,19 @@ describe("placing a ladder", () => {
     expect(placed.ladder.plan.rungs[0].sellOrderId).not.toBeNull()
     const [sell] = (await orders()).filter((order) => order.side === "sell")
     expect(sell).toMatchObject({ reduceOnly: true })
-    expect(sell.px).toBeGreaterThan(100)
+    expect(sell.px).toBeCloseTo(105, 9)
+  })
+
+  it("keeps a nearest-rung target above the market-first buy", async () => {
+    const placed = await place({
+      marketBuyFirst: true,
+      takeProfit: { mode: "nearestRung", pct: 2 },
+    })
+
+    const [held] = await positions()
+    expect(held.entryPx).toBe(100)
+    expect(held.tpPx).toBeCloseTo(held.entryPx * 1.05, 9)
+    expect(placed.ladder.status).toBe("active")
   })
 
   it("moves and re-spreads a placed ladder until its first buy", async () => {

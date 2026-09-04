@@ -85,10 +85,19 @@ engine must be deployed together before this choice can place real money.
 An ordinary ladder does not store the new field, so it keeps working while the
 engine versions are being changed.
 
-When the ladder sells each buy at the previous rung, the market buy goes first.
-The sell waits until the exchange shows the new position, then rests above the
-current price if its original level has already passed. A sell that cannot rest
-must never stop the requested buy from reaching the exchange.
+With any rung-based exit, the market buy goes first. Its sell waits until the
+exchange shows the new position. If the original exit is at or below either
+the fill price or the current price, the sell moves up with the buy and keeps
+the first rung's planned climb. A first rung designed to buy at $95 and sell at
+$100 has a 5% step, so it sells at $105 after a $100 market buy, not at $100.02.
+A sell that cannot rest must never stop the requested buy from reaching the
+exchange.
+
+The chart draws a rung sell at the price of its actual resting order. The
+planned anchor is only a fallback while that order is missing from a wallet
+read. A market-first fill can move the sell away from the original anchor, so
+using the planned price there would put the label on a price the exchange is
+not working.
 
 The free-cash figure names what the wallet has available now, but it never
 blocks Place. A watched ladder spends nothing until a rung's price arrives, so

@@ -205,9 +205,10 @@ add up to.
   spends rung 1's fixed dollar amount at today's price. Deeper rungs stay at
   their planned prices, and any deeper price already passed is skipped rather
   than added to the market buy. The choice starts off. The buy reaches the
-  exchange before any reduce-only sell created for it. That sell waits for the
-  position to appear and rests above the current price if its old level has
-  already passed.
+  exchange before any sell created for it. That sell waits for the position to
+  appear. A rung-based target stays above both the fill price and the current
+  price and applies the rung's planned percentage to the actual fill instead of
+  carrying forward an old dollar price.
 - **A real market-first ladder waits for a matching engine build.** Every live
   engine and standby must announce that it understands the new plan field.
   Otherwise the app refuses before saving the ladder or sending money. Deploy

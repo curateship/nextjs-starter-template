@@ -1712,6 +1712,7 @@ export function ChartPanel({
           />
         ) : null}
         <SmartLadderLayer
+          orders={tradingOrders}
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
@@ -1871,6 +1872,7 @@ export function ChartPanel({
       onMoveOrderTarget,
       onMoveOrderStop,
       onEditOrder,
+      tradingOrders,
       entryBadgeOf,
       dragBrackets,
       readSurface,

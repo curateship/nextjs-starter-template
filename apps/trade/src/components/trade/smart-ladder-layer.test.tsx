@@ -84,6 +84,54 @@ describe("DCA chart ladders", () => {
     expect(host.textContent).not.toContain("$90")
   })
 
+  it("draws a rung sell at the resting order price", async () => {
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      createdAt: 1,
+      updatedAt: 1,
+      plan: {
+        anchorPx: 100,
+        marketBuyFirst: true,
+        rungs: [
+          {
+            px: 95,
+            sz: 4,
+            status: "filled",
+            sellOrderId: "sell-1",
+          },
+        ],
+        exitRungs: [],
+        takeProfit: { mode: "prevRung", pct: null },
+        stopLoss: null,
+      },
+    } as unknown as SmartLadder
+
+    await act(async () => {
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          orders={[{ id: "sell-1", px: 105 }]}
+          preview={null}
+          tool={null}
+          walletName={() => "Wallet"}
+        />
+      )
+    })
+
+    const sellTag = [...host.querySelectorAll<HTMLSpanElement>("span")].find(
+      (element) => element.textContent === "Rung 1 sell · $420"
+    )
+    expect(sellTag?.parentElement?.style.top).toBe("95px")
+  })
+
   it("shows and drags the mirrored exits before placement", async () => {
     const onMoveExit = vi.fn()
     await act(async () => {
