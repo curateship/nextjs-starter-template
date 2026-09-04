@@ -176,6 +176,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     shareImage: string
     socialCardType: SocialCardType
     socialHandle: string
+    publicOrigin: string
     publicSeo: PublicSeo
     publicSystemCopy: PublicSystemCopy
     frontPageRows: FrontPageRow[]
@@ -206,6 +207,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         shareImage: "",
         socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
         socialHandle: "",
+        publicOrigin: "",
         publicSeo: createDefaultPublicSeo(),
         publicSystemCopy: createDefaultPublicSystemCopy(),
         frontPageRows: [],

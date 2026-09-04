@@ -32,6 +32,7 @@ const appPublicTheme = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeader: (name: string) => (name === "host" ? request.host : null),
+  getRequestProtocol: () => "http",
 }))
 
 vi.mock("@/app/options", () => ({
@@ -267,6 +268,7 @@ describe("public site branding", () => {
         "https://media.example.test/owner/share.png?v=2026-09-02T12%3A00%3A00.000Z",
       socialCardType: "summary_large_image",
       socialHandle: "custom_shell",
+      publicOrigin: "http://public.localhost:3002",
       publicSeo: {
         homeTitle: "Public home",
         homeDescription: "The public front page.",

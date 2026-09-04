@@ -135,6 +135,16 @@ image is the same app-wide image used by Open Graph and X preview tags, and the
 server changes its address when an admin replaces it so cached previews can
 refresh.
 
+Every real public page also includes one JSON-LD structured-data script in its
+first HTML response. The script holds one `Organization` record with the
+current site name and visited site address, plus one `WebPage` record with the
+resolved browser title, public address, and description. The same path covers
+the front page, coded pages, and written pages, so their machine-readable text
+cannot drift from their visible search metadata. Signed-in screens, unknown
+domains, and missing pages do not claim to be public web pages. Empty optional
+organization fields are left out. The emitter already accepts a logo and
+social profile addresses for Technical SEO to supply later.
+
 The missing-page card includes the public search field while Search is
 available and lists the site's saved main-menu links in their saved order. A
 search moves to `/search` with the entered words. Switching Search off removes

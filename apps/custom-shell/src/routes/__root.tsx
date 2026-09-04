@@ -41,6 +41,11 @@ import {
   publicSocialMeta,
   resolvePublicSeoMetadata,
 } from "@/lib/pages/public-metadata"
+import {
+  publicPageUrl,
+  publicStructuredDataText,
+  type PublicStructuredDataInput,
+} from "@/lib/pages/public-structured-data"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { cn } from "@/lib/utils"
 import { ThemeProvider } from "@/components/shell/sticky-header/light-dark-switcher"
@@ -222,8 +227,15 @@ function RootComponent() {
   // Drawn here rather than thrown from the loader: this route's own `<head>`
   // and document are built from that same loader data, so throwing leaves them
   // with nothing and the render fails before any not-found page is reached.
-  const { favicon, faviconDark, faviconSet, publicFont, hostIsUnknown } =
-    Route.useLoaderData()
+  const {
+    appName,
+    favicon,
+    faviconDark,
+    faviconSet,
+    publicFont,
+    publicOrigin,
+    hostIsUnknown,
+  } = Route.useLoaderData()
 
   return (
     <RootDocument
@@ -232,6 +244,17 @@ function RootComponent() {
       faviconDark={faviconDark}
       faviconSet={faviconSet}
       publicFont={publicFont}
+      structuredData={
+        hostIsUnknown
+          ? null
+          : {
+              organization: {
+                name: resolveAppName(appName),
+                url: publicOrigin,
+              },
+              pageOrigin: publicOrigin,
+            }
+      }
     >
       <ThemeProvider
         forcedTheme={
@@ -284,6 +307,7 @@ function RootDocument({
   faviconDark = "",
   faviconSet = null,
   publicFont = null,
+  structuredData = null,
 }: Readonly<{
   children: ReactNode
   publicTheme?: PublicTheme | null
@@ -291,6 +315,10 @@ function RootDocument({
   faviconDark?: string
   faviconSet?: PublicFaviconSet | null
   publicFont?: PublicFontAsset | null
+  structuredData?: {
+    organization: PublicStructuredDataInput["organization"]
+    pageOrigin: string
+  } | null
 }>) {
   const signedInPage = useSignedInPage()
   const style = publicTheme ? publicThemeStyle(publicTheme) : undefined
@@ -304,6 +332,7 @@ function RootDocument({
     faviconDark,
     faviconSet,
   })
+  const structuredDataText = usePublicStructuredDataText(structuredData)
 
   return (
     <html
@@ -368,6 +397,13 @@ function RootDocument({
           />
         ))}
         <HeadContent />
+        {structuredDataText ? (
+          <script
+            type="application/ld+json"
+            data-public-structured-data="true"
+            dangerouslySetInnerHTML={{ __html: structuredDataText }}
+          />
+        ) : null}
       </head>
       <body className={signedInPage ? "app-font" : undefined}>
         {children}
@@ -375,4 +411,62 @@ function RootDocument({
       </body>
     </html>
   )
+}
+
+function usePublicStructuredDataText(
+  input: {
+    organization: PublicStructuredDataInput["organization"]
+    pageOrigin: string
+  } | null
+) {
+  return useRouterState({
+    select: (state) => {
+      if (
+        !input ||
+        state.matches.some(
+          (match) =>
+            match.routeId.startsWith("/_authenticated") ||
+            match.status === "notFound"
+        )
+      ) {
+        return ""
+      }
+
+      return publicStructuredDataText({
+        organization: input.organization,
+        page: {
+          ...resolvedPublicPageMetadata(state.matches),
+          url: publicPageUrl(input.pageOrigin, state.location.pathname),
+        },
+      })
+    },
+  })
+}
+
+function resolvedPublicPageMetadata(
+  matches: ReadonlyArray<{ meta?: unknown }>
+): PublicStructuredDataInput["page"] {
+  let name = ""
+  let description = ""
+
+  for (let matchIndex = matches.length - 1; matchIndex >= 0; matchIndex -= 1) {
+    const meta = matches[matchIndex]?.meta
+    if (!Array.isArray(meta)) continue
+
+    for (let metaIndex = meta.length - 1; metaIndex >= 0; metaIndex -= 1) {
+      const value = meta[metaIndex]
+      if (!value || typeof value !== "object") continue
+      const record = value as Record<string, unknown>
+      if (!name && typeof record.title === "string") name = record.title
+      if (
+        !description &&
+        record.name === "description" &&
+        typeof record.content === "string"
+      ) {
+        description = record.content
+      }
+    }
+  }
+
+  return { name, description }
 }

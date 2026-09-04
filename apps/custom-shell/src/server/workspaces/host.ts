@@ -1,4 +1,7 @@
-import { getRequestHeader } from "@tanstack/react-start/server"
+import {
+  getRequestHeader,
+  getRequestProtocol,
+} from "@tanstack/react-start/server"
 
 import { RESERVED_SUBDOMAINS } from "@/lib/workspaces/addresses"
 import { LIVE_WORKSPACE_STATUSES } from "@/lib/workspaces/status"
@@ -78,6 +81,49 @@ function requestHost(): string | null {
     return getRequestHeader("host") ?? null
   } catch {
     return null
+  }
+}
+
+/** Builds the public origin without trusting a different forwarded host. */
+export function publicOriginFromParts(
+  requestedUrl: string,
+  host: string | null,
+  forwardedProtocol: string | null
+) {
+  const requested = new URL(requestedUrl)
+  const scheme =
+    forwardedProtocol === "http" || forwardedProtocol === "https"
+      ? forwardedProtocol
+      : requested.protocol.slice(0, -1)
+  if (!host) return requested.origin
+
+  try {
+    const publicUrl = new URL(`${scheme}://${host}`)
+    if (
+      publicUrl.username ||
+      publicUrl.password ||
+      publicUrl.pathname !== "/" ||
+      publicUrl.search ||
+      publicUrl.hash
+    ) {
+      return requested.origin
+    }
+    return publicUrl.origin
+  } catch {
+    return requested.origin
+  }
+}
+
+/** The public origin selected by the same Host header that selected the site. */
+export function currentPublicOrigin() {
+  try {
+    return publicOriginFromParts(
+      appUrl(),
+      requestHost(),
+      getRequestProtocol({ xForwardedProto: true })
+    )
+  } catch {
+    return appUrl()
   }
 }
 

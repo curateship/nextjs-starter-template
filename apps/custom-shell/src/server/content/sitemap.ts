@@ -10,6 +10,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { listWrittenPageSitemapEntries } from "@/server/content/written-pages"
 import {
   answerForRequest,
+  publicOriginFromParts,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
 import { visitorWorkspaceId } from "@/server/workspaces/for-request"
@@ -135,23 +136,15 @@ export function sitemapXmlResponse(xml: string): Response {
 
 /** The visitor-facing origin, preserving the domain and scheme they used. */
 export function publicRequestOrigin(request: Request): string {
-  const requested = new URL(request.url)
   // The same Host header selected the workspace. Using a different forwarded
   // host here could put one site's content under another site's addresses.
-  const host = request.headers.get("host")
   const forwardedScheme = request.headers
     .get("x-forwarded-proto")
     ?.split(",")[0]
-    ?.trim()
-  const scheme =
-    forwardedScheme === "http" || forwardedScheme === "https"
-      ? forwardedScheme
-      : requested.protocol.slice(0, -1)
-
-  if (!host) return requested.origin
-  try {
-    return new URL(`${scheme}://${host}`).origin
-  } catch {
-    return requested.origin
-  }
+    ?.trim() ?? null
+  return publicOriginFromParts(
+    request.url,
+    request.headers.get("host"),
+    forwardedScheme
+  )
 }
