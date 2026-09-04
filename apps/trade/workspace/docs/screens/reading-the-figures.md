@@ -161,7 +161,9 @@ drawing decision rather than a typographic one.
 ## One small badge
 
 `src/components/trade/trade-badge.tsx` draws every short word beside a market:
-Long, Short, Real, Testnet, Practice, Reduce only, and how a trade ended. The
+Long, Short, Owned (a coin held outright on Solana, with how many, in place of
+a leverage multiplier), Real, Testnet, Practice, Reduce only, and how a trade
+ended. The
 shape is fixed in that one file and a call site picks a tone and nothing else.
 
 The tones and what each one means:

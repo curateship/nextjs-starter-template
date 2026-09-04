@@ -153,6 +153,12 @@ export type TradePosition = {
     tpOrderId: string | null
     slOrderId: string | null
   }
+  /**
+   * Present on a coin that is simply owned — a Solana holding. No leverage,
+   * no liquidation; and the two flags say whether the entry price and the
+   * current price are real. See `WalletPosition.owned` for what each means.
+   */
+  owned?: { entryKnown: boolean; priced: boolean }
 }
 
 export type TradeOrder = {

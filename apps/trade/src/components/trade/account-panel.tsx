@@ -47,7 +47,12 @@ import {
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { readWalletPanelCache } from "@/lib/trade/dashboard-cache"
-import { formatAway, formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import {
+  formatAway,
+  formatSignedUsd,
+  formatSize,
+  formatUsd,
+} from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { walletMarginHealth } from "@/lib/trade/margin-health"
@@ -467,6 +472,16 @@ export function WalletDetailsDialog({
               {wallet.status === "active" ? (
                 <KeyExpiryNotice wallet={wallet} />
               ) : null}
+              {figures?.feeCoin?.warning ? (
+                <p
+                  className={cn(
+                    "rounded-md px-2.5 py-1.5 text-xs",
+                    WARNING_SURFACE
+                  )}
+                >
+                  {figures.feeCoin.warning}
+                </p>
+              ) : null}
               {figures ? (
                 <div className="grid gap-2">
                   <FigureRow label="Free">
@@ -479,6 +494,16 @@ export function WalletDetailsDialog({
                       {formatUsd(figures.inTrades)}
                     </span>
                   </FigureRow>
+                  {figures.feeCoin ? (
+                    // A chain wallet pays its own fees in a coin, so the
+                    // amount kept for them is a figure of its own.
+                    <FigureRow label={`${figures.feeCoin.symbol} for fees`}>
+                      <span className="font-mono tabular-nums">
+                        {formatSize(figures.feeCoin.amount)}{" "}
+                        {figures.feeCoin.symbol}
+                      </span>
+                    </FigureRow>
+                  ) : null}
                   <FigureRow label="Margin used">
                     <span className="font-mono tabular-nums">
                       {marginHealth ? formatUsd(marginHealth.marginUsed) : "—"}

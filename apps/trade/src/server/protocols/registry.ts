@@ -216,6 +216,10 @@ import {
   solanaHasNoCandles,
 } from "@/server/protocols/solana/markets"
 import {
+  fetchSolanaAccount,
+  fetchSolanaPortfolio,
+} from "@/server/protocols/solana/account"
+import {
   makeSolanaWallet,
   packSolanaCredential,
   verifySolanaWallet,
@@ -462,11 +466,9 @@ export type ProtocolEntry = {
   }
   /**
    * How this exchange's sign-in fields are drawn and packed. Present wherever
-   * a wallet can be added: every venue with `account`, and a chain wallet
-   * (Solana) before its holdings can be read, so it can be made and funded
-   * first. A venue that cannot hold an account at all has nothing to sign
-   * in to and no block here. Wherever this is, `agent` is too — nothing is
-   * stored unproven.
+   * a wallet can be added, which is every venue with `account`. A venue that
+   * cannot hold an account at all has nothing to sign in to and no block
+   * here. Wherever this is, `agent` is too — nothing is stored unproven.
    */
   credentials?: {
     /** The dialog's labels, patterns and help copy, as data. */
@@ -1021,7 +1023,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * Markets and a wallet, no chart and no orders — yet.
+   * Markets, a wallet and its holdings, no orders — yet.
    *
    * Solana is a chain, not an exchange: the app holds its own wallet, reads
    * the chain through a node, and will buy and sell through Jupiter, the
@@ -1030,11 +1032,10 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    *
    * The market list and prices come from Jupiter's token API, and a coin
    * outside the list can be found by name or address (`search`). Candles
-   * arrive with the chart task and refuse in plain words until then.
-   * `account` and `orders` are absent — an absent block is how this app
-   * says "cannot" — which is why this is the one venue with `credentials`
-   * and no `account`: the wallet exists so it can be made and funded before
-   * the holdings task teaches the app to read it.
+   * are borrowed or recorded (`recordsOwnBars`). Holdings are read off the
+   * chain by address, priced through the same price feed, and each one is
+   * a position that is simply owned. `orders` is absent — an absent block
+   * is how this app says "cannot" — until the swap task builds it.
    *
    * Mainnet only. Solana's devnet has a faucet but Jupiter cannot swap on
    * it, so there is no practice network to list.
@@ -1055,6 +1056,14 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       // shared rounding leaves such a price alone.
       roundPx: roundToTick,
       search: searchSolanaMarkets,
+    },
+    account: {
+      fetch: fetchSolanaAccount,
+      portfolio: fetchSolanaPortfolio,
+      // Nothing on the chain states what a sale made. When the swap task
+      // records fills, each one carries a price and nothing else, so a
+      // zero here means "not stated", never "broke even".
+      profitPerSale: false,
     },
     agent: { verify: verifySolanaWallet },
     credentials: {

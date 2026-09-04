@@ -218,6 +218,53 @@ async function send(
   }
 }
 
+/**
+ * One question to the Solana node, in the JSON-RPC shape every node speaks.
+ *
+ * The node is asked only what the chain itself knows — a balance, the
+ * token accounts a wallet owns, and later a signed swap to send. It has no
+ * key and no minute's budget: Solana's public node rations by address and
+ * answers a 429 of its own, which is passed on as "busy" so the caller keeps
+ * the last figures it had. A paid node in `.env` is the same call at another
+ * address.
+ */
+export async function solanaRpc(
+  network: NetworkId,
+  method: string,
+  params: readonly unknown[]
+): Promise<unknown> {
+  let response: Response
+  try {
+    response = await fetch(solanaRpcUrl(network), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: requestSignal(READ_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (isTimeout(error)) throw new Error("EXCHANGE_BUSY")
+    throw new Error(scrubbedMessage(error))
+  }
+  if (response.status === 429) throw new Error("EXCHANGE_BUSY")
+  if (!response.ok) throw new Error(`SOLANA_NODE_REFUSED:${response.status}`)
+  let body: { result?: unknown; error?: { code?: number; message?: string } }
+  try {
+    body = (await response.json()) as typeof body
+  } catch {
+    // A gateway's HTML page in place of the node's JSON is a node problem,
+    // not an account problem, and is named as one.
+    throw new Error("SOLANA_NODE_REFUSED:not-json")
+  }
+  if (body.error) {
+    // The node's own words are its code and a short sentence — never a
+    // secret, and the one clue when a method or an address is wrong.
+    throw new Error(
+      `SOLANA_NODE_REFUSED:${body.error.code ?? ""}:${body.error.message ?? ""}`
+    )
+  }
+  return body.result
+}
+
 /** Tests must not inherit another case's place in the queue. */
 export function clearSolanaClientState(): void {
   lane = Promise.resolve()

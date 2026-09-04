@@ -52,18 +52,20 @@ describe("the protocol registry", () => {
     }
   })
 
-  it("lets a Solana wallet be added before its holdings can be read", () => {
-    // The one venue with a sign-in form and no account block: the wallet
-    // exists so it can be made and funded first. Every other capability is
-    // off until the task that builds it switches it on.
+  it("reads a Solana wallet's holdings by address, with no orders yet", () => {
+    // Holdings are public on the chain, so the reader never needs the key.
+    // Orders stay off until the swap task switches them on.
     const entry = getProtocol("solana")
     expect(entry.networks).toEqual(["mainnet"])
     expect(entry.capabilities).toMatchObject({
       markets: true,
-      accounts: false,
+      accounts: true,
       orders: false,
     })
-    expect(entry.account).toBeUndefined()
+    expect(entry.account?.fetch).toBeTypeOf("function")
+    expect(entry.account?.portfolio).toBeTypeOf("function")
+    // The chain states no profit on a sale, so a zero is "not stated".
+    expect(entry.account?.profitPerSale).toBe(false)
     expect(entry.orders).toBeUndefined()
     expect(entry.livePrices).toBeUndefined()
     // An open network lists more coins than any list holds, so Solana is

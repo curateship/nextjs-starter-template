@@ -593,6 +593,54 @@ describe("the bottom panel's tables say what they know", () => {
     expect(html).toContain("No stop")
   })
 
+  it("draws a coin that is simply owned as held, not levered, and never warns it has no stop", () => {
+    // A Solana holding: no leverage, no liquidation, no record of what it
+    // cost, and on the second row no price either. Nothing can act on it
+    // yet, so no buttons are offered.
+    const jup = "solana:mainnet:JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
+    const stray = "solana:mainnet:124L55JoFbitT9aAEYwfencH1Puqa1UnKuGZWU2cRiZZ"
+    const owned = (marketKey: string, szi: number, priced: boolean) => ({
+      ...position(marketKey, szi),
+      marketKey,
+      entryPx: priced ? 0.2 : 0,
+      live: {
+        marginUsed: 0,
+        liquidationPx: null,
+        tpOrderId: null,
+        slOrderId: null,
+      },
+      owned: { entryKnown: false, priced },
+    })
+    const markets = new Map(positionsShared.markets)
+    markets.set(jup, { ...market("JUP", 0.2), key: jup })
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        markets={markets}
+        positions={[owned(jup, 1_125.365, true), owned(stray, 100, false)]}
+        settled={true}
+        failed={false}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+    // The list's own ticker, not the shortened mint.
+    expect(html).toContain(">JUP<")
+    expect(html).toContain("Owned 1,125.365")
+    expect(html).not.toContain("Long 1×")
+    expect(html).not.toContain("No stop")
+    // A price but no entry: worth shows, profit does not.
+    expect(html).toContain("$225.07")
+    // No price at all: says so rather than $0.00.
+    expect(html).toContain("Unpriced")
+    expect(html).not.toContain("Close the")
+    expect(html).not.toContain("Add to the")
+  })
+
   it("explains the missing-stop mark on keyboard focus", async () => {
     const host = document.createElement("div")
     document.body.append(host)

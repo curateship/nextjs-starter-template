@@ -26,8 +26,8 @@ something, it says so, so nobody reads a promise as a feature.
 ## The two services and what each one does
 
 - **A Solana node** is how any wallet reaches the chain. The app uses it for
-  exactly two things: reading what a wallet holds, and sending a signed
-  transaction. Solana's public nodes are free and rate-limited; a paid node
+  exactly two things: reading what a wallet holds (built, see "What a wallet
+  holds"), and sending a signed transaction (the swap task). Solana's public nodes are free and rate-limited; a paid node
   from Helius or QuickNode is the same thing at a different address.
 - **Jupiter** is the swap router nearly every Solana app uses. One call finds
   the best price across Raydium, Orca, Meteora and the rest, and a second
@@ -44,7 +44,7 @@ something, it says so, so nobody reads a promise as a feature.
 
 | Setting | What it is | If it is missing |
 | --- | --- | --- |
-| `TRADE_SOLANA_RPC` | The mainnet node, once anything calls a node | Solana's public mainnet node is used |
+| `TRADE_SOLANA_RPC` | The mainnet node the wallet's holdings are read from | Solana's public mainnet node is used |
 | `TRADE_SOLANA_DEVNET_RPC` | The practice-network node, for rehearsing the wallet half | Solana's public devnet node is used |
 | `TRADE_JUPITER_API_KEY` | The free key from Jupiter's developer portal | Jupiter's keyless host is used instead, and everything still works |
 
@@ -57,10 +57,11 @@ something, it says so, so nobody reads a promise as a feature.
   more, and after a second refusal answers "busy" so the screen keeps what it
   has.
 - A blank setting counts as missing.
-- **Nothing calls a Solana node yet.** The market list and the prices come
-  from Jupiter, and a wallet is proved by arithmetic rather than by asking
-  the chain. The two node settings are read and ready; the first thing to
-  use one is reading what a wallet holds.
+- **The node is asked three things per wallet read**, every two seconds at
+  most: the SOL balance and the wallet's token accounts under each of the
+  two token programs. The public node rations by address and answers a 429
+  of its own; the app passes that on as "busy" and the card keeps its last
+  figures. A paid node is the same three calls at another address.
 
 ## Why there is no practice network
 
@@ -93,22 +94,60 @@ something, it says so, so nobody reads a promise as a feature.
   not in a log. Replacing it goes through the same proof against the saved
   address.
 
-## What the wallet looks like before its holdings can be read
+## What a wallet holds
 
-- The app cannot read what a Solana wallet holds yet. That arrives with the
-  holdings task. Until then the wallet row says "Holdings not read yet", its
-  worth shows a dash, and the details window says the wallet is saved and
-  its address is ready to receive coins.
-- This is deliberately not "Can't reach it". Nothing failed, nothing is
-  retried, and the row is never counted as a missed read.
-- The wallet's saved baseline (the fixed figure orders that do not compound
-  size from) is zero, because there was nothing to read. Nothing sizes an
-  order off it while Solana takes no orders. The holdings task decides what
-  to do with wallets saved before it.
-- This is the one venue with a sign-in form and no account block in the
-  registry. Everywhere else the two travel together, and the registry test
-  now pins the rule as: readable accounts always have a form, and any form
-  always has a way to prove the credential before it is stored.
+A Solana wallet's holdings are public on the chain: its SOL, and one token
+account per coin it has ever held. The app reads them by address alone, so
+the secret key is never touched on this path. Each holding is priced and the
+wallet card and positions list draw them the way they draw every venue's.
+
+- **Worth is USDC plus every priced coin.** Free is the USDC, every USDC
+  account added up (a wallet can hold several of the same coin; the saved
+  real answer has three of USDC). In trades is the coins. Open profit is
+  zero, because nothing yet records what a coin cost.
+- **A position is a coin you own.** No leverage, no margin, no liquidation,
+  no funding. Its badge in the positions list says "Owned" and how many are
+  held, in place of "Long 5×". The Margin and Liquidation columns show a
+  dash. The row offers no buttons, because nothing can act on a Solana coin
+  until the swap task lands.
+- **The entry price is blank, so profit is blank.** The chain does not
+  remember what was paid. The app's own record of its buys will fill it in
+  once the swap task writes one; until then every coin reads as sent in, the
+  Unrealized column shows a dash, and the chart draws no entry line for it.
+- **A coin Jupiter has no price for shows "Unpriced"** in the Value column
+  rather than $0.00 or nothing. It adds nothing to the wallet's worth. Every
+  coin already in the market list takes the list's own price, at most a
+  minute old and free; coins outside the list are priced one page of fifty
+  at a time, held for ten seconds, so a wallet full of airdrops cannot spend
+  the minute's budget. The first real read of this code was an exchange's
+  hot wallet holding 4,280 different coins, which would have been 86 price
+  requests against a budget of forty.
+- **A priced coin worth under a cent is dust and is not a row.** An unpriced
+  coin is kept whatever its size, because nobody can say what it is worth.
+  An empty token account (a coin sold down to nothing) is not a holding.
+- **SOL is a holding too**, priced through wrapped SOL, the mint Jupiter
+  lists it under, and it is the first coin priced so a wallet full of
+  airdrops can never push it past the page.
+- **SOL kept back for fees.** A swap costs the network fee plus a priority
+  fee, and buying a coin the wallet has never held pays about 0.002 SOL to
+  open its token account. The card's "SOL for fees" row shows the SOL
+  balance, and when it falls under 0.02 SOL, a working figure of 0.001 SOL a
+  transaction times twenty, the card says so in one amber sentence: send a
+  little SOL so a buy or sell never fails for want of a few cents.
+- **Where the figures come from:** `getBalance` and `getTokenAccountsByOwner`
+  for both the classic token program and Token-2022, `jsonParsed`. Amounts
+  are the raw integer divided by the coin's decimals, never the node's
+  floating `uiAmount`. Three chain calls per read, shared for two seconds so
+  a poll and a settle ask once.
+- **A wallet made before this task** has a saved baseline of zero (the fixed
+  figure orders that do not compound size from), because there was nothing
+  to read when it was saved. Nothing sizes an order off it while Solana
+  takes no orders; a wallet added now records its worth at the time.
+- Checked in the running app on 4 Sep 2026 with a freshly made, empty
+  wallet: the row read "Connected $0.00", and the details window showed the
+  amber sentence, Free $0.00, In trades $0.00 and SOL for fees 0 SOL. A real
+  exchange wallet read through the same code answered $936,813,109.98 of
+  USDC across 24 accounts and 4,180 coin rows.
 
 ## The market list
 
@@ -307,6 +346,11 @@ than switching Solana on.
   the key, the one-a-second pacing, the timeout, the one retry.
 - `src/server/protocols/solana/wallet.ts` — packing, proving, deriving and
   making the wallet.
+- `src/server/protocols/solana/account.ts` — the holdings: the three chain
+  reads, the pricing rules, the dust rule and the SOL fee reserve.
+- `src/server/protocols/solana/account.fixture.json` — a real exchange
+  wallet's chain answers of 4 Sep 2026, trimmed to ten accounts, and
+  Jupiter's prices for them the same minute.
 - `src/server/protocols/solana/markets.ts` — the market list, the lookup,
   the engine's prices, and the chart's honest refusal until it is built.
 - `src/server/protocols/solana/jupiter.fixture.json` — Jupiter's real
@@ -314,4 +358,5 @@ than switching Solana on.
 - `src/server/protocols/solana/base58.ts` — the alphabet Solana writes keys
   in, thirty lines rather than a package.
 - `src/lib/api/trade/protocols.ts` — what the browser knows: the capability
-  flags (all off) and the Add wallet window's labels and help.
+  flags (markets and accounts on, orders off) and the Add wallet window's
+  labels and help.

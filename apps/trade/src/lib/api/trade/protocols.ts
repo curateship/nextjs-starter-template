@@ -229,8 +229,8 @@ export const PROTOCOL_DESCRIPTIONS = [
   /**
    * Solana: buying and owning coins through Jupiter, the swap router. Spot
    * only — no leverage, no short side, no funding, no liquidation. Each
-   * capability is switched on by the task that builds it: markets are here,
-   * holdings and orders are not yet.
+   * capability is switched on by the task that builds it: markets and
+   * holdings are here, orders are not yet.
    *
    * Mainnet only. Solana has a practice network with a faucet, but Jupiter
    * cannot swap on it, so the first swap is a tiny real one.
@@ -242,7 +242,7 @@ export const PROTOCOL_DESCRIPTIONS = [
     defaultNetwork: "mainnet",
     capabilities: {
       markets: true,
-      accounts: false,
+      accounts: true,
       orders: false,
       gridStop: "watched",
       changeLeverage: {

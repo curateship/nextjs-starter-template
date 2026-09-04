@@ -169,13 +169,19 @@ the positions poll; `../engine/dashboard-speed.md` has the full account.
 "Can't reach it" if you are careless, and they mean opposite things: one is a
 wallet nobody is using, the other is a wallet that would not answer.
 
-**A wallet the app cannot read yet is not a failure either.** A venue whose
-holdings this build cannot read (Solana, until its holdings task) has no
-`account` block in the registry, so its wallets are never asked. They answer
+**A wallet the app cannot read yet is not a failure either.** A venue with
+no `account` block in the registry never has its wallets asked. They answer
 `state: "unread"`, the row says "Holdings not read yet", the worth shows a
 dash, and the details window says the wallet is saved and its address is
 ready to receive coins. Nothing is retried and the row never counts as a
-missed read. `../exchanges/solana.md` has the rest.
+missed read. No venue is in that state today; Solana was until 4 Sep 2026.
+
+**A chain wallet pays its own fees in a coin.** Solana's card carries one
+more row, "SOL for fees", with the SOL balance, and an amber sentence above
+the figures when that balance is under 0.02 SOL, the working cost of twenty
+transactions. The registry's figures carry it as `feeCoin`; a venue that
+pays fees out of its cash balance has no such row. `../exchanges/solana.md`
+has the rule and the numbers.
 
 An account setting Trade cannot read is not a short outage either. Aster's
 two-sided position mode arrives as a named reason, replaces old figures at

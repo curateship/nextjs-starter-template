@@ -234,6 +234,22 @@ function assertMainnet(network: NetworkId): void {
 let lastGood: MarketCatalog | null = null
 
 /**
+ * The last good list's prices by mint, kept beside it so a wallet read can
+ * price its listed coins without spending a request. The catalogue cache
+ * above this file asks once a minute, so these are at most a minute old.
+ */
+let lastGoodPrices: ReadonlyMap<string, number> = new Map()
+
+export function lastKnownSolanaPrices(): ReadonlyMap<string, number> {
+  return lastGoodPrices
+}
+
+function rememberCatalog(catalog: MarketCatalog): void {
+  lastGood = catalog
+  lastGoodPrices = new Map(catalog.rows.map((row) => [row.marketId, row.price]))
+}
+
+/**
  * The verified list plus the day's hundred most traded coins, verified or
  * not. Two requests a minute against the shared budget.
  */
@@ -247,7 +263,7 @@ export async function fetchSolanaMarkets(
       jupiterGet("/tokens/v2/toptraded/24h", { limit: 100 }),
     ])
     const catalog = toSolanaMarketCatalog({ network, verified, topTraded })
-    lastGood = catalog
+    rememberCatalog(catalog)
     return catalog
   } catch (error) {
     // Nothing to fall back to yet, so the page shows the refusal itself.
@@ -355,5 +371,6 @@ export async function solanaHasNoCandles(): Promise<CandleBar[]> {
 /** Tests must not answer from another case's list or price page. */
 export function clearSolanaMarketState(): void {
   lastGood = null
+  lastGoodPrices = new Map()
   pricePages.clear()
 }

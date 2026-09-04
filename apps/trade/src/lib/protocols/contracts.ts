@@ -423,6 +423,13 @@ export type WalletAccountFigures = {
   inTrades: number
   /** What the open positions are up or down right now, in dollars. */
   openProfit: number
+  /**
+   * Present on a chain wallet that pays its own transaction fees in a coin
+   * (Solana pays in SOL). The card shows the amount, and `warning` is the
+   * one sentence to show when it has fallen too low for a swap to go
+   * through, null while there is enough.
+   */
+  feeCoin?: { symbol: string; amount: number; warning: string | null }
 }
 
 /** One fixed-size take-profit order attached to a position. */
@@ -482,6 +489,20 @@ export type WalletPosition = {
    * and the position quietly gets sold twice over.
    */
   protectionOrderIds: string[]
+  /**
+   * Present on a coin that is simply owned (a Solana wallet's holding):
+   * bought outright, no leverage, no margin, no liquidation. `leverage` is
+   * then 1 and `marginUsed` is 0, so the shared arithmetic still adds up,
+   * and the screens print "Owned" rather than a multiplier.
+   *
+   * It also says which of the two numbers every other venue supplies are
+   * missing here. `entryKnown` is false when the app has no record of what
+   * the coin cost — it was sent in rather than bought — and `entryPx` then
+   * carries today's price as a stand-in, so nothing prints a profit off it.
+   * `priced` is false when the price feed has no price for the coin;
+   * `entryPx` is then 0 and the row shows as unpriced rather than worthless.
+   */
+  owned?: { entryKnown: boolean; priced: boolean }
 }
 
 /** One real order still waiting on the exchange. */

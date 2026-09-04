@@ -151,6 +151,7 @@ export function livePortfolioRows(
       tpOrderId: position.tpOrderId,
       slOrderId: position.slOrderId,
     },
+    ...(position.owned ? { owned: position.owned } : {}),
   }))
 
   const orders = portfolio.orders.map((order): TradeOrder => ({

@@ -360,6 +360,9 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
 
   for (const position of held) {
     if (!marketKey) break
+    // A coin that was sent in has no entry to draw: its `entryPx` is a
+    // stand-in, and a line at it would read as a price somebody paid.
+    if (position.owned?.entryKnown === false) continue
     const tag = whose(position.walletId)
     const badge = entryBadge?.(position) ?? null
     const profit =

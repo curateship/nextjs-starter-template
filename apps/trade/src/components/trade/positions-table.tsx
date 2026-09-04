@@ -255,7 +255,9 @@ function MarketCell({
   badge?: React.ReactNode
   onSelect?: () => void
 }) {
-  const symbol = marketSymbol(marketKey)
+  // The row's own ticker where the list has the row: a Solana key carries
+  // the mint address, and only the market knows it is called JUP.
+  const symbol = market?.symbol ?? marketSymbol(marketKey)
   return (
     <td className="px-3 py-2 text-left whitespace-nowrap">
       <span className="flex items-center gap-2">
@@ -288,8 +290,15 @@ function WalletCell({ wallet }: { wallet: string }) {
   )
 }
 
-/** "Long 5×" — direction and leverage, the two things that set the risk. */
+/**
+ * "Long 5×" — direction and leverage, the two things that set the risk. A
+ * coin that is simply owned has neither, so its badge says how many are
+ * held instead: "Owned 1,125.37".
+ */
 function SideBadge({ position }: { position: TradePosition }) {
+  if (position.owned) {
+    return <TradeBadge tone="made">Owned {formatSize(position.szi)}</TradeBadge>
+  }
   const long = position.szi > 0
   return (
     <TradeBadge tone={long ? "made" : "lost"}>
@@ -367,8 +376,13 @@ function PositionRow({
   const profitShare = margin > 0 ? (profit / margin) * 100 : 0
   const away = liquidationAwayOf(position, mark)
   // Only a settled read that found nothing is a missing stop; a read still on
-  // its way is not an answer either way.
-  const missingStop = stopPx === null
+  // its way is not an answer either way. An owned coin cannot carry a stop
+  // until its venue takes orders, so it is not warned about one.
+  const missingStop = stopPx === null && !position.owned
+  // The two blanks an owned coin may carry: no price from the feed, and no
+  // record of what it cost. Each prints as a dash rather than a zero.
+  const unpriced = position.owned?.priced === false
+  const entryUnknown = position.owned?.entryKnown === false
   const ifStopped =
     stopPx === null || stopPx === undefined
       ? null
@@ -399,8 +413,20 @@ function PositionRow({
         onSelect={() => onSelectMarket(position.marketKey)}
       />
       <WalletCell wallet={wallet} />
-      <Cell>{formatUsd(positionValue(position, mark))}</Cell>
-      <Cell>{formatUsd(margin)}</Cell>
+      <Cell>
+        {unpriced ? (
+          <span className="text-muted-foreground">Unpriced</span>
+        ) : (
+          formatUsd(positionValue(position, mark))
+        )}
+      </Cell>
+      <Cell>
+        {position.owned ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          formatUsd(margin)
+        )}
+      </Cell>
       <Cell>
         {away === null ? (
           <span className="text-muted-foreground">—</span>
@@ -473,85 +499,96 @@ function PositionRow({
         )}
       </Cell>
       <Cell>
-        <span className={cn("font-medium", moneyTone(profit))}>
-          {formatSignedUsd(profit)}
-        </span>{" "}
-        {/* The dollars are the answer; the percentage only says whether they
-            were a lot for the money that was in — the same pairing the Journal
-            uses two tables down. */}
-        <span className="text-xs text-muted-foreground">
-          {profitShare >= 0 ? "+" : ""}
-          {profitShare.toFixed(2)}%
-        </span>
+        {entryUnknown || unpriced ? (
+          // No entry price to measure from, or no price to measure to.
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <>
+            <span className={cn("font-medium", moneyTone(profit))}>
+              {formatSignedUsd(profit)}
+            </span>{" "}
+            {/* The dollars are the answer; the percentage only says whether
+                they were a lot for the money that was in — the same pairing
+                the Journal uses two tables down. */}
+            <span className="text-xs text-muted-foreground">
+              {profitShare >= 0 ? "+" : ""}
+              {profitShare.toFixed(2)}%
+            </span>
+          </>
+        )}
       </Cell>
       <td
         data-column="actions"
         className="px-3 py-2 text-left whitespace-nowrap"
       >
-        <span className="flex items-center gap-0.5">
-          {/* Turning a real position around in one go is not built yet, so
+        {/* An owned coin's venue takes no orders yet, so nothing here could
+            act on it. No buttons beats buttons that are refused. */}
+        {position.owned ? null : (
+          <span className="flex items-center gap-0.5">
+            {/* Turning a real position around in one go is not built yet, so
               the button is not offered rather than offered and refused. */}
-          {position.live ? null : (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`Turn the ${marketSymbol(position.marketKey)} position around`}
-              onClick={() => onFlip(position)}
-            >
-              <ArrowLeftRightIcon className="size-4" />
-            </Button>
-          )}
-          {/* Buying more of what this row holds. It charts the coin, switches
+            {position.live ? null : (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`Turn the ${marketSymbol(position.marketKey)} position around`}
+                onClick={() => onFlip(position)}
+              >
+                <ArrowLeftRightIcon className="size-4" />
+              </Button>
+            )}
+            {/* Buying more of what this row holds. It charts the coin, switches
               to the row's wallet and opens the order window at today's price —
               the five steps that used to stand between a dip and $250 more, and
               the wallet step is where the mistake went to another wallet. */}
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy}
-            aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
-            onClick={() => onAdd(position)}
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-          {/* Leverage and the cash behind the position. Only where the
-              exchange really allows one of the two, so a button is never
-              offered and then refused. */}
-          {onMargin ? (
             <Button
               type="button"
               size="icon-sm"
               variant="ghost"
               disabled={busy}
-              aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
-              onClick={() => onMargin(position)}
+              aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
+              onClick={() => onAdd(position)}
             >
-              <GaugeIcon className="size-4" />
+              <PlusIcon className="size-4" />
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            aria-label={`Change the ${marketSymbol(position.marketKey)} stop and target`}
-            onClick={() => onEdit(position)}
-          >
-            <SettingsIcon className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy}
-            aria-label={`Close the ${marketSymbol(position.marketKey)} position`}
-            onClick={() => onClose(position)}
-          >
-            <Trash2Icon className="size-4" />
-          </Button>
-        </span>
+            {/* Leverage and the cash behind the position. Only where the
+              exchange really allows one of the two, so a button is never
+              offered and then refused. */}
+            {onMargin ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
+                onClick={() => onMargin(position)}
+              >
+                <GaugeIcon className="size-4" />
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Change the ${marketSymbol(position.marketKey)} stop and target`}
+              onClick={() => onEdit(position)}
+            >
+              <SettingsIcon className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={`Close the ${marketSymbol(position.marketKey)} position`}
+              onClick={() => onClose(position)}
+            >
+              <Trash2Icon className="size-4" />
+            </Button>
+          </span>
+        )}
       </td>
     </TableRow>
   )
