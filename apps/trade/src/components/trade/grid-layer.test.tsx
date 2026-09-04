@@ -708,3 +708,88 @@ describe("a rung with no bar", () => {
     expect(row?.children[0]?.textContent).toBe("$190")
   })
 })
+
+describe("the money on the rungs while the range is dragged", () => {
+  /**
+   * A flat buying grid with four rungs at $100, $110, $120 and $130, staking
+   * $100, $220, $360 and $520. The two middle rungs are the ones that have no
+   * name of their own, which is where the money used to vanish mid-drag.
+   */
+  function four(): SmartGrid {
+    const one = grid("long", false)
+    const spare = one.plan.levels[0]
+    return {
+      ...one,
+      plan: {
+        ...one.plan,
+        topPx: 140,
+        bottomPx: 100,
+        levels: [1, 2, 3, 4].map((coins, index) => ({
+          ...spare,
+          buyPx: 100 + index * 10,
+          sellPx: 110 + index * 10,
+          sz: coins,
+          heldSz: 0,
+          status: "waiting" as const,
+        })),
+      },
+    }
+  }
+
+  /** Drops UPPER PRICE five pixels up and leaves the move unanswered. */
+  async function dragged(): Promise<{ host: HTMLElement; stop: () => void }> {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        layer(
+          four(),
+          async () => true,
+          () => 0,
+          // Never answers, so the drawing stays as the drag left it.
+          () => new Promise<boolean>(() => undefined)
+        )
+      )
+    )
+    const upper = [...host.querySelectorAll("span")].find((one) =>
+      one.textContent?.includes("UPPER PRICE")
+    )
+    // Rung 1 is $130, drawn at y=70. Dropping it at y=65 widens the range.
+    await act(async () => {
+      upper?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 70 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 65 })
+      )
+    })
+    return { host, stop: () => void act(() => root.unmount()) }
+  }
+
+  const moneyIn = (host: HTMLElement): string[] =>
+    [...host.querySelectorAll("span")]
+      // The chip itself, not the empty slot that reserves its column: both
+      // read back the same text, and the slot would count every amount twice.
+      .filter((one) => one.children.length === 0)
+      .map((one) => one.textContent ?? "")
+      .filter((text) => /^\$[\d,.]+$/.test(text))
+
+  it("keeps the stake on the rungs that have no name of their own", async () => {
+    const { host, stop } = await dragged()
+    // The $220 and $360 rungs are the two between UPPER PRICE and LOWER
+    // PRICE. Their stake is a share of the account, so moving the range
+    // cannot change it and it must not disappear either.
+    expect(moneyIn(host)).toContain("$220")
+    expect(moneyIn(host)).toContain("$360")
+    stop()
+  })
+
+  it("prints every rung's stake exactly once, with no second chip on a named rung", async () => {
+    const { host, stop } = await dragged()
+    const money = moneyIn(host)
+    for (const amount of ["$100", "$220", "$360", "$520"]) {
+      expect(money.filter((text) => text === amount)).toHaveLength(1)
+    }
+    stop()
+  })
+})

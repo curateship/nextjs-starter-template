@@ -1194,22 +1194,39 @@ function GridLines({
         title={endTitle}
       />
     ) : null
-  // One money column for the whole grid, as wide as its widest chip.
-  const usdSlot = Math.max(
-    0,
-    ...prices.map((at) => usdChipWidth(at.usd)),
-    ...(movingLevels
-      ? plan.levels
-          .filter((level) => level.status === "holding")
-          .map((level) => usdChipWidth(levelUsd(level)))
-      : [])
-  )
+  // One money column for the whole grid, as wide as its widest chip. Every
+  // line's figure comes from `prices`, including the ones drawn while the
+  // range moves, so the column keeps one width from the first pixel of a drag
+  // to the last.
+  const usdSlot = Math.max(0, ...prices.map((at) => usdChipWidth(at.usd)))
   const sharedChips = (row: "upper" | "lower") => (
     <>
       {endOnRow === row ? endChip : null}
       {stopOnRow === row ? stopChip : null}
     </>
   )
+
+  /**
+   * The rungs drawn as plain lines while the range is moving: the ones between
+   * the two named ends.
+   *
+   * The named lines are drawn separately, and while the range moves they land
+   * on a rung's own price — rung 1's, and the deepest rung's, which IS the
+   * losing edge. Drawing those two here as well would stack a second line and
+   * a second money chip on the same row. A level called off by hand is left
+   * out for the same reason it is when the range is still: it is gone for
+   * good.
+   */
+  const movingMiddles =
+    movingLevels?.flatMap((level, index) => {
+      const saved = plan.levels[index]
+      if (saved.status === "cancelled") return []
+      const holding = saved.status === "holding"
+      const px = holding ? saved.buyPx : level.buyPx
+      const key = priceKey(px)
+      if (key === priceKey(upperPx) || key === priceKey(lowerPx)) return []
+      return [{ key: `moving-${index}`, px, saved, holding }]
+    }) ?? null
 
   /**
    * Where the grip and the badge go: the middle between UPPER PRICE and LOWER
@@ -1221,14 +1238,8 @@ function GridLines({
     upperY !== null && lowerY !== null ? (upperY + lowerY) / 2 : null
   const knobRow = (() => {
     if (badgeY === null) return null
-    const lines = movingLevels
-      ? movingLevels.map((level, index) => {
-          const saved = plan.levels[index]
-          return {
-            key: `moving-${index}`,
-            y: yFor(saved.status === "holding" ? saved.buyPx : level.buyPx),
-          }
-        })
+    const lines = movingMiddles
+      ? movingMiddles.map((one) => ({ key: one.key, y: yFor(one.px) }))
       : prices
           .filter((at) => at !== deepLevel && at !== nearLevel)
           .map((at) => ({ key: priceKey(at.px), y: yFor(at.px) }))
@@ -1346,20 +1357,22 @@ function GridLines({
           Green where the grid buys, red where it sells — the two things you
           actually want to tell apart at a glance. */}
       {/* While the range is moving, the levels it WOULD have — plain lines with
-          a price, since they are not yet anything to cancel. */}
-      {movingLevels?.map((level, index) => {
-        const saved = plan.levels[index]
-        const holding = saved.status === "holding"
-        const px = holding ? saved.buyPx : level.buyPx
+          their money, since they are not yet anything to cancel. */}
+      {movingMiddles?.map(({ key, px, saved, holding }) => {
         const y = yFor(px)
         if (y === null) return null
         return (
           <ChartLine
-            key={`moving-${index}`}
+            key={key}
             y={y}
             usdSlot={usdSlot}
-            nameNode={knobRow === `moving-${index}` ? optionsBar : undefined}
-            usd={holding ? levelUsd(saved) : undefined}
+            nameNode={knobRow === key ? optionsBar : undefined}
+            // What a rung puts in is its share of the account, set by Share of
+            // account and the split. The price decides how many coins that
+            // buys, never how many dollars, so the figure holds still while
+            // the range is dragged. Blanking it left every waiting rung
+            // looking empty mid-drag (Tyler, 4 Sep 2026).
+            usd={levelUsd(saved)}
             colour={sideColour(
               holding ? exitSide(direction) : entrySide(direction)
             )}

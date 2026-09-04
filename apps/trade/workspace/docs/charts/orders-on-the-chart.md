@@ -79,6 +79,20 @@ meanings in one column is unreadable, and the wrong one understated real money.
 figure is worked out, and `grid-layer.test.tsx` fails if any line goes back to
 the planned size while it is holding.
 
+**Dragging the range does not change any of those figures.** A rung's stake is
+its share of the account, set by Share of account, leverage and the split
+across the rungs. The price only decides how many coins that stake buys, so
+moving the range leaves every figure where it was and the whole column holds
+still under the hand. Until 4 September 2026 the rungs between UPPER PRICE and
+LOWER PRICE were handed no figure at all while the range moved, so a four rung
+grid lost the two chips in the middle the moment it was dragged and got them
+back on the drop. The two named rungs kept theirs, because a different part of
+the layer draws them, which is what made the gap so obvious.
+
+While the range moves, the rungs between the ends are the only ones drawn as
+plain lines. Rung 1 and the deepest rung are drawn once each as the named
+lines, so nothing stacks a second line or a second chip on their row.
+
 The Entry line, border and name are chart blue. Its current dollar profit is
 green and its loss is red; exactly zero stays blue. The figure updates with the
 market price and stays out until a price has arrived, rather than showing a
