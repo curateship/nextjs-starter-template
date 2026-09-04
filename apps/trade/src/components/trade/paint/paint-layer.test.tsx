@@ -96,6 +96,8 @@ async function draw({
   >(),
   onSetAlert,
   onSetBuffer,
+  extendNewLines,
+  onExtendPreference,
 }: {
   tool: "level" | "trendline" | null
   drawings?: Drawing[]
@@ -107,6 +109,8 @@ async function draw({
   onMove?: (id: string, shape: DrawingShape, currentPrice: number | null) => void
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
   onSetBuffer?: (id: string, buffer: number | null) => void
+  extendNewLines?: boolean
+  onExtendPreference?: (on: boolean) => void
 }) {
   await act(async () => {
     root.render(
@@ -125,6 +129,8 @@ async function draw({
         onSetBuffer={onSetBuffer}
         wide={wide}
         lineAlertsPaused={lineAlertsPaused}
+        extendNewLines={extendNewLines}
+        onExtendPreference={onExtendPreference}
       />
     )
   })
@@ -182,6 +188,7 @@ describe("the chart paint layer", () => {
       kind: "trendline",
       from: { time: 1_000, price: 101 },
       to: { time: 1_500, price: 111 },
+      extendRight: true,
     })
     expect(svg.querySelector("[data-wick-snap]")).toBeNull()
   })
@@ -296,6 +303,7 @@ describe("the chart paint layer", () => {
       kind: "trendline",
       from: { time: 1_030, price: 96 },
       to: { time: 1_480, price: 106 },
+      extendRight: true,
     })
   })
 
@@ -440,14 +448,16 @@ describe("the alert a trendline carries", () => {
     expect(extension.getAttribute("aria-hidden")).toBe("true")
   })
 
-  it("saves the extend switch as a move of the same line", async () => {
+  it("saves the extend switch as a move of the same line, and remembers the flip", async () => {
     const onMove = vi.fn()
+    const onExtendPreference = vi.fn()
     await draw({
       tool: null,
       drawings: [line],
       selectedId: line.id,
       onSetAlert: vi.fn(),
       onMove,
+      onExtendPreference,
     })
     await act(async () => {
       cog()!.dispatchEvent(pointer("pointerdown", 0, 0))
@@ -467,6 +477,30 @@ describe("the alert a trendline carries", () => {
       },
       105
     )
+    expect(onExtendPreference).toHaveBeenCalledWith(true)
+  })
+
+  it("draws a plain trendline once the switch was last left off", async () => {
+    const onCreate = vi.fn()
+    const { svg } = await draw({
+      tool: "trendline",
+      onCreate,
+      extendNewLines: false,
+    })
+    const sheet = svg.querySelector("rect")!
+    preparePointerTarget(sheet)
+    await act(async () => {
+      sheet.dispatchEvent(pointer("pointerdown", 103, 104))
+    })
+    await act(async () => {
+      sheet.dispatchEvent(pointer("pointerup", 148, 94))
+    })
+    expect(onCreate).toHaveBeenCalledWith({
+      kind: "trendline",
+      from: { time: 1_000, price: 101 },
+      to: { time: 1_500, price: 111 },
+    })
+    expect(onCreate.mock.calls[0][0]).not.toHaveProperty("extendRight")
   })
 
   it("opens the alert window from the cog and switches the alert on from the live price", async () => {

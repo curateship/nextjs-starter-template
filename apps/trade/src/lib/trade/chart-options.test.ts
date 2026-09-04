@@ -20,6 +20,7 @@ describe("chart view options", () => {
         orderArrows: false,
         orderArrowTrades: 7,
         drawings: false,
+        extendTrendlines: false,
         zone: "Europe/London",
       })
     ).toEqual({
@@ -30,6 +31,7 @@ describe("chart view options", () => {
       orderArrows: false,
       orderArrowTrades: 7,
       drawings: false,
+      extendTrendlines: false,
       zone: "Europe/London",
     })
   })
@@ -47,6 +49,7 @@ describe("chart view options", () => {
       orderArrows: true,
       orderArrowTrades: null,
       drawings: true,
+      extendTrendlines: true,
       zone: "UTC",
     })
   })

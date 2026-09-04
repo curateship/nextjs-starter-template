@@ -50,7 +50,10 @@ The grip has no hover message.
 - **Drawings belong to the market**, saved against the account, so what is
   marked on BTC never appears on ETH and a second machine sees the same
   lines. Saving is optimistic: a line appears the instant it is drawn, and a
-  save that does not land takes it back with a toast.
+  save that does not land takes it back with a toast. A re-read of the lines,
+  which a line's window asks for as it opens, keeps any line changed or
+  deleted on this screen after the re-read began. The re-read's copy is older
+  than that change, so it must not flip a switch back or bring a line back.
 - **Clicking a line picks it out** — it thickens and takes a soft glow along
   its length, and a trendline shows a handle at each end. Dragging the line
   moves the whole thing; dragging a handle moves that end alone. Pressing
@@ -78,8 +81,16 @@ The grip has no hover message.
   back on the line. On a narrow screen the window is the bottom sheet the
   order windows use.
 - **That window also names the line and switches its alert on**, and on a
-  trendline draws the line on to the right edge, dashed. A named line shows
-  its name beside its start, and an armed one shows a bell at the head of that
-  same column.
+  trendline has a Continuous line switch that draws the line on to the right
+  edge, dashed. A named line shows its name beside its start, and an armed one
+  shows a bell at the head of that same column.
+- **Continuous line is on for every new trendline until it is switched off
+  once.** Tyler asked for this on 4 Sep 2026. Flipping the switch on any line
+  changes that line and is remembered against the account as the answer for
+  the next line drawn, on this machine and any other. The last flip wins, so
+  switching one line off makes the next line plain, and switching a line back
+  on makes the next one continuous again. The memory sits with the chart's
+  other view options, and it is not on the options menu. Lines drawn before
+  4 Sep 2026 stay as they were.
   All of it is smart tools, in `smart-tools.md`. Orders on lines are still out
   of scope and attach to the same surface in their own task.

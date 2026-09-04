@@ -29,6 +29,25 @@ export type PaintTool = DrawingShape["kind"]
 const NONE: Drawing[] = []
 
 /**
+ * Stamp every line the change added, replaced or removed with the time of
+ * the change. Compared by identity: a line the change left alone is the same
+ * object, and one it touched is a new one.
+ */
+function noteTouched(
+  touchedAt: Map<string, number>,
+  before: readonly Drawing[],
+  after: readonly Drawing[]
+) {
+  const now = Date.now()
+  for (const drawing of after) {
+    if (!before.includes(drawing)) touchedAt.set(drawing.id, now)
+  }
+  for (const drawing of before) {
+    if (!after.includes(drawing)) touchedAt.set(drawing.id, now)
+  }
+}
+
+/**
  * The drawings on one market, and the tool in hand.
  *
  * Everything here is about drawings; nothing here is about the chart. The
@@ -66,6 +85,9 @@ export function useChartDrawings(
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const showedInitialError = React.useRef(false)
   const handledInitial = React.useRef(false)
+  // When each line was last changed on this screen, so a read that was
+  // already on its way when the change was made cannot put the old copy back.
+  const touchedAt = React.useRef(new Map<string, number>())
 
   const drawings = answer && answer.key === marketKey ? answer.drawings : NONE
 
@@ -87,23 +109,34 @@ export function useChartDrawings(
       return
     }
     let stale = false
+    const startedAt = Date.now()
     loadDrawings(marketKey)
       .then((result) => {
         if (stale) return
         // Merged rather than replaced: the database is a long way off, so a
         // line can be drawn before this answer lands, and a first draw that
         // silently disappeared a second later would be the worst kind of bug.
+        // The same goes for a line changed meanwhile: the window opening
+        // asks for this read, and a switch flipped in the half second before
+        // the answer lands must not be flipped back by it. The answer was
+        // read before the change was saved, so the copy here is the newer one.
         setAnswer((current) => {
-          const drawnMeanwhile =
-            current?.key === marketKey
-              ? current.drawings.filter(
-                  (candidate) =>
-                    !result.drawings.some((saved) => saved.id === candidate.id)
-                )
-              : []
+          const local = current?.key === marketKey ? current.drawings : NONE
+          const changedMeanwhile = (id: string) =>
+            (touchedAt.current.get(id) ?? 0) >= startedAt
+          const fromServer = result.drawings.flatMap((saved) => {
+            if (!changedMeanwhile(saved.id)) return [saved]
+            const mine = local.find((candidate) => candidate.id === saved.id)
+            // Deleted meanwhile: it stays deleted.
+            return mine ? [mine] : []
+          })
+          const drawnMeanwhile = local.filter(
+            (candidate) =>
+              !result.drawings.some((saved) => saved.id === candidate.id)
+          )
           return {
             key: marketKey,
-            drawings: [...result.drawings, ...drawnMeanwhile],
+            drawings: [...fromServer, ...drawnMeanwhile],
           }
         })
       })
@@ -145,9 +178,13 @@ export function useChartDrawings(
   const revise = React.useCallback(
     (key: string, change: (current: Drawing[]) => Drawing[]) => {
       setAnswer((current) => {
-        if (current === null) return { key, drawings: change([]) }
-        if (current.key !== key) return current
-        return { key, drawings: change(current.drawings) }
+        if (current === null || current.key === key) {
+          const before = current?.drawings ?? NONE
+          const after = change(before)
+          noteTouched(touchedAt.current, before, after)
+          return { key, drawings: after }
+        }
+        return current
       })
     },
     []

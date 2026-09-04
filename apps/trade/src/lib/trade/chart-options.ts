@@ -31,6 +31,12 @@ export const chartOptionsSchema = z.object({
   orderArrowTrades: z.number().int().positive().nullable(),
   drawings: z.boolean(),
   /**
+   * Whether a newly drawn trendline carries on to the right edge. The
+   * line's own window flips it per line, and the last flip becomes the
+   * answer for the next line drawn.
+   */
+  extendTrendlines: z.boolean(),
+  /**
    * The one timezone — the axis, the crosshair and every session boundary read
    * it. See `chart-timezone.ts`; a name this build no longer offers falls back
    * to UTC rather than throwing.
@@ -43,7 +49,7 @@ export type ChartOptions = z.infer<typeof chartOptionsSchema>
 /** The boolean parts that are simply shown or hidden. */
 export type ChartOptionToggle = Exclude<
   keyof ChartOptions,
-  "chartType" | "zone" | "orderArrowTrades"
+  "chartType" | "zone" | "orderArrowTrades" | "extendTrendlines"
 >
 
 export const DEFAULT_CHART_OPTIONS: ChartOptions = {
@@ -54,6 +60,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   orderArrows: true,
   orderArrowTrades: null,
   drawings: true,
+  extendTrendlines: true,
   zone: DEFAULT_TRADING_ZONE,
 }
 
@@ -72,6 +79,7 @@ export function readChartOptions(value: unknown): ChartOptions {
       orderArrows: z.boolean().optional(),
       orderArrowTrades: z.number().int().positive().nullable().optional(),
       drawings: z.boolean().optional(),
+      extendTrendlines: z.boolean().optional(),
       zone: z.string().max(40).optional(),
     })
     .safeParse(value)
@@ -82,6 +90,7 @@ export function readChartOptions(value: unknown): ChartOptions {
         orderArrows: parsed.data.orderArrows ?? true,
         orderArrowTrades: parsed.data.orderArrowTrades ?? null,
         drawings: parsed.data.drawings ?? true,
+        extendTrendlines: parsed.data.extendTrendlines ?? true,
         zone: readTradingZone(parsed.data.zone),
       }
     : DEFAULT_CHART_OPTIONS

@@ -73,12 +73,29 @@ export function useChartOptions(initial: ChartOptions) {
     [change]
   )
 
+  // Flipped from a line's own window rather than the options menu, so the
+  // next trendline drawn starts the way the last one was left.
+  const setExtendTrendlines = React.useCallback(
+    (on: boolean) => {
+      if (optionsRef.current.extendTrendlines === on) return
+      change({ ...optionsRef.current, extendTrendlines: on })
+    },
+    [change]
+  )
+
   const replace = React.useCallback(
     (next: ChartOptions) => change(next),
     [change]
   )
 
-  return { options, setOption, setZone, setOrderArrowTrades, replace }
+  return {
+    options,
+    setOption,
+    setZone,
+    setOrderArrowTrades,
+    setExtendTrendlines,
+    replace,
+  }
 }
 
 export type ChartOptionsControl = ReturnType<typeof useChartOptions>

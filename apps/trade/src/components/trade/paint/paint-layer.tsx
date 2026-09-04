@@ -489,6 +489,8 @@ export const PaintLayer = React.memo(function PaintLayer({
   onAlertOpen,
   wide = true,
   lineAlertsPaused = false,
+  extendNewLines = true,
+  onExtendPreference,
 }: {
   surface: ChartSurface
   candles: readonly CandleBar[]
@@ -515,6 +517,13 @@ export const PaintLayer = React.memo(function PaintLayer({
   wide?: boolean
   /** The master switch in Settings is off, which the window says. */
   lineAlertsPaused?: boolean
+  /** A newly drawn trendline carries on to the right edge. */
+  extendNewLines?: boolean
+  /**
+   * The Continuous line switch was flipped on a line: the answer to
+   * remember for the next line drawn. Left out where nothing remembers it.
+   */
+  onExtendPreference?: (on: boolean) => void
 }) {
   const svgRef = React.useRef<SVGSVGElement>(null)
   // The moment the window opened and the live price then, so "where the line
@@ -838,6 +847,18 @@ export const PaintLayer = React.memo(function PaintLayer({
 
   // ----- Drawing a new one ----------------------------------------------
 
+  // Every new trendline starts the way the last Continuous line switch was
+  // left. Only written when on, so a line drawn plain looks as it always did.
+  const newTrendline = (
+    from: DrawingPoint,
+    to: DrawingPoint
+  ): DrawingShape => ({
+    kind: "trendline",
+    from,
+    to,
+    ...(extendNewLines ? { extendRight: true } : {}),
+  })
+
   const sheetDown = (event: React.PointerEvent<SVGElement>) => {
     if (event.button !== 0) return
     // The chart's ordinary touch hold opens the order menu. A paint tool owns
@@ -854,7 +875,7 @@ export const PaintLayer = React.memo(function PaintLayer({
     }
     if (tool !== "trendline") return
     if (pending?.anchored) {
-      onCreate({ kind: "trendline", from: pending.from, to: reading.point })
+      onCreate(newTrendline(pending.from, reading.point))
       setSnapTip(null)
       return
     }
@@ -918,11 +939,7 @@ export const PaintLayer = React.memo(function PaintLayer({
     // pointer until a second tap puts it down, which is the only way there is
     // to draw one on a touchscreen.
     if (apart(reading.local, pending.startedAt)) {
-      onCreate({
-        kind: "trendline",
-        from: pending.from,
-        to: reading.point,
-      })
+      onCreate(newTrendline(pending.from, reading.point))
       setSnapTip(null)
     } else {
       setPending({
@@ -1193,6 +1210,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                     { ...alertDrawing.shape, extendRight: on },
                     currentPrice()
                   )
+                  onExtendPreference?.(on)
                 }}
                 // The name rides on the shape, so it is saved the same way.
                 onSetName={(name) =>

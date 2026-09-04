@@ -393,6 +393,7 @@ export function ChartPanel({
   initialDrawings,
   onDrawingAlertChange,
   lineAlertsPaused = false,
+  onExtendPreference,
   selectDrawing = null,
   onDrawingSelected,
   initialQuickOrder,
@@ -438,6 +439,8 @@ export function ChartPanel({
   onDrawingAlertChange?: () => void
   /** The master switch in Settings is off, which the line's window says. */
   lineAlertsPaused?: boolean
+  /** The Continuous line switch was flipped: remember it for the next line. */
+  onExtendPreference?: (on: boolean) => void
   /**
    * A line to pick out once its market's drawings have arrived, from a row in
    * the Alerts panel. Answered with `onDrawingSelected` once done.
@@ -1591,6 +1594,8 @@ export function ChartPanel({
             onAlertOpen={onAlertOpen}
             wide={wide}
             lineAlertsPaused={lineAlertsPaused}
+            extendNewLines={options.extendTrendlines}
+            onExtendPreference={onExtendPreference}
           />
         ) : null}
         <SmartLadderLayer
@@ -1733,6 +1738,8 @@ export function ChartPanel({
       paintTool,
       onAlertOpen,
       lineAlertsPaused,
+      options.extendTrendlines,
+      onExtendPreference,
       wide,
       chartToolbarPosition,
       onChartToolbarPositionChange,
