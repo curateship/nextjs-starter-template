@@ -46,6 +46,7 @@ import { advanceSignal } from "./smart-signals"
 import { advanceWatch } from "./smart-watch"
 import {
   aimStop,
+  handProtectionSettling,
   INTERVAL_MS,
   ladderBarsKey as barsKey,
   makeFillClaimer,
@@ -730,7 +731,10 @@ export async function advanceOne(
       changed = true
     }
 
-    if (aimBrackets(plan, held, roundPx)) {
+    // A hand that has just set this coin's stop or target outranks the aim: the
+    // reading this pass is working from may be older than the change, and the
+    // hand-moved test cannot tell those apart. See `HAND_PROTECTION_QUIET_MS`.
+    if (!handProtectionSettling(plan, now) && aimBrackets(plan, held, roundPx)) {
       // The aim changed the position row, so the save has to know — and the
       // stamp moves so a bracket cannot be fired by candles older than itself.
       held.updatedAt = now

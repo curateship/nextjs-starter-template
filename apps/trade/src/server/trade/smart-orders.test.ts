@@ -428,6 +428,49 @@ describe("a watched order's market minimum", () => {
     expect(watch.plan.triggerDirection).toBe("down")
   })
 
+  it("starts an added-to position working straight away instead of waiting", async () => {
+    // Tyler, 3 Sep 2026: "Hyperliquid takes about 2 minutes to execute when
+    // adding more to position." Adding picks no level, so waiting for one
+    // meant waiting for the market to come back to whatever the chart was
+    // showing when the window opened.
+    marks.set("BTC", 100)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 100,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      startNow: true,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.phase).toBe("taking")
+  })
+
+  it("still waits at the level for an ordinary Long", async () => {
+    marks.set("BTC", 100)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.phase).toBe("waiting")
+  })
+
   it("refuses a live watch on an exchange Trade cannot order on", async () => {
     /**
      * **A watch sends nothing until its price arrives**, so an exchange with

@@ -57,6 +57,40 @@ a new position the other way round.
 Every exchange the app talks to does this the same way. The list of legs comes
 back with the position on each read, so cancelling them costs no extra request.
 
+## A stop you move by hand is written down, not worked out later
+
+Moving a stop tells two things: the exchange, and the smart order working that
+coin. Both happen in the one call, in that order, and the smart order is only
+told once the exchange has taken the change.
+
+This used to be one thing. The drag wrote the exchange and nothing else, and
+the grid or ladder working the coin found a stop it had not placed and worked
+out what must have happened by comparing its last reading with this one. That
+guess is right only when the reading is fresh, and on the live server it often
+is not: the engine runs in its own container, holds a wallet's answer for five
+seconds, and never hears about a drag made on the website.
+
+What it cost, measured on the real account on 3 Sep 2026: every stop dragged on
+kSHIB, TAO and HYPE was cancelled five to six seconds later and the grid's own
+price put back. Four times in one evening.
+
+- **A grid keeps the price a hand gives it.** The stop stops following the
+  range and stays where it was put. A hand may move a grid's stop; it cannot
+  take it away, so pulling one off gets it back on the next pass.
+- **A ladder keeps both lines.** A dragged stop or target freezes that side,
+  and clearing a ladder's stop is honoured, because a ladder's stop is
+  optional.
+- **A grid running above a ladder is left out of it.** The position's one stop
+  belongs to the ladder beneath, and the grid's own stop is a separate order.
+  `grid-above-ladder.md` covers the pairing.
+
+**The engine then leaves that coin's stop alone for fifteen seconds.** The
+readings it holds may still be from before the change, and it cannot tell an
+old reading from a real one. The stop the hand placed is on the exchange the
+whole time; only the engine's opinion about it waits. Fifteen seconds because
+the readings it has to outlast add up to about nine — four for the venue's
+answer, five for the engine's own hold.
+
 ## The one it shows you is the oldest one
 
 When a position carries two stops, the app names the one with the lowest order

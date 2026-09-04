@@ -169,6 +169,7 @@ function gridState(over: Partial<GridPlan> = {}): GridPlan {
     cycles: 0,
   }))
   return {
+    handSetAt: null,
     direction: "long",
     reverseWhenStopped: false,
     reversedFrom: null,
@@ -1614,6 +1615,7 @@ describe("live Smart orders", () => {
 
   it("leaves a reached grid level waiting when the fresh quote moved above it", async () => {
     const plan: GridPlan = {
+      handSetAt: null,
       direction: "long",
       reverseWhenStopped: false,
       reversedFrom: null,

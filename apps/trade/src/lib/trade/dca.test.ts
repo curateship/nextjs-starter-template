@@ -191,6 +191,7 @@ describe("dcaLadderPlan", () => {
 
 describe("ladder plans", () => {
   const plan: LadderPlan = {
+    handSetAt: null,
     anchorPx: 100,
     anchor: "click",
     rungEntry: "limit",

@@ -330,6 +330,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
       : null,
     aimedTpPx: null,
     aimedSlPx: null,
+    handSetAt: null,
     twoGreen,
     // **Forced, never read from the settings — everywhere.** Nothing this app
     // places may sit on the book waiting: a resting rung ties up the money for
@@ -1332,6 +1333,22 @@ export async function placeWatchOrder(
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
+    /**
+     * Start working the order at today's price instead of waiting for `px`.
+     *
+     * **Adding to a position is the case this exists for.** A Long or a Short
+     * is placed at a level somebody picked on the chart, and waiting there is
+     * the whole point. Adding picks no level: the window opens at whatever the
+     * chart was showing, and by the time a size has been typed the market has
+     * usually moved. The level was then behind the price, so the watch sat
+     * waiting for the market to come back to it — which is why adding to a
+     * position took minutes, and sometimes never happened at all.
+     *
+     * It is not a market order and it pays no spread. The order goes straight
+     * into the same post-only chase every watch uses once its level is
+     * reached: an order resting just off the price, following it.
+     */
+    startNow?: boolean
   }
 ): Promise<{ watching: true }> {
   const ref = parseMarketKey(input.marketKey)
@@ -1403,7 +1420,7 @@ export async function placeWatchOrder(
     // It waits at the level rather than following the price away from it,
     // which is the closest thing to the resting order this stands in for.
     chaseGiveUp: 0,
-    phase: "waiting",
+    phase: input.startNow ? "taking" : "waiting",
     // Nothing has been sent for this watch — the whole point of it.
     sent: false,
     orderId: null,

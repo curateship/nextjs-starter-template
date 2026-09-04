@@ -369,6 +369,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     baseDetection: params.baseDetection,
     baseWatch: null,
     aimedSlPx: null,
+    handSetAt: null,
     pairedStop: null,
     seenFillsTo: 0,
     cycles: 0,

@@ -85,6 +85,7 @@ function grid(direction: "long" | "short", holding = true): SmartGrid {
     updatedAt: 1,
     kind: "grid",
     plan: {
+      handSetAt: null,
       direction,
       topPx: 110,
       bottomPx: 90,

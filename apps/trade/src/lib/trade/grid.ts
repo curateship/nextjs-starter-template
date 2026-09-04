@@ -1368,6 +1368,19 @@ const gridPlanSchema = z.object({
    */
   aimedSlPx: z.number().nullable(),
   /**
+   * When a hand last set this coin's protection, in epoch milliseconds, or
+   * null if it never has.
+   *
+   * **Written by the drag, not discovered by the engine.** A dragged stop used
+   * to reach the exchange and nothing else, so the next engine pass found a
+   * price it had not written and had to guess what had happened. A pass whose
+   * reading of the exchange was a few seconds old guessed wrong and put the
+   * grid's own stop back — measured on kSHIB, TAO and HYPE on 3 Sep 2026,
+   * every dragged stop cancelled five seconds later. See
+   * `HAND_PROTECTION_QUIET_MS`.
+   */
+  handSetAt: z.number().nullable().default(null),
+  /**
    * The grid's own fixed-size stop order on the exchange, when a DCA ladder
    * shares the coin. Null for a grid running alone — a lone grid writes the
    * position's ordinary whole-position stop through `aimedSlPx` instead.

@@ -32,6 +32,7 @@ import { getProtocol } from "@/server/protocols/registry"
 import type { WalletBook } from "@/server/trade/paper"
 import {
   aimStop,
+  handProtectionSettling,
   ladderBarsKey,
   near,
   readBaseWatch,
@@ -642,6 +643,11 @@ export async function advanceGrid(
       plan.aimedSlPx = null
       changed = true
     }
+  } else if (handProtectionSettling(plan, now)) {
+    // A hand has just set this coin's stop. Every reading the engine holds may
+    // still be from before that, and the hand-moved test cannot tell an old
+    // reading from a real change — see `HAND_PROTECTION_QUIET_MS`. The stop the
+    // hand placed is on the exchange throughout; only this opinion waits.
   } else if (!after || !holdsEntry(direction, after.szi)) {
     // Nothing held, so there is nothing to remember aiming at.
     //

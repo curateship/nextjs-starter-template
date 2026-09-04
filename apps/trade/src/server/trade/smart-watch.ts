@@ -4,6 +4,7 @@ import { judgeOrder } from "@/lib/trade/order-presence"
 import { liveOrderIds } from "@/server/trade/paper"
 import {
   CHASE_EVERY_MS,
+  CHASE_PATIENCE_MS,
   chaseWorthMoving,
   restingChasePx,
 } from "@/lib/trade/signal-order"
@@ -361,7 +362,14 @@ async function moveOrder(
   sz: number
 ): Promise<boolean> {
   const { book, now } = input
-  if (!chaseWorthMoving(plan.orderPx, wanted)) return false
+  // An order that has been resting a whole minute follows the price on any
+  // difference. The drift rule is there to stop two exchange calls being spent
+  // on a fourth-decimal wobble, and it does that job — but on a market walking
+  // slowly away it also leaves the order permanently just out of reach. See
+  // `CHASE_PATIENCE_MS`.
+  const waitedLongEnough =
+    plan.orderId !== null && now - plan.chasedAt >= CHASE_PATIENCE_MS
+  if (!waitedLongEnough && !chaseWorthMoving(plan.orderPx, wanted)) return false
 
   // The first order does not wait for the gate: a level that had to queue
   // behind a rate limit before it could ask for a price at all would fill a
