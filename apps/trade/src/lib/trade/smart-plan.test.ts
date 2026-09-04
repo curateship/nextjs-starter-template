@@ -4,6 +4,7 @@ import {
   forEachPlanOrderId,
   laddersAndGridsYouPlaced,
   smartOrdersYouPlaced,
+  missingPlanFields,
   unknownPlanFields,
   type SmartOrder,
 } from "@/lib/trade/smart-plan"
@@ -124,5 +125,35 @@ describe("unknownPlanFields", () => {
   it("has nothing to say about a plan that is not an object", () => {
     expect(unknownPlanFields("grid", null)).toEqual([])
     expect(unknownPlanFields("grid", [1])).toEqual([])
+  })
+})
+
+/**
+ * The other half of the same door. On 4 Sep 2026 an old website saved twelve
+ * short grids back without their direction, and the engine that took over
+ * read each one as a buying grid. A grid with no direction written down is
+ * not anyone's to trade.
+ */
+describe("missingPlanFields", () => {
+  it("names a grid's missing direction", () => {
+    expect(missingPlanFields("grid", { levels: [], topPx: 2 })).toEqual([
+      "direction",
+    ])
+  })
+
+  it("is empty once the direction is written down, either way", () => {
+    expect(missingPlanFields("grid", { direction: "short" })).toEqual([])
+    expect(missingPlanFields("grid", { direction: "long" })).toEqual([])
+  })
+
+  it("asks nothing of the other kinds, which have no direction field", () => {
+    expect(missingPlanFields("dca", { rungs: [] })).toEqual([])
+    expect(missingPlanFields("signal", { orderId: "1" })).toEqual([])
+    expect(missingPlanFields("watch", { orderId: "1" })).toEqual([])
+  })
+
+  it("has nothing to say about a plan that is not an object", () => {
+    expect(missingPlanFields("grid", null)).toEqual([])
+    expect(missingPlanFields("grid", [1])).toEqual([])
   })
 })

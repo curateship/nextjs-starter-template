@@ -8,10 +8,12 @@ import {
 } from "./deploy-trade.mjs"
 
 describe("deploying all three Trade apps", () => {
-  it("always goes engine, then worker, then web", () => {
-    expect(appsToDeploy(null)).toEqual(["engine", "worker", "web"])
+  it("always goes web, then worker, then engine last", () => {
+    // The engine last: its lock is free for a few seconds when it restarts,
+    // and nothing old may be alive to take it — 4 Sep 2026, 22:18 UTC.
+    expect(appsToDeploy(null)).toEqual(["web", "worker", "engine"])
     // Whatever order --only names them in, the fixed order wins.
-    expect(appsToDeploy("web,engine")).toEqual(["engine", "web"])
+    expect(appsToDeploy("engine,web")).toEqual(["web", "engine"])
   })
 
   it("refuses an app it does not know instead of skipping it quietly", () => {

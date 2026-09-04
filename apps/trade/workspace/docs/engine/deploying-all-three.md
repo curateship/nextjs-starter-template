@@ -1,5 +1,15 @@
 # Deploying all three, and why an old container can never trade again
 
+**The engine restarts last.** The moment the engine restarts, its lock is
+free for a few seconds, and whatever website or worker is alive right then
+may take it. If either is an older build, it trades old code over live
+grids until the new one replaces it. So the website and the worker are
+rebuilt first, and the engine only once nothing old is left. On 4 Sep 2026
+at 22:18 UTC the engine went first: the old website took the lock, held it
+for its five-minute turn, and saved twelve short grids back without their
+Short setting. The fix committed that afternoon could not stop it, because
+the fix was in the new website and the old website was the one alive.
+
 Trade runs as three containers on the German box, each its own Coolify app:
 the website, the shell worker and the engine. Each one builds whatever
 `develop` is at the moment its own Deploy button is pressed. Pressing one
@@ -10,19 +20,19 @@ the engine was redeployed on its own. While it was away the website and the
 shell worker, still a build from 24 Aug, took the trading lock, and for a few
 minutes old code ran over live grids: short grids read as buying grids, plans
 saved back without their direction, split and leverage, coins bought that no
-grid had asked for. Nothing was lost the second time, and it still must not
-happen a third. Three things now stop it.
+grid had asked for. The third time, 4 Sep 22:18 UTC, was the deploy that
+installed the fix itself, with the engine first. Four things now stop it.
 
 ## One command deploys all three, in order
 
 ```
-npm run deploy                 engine, then worker, then web
+npm run deploy                 web, then worker, then engine
 npm run deploy -- --force      rebuild without Docker's cache
 npm run deploy -- --only engine,web
 ```
 
-`scripts/deploy-trade.mjs` asks Coolify to build the engine, waits for that
-build to finish, then the worker, then the website. A build that fails stops
+`scripts/deploy-trade.mjs` asks Coolify to build the website, waits for that
+build to finish, then the worker, then the engine. A build that fails stops
 the run, so the other two keep the build they have. Each app is named from
 Coolify's own list before anything is rebuilt, so a wrong uuid is said out
 loud first.
@@ -37,7 +47,7 @@ types it, or asks for it in the same message. It needs, in the gitignored
   three app uuids; the defaults are today's.
 
 Pressing the three buttons in Coolify by hand still works. The rule is the
-same either way: all three, engine first.
+same either way: all three, engine last.
 
 ### When a build fails while downloading packages
 
@@ -87,6 +97,23 @@ would stop every wallet trading.
 **What no code can do:** none of this reaches a container that was built
 before it existed. The website and the shell worker must be redeployed once
 by hand; from that deploy on, the rule holds whichever button is pressed.
+
+## A grid with no direction saved is not traded
+
+A grid's direction reads as "long" when the field is missing, which was
+right for grids placed before the field existed on 28 Aug 2026 and is wrong
+for a short grid an old build has just stripped. After the 4 Sep 22:18
+deploy, the new engine took the lock at 22:23 and read every stripped grid
+as a buying grid; JUP kept buying and selling at once until 22:29, with the
+old website already gone.
+
+So the engine now leaves a grid with no `direction` alone, the same way it
+leaves a row with unknown fields alone: not traded, not saved, not ended,
+and one line on the engine's console naming the row and the field
+(`missingPlanFields` in `src/lib/trade/smart-plan.ts`, applied by
+`leftForANewerBuild`). No live grid lacked the field on 4 Sep, so nothing
+already running is affected. A grid that does lack it needs a person to
+look at it: it was placed by the old build or damaged by one.
 
 ## A saved plan keeps the fields a build does not know
 

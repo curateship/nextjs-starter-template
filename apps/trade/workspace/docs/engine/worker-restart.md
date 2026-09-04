@@ -87,6 +87,13 @@ instead of guessed at. The check lives in `unknownPlanFields` in
 `src/lib/trade/smart-plan.ts` and `leftForANewerBuild` in
 `src/server/trade/left-for-newer-build.ts`.
 
+The same check runs the other way. A grid saved back by an older build has
+lost its `direction`, and reading it as "long" is how twelve stripped short
+grids kept trading for six minutes on 4 Sep 2026 after the old website was
+gone. A grid with no direction is skipped the same way, with its own console
+line (`missingPlanFields`, same file). `deploying-all-three.md` has the
+whole story.
+
 This protects the next time round, not the last one. The build that did the
 damage on 3 Sep had no such check, and no change made today can reach a
 container that has already been built.

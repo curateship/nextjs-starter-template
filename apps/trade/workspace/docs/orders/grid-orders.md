@@ -135,9 +135,11 @@ selling grid is read as a buying one, its End Grid ends up below the price, and
 it closes seconds after being placed. If it were holding a short, its stop
 would be written on the wrong side of it.
 
-So the engine and the app are deployed together, or the engine first, never the
-app alone. That happened on 28 Aug 2026, and selling grids have worked since. A
-rollback has the same problem in reverse. Buying grids are
+So the engine and the app are deployed together, all three containers with the
+engine last (`../engine/deploying-all-three.md`), never the app alone. That
+happened on 28 Aug 2026, and selling grids have worked since. Since 4 Sep 2026
+an engine leaves a grid with no direction saved alone rather than reading it as
+a buying grid. A rollback has the same problem in reverse. Buying grids are
 unaffected either way, because every stored plan stays in the shape every
 version reads. `../rules/trading-rules.md` carries the rule this comes from.
 

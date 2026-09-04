@@ -204,6 +204,31 @@ export function unknownPlanFields(
 }
 
 /**
+ * The fields a saved plan must carry for the engine to be allowed to trade
+ * it, and that an OLDER build would have dropped when it saved the row back.
+ *
+ * The mirror of `unknownPlanFields`. A grid's `direction` reads as "long"
+ * when it is missing, which is right for a grid placed before the field
+ * existed and wrong for a short grid an old build has just stripped. On
+ * 4 Sep 2026 an old website held the lock for five minutes during a deploy
+ * and saved twelve short grids back without it; the new engine that took
+ * over then read each one as a buying grid and kept JUP buying and selling
+ * at once, six minutes after the old website was gone. So a grid with no
+ * direction written down is not traded by anyone: it waits, untouched, and
+ * the engine says why.
+ */
+export function missingPlanFields(
+  kind: SmartOrderKind,
+  value: unknown
+): string[] {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return []
+  }
+  if (kind !== "grid") return []
+  return "direction" in value ? [] : ["direction"]
+}
+
+/**
  * A stored plan together with the kind that says how to read it.
  *
  * **Not a second door** — it goes through `readSmartPlan` like everything else.
