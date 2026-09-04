@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { appsToDeploy, deploymentLine, deploymentOver } from "./deploy-trade.mjs"
+import {
+  appsToDeploy,
+  buildLogTail,
+  deploymentLine,
+  deploymentOver,
+} from "./deploy-trade.mjs"
 
 describe("deploying all three Trade apps", () => {
   it("always goes engine, then worker, then web", () => {
@@ -27,5 +32,19 @@ describe("deploying all three Trade apps", () => {
     )
     expect(deploymentLine("web", { status: "queued" })).toBe("web: queued")
     expect(deploymentLine("web", null)).toBe("web: unknown")
+  })
+
+  it("shows the last lines of a failed build's log, skipping what Coolify hides", () => {
+    const logs = JSON.stringify([
+      { output: "Step 1/9 : FROM node", hidden: false },
+      { output: "secret env dump", hidden: true },
+      { output: "ERROR: failed to solve: process did not complete\n", hidden: false },
+    ])
+    expect(buildLogTail(logs)).toEqual([
+      "Step 1/9 : FROM node",
+      "ERROR: failed to solve: process did not complete",
+    ])
+    expect(buildLogTail("plain\ntext\nlog", 2)).toEqual(["text", "log"])
+    expect(buildLogTail(null)).toEqual([])
   })
 })

@@ -154,6 +154,27 @@ async function settingsFromEnv() {
   }
 }
 
+/**
+ * The last lines Coolify wrote for a build, so a failure says why on this
+ * screen instead of sending somebody to the Coolify page. Coolify keeps the
+ * log as a JSON list of entries; anything else is shown as it came.
+ */
+export function buildLogTail(logs, count = 40) {
+  if (typeof logs !== "string" || !logs.trim()) return []
+  let entries
+  try {
+    entries = JSON.parse(logs)
+  } catch {
+    return logs.split("\n").slice(-count)
+  }
+  if (!Array.isArray(entries)) return [String(logs)].slice(-count)
+  return entries
+    .filter((entry) => entry && !entry.hidden && typeof entry.output === "string")
+    .map((entry) => entry.output.replace(/\s+$/, ""))
+    .filter(Boolean)
+    .slice(-count)
+}
+
 async function waitForDeployment(settings, name, deploymentUuid) {
   const startedAt = Date.now()
   let lastSaid = null
@@ -164,7 +185,18 @@ async function waitForDeployment(settings, name, deploymentUuid) {
       console.log(`  ${line}`)
       lastSaid = line
     }
-    if (deploymentOver(record?.status)) return record?.status
+    if (deploymentOver(record?.status)) {
+      if (record?.status !== "finished") {
+        const tail = buildLogTail(record?.logs)
+        if (tail.length) {
+          console.error(`\n  Last lines of the ${name} build log (deployment ${deploymentUuid}):`)
+          for (const one of tail) console.error(`  | ${one}`)
+        } else {
+          console.error(`  Coolify kept no log lines for deployment ${deploymentUuid}; open it in Coolify.`)
+        }
+      }
+      return record?.status
+    }
     await new Promise((done) => setTimeout(done, POLL_EVERY_MS))
   }
   throw new Error(`${name}: still building after ${GIVE_UP_AFTER_MS / 60_000} minutes; look at Coolify.`)
@@ -204,6 +236,7 @@ async function main() {
       process.exit(1)
     }
     if (deployment.message) console.log(`  ${deployment.message}`)
+    console.log(`  deployment ${deploymentUuid}`)
     const status = await waitForDeployment(settings, name, deploymentUuid)
     if (status !== "finished") {
       console.error(`\n${name} ${status}. Stopping here so the other apps keep the build they have.`)
