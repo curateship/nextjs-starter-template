@@ -2,6 +2,8 @@ import * as React from "react"
 
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OrderRefusal } from "@/components/trade/order-refusal"
+import { UnmetRulesPanel } from "@/components/trade/unmet-rules-panel"
+import { useSecondTick } from "@/components/trade/use-trading-rules"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -24,6 +26,7 @@ import { useLiveFigures } from "@/lib/trade/live-market"
 import { BUY_BUTTON, LOST_MONEY, SELL_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { type TradePosition, type TradeSide } from "@/lib/trade/paper"
+import type { UnmetRule } from "@/lib/trade/trading-rules"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +40,14 @@ import { cn } from "@/lib/utils"
  * handle, because the window opens exactly over the price it is about to trade
  * and sometimes you want to see that price.
  */
+
+/**
+ * Asked by an order window as it changes: which of the person's own trading
+ * rules this entry does not meet. See `checkTradingRules`.
+ */
+export type WarnBeforeEntry = (about: {
+  side: TradeSide
+}) => readonly UnmetRule[]
 
 export type QuickOrderState = {
   side: TradeSide
@@ -58,6 +69,12 @@ export type QuickOrderState = {
 const PANEL_WIDTH = 288
 /** What the window takes at its tallest, for keeping it on screen. */
 const PANEL_HEIGHT = 640
+/**
+ * The window may shrink to this as it nears the bottom of the screen. Set so
+ * the frame keeps its bottom strip, where the button and any unmet rules sit
+ * below the scrolling boxes rather than at the end of them.
+ */
+const PANEL_MIN_HEIGHT = 420
 
 /**
  * How size is being said: in dollars, as a share of free cash, or as the share
@@ -84,6 +101,7 @@ export function ChartQuickOrder({
   equity,
   prefs,
   onPlace,
+  warnBeforeEntry = null,
   onRemember,
   onClose,
 }: {
@@ -125,6 +143,12 @@ export function ChartQuickOrder({
     tpPx: number | null
     slPx: number | null
   }) => void
+  /**
+   * The person's own trading rules this entry does not meet right now, said
+   * above the button before it is pressed. Null when no rule applies here: a
+   * practice wallet, or every rule off.
+   */
+  warnBeforeEntry?: WarnBeforeEntry | null
   /**
    * Keeps how this order was sized, once it has gone. Called with the window's
    * own settings rather than the order, so the next right-click opens the way
@@ -312,6 +336,13 @@ export function ChartQuickOrder({
                 : `That size does not work out to any ${market.symbol}.`
             : null
 
+  // A time rule counts down while the window sits open, so the sentence
+  // above the button is re-read once a second only while one could apply.
+  useSecondTick(warnBeforeEntry !== null)
+  const ruleWarnings = warnBeforeEntry
+    ? warnBeforeEntry({ side: quick.side })
+    : []
+
   const submit = () => {
     if (!ready) {
       setShowValidation(true)
@@ -364,16 +395,14 @@ export function ChartQuickOrder({
       openedAt={quick}
       width={PANEL_WIDTH}
       height={PANEL_HEIGHT}
+      minimumHeight={PANEL_MIN_HEIGHT}
       title={buy ? "Long" : "Short"}
       titleClassName={buy ? undefined : LOST_MONEY}
       wallet={wallet}
       free={free}
       onClose={onClose}
     >
-      <ScrollArea
-        className="max-h-[calc(100dvh-56px)]"
-        viewportClassName="max-h-[calc(100dvh-56px)]"
-      >
+      <ScrollArea className="h-full">
         <div className="grid gap-4 p-3">
           {/* What this order is joining, and what it leaves behind. Above the
               size box, because it is the thing the size is being chosen
@@ -649,26 +678,29 @@ export function ChartQuickOrder({
               <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
             </div>
           )}
-
-          <div className="grid gap-2">
-            <OrderRefusal id="quick-order-refusal">
-              {showValidation ? refusal : null}
-            </OrderRefusal>
-            <Button
-              type="button"
-              onClick={submit}
-              aria-describedby={
-                showValidation && refusal ? "quick-order-refusal" : undefined
-              }
-              className={cn("w-full", buy ? BUY_BUTTON : SELL_BUTTON)}
-            >
-              {marketOrder
-                ? `Market ${buy ? "long" : "short"} ${market.symbol}`
-                : `${buy ? "Long" : "Short"} ${market.symbol}`}
-            </Button>
-          </div>
         </div>
       </ScrollArea>
+
+      {/* Below the scroll, not in it: however tall the form gets, the rules
+          it does not meet and the button they are about stay on screen. */}
+      <div className="grid gap-2 border-t p-3">
+        <UnmetRulesPanel id="quick-order-rules" rules={ruleWarnings} />
+        <OrderRefusal id="quick-order-refusal">
+          {showValidation ? refusal : null}
+        </OrderRefusal>
+        <Button
+          type="button"
+          onClick={submit}
+          aria-describedby={
+            showValidation && refusal ? "quick-order-refusal" : undefined
+          }
+          className={cn("w-full", buy ? BUY_BUTTON : SELL_BUTTON)}
+        >
+          {marketOrder
+            ? `Market ${buy ? "long" : "short"} ${market.symbol}`
+            : `${buy ? "Long" : "Short"} ${market.symbol}`}
+        </Button>
+      </div>
     </FloatingOrderWindow>
   )
 }

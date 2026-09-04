@@ -39,6 +39,7 @@ import {
   formatUsd,
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
+import { overrodeNote } from "@/lib/trade/trading-rules"
 import {
   tradeEndingLabel,
   type LiveFill,
@@ -1209,6 +1210,14 @@ export function TradesTable({
                   ? ` at ${formatPrice(row.trade.stopPx)}`
                   : ""}
               </TradeBadge>
+              {/* The entry went out against the person's own rules, and they
+                  said "anyway". Kept on the row so a run of these can be read
+                  against how the trades ended. */}
+              {row.trade.overrode && row.trade.overrode.length > 0 ? (
+                <span className="mt-1 block text-xs text-muted-foreground whitespace-nowrap">
+                  {overrodeNote(row.trade.overrode)}
+                </span>
+              ) : null}
             </Cell>
             {/* Marked as the actions column so a press on the bin — or on the
                 blank around a greyed-out one — never also fires the row and

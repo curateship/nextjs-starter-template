@@ -89,6 +89,10 @@ screen: anything not written there has not been agreed yet.
 - `smart-order-windows.md` — the windows a smart order is placed from: the
   floating frame, the DCA exit choices and draggable exit gap, the base stop,
   and the grid window.
+- `rules-before-an-entry.md` — the three rules Tyler sets for himself before a
+  real-money Long, Short, DCA or Grid, the one warning window that names what
+  is unmet and asks him to confirm or go back, and the "Overrode" note the
+  Journal keeps.
 - `grid-orders.md` — how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, and what following price up and down does.

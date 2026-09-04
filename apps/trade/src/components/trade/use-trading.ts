@@ -365,6 +365,12 @@ export type Trading = {
     startNow?: boolean
     tpPx: number | null
     slPx: number | null
+    /**
+     * The person's own trading rules this entry breaks, by name, once they
+     * have confirmed it anyway. Written on the Journal row; never sent for a
+     * practice wallet.
+     */
+    overrode?: string[]
   }) => void
   move: (walletId: string, orderId: string, px: number) => Promise<void>
   cancel: (order: TradeOrder) => Promise<void>
@@ -436,6 +442,8 @@ export type Trading = {
     clickPx: number
     interval: CandleInterval
     params: DcaParams
+    /** See `place`. */
+    overrode?: string[]
   }) => Promise<boolean>
   /** The × on one waiting rung. */
   cancelRung: (
@@ -475,6 +483,8 @@ export type Trading = {
     topPx: number
     bottomPx: number
     params: PlaceGridParams
+    /** See `place`. */
+    overrode?: string[]
   }) => Promise<boolean>
   /** The × on one waiting level. Unlike the others it never comes back. */
   cancelGridLevel: (
@@ -1600,7 +1610,7 @@ export function useTrading(
   )
 
   const place: Trading["place"] = React.useCallback(
-    (input) => {
+    ({ overrode, ...input }) => {
       if (!walletId || !wallet) return
       const kind = wallet.kind
       // Drawn at once, before anything is sent. Its own id, never the
@@ -1631,7 +1641,11 @@ export function useTrading(
             // The one part of the real road that still speaks up: an order
             // that went on but whose protection did not is the thing that
             // must never pass quietly.
-            const { outcome } = await placeLiveOrder({ walletId, ...input })
+            const { outcome } = await placeLiveOrder({
+              walletId,
+              ...input,
+              overrode,
+            })
             if (outcome.protection === "partial" && outcome.protectionNote) {
               showErrorToast(outcome.protectionNote)
             }
@@ -2056,13 +2070,14 @@ export function useTrading(
   )
 
   const placeLadder: Trading["placeLadder"] = React.useCallback(
-    async (input) => {
+    async ({ overrode, ...input }) => {
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
         const { placed, passed, marketFirst, ladder } = await placeDcaLadder({
           walletId,
           ...input,
+          overrode: wallet.kind === "live" ? overrode : undefined,
         })
         // On screen now, not after the next read — same as a placed grid.
         holdSmart(ladder)
@@ -2174,7 +2189,7 @@ export function useTrading(
   )
 
   const placeGrid: Trading["placeGrid"] = React.useCallback(
-    async (input) => {
+    async ({ overrode, ...input }) => {
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
@@ -2182,6 +2197,7 @@ export function useTrading(
           walletId,
           ...input,
           params: { ...input.params, sizing: "even" },
+          overrode: wallet.kind === "live" ? overrode : undefined,
         })
         // On screen now, not after the next read.
         holdSmart(grid)

@@ -93,6 +93,8 @@ export type PlaceLadderInput = {
    * somebody placed themselves on the same wallet.
    */
   flowRunId?: string | null
+  /** The person's own rules this entry went out against, by name. */
+  overrode?: readonly string[]
 }
 
 export type PlacedLadder = {

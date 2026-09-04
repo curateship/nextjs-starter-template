@@ -29,6 +29,7 @@ import { reattributePairedStops } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
 import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
 import { formatUsd } from "@/lib/trade/format"
+import { overrodeNote } from "@/lib/trade/trading-rules"
 import { db } from "@/server/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
@@ -172,6 +173,36 @@ async function journal(
   }
 }
 
+/** "Overrode: lines on the chart. Resting on the exchange." */
+function withOverride(
+  overrode: readonly string[] | undefined,
+  sentence: string
+): string {
+  return overrode && overrode.length > 0
+    ? `${overrodeNote(overrode)}. ${sentence}`
+    : sentence
+}
+
+/**
+ * The override row for a ladder or a grid. Their orders are sent later by the
+ * engine, one pass at a time, so the moment somebody confirmed the entry
+ * against their own rules is written here, at placement, on its own row.
+ */
+export async function journalOverride(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  side: TradeSide,
+  overrode: readonly string[]
+): Promise<void> {
+  if (overrode.length === 0) return
+  await journal(userId, walletId, marketKey, {
+    action: "placed",
+    side,
+    note: overrodeNote(overrode),
+  })
+}
+
 async function recordRefusal(
   userId: string,
   walletId: string,
@@ -273,6 +304,12 @@ export async function placeLiveOrder(
      * waiting into one that has failed.
      */
     byHand?: boolean
+    /**
+     * The person's own trading rules this entry went out against, by name,
+     * confirmed in the chart's warning window. Written on the Journal row so
+     * the trade can later be read against the rule it broke.
+     */
+    overrode?: readonly string[]
   }
 ): Promise<PlaceOrderOutcome> {
   // The stopwatch every real placement reports — one line per order saying
@@ -427,12 +464,14 @@ export async function placeLiveOrder(
         side: input.side,
         px: filledPx,
         sz: outcome.filledSz ?? orderSize,
-        note:
+        note: withOverride(
+          input.overrode,
           shortFill !== null
             ? `Filled ${formatUsd(shortFill * filledPx)} of the ${formatUsd(orderSize * filledPx)} asked for.`
             : outcome.status === "filled"
               ? "Filled straight away."
-              : "Resting on the exchange.",
+              : "Resting on the exchange."
+        ),
       })
       if (outcome.protection === "partial") {
         await journal(userId, row.id, input.marketKey, {

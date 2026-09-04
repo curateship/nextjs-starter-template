@@ -11,6 +11,7 @@ import {
 } from "@/lib/protocols/contracts"
 import type { CardFolds } from "@/lib/trade/card-folds"
 import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
@@ -80,6 +81,8 @@ export type DashboardCore = {
   lastMarketKey: string | null
   chartView: ChartView | null
   chartOptions: ChartOptions
+  /** The rules checked before a real-money entry, so they never flash in. */
+  tradingRules: TradingRules
   indicators: IndicatorSettings
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
@@ -271,6 +274,7 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       lastMarketKey: prefs.lastMarketKey,
       chartView: prefs.chartView,
       chartOptions: prefs.chartOptions,
+      tradingRules: prefs.tradingRules,
       indicators: prefs.indicators,
       cardFolds: prefs.cardFolds,
       quickOrder: prefs.quickOrder,

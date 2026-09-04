@@ -3,6 +3,10 @@ import { eq, sql } from "drizzle-orm"
 import { parseMarketKey, type ProtocolId } from "@/lib/protocols/contracts"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import { readChartOptions, type ChartOptions } from "@/lib/trade/chart-options"
+import {
+  readTradingRules,
+  type TradingRules,
+} from "@/lib/trade/trading-rules"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
@@ -62,6 +66,7 @@ export type DashboardPrefs = {
   tradeAlertSoundsEnabled: boolean
   chartView: ChartView | null
   chartOptions: ChartOptions
+  tradingRules: TradingRules
   indicators: IndicatorSettings
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
@@ -96,6 +101,7 @@ export async function loadDashboardPrefs(
       tradeAlertSoundsEnabled: tradePrefs.tradeAlertSoundsEnabled,
       chartView: tradePrefs.chartView,
       chartOptions: tradePrefs.chartOptions,
+      tradingRules: tradePrefs.tradingRules,
       indicators: tradePrefs.indicators,
       cardFolds: tradePrefs.cardFolds,
       quickOrder: tradePrefs.quickOrder,
@@ -121,6 +127,7 @@ export async function loadDashboardPrefs(
     tradeAlertSoundsEnabled: found?.tradeAlertSoundsEnabled ?? false,
     chartView: readChartView(found?.chartView ?? null),
     chartOptions: readChartOptions(found?.chartOptions ?? null),
+    tradingRules: readTradingRules(found?.tradingRules ?? null),
     indicators: readIndicatorSettings(found?.indicators ?? null),
     cardFolds: readCardFolds(found?.cardFolds ?? null),
     quickOrder: readQuickOrderPrefs(found?.quickOrder ?? null),
@@ -470,6 +477,28 @@ export async function saveChartOptions(
  * through the same validator they went in through, so a value an older build
  * wrote falls back to the defaults instead of half-filling the window.
  */
+export async function loadTradingRules(userId: string): Promise<TradingRules> {
+  const row = await db
+    .select({ tradingRules: tradePrefs.tradingRules })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readTradingRules(row[0]?.tradingRules ?? null)
+}
+
+export async function saveTradingRules(
+  userId: string,
+  tradingRules: TradingRules
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, tradingRules, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { tradingRules, updatedAt: new Date() },
+    })
+}
+
 export async function loadSmartDca(userId: string): Promise<DcaParams | null> {
   const row = await db
     .select({ smartDca: tradePrefs.smartDca })

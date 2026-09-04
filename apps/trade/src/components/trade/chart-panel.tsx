@@ -44,6 +44,11 @@ import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import { useLongPress } from "@/components/trade/use-long-press"
 import type { Trading } from "@/components/trade/use-trading"
+import { UnmetRulesPanel } from "@/components/trade/unmet-rules-panel"
+import {
+  lastOrderAt,
+  rememberLastOrder,
+} from "@/components/trade/use-trading-rules"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -87,6 +92,7 @@ import {
   type ChartView,
 } from "@/lib/trade/chart-view"
 import {
+  entrySide,
   gridStopLegPrices,
   holdsEntry,
   isGridStopLeg,
@@ -118,7 +124,13 @@ import {
   type RecentOrderType,
 } from "@/lib/trade/recent-order-types"
 import type { Drawing } from "@/lib/trade/drawings"
-import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition, TradeSide } from "@/lib/trade/paper"
+import {
+  anyTradingRuleOn,
+  checkTradingRules,
+  type TradingRules,
+  type UnmetRule,
+} from "@/lib/trade/trading-rules"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import {
@@ -383,6 +395,19 @@ export type OlderBarsStatus = {
  * answer — one that lands after another market was picked — is dropped on the
  * floor rather than drawn over the wrong chart.
  */
+/**
+ * An entry held back by the person's own trading rules, until the warning
+ * window is answered. `send` places it with the overridden rule names for
+ * the Journal; `goBack` sends nothing and puts the order window back.
+ */
+type PendingEntry = {
+  /** The action and the size, "Short $500": the title and, with "anyway", the button. */
+  action: string
+  unmet: UnmetRule[]
+  send: (overrode: string[]) => void
+  goBack: () => void
+}
+
 export function ChartPanel({
   selectedKey,
   interval,
@@ -403,6 +428,7 @@ export function ChartPanel({
   onDeletePriceAlert = IGNORE_PRICE_ALERT,
   recentOrderScope = null,
   options,
+  tradingRules,
   indicators,
   market,
   trading,
@@ -470,6 +496,11 @@ export function ChartPanel({
   recentOrderScope?: string | null
   /** Which supporting parts of the chart are visible. */
   options: ChartOptions
+  /**
+   * The person's own rules, checked before a real-money entry leaves. An
+   * unmet rule opens one warning window; it never stops the trade.
+   */
+  tradingRules: TradingRules
   /** Which indicators are on and what each is set to, owned by the workspace. */
   indicators: IndicatorSettings
   /** The market on screen, for the rules an order has to obey. */
@@ -675,6 +706,18 @@ export function ChartPanel({
   const [settingsFor, setSettingsFor] = React.useState<SmartGrid | null>(null)
   const [settingsAnchor, setSettingsAnchor] =
     React.useState<HTMLElement | null>(null)
+  // An entry that broke one of the person's own trading rules and is waiting
+  // for "anyway" or "Go back" in the warning window. Real money only.
+  const [pendingEntry, setPendingEntry] = React.useState<PendingEntry | null>(
+    null
+  )
+  // When this coin was opened on this page — the clock behind the "time on
+  // this chart" rule. Written from an effect keyed on the coin, so it restarts
+  // on every change of coin and on a reload, and a render never reads a clock.
+  const chartOpenedAtRef = React.useRef(0)
+  React.useEffect(() => {
+    chartOpenedAtRef.current = Date.now()
+  }, [selectedKey])
   // The position whose × on the Entry line was pressed. Closing costs real
   // money, so it asks first — the same question the Positions table asks.
   const [closingPosition, setClosingPosition] =
@@ -710,6 +753,7 @@ export function ChartPanel({
   const [lastMarket, setLastMarket] = React.useState(selectedKey)
   if (selectedKey !== lastMarket) {
     setLastMarket(selectedKey)
+    setPendingEntry(null)
     setMenu(null)
     setArrowMenu(null)
     setQuick(null)
@@ -726,6 +770,70 @@ export function ChartPanel({
     setEditing(null)
     setEditingAnchor(null)
   }
+
+  /**
+   * The newest order this browser can see on this coin and wallet — the seed
+   * for the "time since the last order" rule after a reload, when the memory
+   * in `rememberLastOrder` is empty. Fills, the trades made of fills, resting
+   * orders and watched levels all count; the newest wins.
+   */
+  const seenLastOrderAt = React.useMemo(() => {
+    const walletId = trading.wallet?.id
+    if (!market || !walletId) return null
+    let newest: number | null = null
+    const see = (at: number) => {
+      if (newest === null || at > newest) newest = at
+    }
+    for (const trade of trading.trades) {
+      if (trade.walletId === walletId && trade.marketKey === market.key)
+        see(trade.closedAt)
+    }
+    for (const fill of trading.fills) {
+      if (fill.walletId === walletId && fill.marketKey === market.key)
+        see(fill.at)
+    }
+    for (const order of [...trading.orders, ...trading.watchOrders]) {
+      if (order.walletId === walletId && order.marketKey === market.key)
+        see(order.createdAt)
+    }
+    return newest
+  }, [
+    market,
+    trading.wallet?.id,
+    trading.trades,
+    trading.fills,
+    trading.orders,
+    trading.watchOrders,
+  ])
+
+  // Real money with at least one rule on — the only time an entry is checked.
+  const rulesApply =
+    trading.wallet?.kind === "live" && anyTradingRuleOn(tradingRules)
+
+  /**
+   * Which of the person's own rules an entry would break right now. Read
+   * straight off what is on screen: the lines drawn on this coin, the live
+   * price, how long the coin has been open, and the last order on it.
+   */
+  const unmetRulesFor = React.useCallback(
+    (about: { side: TradeSide }): UnmetRule[] => {
+      if (!rulesApply || !market) return []
+      const now = Date.now()
+      return checkTradingRules({
+        rules: tradingRules,
+        side: about.side,
+        drawings: paint.drawings,
+        price: liveMarkOf(market.key) ?? market.price,
+        onChartForMs: now - chartOpenedAtRef.current,
+        lastOrderAt: lastOrderAt(market.key, seenLastOrderAt),
+        now,
+      })
+    },
+    [rulesApply, market, tradingRules, paint.drawings, seenLastOrderAt]
+  )
+  // What the order windows show above their button, or null when nothing
+  // here is checked, which also stops their once-a-second re-read.
+  const warnBeforeEntry = rulesApply ? unmetRulesFor : null
 
   /**
    * The position the open order window is adding to, resolved against the live
@@ -1972,9 +2080,34 @@ export function ChartPanel({
           prefs={quickPrefs}
           onRemember={rememberQuickOrder}
           onClose={() => setQuick(null)}
+          warnBeforeEntry={warnBeforeEntry}
           onPlace={(input) => {
-            trading.place({ marketKey: market.key, ...input })
-            if (!input.market) rememberRecentOrderType(input.side)
+            const send = (overrode?: string[]) => {
+              // Checked before `place`, which draws its ghost order before
+              // anything is sent — a paused entry must draw nothing.
+              trading.place({ marketKey: market.key, ...input, overrode })
+              rememberLastOrder(market.key)
+              if (!input.market) rememberRecentOrderType(input.side)
+            }
+            const unmet = unmetRulesFor({ side: input.side })
+            if (unmet.length === 0) {
+              send()
+              return
+            }
+            const action = input.market
+              ? `Market ${input.side === "buy" ? "long" : "short"}`
+              : input.side === "buy"
+                ? "Long"
+                : "Short"
+            // The window has already shut itself. Go back reopens it on the
+            // size it just remembered, with nothing sent and nothing drawn.
+            const reopen = quick
+            setPendingEntry({
+              action: `${action} ${formatUsd(input.sz * input.px)}`,
+              unmet,
+              send,
+              goBack: () => setQuick(reopen),
+            })
           }}
         />
       ) : null}
@@ -2034,13 +2167,32 @@ export function ChartPanel({
             )}
             onPreview={setPreview}
             onClose={() => setSmart(null)}
-            onPlace={async (input) => {
-              const placed = await trading.placeLadder({
-                marketKey: market.key,
-                ...input,
+            warnBeforeEntry={warnBeforeEntry}
+            onPlace={({ dollars, count, ...input }) => {
+              const send = async (overrode?: string[]) => {
+                const placed = await trading.placeLadder({
+                  marketKey: market.key,
+                  ...input,
+                  overrode,
+                })
+                if (placed) {
+                  rememberLastOrder(market.key)
+                  rememberRecentOrderType("dca")
+                }
+                return placed
+              }
+              const unmet = unmetRulesFor({ side: "buy" })
+              if (unmet.length === 0) return send()
+              // The window stays open behind the question and closes itself
+              // once a confirmed ladder is really placed.
+              return new Promise<boolean>((resolve) => {
+                setPendingEntry({
+                  action: `Long ${dollars === null ? "" : `${formatUsd(dollars)} `}in ${count} ${count === 1 ? "rung" : "rungs"}`,
+                  unmet,
+                  send: (overrode) => void send(overrode).then(resolve),
+                  goBack: () => resolve(false),
+                })
               })
-              if (placed) rememberRecentOrderType("dca")
-              return placed
             }}
           />
         </React.Suspense>
@@ -2096,22 +2248,63 @@ export function ChartPanel({
               setGridPreview(null)
               setGrid(null)
             }}
-            onPlace={async (input) => {
-              const placed = await trading.placeGrid({
-                marketKey: market.key,
-                ...input,
-              })
-              if (placed) {
-                // The saved grid replaces its preview before the browser can
-                // draw both copies on top of each other for one frame.
-                setGridPreview(null)
-                rememberRecentOrderType("grid")
+            warnBeforeEntry={warnBeforeEntry}
+            onPlace={({ dollars, count, ...input }) => {
+              const send = async (overrode?: string[]) => {
+                const placed = await trading.placeGrid({
+                  marketKey: market.key,
+                  ...input,
+                  overrode,
+                })
+                if (placed) {
+                  // The saved grid replaces its preview before the browser can
+                  // draw both copies on top of each other for one frame.
+                  setGridPreview(null)
+                  rememberLastOrder(market.key)
+                  rememberRecentOrderType("grid")
+                }
+                return placed
               }
-              return placed
+              const direction = input.params.direction
+              const unmet = unmetRulesFor({ side: entrySide(direction) })
+              if (unmet.length === 0) return send()
+              return new Promise<boolean>((resolve) => {
+                setPendingEntry({
+                  action: `${direction === "long" ? "Buy" : "Short"} ${dollars === null ? "" : `${formatUsd(dollars)} `}in ${count} ${count === 1 ? "level" : "levels"}`,
+                  unmet,
+                  send: (overrode) => void send(overrode).then(resolve),
+                  goBack: () => resolve(false),
+                })
+              })
             }}
           />
         </React.Suspense>
       ) : null}
+      {/* The one warning window for every rule an entry breaks. Nothing has
+          been sent or drawn while it is open. Go back leaves it that way;
+          the other button repeats the action and the size, so what is
+          confirmed is the trade and not an abstract yes. */}
+      <ConfirmDialog
+        open={pendingEntry !== null}
+        onOpenChange={(open) => {
+          if (open || !pendingEntry) return
+          pendingEntry.goBack()
+          setPendingEntry(null)
+        }}
+        title={pendingEntry ? `${pendingEntry.action}?` : ""}
+        description="Nothing has been sent. Go back changes nothing."
+        cancelLabel="Go back"
+        confirmLabel={pendingEntry ? `${pendingEntry.action} anyway` : ""}
+        destructive={false}
+        onConfirm={() => {
+          if (!pendingEntry) return
+          const entry = pendingEntry
+          setPendingEntry(null)
+          entry.send(entry.unmet.map((rule) => rule.name))
+        }}
+      >
+        {pendingEntry ? <UnmetRulesPanel rules={pendingEntry.unmet} /> : null}
+      </ConfirmDialog>
       <ConfirmDialog
         open={reverseGridFor !== null}
         onOpenChange={(open) => {

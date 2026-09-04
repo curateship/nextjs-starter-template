@@ -27,6 +27,7 @@ import type { AutomationGraph } from "@/lib/automations/graph"
 import type { RecipeCompiledConfig } from "@/lib/recipes/compile"
 import type { AsterMarginMode } from "@/lib/trade/aster-margin-mode"
 import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
@@ -177,6 +178,9 @@ export const tradePrefs = pgTable("trade_prefs", {
   // The chart's price shape and which supporting parts are visible. Kept
   // apart from zoom and position because switching one does not move the chart.
   chartOptions: jsonb("chart_options").$type<ChartOptions>(),
+  // The rules a person sets for themselves before a real-money entry. Read
+  // through `readTradingRules`, so an unreadable value is every rule off.
+  tradingRules: jsonb("trading_rules").$type<TradingRules>(),
   /**
    * The wallet the account panel had active on each exchange, keyed by
    * protocol id — `{"phemex":"9f201f21-…"}`.

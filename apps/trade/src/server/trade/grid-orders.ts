@@ -82,6 +82,8 @@ export type PlaceGridInput = {
   params: GridParams
   /** The switched-on flow placing this grid, or absent for a hand placement. */
   flowRunId?: string
+  /** The person's own rules this entry went out against, by name. */
+  overrode?: readonly string[]
 }
 
 export type PlacedGrid = {

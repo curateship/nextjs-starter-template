@@ -130,6 +130,13 @@ export type LiveTrade = {
   stopPx: number | null
   /** Every fill it was made of, oldest first — what the chart draws. */
   fills: LiveFill[]
+  /**
+   * The person's own trading rules the entry went out against, by name, when
+   * the chart's warning window was confirmed. Read off the Journal rows the
+   * confirmed entry wrote; absent on practice trades and on every entry that
+   * met its rules.
+   */
+  overrode?: string[]
 }
 
 /** The fields needed to remove a finished or otherwise stale fill history. */

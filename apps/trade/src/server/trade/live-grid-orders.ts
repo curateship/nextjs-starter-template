@@ -6,6 +6,7 @@ import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
+  entrySide,
   gridEndAfterRangeMove,
   gridRangeAfterMove,
   gridRangeReshapable,
@@ -41,6 +42,7 @@ import {
   closeLivePosition,
   rollbackLiveOrder,
   setLiveBrackets,
+  journalOverride,
 } from "@/server/trade/live-orders"
 import { reconcileLiveLaddersOnce } from "@/server/trade/live-smart-orders"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
@@ -238,6 +240,17 @@ async function placeLiveGridOrderOnce(
     }
     if (failures.length > 0) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
     throw error
+  }
+
+  // Behind the answer, never in front of it — the journal logs its own losses.
+  if (input.overrode) {
+    void journalOverride(
+      userId,
+      wallet.id,
+      input.marketKey,
+      entrySide(input.params.direction),
+      input.overrode
+    )
   }
 
   // The grid itself travels back, so the chart draws it in the same frame the

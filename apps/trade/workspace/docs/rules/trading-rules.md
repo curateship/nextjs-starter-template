@@ -169,6 +169,11 @@ add up to.
   four-second repaint is a safety net for trades made somewhere else and for
   reconnect recovery. An order Trade sent does not wait for that repaint to
   show the position Aster has already confirmed.
+- **A rule Tyler sets for himself warns and asks; it never blocks.** Tyler,
+  4 Sep 2026: "This is not to completely block me from trading, it just gives
+  me a warning and I have to confirm to enter the trade." The three rules, the
+  window and the Journal note are in `orders/rules-before-an-entry.md`. Real
+  money only, entries only; an exit is never slowed.
 
 ## Ladders
 

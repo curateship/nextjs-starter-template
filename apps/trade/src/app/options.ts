@@ -59,6 +59,13 @@ export const appOptions: AppOptions = {
         label: "Sounds and alerts",
         panel: () => import("@/components/trade/trade-sound-settings"),
       },
+      {
+        // The three rules checked before a real-money entry. Each one warns
+        // and asks; none of them blocks.
+        id: "trading-rules",
+        label: "Trading rules",
+        panel: () => import("@/components/trade/trading-rules-settings"),
+      },
     ],
   },
   notifications: {

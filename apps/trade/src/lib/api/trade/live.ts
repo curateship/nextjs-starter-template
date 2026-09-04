@@ -15,6 +15,7 @@ import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { formatUsd } from "@/lib/trade/format"
+import { overrodeSchema } from "@/lib/trade/trading-rules"
 import { userGet, userPost } from "@/server/guards"
 import {
   cancelLiveOrder as cancelOrderRow,
@@ -26,6 +27,7 @@ import {
   moveLiveOrder as moveOrderRow,
   changeLiveLeverage as changeLeverageRow,
   changeLiveMargin as changeMarginRow,
+  journalOverride,
 } from "@/server/trade/live-orders"
 import {
   hideLiveTrade as hideTradeRows,
@@ -84,6 +86,8 @@ const placeSchema = z.object({
   startNow: z.boolean().optional(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
+  /** The person's own rules this entry went out against, confirmed by them. */
+  overrode: overrodeSchema.optional(),
 })
 
 const cancelSchema = z.object({
@@ -241,6 +245,17 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
             })
           }
           await placeWatchOrder(context.user.id, wallet, order)
+          // A watched level writes no exchange row, so the rule it went out
+          // against is written here, on its own row, the way a ladder's is.
+          if (order.overrode) {
+            void journalOverride(
+              context.user.id,
+              order.walletId,
+              order.marketKey,
+              order.side,
+              order.overrode
+            )
+          }
           return {
             outcome: {
               status: "resting" as const,

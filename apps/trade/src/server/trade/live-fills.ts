@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, like, lt, sql } from "drizzle-orm"
 
 import {
   marketChartHref,
@@ -26,6 +26,7 @@ import {
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { scrubSecrets } from "@/server/protocols/scrub"
+import { OVERRODE_PREFIX, overrodeNames } from "@/lib/trade/trading-rules"
 import { db } from "@/server/db"
 import {
   getProtocol,
@@ -963,6 +964,7 @@ export async function loadLiveHistory(
   )
 
   const allTrades = buildLiveTrades(fills, triggers)
+  await attachOverrides(userId, walletIds, allTrades)
   const trades = allTrades.slice(0, MAX_TRADES)
   const cappedBefore =
     allTrades.length > trades.length ? journalTradePageCursor(trades) : null
@@ -974,6 +976,74 @@ export async function loadLiveHistory(
       (before !== undefined && fillRows.length < MAX_FILLS
         ? null
         : journalPageCursor(fills, allTrades)),
+  }
+}
+
+/** Override rows older than this are not looked for. */
+const OVERRIDE_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000
+const MAX_OVERRIDE_ROWS = 500
+
+/**
+ * Puts each "Overrode: …" Journal row on the trade its entry became part of.
+ *
+ * The row is written when the entry is confirmed, which is before its fill:
+ * a resting order or a ladder's rung can wait a long while. So a row belongs
+ * to the earliest trade on the same wallet and coin that had a fill at or
+ * after the row was written — the trade that was open when the order filled,
+ * or the one it opened. An entry that was confirmed and then cancelled
+ * without filling leaves its row on the next trade of that coin instead;
+ * saying it once too often is the safe side.
+ */
+async function attachOverrides(
+  userId: string,
+  walletIds: readonly string[],
+  trades: LiveTrade[]
+): Promise<void> {
+  if (trades.length === 0) return
+  const rows = await db
+    .select({
+      walletId: tradeLiveJournal.walletId,
+      marketKey: tradeLiveJournal.marketKey,
+      note: tradeLiveJournal.note,
+      createdAt: tradeLiveJournal.createdAt,
+    })
+    .from(tradeLiveJournal)
+    .where(
+      and(
+        eq(tradeLiveJournal.userId, userId),
+        inArray(tradeLiveJournal.walletId, [...walletIds]),
+        like(tradeLiveJournal.note, `${OVERRODE_PREFIX}%`),
+        gt(
+          tradeLiveJournal.createdAt,
+          new Date(Date.now() - OVERRIDE_LOOKBACK_MS)
+        )
+      )
+    )
+    .orderBy(desc(tradeLiveJournal.createdAt))
+    .limit(MAX_OVERRIDE_ROWS)
+  if (rows.length === 0) return
+
+  const byMarket = new Map<string, LiveTrade[]>()
+  for (const trade of trades) {
+    const key = `${trade.walletId} ${trade.marketKey}`
+    const list = byMarket.get(key)
+    if (list) list.push(trade)
+    else byMarket.set(key, [trade])
+  }
+  for (const list of byMarket.values()) {
+    list.sort((left, right) => left.openedAt - right.openedAt)
+  }
+
+  for (const row of rows) {
+    const names = overrodeNames(row.note)
+    if (!names || names.length === 0) continue
+    const at = row.createdAt.getTime()
+    const list = byMarket.get(`${row.walletId} ${row.marketKey}`)
+    const trade = list?.find((one) => one.closedAt >= at)
+    if (!trade) continue
+    const held = new Set(trade.overrode ?? [])
+    for (const name of names) held.add(name)
+    trade.overrode = [...held]
   }
 }
 

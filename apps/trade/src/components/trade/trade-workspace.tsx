@@ -84,6 +84,7 @@ import {
 } from "@/components/shared/dashboard-card-header"
 import type { TradePosition } from "@/lib/trade/paper"
 import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveTrade } from "@/lib/trade/live-trades"
@@ -203,6 +204,7 @@ export function TradeWorkspace({
   initialDrawings,
   initialPriceAlerts = NO_INITIAL_PRICE_ALERTS,
   initialChartOptions,
+  initialTradingRules,
   initialIndicators,
   initialCardFolds,
   initialQuickOrder,
@@ -244,6 +246,8 @@ export function TradeWorkspace({
   initialPriceAlerts?: DashboardBootstrap["priceAlerts"]
   /** Which supporting parts of the chart this account has visible. */
   initialChartOptions: ChartOptions
+  /** The rules checked before a real-money entry, from the same answer. */
+  initialTradingRules: TradingRules
   /** Which indicators this account has on, and what each is set to. */
   initialIndicators: IndicatorSettings
   /** How the trading windows' settings cards were left folded. */
@@ -1130,6 +1134,7 @@ export function TradeWorkspace({
             initialQuickOrder={initialQuickOrder}
             recentOrderScope={user.id}
             options={chartOptions.options}
+            tradingRules={initialTradingRules}
             indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
             trading={trading}

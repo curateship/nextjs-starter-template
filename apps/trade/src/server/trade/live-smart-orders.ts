@@ -80,6 +80,7 @@ import {
   placeLiveOrder,
   rollbackLiveOrder,
   setLiveBrackets,
+  journalOverride,
 } from "@/server/trade/live-orders"
 import { sweepLiveFills } from "@/server/trade/live-fills"
 import { pushedMarks } from "@/server/trade/live-marks"
@@ -333,6 +334,17 @@ async function placeLiveDcaLadderOnce(
       updatedAt: now,
     })
   })
+
+  // Behind the answer, never in front of it — the journal logs its own losses.
+  if (input.overrode) {
+    void journalOverride(
+      userId,
+      wallet.id,
+      input.marketKey,
+      "buy",
+      input.overrode
+    )
+  }
 
   return {
     placed: plan.rungs.filter((rung) => rung.status === "waiting").length,

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { CANDLE_INTERVALS, parseMarketKey } from "@/lib/protocols/contracts"
+import { overrodeSchema } from "@/lib/trade/trading-rules"
 import {
   baseStopDetection,
   dcaLadderSettingsSchema,
@@ -115,6 +116,8 @@ const placeSchema = z.object({
   clickPx: z.number().positive().finite(),
   interval: z.enum(CANDLE_INTERVALS),
   params: dcaParamsSchema,
+  /** The person's own rules this entry went out against, confirmed by them. */
+  overrode: overrodeSchema.optional(),
 })
 
 const rungSchema = z.object({
@@ -241,6 +244,7 @@ const placeDcaLadderFn = createServerFn({ method: "POST" })
           clickPx: data.clickPx,
           interval: data.interval,
           params: data.params,
+          overrode: data.overrode,
         }
         const placed =
           wallet.kind === "live"
@@ -622,6 +626,8 @@ const placeGridSchema = z.object({
   topPx: z.number().positive().finite(),
   bottomPx: z.number().positive().finite(),
   params: placeGridParamsSchema,
+  /** The person's own rules this entry went out against, confirmed by them. */
+  overrode: overrodeSchema.optional(),
 })
 
 const gridLevelSchema = z.object({
@@ -662,6 +668,7 @@ const placeGridOrderFn = createServerFn({ method: "POST" })
           topPx: data.topPx,
           bottomPx: data.bottomPx,
           params: data.params,
+          overrode: data.overrode,
         }
         const placed =
           wallet.kind === "live"

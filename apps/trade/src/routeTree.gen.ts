@@ -81,6 +81,7 @@ import { Route as AuthenticatedAdminRecipesRecipeIdRouteImport } from './routes/
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSettingsMarketsRouteImport } from './routes/_authenticated/admin/settings_.markets'
 import { Route as AuthenticatedAdminSettingsTradingEngineRouteImport } from './routes/_authenticated/admin/settings_.trading-engine'
+import { Route as AuthenticatedAdminSettingsTradingRulesRouteImport } from './routes/_authenticated/admin/settings_.trading-rules'
 import { Route as AuthenticatedAdminSettingsTradingWidgetsRouteImport } from './routes/_authenticated/admin/settings_.trading-widgets'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
@@ -483,6 +484,12 @@ const AuthenticatedAdminSettingsTradingEngineRoute =
     path: '/settings/trading-engine',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminSettingsTradingRulesRoute =
+  AuthenticatedAdminSettingsTradingRulesRouteImport.update({
+    id: '/settings_/trading-rules',
+    path: '/settings/trading-rules',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSettingsTradingWidgetsRoute =
   AuthenticatedAdminSettingsTradingWidgetsRouteImport.update({
     id: '/settings_/trading-widgets',
@@ -595,6 +602,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
+  '/admin/settings/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
   '/admin/settings/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
@@ -673,6 +681,7 @@ export interface FileRoutesByTo {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
+  '/admin/settings/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
   '/admin/settings/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
@@ -755,6 +764,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/settings_/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/_authenticated/admin/settings_/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
+  '/_authenticated/admin/settings_/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
   '/_authenticated/admin/settings_/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
@@ -837,6 +847,7 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/settings/markets'
     | '/admin/settings/trading-engine'
+    | '/admin/settings/trading-rules'
     | '/admin/settings/trading-widgets'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
@@ -915,6 +926,7 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/settings/markets'
     | '/admin/settings/trading-engine'
+    | '/admin/settings/trading-rules'
     | '/admin/settings/trading-widgets'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
@@ -996,6 +1008,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/settings_/markets'
     | '/_authenticated/admin/settings_/trading-engine'
+    | '/_authenticated/admin/settings_/trading-rules'
     | '/_authenticated/admin/settings_/trading-widgets'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/auth/google_/callback'
@@ -1540,6 +1553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTradingEngineRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/settings_/trading-rules': {
+      id: '/_authenticated/admin/settings_/trading-rules'
+      path: '/settings/trading-rules'
+      fullPath: '/admin/settings/trading-rules'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTradingRulesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/settings_/trading-widgets': {
       id: '/_authenticated/admin/settings_/trading-widgets'
       path: '/settings/trading-widgets'
@@ -1655,6 +1675,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminRecipesRecipeIdRoute: typeof AuthenticatedAdminRecipesRecipeIdRoute
   AuthenticatedAdminSettingsMarketsRoute: typeof AuthenticatedAdminSettingsMarketsRoute
   AuthenticatedAdminSettingsTradingEngineRoute: typeof AuthenticatedAdminSettingsTradingEngineRoute
+  AuthenticatedAdminSettingsTradingRulesRoute: typeof AuthenticatedAdminSettingsTradingRulesRoute
   AuthenticatedAdminSettingsTradingWidgetsRoute: typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
@@ -1704,6 +1725,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminSettingsMarketsRoute,
   AuthenticatedAdminSettingsTradingEngineRoute:
     AuthenticatedAdminSettingsTradingEngineRoute,
+  AuthenticatedAdminSettingsTradingRulesRoute:
+    AuthenticatedAdminSettingsTradingRulesRoute,
   AuthenticatedAdminSettingsTradingWidgetsRoute:
     AuthenticatedAdminSettingsTradingWidgetsRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
