@@ -15,6 +15,8 @@ The picker and full library use the same records. Both support:
 
 An image field receives the selected file's current preview and id as soon as
 the picker inserts it, so the result is visible before the dialog closes.
+When the picker opens inside another editor, it uses the editor's full width.
+Escape returns to the editor instead of closing both screens.
 
 ## Upload checks
 
@@ -36,6 +38,10 @@ settings record has safely changed.
 
 Account images such as avatars must resolve to an owned image record. A pasted
 external address cannot bypass media ownership checks.
+
+Pictures selected for testimonials, logo strips, and screenshots on the public
+front page pass the same ownership check before settings save. Existing saved
+pictures remain editable by another admin without transferring file ownership.
 
 The app favicon also starts with an owned image. When Settings saves that
 choice, the server reads the original from R2 and writes square PNG copies at

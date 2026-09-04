@@ -23,22 +23,40 @@ import type {
 } from "@/lib/favicon"
 import type { PublicFontAsset } from "@/lib/public-font"
 import {
-  FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUTS,
+  MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
+  MAX_FRONT_PAGE_FAQ_ITEMS,
+  MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+  MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
+  MAX_FRONT_PAGE_ITEM_ROLE_LENGTH,
+  MAX_FRONT_PAGE_LOGOS,
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_ID_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   MAX_FRONT_PAGE_ROWS,
+  MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH,
+  MAX_FRONT_PAGE_SCREENSHOTS,
+  MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
+  MAX_FRONT_PAGE_TESTIMONIALS,
+  frontPageRowImageUrls,
+  normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
 import {
   cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
+  MAX_PUBLIC_FOOTER_LINKS,
   MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
-  MAX_PUBLIC_NAVIGATION_LINKS,
 } from "@/lib/pages/public-navigation"
+import {
+  PUBLIC_HEADER_LOGO_SIZES,
+  PUBLIC_HEADER_MENU_ALIGNMENTS,
+} from "@/lib/pages/public-header"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
@@ -190,8 +208,22 @@ const publicNavigationLinkSchema = z.object({
 })
 
 const publicNavigationSchema = z
+  .array(
+    z.union([
+      publicNavigationLinkSchema,
+      z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
+      z.object({
+        type: z.literal("group"),
+        label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
+        links: z.array(publicNavigationLinkSchema),
+      }),
+    ])
+  )
+  .transform(cleanPublicNavigationItems)
+
+const publicFooterSchema = z
   .array(publicNavigationLinkSchema)
-  .max(MAX_PUBLIC_NAVIGATION_LINKS)
+  .max(MAX_PUBLIC_FOOTER_LINKS)
   .transform(cleanPublicNavigationLinks)
 
 const publicBrandOverridesSchema = z.object(
@@ -240,15 +272,83 @@ const publicThemeSchema = z.object({
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
+const frontPageRowBaseShape = {
+  id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
+  heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
+  intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
+  layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+}
+
+const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)
+const frontPageImageSchema = z
+  .string()
+  .trim()
+  .max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH)
+  .refine(
+    (value) => !value || normalizeFrontPageImageUrl(value) === value,
+    "Choose an image from the media library."
+  )
+
 const frontPageRowsSchema = z
   .array(
-    z.object({
-      id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
-      heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
-      intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
-      kind: z.enum(FRONT_PAGE_ROW_KINDS),
-      layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
-    })
+    z.discriminatedUnion("kind", [
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("testimonials"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              quote: z.string().max(MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH),
+              name: z.string().max(MAX_FRONT_PAGE_ITEM_NAME_LENGTH),
+              role: z.string().max(MAX_FRONT_PAGE_ITEM_ROLE_LENGTH),
+              picture: frontPageImageSchema,
+            })
+          )
+          .max(MAX_FRONT_PAGE_TESTIMONIALS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("faq"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              question: z.string().max(MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH),
+              answer: z.string().max(MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_FAQ_ITEMS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("logos"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_LOGOS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("screenshots"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              caption: z.string().max(MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_SCREENSHOTS),
+      }),
+    ])
   )
   .max(MAX_FRONT_PAGE_ROWS)
   .transform(normalizeFrontPageRows)
@@ -316,11 +416,16 @@ const shellConfigSchema = z.object({
   }),
   frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
-  publicFooter: publicNavigationSchema,
+  publicFooter: publicFooterSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
     .transform(cleanPublicFooterCopyright),
+  publicHeader: z.object({
+    sticky: z.boolean(),
+    menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
+    logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+  }),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
@@ -356,6 +461,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const updatedAt = now()
     const workspace = await requireCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
@@ -396,9 +502,15 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
-            publicNavigation: data.publicNavigation,
-            publicFooter: data.publicFooter,
-            publicFooterCopyright: data.publicFooterCopyright,
+            publicNavigation: workspaceDomainsEnabled
+              ? data.publicNavigation
+              : workspaceSettings.publicNavigation,
+            publicFooter: workspaceDomainsEnabled
+              ? data.publicFooter
+              : workspaceSettings.publicFooter,
+            publicFooterCopyright: workspaceDomainsEnabled
+              ? data.publicFooterCopyright
+              : workspaceSettings.publicFooterCopyright,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -464,6 +576,20 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         )
       }
 
+      const savedFrontPageImages = new Set(
+        frontPageRowImageUrls(existingGlobals.frontPageRows)
+      )
+      for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
+        if (
+          !savedFrontPageImages.has(image) &&
+          !(await isOwnedImageUrl(context.user.id, image, tx))
+        ) {
+          throw new Error(
+            "A front page image is no longer in your media library. Pick another one."
+          )
+        }
+      }
+
       const light = faviconVariantForLockedSave(
         data.favicon,
         existingGlobals.faviconSet?.light,
@@ -484,7 +610,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       const nextPublicTheme = publicThemeForAppWideSave(
         data.publicTheme,
         existingGlobals.publicTheme,
-        Boolean(workspaceBaseDomain())
+        workspaceDomainsEnabled
       )
       const globalSettings = {
         // The kill switch is not in this request's shape at all, on purpose:
@@ -494,6 +620,18 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           faviconSet: savedFaviconSet,
+          // One-site apps have one public menu and footer regardless of which
+          // workspace an admin is viewing. Multisite apps keep these choices
+          // on the workspace named by the domain.
+          publicNavigation: workspaceDomainsEnabled
+            ? existingGlobals.publicNavigation
+            : data.publicNavigation,
+          publicFooter: workspaceDomainsEnabled
+            ? existingGlobals.publicFooter
+            : data.publicFooter,
+          publicFooterCopyright: workspaceDomainsEnabled
+            ? existingGlobals.publicFooterCopyright
+            : data.publicFooterCopyright,
           // A dedicated upload action owns the stored font. A stale settings
           // tab may choose whether to use it, but cannot replace its identity.
           publicFont: existingGlobals.publicFont,

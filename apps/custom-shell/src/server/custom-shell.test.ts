@@ -1108,6 +1108,36 @@ describe("self-serve email change", () => {
 })
 
 describe("custom shell workspaces", () => {
+  it("carries one-site public links through an app-wide settings save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      publicNavigation: [
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
+      publicFooter: [{ label: "Privacy", href: "/privacy" }],
+      publicFooterCopyright: "Copyright",
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      publicNavigation: [
+        { type: "search", visible: true },
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
+      publicFooter: [{ label: "Privacy", href: "/privacy" }],
+      publicFooterCopyright: "Copyright",
+    })
+  })
+
   it("uses one app colour unless public domains give each site its own", async () => {
     const createdAt = now()
     const userId = uuid()
@@ -1128,6 +1158,9 @@ describe("custom shell workspaces", () => {
       .set({
         settings: {
           ...parseWorkspaceSettings(workspace.settings),
+          publicNavigation: [{ label: "Workspace menu", href: "/workspace" }],
+          publicFooter: [{ label: "Workspace footer", href: "/workspace" }],
+          publicFooterCopyright: "Workspace copyright",
           publicTheme: {
             brandColor: "#3b82f6",
             brandOverrides: { hoverColor: "#1d4ed8" },
@@ -1138,6 +1171,9 @@ describe("custom shell workspaces", () => {
     await database.insert(customShellSettings).values({
       key: "default",
       settings: {
+        publicNavigation: [{ label: "App menu", href: "/app" }],
+        publicFooter: [{ label: "App footer", href: "/app" }],
+        publicFooterCopyright: "App copyright",
         publicTheme: {
           brandColor: "#dc2626",
           brandOverrides: { darkColor: "#f87171" },
@@ -1163,6 +1199,14 @@ describe("custom shell workspaces", () => {
         { id: userId, role: "admin" },
         testDb
       )
+      expect(singleSiteConfig.publicNavigation).toEqual([
+        { type: "search", visible: true },
+        { label: "App menu", href: "/app" },
+      ])
+      expect(singleSiteConfig.publicFooter).toEqual([
+        { label: "App footer", href: "/app" },
+      ])
+      expect(singleSiteConfig.publicFooterCopyright).toBe("App copyright")
       expect(singleSiteConfig.publicTheme).toEqual({
         brandColor: "#dc2626",
         brandOverrides: { darkColor: "#f87171" },
@@ -1188,6 +1232,14 @@ describe("custom shell workspaces", () => {
         { id: userId, role: "admin" },
         testDb
       )
+      expect(multiSiteConfig.publicNavigation).toEqual([
+        { type: "search", visible: true },
+        { label: "Workspace menu", href: "/workspace" },
+      ])
+      expect(multiSiteConfig.publicFooter).toEqual([
+        { label: "Workspace footer", href: "/workspace" },
+      ])
+      expect(multiSiteConfig.publicFooterCopyright).toBe("Workspace copyright")
       expect(multiSiteConfig.publicTheme).toEqual({
         brandColor: "#3b82f6",
         brandOverrides: { hoverColor: "#1d4ed8" },
@@ -1634,6 +1686,7 @@ describe("custom shell workspaces", () => {
     })
 
     expect(saved.publicNavigation).toEqual([
+      { type: "search", visible: true },
       { label: "About", href: "/about" },
     ])
     expect(saved.publicFooter).toEqual([])

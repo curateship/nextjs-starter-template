@@ -18,6 +18,41 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
+Public > Navigation also controls the full header's layout across the app. The
+header can scroll with the page or stay at the top, and its desktop menu can sit
+in the normal header flow or in the exact centre of the page. Logo sizes are
+fixed at 32px, 48px, or 64px high. Phone navigation remains behind the menu
+button for both positions. The header still shows the logo, site name, search,
+and colour-mode choice when no menu or footer has been added. Empty navigation
+adds no empty menu control.
+
+Search is a built-in item in Public > Navigation. Dragging the Search chip
+among the link chips sets the desktop header order. On phones the same position
+becomes a Search entry in the menu because the full input would not fit there.
+The Search chip's Visible checkbox hides both versions without removing the
+chip or its saved position. Switching off the public search page also hides the
+item from the public header and keeps its position for later.
+
+Public menu links can stay in the header as individual links or sit inside a
+named dropdown group such as Product or Resources. A group opens on click on
+desktop and supports the usual keyboard controls, including Enter, arrow keys,
+Escape, and moving focus through its links. The phone menu shows the group name
+as a heading with its links beneath it. Groups stop at one level, so a group
+cannot contain another group. The same address checks used by direct menu links
+remove unsafe addresses inside groups too.
+
+The public menu has no menu-specific link limit. The old 20-link limit existed
+because every link occupied the flat header, which groups no longer require.
+Menus saved before dropdown groups continue to render as the same flat list.
+The missing-page screen flattens group links into its existing discovery list,
+so a page does not disappear there just because its menu link moved into a
+group.
+
+A one-site app has one app-wide public menu and footer, so switching workspaces
+in the admin area does not change the public site. A deployment with workspace
+domains reads the menu and footer from the workspace named by the domain. Page
+visibility still follows the workspace that owns the public content.
+
 The root page load also puts the app-wide favicon set in the document head.
 Public pages and signed-in pages therefore use the same light favicon, optional
 dark favicon, and generated browser sizes. With no saved favicon the document
@@ -115,11 +150,21 @@ use the configured public page width, while narrow rows stop at 768px and still
 follow the site's content alignment. The first row owns the page's main
 heading, and later rows use section headings.
 
+Testimonials, FAQ, logo-strip, and screenshot rows add fixed marketing content
+without allowing arbitrary page blocks. Testimonials hold a required quote and
+name plus an optional role and picture. FAQ entries require a question and
+answer. Logos require an image and accessible name, while screenshots require
+an image and caption. Testimonial and screenshot rows hold up to six entries;
+FAQ and logo rows hold up to twelve. Cards and images collapse into a readable
+single column on phones.
+
 Rows are app-wide and render in the order saved by the drag editor. A saved row
-without its required heading is dropped before it reaches the public page. If
-no usable rows remain, the former pricing front page renders unchanged. An app
-that answers `/` through its catch-all or replaces the landing page through app
-options still wins before the shell considers these rows.
+without its required heading is dropped before it reaches the public page. An
+incomplete content entry is dropped too, and a content row with no complete
+entries does not render. If no usable rows remain, the former pricing front page
+renders unchanged. An app that answers `/` through its catch-all or replaces
+the landing page through app options still wins before the shell considers
+these rows.
 
 ## Robots and sitemap
 

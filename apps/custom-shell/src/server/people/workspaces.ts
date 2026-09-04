@@ -43,7 +43,10 @@ import {
 } from "@/lib/pages/page-visibility"
 import {
   cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
+  createDefaultPublicNavigation,
+  type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
 import {
@@ -438,7 +441,7 @@ export const NAVIGATION_VERSION = 19
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
-  publicNavigation: PublicNavigationLink[]
+  publicNavigation: PublicNavigationItem[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
   /** The brand colour used by this site's signed-out pages. */
@@ -2495,7 +2498,10 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
-      publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+      publicNavigation:
+        settings.publicNavigation === undefined
+          ? fallback.publicNavigation
+          : cleanPublicNavigationItems(settings.publicNavigation),
       publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
       publicFooterCopyright: cleanPublicFooterCopyright(
         settings.publicFooterCopyright
@@ -2551,7 +2557,10 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+    publicNavigation:
+      settings.publicNavigation === undefined
+        ? fallback.publicNavigation
+        : cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
@@ -2644,7 +2653,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
-    publicNavigation: [],
+    publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
     publicTheme: normalizePublicBrandTheme(undefined),

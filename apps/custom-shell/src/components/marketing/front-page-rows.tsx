@@ -1,3 +1,9 @@
+import {
+  FrontPageFaq,
+  FrontPageLogos,
+  FrontPageScreenshots,
+  FrontPageTestimonials,
+} from "@/components/marketing/front-page-content-blocks"
 import { publicContentAlignmentGridClassName } from "@/components/shell/public-content-alignment"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
@@ -71,6 +77,14 @@ export function FrontPageRows({
               ) : (
                 <PaymentsOffCard />
               )
+            ) : row.kind === "testimonials" ? (
+              <FrontPageTestimonials items={row.items} />
+            ) : row.kind === "faq" ? (
+              <FrontPageFaq items={row.items} />
+            ) : row.kind === "logos" ? (
+              <FrontPageLogos items={row.items} />
+            ) : row.kind === "screenshots" ? (
+              <FrontPageScreenshots items={row.items} />
             ) : null}
           </section>
         )

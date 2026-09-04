@@ -77,6 +77,78 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
+  it("carries the app-wide public header layout into public branding", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        publicHeader: {
+          sticky: true,
+          menuAlignment: "center",
+          logoSize: "small",
+        },
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicHeader).toEqual({
+      sticky: true,
+      menuAlignment: "center",
+      logoSize: "small",
+    })
+    expect(
+      shellGlobalsForWrite({
+        publicHeader: {
+          sticky: true,
+          menuAlignment: "center",
+          logoSize: "large",
+        },
+      }).publicHeader
+    ).toEqual({
+      sticky: true,
+      menuAlignment: "center",
+      logoSize: "large",
+    })
+  })
+
+  it("uses the single site's public links on the platform address", async () => {
+    process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+    request.host = "localhost:3002"
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        publicNavigation: [{ label: "About", href: "/about" }],
+        publicFooter: [{ label: "Privacy", href: "/privacy" }],
+        publicFooterCopyright: "Single site copyright",
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Single public site",
+      settings: {
+        publicNavigation: [{ label: "Wrong menu", href: "/wrong" }],
+        publicFooter: [{ label: "Wrong footer", href: "/wrong" }],
+        publicFooterCopyright: "Wrong copyright",
+      },
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicNavigation).toEqual([
+      { type: "search", visible: true },
+      { label: "About", href: "/about" },
+    ])
+    expect(branding.publicFooter).toEqual([
+      { label: "Privacy", href: "/privacy" },
+    ])
+    expect(branding.publicFooterCopyright).toBe("Single site copyright")
+  })
+
   it("returns app-wide front page rows in order and drops incomplete rows", async () => {
     const timestamp = now()
     await database.insert(customShellSettings).values({
@@ -104,6 +176,28 @@ describe("public site branding", () => {
             kind: "plans",
             layout: "wide",
           },
+          {
+            id: "empty-faq",
+            heading: "Empty questions",
+            intro: "Nothing complete lives here.",
+            kind: "faq",
+            layout: "wide",
+            items: [{ id: "empty", question: "Question", answer: "" }],
+          },
+          {
+            id: "faq",
+            heading: "Questions",
+            intro: "Answers before signup.",
+            kind: "faq",
+            layout: "narrow",
+            items: [
+              {
+                id: "billing",
+                question: "How does billing work?",
+                answer: "Choose a public plan.",
+              },
+            ],
+          },
         ],
       },
       createdAt: timestamp,
@@ -115,6 +209,7 @@ describe("public site branding", () => {
     expect(branding.frontPageRows.map((row) => row.id)).toEqual([
       "welcome",
       "plans",
+      "faq",
     ])
   })
 

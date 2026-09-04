@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { FrontPageRowContentEditor } from "@/components/settings/front-page-row-content-editor"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -39,8 +40,12 @@ import {
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   type FrontPageRow,
   type FrontPageRowDraft,
+  type FrontPageFaqItem,
+  type FrontPageLogo,
   type FrontPageRowKind,
   type FrontPageRowLayout,
+  type FrontPageScreenshot,
+  type FrontPageTestimonial,
 } from "@/lib/pages/front-page"
 import {
   dismissErrorToast,
@@ -62,6 +67,14 @@ export function FrontPageRowDialog({
   const [intro, setIntro] = React.useState("")
   const [kind, setKind] = React.useState<FrontPageRowKind>("text")
   const [layout, setLayout] = React.useState<FrontPageRowLayout>("wide")
+  const [testimonials, setTestimonials] = React.useState<
+    FrontPageTestimonial[]
+  >([])
+  const [faqItems, setFaqItems] = React.useState<FrontPageFaqItem[]>([])
+  const [logos, setLogos] = React.useState<FrontPageLogo[]>([])
+  const [screenshots, setScreenshots] = React.useState<FrontPageScreenshot[]>(
+    []
+  )
   const [headingTouched, setHeadingTouched] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
   const [loadedFor, setLoadedFor] = React.useState<string | null>(null)
@@ -73,15 +86,28 @@ export function FrontPageRowDialog({
     setIntro(row?.intro ?? "")
     setKind(row?.kind ?? "text")
     setLayout(row?.layout ?? "wide")
+    setTestimonials(row?.kind === "testimonials" ? row.items : [])
+    setFaqItems(row?.kind === "faq" ? row.items : [])
+    setLogos(row?.kind === "logos" ? row.items : [])
+    setScreenshots(row?.kind === "screenshots" ? row.items : [])
     setHeadingTouched(false)
     setSubmitted(false)
   }
 
+  const currentItems = itemsForKind(
+    kind,
+    testimonials,
+    faqItems,
+    logos,
+    screenshots
+  )
+  const savedItems = row && row.kind === kind && "items" in row ? row.items : []
   const dirty =
     heading !== (row?.heading ?? "") ||
     intro !== (row?.intro ?? "") ||
     kind !== (row?.kind ?? "text") ||
-    layout !== (row?.layout ?? "wide")
+    layout !== (row?.layout ?? "wide") ||
+    JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
 
@@ -92,8 +118,31 @@ export function FrontPageRowDialog({
       return
     }
 
+    const contentProblem = getContentProblem(
+      kind,
+      testimonials,
+      faqItems,
+      logos,
+      screenshots
+    )
+    if (contentProblem) {
+      showErrorToast(contentProblem)
+      return
+    }
+
     dismissErrorToast()
-    onSaved({ heading: heading.trim(), intro: intro.trim(), kind, layout })
+    onSaved(
+      buildDraft(
+        heading.trim(),
+        intro.trim(),
+        kind,
+        layout,
+        testimonials,
+        faqItems,
+        logos,
+        screenshots
+      )
+    )
   }
 
   return (
@@ -209,6 +258,19 @@ export function FrontPageRowDialog({
                 </div>
               </CardContent>
             </Card>
+
+            <FrontPageRowContentEditor
+              kind={kind}
+              testimonials={testimonials}
+              faqItems={faqItems}
+              logos={logos}
+              screenshots={screenshots}
+              submitted={submitted}
+              onTestimonialsChange={setTestimonials}
+              onFaqItemsChange={setFaqItems}
+              onLogosChange={setLogos}
+              onScreenshotsChange={setScreenshots}
+            />
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={requestClose}>
@@ -222,4 +284,70 @@ export function FrontPageRowDialog({
       )}
     </FormDialog>
   )
+}
+
+function itemsForKind(
+  kind: FrontPageRowKind,
+  testimonials: FrontPageTestimonial[],
+  faqItems: FrontPageFaqItem[],
+  logos: FrontPageLogo[],
+  screenshots: FrontPageScreenshot[]
+) {
+  if (kind === "testimonials") return testimonials
+  if (kind === "faq") return faqItems
+  if (kind === "logos") return logos
+  if (kind === "screenshots") return screenshots
+  return []
+}
+
+function getContentProblem(
+  kind: FrontPageRowKind,
+  testimonials: FrontPageTestimonial[],
+  faqItems: FrontPageFaqItem[],
+  logos: FrontPageLogo[],
+  screenshots: FrontPageScreenshot[]
+) {
+  if (kind === "testimonials") {
+    if (!testimonials.length) return "Add at least one testimonial."
+    if (testimonials.some((item) => !item.name.trim() || !item.quote.trim())) {
+      return "Give every testimonial a name and quote."
+    }
+  }
+  if (kind === "faq") {
+    if (!faqItems.length) return "Add at least one FAQ entry."
+    if (faqItems.some((item) => !item.question.trim() || !item.answer.trim())) {
+      return "Give every FAQ entry a question and answer."
+    }
+  }
+  if (kind === "logos") {
+    if (!logos.length) return "Add at least one logo."
+    if (logos.some((item) => !item.image || !item.alt.trim())) {
+      return "Choose every logo image and give it a name."
+    }
+  }
+  if (kind === "screenshots") {
+    if (!screenshots.length) return "Add at least one screenshot."
+    if (screenshots.some((item) => !item.image || !item.caption.trim())) {
+      return "Choose every screenshot image and give it a caption."
+    }
+  }
+  return null
+}
+
+function buildDraft(
+  heading: string,
+  intro: string,
+  kind: FrontPageRowKind,
+  layout: FrontPageRowLayout,
+  testimonials: FrontPageTestimonial[],
+  faqItems: FrontPageFaqItem[],
+  logos: FrontPageLogo[],
+  screenshots: FrontPageScreenshot[]
+): FrontPageRowDraft {
+  const base = { heading, intro, layout }
+  if (kind === "testimonials") return { ...base, kind, items: testimonials }
+  if (kind === "faq") return { ...base, kind, items: faqItems }
+  if (kind === "logos") return { ...base, kind, items: logos }
+  if (kind === "screenshots") return { ...base, kind, items: screenshots }
+  return { ...base, kind }
 }

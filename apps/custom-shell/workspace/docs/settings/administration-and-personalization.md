@@ -10,8 +10,8 @@ The built-in settings groups contain:
 - Platform tabs for general details, admin navigation, dashboard widgets,
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
-- Public Navigation for the signed-out header and footer, Public Styling for
-  the site's colours and frame, Public Pages for system-page wording, and
+- Public Navigation for the signed-out header layout and links, Public Styling
+  for the site's colours and frame, Public Pages for system-page wording, and
   Public Social for sharing cards.
 
 ## Saving
@@ -71,6 +71,37 @@ the current site when the app gives
 workspaces their own public domains. An app without public workspace domains
 uses one app-wide brand colour instead.
 
+Public Navigation has one app-wide Header layout card. Sticky keeps the full
+header at the top while a visitor scrolls. Menu position keeps desktop links
+in the normal header flow or centres them on the page, while phones keep the
+existing menu button. Small, standard, and large set the logo to 32px, 48px, or
+64px high. Standard, scrolling, and left are the defaults. The public header
+still shows the logo, site name, search, and colour-mode choice before any menu
+or footer links have been added.
+
+The Public menu card treats Search as a built-in draggable item. Its position
+among the link chips is the order visitors see in the desktop header. The phone
+menu puts a Search entry in the same order and opens the full search page.
+The Visible checkbox hides Search from both headers but leaves its chip in the
+editor so it can be switched on again. Search also disappears from the public
+header when the Search page is switched off.
+
+The same Public menu card can add a direct link or a named dropdown group.
+Opening a group edits its name and ordered links in one window. Group-link
+changes stay in that window until Save changes, so Cancel can discard them.
+Trying to create a group without a name marks the Name field and shows its
+message beside the field instead of raising a page-level toast.
+Each child link has the same label, address checks, drag handle, and delete
+control as the flat menu. Groups are one level deep and the menu has no
+menu-specific link limit. Existing flat menus need no conversion.
+
+The menu, footer links, and footer copyright are app-wide when workspace
+domains are off. Saving them from any workspace changes the same public site.
+When workspace domains are on, each workspace keeps its own menu and footer.
+The move to app-wide single-site links keeps the most recently saved non-empty
+workspace menu and footer, so existing public links are not lost. Existing
+menus start with the new Search item where the old fixed search bar appeared.
+
 An app may supply the public styling a fresh install starts with through its app
 options. The app names only the fields it wants to change. A value saved in
 Public Styling replaces the matching app default, while untouched fields keep
@@ -107,10 +138,17 @@ uses the same fallback rules as the public page, so clearing a field shows what
 a visitor will get before the settings save.
 
 Public Pages also holds the app-wide front page row editor. An admin can add up
-to six plain-text or plans rows, edit the heading and optional introduction,
-choose full or narrow width, and drag rows into their public order. A heading is
-required before the dialog accepts a row. Removing every row brings back the
-built-in pricing front page, so an untouched app does not change.
+to six plain-text, plans, testimonial, FAQ, logo-strip, or screenshot rows. Each
+row has a heading, an optional introduction, full or narrow width, and a fixed
+set of fields for its kind. The editor accepts up to six testimonials or
+screenshots and up to twelve FAQ entries or logos in one row. It uses the media
+library for every picture and keeps the picker inside the row window.
+
+A heading and at least one complete entry are required for content rows. The
+server removes incomplete saved entries and refuses a newly selected image that
+does not belong to the current admin's media library. Dragging changes the
+public order. Removing every row brings back the built-in pricing front page,
+so an untouched app does not change.
 
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the
