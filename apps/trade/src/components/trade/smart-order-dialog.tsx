@@ -15,9 +15,6 @@ import {
   useOrderWindowForm,
 } from "@/components/trade/order-window-form"
 import { OrderRefusal } from "@/components/trade/order-refusal"
-import { UnmetRulesPanel } from "@/components/trade/unmet-rules-panel"
-import { useSecondTick } from "@/components/trade/use-trading-rules"
-import type { WarnBeforeEntry } from "@/components/trade/chart-quick-order"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ladderBase } from "@/lib/trade/ladder-base-cache"
@@ -87,7 +84,6 @@ export function SmartOrderDialog({
   onPreview,
   onPlace,
   onClose,
-  warnBeforeEntry = null,
 }: {
   state: SmartOrderState
   wide?: boolean
@@ -116,8 +112,6 @@ export function SmartOrderDialog({
     count: number
   }) => Promise<boolean>
   onClose: () => void
-  /** See `ChartQuickOrder`. Null when no trading rule applies here. */
-  warnBeforeEntry?: WarnBeforeEntry | null
 }) {
   // ----- The settings, remembered server-side ----------------------------
 
@@ -351,11 +345,6 @@ export function SmartOrderDialog({
     (form.anchor === "base" && !baseRead
       ? "Still reading the confirmed base for this market."
       : "Finish the ladder settings before placing it.")
-  // A time rule counts down while the window sits open, so the sentence
-  // above the button is re-read once a second only while one could apply.
-  useSecondTick(warnBeforeEntry !== null)
-  const ruleWarnings = warnBeforeEntry ? warnBeforeEntry({ side: "buy" }) : []
-
   const submit = async () => {
     if (busy) return
     if (!ready || !params) {
@@ -428,11 +417,6 @@ export function SmartOrderDialog({
             close the grid's coins with it.
           </p>
         ) : null}
-        <UnmetRulesPanel
-          id="ladder-rules"
-          rules={ruleWarnings}
-          className="mb-3"
-        />
         <OrderRefusal id="ladder-refusal" className="pb-3">
           {showValidation ? blockedReason : null}
         </OrderRefusal>

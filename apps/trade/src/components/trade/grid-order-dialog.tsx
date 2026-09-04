@@ -12,9 +12,6 @@ import {
   useOrderWindowForm,
 } from "@/components/trade/order-window-form"
 import { OrderRefusal } from "@/components/trade/order-refusal"
-import { UnmetRulesPanel } from "@/components/trade/unmet-rules-panel"
-import { useSecondTick } from "@/components/trade/use-trading-rules"
-import type { WarnBeforeEntry } from "@/components/trade/chart-quick-order"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -44,7 +41,6 @@ import { BUY_BUTTON, LOST_MONEY, SELL_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
-  entrySide,
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
   DEFAULT_GRID_RUNG_GAP_PCT,
@@ -211,7 +207,6 @@ export function GridOrderDialog({
   onPreview,
   onPlace,
   onClose,
-  warnBeforeEntry = null,
 }: {
   state: GridOrderState
   wide?: boolean
@@ -244,8 +239,6 @@ export function GridOrderDialog({
     count: number
   }) => Promise<boolean>
   onClose: () => void
-  /** See `ChartQuickOrder`. Null when no trading rule applies here. */
-  warnBeforeEntry?: WarnBeforeEntry | null
 }) {
   // ----- The settings, remembered server-side ----------------------------
 
@@ -915,13 +908,6 @@ export function GridOrderDialog({
 
   const ready = !busy && refusal === null && plan !== null
 
-  // A time rule counts down while the window sits open, so the sentence
-  // above the button is re-read once a second only while one could apply.
-  useSecondTick(warnBeforeEntry !== null)
-  const ruleWarnings = warnBeforeEntry
-    ? warnBeforeEntry({ side: entrySide(direction) })
-    : []
-
   const submit = async () => {
     if (busy) return
     if (!ready || !params || top === null || bottom === null) {
@@ -1586,11 +1572,6 @@ export function GridOrderDialog({
             enough, the exchange can close the grid's coins with it.
           </p>
         ) : null}
-        <UnmetRulesPanel
-          id="grid-rules"
-          rules={ruleWarnings}
-          className="mb-3"
-        />
         <OrderRefusal id="grid-refusal" className="pb-3">
           {showValidation ? refusal : null}
         </OrderRefusal>

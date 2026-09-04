@@ -92,17 +92,3 @@ export function lastOrderAt(
   if (seen === null) return known
   return Math.max(known, seen)
 }
-
-/**
- * Re-renders once a second while `on`, so a sentence like "You have been
- * here 40 seconds" keeps up while an order window sits open.
- */
-export function useSecondTick(on: boolean): number {
-  const [tick, setTick] = React.useState(0)
-  React.useEffect(() => {
-    if (!on) return
-    const timer = setInterval(() => setTick((count) => count + 1), 1000)
-    return () => clearInterval(timer)
-  }, [on])
-  return tick
-}

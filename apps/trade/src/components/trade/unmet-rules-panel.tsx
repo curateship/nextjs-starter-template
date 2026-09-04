@@ -4,9 +4,8 @@ import { cn } from "@/lib/utils"
 
 /**
  * The person's own rules an entry does not meet, one block each: the rule's
- * name, what was asked for, and in red what is true right now. Sits above
- * the button in every order window, and inside the warning window that
- * asks "anyway?". Renders nothing when every rule is met.
+ * name, what was asked for, and in red what is true right now. Sits inside the
+ * warning window that asks "anyway?". Renders nothing when every rule is met.
  */
 export function UnmetRulesPanel({
   id,

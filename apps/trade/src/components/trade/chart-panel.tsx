@@ -836,10 +836,6 @@ export function ChartPanel({
     },
     [rulesApply, market, tradingRules, paint.drawings, seenLastOrderAt]
   )
-  // What the order windows show above their button, or null when nothing
-  // here is checked, which also stops their once-a-second re-read.
-  const warnBeforeEntry = rulesApply ? unmetRulesFor : null
-
   /**
    * The position the open order window is adding to, resolved against the live
    * list on every render rather than held as a copy.
@@ -2087,7 +2083,6 @@ export function ChartPanel({
           prefs={quickPrefs}
           onRemember={rememberQuickOrder}
           onClose={() => setQuick(null)}
-          warnBeforeEntry={warnBeforeEntry}
           onPlace={(input) => {
             const send = (overrode?: string[]) => {
               // Checked before `place`, which draws its ghost order before
@@ -2174,7 +2169,6 @@ export function ChartPanel({
             )}
             onPreview={setPreview}
             onClose={() => setSmart(null)}
-            warnBeforeEntry={warnBeforeEntry}
             onPlace={({ dollars, count, ...input }) => {
               const send = async (overrode?: string[]) => {
                 const placed = await trading.placeLadder({
@@ -2255,7 +2249,6 @@ export function ChartPanel({
               setGridPreview(null)
               setGrid(null)
             }}
-            warnBeforeEntry={warnBeforeEntry}
             onPlace={({ dollars, count, ...input }) => {
               const send = async (overrode?: string[]) => {
                 const placed = await trading.placeGrid({

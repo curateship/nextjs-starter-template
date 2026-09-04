@@ -35,16 +35,15 @@ account and the same on every exchange and coin.
 
 ## What the screen does
 
-- **Before the click.** While an order window is open on a real-money wallet
-  and at least one rule is on, a red panel sits above the button. It is headed
-  "3 rules not met", and each rule under it has its name, an "Asked" line with
-  the number asked for, and a red "Now" line with the number right now. The
-  line with a clock in it is re-read once a second. The button stays enabled.
+- **Before the click.** The Long, Short, DCA and Grid windows do not show the
+  rules. Their button stays enabled.
 - **On the click.** The rules are checked before anything is sent or drawn.
   Nothing is met: the order goes out exactly as it did before. Something is
   unmet: one window opens, titled with the action and the size, "Short $12.00?",
-  with the same red panel inside it. There is one window for every unmet rule,
-  never one window per rule.
+  with one red panel inside it. The panel is headed "3 rules not met", and each
+  rule under it has its name, an "Asked" line with the number asked for, and a
+  red "Now" line with the number at the moment of the click. There is one
+  window for every unmet rule, never one window per rule.
 - **Go back** sends nothing and draws nothing. For a Long or Short the order
   window opens again on the size it just remembered. The DCA and grid windows
   were never closed, so they are simply back on top.
@@ -109,8 +108,8 @@ ignored.
 - The rules arrive with the dashboard's opening answer and with the Settings
   tab's own loader, so neither screen flashes from the defaults.
 - `src/components/trade/chart-panel.tsx` runs the check in the three place
-  handlers and owns the one warning window. The three order windows show the
-  red panel from `src/components/trade/unmet-rules-panel.tsx`.
+  handlers and owns the one warning window. That window shows the red panel
+  from `src/components/trade/unmet-rules-panel.tsx`.
 - `src/components/trade/trading-rules-settings.tsx` is the Settings tab: one
   card per rule, the switch in the card's header, the number and choices in
   one short row under it. Rules save as they change, half a second after the
