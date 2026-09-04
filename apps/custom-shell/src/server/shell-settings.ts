@@ -25,6 +25,15 @@ import {
 import { pageForPath } from "@/lib/pages/page-registry"
 import { pageVisibility } from "@/lib/pages/page-visibility"
 import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
+  cleanPublicNavigationLinks,
+} from "@/lib/pages/public-navigation"
+import {
+  normalizePublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
+import {
   normalizePublicFaviconSet,
   type PublicFaviconSet,
 } from "@/lib/favicon"
@@ -47,6 +56,7 @@ import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSettings,
+  customShellWorkspaces,
   DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
@@ -59,6 +69,7 @@ import {
   answerForRequest,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
+import { visitorWorkspaceId } from "@/server/workspaces/for-request"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb = db) {
@@ -91,9 +102,9 @@ export async function readDashboardRowsPerPage(
  *
  * They can have one now: the domain they typed. A visitor on a workspace's own
  * address sees that workspace's name, not the deployment's — which is the whole
- * point of one deployment serving many. On the deployment's own address, and on
- * an app with no base domain configured, nothing resolves and the app-wide
- * values answer exactly as before.
+ * point of one deployment serving many. A one-site app has no base domain, so
+ * its public menu and footer stay app-wide. Its page choices still come from
+ * the same workspace as the rest of its public content.
  *
  * The root route loads this on the server, which is what puts the theme in the
  * first paint instead of applying it after the page has already been drawn.
@@ -112,6 +123,7 @@ export async function readBranding(
   socialHandle: string
   publicSystemCopy: PublicSystemCopy
   frontPageRows: FrontPageRow[]
+  publicHeader: PublicHeader
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -133,6 +145,13 @@ export async function readBranding(
   const appWidePublicTheme = globals.publicTheme
 
   if (answer.kind !== "workspace") {
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
+    const workspaceSettings =
+      answer.kind === "platform" && !workspaceDomainsEnabled
+        ? await readSingleSitePageSettings(database)
+        : parseWorkspaceSettings(undefined)
+    const searchPage = pageForPath("/search")
+
     return {
       appName: globals.appName,
       favicon: globals.favicon,
@@ -148,10 +167,17 @@ export async function readBranding(
       socialHandle: globals.socialHandle,
       publicSystemCopy: globals.publicSystemCopy,
       frontPageRows: globals.frontPageRows,
-      publicNavigation: [],
-      publicFooter: [],
-      publicFooterCopyright: "",
-      publicSearchEnabled: true,
+      publicHeader: globals.publicHeader,
+      publicNavigation: workspaceDomainsEnabled
+        ? []
+        : globals.publicNavigation,
+      publicFooter: workspaceDomainsEnabled ? [] : globals.publicFooter,
+      publicFooterCopyright: workspaceDomainsEnabled
+        ? ""
+        : globals.publicFooterCopyright,
+      publicSearchEnabled:
+        searchPage !== null &&
+        pageVisibility(workspaceSettings.pages, searchPage) !== "off",
       publicFont: globals.publicFont,
       ...(hasCustomPublicTheme(appWidePublicTheme)
         ? { publicTheme: appWidePublicTheme }
@@ -182,6 +208,7 @@ export async function readBranding(
     socialHandle: globals.socialHandle,
     publicSystemCopy: globals.publicSystemCopy,
     frontPageRows: globals.frontPageRows,
+    publicHeader: globals.publicHeader,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -192,6 +219,20 @@ export async function readBranding(
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
   }
+}
+
+/** Page visibility for the only site in an app without workspace domains. */
+async function readSingleSitePageSettings(database: CustomShellDb) {
+  const workspaceId = await visitorWorkspaceId(database)
+  if (!workspaceId) return parseWorkspaceSettings(undefined)
+
+  const [workspace] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+
+  return parseWorkspaceSettings(workspace?.settings)
 }
 
 /**
@@ -214,7 +255,8 @@ export async function readShellSettings(
   // workspace yet simply gets the app-wide defaults.
   const workspace = await currentWorkspace(user.id, database)
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
-  const publicTheme = workspaceBaseDomain()
+  const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
+  const publicTheme = workspaceDomainsEnabled
     ? publicThemeForSite(globals.publicTheme, workspaceSettings.publicTheme)
     : globals.publicTheme
 
@@ -224,9 +266,15 @@ export async function readShellSettings(
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
-    publicNavigation: workspaceSettings.publicNavigation,
-    publicFooter: workspaceSettings.publicFooter,
-    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicNavigation: workspaceDomainsEnabled
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: workspaceDomainsEnabled
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
+    publicFooterCopyright: workspaceDomainsEnabled
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
     publicTheme,
     // Same rule as the sidebar below: an admin sees and edits their own row,
     // everybody else gets the one an admin built for them.
@@ -289,6 +337,15 @@ export function parseShellGlobals(value: unknown) {
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
+    publicNavigation:
+      settings.publicNavigation === undefined
+        ? fallback.publicNavigation
+        : cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
@@ -372,6 +429,10 @@ export function pickShellGlobals(
     | "socialHandle"
     | "publicSystemCopy"
     | "frontPageRows"
+    | "publicNavigation"
+    | "publicFooter"
+    | "publicFooterCopyright"
+    | "publicHeader"
     | "publicFont"
     | "publicTheme"
     | "dashboardRowsPerPage"
@@ -402,6 +463,12 @@ export function pickShellGlobals(
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
+    publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,

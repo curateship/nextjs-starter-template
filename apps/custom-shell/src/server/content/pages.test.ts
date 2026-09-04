@@ -6,11 +6,13 @@ import { publicPages } from "@/lib/pages/page-registry"
 import {
   loadPagesOverview,
   PAGES_VISIT_DAYS,
+  readPublicNotFoundDiscovery,
   readPageVisibility,
   setPageVisibility,
 } from "@/server/content/pages"
 import { parseWorkspaceSettings } from "@/server/people/workspaces"
 import {
+  customShellSettings,
   customShellTrafficDailyFacts,
   customShellWorkspaces,
 } from "@/server/schema"
@@ -60,6 +62,50 @@ async function savedPageMap() {
 function factRow(day: string, key: string, views: number) {
   return { workspaceId: site, day, dimension: "path", key, views }
 }
+
+describe("readPublicNotFoundDiscovery", () => {
+  it("uses the app-wide links for one site and keeps search separate", async () => {
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          publicNavigation: [
+            { type: "search" },
+            { label: "Workspace", href: "/workspace" },
+          ],
+        },
+      })
+      .where(eq(customShellWorkspaces.id, site))
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicNavigation: [
+          { type: "search" },
+          { label: "App", href: "/app" },
+        ],
+      },
+      createdAt: at,
+      updatedAt: at,
+    })
+
+    const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+    try {
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+      expect(await readPublicNotFoundDiscovery(site, database)).toMatchObject({
+        publicNavigation: [{ label: "App", href: "/app" }],
+        publicSearchEnabled: true,
+      })
+
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = "localhost"
+      expect(await readPublicNotFoundDiscovery(site, database)).toMatchObject({
+        publicNavigation: [{ label: "Workspace", href: "/workspace" }],
+        publicSearchEnabled: true,
+      })
+    } finally {
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = savedBaseDomain
+    }
+  })
+})
 
 describe("loadPagesOverview", () => {
   it("has a row for every registered page even with no traffic at all", async () => {

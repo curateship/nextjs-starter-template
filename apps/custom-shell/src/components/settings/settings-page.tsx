@@ -181,6 +181,7 @@ export function SettingsPage({
             navigation={config.publicNavigation}
             footer={config.publicFooter}
             footerCopyright={config.publicFooterCopyright}
+            publicHeader={config.publicHeader}
             onNavigationChange={(publicNavigation) =>
               onConfigChange({ ...config, publicNavigation })
             }
@@ -189,6 +190,9 @@ export function SettingsPage({
             }
             onFooterCopyrightChange={(publicFooterCopyright) =>
               onConfigChange({ ...config, publicFooterCopyright })
+            }
+            onPublicHeaderChange={(publicHeader) =>
+              onConfigChange({ ...config, publicHeader })
             }
             onSaveConfig={onSaveConfig}
           />

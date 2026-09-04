@@ -1,6 +1,13 @@
 import * as React from "react"
 import { rootRouteId, useLoaderData } from "@tanstack/react-router"
-import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import type {
+  PublicNavigationItem,
+  PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import {
+  normalizePublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
 import {
   normalizePublicSystemCopy,
   type PublicSystemCopy,
@@ -63,7 +70,7 @@ export function useBrandLogoDark() {
   })
 }
 
-export function usePublicNavigation(): PublicNavigationLink[] {
+export function usePublicNavigation(): PublicNavigationItem[] {
   return useLoaderData({
     from: rootRouteId,
     select: (data) => data.publicNavigation ?? [],
@@ -82,6 +89,16 @@ export function usePublicFooterCopyright() {
     from: rootRouteId,
     select: (data) => data.publicFooterCopyright ?? "",
   })
+}
+
+/** App-wide placement and sizing for the full signed-out header. */
+export function usePublicHeader(): PublicHeader {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicHeader,
+  })
+
+  return React.useMemo(() => normalizePublicHeader(saved), [saved])
 }
 
 /** Whether the site's public search page may be offered to visitors. */

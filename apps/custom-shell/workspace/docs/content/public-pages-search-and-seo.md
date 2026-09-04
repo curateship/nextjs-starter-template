@@ -18,6 +18,26 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
+Public > Navigation also controls the full header's layout across the app. The
+header can scroll with the page or stay at the top, and its desktop menu can sit
+in the normal header flow or in the exact centre of the page. Logo sizes are
+fixed at 32px, 48px, or 64px high. Phone navigation remains behind the menu
+button for both positions. The header still shows the logo, site name, search,
+and colour-mode choice when no menu or footer has been added. Empty navigation
+adds no empty menu control.
+
+Search is a built-in item in Public > Navigation. Dragging the Search chip
+among the link chips sets the desktop header order. On phones the same position
+becomes a Search entry in the menu because the full input would not fit there.
+The Search chip's Visible checkbox hides both versions without removing the
+chip or its saved position. Switching off the public search page also hides the
+item from the public header and keeps its position for later.
+
+A one-site app has one app-wide public menu and footer, so switching workspaces
+in the admin area does not change the public site. A deployment with workspace
+domains reads the menu and footer from the workspace named by the domain. Page
+visibility still follows the workspace that owns the public content.
+
 The root page load also puts the app-wide favicon set in the document head.
 Public pages and signed-in pages therefore use the same light favicon, optional
 dark favicon, and generated browser sizes. With no saved favicon the document

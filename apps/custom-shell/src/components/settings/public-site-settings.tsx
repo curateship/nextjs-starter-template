@@ -5,7 +5,7 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
+import { GripVertical, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
@@ -14,6 +14,7 @@ import {
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -35,10 +36,28 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import {
+  PUBLIC_HEADER_LOGO_SIZES,
+  PUBLIC_HEADER_MENU_ALIGNMENTS,
+  type PublicHeader,
+  type PublicHeaderLogoSize,
+  type PublicHeaderMenuAlignment,
+} from "@/lib/pages/public-header"
+import {
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
   MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
   MAX_PUBLIC_NAVIGATION_LINKS,
+  isPublicNavigationLink,
+  isPublicNavigationSearchItem,
+  type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
@@ -46,12 +65,14 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 type PublicSiteSettingsProps = {
-  navigation: PublicNavigationLink[]
+  navigation: PublicNavigationItem[]
   footer: PublicNavigationLink[]
   footerCopyright: string
-  onNavigationChange: (links: PublicNavigationLink[]) => void
+  publicHeader: PublicHeader
+  onNavigationChange: (items: PublicNavigationItem[]) => void
   onFooterChange: (links: PublicNavigationLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
+  onPublicHeaderChange: (header: PublicHeader) => void
   onSaveConfig: () => Promise<boolean>
 }
 
@@ -62,9 +83,11 @@ export function PublicSiteSettings({
   navigation,
   footer,
   footerCopyright,
+  publicHeader,
   onNavigationChange,
   onFooterChange,
   onFooterCopyrightChange,
+  onPublicHeaderChange,
   onSaveConfig,
 }: PublicSiteSettingsProps) {
   return (
@@ -72,10 +95,14 @@ export function PublicSiteSettings({
       <PublicLinkEditor
         id="public-menu"
         title="Public menu"
-        description="Links shown beside the site name on every public page. Leave this empty to keep the current simple page frame."
+        description="Drag search and links into the order they should appear beside the site name."
         links={navigation}
         onLinksChange={onNavigationChange}
         onSaveConfig={onSaveConfig}
+      />
+      <PublicHeaderSettings
+        header={publicHeader}
+        onChange={onPublicHeaderChange}
       />
       <PublicLinkEditor
         id="public-footer"
@@ -107,7 +134,105 @@ export function PublicSiteSettings({
   )
 }
 
-function PublicLinkEditor({
+function PublicHeaderSettings({
+  header,
+  onChange,
+}: {
+  header: PublicHeader
+  onChange: (header: PublicHeader) => void
+}) {
+  const update = (patch: Partial<PublicHeader>) =>
+    onChange({ ...header, ...patch })
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="public-header-layout"
+      title="Header layout"
+      description="Choose how the full public header behaves on every public page."
+      contentClassName="grid gap-4"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <FieldLabel
+          htmlFor="public-header-sticky"
+          hint="Keeps the header at the top while a visitor scrolls."
+        >
+          Sticky header
+        </FieldLabel>
+        <Switch
+          id="public-header-sticky"
+          checked={header.sticky}
+          onCheckedChange={(sticky) => update({ sticky })}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="public-header-menu-alignment"
+          hint="Centre places the desktop menu in the middle of the page. Phone navigation stays in its menu button."
+        >
+          Menu position
+        </FieldLabel>
+        <Select
+          value={header.menuAlignment}
+          onValueChange={(menuAlignment) =>
+            update({
+              menuAlignment: menuAlignment as PublicHeaderMenuAlignment,
+            })
+          }
+        >
+          <SelectTrigger
+            id="public-header-menu-alignment"
+            className="w-full sm:w-fit"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLIC_HEADER_MENU_ALIGNMENTS.map((alignment) => (
+              <SelectItem key={alignment} value={alignment}>
+                {alignment === "center" ? "Centre" : "Left"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="public-header-logo-size"
+          hint="Sets the logo height to 32, 48, or 64 pixels."
+        >
+          Logo size
+        </FieldLabel>
+        <Select
+          value={header.logoSize}
+          onValueChange={(logoSize) =>
+            update({ logoSize: logoSize as PublicHeaderLogoSize })
+          }
+        >
+          <SelectTrigger
+            id="public-header-logo-size"
+            className="w-full sm:w-fit"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLIC_HEADER_LOGO_SIZES.map((size) => (
+              <SelectItem key={size} value={size}>
+                {size === "small"
+                  ? "Small"
+                  : size === "large"
+                    ? "Large"
+                    : "Standard"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </CollapsibleSettingsCard>
+  )
+}
+
+function PublicLinkEditor<T extends PublicNavigationItem>({
   id,
   title,
   description,
@@ -118,8 +243,8 @@ function PublicLinkEditor({
   id: string
   title: string
   description: string
-  links: PublicNavigationLink[]
-  onLinksChange: (links: PublicNavigationLink[]) => void
+  links: T[]
+  onLinksChange: (links: T[]) => void
   onSaveConfig: () => Promise<boolean>
 }) {
   const [openIndex, setOpenIndex] = React.useState<number | null>(null)
@@ -127,8 +252,11 @@ function PublicLinkEditor({
     number | null
   >(null)
   const sensors = useNavSensors()
-  const itemIds = links.map((_, index) => `${id}-${index}`)
+  const itemIds = links.map((item, index) =>
+    isPublicNavigationSearchItem(item) ? `${id}-search` : `${id}-${index}`
+  )
   const linkNoun = title === "Public footer" ? "footer link" : "menu link"
+  const linkCount = links.filter(isPublicNavigationLink).length
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return
@@ -140,18 +268,36 @@ function PublicLinkEditor({
 
   const changeLink = (index: number, patch: Partial<PublicNavigationLink>) => {
     onLinksChange(
-      links.map((link, at) => (at === index ? { ...link, ...patch } : link))
+      links.map((item, at) =>
+        at === index && isPublicNavigationLink(item)
+          ? { ...item, ...patch }
+          : item
+      ) as T[]
+    )
+  }
+
+  const changeSearchVisibility = (index: number, visible: boolean) => {
+    onLinksChange(
+      links.map((item, at) =>
+        at === index && isPublicNavigationSearchItem(item)
+          ? { ...item, visible }
+          : item
+      ) as T[]
     )
   }
 
   const addLink = () => {
     const nextIndex = links.length
-    onLinksChange([...links, { label: "", href: "" }])
+    onLinksChange([...links, { label: "", href: "" } as T])
     setOpenIndex(nextIndex)
   }
 
-  const pendingDeleteLink =
+  const pendingDeleteItem =
     pendingDeleteIndex === null ? null : links[pendingDeleteIndex]
+  const pendingDeleteLink =
+    pendingDeleteItem && isPublicNavigationLink(pendingDeleteItem)
+      ? pendingDeleteItem
+      : null
 
   return (
     <>
@@ -171,28 +317,39 @@ function PublicLinkEditor({
             strategy={horizontalListSortingStrategy}
           >
             <div className="flex flex-wrap items-center gap-2">
-              {links.map((link, index) => (
-                <PublicLinkChip
-                  key={itemIds[index]}
-                  id={itemIds[index]}
-                  link={link}
-                  linkNoun={linkNoun}
-                  dialogOpen={openIndex === index}
-                  onDialogOpenChange={(open) =>
-                    setOpenIndex(open ? index : null)
-                  }
-                  onChange={(patch) => changeLink(index, patch)}
-                  onDelete={() => setPendingDeleteIndex(index)}
-                  onSaveConfig={onSaveConfig}
-                />
-              ))}
+              {links.map((item, index) =>
+                isPublicNavigationSearchItem(item) ? (
+                  <PublicSearchChip
+                    key={itemIds[index]}
+                    id={itemIds[index]}
+                    visible={item.visible}
+                    onVisibleChange={(visible) =>
+                      changeSearchVisibility(index, visible)
+                    }
+                  />
+                ) : (
+                  <PublicLinkChip
+                    key={itemIds[index]}
+                    id={itemIds[index]}
+                    link={item}
+                    linkNoun={linkNoun}
+                    dialogOpen={openIndex === index}
+                    onDialogOpenChange={(open) =>
+                      setOpenIndex(open ? index : null)
+                    }
+                    onChange={(patch) => changeLink(index, patch)}
+                    onDelete={() => setPendingDeleteIndex(index)}
+                    onSaveConfig={onSaveConfig}
+                  />
+                )
+              )}
               <DisabledReason
-                disabled={links.length >= MAX_PUBLIC_NAVIGATION_LINKS}
+                disabled={linkCount >= MAX_PUBLIC_NAVIGATION_LINKS}
                 reason={`A ${title.toLowerCase()} can have up to ${MAX_PUBLIC_NAVIGATION_LINKS} links.`}
               >
                 <button
                   type="button"
-                  disabled={links.length >= MAX_PUBLIC_NAVIGATION_LINKS}
+                  disabled={linkCount >= MAX_PUBLIC_NAVIGATION_LINKS}
                   onClick={addLink}
                   className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label={`Add link to ${title.toLowerCase()}`}
@@ -223,6 +380,53 @@ function PublicLinkEditor({
         }}
       />
     </>
+  )
+}
+
+function PublicSearchChip({
+  id,
+  visible,
+  onVisibleChange,
+}: {
+  id: string
+  visible: boolean
+  onVisibleChange: (visible: boolean) => void
+}) {
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
+
+  return (
+    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+      <div className="flex max-w-full items-center gap-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className={DRAG_HANDLE_CLASS}
+          aria-label="Reorder Search"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="flex h-8 max-w-56 items-center gap-2 px-3 text-sm font-medium">
+          <SearchIcon className="h-4 w-4 shrink-0" />
+          Search
+          {!visible ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              Hidden
+            </span>
+          ) : null}
+        </span>
+        <label
+          className="flex size-8 shrink-0 items-center justify-center rounded-md"
+          title={visible ? "Visible" : "Hidden"}
+        >
+          <Checkbox
+            checked={visible}
+            onCheckedChange={(checked) => onVisibleChange(checked === true)}
+          />
+          <span className="sr-only">Show Search</span>
+        </label>
+      </div>
+    </div>
   )
 }
 

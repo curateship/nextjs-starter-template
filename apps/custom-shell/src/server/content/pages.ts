@@ -2,6 +2,7 @@ import { and, eq, gte, sql } from "drizzle-orm"
 
 import type { PageDescriptor } from "@/lib/pages/page-descriptor"
 import type { PublicNotFoundDiscovery } from "@/lib/pages/not-found-discovery"
+import { isPublicNavigationLink } from "@/lib/pages/public-navigation"
 import { pageForPath, publicPages } from "@/lib/pages/page-registry"
 import {
   pageVisibility,
@@ -15,7 +16,11 @@ import {
 } from "@/server/schema"
 import { now } from "@/server/auth/security"
 import { parseWorkspaceSettings } from "@/server/people/workspaces"
-import { dropWorkspaceCache } from "@/server/workspaces/host"
+import { readShellGlobals } from "@/server/shell-settings"
+import {
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
 import { OTHER_KEY, trafficDay } from "@/server/traffic"
 import {
   findWrittenPage,
@@ -320,20 +325,21 @@ export async function readPublicNotFoundDiscovery(
   workspaceId: string | null,
   database: CustomShellDb = db
 ): Promise<PublicNotFoundDiscovery> {
-  if (!workspaceId) {
-    return { publicNavigation: [], publicSearchEnabled: true }
-  }
-
-  const [workspace] = await database
-    .select({ settings: customShellWorkspaces.settings })
-    .from(customShellWorkspaces)
-    .where(eq(customShellWorkspaces.id, workspaceId))
-    .limit(1)
+  const [workspace] = workspaceId
+    ? await database
+        .select({ settings: customShellWorkspaces.settings })
+        .from(customShellWorkspaces)
+        .where(eq(customShellWorkspaces.id, workspaceId))
+        .limit(1)
+    : []
   const settings = parseWorkspaceSettings(workspace?.settings)
   const searchPage = pageForPath("/search")
+  const publicNavigation = workspaceBaseDomain()
+    ? settings.publicNavigation
+    : (await readShellGlobals(database)).publicNavigation
 
   return {
-    publicNavigation: settings.publicNavigation,
+    publicNavigation: publicNavigation.filter(isPublicNavigationLink),
     publicSearchEnabled:
       searchPage !== null &&
       pageVisibility(settings.pages, searchPage) !== "off",

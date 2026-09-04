@@ -11,7 +11,15 @@ import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
-import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicNavigation,
+  type PublicNavigationItem,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
 import {
   createDefaultPublicSystemCopy,
   DEFAULT_SOCIAL_CARD_TYPE,
@@ -454,12 +462,14 @@ export type ShellConfig = {
   publicSystemCopy: PublicSystemCopy
   /** Ordered app-wide rows that replace the built-in public front page. */
   frontPageRows: FrontPageRow[]
-  /** Links shown across the public site's header, saved per workspace. */
-  publicNavigation: PublicNavigationLink[]
-  /** Links shown in the public site's footer, saved per workspace. */
+  /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
+  publicNavigation: PublicNavigationItem[]
+  /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
   publicFooter: PublicNavigationLink[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
+  /** App-wide layout choices for the signed-out header. */
+  publicHeader: PublicHeader
   /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
   /** One app-wide uploaded WOFF2 font, or null when none has been added. */
@@ -1035,9 +1045,10 @@ export function createDefaultShellConfig(): ShellConfig {
     socialHandle: "",
     publicSystemCopy: createDefaultPublicSystemCopy(),
     frontPageRows: [],
-    publicNavigation: [],
+    publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
+    publicHeader: createDefaultPublicHeader(),
     publicTheme: createDefaultPublicTheme(),
     publicFont: null,
     topRightNavigation: createDefaultTopRightNavigation(),

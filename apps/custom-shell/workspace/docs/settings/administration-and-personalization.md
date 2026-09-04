@@ -10,8 +10,8 @@ The built-in settings groups contain:
 - Platform tabs for general details, admin navigation, dashboard widgets,
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
-- Public Navigation for the signed-out header and footer, Public Styling for
-  the site's colours and frame, Public Pages for system-page wording, and
+- Public Navigation for the signed-out header layout and links, Public Styling
+  for the site's colours and frame, Public Pages for system-page wording, and
   Public Social for sharing cards.
 
 ## Saving
@@ -70,6 +70,28 @@ background pattern, and button choices are app-wide. Brand colour belongs to
 the current site when the app gives
 workspaces their own public domains. An app without public workspace domains
 uses one app-wide brand colour instead.
+
+Public Navigation has one app-wide Header layout card. Sticky keeps the full
+header at the top while a visitor scrolls. Menu position keeps desktop links
+in the normal header flow or centres them on the page, while phones keep the
+existing menu button. Small, standard, and large set the logo to 32px, 48px, or
+64px high. Standard, scrolling, and left are the defaults. The public header
+still shows the logo, site name, search, and colour-mode choice before any menu
+or footer links have been added.
+
+The Public menu card treats Search as a built-in draggable item. Its position
+among the link chips is the order visitors see in the desktop header. The phone
+menu puts a Search entry in the same order and opens the full search page.
+The Visible checkbox hides Search from both headers but leaves its chip in the
+editor so it can be switched on again. Search also disappears from the public
+header when the Search page is switched off.
+
+The menu, footer links, and footer copyright are app-wide when workspace
+domains are off. Saving them from any workspace changes the same public site.
+When workspace domains are on, each workspace keeps its own menu and footer.
+The move to app-wide single-site links keeps the most recently saved non-empty
+workspace menu and footer, so existing public links are not lost. Existing
+menus start with the new Search item where the old fixed search bar appeared.
 
 An app may supply the public styling a fresh install starts with through its app
 options. The app names only the fields it wants to change. A value saved in

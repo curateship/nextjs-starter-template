@@ -46,12 +46,18 @@ import {
 } from "@/lib/pages/front-page"
 import {
   cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
   MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
+  MAX_PUBLIC_NAVIGATION_ITEMS,
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
   MAX_PUBLIC_NAVIGATION_LINKS,
 } from "@/lib/pages/public-navigation"
+import {
+  PUBLIC_HEADER_LOGO_SIZES,
+  PUBLIC_HEADER_MENU_ALIGNMENTS,
+} from "@/lib/pages/public-header"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
@@ -203,6 +209,16 @@ const publicNavigationLinkSchema = z.object({
 })
 
 const publicNavigationSchema = z
+  .array(
+    z.union([
+      publicNavigationLinkSchema,
+      z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
+    ])
+  )
+  .max(MAX_PUBLIC_NAVIGATION_ITEMS)
+  .transform(cleanPublicNavigationItems)
+
+const publicFooterSchema = z
   .array(publicNavigationLinkSchema)
   .max(MAX_PUBLIC_NAVIGATION_LINKS)
   .transform(cleanPublicNavigationLinks)
@@ -397,11 +413,16 @@ const shellConfigSchema = z.object({
   }),
   frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
-  publicFooter: publicNavigationSchema,
+  publicFooter: publicFooterSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
     .transform(cleanPublicFooterCopyright),
+  publicHeader: z.object({
+    sticky: z.boolean(),
+    menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
+    logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+  }),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
@@ -437,6 +458,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const updatedAt = now()
     const workspace = await requireCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
@@ -477,9 +499,15 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
-            publicNavigation: data.publicNavigation,
-            publicFooter: data.publicFooter,
-            publicFooterCopyright: data.publicFooterCopyright,
+            publicNavigation: workspaceDomainsEnabled
+              ? data.publicNavigation
+              : workspaceSettings.publicNavigation,
+            publicFooter: workspaceDomainsEnabled
+              ? data.publicFooter
+              : workspaceSettings.publicFooter,
+            publicFooterCopyright: workspaceDomainsEnabled
+              ? data.publicFooterCopyright
+              : workspaceSettings.publicFooterCopyright,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -579,7 +607,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       const nextPublicTheme = publicThemeForAppWideSave(
         data.publicTheme,
         existingGlobals.publicTheme,
-        Boolean(workspaceBaseDomain())
+        workspaceDomainsEnabled
       )
       const globalSettings = {
         // The kill switch is not in this request's shape at all, on purpose:
@@ -589,6 +617,18 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           faviconSet: savedFaviconSet,
+          // One-site apps have one public menu and footer regardless of which
+          // workspace an admin is viewing. Multisite apps keep these choices
+          // on the workspace named by the domain.
+          publicNavigation: workspaceDomainsEnabled
+            ? existingGlobals.publicNavigation
+            : data.publicNavigation,
+          publicFooter: workspaceDomainsEnabled
+            ? existingGlobals.publicFooter
+            : data.publicFooter,
+          publicFooterCopyright: workspaceDomainsEnabled
+            ? existingGlobals.publicFooterCopyright
+            : data.publicFooterCopyright,
           // A dedicated upload action owns the stored font. A stale settings
           // tab may choose whether to use it, but cannot replace its identity.
           publicFont: existingGlobals.publicFont,

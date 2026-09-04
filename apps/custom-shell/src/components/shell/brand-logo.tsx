@@ -1,6 +1,13 @@
 import * as React from "react"
 
+import type { PublicHeaderLogoSize } from "@/lib/pages/public-header"
 import { cn } from "@/lib/utils"
+
+const LOGO_SIZE_CLASS_NAMES: Record<PublicHeaderLogoSize, string> = {
+  small: "h-8 max-w-40",
+  standard: "h-12 max-w-56",
+  large: "h-16 max-w-48 sm:max-w-72",
+}
 
 /**
  * The admin-set logo above every signed-out page.
@@ -23,23 +30,31 @@ export function BrandLogo({
   src,
   darkSrc,
   appName,
+  size = "standard",
 }: {
   src: string
   darkSrc: string
   appName: string
+  size?: PublicHeaderLogoSize
 }) {
   // With no dark logo there is nothing to swap, so the one logo is drawn
   // unconditioned — exactly the markup this had before the second slot existed.
   if (!darkSrc) {
-    return <LogoImage src={src} appName={appName} />
+    return <LogoImage src={src} appName={appName} size={size} />
   }
 
   return (
     <>
-      <LogoImage src={src} appName={appName} className="dark:hidden" />
+      <LogoImage
+        src={src}
+        appName={appName}
+        size={size}
+        className="dark:hidden"
+      />
       <LogoImage
         src={darkSrc}
         appName={appName}
+        size={size}
         className="hidden dark:block"
       />
     </>
@@ -49,10 +64,12 @@ export function BrandLogo({
 function LogoImage({
   src,
   appName,
+  size,
   className,
 }: {
   src: string
   appName: string
+  size: PublicHeaderLogoSize
   className?: string
 }) {
   // Remembering which address failed, rather than a plain yes/no, is what lets
@@ -80,7 +97,7 @@ function LogoImage({
       ref={imageRef}
       src={src}
       alt={appName}
-      className={cn("h-12 max-w-56 object-contain", className)}
+      className={cn(LOGO_SIZE_CLASS_NAMES[size], "object-contain", className)}
       onError={() => setFailedSrc(src)}
     />
   )

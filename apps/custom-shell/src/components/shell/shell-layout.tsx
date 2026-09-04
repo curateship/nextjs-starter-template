@@ -53,6 +53,7 @@ import {
   workspaceWord,
 } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizePublicHeader } from "@/lib/pages/public-header"
 import {
   normalizePublicSystemCopy,
   normalizeShareImage,
@@ -742,6 +743,7 @@ function normalizeConfig(
       : fallback.publicFooter,
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
+    publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     topRightNavigation: normalizeTopRightNavigation(

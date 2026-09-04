@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useLocation } from "@tanstack/react-router"
-import { MenuIcon } from "lucide-react"
+import { MenuIcon, SearchIcon } from "lucide-react"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { BrandLogo } from "@/components/shell/brand-logo"
@@ -21,11 +21,15 @@ import {
   useBrandLogoDark,
   usePublicFooter,
   usePublicFooterCopyright,
+  usePublicHeader,
   usePublicNavigation,
   usePublicSearchEnabled,
   usePublicTheme,
 } from "@/lib/branding"
-import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  isPublicNavigationSearchItem,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
 import {
   isVisitorAnnouncementDismissed,
   rememberVisitorAnnouncementDismissal,
@@ -66,6 +70,7 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const publicHeader = usePublicHeader()
   const brandedPublicSearchEnabled = usePublicSearchEnabled()
   const publicSearchEnabled =
     publicSearchEnabledOverride ?? brandedPublicSearchEnabled
@@ -98,9 +103,6 @@ export function PublicPageFrame({
       !dismissedVisitorIds.has(announcement.id) &&
       !isVisitorAnnouncementDismissed(localStorage, announcement)
   )
-  const hasSiteFrame = Boolean(
-    navigation.length || footer.length || footerCopyright
-  )
   const marketing = pageForPath(pathname)?.layout === "marketing"
   const pageWidthStyle =
     theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
@@ -113,76 +115,107 @@ export function PublicPageFrame({
   const canvasStyle = theme.canvasColor
     ? { backgroundColor: theme.canvasColor }
     : undefined
-  const bareFrameStyle =
-    canvasStyle || mainSpacingStyle
-      ? { ...canvasStyle, ...mainSpacingStyle }
-      : undefined
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
   const visitorCanChooseTheme = theme.colorScheme === "system"
+  const visibleNavigation = navigation.filter(
+    (item) =>
+      !isPublicNavigationSearchItem(item) ||
+      (item.visible && publicSearchEnabled && pathname !== "/search")
+  )
+  const centeredMenu =
+    publicHeader.menuAlignment === "center" && visibleNavigation.length > 0
 
   function dismissVisitorAnnouncement(announcement: VisitorAnnouncement) {
     rememberVisitorAnnouncementDismissal(localStorage, announcement)
     setDismissedVisitorIds((current) => new Set(current).add(announcement.id))
   }
 
-  const bareContent = (
-    <div
+  const headerHome = (
+    <Link
+      to="/"
       className={cn(
-        "group/public-content flex w-full max-w-6xl flex-col gap-2 md:gap-3",
-        publicContentAlignmentClassNames[theme.contentAlignment]
+        "flex min-w-0 items-center gap-2 rounded-md",
+        centeredMenu && "md:justify-self-start",
+        focusRing
       )}
-      data-content-alignment={theme.contentAlignment}
-      style={pageWidthStyle}
     >
-      <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
-      <p className="text-sm font-medium text-foreground">{appName}</p>
-      {children}
-    </div>
+      <BrandLogo
+        src={logo}
+        darkSrc={logoDark}
+        appName={appName}
+        size={publicHeader.logoSize}
+      />
+      <span className="truncate text-sm font-medium text-foreground">
+        {appName}
+      </span>
+    </Link>
   )
-
-  // No navigation or footer means no empty chrome. The canvas, spacing, width,
-  // and declared layout still apply to the bare frame.
-  if (!hasSiteFrame && !visibleVisitorAnnouncements.length) {
-    if (visitorCanChooseTheme) {
-      return (
-        <div
-          data-public-canvas=""
-          className="flex min-h-screen flex-col bg-muted/60"
-          style={canvasStyle}
-        >
-          <div className="flex justify-end px-2 py-2 md:px-3 md:py-3">
-            <ThemeToggle />
-          </div>
-          <main
-            className={cn(
-              "grid flex-1 px-4 py-10",
-              mainLayoutClass,
-              className
-            )}
-            style={mainSpacingStyle}
-          >
-            {bareContent}
-          </main>
-        </div>
-      )
-    }
-
-    return (
-      <main
-        data-public-canvas=""
-        className={cn(
-          "grid min-h-screen bg-muted/60 px-4 py-10",
-          mainLayoutClass,
-          className
+  const desktopNavigation = visibleNavigation.length ? (
+    <nav aria-label="Main navigation" className="hidden md:block">
+      <ul className="flex items-center gap-1">
+        {visibleNavigation.map((item, index) =>
+          isPublicNavigationSearchItem(item) ? (
+            <li key="search" className="w-40 lg:w-56">
+              <SiteSearchForm className="min-w-0">
+                <DashboardToolbarSearch
+                  className="min-w-0"
+                  inputClassName="w-full sm:w-full lg:w-full"
+                  name="q"
+                  type="search"
+                  aria-label="Search this site"
+                  placeholder="Search this site"
+                  maxLength={120}
+                  value={siteSearch}
+                  onChange={(event) => setSiteSearch(event.target.value)}
+                />
+              </SiteSearchForm>
+            </li>
+          ) : (
+            <li key={`${item.label}-${item.href}-${index}`}>
+              <PublicLink link={item} className="px-2.5 py-1.5" />
+            </li>
+          )
         )}
-        style={bareFrameStyle}
-      >
-        {bareContent}
-      </main>
-    )
-  }
+      </ul>
+    </nav>
+  ) : null
+  const phoneNavigation = visibleNavigation.length ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="md:hidden"
+          aria-label="Open navigation menu"
+        >
+          <MenuIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-48">
+        {visibleNavigation.map((item, index) =>
+          isPublicNavigationSearchItem(item) ? (
+            <DropdownMenuItem key="search" asChild>
+              <Link to="/search" search={{ q: "" }}>
+                <SearchIcon />
+                Search
+              </Link>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              key={`${item.label}-${item.href}-${index}`}
+              asChild
+            >
+              <PublicLink link={item} />
+            </DropdownMenuItem>
+          )
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null
+  const headerThemeToggle = visitorCanChooseTheme ? <ThemeToggle /> : null
 
   return (
     <div
@@ -201,88 +234,42 @@ export function PublicPageFrame({
           ))}
         </div>
       ) : null}
-      {visitorCanChooseTheme && !hasSiteFrame ? (
-        <div className="flex justify-end px-2 py-2 md:px-3 md:py-3">
-          <ThemeToggle />
-        </div>
-      ) : null}
-      {hasSiteFrame ? (
-        <header
-          className={
-            theme.headerBorder ? "border-b bg-background" : "bg-background"
-          }
+      <header
+        data-menu-alignment={publicHeader.menuAlignment}
+        className={cn(
+          theme.headerBorder ? "border-b bg-background" : "bg-background",
+          publicHeader.sticky && "sticky top-0 z-40"
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4",
+            centeredMenu &&
+              "md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
+          )}
+          style={pageWidthStyle}
         >
-          <div
-            className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4"
-            style={pageWidthStyle}
-          >
-            <Link
-              to="/"
-              className={cn(
-                "flex min-w-0 items-center gap-2 rounded-md",
-                focusRing
-              )}
-            >
-              <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
-              <span className="truncate text-sm font-medium text-foreground">
-                {appName}
-              </span>
-            </Link>
-            {publicSearchEnabled && pathname !== "/search" ? (
-              <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
-                <DashboardToolbarSearch
-                  className="min-w-0 flex-1 sm:flex-1"
-                  inputClassName="sm:w-full lg:w-full"
-                  name="q"
-                  type="search"
-                  aria-label="Search this site"
-                  placeholder="Search this site"
-                  maxLength={120}
-                  value={siteSearch}
-                  onChange={(event) => setSiteSearch(event.target.value)}
-                />
-              </SiteSearchForm>
-            ) : null}
-            {navigation.length ? (
-              <>
-                <nav aria-label="Main navigation" className="hidden md:block">
-                  <ul className="flex items-center gap-1">
-                    {navigation.map((link, index) => (
-                      <li key={`${link.label}-${link.href}-${index}`}>
-                        <PublicLink link={link} className="px-2.5 py-1.5" />
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="md:hidden"
-                      aria-label="Open navigation menu"
-                    >
-                      <MenuIcon />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-48">
-                    {navigation.map((link, index) => (
-                      <DropdownMenuItem
-                        key={`${link.label}-${link.href}-${index}`}
-                        asChild
-                      >
-                        <PublicLink link={link} />
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            ) : null}
-            {visitorCanChooseTheme ? <ThemeToggle /> : null}
-          </div>
-        </header>
-      ) : null}
+          {headerHome}
+          {centeredMenu ? (
+            <>
+              {desktopNavigation}
+              <div
+                data-public-header-actions=""
+                className="contents md:flex md:min-w-0 md:w-full md:items-center md:justify-end md:gap-3"
+              >
+                {phoneNavigation}
+                {headerThemeToggle}
+              </div>
+            </>
+          ) : (
+            <>
+              {desktopNavigation}
+              {phoneNavigation}
+              {headerThemeToggle}
+            </>
+          )}
+        </div>
+      </header>
       <main
         className={cn(
           "grid flex-1 px-4 py-10",
@@ -299,16 +286,10 @@ export function PublicPageFrame({
           data-content-alignment={theme.contentAlignment}
           style={pageWidthStyle}
         >
-          {!hasSiteFrame ? (
-            <>
-              <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
-              <p className="text-sm font-medium text-foreground">{appName}</p>
-            </>
-          ) : null}
           {children}
         </div>
       </main>
-      {hasSiteFrame && (footer.length || footerCopyright) ? (
+      {footer.length || footerCopyright ? (
         <footer
           className={
             theme.footerBorder ? "border-t bg-background" : "bg-background"
