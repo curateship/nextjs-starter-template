@@ -37,8 +37,9 @@ import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { routePageTitle } from "@/lib/nav/route-title"
 import { pageForPath } from "@/lib/pages/page-registry"
 import {
-  defaultPublicDescription,
+  DEFAULT_HOME_DESCRIPTION,
   publicSocialMeta,
+  resolvePublicSeoMetadata,
 } from "@/lib/pages/public-metadata"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { cn } from "@/lib/utils"
@@ -75,15 +76,23 @@ export const Route = createRootRoute({
   staleTime: BRANDING_STALE_TIME_MS,
   loader: () => loadBranding(),
   head: ({ loaderData, matches }) => {
-    const title = routeTitle(matches, loaderData?.appName)
     const match = matches.at(-1)
+    const appName = resolveAppName(loaderData?.appName)
+    const home = String(match?.routeId) === "/"
+    const metadata = resolvePublicSeoMetadata({
+      title: routeTitle(matches, loaderData?.appName),
+      description: home
+        ? DEFAULT_HOME_DESCRIPTION
+        : (!writtenPageTitle(match?.loaderData) &&
+            pageForPath(match?.routeId ?? "")?.summary) ||
+          "",
+      appName,
+      home,
+      seo: loaderData?.publicSeo,
+    })
     const publicPage = !matches.some((item) =>
       item.routeId.startsWith("/_authenticated")
     )
-    const description =
-      (!writtenPageTitle(match?.loaderData) &&
-        pageForPath(match?.routeId ?? "")?.summary) ||
-      defaultPublicDescription(resolveAppName(loaderData?.appName))
 
     return {
       meta: [
@@ -92,11 +101,11 @@ export const Route = createRootRoute({
         // browsers reject the whole key, which every page announced in the
         // console and which left the starting zoom unset on phones.
         { name: "viewport", content: "width=device-width, initial-scale=1" },
-        { title },
+        { title: metadata.title },
         ...(publicPage
           ? publicSocialMeta({
-              title,
-              description,
+              title: metadata.title,
+              description: metadata.description,
               image: loaderData?.shareImage ?? "",
               cardType: loaderData?.socialCardType ?? "summary",
               handle: loaderData?.socialHandle ?? "",

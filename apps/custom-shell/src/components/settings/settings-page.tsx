@@ -9,6 +9,7 @@ import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
 import {
+  PublicSeoSettings,
   PublicSocialSettings,
   PublicSystemPagesSettings,
 } from "@/components/settings/public-metadata-settings"
@@ -64,6 +65,7 @@ const publicSettingsTabs = [
   { id: "public-navigation", label: "Navigation" },
   { id: "public-styling", label: "Styling" },
   { id: "public-pages", label: "Pages" },
+  { id: "public-seo", label: "SEO" },
   { id: "public-social", label: "Social" },
 ] as const
 
@@ -223,6 +225,12 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
             />
           </CardGroup>
+        ) : null}
+        {activeTab === "public-seo" ? (
+          <PublicSeoSettings
+            config={config}
+            onConfigChange={onConfigChange}
+          />
         ) : null}
         {activeTab === "public-social" ? (
           <PublicSocialSettings

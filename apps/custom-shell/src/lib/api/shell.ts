@@ -21,8 +21,10 @@ import {
 } from "@/lib/pages/public-header"
 import type { PublicTheme } from "@/lib/public-theme"
 import {
+  createDefaultPublicSeo,
   createDefaultPublicSystemCopy,
   DEFAULT_SOCIAL_CARD_TYPE,
+  type PublicSeo,
   type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
@@ -174,6 +176,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     shareImage: string
     socialCardType: SocialCardType
     socialHandle: string
+    publicSeo: PublicSeo
     publicSystemCopy: PublicSystemCopy
     frontPageRows: FrontPageRow[]
     publicHeader: PublicHeader
@@ -203,6 +206,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         shareImage: "",
         socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
         socialHandle: "",
+        publicSeo: createDefaultPublicSeo(),
         publicSystemCopy: createDefaultPublicSystemCopy(),
         frontPageRows: [],
         publicHeader: createDefaultPublicHeader(),

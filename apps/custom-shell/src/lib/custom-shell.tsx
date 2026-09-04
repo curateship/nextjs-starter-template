@@ -21,8 +21,10 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  createDefaultPublicSeo,
   createDefaultPublicSystemCopy,
   DEFAULT_SOCIAL_CARD_TYPE,
+  type PublicSeo,
   type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
@@ -458,6 +460,8 @@ export type ShellConfig = {
   socialCardType: SocialCardType
   /** App-wide X account name, stored without the leading @. */
   socialHandle: string
+  /** Home-page metadata and the fallback description for public pages. */
+  publicSeo: PublicSeo
   /** Editable headings and bodies for the public 404 and maintenance pages. */
   publicSystemCopy: PublicSystemCopy
   /** Ordered app-wide rows that replace the built-in public front page. */
@@ -1043,6 +1047,7 @@ export function createDefaultShellConfig(): ShellConfig {
     shareImageVersion: "",
     socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
     socialHandle: "",
+    publicSeo: createDefaultPublicSeo(),
     publicSystemCopy: createDefaultPublicSystemCopy(),
     frontPageRows: [],
     publicNavigation: createDefaultPublicNavigation(),

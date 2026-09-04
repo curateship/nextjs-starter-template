@@ -5,6 +5,46 @@ export const DEFAULT_SOCIAL_CARD_TYPE: SocialCardType = "summary"
 export const MAX_SOCIAL_HANDLE_LENGTH = 15
 export const MAX_PUBLIC_SYSTEM_HEADING_LENGTH = 120
 export const MAX_PUBLIC_SYSTEM_BODY_LENGTH = 300
+export const MAX_PUBLIC_SEO_TITLE_LENGTH = 200
+export const MAX_PUBLIC_SEO_DESCRIPTION_LENGTH = 500
+
+export type PublicSeo = {
+  homeTitle: string
+  homeDescription: string
+  siteDescription: string
+}
+
+export const DEFAULT_HOME_DESCRIPTION =
+  "Accounts, workspaces and billing, ready to run. Create an account and start on the free plan."
+
+export function createDefaultPublicSeo(): PublicSeo {
+  return {
+    homeTitle: "",
+    homeDescription: "",
+    siteDescription: "",
+  }
+}
+
+/** Keeps each saved SEO field plain, bounded, and independent of the others. */
+export function normalizePublicSeo(value: unknown): PublicSeo {
+  const fallback = createDefaultPublicSeo()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback
+  }
+
+  const seo = value as Partial<PublicSeo>
+  return {
+    homeTitle: cleanText(seo.homeTitle, MAX_PUBLIC_SEO_TITLE_LENGTH),
+    homeDescription: cleanText(
+      seo.homeDescription,
+      MAX_PUBLIC_SEO_DESCRIPTION_LENGTH
+    ),
+    siteDescription: cleanText(
+      seo.siteDescription,
+      MAX_PUBLIC_SEO_DESCRIPTION_LENGTH
+    ),
+  }
+}
 
 export type PublicSystemCopy = {
   notFoundHeading: string
@@ -121,6 +161,32 @@ export function versionedShareImage(image: unknown, version: unknown) {
 
 export function defaultPublicDescription(appName: string) {
   return `Visit ${appName}.`
+}
+
+/** One fallback order for browser titles and descriptions on public pages. */
+export function resolvePublicSeoMetadata(input: {
+  title: string
+  description?: string | null
+  appName: string
+  home: boolean
+  seo?: PublicSeo | null
+}) {
+  const seo = normalizePublicSeo(input.seo)
+  const hardcodedDescription = input.home
+    ? DEFAULT_HOME_DESCRIPTION
+    : defaultPublicDescription(input.appName)
+
+  return {
+    title: input.home && seo.homeTitle ? seo.homeTitle : input.title,
+    description: input.home
+      ? seo.homeDescription ||
+        seo.siteDescription ||
+        input.description?.trim() ||
+        hardcodedDescription
+      : input.description?.trim() ||
+        seo.siteDescription ||
+        hardcodedDescription,
+  }
 }
 
 /** The shared social tags every public route adds to its first response. */

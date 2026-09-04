@@ -11,8 +11,9 @@ The built-in settings groups contain:
   styling, security, notifications, email, payments, and AI.
 - Member tabs for the member sidebar and top-right links.
 - Public Navigation for the signed-out header layout and links, Public Styling
-  for the site's colours and frame, Public Pages for system-page wording, and
-  Public Social for sharing cards.
+  for the site's colours and frame, Public Pages for system-page wording,
+  Public SEO for site-wide search defaults, and Public Social for X card
+  choices.
 
 ## Saving
 
@@ -126,11 +127,15 @@ button label that falls below the same line gets a plain warning beside the
 setting for the mode that fails. Contrast warnings update while the admin types
 and never block saving a valid colour.
 
-Public Social uses one media-library image across every public page.
-The server checks that a new selection belongs to the current admin and changes
-the image URL version when the selection changes. The same card chooses the
-small or large X presentation and saves an optional X account without `@`.
-Small is the default so older installs keep their previous card style.
+Public SEO holds the title and description used only on the home page, plus the
+description and share image used when another public page has no value of its
+own. Empty fields keep the former built-in text. The server checks that a new
+image belongs to the current admin and changes its URL version when the image
+changes.
+
+Public Social chooses the small or large X presentation and saves an optional X
+account without `@`. Small is the default so older installs keep their previous
+card style.
 
 Public Pages edits one short heading and plain-text body for both the 404 and
 maintenance pages. Empty fields use the former built-in wording. The preview

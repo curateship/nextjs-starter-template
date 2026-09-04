@@ -11,8 +11,9 @@ import { catchAllOverride } from "@/lib/app-options"
 import { loadWrittenPage } from "@/lib/api/content/pages"
 import { resolveAppName } from "@/lib/branding"
 import {
-  defaultPublicDescription,
   publicSocialMeta,
+  resolvePublicSeoMetadata,
+  type PublicSeo,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
 
@@ -85,21 +86,23 @@ export const Route = createFileRoute("/$")({
           shareImage?: string
           socialCardType?: SocialCardType
           socialHandle?: string
+          publicSeo?: PublicSeo
         }
       | undefined
-    const title = `${loaderData.page.title} · ${resolveAppName(
-      branding?.appName
-    )}`
-    const description = defaultPublicDescription(
-      resolveAppName(branding?.appName)
-    )
+    const appName = resolveAppName(branding?.appName)
+    const metadata = resolvePublicSeoMetadata({
+      title: `${loaderData.page.title} · ${appName}`,
+      appName,
+      home: false,
+      seo: branding?.publicSeo,
+    })
 
     return {
       meta: [
         { title: loaderData.page.title },
         ...publicSocialMeta({
-          title,
-          description,
+          title: metadata.title,
+          description: metadata.description,
           image: branding?.shareImage ?? "",
           cardType: branding?.socialCardType ?? "summary",
           handle: branding?.socialHandle ?? "",

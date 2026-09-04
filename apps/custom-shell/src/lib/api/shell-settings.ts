@@ -11,6 +11,8 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import {
+  MAX_PUBLIC_SEO_DESCRIPTION_LENGTH,
+  MAX_PUBLIC_SEO_TITLE_LENGTH,
   MAX_PUBLIC_SYSTEM_BODY_LENGTH,
   MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
   MAX_SOCIAL_HANDLE_LENGTH,
@@ -408,6 +410,11 @@ const shellConfigSchema = z.object({
     .string()
     .max(MAX_SOCIAL_HANDLE_LENGTH)
     .regex(/^[A-Za-z0-9_]*$/),
+  publicSeo: z.object({
+    homeTitle: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
+    homeDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+    siteDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+  }),
   publicSystemCopy: z.object({
     notFoundHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
     notFoundBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),

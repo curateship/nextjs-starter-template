@@ -233,6 +233,11 @@ describe("public site branding", () => {
         shareImageVersion: "2026-09-02T12:00:00.000Z",
         socialCardType: "summary_large_image",
         socialHandle: "custom_shell",
+        publicSeo: {
+          homeTitle: "Public home",
+          homeDescription: "The public front page.",
+          siteDescription: "The public site default.",
+        },
         publicSystemCopy: {
           notFoundHeading: "Lost?",
           notFoundBody: "Try the front page.",
@@ -260,6 +265,11 @@ describe("public site branding", () => {
         "https://media.example.test/owner/share.png?v=2026-09-02T12%3A00%3A00.000Z",
       socialCardType: "summary_large_image",
       socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        siteDescription: "The public site default.",
+      },
       publicSystemCopy: {
         notFoundHeading: "Lost?",
         notFoundBody: "Try the front page.",
