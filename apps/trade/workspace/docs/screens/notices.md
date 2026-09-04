@@ -79,12 +79,23 @@ notice, because more money moved at a different time. Different order ids are
 never combined. The words come from `src/lib/trade/trade-notice-words.ts` and
 always carry the dollars, the price and the wallet's own label:
 
-- **A fill:** "Bought $500 of ETH at $90 (Hyperliquid main)". Level `info`.
-- **A closing fill:** the same, with what it banked in the body — "Lost $55.00
+- **A fill:** "Entered a trade: $500 of ETH at $90 (Hyperliquid main)".
+  Level `info`.
+- **A closing fill:** "Exited a trade: $500 of ETH at $90 (Hyperliquid
+  main)", with what it banked in the body — "Lost $55.00
   on this close. That is measured against the whole position's average entry
   of $95.00, not the last buy." A loss is level `warning`.
-- **A liquidation:** "The exchange liquidated ETH: …". Level `critical`.
+- **A liquidation:** "The exchange liquidated ETH: exited $500 at $90 …".
+  Level `critical`.
 - **A practice wallet** says so in the label: "(Test wallet, practice)".
+
+**The bell says entered or exited, never bought, sold, long or short.** Tyler's
+rule, 4 September 2026: closing a long is not "shorting", and opening one is
+not "buying"; you entered a trade or you exited one. The venue's own words for
+the fill ("Close Long", "Open Short") decide which. A venue that gives none is
+read from the money, because only an exit banks anything. A stop or target is
+always an exit. An add to a running position reads as "Entered a trade",
+because more money went in.
 
 **The money on a close is the exchange's own figure, and it is measured
 against the whole position's average entry.** On 2 September 2026 Tyler bought
@@ -110,7 +121,7 @@ a notice.
 
 ## When a stop or a target fires
 
-A second notice, after the fill's own: "Stop hit on ETH: sold at $80, lost
+A second notice, after the fill's own: "Stop hit on ETH: exited at $80, lost
 $55.00 (Hyperliquid main)". Two notices for one stop is the honest shape,
 because the app learns the two facts at two different moments — the fill
 arrives first, and which order caused it can arrive seconds or minutes later,

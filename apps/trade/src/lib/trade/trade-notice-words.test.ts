@@ -96,7 +96,7 @@ describe("a price alert's notice", () => {
 })
 
 describe("a fill's notice", () => {
-  it("says a buy in dollars, at its price, with the wallet's label", () => {
+  it("says an entry in dollars, at its price, with the wallet's label", () => {
     const words = fillNoticeWords({
       marketKey: "hyperliquid:mainnet:ETH",
       side: "buy",
@@ -106,8 +106,42 @@ describe("a fill's notice", () => {
       liquidation: false,
       ...wallet,
     })
-    expect(words.title).toBe("Bought $500 of ETH at $90 (Hyperliquid main)")
+    expect(words.title).toBe(
+      "Entered a trade: $500 of ETH at $90 (Hyperliquid main)"
+    )
     expect(words.level).toBe("info")
+  })
+
+  it("says exited when the venue calls it a close, even at breakeven", () => {
+    const words = fillNoticeWords({
+      marketKey: "hyperliquid:mainnet:ETH",
+      side: "sell",
+      px: 90,
+      sz: 5.5555,
+      closedPnl: 0,
+      dir: "Close Long",
+      liquidation: false,
+      ...wallet,
+    })
+    expect(words.title).toBe(
+      "Exited a trade: $500 of ETH at $90 (Hyperliquid main)"
+    )
+  })
+
+  it("never says shorted or sold on a buy that closed a short", () => {
+    const words = fillNoticeWords({
+      marketKey: "hyperliquid:mainnet:ETH",
+      side: "buy",
+      px: 90,
+      sz: 5.5555,
+      closedPnl: 12,
+      dir: "Close Short",
+      liquidation: false,
+      ...wallet,
+    })
+    expect(words.title).toBe(
+      "Exited a trade: $500 of ETH at $90 (Hyperliquid main)"
+    )
   })
 
   it("carries the dollars lost on a losing close, and gets louder", () => {
@@ -120,7 +154,7 @@ describe("a fill's notice", () => {
       liquidation: false,
       ...wallet,
     })
-    expect(words.title).toContain("Sold $500 of ETH")
+    expect(words.title).toContain("Exited a trade: $500 of ETH")
     expect(words.body).toBe("Lost $55.00 on this close.")
     expect(words.level).toBe("warning")
   })
@@ -198,7 +232,7 @@ describe("a stop or target's second notice", () => {
       ...wallet,
     })
     expect(words.title).toBe(
-      "Stop hit on ETH: sold at $80, lost $55.00 (Hyperliquid main)"
+      "Stop hit on ETH: exited at $80, lost $55.00 (Hyperliquid main)"
     )
     expect(words.level).toBe("warning")
   })
@@ -217,7 +251,7 @@ describe("a stop or target's second notice", () => {
     expect(words.level).toBe("info")
   })
 
-  it("says bought when the stop closed a short", () => {
+  it("says exited, not bought, when the stop closed a short", () => {
     const words = triggerNoticeWords({
       kind: "stop",
       marketKey: "hyperliquid:mainnet:ETH",
@@ -226,6 +260,7 @@ describe("a stop or target's second notice", () => {
       closedPnl: -12,
       ...wallet,
     })
-    expect(words.title).toContain("bought at")
+    expect(words.title).toContain("exited at")
+    expect(words.title).not.toContain("bought")
   })
 })

@@ -212,7 +212,7 @@ describe("live fill storage", () => {
     expect(writeTradeNotice).toHaveBeenCalledTimes(1)
     expect(writeTradeNotice).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Bought $46.28 of JASMYUSDTM at $0.004861 (Ku1)",
+        title: "Entered a trade: $46.28 of JASMYUSDTM at $0.004861 (Ku1)",
         body: "The order filled on the exchange.",
         soundKind: "fill",
       })

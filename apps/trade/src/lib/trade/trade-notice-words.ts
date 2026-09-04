@@ -73,6 +73,26 @@ function walletTag(walletLabel: string, practice: boolean): string {
   return practice ? `(${walletLabel}, practice)` : `(${walletLabel})`
 }
 
+/**
+ * Whether a fill got into a trade or out of one.
+ *
+ * The bell says "entered" or "exited", never "bought" or "sold". Tyler's
+ * rule: a long that is closed was not "shorted", and a long that is opened
+ * was not "bought"; the person entered a trade or exited one, and the words
+ * say which. The venue's own words decide when it gives them ("Close Long",
+ * "Open Short"); a venue that says nothing is read from the money, because
+ * only a close banks anything.
+ */
+export function fillWasExit(fill: {
+  dir?: string
+  closedPnl: number
+}): boolean {
+  const dir = (fill.dir ?? "").toLowerCase()
+  if (dir.startsWith("close")) return true
+  if (dir.startsWith("open")) return false
+  return fill.closedPnl !== 0
+}
+
 /** One fill, said the moment it is written down. */
 export function fillNoticeWords(fill: {
   marketKey: string
@@ -80,6 +100,8 @@ export function fillNoticeWords(fill: {
   px: number
   sz: number
   closedPnl: number
+  /** The venue's own words for the fill, "Close Long" and the rest, if any. */
+  dir?: string
   /**
    * The average entry the exchange measured the close against, when it can
    * be said. Null leaves the sentence at the dollars alone.
@@ -92,12 +114,12 @@ export function fillNoticeWords(fill: {
   const coin = marketSymbol(fill.marketKey)
   const usd = formatUsdRounded(Math.abs(fill.px * fill.sz))
   const price = formatPrice(fill.px)
-  const did = fill.side === "buy" ? "Bought" : "Sold"
+  const did = fillWasExit(fill) ? "Exited a trade" : "Entered a trade"
   const tag = walletTag(fill.walletLabel, fill.practice)
 
   if (fill.liquidation) {
     return {
-      title: `The exchange liquidated ${coin}: ${did.toLowerCase()} ${usd} at ${price} ${tag}`,
+      title: `The exchange liquidated ${coin}: exited ${usd} at ${price} ${tag}`,
       body:
         fill.closedPnl !== 0
           ? `${gainWords(fill.closedPnl, null)} The exchange closed this itself.`
@@ -106,7 +128,7 @@ export function fillNoticeWords(fill: {
     }
   }
 
-  const title = `${did} ${usd} of ${coin} at ${price} ${tag}`
+  const title = `${did}: ${usd} of ${coin} at ${price} ${tag}`
   if (fill.closedPnl !== 0) {
     return {
       title,
@@ -132,7 +154,6 @@ export function triggerNoticeWords(input: {
   practice: boolean
 }): { title: string; body: string; level: TradeNoticeLevel } {
   const coin = marketSymbol(input.marketKey)
-  const did = input.side === "buy" ? "bought" : "sold"
   const name = input.kind === "stop" ? "Stop hit" : "Target hit"
   const tag = walletTag(input.walletLabel, input.practice)
   const money =
@@ -140,7 +161,7 @@ export function triggerNoticeWords(input: {
       ? `, ${input.closedPnl < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(input.closedPnl))}`
       : ""
   return {
-    title: `${name} on ${coin}: ${did} at ${formatPrice(input.px)}${money} ${tag}`,
+    title: `${name} on ${coin}: exited at ${formatPrice(input.px)}${money} ${tag}`,
     body:
       input.kind === "stop"
         ? "The stop order fired and closed the position."

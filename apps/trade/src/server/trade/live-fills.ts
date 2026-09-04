@@ -372,6 +372,7 @@ async function announceFills(
           px: fill.px,
           sz: fill.sz,
           closedPnl: fill.closedPnl,
+          dir: fill.dir,
           entryPx: averageEntryOf(wallet.protocol, fill),
           liquidation: fill.liquidation,
           walletLabel: wallet.label,
