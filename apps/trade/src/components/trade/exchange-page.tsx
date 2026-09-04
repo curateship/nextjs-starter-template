@@ -25,7 +25,7 @@ import {
   type DashboardCore,
   type DashboardExchange,
 } from "@/lib/api/trade/dashboard"
-import { saveLastMarket } from "@/lib/api/trade/markets"
+import { saveLastMarket, searchMarkets } from "@/lib/api/trade/markets"
 import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
@@ -235,10 +235,20 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
   // A retry fetches the market list alone — never the whole loader. Stable
   // on purpose: the workspace keys its live-feed effect on it, and a fresh
   // closure per render would resubscribe the feed on every market click.
-  const { markets: shownMarkets, retry: onRetryMarkets } = useDashboardMarkets(
-    markets,
-    protocol,
-    network
+  const {
+    markets: shownMarkets,
+    retry: onRetryMarkets,
+    addRows,
+  } = useDashboardMarkets(markets, protocol, network)
+  // A market found on the venue joins the list for the session, so the
+  // picker can show it and the chart can open it like any other.
+  const onSearchMarkets = React.useCallback(
+    async (query: string) => {
+      const { rows } = await searchMarkets(protocol, network, query)
+      addRows(rows)
+      return rows
+    },
+    [addRows, network, protocol]
   )
 
   // The address wins; the account's memory fills a bare visit. A remembered
@@ -327,6 +337,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
         if (href) void navigate({ href })
       }}
       onRetryMarkets={onRetryMarkets}
+      onSearchMarkets={onSearchMarkets}
     />
   )
 }

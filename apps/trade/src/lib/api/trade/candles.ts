@@ -113,5 +113,9 @@ export function getCandlesErrorMessage(error: unknown): string {
       : error instanceof Error
         ? error.message
         : ""
+  // A venue that KNOWS why it has no chart — one not built yet — says so
+  // after `CANDLES_UNAVAILABLE:`, and that sentence is shown as it is.
+  const explained = /^CANDLES_UNAVAILABLE:([^]+)/.exec(said.trim())?.[1]?.trim()
+  if (explained) return explained
   return busyMessage(said) ?? candlesMessage(error)
 }

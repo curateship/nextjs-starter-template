@@ -218,6 +218,7 @@ export default function TradeWalletFields({
       if (figures.reason) return figures.reason
       return `${row.label} could not be reached just now, so what it holds is not shown. That is usually a hiccup at the exchange.`
     }
+    if (figures?.state === "unread") return figures.reason
     return null
   })()
 

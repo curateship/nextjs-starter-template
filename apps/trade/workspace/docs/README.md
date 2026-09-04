@@ -153,6 +153,11 @@ screen: anything not written there has not been agreed yet.
   each one asks for.
 - `kucoin.md` — which KuCoin stop rows count as open, the refusal codes seen
   locally and the published order families Trade translates.
+- `solana.md` — Solana as a network the app holds a wallet on: why it is spot
+  only, what the node and Jupiter each do, the three `.env` settings, why
+  there is no practice network, the wallet rule, what a wallet looks like
+  before its holdings can be read, the market list and its measured counts,
+  the lookup for a coin outside the list, and the sixty-a-minute budget.
 
 ## backtests/
 

@@ -118,6 +118,10 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   It names the wallet in use, separates the name and total with " - ", then
   shows the made-or-lost figure. On a phone it becomes a wallet icon with a
   Manage wallets tooltip, so the header does not scroll sideways.
+  With no market on the chart, a fresh visit or an exchange with no market
+  list yet, the header row is still drawn: the exchange's name sits where the
+  market would be and the wallet control keeps its place on the right. That
+  is how a Solana wallet is made and funded before Solana has a market list.
   Pressing the control opens Active, All and Inactive above the chart. Active
   lists every wallet that is switched on. Pressing a wallet row makes it the
   wallet used for the next trade. The checked control names the selected wallet

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 
 import { focusRing } from "@/lib/layout/focus-ring"
 
+import { CautionBadge } from "@/components/trade/caution-badge"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { TableSortButton } from "@/components/ui/table"
@@ -282,6 +283,7 @@ export const MarketRowLine = React.memo(function MarketRowLine({
         <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
           {formatCompactUsd(volume24hUsd)}
         </span>
+        {row.caution ? <CautionBadge caution={row.caution} /> : null}
       </span>
       {/* Just the day's move, in a soft pill of its colour — the price
           belongs to the market header. A market with no yesterday price

@@ -1,8 +1,10 @@
 import * as React from "react"
-import { ChevronDownIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, Loader2Icon, SearchIcon } from "lucide-react"
 
+import { CautionBadge } from "@/components/trade/caution-badge"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { MarketIcon } from "@/components/trade/market-icon"
+import { Button } from "@/components/ui/button"
 
 import { Input } from "@/components/ui/input"
 import {
@@ -38,6 +40,7 @@ import {
   formatFunding,
   formatPrice,
 } from "@/lib/trade/format"
+import { getMarketsErrorMessage } from "@/lib/api/trade/markets"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
 import {
@@ -90,6 +93,8 @@ export function MarketPicker({
   folders,
   folderActions,
   onSelect,
+  venueLabel,
+  onSearchBeyond,
 }: {
   rows: MarketRow[]
   selected: MarketRow
@@ -97,6 +102,14 @@ export function MarketPicker({
   folders: readonly MarketFolder[]
   folderActions: MarketFolderActions
   onSelect: (key: string) => void
+  /** The venue's printed name, for the lookup button: "Find … on Solana". */
+  venueLabel: string
+  /**
+   * Looks a market up on the venue when the search matches nothing loaded.
+   * Offered only where the catalogue's `picker.search` is true. The rows it
+   * answers with are already folded into `rows` by the caller.
+   */
+  onSearchBeyond?: (query: string) => Promise<MarketRow[]>
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState(false)
@@ -131,6 +144,50 @@ export function MarketPicker({
   }
   React.useEffect(() => clearHover, [])
   const [query, setQuery] = React.useState("")
+  /**
+   * The lookup on the venue: not yet asked, asking, or what it said. Keyed
+   * to the query it was asked for, so typing on clears it.
+   */
+  const [lookup, setLookup] = React.useState<{
+    query: string
+    state: "asking" | "nothing" | "failed"
+    note?: string
+  } | null>(null)
+  const lookupFor = lookup?.query === query.trim() ? lookup : null
+  /**
+   * Keys of coins somebody went and found on the venue.
+   *
+   * **A found coin is never hidden for being quiet.** The list below drops a
+   * row with no volume, which is right for a catalogue of thousands and
+   * wrong for the one coin a person just asked for by name: the lookup
+   * succeeded, the row arrived, and the picker swallowed it without a word.
+   * Solana had 900 coins of 3,189 with no day's figures at all.
+   */
+  const [foundKeys, setFoundKeys] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const askVenue = async () => {
+    const asked = query.trim()
+    if (!onSearchBeyond || asked.length < 2) return
+    setLookup({ query: asked, state: "asking" })
+    try {
+      const found = await onSearchBeyond(asked)
+      setFoundKeys((was) => {
+        const next = new Set(was)
+        for (const row of found) next.add(row.key)
+        return next
+      })
+      setLookup(
+        found.length === 0 ? { query: asked, state: "nothing" } : null
+      )
+    } catch (error) {
+      setLookup({
+        query: asked,
+        state: "failed",
+        note: getMarketsErrorMessage(error),
+      })
+    }
+  }
   const [view, setView] = React.useState<MarketPickerView>("all")
   const [category, setCategory] = React.useState<TradFiCategory>("all")
   const [sort, setSort] = React.useState<{
@@ -163,7 +220,8 @@ export function MarketPicker({
       (row) =>
         (row.volume24hUsd > 0 ||
           row.key === selected.key ||
-          favKeys.has(row.key)) &&
+          favKeys.has(row.key) ||
+          foundKeys.has(row.key)) &&
         (!trimmed ||
           row.symbol.toUpperCase().includes(trimmed) ||
           displaySymbol(row.symbol).toUpperCase().includes(trimmed))
@@ -199,7 +257,16 @@ export function MarketPicker({
         direction
       )
     })
-  }, [activeSort, activeView, category, folders, query, rows, selected.key])
+  }, [
+    activeSort,
+    activeView,
+    category,
+    folders,
+    foundKeys,
+    query,
+    rows,
+    selected.key,
+  ])
 
   const toggleSort = (key: MarketPickerSortKey) =>
     setSort((current) =>
@@ -400,8 +467,37 @@ export function MarketPicker({
         <ScrollBar orientation="horizontal" />
         </ScrollArea>
         {visible.length === 0 ? (
-          <div className="p-8 text-center text-xs text-muted-foreground">
-            No matching markets.
+          <div className="flex flex-col items-center gap-3 p-8 text-center text-xs text-muted-foreground">
+            <span>No matching markets.</span>
+            {/* An open network lists more coins than any list holds, so a
+                miss here is an offer to ask the venue itself, by name or
+                address. Offered, not automatic: each lookup spends one of
+                the minute's requests. */}
+            {capabilities.search && onSearchBeyond && query.trim().length >= 2 ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={lookupFor?.state === "asking"}
+                  onClick={() => void askVenue()}
+                >
+                  {lookupFor?.state === "asking" ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <SearchIcon className="size-4" />
+                  )}
+                  Find "{query.trim()}" on {venueLabel}
+                </Button>
+                {lookupFor?.state === "nothing" ? (
+                  <span>
+                    Nothing on {venueLabel} is called that. A coin with no
+                    price is left out too.
+                  </span>
+                ) : lookupFor?.state === "failed" ? (
+                  <span>{lookupFor.note}</span>
+                ) : null}
+              </>
+            ) : null}
           </div>
         ) : null}
 
@@ -497,6 +593,7 @@ function MarketPickerRow({
           <span className="min-w-0 truncate font-semibold">
             {displaySymbol(row.symbol)}-{row.quoteAsset}
           </span>
+          {row.caution ? <CautionBadge caution={row.caution} /> : null}
           {row.maxLeverage !== null ? (
             <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
               {row.maxLeverage}×

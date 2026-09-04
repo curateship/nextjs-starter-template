@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, Trash2Icon } from "lucide-react"
+import { CheckIcon, CopyIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -85,9 +85,10 @@ let protocolsPromise: Promise<ProtocolDescription[]> | null = null
 function walletProtocols(): Promise<ProtocolDescription[]> {
   protocolsPromise ??= loadProtocolsOnce()
     .then((result) =>
-      result.protocols.filter(
-        (one) => one.capabilities.accounts && one.credentialForm
-      )
+      // Every exchange with a sign-in form: the ones whose accounts can
+      // be read, and a chain wallet that can be made and funded before
+      // its holdings can be read.
+      result.protocols.filter((one) => one.credentialForm)
     )
     .catch((error: unknown) => {
       // A failed read must not stick as an empty list forever.
@@ -145,6 +146,34 @@ function credentialFields(
     secret: secret.trim(),
     ...(form.needsPassphrase ? { passphrase: passphrase.trim() } : {}),
   }
+}
+
+/**
+ * Puts one public value on the clipboard — an address someone has to send
+ * coins to. Says "Copied" for a moment so the click is seen to have worked.
+ */
+function CopyButton({ value, what }: { value: string; what: string }) {
+  const [copied, setCopied] = React.useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2_000)
+    } catch {
+      showErrorToast(`We could not copy the ${what}. Select it and copy it instead.`)
+    }
+  }
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="shrink-0"
+      onClick={() => void copy()}
+    >
+      {copied ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
+      {copied ? "Copied" : "Copy"}
+    </Button>
+  )
 }
 
 function KindChoice({
@@ -274,6 +303,15 @@ export function AddWalletDialog({
   const [secret, setSecret] = React.useState("")
   const [passphrase, setPassphrase] = React.useState("")
   const [saving, setSaving] = React.useState(false)
+  /**
+   * A wallet the exchange just made, already saved. The window then shows
+   * its address to copy instead of closing, because the address is the one
+   * thing the person needs next and nowhere else prints it whole.
+   */
+  const [made, setMade] = React.useState<{
+    label: string
+    address: string
+  } | null>(null)
 
   // A fresh window each time it opens, not the leftovers of the last add.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -288,6 +326,7 @@ export function AddWalletDialog({
       setAddress("")
       setSecret("")
       setPassphrase("")
+      setMade(null)
     }
   }
 
@@ -301,13 +340,15 @@ export function AddWalletDialog({
     if (!labelTouched) setLabel(next === "paper" ? "Practice" : "Real")
   }
 
+  // Once a wallet is made and saved there is nothing left to lose.
   const dirty =
-    labelTouched ||
+    made === null &&
+    (labelTouched ||
     kind !== "paper" ||
     startingBalance !== "10000" ||
     address !== "" ||
     secret !== "" ||
-    passphrase !== ""
+    passphrase !== "")
 
   const balanceNumber = Number(startingBalance)
   const refusal =
@@ -367,6 +408,85 @@ export function AddWalletDialog({
     } finally {
       setSaving(false)
     }
+  }
+
+  /**
+   * The exchange makes the wallet. Nothing is pasted: the server makes the
+   * keypair, encrypts the secret at once, and answers with the address.
+   */
+  const handleMake = async () => {
+    if (saving) return
+    if (label.trim().length === 0) {
+      showErrorToast("Give the wallet a name.")
+      return
+    }
+    dismissErrorToast()
+    setSaving(true)
+    try {
+      const { wallet } = await createWallet({
+        label: label.trim(),
+        kind: "live",
+        protocol,
+        network,
+        makeWallet: true,
+      })
+      toast.success(`Added "${wallet.label}".`)
+      onAdded(wallet)
+      if (wallet.address) {
+        setMade({ label: wallet.label, address: wallet.address })
+      } else {
+        onClose()
+      }
+    } catch (error) {
+      showErrorToast(getWalletErrorMessage(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (made) {
+    return (
+      <FormDialog open={open} dirty={false} busy={false} onClose={onClose}>
+        {() => (
+          <DialogContent variant="admin" className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Your new {venue} wallet</DialogTitle>
+              <DialogDescription>
+                "{made.label}" is saved. Send the coins you mean to trade to
+                this address. The secret key was made on the server, is
+                stored encrypted, and is never shown.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <Card size="sm">
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-made-address">
+                      {form?.addressLabel ?? "Wallet address"}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="wallet-made-address"
+                        readOnly
+                        value={made.address}
+                        className="font-mono"
+                        onFocus={(event) => event.currentTarget.select()}
+                      />
+                      <CopyButton value={made.address} what="address" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" onClick={onClose}>
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </FormDialog>
+    )
   }
 
   return (
@@ -489,6 +609,28 @@ export function AddWalletDialog({
                         onSecret={setSecret}
                         onPassphrase={setPassphrase}
                       />
+                      {form.canMakeWallet ? (
+                        // The divider runs edge to edge: pulled out by the
+                        // small card's 12px padding and the inset restored.
+                        <div className="-mx-3 grid gap-2 border-t px-3 pt-4">
+                          <p className="text-xs text-muted-foreground">
+                            Or let Trade make a wallet for you. Only the
+                            address is shown; the secret key is made on the
+                            server and stored encrypted there.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={saving}
+                            onClick={() => void handleMake()}
+                          >
+                            {saving ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : null}
+                            Make a new wallet
+                          </Button>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </CardContent>

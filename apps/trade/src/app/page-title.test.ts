@@ -22,6 +22,18 @@ describe("trade page titles", () => {
     ).toBe("BTC · Hyperliquid · Trade")
   })
 
+  it("names a Solana coin by its shortened mint, not 44 characters of it", () => {
+    // The whole address filled the tab and said nothing. The market header
+    // on the page still shows the real ticker, which it has the row for.
+    expect(
+      marketPageTitle(
+        matches,
+        "solana:mainnet:CbyTNf7UPzvewHh4Zp6umogM2RWahhmGRJWLJnPwpump",
+        "Solana"
+      )
+    ).toBe("CbyTNf…pump · Solana · Trade")
+  })
+
   it("falls back to the screen name when the market is missing or invalid", () => {
     expect(marketPageTitle(matches, undefined, "Aster")).toBe("Aster · Trade")
     expect(marketPageTitle(matches, "not-a-market", "KuCoin")).toBe(

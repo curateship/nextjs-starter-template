@@ -1,6 +1,11 @@
 import * as React from "react"
 
-import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import {
+  parseMarketKey,
+  type MarketRow,
+  type NetworkId,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import { getMarketsErrorMessage, loadMarkets } from "@/lib/api/trade/markets"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 
@@ -51,6 +56,49 @@ export function useDashboardMarkets(
     if (!keepShown) setMarkets(fromLoader)
   }
 
+  /**
+   * Markets found by a lookup on the venue, kept for the session. They are
+   * folded into whatever list is on screen rather than written into it, so
+   * a retry or a fresh loader answer cannot lose them. A row for another
+   * exchange or network has nowhere to go and is dropped.
+   */
+  const [found, setFound] = React.useState<MarketRow[]>([])
+  const addRows = React.useCallback((rows: readonly MarketRow[]) => {
+    setFound((was) => {
+      const keys = new Set(was.map((row) => row.key))
+      const fresh = rows.filter((row) => {
+        const ref = parseMarketKey(row.key)
+        return (
+          ref !== null &&
+          ref.protocol === protocol &&
+          ref.network === network &&
+          !keys.has(row.key)
+        )
+      })
+      return fresh.length === 0 ? was : [...was, ...fresh]
+    })
+  }, [network, protocol])
+
+  const shown = React.useMemo<DashboardMarkets>(() => {
+    if (found.length === 0) return markets
+    return {
+      ...markets,
+      catalogs: markets.catalogs.map((catalog) => {
+        if (catalog.protocol !== protocol || catalog.network !== network) {
+          return catalog
+        }
+        const listed = new Set([
+          ...catalog.rows.map((row) => row.key),
+          ...catalog.hiddenByVolumeRows.map((row) => row.key),
+        ])
+        const extra = found.filter((row) => !listed.has(row.key))
+        return extra.length === 0
+          ? catalog
+          : { ...catalog, rows: [...catalog.rows, ...extra] }
+      }),
+    }
+  }, [found, markets, network, protocol])
+
   const retry = React.useCallback(() => {
     loadMarkets(protocol, network).then(
       (result) =>
@@ -68,5 +116,5 @@ export function useDashboardMarkets(
     )
   }, [protocol, network])
 
-  return { markets, retry }
+  return { markets: shown, retry, addRows }
 }

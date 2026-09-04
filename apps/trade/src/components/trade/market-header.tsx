@@ -51,6 +51,7 @@ export function MarketHeader({
   note,
   onOpenMarkets,
   onOpenSmartOrders,
+  onSearchBeyond,
 }: {
   selection: MarketSelection
   markets: MarketRow[]
@@ -70,6 +71,8 @@ export function MarketHeader({
    */
   onOpenMarkets?: () => void
   onOpenSmartOrders?: () => void
+  /** The venue's lookup for a market outside the list, where it has one. */
+  onSearchBeyond?: (query: string) => Promise<MarketRow[]>
 }) {
   const sheetButtons =
     onOpenMarkets || onOpenSmartOrders ? (
@@ -142,6 +145,8 @@ export function MarketHeader({
           folders={folders}
           folderActions={folderActions}
           onSelect={onSelectMarket}
+          venueLabel={selection.protocolLabel}
+          onSearchBeyond={onSearchBeyond}
         />
         <span className="flex h-full shrink-0 items-center border-l">
           <MarketInfo selection={selection} />

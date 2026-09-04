@@ -3,7 +3,7 @@ import { rootRouteId } from "@tanstack/react-router"
 
 import { useTradeSounds } from "@/components/trade/trade-sounds"
 import { resolveAppName, useAppName } from "@/lib/branding"
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { marketSymbol, parseMarketKey } from "@/lib/protocols/contracts"
 
 type TitleMatch = {
   routeId: string
@@ -37,7 +37,9 @@ export function marketPageTitle(
   const exchange = market
     ? (EXCHANGE_NAMES[market.protocol] ?? fallbackExchange)
     : fallbackExchange
-  const page = market ? `${market.marketId} · ${exchange}` : exchange
+  // `marketSymbol` rather than the raw id: a Solana id is a 44-character
+  // mint address, which fills the whole tab and says nothing.
+  const page = market ? `${marketSymbol(marketKey!)} · ${exchange}` : exchange
   return tradePageTitle(matches, page)
 }
 
@@ -82,5 +84,7 @@ export function useMarketPageTitle(
   const exchange = market
     ? (EXCHANGE_NAMES[market.protocol] ?? fallback)
     : fallback
-  useTradePageTitle(market ? `${market.marketId} · ${exchange}` : exchange)
+  useTradePageTitle(
+    market ? `${marketSymbol(marketKey!)} · ${exchange}` : exchange
+  )
 }

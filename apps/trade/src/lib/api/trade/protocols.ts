@@ -12,7 +12,11 @@ export type ProtocolDescription = {
   networks: readonly NetworkId[]
   defaultNetwork: NetworkId
   capabilities: ProtocolCapabilities
-  /** Present exactly where accounts are — how a wallet there signs in. */
+  /**
+   * Present wherever a wallet can be added — how a wallet there signs in.
+   * Every exchange whose accounts can be read has one; Solana has one before
+   * its holdings can be read, so the wallet can be made and funded first.
+   */
   credentialForm: CredentialForm | null
 }
 
@@ -44,6 +48,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       secretLabel: "Trading key (agent key)",
       needsPassphrase: false,
       secretIsAgentKey: true,
+      canMakeWallet: false,
       keyHelp:
         "An agent key made on the exchange's API page — approved to trade " +
         "for this account and nothing more. Never the account's own key, " +
@@ -72,6 +77,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       secretLabel: "API secret",
       needsPassphrase: false,
       secretIsAgentKey: false,
+      canMakeWallet: false,
       keyHelp:
         "Made on Phemex under API Management — give it trade permission, " +
         "and copy both the ID and the secret while they are shown.",
@@ -99,6 +105,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       secretLabel: "API secret",
       needsPassphrase: true,
       secretIsAgentKey: false,
+      canMakeWallet: false,
       keyHelp:
         "Made on KuCoin under API Management, with Futures trading " +
         "permission. Copy all three — the key, the secret and the " +
@@ -127,6 +134,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       secretLabel: "API wallet key",
       needsPassphrase: false,
       secretIsAgentKey: true,
+      canMakeWallet: false,
       keyHelp:
         "Make a separate Pro API wallet on Aster's API Wallet page and give it perpetual trading permission. The first field takes your main Aster login wallet. Paste the generated API wallet private key here. Trade derives the generated API wallet address, so you do not paste that address.",
     },
@@ -161,6 +169,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       // Lighter keys are 40 bytes, not 32-byte EVM agent keys. Turning this on
       // would reject every real Lighter key before its own signer sees it.
       secretIsAgentKey: false,
+      canMakeWallet: false,
       keyHelp:
         "Make an API key on Lighter's own site and paste the private key it " +
         "shows you. The first field takes the wallet address you trade with " +
@@ -216,6 +225,55 @@ export const PROTOCOL_DESCRIPTIONS = [
       },
     },
     credentialForm: null,
+  },
+  /**
+   * Solana: buying and owning coins through Jupiter, the swap router. Spot
+   * only — no leverage, no short side, no funding, no liquidation. Each
+   * capability is switched on by the task that builds it: markets are here,
+   * holdings and orders are not yet.
+   *
+   * Mainnet only. Solana has a practice network with a faucet, but Jupiter
+   * cannot swap on it, so the first swap is a tiny real one.
+   */
+  {
+    id: "solana",
+    label: "Solana",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: false,
+      orders: false,
+      gridStop: "watched",
+      changeLeverage: {
+        can: false,
+        because:
+          "Solana is spot only: a coin is bought and owned outright, so there is no leverage to change.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Solana is spot only: a coin is bought and owned outright, so there is no margin behind it.",
+      },
+    },
+    credentialForm: {
+      addressLabel: "Wallet address",
+      addressHint: "Base58, 32 to 44 characters",
+      addressPattern: "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+      secretLabel: "Secret key",
+      needsPassphrase: false,
+      // A Solana key is an Ed25519 key in base58, not a 32-byte EVM key.
+      // The shape and the match against the address are checked by the
+      // Solana folder, which is the only place that can derive one.
+      secretIsAgentKey: false,
+      canMakeWallet: true,
+      keyHelp:
+        "This is the key that holds the coins, not a limited trading key: " +
+        "Solana has no way for one key to act for another. Keep in this " +
+        "wallet only what you mean to trade. Paste the secret key a wallet " +
+        "app such as Phantom exports, or make a new wallet below and send " +
+        "USDC and a little SOL to it.",
+    },
   },
 ] as const satisfies readonly ProtocolDescription[]
 

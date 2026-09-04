@@ -34,6 +34,18 @@ line in the body, share the panel's one 12px gutter.
   — while the heading row stays put.
   The five number columns use compact fixed widths; Market takes the room they
   leave instead of spacing every column evenly.
+- **A search that matches nothing can ask the venue itself**, on an exchange
+  that says it can (Solana, where anyone can mint a coin and no list holds
+  them all). Under "No matching markets." the picker offers one button, "Find
+  "BONK" on Solana". It is a button and not automatic because each lookup
+  spends one of the minute's requests. A coin it finds joins the list for the
+  session, in the picker and in All markets, and is charted like any other.
+  Nothing found says so; a coin the venue has no price for is left out.
+- **A coin the venue itself warns about wears a small word beside its name**,
+  "Unverified" or "Suspicious", in the shared badge, in both the panel and
+  the picker. The coin is never hidden, because "all of Solana" was the
+  point, but it never looks like a vetted one either. Hovering the word says
+  what it means.
 - **On testnet, the amber strip sits at the panel's foot** with the Back to
   Mainnet link, exactly as it did on the old market list panel.
 - **Both side panels open at their smallest useful width.** Folders starts at
