@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   loadPaperPortfolio: vi.fn(),
   loadOlderPaperTrades: vi.fn(),
   placeLiveOrder: vi.fn(),
+  closeLivePosition: vi.fn(),
   closeLivePositions: vi.fn(),
   closeAllPaperPositions: vi.fn(),
   hideLiveTrade: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock("@/lib/api/trade/live", () => ({
   cancelLiveOrder: vi.fn(),
   changeLiveLeverage: vi.fn(),
   changeLiveMargin: vi.fn(),
-  closeLivePosition: vi.fn(),
+  closeLivePosition: api.closeLivePosition,
   closeLivePositions: api.closeLivePositions,
   getLiveErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Live order refused",
@@ -95,6 +96,8 @@ vi.mock("@/lib/toast/error-toast", () => ({
 }))
 
 import { useTrading, type Trading } from "@/components/trade/use-trading"
+import { baseStopDetection } from "@/lib/trade/dca"
+import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { readWatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 
@@ -161,6 +164,7 @@ beforeEach(() => {
   api.loadOlderLiveTrades.mockReset()
   api.loadOlderPaperTrades.mockReset()
   api.placeLiveOrder.mockReset()
+  api.closeLivePosition.mockReset().mockResolvedValue(undefined)
   api.closeLivePositions.mockReset().mockResolvedValue({
     closed: 0,
     refused: [],
@@ -513,6 +517,193 @@ describe("bulk safety actions", () => {
 
     expect(api.flattenWalletApi).toHaveBeenCalledOnce()
     expect(api.flattenWalletApi).toHaveBeenCalledWith({ walletId: wallet.id })
+  })
+})
+
+/** A real position on one coin, the shape the account read hands back. */
+function livePosition(marketKey: string) {
+  return {
+    id: `position:${marketKey}`,
+    walletId: wallet.id,
+    marketKey,
+    szi: 1,
+    entryPx: 100,
+    leverage: 1,
+    maxLeverage: 50,
+    targets: [],
+    tpPx: null,
+    feesPaid: 0,
+    updatedAt: Date.now(),
+    live: {
+      marginUsed: 100,
+      liquidationPx: null,
+      tpOrderId: null,
+      slOrderId: null,
+    },
+  }
+}
+
+/** A buying grid on one coin, holding coins on rung 1 or holding nothing. */
+function gridOn(marketKey: string, holding: boolean): SmartGrid {
+  return {
+    id: `grid:${marketKey}`,
+    walletId: wallet.id,
+    marketKey,
+    status: "active",
+    flowRunId: null,
+    createdAt: 1,
+    updatedAt: 1,
+    kind: "grid",
+    plan: {
+      handSetAt: null,
+      direction: "long",
+      topPx: 110,
+      bottomPx: 90,
+      takeProfitPx: null,
+      spacing: "even",
+      sizing: "even",
+      manualSizing: false,
+      manualRungPcts: null,
+      potPct: 20,
+      maxOrderVolPct: 0,
+      startedAt: 1,
+      sizeDecimals: 4,
+      priceTick: null,
+      minOrderValueUsd: 10,
+      leverage: 1,
+      maxLeverage: 20,
+      levels: [
+        {
+          buyPx: 100,
+          sellPx: 110,
+          sz: holding ? 1 : 0,
+          budget: 100,
+          heldSz: holding ? 1 : 0,
+          status: holding ? "holding" : "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+        },
+        {
+          buyPx: 90,
+          sellPx: 100,
+          sz: 0,
+          budget: 100,
+          heldSz: 0,
+          status: "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+        },
+      ],
+      carriedLevels: [],
+      stopLoss: { mode: "fixed", underPct: 5, px: 80, base: null },
+      baseDetection: baseStopDetection(),
+      baseWatch: null,
+      aimedSlPx: null,
+      pairedStop: null,
+      seenFillsTo: 0,
+      cycles: 0,
+      follow: false,
+      followDown: false,
+      entered: true,
+      shifts: 0,
+      downShifts: 0,
+      closedReason: null,
+      reverseWhenStopped: false,
+      reversedFrom: null,
+      reverseFailReason: null,
+    },
+  }
+}
+
+describe("closing a position a grid is holding", () => {
+  // Tyler, 4 Sep 2026: the grid sat on the chart for a few seconds after its
+  // position was closed, with its held rung and a stop that could no longer
+  // price, until the engine noticed the position was gone. It goes on the
+  // press now, the way the position's own row does.
+  const coin = "hyperliquid:mainnet:AZTEC"
+
+  it("takes the grid off the chart the moment Close is pressed", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, true)],
+    })
+    await finishFirstRead()
+    expect(latest?.grids).toHaveLength(1)
+
+    await act(async () => {
+      await latest?.close(livePosition(coin))
+    })
+    expect(api.closeLivePosition).toHaveBeenCalledWith(wallet.id, coin)
+    // The read after the close still carries the grid, the engine not having
+    // ended it yet, and the grid stays hidden all the same.
+    expect(latest?.grids).toHaveLength(0)
+  })
+
+  it("puts the grid back when the exchange refuses the close", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, true)],
+    })
+    api.closeLivePosition.mockRejectedValue(new Error("Venue busy"))
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.close(livePosition(coin))
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith("Venue busy")
+    expect(latest?.grids).toHaveLength(1)
+  })
+
+  it("leaves a grid holding nothing where it is", async () => {
+    // Flat with levels waiting is a grid's ordinary state, and the position
+    // being closed was never its coins.
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, false)],
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.close(livePosition(coin))
+    })
+    expect(latest?.grids).toHaveLength(1)
+  })
+
+  it("takes the grids off with Close all too", async () => {
+    const other = "hyperliquid:mainnet:CRV"
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin), livePosition(other)],
+      smartOrders: [gridOn(coin, true), gridOn(other, false)],
+    })
+    api.closeLivePositions.mockResolvedValue({ closed: 2, refused: [] })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.closeAll()
+    })
+    expect(latest?.grids.map((one) => one.marketKey)).toEqual([other])
+  })
+
+  it("puts the grids back when Close all is refused", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, true)],
+    })
+    api.closeLivePositions.mockRejectedValue(new Error("Venue busy"))
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.closeAll()
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith("Venue busy")
+    expect(latest?.grids).toHaveLength(1)
   })
 })
 

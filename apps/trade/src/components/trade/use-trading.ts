@@ -72,10 +72,11 @@ import {
 import type { DcaLadderSettings, DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
-import type {
-  GridRangeMove,
-  GridStop,
-  PlaceGridParams,
+import {
+  gridHeldSz,
+  type GridRangeMove,
+  type GridStop,
+  type PlaceGridParams,
 } from "@/lib/trade/grid"
 import {
   laddersAndGridsYouPlaced,
@@ -1027,22 +1028,29 @@ export function useTrading(
    * its own would otherwise look like the × had been missed.
    *
    * `key` is what is being held as already gone — an order id, or an id and
-   * the rung's place in it. It is let go only once a read has landed without
-   * it, so a poll that was already in flight cannot flash the line back.
+   * the rung's place in it, or several at once when one press ends more than
+   * one thing. It is let go only once a read has landed without it, so a poll
+   * that was already in flight cannot flash the line back.
    */
   const callOff = React.useCallback(
     async (
-      key: string,
+      key: string | readonly string[],
       action: () => Promise<unknown>,
       describeError: (error: unknown) => string,
       done?: string
     ): Promise<boolean> => {
-      setCancelling((held) => new Map(held).set(key, Date.now()))
+      const keys = typeof key === "string" ? [key] : key
+      const pressedAt = Date.now()
+      setCancelling((held) => {
+        const next = new Map(held)
+        for (const one of keys) next.set(one, pressedAt)
+        return next
+      })
       const forget = () =>
         setCancelling((held) => {
-          if (!held.has(key)) return held
+          if (!keys.some((one) => held.has(one))) return held
           const next = new Map(held)
-          next.delete(key)
+          for (const one of keys) next.delete(one)
           return next
         })
 
@@ -1094,6 +1102,32 @@ export function useTrading(
       ...(liveAnswer?.smartOrders ?? []),
     ],
     [paperAnswer?.smartOrders, liveAnswer?.smartOrders]
+  )
+
+  /**
+   * The grids that closing a position by hand brings to an end.
+   *
+   * A grid holding coins on that coin has nothing left once the position is
+   * gone: the engine sees the position missing and marks the grid done. That
+   * takes a pass or two on a practice wallet and fifteen seconds of patience
+   * on a real one, and a grid sitting on the chart all that while with its
+   * held rung and a stop that can no longer price reads as a close that did
+   * not happen (Tyler, 4 Sep 2026). So the grid goes the moment the close is
+   * pressed, the same way the position's own row does. A grid holding nothing
+   * is not touched: flat with levels waiting is its ordinary state.
+   */
+  const gridsEndedByClosing = React.useCallback(
+    (walletId: string, marketKey: string): string[] =>
+      allSmartOrders
+        .filter(
+          (order): order is SmartGrid =>
+            order.kind === "grid" &&
+            order.walletId === walletId &&
+            order.marketKey === marketKey &&
+            gridHeldSz(order.plan) > 0
+        )
+        .map((order) => order.id),
+    [allSmartOrders]
   )
 
   /**
@@ -1944,8 +1978,13 @@ export function useTrading(
       // The market key names its network, and the words follow it — a testnet
       // close must never announce itself as real money.
       const testnet = parseMarketKey(marketKey)?.network === "testnet"
+      // The grids this position was carrying go with it — see
+      // `gridsEndedByClosing`. A refusal puts them back along with the row.
       await callOff(
-        bracketKey(walletId, marketKey),
+        [
+          bracketKey(walletId, marketKey),
+          ...gridsEndedByClosing(walletId, marketKey),
+        ],
         () =>
           live
             ? closeLivePosition(walletId, marketKey)
@@ -1956,7 +1995,7 @@ export function useTrading(
           : `Position closed in ${nameOf(walletId)}.`
       )
     },
-    [callOff, nameOf]
+    [callOff, nameOf, gridsEndedByClosing]
   )
 
   const closePart: Trading["closePart"] = React.useCallback(
@@ -2428,6 +2467,29 @@ export function useTrading(
   const closeAll: Trading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
     const real = positions.filter((one) => one.live)
+    // The grids these positions were carrying leave the chart on the press —
+    // see `gridsEndedByClosing`. Kept apart by wallet kind, because the two
+    // halves answer separately and a refused half puts its own grids back.
+    const endedGrids = (held: typeof positions) =>
+      held.flatMap((one) => gridsEndedByClosing(one.walletId, one.marketKey))
+    const paperGrids = endedGrids(positions.filter((one) => !one.live))
+    const liveGrids = endedGrids(real)
+    const pressedAt = Date.now()
+    if (paperGrids.length > 0 || liveGrids.length > 0) {
+      setCancelling((held) => {
+        const next = new Map(held)
+        for (const id of [...paperGrids, ...liveGrids]) next.set(id, pressedAt)
+        return next
+      })
+    }
+    const putBack = (ids: string[]) => {
+      if (ids.length === 0) return
+      setCancelling((held) => {
+        const next = new Map(held)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    }
     try {
       const [sweep, live] = await Promise.allSettled([
         closeAllPaperPositions(),
@@ -2442,11 +2504,16 @@ export function useTrading(
       ])
 
       if (sweep.status === "rejected") {
+        putBack(paperGrids)
         showErrorToast(getPaperErrorMessage(sweep.reason))
       }
       if (live.status === "rejected") {
+        putBack(liveGrids)
         showErrorToast(getLiveErrorMessage(live.reason))
       } else if (live.value.refused.length > 0) {
+        // The answer does not say which coins stayed open, so every real
+        // grid comes back and the next read settles which are really gone.
+        putBack(liveGrids)
         const why = getLiveErrorMessage(new Error(live.value.refused[0]))
         showErrorToast(
           live.value.refused.length === 1
@@ -2467,7 +2534,7 @@ export function useTrading(
       setPending((count) => count - 1)
       void refresh()
     }
-  }, [refresh, positions])
+  }, [refresh, positions, gridsEndedByClosing])
 
   /**
    * Every ladder and grid you placed, stood down in one press.

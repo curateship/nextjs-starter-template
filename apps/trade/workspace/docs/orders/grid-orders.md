@@ -631,6 +631,17 @@ The automatic flip only happens when the stop demonstrably fired. A position
 that vanished with price still inside the range was closed by hand or
 liquidated, and neither reverses on its own.
 
+Closing a grid's position by hand ends the grid, and the chart says so at once.
+The moment Close it is confirmed on the position, or Close all is confirmed with
+positions ticked, every grid holding coins on that coin leaves the chart, the
+same way the position's own row does. The engine marks the grid done a pass or
+two later on a practice wallet and after its fifteen seconds of patience on a
+real one; the grid used to sit on the chart through that wait with its held
+rung drawn and its stop reading "SL —" (Tyler, 4 Sep 2026). A refused close
+puts the grid back with the position. A grid holding nothing is left alone,
+because flat with levels waiting is its ordinary state and the position closed
+was not its coins.
+
 A reversal can be refused, and a refusal is never silent: the sentence lands in
 the bell and on the closed grid. The reasons are the ones every grid placement
 already checks — the step too thin to clear the fee, a level too small for the
