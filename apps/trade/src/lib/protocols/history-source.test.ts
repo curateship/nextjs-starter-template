@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { SOLANA_BINANCE_HISTORY } from "@/lib/protocols/solana/history"
 import { historySourceFor, isHistorySource } from "@/lib/protocols/history-source"
 
 /**
@@ -118,5 +119,51 @@ describe("markets nobody can name", () => {
     expect(historySourceFor("nonsense")).toBeNull()
     expect(historySourceFor("binance:testnet:BTC")).toBeNull()
     expect(historySourceFor("lighter:mainnet:BTC USDT")).toBeNull()
+  })
+})
+
+describe("Solana borrows by mint address, never by name", () => {
+  it("lends Binance history to a pinned coin", () => {
+    // Wrapped SOL is the coin everyone means by SOL, and Binance lists it.
+    expect(
+      historySourceFor(
+        "solana:mainnet:So11111111111111111111111111111111111111112"
+      )
+    ).toBe("binance:mainnet:SOL")
+  })
+
+  it("lends nothing to a coin that merely calls itself something", () => {
+    // Anyone can mint a coin and name it BTC. Nothing is borrowed unless the
+    // mint itself is pinned, so an impostor draws no chart at all.
+    expect(
+      historySourceFor(
+        "solana:mainnet:BTCimposter1111111111111111111111111111111"
+      )
+    ).toBeNull()
+  })
+
+  it("lends nothing where two Solana coins share one ticker", () => {
+    // TRUMP is two different verified coins on Solana, so neither may claim
+    // Binance's chart. Both mints are absent from the pinned list.
+    for (const mint of [
+      "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN",
+      "HaP8r3ksG76PhQLTqR8FYBeNiQpejcFbQmiHbg787Ut1",
+    ]) {
+      expect(historySourceFor(`solana:mainnet:${mint}`)).toBeNull()
+    }
+  })
+
+  it("keeps every pinned coin pointing at a market Binance really lists", () => {
+    // The pinned list is hand-carried data, so this walks all of it rather
+    // than trusting the day it was generated.
+    for (const [mint, coin] of Object.entries(SOLANA_BINANCE_HISTORY)) {
+      const source = historySourceFor(`solana:mainnet:${mint}`)
+      expect(source, `${coin} (${mint})`).toBe(`binance:mainnet:${coin}`)
+    }
+    expect(Object.keys(SOLANA_BINANCE_HISTORY).length).toBeGreaterThan(30)
+    // One mint each: two entries pointing at one Binance coin would be two
+    // Solana coins claiming the same history.
+    const coins = Object.values(SOLANA_BINANCE_HISTORY)
+    expect(new Set(coins).size).toBe(coins.length)
   })
 })

@@ -13,7 +13,7 @@ import {
   PRICE_PAGE_SIZE,
   searchSolanaMarkets,
   SOLANA_PRICE_REFRESH,
-  solanaCandlesNotBuilt,
+  solanaHasNoCandles,
   toSolanaMarketCatalog,
   translateSolanaTokens,
   USDC_MINT,
@@ -309,10 +309,11 @@ describe("prices", () => {
   })
 })
 
-describe("the chart, before it is built", () => {
-  it("refuses in words the chart prints as they are", async () => {
-    await expect(solanaCandlesNotBuilt()).rejects.toThrow(
-      /^CANDLES_UNAVAILABLE:Solana charts are not built yet/
-    )
+describe("candles", () => {
+  it("answers with none of its own, because neither Jupiter nor the chain has any", async () => {
+    // Not a refusal: having no candles is the ordinary truth here. What the
+    // chart draws instead is decided a level up, from the pinned Binance
+    // list or from the bars the app recorded.
+    await expect(solanaHasNoCandles()).resolves.toEqual([])
   })
 })

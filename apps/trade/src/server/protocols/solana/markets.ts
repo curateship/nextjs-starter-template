@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type {
+  CandleBar,
   MarketCatalog,
   MarketCategory,
   MarketRow,
@@ -339,14 +340,16 @@ export async function fetchSolanaPrices(
 }
 
 /**
- * Candles and history, which arrive with the chart task. The list already
- * carries the coin's price, move and volume; only the chart is missing, and
- * the chart says so in these words rather than "could not load".
+ * Solana publishes no candles, and neither does Jupiter nor the chain.
+ *
+ * An empty answer rather than a refusal, because having none is the ordinary
+ * truth here and not a failure. What the chart draws instead is decided a
+ * level up: borrowed history where the coin has a pinned Binance twin, and
+ * otherwise the one-minute bars the app recorded while watching. The registry
+ * entry says so with `recordsOwnBars`.
  */
-export async function solanaCandlesNotBuilt(): Promise<never> {
-  throw new Error(
-    "CANDLES_UNAVAILABLE:Solana charts are not built yet. The coin's price, day's move and volume are in the list; the chart arrives with the next Solana task."
-  )
+export async function solanaHasNoCandles(): Promise<CandleBar[]> {
+  return []
 }
 
 /** Tests must not answer from another case's list or price page. */

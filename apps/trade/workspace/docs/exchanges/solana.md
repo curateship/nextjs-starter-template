@@ -197,6 +197,30 @@ coins routed through nine different venues, and most took two or three hops.
 Pricing from the chain means rebuilding that routing, which is its own piece
 of work.
 
+## The chart
+
+Neither Jupiter nor the chain publishes candles, so a Solana chart is
+borrowed or grown. Which one it is, the chart says.
+
+- **44 coins borrow Binance's history**, pinned by mint address. SOL, JUP,
+  BOME, POPCAT, FARTCOIN, PUMP and the rest draw years of bars, and the
+  header reads "History from Binance" beside the market name.
+- **Pinned by mint and not by ticker, because anyone can mint a coin here and
+  call it BTC.** Each of the 44 passed four checks on 4 Sep 2026: Jupiter
+  vouched for it, exactly one verified Solana coin carries that ticker,
+  Binance lists it, and it holds at least $200,000 of liquidity. TRUMP was
+  refused because Solana has two verified coins by that name; PORTAL was
+  refused for holding $4 of liquidity.
+- **Every other coin grows its own chart**, one-minute bars written from the
+  prices the screen is already refreshing. Volume is zero on those bars
+  because a price carries none, and a minute nobody watched has no bar at
+  all rather than a flat line.
+- **A coin with neither says so**, in one sentence, with nothing drawn behind
+  it pretending to be a chart.
+- **No Solana market can be backtested.** Borrowed history is Binance's and
+  recorded history has holes, so either would read as a real result.
+  `../backtests/market-selection.md` says it there too.
+
 ## The coin's name, where only the key is in hand
 
 - **A Solana market id is the mint address, so it is not a name.** Every
@@ -271,8 +295,9 @@ than switching Solana on.
 - An exchange that knows why it cannot answer throws `MARKETS_UNAVAILABLE:`
   with its own sentence after the code, and the market list prints that
   sentence as it is instead of the generic "did not answer, try again".
-  `CANDLES_UNAVAILABLE:` does the same for the chart, which is how Solana
-  says its chart is not built yet.
+  The chart has no equivalent and needs none: a venue with no candles of its
+  own answers with none rather than refusing, and the chart either draws
+  borrowed bars or says there is no history yet.
 - Solana no longer uses the markets one, because there is no longer a state
   where it cannot list markets.
 

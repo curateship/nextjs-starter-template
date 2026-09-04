@@ -776,6 +776,17 @@ export function TradeWorkspace({
    * report that lands after a switch is simply not shown.
    */
   const [olderBars, setOlderBars] = React.useState<OlderBarsStatus | null>(null)
+  const olderBarsAbout =
+    olderBars && selectedKey && olderBars.key === `${selectedKey}@${interval}`
+      ? olderBars
+      : null
+  // Whose history the chart is drawing, on a venue that has none of its own.
+  // Quiet, beside the market name, and never on a venue drawing its own bars.
+  const borrowedNote = olderBarsAbout?.borrowedNote ? (
+    <span className="hidden text-xs text-muted-foreground md:inline">
+      {olderBarsAbout.borrowedNote}
+    </span>
+  ) : null
   const olderBarsNote =
     olderBars &&
     selectedKey &&
@@ -1032,7 +1043,14 @@ export function TradeWorkspace({
           // The chart's own controls live in the header row. The timeframe
           // stays one press away; less frequent choices share the three-dot
           // menu before the wallet. Full screen lives on the chart itself.
-          note={olderBarsNote}
+          note={
+            borrowedNote || olderBarsNote ? (
+              <span className="flex items-center gap-2">
+                {borrowedNote}
+                {olderBarsNote}
+              </span>
+            ) : null
+          }
           onSearchBeyond={onSearchMarkets}
           toolbar={
             <>

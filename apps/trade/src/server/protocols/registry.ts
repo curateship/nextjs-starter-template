@@ -213,7 +213,7 @@ import {
   fetchSolanaMarkets,
   fetchSolanaPrices,
   searchSolanaMarkets,
-  solanaCandlesNotBuilt,
+  solanaHasNoCandles,
 } from "@/server/protocols/solana/markets"
 import {
   makeSolanaWallet,
@@ -293,6 +293,19 @@ export type ProtocolEntry = {
      * everything, and one full walk is eight of them.
      */
     chartChasesFullHistory?: false
+    /**
+     * True on a venue that publishes no candles at all.
+     *
+     * One statement with three consequences, because they all follow from
+     * it. A market here draws borrowed history and the chart says whose it
+     * is, since a borrowed chart on such a venue is never that market's own
+     * record. A market with nothing to borrow draws the one-minute bars the
+     * app recorded while watching it. And the prices the screen refreshes
+     * are what those bars are made of.
+     *
+     * Absent on every venue with a candle API, which is every other one.
+     */
+    recordsOwnBars?: true
     /**
      * What this source's volume figure really is, when it is not the
      * market's own. The chart prints it on the volume pane for the bars
@@ -1030,8 +1043,12 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     ...protocolCore("solana"),
     markets: {
       fetch: fetchSolanaMarkets,
-      candles: solanaCandlesNotBuilt,
-      history: solanaCandlesNotBuilt,
+      // Neither Jupiter nor the chain publishes candles, so Solana answers
+      // with none of its own. Its charts are borrowed or recorded — see
+      // `recordsOwnBars` below and `charts/candle-store.md`.
+      candles: solanaHasNoCandles,
+      history: solanaHasNoCandles,
+      recordsOwnBars: true,
       intervalMs: standardCandleIntervalMs,
       prices: fetchSolanaPrices,
       // A swap has no price grid; `priceTick` is null on every row, and the

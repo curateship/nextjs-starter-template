@@ -64,6 +64,18 @@ prices come from.
   editing. Its result chart reads the source's rows too; a run last walked
   before the change shows its candles again after one rerun.
 
+## Venues that cannot be backtested at all
+
+- **A venue with no candles of its own is not offered**, however good its
+  market list looks. Solana is the case: its charts are either borrowed from
+  Binance or built from one-minute bars the app recorded while watching. A run
+  on borrowed history would be testing another venue's prices, and a run on
+  recorded history would have a hole wherever nobody had the page open. Either
+  would read as a real result.
+- The picker offers venues that list markets AND take orders, so Solana falls
+  out on its own rather than by a special case. `charts/candle-store.md`
+  explains where its bars come from.
+
 ## History and missing coins
 
 - A listed coin remains selectable when its history is short or missing. The

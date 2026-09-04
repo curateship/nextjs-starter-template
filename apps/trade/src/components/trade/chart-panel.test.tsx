@@ -447,6 +447,7 @@ describe("the chart candle request", () => {
         key: "dukascopy:mainnet:tslaususd",
         label: "Dukascopy",
         volumeNote: "Dukascopy volume",
+        borrowedNote: null,
       },
       partial: false,
     })

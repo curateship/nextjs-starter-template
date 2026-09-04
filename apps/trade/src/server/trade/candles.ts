@@ -38,6 +38,26 @@ export async function loadProtocolCandles(
   const ref = parseMarketKey(marketKey)
   if (!ref) throw new Error("Not a market key.")
   const protocol = getProtocol(ref.protocol)
+  if (protocol.markets.recordsOwnBars) {
+    // **There is no venue to ask, so the first paint comes from the store.**
+    // Every other venue hands over its own recent slice at once and the
+    // store fills the years in behind it. A venue with no candles had
+    // nothing to paint, so the whole chart waited on a read of every bar
+    // ever stored — 2.8 seconds for JUP against Hyperliquid's 0.8, and
+    // longer on a fast timeframe. This reads the same recent slice the
+    // venues are asked for, at most a thousand bars, from whichever key
+    // holds this market's history. `loadOlderCandles` stitches the rest in
+    // behind it exactly as it does everywhere else.
+    const source = await resolveHistorySource(marketKey)
+    const now = Date.now()
+    const step = intervalMs(interval)
+    return loadStoredCandles(
+      source ?? marketKey,
+      interval,
+      venueSliceFrom(interval, now),
+      Math.floor(now / step) * step
+    )
+  }
   try {
     return await protocol.markets.candles(
       ref.network,
@@ -66,6 +86,12 @@ export type OlderCandles = {
     label: string
     /** What the source's volume really is, when it is not the market's. */
     volumeNote: string | null
+    /**
+     * One sentence naming whose history this is, on a venue where the
+     * borrowing has to be said out loud. Null everywhere else, so no other
+     * venue's chart changes.
+     */
+    borrowedNote: string | null
   } | null
   /**
    * True when the source could not be asked for the rest just now, so the
@@ -102,9 +128,26 @@ export async function loadOlderCandles(
   const ref = parseMarketKey(marketKey)
   if (!ref) throw new Error("Not a market key.")
 
+  const venue = getProtocol(ref.protocol)
   const source = await resolveHistorySource(marketKey)
   if (!source) {
-    const venue = getProtocol(ref.protocol)
+    // A venue that publishes no candles has one other place to look: the
+    // bars the app recorded under this market's own key while watching it.
+    // Nothing is fetched, because there is nowhere to fetch from.
+    if (venue.markets.recordsOwnBars) {
+      const now = Date.now()
+      const step = intervalMs(interval)
+      return {
+        candles: await loadStoredCandles(
+          marketKey,
+          interval,
+          Math.max(storeKeepsFrom(now), storeDepthFrom(interval, now)),
+          Math.floor(now / step) * step
+        ),
+        source: null,
+        partial: false,
+      }
+    }
     const chases =
       wantsFullHistory(interval) && venue.markets.chartChasesFullHistory !== false
     if (!chases) return { candles: [], source: null, partial: false }
@@ -117,13 +160,25 @@ export async function loadOlderCandles(
 
   const fillKey = `${source}@${interval}`
   const inFlight = filling.get(fillKey)
-  if (inFlight) return inFlight
+  const fill =
+    inFlight ??
+    fillStore(source, interval).finally(() => {
+      if (filling.get(fillKey) === fill) filling.delete(fillKey)
+    })
+  if (!inFlight) filling.set(fillKey, fill)
 
-  const fill = fillStore(source, interval).finally(() => {
-    if (filling.get(fillKey) === fill) filling.delete(fillKey)
-  })
-  filling.set(fillKey, fill)
-  return fill
+  const answer = await fill
+  // The note belongs to the BORROWER, not the source, so it is added here
+  // rather than inside the shared fill: two venues can borrow the same
+  // Binance market and only one of them has to say so.
+  if (!venue.markets.recordsOwnBars || !answer.source) return answer
+  return {
+    ...answer,
+    source: {
+      ...answer.source,
+      borrowedNote: `History from ${answer.source.label}`,
+    },
+  }
 }
 
 async function fillStore(
@@ -164,6 +219,9 @@ async function fillStore(
       key: source,
       label: sourceLabelOf(source),
       volumeNote: entry.markets.volumeNote ?? null,
+      // Filled in by the caller, which is the only one that knows which
+      // venue is doing the borrowing.
+      borrowedNote: null,
     },
     partial,
   }

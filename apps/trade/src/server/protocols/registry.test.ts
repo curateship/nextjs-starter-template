@@ -71,6 +71,8 @@ describe("the protocol registry", () => {
     expect(entry.markets.search).toBeTypeOf("function")
     expect(entry.funding).toBeUndefined()
     expect(entry.credentials?.make).toBeTypeOf("function")
+    // Publishes no candles of its own: its charts are borrowed or recorded.
+    expect(entry.markets.recordsOwnBars).toBe(true)
     const form = entry.credentials?.form
     // A Solana key is not an EVM agent key: the 64-hex shape check would
     // refuse every real one.
@@ -140,6 +142,24 @@ describe("the protocol registry", () => {
     expect(form?.addressLabel).toBe("Main Aster wallet address")
     expect(form?.secretLabel).toBe("API wallet key")
     expect(form?.keyHelp).toContain("you do not paste that address")
+  })
+
+  it("keeps a venue with no candles of its own out of the backtest picker", () => {
+    // The picker offers venues that can list markets AND take orders. Solana
+    // takes none, so it cannot be picked — which is what keeps borrowed and
+    // recorded history away from a run that would read as a real result.
+    const pickable = listProtocols().filter(
+      (one) =>
+        one.capabilities.markets &&
+        one.capabilities.orders &&
+        one.networks.includes("mainnet")
+    )
+    expect(pickable.map((one) => one.id)).not.toContain("solana")
+    // And nothing that records its own bars is ever pickable, whichever
+    // venue does it next.
+    for (const entry of pickable) {
+      expect(entry.markets.recordsOwnBars, entry.label).toBeUndefined()
+    }
   })
 
   it("gives every exchange the app trades on a pushed price feed", () => {

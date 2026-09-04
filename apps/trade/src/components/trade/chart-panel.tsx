@@ -365,6 +365,12 @@ export type OlderBarsStatus = {
   key: string
   source: string | null
   volumeNote: string | null
+  /**
+   * One sentence naming whose history is drawn, on a venue that has to say
+   * so. Null on every venue whose own candles these are, so their charts
+   * read exactly as they always did.
+   */
+  borrowedNote: string | null
   failed: boolean
   retry: () => void
 }
@@ -1399,11 +1405,22 @@ export function ChartPanel({
           report({
             source: source && olderShown ? source.label : null,
             volumeNote: source && olderShown ? source.volumeNote : null,
+            // Said whenever the bars are borrowed, whether or not any of
+            // them ended up older than the venue's own: on a venue with no
+            // candles of its own, every bar on the chart is borrowed.
+            borrowedNote: source?.borrowedNote ?? null,
             failed: partial,
           })
         })
         .catch(() => {
-          if (!stale) report({ source: null, volumeNote: null, failed: true })
+          if (!stale) {
+            report({
+              source: null,
+              volumeNote: null,
+              borrowedNote: null,
+              failed: true,
+            })
+          }
         })
     }
 
@@ -1760,6 +1777,28 @@ export function ChartPanel({
     ]
   )
 
+  /**
+   * The venue answered with nothing and the borrowed bars are still coming.
+   *
+   * **Saying "No candles here yet" here is a lie with a short life.** On a
+   * venue that publishes no candles of its own — Solana — the venue's answer
+   * is ALWAYS empty and every bar arrives from the store a moment later.
+   * Drawn straight, the chart announced that the market had no history and
+   * then quietly filled with years of it. Measured 4 Sep 2026: 1.5 seconds
+   * of that on a warm store, and far longer the first time a coin's history
+   * is fetched, which is long enough for Tyler to read it, believe it and
+   * report the chart as broken.
+   *
+   * Derived rather than another piece of state: the older-bars request
+   * reports for every market it finishes, success or failure, so "no report
+   * for this market yet" is exactly "still waiting".
+   */
+  const waitingForBorrowedBars =
+    current !== null &&
+    !current.error &&
+    current.candles.length === 0 &&
+    olderBars?.key !== current.key
+
   if (!selectedKey) {
     return (
       <PanelPlaceholder
@@ -1785,7 +1824,7 @@ export function ChartPanel({
         if (openMenu(event)) event.preventDefault()
       }}
     >
-      {!current ? (
+      {!current || waitingForBorrowedBars ? (
         <div
           role="status"
           aria-label="Loading candles"

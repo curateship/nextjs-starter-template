@@ -15,6 +15,7 @@ import {
 import { userGet, userPost } from "@/server/guards"
 import { loadRawMarketCatalog } from "@/server/protocols/market-catalog"
 import { getProtocol } from "@/server/protocols/registry"
+import { recordMinuteBars } from "@/server/trade/recorded-candles"
 import {
   loadLastMarketKey,
   loadMinimumMarketVolume,
@@ -123,7 +124,23 @@ const refreshMarketPricesFn = createServerFn({ method: "GET" })
         // the markets the venue would have chosen itself.
         data.marketIds.slice(0, most)
       )
-      return { prices: [...prices] }
+      const answer: Array<[string, number]> = [...prices]
+      // A venue with no candles of its own grows them here, from the prices
+      // the screen was already asking for. Only markets the venue really
+      // lists are written, so a market id invented by a caller cannot leave
+      // a row behind. A failed write must not blank the page: the chart is a
+      // nicety, the prices are the point.
+      if (protocol.markets.recordsOwnBars) {
+        const listed = new Set(catalog.rows.map((row) => row.marketId))
+        await recordMinuteBars(
+          data.protocol,
+          data.network,
+          answer.filter(([marketId]) => listed.has(marketId))
+        ).catch((error: unknown) => {
+          console.error("Recorded candles could not be written", error)
+        })
+      }
+      return { prices: answer }
     }
   )
 

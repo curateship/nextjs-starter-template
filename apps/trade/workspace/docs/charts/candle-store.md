@@ -33,6 +33,44 @@ is how they are carried out.
   its own key, its chart shows only what the venue has, and the backtest picker
   says "history from the exchange only". Nothing is guessed.
 
+## A venue with no candles at all
+
+Solana publishes none, and neither does Jupiter nor the chain. Its registry
+entry says so once, with `recordsOwnBars`, and three things follow from that
+one statement.
+
+- **Borrowed by mint address, never by name.** Every other venue matches by
+  ticker, which is safe where the venue curates its listings. Anyone can mint
+  a coin on Solana and call it BTC, so a name match there would draw the wrong
+  chart. `lib/protocols/solana/history.ts` holds a pinned list of 44 mints and
+  the four checks each one passed on 4 Sep 2026: Jupiter vouched for it, only
+  one verified Solana coin carries that ticker, Binance lists it, and it holds
+  at least $200,000 of liquidity. Six coins were refused for the ticker check
+  alone, TRUMP among them, because Solana has two verified coins with that
+  name. Seventy-nine more were refused on liquidity, PORTAL at $4 of it.
+- **The chart says whose history it is.** A borrowed chart on such a venue
+  reads "History from Binance" beside the market name. Only a venue with
+  `recordsOwnBars` says it, so no other venue's chart changed.
+- **Everything else grows its own bars.** A coin with nothing to borrow gets
+  one-minute bars written from the prices the screen refreshes, under its own
+  key. Volume is zero, because a price carries none. A minute nobody was
+  watching has no bar rather than a flat line, so a gap reads as a gap.
+- **The first paint comes from the store, not from waiting.** Every other
+  venue hands over its own recent slice at once and the store fills the years
+  in behind it. A venue with no candles has nothing to hand over, so the chart
+  reads the same recent slice — at most a thousand bars — from whichever key
+  holds that market, and the backfill stitches the rest in behind exactly as
+  it does elsewhere. Drawn the other way the chart waited on a read of every
+  bar ever stored: JUP took 2.8 seconds against Hyperliquid's 0.8, and 1.3
+  after.
+- **While those bars are on their way the chart shows its loading state**, not
+  "No candles here yet". The venue's answer is always empty here, so saying
+  the market has no history would be true for a second and wrong after it.
+- **Neither kind may be backtested.** Borrowed history is another venue's, and
+  recorded history has holes wherever nobody was looking. The backtest picker
+  offers only venues that can also take orders, which Solana cannot, and a
+  test pins that a venue recording its own bars is never offered.
+
 ## The 30-day rule
 
 - Every chart asks the venue for its own last 30 days, capped at a thousand

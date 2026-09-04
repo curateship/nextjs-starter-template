@@ -5,6 +5,7 @@ import {
   type MarketKey,
 } from "@/lib/protocols/contracts"
 import { dukascopyInstrumentFor } from "@/lib/protocols/dukascopy/instruments"
+import { solanaBorrowedCoin } from "@/lib/protocols/solana/history"
 
 /**
  * Where a market's older candles come from.
@@ -61,10 +62,15 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
     case "phemex":
       return coinSource(ref.marketId.replace(/USDT$/, ""))
     case "solana":
-      // A Solana market id is the coin's mint address, not a name, and the
-      // same ticker can belong to two different mints. Nothing is guessed:
-      // the chart task decides which coins map to Binance, by symbol.
-      return null
+      // **By mint address, never by name.** Anyone can mint a coin on Solana
+      // and call it BTC, so the naming rule every other venue uses would
+      // draw the wrong chart here. `solana/history.ts` holds the pinned list
+      // and the four checks each entry passed. A coin that is not on it
+      // borrows nothing and shows what the app recorded instead.
+      {
+        const coin = solanaBorrowedCoin(ref.marketId)
+        return coin === null ? null : coinSource(coin)
+      }
   }
 }
 
