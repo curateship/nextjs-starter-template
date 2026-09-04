@@ -1708,11 +1708,11 @@ export function ChartPanel({
           />
         ) : null}
         <SmartLadderLayer
-          orders={tradingOrders}
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
           ladders={tradingLadders}
+          orders={tradingOrders}
           preview={preview}
           tool={paintTool}
           walletName={walletNameOf}
@@ -1868,11 +1868,11 @@ export function ChartPanel({
       onMoveOrderTarget,
       onMoveOrderStop,
       onEditOrder,
-      tradingOrders,
       entryBadgeOf,
       dragBrackets,
       readSurface,
       tradingLadders,
+      tradingOrders,
       preview,
       onCancelRung,
       onReshapeLadder,
