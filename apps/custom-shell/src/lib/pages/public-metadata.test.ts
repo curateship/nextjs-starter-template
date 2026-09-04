@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   createDefaultPublicSystemCopy,
+  DEFAULT_HOME_DESCRIPTION,
   defaultPublicDescription,
+  normalizePublicSeo,
   normalizePublicSystemCopy,
   normalizeShareImage,
   normalizeSocialCardType,
@@ -10,6 +12,7 @@ import {
   publicSocialMeta,
   resolveMaintenanceCopy,
   resolveNotFoundCopy,
+  resolvePublicSeoMetadata,
   versionedShareImage,
 } from "@/lib/pages/public-metadata"
 
@@ -107,5 +110,92 @@ describe("public metadata", () => {
       body: "Back at noon.",
     })
     expect(defaultPublicDescription("Acme")).toBe("Visit Acme.")
+  })
+
+  it("normalizes each site-wide SEO field without letting one bad field erase the others", () => {
+    expect(
+      normalizePublicSeo({
+        homeTitle: "  Acme home  ",
+        homeDescription: 42,
+        siteDescription: "  The Acme site.  ",
+      })
+    ).toEqual({
+      homeTitle: "Acme home",
+      homeDescription: "",
+      siteDescription: "The Acme site.",
+    })
+    expect(normalizePublicSeo(null)).toEqual({
+      homeTitle: "",
+      homeDescription: "",
+      siteDescription: "",
+    })
+  })
+
+  it("keeps the home fields on home and uses the site description only for gaps", () => {
+    const seo = normalizePublicSeo({
+      homeTitle: "Acme makes work simple",
+      homeDescription: "The Acme front page.",
+      siteDescription: "The default Acme description.",
+    })
+
+    expect(
+      resolvePublicSeoMetadata({
+        title: "Front page · Acme",
+        description: DEFAULT_HOME_DESCRIPTION,
+        appName: "Acme",
+        home: true,
+        seo,
+      })
+    ).toEqual({
+      title: "Acme makes work simple",
+      description: "The Acme front page.",
+    })
+
+    expect(
+      resolvePublicSeoMetadata({
+        title: "About · Acme",
+        description: "About Acme.",
+        appName: "Acme",
+        home: false,
+        seo,
+      })
+    ).toEqual({ title: "About · Acme", description: "About Acme." })
+
+    expect(
+      resolvePublicSeoMetadata({
+        title: "Written page · Acme",
+        description: "",
+        appName: "Acme",
+        home: false,
+        seo,
+      })
+    ).toEqual({
+      title: "Written page · Acme",
+      description: "The default Acme description.",
+    })
+  })
+
+  it("preserves today's public metadata when every SEO field is empty", () => {
+    expect(
+      resolvePublicSeoMetadata({
+        title: "Front page · Acme",
+        description: DEFAULT_HOME_DESCRIPTION,
+        appName: "Acme",
+        home: true,
+      })
+    ).toEqual({
+      title: "Front page · Acme",
+      description: DEFAULT_HOME_DESCRIPTION,
+    })
+    expect(
+      resolvePublicSeoMetadata({
+        title: "Written page · Acme",
+        appName: "Acme",
+        home: false,
+      })
+    ).toEqual({
+      title: "Written page · Acme",
+      description: "Visit Acme.",
+    })
   })
 })

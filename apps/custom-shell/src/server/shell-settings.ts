@@ -14,11 +14,13 @@ import {
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
+  normalizePublicSeo,
   normalizePublicSystemCopy,
   normalizeShareImage,
   normalizeSocialCardType,
   normalizeSocialHandle,
   versionedShareImage,
+  type PublicSeo,
   type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
@@ -121,6 +123,7 @@ export async function readBranding(
   shareImage: string
   socialCardType: SocialCardType
   socialHandle: string
+  publicSeo: PublicSeo
   publicSystemCopy: PublicSystemCopy
   frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
@@ -165,6 +168,7 @@ export async function readBranding(
       ),
       socialCardType: globals.socialCardType,
       socialHandle: globals.socialHandle,
+      publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
       frontPageRows: globals.frontPageRows,
       publicHeader: globals.publicHeader,
@@ -206,6 +210,7 @@ export async function readBranding(
     ),
     socialCardType: globals.socialCardType,
     socialHandle: globals.socialHandle,
+    publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
     frontPageRows: globals.frontPageRows,
     publicHeader: globals.publicHeader,
@@ -335,6 +340,7 @@ export function parseShellGlobals(value: unknown) {
         : fallback.shareImageVersion,
     socialCardType: normalizeSocialCardType(settings.socialCardType),
     socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation:
@@ -427,6 +433,7 @@ export function pickShellGlobals(
     | "shareImageVersion"
     | "socialCardType"
     | "socialHandle"
+    | "publicSeo"
     | "publicSystemCopy"
     | "frontPageRows"
     | "publicNavigation"
@@ -461,6 +468,7 @@ export function pickShellGlobals(
     shareImageVersion: settings.shareImageVersion,
     socialCardType: normalizeSocialCardType(settings.socialCardType),
     socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),

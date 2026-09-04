@@ -119,6 +119,14 @@ Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search
 must apply the same visibility rule as opening the result.
 
+Public SEO settings hold a home-page title, a home-page description, a default
+description for pages without one, and a default share image. The two home
+fields apply only at `/`. Other pages keep their own description when they have
+one and use the site default only when they do not. Empty settings preserve the
+former browser title and description. The default share image is the same
+app-wide image used by Open Graph and X preview tags, and the server changes its
+address when an admin replaces it so cached previews can refresh.
+
 The missing-page card includes the public search field while Search is
 available and lists the site's saved main-menu links in their saved order. A
 search moves to `/search` with the entered words. Switching Search off removes

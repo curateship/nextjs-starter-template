@@ -55,6 +55,7 @@ import {
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
 import {
+  normalizePublicSeo,
   normalizePublicSystemCopy,
   normalizeShareImage,
   normalizeSocialCardType,
@@ -733,6 +734,7 @@ function normalizeConfig(
         : fallback.shareImageVersion,
     socialCardType: normalizeSocialCardType(settings.socialCardType),
     socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: Array.isArray(settings.publicNavigation)

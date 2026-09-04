@@ -4697,13 +4697,18 @@ describe("member sidebar", () => {
     })
   })
 
-  it("carries the app-wide social card and public system copy through a save", () => {
+  it("carries app-wide SEO, social cards, and public system copy through a save", () => {
     const saved = pickShellGlobals({
       ...createDefaultShellConfig(),
       shareImage: "https://media.example.test/owner/share.png",
       shareImageVersion: "2026-09-02T12:00:00.000Z",
       socialCardType: "summary_large_image",
       socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        siteDescription: "The public site default.",
+      },
       publicSystemCopy: {
         notFoundHeading: "Lost?",
         notFoundBody: "Try the front page.",
@@ -4717,6 +4722,11 @@ describe("member sidebar", () => {
       shareImageVersion: "2026-09-02T12:00:00.000Z",
       socialCardType: "summary_large_image",
       socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        siteDescription: "The public site default.",
+      },
       publicSystemCopy: {
         notFoundHeading: "Lost?",
         notFoundBody: "Try the front page.",
@@ -4730,6 +4740,11 @@ describe("member sidebar", () => {
       shareImageVersion: "",
       socialCardType: "summary",
       socialHandle: "",
+      publicSeo: {
+        homeTitle: "",
+        homeDescription: "",
+        siteDescription: "",
+      },
       publicSystemCopy: {
         notFoundHeading: "",
         notFoundBody: "",

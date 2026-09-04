@@ -1,5 +1,6 @@
 import { ImageUpload } from "@/components/shared/image-upload"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { CardGroup } from "@/components/ui/card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 import type { ShellConfig } from "@/lib/custom-shell"
 import {
   cleanSocialHandleInput,
+  MAX_PUBLIC_SEO_DESCRIPTION_LENGTH,
+  MAX_PUBLIC_SEO_TITLE_LENGTH,
   MAX_PUBLIC_SYSTEM_BODY_LENGTH,
   MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
   MAX_SOCIAL_HANDLE_LENGTH,
@@ -38,21 +41,10 @@ export function PublicSocialSettings({
   return (
     <CollapsibleSettingsCard
       storageId="public-social-preview"
-      title="Social previews"
-      description="Set the image and X card used when somebody shares any public page."
+      title="X previews"
+      description="Choose how links from the public site appear on X."
       contentClassName="space-y-4"
     >
-      <ImageUpload
-        label="Share image"
-        value={config.shareImage}
-        onChange={(shareImage) => update({ shareImage })}
-        aspect="video"
-        fit="cover"
-        emptyLabel="Select share image"
-        hint="Used on every public page shared to a chat or social feed. A newly selected image gets a new address so cached previews update."
-        className="max-w-md"
-      />
-
       <div className="grid gap-2">
         <FieldLabel
           htmlFor="social-card-type"
@@ -100,6 +92,102 @@ export function PublicSocialSettings({
         />
       </div>
     </CollapsibleSettingsCard>
+  )
+}
+
+export function PublicSeoSettings({
+  config,
+  onConfigChange,
+}: PublicSettingsProps) {
+  const updateSeo = (patch: Partial<ShellConfig["publicSeo"]>) =>
+    onConfigChange({
+      ...config,
+      publicSeo: { ...config.publicSeo, ...patch },
+    })
+
+  return (
+    <CardGroup>
+      <CollapsibleSettingsCard
+        storageId="public-seo-home"
+        title="Home page"
+        description="Set the browser and search text used only for the public front page."
+        contentClassName="grid gap-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-seo-home-title"
+            hint="Leave this empty to keep the standard front-page title."
+          >
+            Home page title
+          </FieldLabel>
+          <Input
+            id="public-seo-home-title"
+            value={config.publicSeo.homeTitle}
+            maxLength={MAX_PUBLIC_SEO_TITLE_LENGTH}
+            placeholder="Front page title"
+            onChange={(event) => updateSeo({ homeTitle: event.target.value })}
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-seo-home-description"
+            hint="Leave this empty to use the default page description below, then the standard front-page description."
+          >
+            Home page description
+          </FieldLabel>
+          <Textarea
+            id="public-seo-home-description"
+            rows={1}
+            value={config.publicSeo.homeDescription}
+            maxLength={MAX_PUBLIC_SEO_DESCRIPTION_LENGTH}
+            placeholder="Describe the public front page"
+            onChange={(event) =>
+              updateSeo({ homeDescription: event.target.value })
+            }
+          />
+        </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-seo-defaults"
+        title="Site defaults"
+        description="Fill gaps on public pages that do not have their own description or share image."
+        contentClassName="grid gap-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="public-seo-site-description"
+            hint="Used only when a public page has no description of its own."
+          >
+            Default page description
+          </FieldLabel>
+          <Textarea
+            id="public-seo-site-description"
+            rows={1}
+            value={config.publicSeo.siteDescription}
+            maxLength={MAX_PUBLIC_SEO_DESCRIPTION_LENGTH}
+            placeholder="Describe this public site"
+            onChange={(event) =>
+              updateSeo({ siteDescription: event.target.value })
+            }
+          />
+        </div>
+
+        <ImageUpload
+          label="Default share image"
+          value={config.shareImage}
+          onChange={(shareImage) =>
+            onConfigChange({ ...config, shareImage })
+          }
+          aspect="video"
+          fit="cover"
+          emptyLabel="Select share image"
+          hint="Used when a public page has no share image of its own. A replacement gets a new address so cached previews update."
+          className="max-w-md"
+        />
+      </CollapsibleSettingsCard>
+    </CardGroup>
   )
 }
 

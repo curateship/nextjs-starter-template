@@ -48,15 +48,6 @@ type LandingData = {
  */
 export const pricingLandingPage = definePublicPage({
   loader: () => loadPricingLandingData(),
-  head: () => ({
-    meta: [
-      {
-        name: "description",
-        content:
-          "Accounts, workspaces and billing, ready to run. Create an account and start on the free plan.",
-      },
-    ],
-  }),
   Component: PricingLanding,
 })
 
