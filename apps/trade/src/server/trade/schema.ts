@@ -531,6 +531,45 @@ export const tradeLiveFills = pgTable(
 )
 
 /**
+ * The grid rung behind a market order, kept after the mutable grid plan moves.
+ *
+ * The exchange returns its order id with the fill but knows nothing about
+ * rungs. Recording the rung when the engine sends the order is the only exact
+ * way to name an old arrow after the grid range has shifted.
+ */
+export const tradeGridOrderRungs = pgTable(
+  "trade_grid_order_rungs",
+  {
+    ...paperOwner(),
+    orderId: varchar("order_id", { length: 40 }).notNull(),
+    ladderId: varchar("ladder_id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    direction: varchar("direction", { length: 5 })
+      .$type<"long" | "short">()
+      .notNull(),
+    /** Counted from one, exactly as the grid card and arrow show it. */
+    rung: integer("rung").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.orderId] }),
+    index("trade_grid_order_rungs_ladder_idx").on(
+      table.userId,
+      table.ladderId
+    ),
+    check(
+      "trade_grid_order_rungs_direction_check",
+      sql`${table.direction} IN ('long', 'short')`
+    ),
+    check("trade_grid_order_rungs_rung_check", sql`${table.rung} >= 1`),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
  * The stop and take-profit orders that have been seen sitting on a position,
  * written down once each so that later — when the position is long gone — a
  * fill can be matched to the order that caused it.

@@ -427,6 +427,43 @@ describe("tradeFillMarks", () => {
     // does not.
     expect(tradeFillMarks(trade)[1].label).toBe("Sold $3.95 · made $0.50")
   })
+
+  it("names a finished grid's rung instead of its buy and sell sides", () => {
+    const [trade] = buildLiveTrades(
+      [
+        fill({
+          fillId: "grid-in",
+          orderId: "grid-in",
+          side: "buy",
+          px: 100,
+          sz: 1,
+          at: 0,
+          fee: 0.5,
+          grid: true,
+          gridDirection: "long",
+          gridRung: 1,
+        }),
+        fill({
+          fillId: "grid-out",
+          orderId: "grid-out",
+          side: "sell",
+          px: 110,
+          sz: 1,
+          at: MINUTE,
+          closedPnl: 10,
+          fee: 0.5,
+          grid: true,
+          gridDirection: "long",
+        }),
+      ],
+      noTriggers
+    )
+
+    expect(tradeFillMarks(trade).map((mark) => mark.label)).toEqual([
+      "Enter rung 1 - for $100.00",
+      "Exit rung 1 - profit $9.00",
+    ])
+  })
 })
 
 describe("arrows on a position that is still open", () => {
@@ -479,6 +516,59 @@ describe("arrows on a position that is still open", () => {
     const [mark] = openFillMarks([fill()])
     expect(mark.label).toBe("Bought $100.00")
     expect(mark.detail).toBeNull()
+  })
+
+  it("names the FLOCK grid rung entered and exited", () => {
+    const marks = openFillMarks([
+      fill({
+        fillId: "1740958669440",
+        orderId: "485554173086064641",
+        marketKey: "kucoin:mainnet:FLOCKUSDTM",
+        side: "sell",
+        px: 0.05229149,
+        sz: 1_340,
+        at: 1,
+        fee: 0.04204236,
+        dir: "Sell",
+        grid: true,
+        gridDirection: "short",
+        gridRung: 2,
+      }),
+      fill({
+        fillId: "1740958700036",
+        orderId: "485554556588138496",
+        marketKey: "kucoin:mainnet:FLOCKUSDTM",
+        side: "sell",
+        px: 0.05554482,
+        sz: 1_930,
+        at: 2,
+        fee: 0.0643209,
+        dir: "Sell",
+        grid: true,
+        gridDirection: "short",
+        gridRung: 3,
+      }),
+      fill({
+        fillId: "1740959206642",
+        orderId: "485575236838940672",
+        marketKey: "kucoin:mainnet:FLOCKUSDTM",
+        side: "buy",
+        px: 0.05254477,
+        sz: 1_930,
+        at: 3,
+        fee: 0.06084684,
+        dir: "Buy",
+        grid: true,
+        gridDirection: "short",
+      }),
+    ])
+
+    expect(marks.map((mark) => mark.label)).toEqual([
+      "Enter rung 2 - for $70.07",
+      "Enter rung 3 - for $107.20",
+      "Exit rung 3 - profit $5.66",
+    ])
+    expect(marks[2].detail).toBe("Still holding $70.41")
   })
 })
 

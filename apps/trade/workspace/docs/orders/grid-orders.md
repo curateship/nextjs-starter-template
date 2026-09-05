@@ -480,10 +480,12 @@ its sell.
 
 Two places show this figure, and they now agree.
 
-- **The arrow on the chart.** Point at this grid's sell and it reads "Sold
-  $51.85, made $4.28", with "Still holding $182.82" under it. Buy arrows use
-  the same rule and say how many dollars they bought, while their place on the
-  price axis still shows the price.
+- **The arrow on the chart.** Point at a grid entry and it reads "Enter rung 1
+  - for $47.53". Its matching close reads "Exit rung 1 - profit $4.28", with
+  "Still holding $182.82" under it when another rung remains open. The place
+  on the price axis still shows where the order filled. The engine records the
+  order id with its rung before the range can move, so an older arrow keeps the
+  number it had when it traded.
 - **The Smart orders panel**, on the grid's row, as banked.
 
 **A ladder is left alone on purpose.** A ladder's exits take a share off one

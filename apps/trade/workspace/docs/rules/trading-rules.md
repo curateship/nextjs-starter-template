@@ -172,6 +172,10 @@ add up to.
   four-second repaint is a safety net for trades made somewhere else and for
   reconnect recovery. An order Trade sent does not wait for that repaint to
   show the position Aster has already confirmed.
+- Tyler, 5 Sep 2026: **"If I enter a short on the first rung then it should say
+  'Enter rung 1 - for $amount', and if I exit then 'Exit rung 1 - profit
+  $amount'."** Every grid arrow names the rung and whether the rung entered or
+  exited. Buy and sell wording does not describe a grid rung.
 - **A rule Tyler sets for himself warns and asks; it never blocks.** Tyler,
   4 Sep 2026: "This is not to completely block me from trading, it just gives
   me a warning and I have to confirm to enter the trade." The three rules, the

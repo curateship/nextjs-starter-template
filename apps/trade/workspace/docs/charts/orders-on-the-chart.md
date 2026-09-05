@@ -129,6 +129,10 @@ does not close the position immediately.
   and the position row are painted from it at once, and the next read swaps
   in the exchange's own figures. A reduce-only fill paints nothing new — it
   shrank a position rather than opening one.
+- **A grid arrow names the rung and what happened.** An opening arrow says
+  "Enter rung 1 - for $50.00". The matching close says
+  "Exit rung 1 - profit $4.28". The words do not change between a buying grid
+  and a selling grid.
 - **Nothing is announced when it works.** No toast for placing an order and
   none for cancelling one: the line appearing and the line disappearing is the
   answer, and a toast on every click of a trading screen is noise. Refusals

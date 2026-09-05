@@ -32,6 +32,8 @@ export type LadderOrderInput = {
   /** This watched action closes the whole position rather than one slice. */
   closePosition?: boolean
   now: number
+  /** The Grid rung this action belongs to, counted from zero when known. */
+  rung?: number
   /**
    * The watched price that allowed this market action to fire.
    *

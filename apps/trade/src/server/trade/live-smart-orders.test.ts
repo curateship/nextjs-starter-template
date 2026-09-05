@@ -44,6 +44,7 @@ import { cancelLiveOrder, placeLiveOrder } from "@/server/trade/live-orders"
 import {
   tradeLiveJournal,
   tradeFlowRunOrders,
+  tradeGridOrderRungs,
   tradeSmartLadders,
   tradeWallets,
   tradeWorkerHeartbeats,
@@ -1794,6 +1795,15 @@ describe("live Smart orders", () => {
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.id, "grid-price-race"))
     expect((filledGrid.plan as GridPlan).levels[1].status).toBe("holding")
+    const [rungRecord] = await database
+      .select()
+      .from(tradeGridOrderRungs)
+      .where(eq(tradeGridOrderRungs.orderId, "grid-buy"))
+    expect(rungRecord).toMatchObject({
+      ladderId: "grid-price-race",
+      direction: "long",
+      rung: 1,
+    })
   })
 
   it("keeps a watched order visible and records the protocol minimum when price makes it too small", async () => {

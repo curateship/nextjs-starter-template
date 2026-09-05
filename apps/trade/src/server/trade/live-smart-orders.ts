@@ -85,6 +85,7 @@ import {
 import { sweepLiveFills } from "@/server/trade/live-fills"
 import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
+import { rememberGridOrderRung } from "@/server/trade/grid-fills"
 import {
   cancelLadderRestPlan,
   cancelLadderRungPlan,
@@ -1841,6 +1842,21 @@ export async function reconcileLiveLaddersOnce(
                 })
                 recordSmartOrderSendSuccess(entry.plan)
                 refusalHolds.delete(holdKey)
+                if (
+                  outcome.orderId &&
+                  entry.kind === "grid" &&
+                  input.rung !== undefined
+                ) {
+                  await rememberGridOrderRung({
+                    userId,
+                    walletId: wallet.id,
+                    orderId: outcome.orderId,
+                    ladderId: row.id,
+                    marketKey: input.marketKey,
+                    direction: (entry.plan as GridPlan).direction,
+                    rung: input.rung + 1,
+                  })
+                }
                 // A rung bought at market. Its fill reaches the record through
                 // the exchange like any other, so its order id is written down
                 // here too — otherwise the flow's own buys would read as

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import type { ChartSurface } from "@/components/trade/price-chart"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -197,6 +197,89 @@ describe("a chart arrow's right-click", () => {
 
     expect(event.defaultPrevented).toBe(true)
     expect(onOpenArrowMenu).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+})
+
+describe("a chart arrow's hover words", () => {
+  it("names the FLOCK grid rung that the buy exits", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const marketKey = "kucoin:mainnet:FLOCKUSDTM"
+    const fills: LiveFill[] = [
+      {
+        ...trade.fills[0],
+        fillId: "first-short",
+        orderId: "first-short-order",
+        marketKey,
+        side: "sell",
+        px: 0.05229149,
+        sz: 1_340,
+        at: 1_000,
+        fee: 0.04204236,
+        dir: "Sell",
+        grid: true,
+        gridDirection: "short",
+        gridRung: 2,
+      },
+      {
+        ...trade.fills[0],
+        fillId: "second-short",
+        orderId: "second-short-order",
+        marketKey,
+        side: "sell",
+        px: 0.05554482,
+        sz: 1_930,
+        at: 2_000,
+        fee: 0.0643209,
+        dir: "Sell",
+        grid: true,
+        gridDirection: "short",
+        gridRung: 3,
+      },
+      {
+        ...trade.fills[0],
+        fillId: "buy-back",
+        orderId: "buy-back-order",
+        marketKey,
+        side: "buy",
+        px: 0.05254477,
+        sz: 1_930,
+        at: 3_000,
+        fee: 0.06084684,
+        dir: "Buy",
+        grid: true,
+        gridDirection: "short",
+      },
+    ]
+
+    await act(async () => {
+      root.render(
+        <JournalMarksLayer
+          surface={surface}
+          trades={[]}
+          fills={fills}
+          focusedTrade={null}
+          positions={[{ walletId: trade.walletId, marketKey, szi: -1_340 }]}
+          showArrows={true}
+          tradeLimit={null}
+        />
+      )
+    })
+
+    const arrows = host.querySelectorAll<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    expect(arrows).toHaveLength(3)
+    await act(async () => {
+      arrows[2].dispatchEvent(new MouseEvent("pointerover", { bubbles: true }))
+    })
+
+    expect(host.textContent).toContain("Exit rung 3 - profit $5.66")
+    expect(host.textContent).toContain("Still holding $70.41")
 
     await act(async () => root.unmount())
     host.remove()
