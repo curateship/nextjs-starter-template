@@ -1596,6 +1596,30 @@ export function gridEndAfterRangeMove(
 }
 
 /**
+ * Where a stop that was dragged to a price sits after the WHOLE grid moved,
+ * or null when the move does not carry it.
+ *
+ * A percent stop hangs off the losing edge of the range, so it already follows
+ * a moved range and this returns null for it. A dragged stop is a plain price,
+ * and a plain price left behind by a moved grid is a stop sitting inside the
+ * new range or far below it. Moving the whole grid keeps the range's width, so
+ * the stop moves by the same dollars both edges moved and the gap the hand
+ * chose survives the move. Tyler, 5 Sep 2026.
+ *
+ * Dragging ONE edge is not this. That changes the range's width and leaves a
+ * dragged stop where the hand put it, the same rule the edges themselves keep.
+ */
+export function gridStopAfterWholeMove(
+  plan: Pick<GridPlan, "stopLoss" | "topPx">,
+  nextRange: { topPx: number }
+): number | null {
+  const sl = plan.stopLoss
+  if (!sl || sl.mode !== "fixed" || sl.px === null) return null
+  const px = sl.px + (nextRange.topPx - plan.topPx)
+  return px > 0 ? px : null
+}
+
+/**
  * Where the grid wants its stop, given the level in force — or null when it
  * has no stop at all.
  *

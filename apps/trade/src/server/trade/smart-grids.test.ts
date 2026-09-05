@@ -1081,6 +1081,49 @@ describe("moving the range", () => {
     expect(await orders()).toHaveLength(0)
   })
 
+  it("takes a hand-dragged stop with the whole grid", async () => {
+    // The stop was dragged to $70, $10 under the bottom of a 120/80 range.
+    // Moving the grid up $40 has to take it to $110, still $10 under the
+    // bottom. Left behind at $70 it would sit $50 below a range it no longer
+    // has anything to do with.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await moveGridExit(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      which: "stopLoss",
+      px: 70,
+    })
+
+    await moveGridRange(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      end: "whole",
+      px: 140,
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.bottomPx).toBe(120)
+    expect(grid.plan.stopLoss?.mode).toBe("fixed")
+    expect(gridStopPx(grid.plan)).toBeCloseTo(110, 9)
+  })
+
+  it("leaves a hand-dragged stop alone when only one edge is dragged", async () => {
+    // Dragging an edge changes the range's width, not where the grid sits,
+    // so the stop stays exactly where the hand put it.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await moveGridExit(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      which: "stopLoss",
+      px: 70,
+    })
+
+    await moveGridRange(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      end: "bottom",
+      px: 60,
+    })
+
+    expect(gridStopPx((await onlyGrid()).plan)).toBe(70)
+  })
+
   it("keeps the stop it was given", async () => {
     await place({ stopLoss: { underPct: 5, base: null } })
     await moveGridRange(userId, wallet, {

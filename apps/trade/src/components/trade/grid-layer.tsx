@@ -27,6 +27,7 @@ import {
   gridRangeEndMovable,
   gridRangeFromNearRung,
   gridRangeReshapable,
+  gridStopAfterWholeMove,
   gridStopBeyond,
   gridStopPx,
   gridTakeProfitPx,
@@ -1025,11 +1026,15 @@ function GridLines({
     : null
 
   // Both exits hang off the range, so both follow it while it moves — the same
-  // arithmetic the server does when it saves.
-  const movedStop =
-    rangeMoved && plan.stopLoss?.mode === "percent" && !plan.stopLoss.base
+  // arithmetic the server does when it saves. A stop dragged to a price is
+  // carried by a whole-grid move too, by the same dollars the two edges moved.
+  const movedStop = !rangeMoved
+    ? null
+    : plan.stopLoss?.mode === "percent" && !plan.stopLoss.base
       ? gridStopBeyond(direction, shownRange, plan.stopLoss.underPct)
-      : null
+      : activeRangeMove?.end === "whole"
+        ? gridStopAfterWholeMove(plan, shownRange)
+        : null
   const movedTarget = rangeMoved
     ? gridEndAfterRangeMove(plan, shownRange, currentPx ?? plan.topPx)
     : null

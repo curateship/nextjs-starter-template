@@ -446,6 +446,46 @@ describe("a placed grid's whole-grid grip", () => {
     await act(async () => root.unmount())
   })
 
+  it("carries a hand-placed stop down with the grid", async () => {
+    // The grid sits at 110/90 with a stop dragged to 60. Moving the middle
+    // from 100 to 90 takes the grid down $10, so the stop goes to $50 and
+    // keeps the $30 it sat below the bottom of the range.
+    const one = grid("long", false)
+    const dragged = {
+      ...one,
+      plan: {
+        ...one.plan,
+        stopLoss: { mode: "fixed" as const, underPct: 5, px: 60, base: null },
+      },
+    }
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => root.render(layer(dragged)))
+
+    const stopTop = () => {
+      const chip = [...host.querySelectorAll("span")].find((one) =>
+        one.textContent?.startsWith("SL ")
+      )
+      return chip?.closest<HTMLElement>("div.inset-x-0")?.style.top ?? null
+    }
+    expect(stopTop()).toBe("140px")
+
+    const grip = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole grid"]'
+    )
+    await act(async () => {
+      grip?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 110 })
+      )
+    })
+
+    expect(stopTop()).toBe("150px")
+    await act(async () => root.unmount())
+  })
+
   it("remains visible but cannot move while the grid is holding coin", async () => {
     const host = document.createElement("div")
     const root = createRoot(host)

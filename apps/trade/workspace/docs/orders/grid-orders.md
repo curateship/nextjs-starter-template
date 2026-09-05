@@ -177,9 +177,10 @@ before any money moves:
   the grip shifts the upper and lower prices by the same amount, so the range
   keeps its width. Every rung redraws inside the moved range. The window holds
   the result as plain prices because a moved range may sit wholly above or
-  below today's price. Typing a range percent takes control back. The grip also
-  works from the keyboard with the up and down arrow keys. The grip sits at the
-  range's vertical middle, flush with the plot's right edge, on its own row
+  below today's price. End Grid and the stop both come along, so the whole
+  picture moves together. Typing a range percent takes control back. The grip
+  also works from the keyboard with the up and down arrow keys. The grip sits
+  at the range's vertical middle, flush with the plot's right edge, on its own row
   between the rungs. On a placed grid the grid's badge follows it on that row.
   It used to sit 64 pixels from the right edge on top of the rungs' furniture,
   until Tyler moved it on 3 Sep 2026. The same grip stays there after Place. The preview comes off before the saved grid is drawn, so the two copies
@@ -764,6 +765,25 @@ ending the grid first — and they wake again if the stop is later dragged back
 out. Only the automatic stop keeps off the inside, because it follows a rule
 rather than a hand; the paragraph above says why the rule must measure from
 the range's edge.
+
+**Moving the whole grid takes a dragged stop with it.** The DRAG GRID bar
+shifts the top and the bottom by the same dollars, and a stop dragged to a
+price is a plain price, so it shifts by those same dollars too. Take a grid
+running $110 down to $90 with the stop dragged to $85. Moved down to $100 and
+$80, its stop lands at $75, still the $5 under the range that the hand chose.
+A stop left behind at $85 would be sitting inside the moved range, where an
+ordinary dip closes the grid. The line follows the pointer while the grid is
+being dragged, so what is drawn is what is saved.
+
+**Dragging one edge does not move the stop.** That drag changes how wide the
+range is rather than where the grid sits, so a stop put somewhere by hand stays
+where the hand put it. The edges keep the same rule themselves. The dragged
+edge moves and nothing else does.
+
+Neither rule is needed by the automatic stop. It is a percent past the losing
+end of the range, so it follows any change to that end on its own. A stop
+resting under a confirmed 4h base follows the base rather than the range, and a
+moved grid leaves it where the base put it.
 
 **A missing stop is never a hand move.** After every buy the engine compares
 the stop it last sent with the stop the exchange shows. A stop at another price

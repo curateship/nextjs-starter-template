@@ -20,6 +20,7 @@ import {
   gridRowPctsFromLevels,
   gridRungNumber,
   gridStepPct,
+  gridStopAfterWholeMove,
   gridStopBeyond,
   gridStopPx,
   heldWrongWay,
@@ -1065,7 +1066,20 @@ export async function reshapeGrid(
     // it was given, what it has seen, and when it started.
     next = {
       ...draft.plan,
-      stopLoss: plan.stopLoss,
+      // A percent stop hangs off the range and follows it on its own. A stop
+      // dragged to a price is a plain price, so moving the WHOLE grid carries
+      // it by the same dollars both edges moved. Measured against the range
+      // that is about to be saved, so the stop lands the rounded distance the
+      // range really moved. Dragging one edge leaves it where the hand put it.
+      stopLoss: (() => {
+        if (!plan.stopLoss || input.rangeMove?.end !== "whole") {
+          return plan.stopLoss
+        }
+        const px = gridStopAfterWholeMove(plan, draft.plan)
+        return px === null
+          ? plan.stopLoss
+          : { ...plan.stopLoss, px: roundPx(px) }
+      })(),
       // Keep the chosen distance past whichever is already further into a win:
       // the moved range or today's price.
       takeProfitPx: (() => {

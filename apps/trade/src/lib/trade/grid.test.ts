@@ -28,6 +28,7 @@ import {
   gridShiftAway,
   gridShiftInto,
   gridStepPct,
+  gridStopAfterWholeMove,
   gridStopBeyond,
   gridStopLegPrices,
   gridStopPx,
@@ -290,6 +291,42 @@ describe("gridStopPx", () => {
         })
       )
     ).toBeCloseTo(76, 9)
+  })
+})
+
+describe("a dragged stop when the whole grid is moved", () => {
+  const plan = (
+    px: number | null,
+    mode: "percent" | "fixed"
+  ): Pick<GridPlan, "stopLoss" | "topPx"> => ({
+    topPx: 120,
+    stopLoss: { mode, underPct: 5, px, base: null },
+  })
+
+  it("moves by the same dollars both edges moved", () => {
+    // The range went up $10, so the stop dragged to $61 goes up $10 too and
+    // keeps the $19 it sat below the bottom of the range.
+    expect(gridStopAfterWholeMove(plan(61, "fixed"), { topPx: 130 })).toBe(71)
+  })
+
+  it("moves down with a grid moved down", () => {
+    expect(gridStopAfterWholeMove(plan(61, "fixed"), { topPx: 100 })).toBe(41)
+  })
+
+  it("leaves a percent stop alone, because it already follows the range", () => {
+    expect(
+      gridStopAfterWholeMove(plan(null, "percent"), { topPx: 130 })
+    ).toBeNull()
+  })
+
+  it("has nothing to move when the stop is switched off", () => {
+    expect(
+      gridStopAfterWholeMove({ topPx: 120, stopLoss: null }, { topPx: 130 })
+    ).toBeNull()
+  })
+
+  it("refuses a move that would put the stop at or below zero", () => {
+    expect(gridStopAfterWholeMove(plan(61, "fixed"), { topPx: 59 })).toBeNull()
   })
 })
 
