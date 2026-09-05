@@ -22,6 +22,39 @@ export type NotificationAction =
       nodeId?: string
     }
 
+/**
+ * Any origin will do. The question is whether a *relative* address stays on
+ * whatever site it is resolved against, and an address that escapes escapes
+ * from every origin alike. A fixed one is used rather than the page's, because
+ * this runs on the server too, where there is no page.
+ */
+const ANY_SITE = "http://own-app.invalid"
+
+/**
+ * Whether an address the app handed back is one this app can be sent to.
+ *
+ * These strings come out of a database, so they are checked rather than
+ * trusted. Two things have to hold: it starts with a slash, so it is an
+ * address in this app rather than `javascript:`, another site, or a path read
+ * relative to whatever page happens to be open; and once resolved it is still
+ * on the site it was resolved against.
+ *
+ * **The second test is the one that matters, and reading the text cannot
+ * replace it.** A browser treats a backslash as a slash, so `/\evil.example`
+ * is `//evil.example` wearing a disguise — one leading slash by eye, another
+ * site in fact. Resolving the address and comparing the site it lands on
+ * catches that, and catches the next disguise nobody has thought of yet.
+ */
+export function isOwnAppHref(href: string): boolean {
+  if (!href.startsWith("/")) return false
+  try {
+    return new URL(href, ANY_SITE).origin === ANY_SITE
+  } catch {
+    // An address the browser cannot even read is not one to follow.
+    return false
+  }
+}
+
 export function notificationAction(item: NotificationItem): NotificationAction {
   if (item.type === "announcement") return { kind: "none" }
   if (item.type === "changelog") return { kind: "changelog" }

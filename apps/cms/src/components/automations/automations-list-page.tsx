@@ -18,6 +18,10 @@ import {
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+} from "@/components/shared/sortable-table-header"
 import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
 import {
   DashboardToolbarButton,
@@ -40,13 +44,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   getAutomationRunErrorMessage,
   runAutomationNow,
@@ -56,6 +54,7 @@ import {
   deleteAutomations,
   duplicateAutomation,
   getAutomationErrorMessage,
+  renameAutomation,
   setAutomationLive,
   toAutomationListItem,
   type AutomationListItem,
@@ -63,6 +62,7 @@ import {
 } from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -74,6 +74,7 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
 import type { AutomationTemplateKey } from "@/lib/automations/templates"
+import { compareAutomationSteps } from "@/lib/automations/list-sort"
 
 type CreateChoice = "blank" | AutomationTemplateKey
 
@@ -83,14 +84,41 @@ const TEMPLATE_ICONS = {
   "payment-recovery": CreditCardIcon,
 } satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
-type SortColumn = "name" | "trigger" | "status" | "nextRun" | "updated"
+type SortColumn = "name" | "live" | "steps" | "nextRun" | "updated"
+
+const AUTOMATION_COLUMNS = [
+  { key: "name", label: "Name", column: "main" },
+  { key: "live", label: "Live", column: "meta" },
+  {
+    key: "steps",
+    label: "Steps",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "nextRun",
+    label: "Next run",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+  {
+    key: "updated",
+    label: "Updated",
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+] satisfies Array<{
+  key: SortColumn
+  label: string
+  column: "main" | "meta"
+  className?: string
+}>
 
 /**
- * How the Trigger column sorts: the flows that act on their own first when you
- * ask for it, then the ones that could, then the ones that only ever wait for
- * somebody to press Run.
+ * How the Live column sorts: enabled flows, flows that could be enabled, then
+ * flows that only run when somebody presses Run.
  */
-function triggerRank(automation: AutomationListItem): number {
+function liveRank(automation: AutomationListItem): number {
   if (automation.enabled) return 2
   return automation.trigger_name ? 1 : 0
 }
@@ -110,8 +138,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
+  const [createNameTouched, setCreateNameTouched] = React.useState(false)
+  const [createAttempted, setCreateAttempted] = React.useState(false)
   const [createChoice, setCreateChoice] = React.useState<CreateChoice>("blank")
   const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
+  const [renameTarget, setRenameTarget] =
+    React.useState<AutomationListItem | null>(null)
+  const [renameName, setRenameName] = React.useState("")
+  const [renameNameTouched, setRenameNameTouched] = React.useState(false)
+  const [renameAttempted, setRenameAttempted] = React.useState(false)
+  const [runRename, renaming] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
   const [testTarget, setTestTarget] = React.useState<AutomationListItem | null>(
@@ -142,14 +178,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       )
       .sort((left, right) => {
         if (sort === "name") return factor * left.name.localeCompare(right.name)
-        if (sort === "trigger") {
+        if (sort === "live") {
           return (
             factor *
-            (triggerRank(left) - triggerRank(right) ||
+            (liveRank(left) - liveRank(right) ||
               (left.trigger_name ?? "").localeCompare(right.trigger_name ?? ""))
           )
         }
-        if (sort === "status") return factor * left.summary.localeCompare(right.summary)
+        if (sort === "steps") {
+          return compareAutomationSteps(left, right, direction)
+        }
         if (sort === "nextRun") {
           if (left.next_run_at === null)
             return right.next_run_at === null ? 0 : 1
@@ -195,6 +233,8 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
     setCreateOpen(false)
     setCreateName("")
     setCreateChoice("blank")
+    setCreateNameTouched(false)
+    setCreateAttempted(false)
   }
 
   const chooseCreateStart = (choice: CreateChoice) => {
@@ -208,6 +248,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
 
   const handleCreate = async () => {
     if (creating) return
+    setCreateAttempted(true)
     if (!createName.trim()) {
       showErrorToast("Automation name is required.")
       return
@@ -218,10 +259,50 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         createChoice === "blank" ? null : createChoice
       )
       toast.success(`Created "${created.name}".`)
-      setCreateOpen(false)
-      setCreateName("")
-      setCreateChoice("blank")
+      closeCreate()
       await openEditor(created.id)
+    })
+  }
+
+  const openRename = (automation: AutomationListItem) => {
+    setRenameTarget(automation)
+    setRenameName(automation.name)
+    setRenameNameTouched(false)
+    setRenameAttempted(false)
+  }
+
+  const closeRename = () => {
+    setRenameTarget(null)
+    setRenameName("")
+    setRenameNameTouched(false)
+    setRenameAttempted(false)
+  }
+
+  const handleRename = async () => {
+    const target = renameTarget
+    if (!target || renaming) return
+    setRenameAttempted(true)
+    if (!renameName.trim()) {
+      showErrorToast("Automation name is required.")
+      return
+    }
+    // Nothing to save, so say nothing and close. Opening the window and
+    // pressing Save without typing is not a failure worth a message.
+    if (renameName.trim() === target.name) {
+      closeRename()
+      return
+    }
+    await runRename(async () => {
+      const renamed = await renameAutomation(target.id, renameName)
+      setAutomations((current) =>
+        current.map((automation) =>
+          automation.id === renamed.id
+            ? { ...automation, name: renamed.name, updated_at: renamed.updated_at }
+            : automation
+        )
+      )
+      toast.success(`Renamed to "${renamed.name}".`)
+      closeRename()
     })
   }
 
@@ -314,12 +395,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
     if (!deleteTargets?.length || deleting) return
     await runDelete(async () => {
       const ids = new Set(deleteTargets.map((item) => item.id))
-      await deleteAutomations([...ids])
+      const { count } = await deleteAutomations([...ids])
       setAutomations((current) => current.filter((item) => !ids.has(item.id)))
       toast.success(
-        deleteTargets.length === 1 && deleteTargets[0]
-          ? `Deleted "${deleteTargets[0].name}".`
-          : `Deleted ${deleteTargets.length} automations.`
+        describeBulkResult({
+          done: count,
+          kept: ids.size - count,
+          one: "automation",
+          many: "automations",
+          verb: "deleted",
+        })
       )
       selection.clear()
       setDeleteTargets(null)
@@ -381,63 +466,20 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select automations on this page"
-                />
-              </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "trigger"}
-                  direction={direction}
-                  onClick={() => toggleSort("trigger")}
-                >
-                  Trigger
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "nextRun"}
-                  direction={direction}
-                  onClick={() => toggleSort("nextRun")}
-                >
-                  Next run
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "updated"}
-                  direction={direction}
-                  onClick={() => toggleSort("updated")}
-                >
-                  Updated
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={AUTOMATION_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="automations"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sorted.length === 0}
         emptyText={
@@ -493,86 +535,90 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               {formatDate(automation.updated_at)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
-                {automation.can_run_manually ? (
-                  <DisabledReason
-                    disabled={paused || !automation.isValid}
-                    reason={
-                      paused
-                        ? "Every automation is paused. Resume them to start this flow."
-                        : "This flow has something to fix before it can run. Open it and check the steps marked in red."
-                    }
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={
-                        paused || !automation.isValid || runningId !== null
-                      }
-                      aria-label={`Run ${automation.name} now`}
-                      onClick={() => void handleRunNow(automation)}
-                    >
-                      {runningId === automation.id ? (
-                        <Loader2Icon className="size-4 animate-spin" />
-                      ) : (
-                        <PlayIcon className="size-4" />
-                      )}
-                    </Button>
-                  </DisabledReason>
-                ) : null}
+              {automation.can_run_manually ? (
                 <DisabledReason
                   disabled={paused || !automation.isValid}
                   reason={
                     paused
-                      ? "Every automation is paused. Resume them to test this flow."
-                      : "This flow has something to fix before it can be tested."
+                      ? "Every automation is paused. Resume them to start this flow."
+                      : "This flow has something to fix before it can run. Open it and check the steps marked in red."
                   }
                 >
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={paused || !automation.isValid}
-                    aria-label={`Test ${automation.name} with one member`}
-                    onClick={() => setTestTarget(automation)}
+                    disabled={
+                      paused || !automation.isValid || runningId !== null
+                    }
+                    aria-label={`Run ${automation.name} now`}
+                    onClick={() => void handleRunNow(automation)}
                   >
-                    <UserIcon className="size-4" />
+                    {runningId === automation.id ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : (
+                      <PlayIcon className="size-4" />
+                    )}
                   </Button>
                 </DisabledReason>
+              ) : null}
+              <DisabledReason
+                disabled={paused || !automation.isValid}
+                reason={
+                  paused
+                    ? "Every automation is paused. Resume them to test this flow."
+                    : "This flow has something to fix before it can be tested."
+                }
+              >
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={`Duplicate ${automation.name}`}
-                  disabled={duplicatingId !== null}
-                  onClick={() => void handleDuplicate(automation)}
+                  disabled={paused || !automation.isValid}
+                  aria-label={`Test ${automation.name} with one member`}
+                  onClick={() => setTestTarget(automation)}
                 >
-                  {duplicatingId === automation.id ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : (
-                    <CopyIcon className="size-4" />
-                  )}
+                  <UserIcon className="size-4" />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Open ${automation.name} in the editor`}
-                  onClick={() => void openEditor(automation.id)}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Delete ${automation.name}`}
-                  onClick={() => setDeleteTargets([automation])}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
-              </div>
+              </DisabledReason>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Duplicate ${automation.name}`}
+                disabled={duplicatingId !== null}
+                onClick={() => void handleDuplicate(automation)}
+              >
+                {duplicatingId === automation.id ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <CopyIcon className="size-4" />
+                )}
+              </Button>
+              {/*
+                  Renames rather than opening the editor: clicking the row
+                  already does that, so this was a second way to do the same
+                  thing and no way at all to change a flow's name without
+                  opening its canvas.
+                */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Rename ${automation.name}`}
+                onClick={() => openRename(automation)}
+              >
+                <SettingsIcon className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete ${automation.name}`}
+                onClick={() => setDeleteTargets([automation])}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
             </TableCell>
           </TableRow>
         ))}
@@ -647,7 +693,12 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   maxLength={80}
                   placeholder="Weekly changelog email"
                   onChange={(event) => setCreateName(event.target.value)}
-                  aria-invalid={!createName.trim() || undefined}
+                  onBlur={() => setCreateNameTouched(true)}
+                  aria-invalid={
+                    (!createName.trim() &&
+                      (createNameTouched || createAttempted)) ||
+                    undefined
+                  }
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault()
@@ -682,6 +733,65 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 Create automation
               </Button>
             </DialogFooter>
+          </DialogContent>
+        )}
+      </FormDialog>
+
+      <FormDialog
+        open={renameTarget !== null}
+        dirty={renameName.trim() !== (renameTarget?.name ?? "")}
+        busy={renaming}
+        onClose={closeRename}
+      >
+        {(requestClose) => (
+          <DialogContent variant="admin">
+            <DialogHeader>
+              <DialogTitle>Rename automation</DialogTitle>
+              <DialogDescription>
+                Only the name changes. The steps and whether it is live stay
+                exactly as they are.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleRename()
+              }}
+            >
+              <DialogBody className="grid gap-2">
+                <Label htmlFor="rename-automation-name">Name</Label>
+                <Input
+                  id="rename-automation-name"
+                  value={renameName}
+                  maxLength={80}
+                  placeholder="Weekly changelog email"
+                  onChange={(event) => setRenameName(event.target.value)}
+                  onBlur={() => setRenameNameTouched(true)}
+                  aria-invalid={
+                    (!renameName.trim() &&
+                      (renameNameTouched || renameAttempted)) ||
+                    undefined
+                  }
+                />
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={renaming}
+                  onClick={requestClose}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={renaming}>
+                  {renaming ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : null}
+                  Save name
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         )}
       </FormDialog>
@@ -752,7 +862,7 @@ function TemplateChoiceCard({
         focusRing,
         selected
           ? "border-primary ring-3 ring-primary/15"
-          : "border-foreground/10"
+          : "border-border"
       )}
     >
       <span className="mb-1.5 flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">

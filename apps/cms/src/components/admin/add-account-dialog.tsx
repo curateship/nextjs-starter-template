@@ -53,12 +53,16 @@ export function AddAccountDialog({
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [role, setRole] = React.useState<"admin" | "member">("member")
+  const [nameTouched, setNameTouched] = React.useState(false)
+  const [emailTouched, setEmailTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [run, saving] = useAsyncAction(getAdminUserErrorMessage)
   const nameInputRef = React.useRef<HTMLInputElement>(null)
 
   const dirty = Boolean(name.trim() || email.trim() || role !== "member")
 
   const handleCreate = React.useCallback(async () => {
+    setAttempted(true)
     if (!name.trim()) {
       showErrorToast("Account name is required.")
       return
@@ -81,12 +85,22 @@ export function AddAccountDialog({
       setName("")
       setEmail("")
       setRole("member")
+      setNameTouched(false)
+      setEmailTouched(false)
+      setAttempted(false)
       await onCreated()
     })
   }, [email, name, onCreated, role, run])
 
+  const close = () => {
+    setNameTouched(false)
+    setEmailTouched(false)
+    setAttempted(false)
+    onClose()
+  }
+
   return (
-    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
+    <FormDialog open={open} dirty={dirty} busy={saving} onClose={close}>
       {(requestClose) => (
         <DialogContent
           variant="admin"
@@ -125,8 +139,11 @@ export function AddAccountDialog({
                         ref={nameInputRef}
                         value={name}
                         onChange={(event) => setName(event.target.value)}
+                        onBlur={() => setNameTouched(true)}
                         maxLength={255}
-                        aria-invalid={!name.trim() || undefined}
+                        aria-invalid={
+                          (!name.trim() && (nameTouched || attempted)) || undefined
+                        }
                       />
                     </div>
                     <div className="grid gap-2">
@@ -141,8 +158,12 @@ export function AddAccountDialog({
                         type="email"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
+                        onBlur={() => setEmailTouched(true)}
                         maxLength={255}
-                        aria-invalid={!email.trim() || undefined}
+                        aria-invalid={
+                          (!email.trim() && (emailTouched || attempted)) ||
+                          undefined
+                        }
                       />
                     </div>
                   </div>

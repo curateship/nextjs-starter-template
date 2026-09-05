@@ -61,6 +61,13 @@ every merge.
 What is on offer today. An option is added when a real app needs it, never on
 the guess that one might:
 
+- `workspaces.siteBranding` — lets an app such as CMS give each public site its
+  own favicon, logo, dark logo and share image. It defaults to false, preserving
+  app-wide branding. When enabled, public requests use the visited site's
+  images and fall back to app-wide images for empty fields. The signed-in
+  settings contract exposes `workspaceFavicon`, `workspaceLogo`,
+  `workspaceLogoDark` and `workspaceShareImage`; the guarded save writes only
+  the current site's settings. The site's colour uses `publicTheme.brandColor`.
 - `publicTheme` — the public look a fresh install starts with. The app names only
   the fields it wants to change, saved app-wide values replace matching fields,
   and anything omitted keeps the shell's built-in look. The settings record

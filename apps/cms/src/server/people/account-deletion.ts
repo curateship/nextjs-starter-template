@@ -12,6 +12,7 @@ import {
   type CancelApi,
 } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
+import { cancelPendingMemberRuns } from "@/server/automations/member-events"
 import { sendAuthEmail, type AuthEmail } from "@/server/email/send"
 import {
   customShellSessions,
@@ -51,6 +52,7 @@ export async function closeAccounts(
     .select({
       id: customShellUsers.id,
       email: customShellUsers.email,
+      name: customShellUsers.name,
       passwordHash: customShellUsers.passwordHash,
       deletedAt: customShellUsers.deletedAt,
     })
@@ -64,6 +66,7 @@ export async function closeAccounts(
         await sendAuthEmail(
           accountClosedEmail({
             email: recipient.email,
+            name: recipient.name,
             deletedAt: recipient.deletedAt,
             paidPlanCancelled: paidPlanCancelledUserIds.has(recipient.id),
             canRestoreOwn:
@@ -84,11 +87,13 @@ export async function closeAccounts(
 /** Builds the receipt without reading account state, so its wording is testable. */
 export function accountClosedEmail({
   email,
+  name,
   deletedAt,
   paidPlanCancelled,
   canRestoreOwn,
 }: {
   email: string
+  name?: string | null
   deletedAt: Date
   paidPlanCancelled: boolean
   canRestoreOwn: boolean
@@ -97,6 +102,7 @@ export function accountClosedEmail({
   return {
     kind: "account-closed",
     to: email,
+    recipientName: name ?? null,
     actionUrl: appUrlFor("/login"),
     tokens: {
       deletion_date: deletionDate,
@@ -127,33 +133,35 @@ export async function markAccountsForDeletion(
 ) {
   const timestamp = now()
 
-  const marked = await database
-    .update(customShellUsers)
-    .set({
-      status: PENDING_DELETION,
-      deletedAt: timestamp,
-      deletedBy: actorId,
-      updatedAt: timestamp,
-    })
-    .where(
-      and(
-        inArray(customShellUsers.id, userIds),
-        ne(customShellUsers.status, PENDING_DELETION)
+  return database.transaction(async (tx) => {
+    const marked = await tx
+      .update(customShellUsers)
+      .set({
+        status: PENDING_DELETION,
+        deletedAt: timestamp,
+        deletedBy: actorId,
+        updatedAt: timestamp,
+      })
+      .where(
+        and(
+          inArray(customShellUsers.id, userIds),
+          ne(customShellUsers.status, PENDING_DELETION)
+        )
       )
-    )
-    .returning({ id: customShellUsers.id })
+      .returning({ id: customShellUsers.id })
 
-  if (marked.length > 0) {
-    // Same as suspending: nothing keeps working on an open tab.
-    await database.delete(customShellSessions).where(
-      inArray(
-        customShellSessions.userId,
-        marked.map((row) => row.id)
-      )
-    )
-  }
+    if (marked.length > 0) {
+      const markedIds = marked.map((row) => row.id)
+      await cancelPendingMemberRuns(markedIds, tx, timestamp)
 
-  return marked.map((row) => row.id)
+      // Same as suspending: nothing keeps working on an open tab.
+      await tx
+        .delete(customShellSessions)
+        .where(inArray(customShellSessions.userId, markedIds))
+    }
+
+    return marked.map((row) => row.id)
+  })
 }
 
 /**

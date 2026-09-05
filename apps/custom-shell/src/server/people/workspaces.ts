@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
+import { normalizeShareImage } from "@/lib/pages/public-metadata"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
@@ -441,6 +442,9 @@ export const NAVIGATION_VERSION = 19
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  logo: string
+  logoDark: string
+  shareImage: string
   publicNavigation: PublicNavigationItem[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
@@ -2498,6 +2502,9 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      logo: normalizeShareImage(settings.logo),
+      logoDark: normalizeShareImage(settings.logoDark),
+      shareImage: normalizeShareImage(settings.shareImage),
       publicNavigation:
         settings.publicNavigation === undefined
           ? fallback.publicNavigation
@@ -2557,6 +2564,9 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    logo: normalizeShareImage(settings.logo),
+    logoDark: normalizeShareImage(settings.logoDark),
+    shareImage: normalizeShareImage(settings.shareImage),
     publicNavigation:
       settings.publicNavigation === undefined
         ? fallback.publicNavigation
@@ -2653,6 +2663,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    logo: "",
+    logoDark: "",
+    shareImage: "",
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",

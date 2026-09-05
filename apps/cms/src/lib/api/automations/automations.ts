@@ -5,6 +5,7 @@ import {
   listWorkspaceAutomations,
   getWorkspaceAutomation,
   createWorkspaceAutomation,
+  renameWorkspaceAutomation,
   saveWorkspaceAutomation,
   duplicateWorkspaceAutomation,
   deleteWorkspaceAutomations,
@@ -120,6 +121,7 @@ const saveSchema = automationIdSchema.extend({
   name: nameSchema,
   graph: automationGraphSchema,
 })
+const renameSchema = automationIdSchema.extend({ name: nameSchema })
 const enabledSchema = automationIdSchema.extend({ enabled: z.boolean() })
 const favoritesSchema = z.object({
   favoriteNodeKeys: z.array(z.string().min(1).max(64)).max(50),
@@ -233,6 +235,20 @@ const saveAutomationFn = createServerFn({ method: "POST" })
     return serializeDetail(row)
   })
 
+/** Just the name. The steps are the editor's business, not this one's. */
+const renameAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(renameSchema)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await renameWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
+      data.automationId,
+      data.name
+    )
+    if (!row) throw new Error("NOT_FOUND")
+    return serializeDetail(row)
+  })
+
 const duplicateAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(automationIdSchema)
@@ -320,6 +336,10 @@ export function saveAutomation(input: {
   graph: AutomationGraph
 }) {
   return saveAutomationFn({ data: input })
+}
+
+export function renameAutomation(automationId: string, name: string) {
+  return renameAutomationFn({ data: { automationId, name } })
 }
 
 export function duplicateAutomation(automationId: string) {

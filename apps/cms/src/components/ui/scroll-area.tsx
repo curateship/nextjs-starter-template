@@ -29,6 +29,14 @@ function ScrollArea({
         data-slot="scroll-area-viewport"
         className={cn(
           "size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:outline-1 focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          // Radix wraps the children in a `display: table` box that sizes
+          // itself to its content, so a wide column walks straight past the
+          // panel's right edge, no percentage height resolves inside, and a
+          // sticky heading cannot stick. Every screen wants a plain block, so
+          // the wrapper is one here — with `!` because Radix sets the table
+          // as an inline style. Horizontal scrolling still works: the
+          // viewport measures its content's overflow, not the wrapper.
+          "[&>div]:block!",
           viewportClassName
         )}
       >

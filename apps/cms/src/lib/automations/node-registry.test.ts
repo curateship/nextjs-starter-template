@@ -81,7 +81,9 @@ describe("an app that adds nothing", () => {
     expect(automationPaletteItems().map((item) => item.key)).toEqual([
       "trigger-billing-moment",
       "trigger-joined-segment",
+      "trigger-member-event",
       "trigger-time-activate",
+      "action-member-tag",
       "action-send-email",
       "action-webhook",
       "flow-audience",
@@ -96,6 +98,8 @@ describe("an app that adds nothing", () => {
 
     expect(automationKindCanStartManually("placeholder")).toBe(true)
     expect(automationKindCanStartManually("billingMoment")).toBe(false)
+    expect(automationKindCanStartManually("memberEvent")).toBe(false)
+    expect(automationKindCanStartManually("memberTag")).toBe(false)
     expect(automationKindCanStartManually("unknown-step")).toBe(true)
   })
 })
@@ -115,15 +119,15 @@ describe("an app that adds a step of its own", () => {
     appNodes.current = [testNode("sendSms")]
     const { createAutomationNode } = await freshRegistry()
 
-    expect(
-      createAutomationNode("sendSms", { id: "n1", x: 10, y: 20 })
-    ).toEqual({
-      id: "n1",
-      kind: "sendSms",
-      x: 10,
-      y: 20,
-      settings: { note: "" },
-    })
+    expect(createAutomationNode("sendSms", { id: "n1", x: 10, y: 20 })).toEqual(
+      {
+        id: "n1",
+        kind: "sendSms",
+        x: 10,
+        y: 20,
+        settings: { note: "" },
+      }
+    )
   })
 
   it("draws its icon", async () => {

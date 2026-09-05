@@ -25,6 +25,7 @@ import {
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
+  customShellDeliveries,
 } from "@/server/schema"
 import {
   createTestDatabase,
@@ -98,7 +99,7 @@ afterEach(async () => {
   await client.close()
 })
 
-async function addContactToSegment(label: string) {
+async function addContact(label: string) {
   const contactId = uuid()
   const timestamp = now()
   await database.insert(customShellContacts).values({
@@ -111,10 +112,15 @@ async function addContactToSegment(label: string) {
     createdAt: timestamp,
     updatedAt: timestamp,
   })
+  return contactId
+}
+
+async function addContactToSegment(label: string) {
+  const contactId = await addContact(label)
   await database.insert(customShellContactSegmentMembers).values({
     segmentId,
     contactId,
-    createdAt: timestamp,
+    createdAt: now(),
   })
   return contactId
 }
@@ -258,6 +264,46 @@ describe("Joined-segment trigger", () => {
       enabled: false,
       pausedReason: expect.stringContaining("more than 100 people joined"),
     })
+  })
+
+  /**
+   * A rules segment about sending history, watched by a flow.
+   *
+   * Worth its own case because this is the one path where a segment's
+   * condition is dropped into hand-written SQL rather than a query the builder
+   * assembled — `replaceSnapshot` writes its own `insert … select … from
+   * contacts where <condition>`. A condition that only works inside a builder
+   * query would look fine everywhere else and fail silently here, where
+   * nobody is watching.
+   */
+  it("watches a segment that asks who has never been emailed", async () => {
+    await database
+      .update(customShellContactSegments)
+      .set({ kind: "rules", rules: { conditions: [{ type: "emailed", operator: "never", days: 90 }] } })
+      .where(eq(customShellContactSegments.id, segmentId))
+
+    const existing = await addContact("Baselined")
+    await setAutomationEnabled(workspaceId, automationId, true, database)
+    // The first look establishes today without firing for anybody.
+    expect(await runJoinedSegmentTriggers(database)).toBe(0)
+
+    const arrived = await addContact("Never written to")
+    const alreadyEmailed = await addContact("Heard from us")
+    await database.insert(customShellDeliveries).values({
+      id: uuid(),
+      workspaceId,
+      contactId: alreadyEmailed,
+      toEmail: "heard@example.test",
+      subject: "Hello",
+      status: "sent",
+      createdAt: now(),
+    })
+
+    expect(await runJoinedSegmentTriggers(database)).toBe(1)
+    expect(await runs()).toEqual([
+      expect.objectContaining({ subjectContactId: arrived }),
+    ])
+    expect(existing).not.toBe(arrived)
   })
 
   it("refuses to delete a segment an automation points at", async () => {

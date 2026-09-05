@@ -6,7 +6,6 @@ import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
 
@@ -58,7 +57,6 @@ const setMaintenanceFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       enabled: z.boolean(),
-      message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
     })
   )
   .handler(async ({ data }): Promise<ShellMaintenance> => {

@@ -95,7 +95,6 @@ export function OrphanTableRow({
         {row.createdAt ? formatDate(row.createdAt) : "—"}
       </TableCell>
       <TableCell column="actions">
-        <div className="flex items-center">
           <Button
             type="button"
             variant="ghost"
@@ -116,7 +115,6 @@ export function OrphanTableRow({
           >
             <Trash2Icon className="size-4" />
           </Button>
-        </div>
       </TableCell>
     </TableRow>
   )

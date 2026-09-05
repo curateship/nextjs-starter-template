@@ -85,6 +85,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "The maintenance notice has to render for people who are not signed in.",
   "content/pages.ts:readPageAccessFn":
     "Decides what a signed-out visitor is shown on a public page, so a session check here would hide every page it protects.",
+  "content/pages.ts:loadPublicNotFoundDiscoveryFn":
+    "The public 404 page reads the visited domain's public navigation links and search visibility without requiring an account.",
   "content/pages.ts:readWrittenPageFn":
     "An admin-written page is a public page; requiring a session to read one would hide every page an admin ever writes.",
   "content/search.ts:readSiteSearchFn":

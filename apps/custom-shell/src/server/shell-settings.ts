@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm"
 
-import { appPublicTheme } from "@/lib/app-options"
+import { appPublicTheme, appUsesSiteBranding } from "@/lib/app-options"
 import {
   createDefaultMemberSections,
   createDefaultShellConfig,
@@ -194,6 +194,7 @@ export async function readBranding(
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  const siteBranding = appUsesSiteBranding()
   const publicTheme = publicThemeForSite(
     appWidePublicTheme,
     workspaceSettings.publicTheme
@@ -202,12 +203,12 @@ export async function readBranding(
 
   return {
     appName: answer.workspace.name || globals.appName,
-    favicon: globals.favicon,
-    faviconDark: globals.faviconDark,
-    faviconSet: globals.faviconSet,
-    logo: globals.logo,
-    logoDark: globals.logoDark,
-    shareImage: versionedShareImage(
+    favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
+    faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
+    faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    logo: (siteBranding && workspaceSettings.logo) || globals.logo,
+    logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
+    shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
       globals.shareImage,
       globals.shareImageVersion
     ),
@@ -274,6 +275,10 @@ export async function readShellSettings(
     // The site's own name, not the app-wide value — that is only the fallback
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
+    workspaceFavicon: workspaceSettings.favicon,
+    workspaceLogo: workspaceSettings.logo,
+    workspaceLogoDark: workspaceSettings.logoDark,
+    workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: workspaceSettings.sidebarWidth,
     publicNavigation: workspaceDomainsEnabled
       ? workspaceSettings.publicNavigation

@@ -5,7 +5,6 @@ import {
   ArrowLeftIcon,
   LayoutTemplateIcon,
   Loader2Icon,
-  PauseIcon,
   PlayIcon,
   UserIcon,
   WorkflowIcon,
@@ -19,7 +18,7 @@ import { AutomationFlowCanvas } from "@/components/automations/automation-flow-c
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { SendEmailEditor } from "@/components/automations/nodes/send-email-editor"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -34,6 +33,10 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { compileAutomationGraph } from "@/lib/automations/compile"
+import type {
+  AutomationCanvasStatus,
+  AutomationCanvasStatusProps,
+} from "@/lib/automations/canvas-panel"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import {
@@ -56,6 +59,7 @@ import {
   type AutomationDetail,
 } from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useLastValue } from "@/lib/hooks/use-last-value"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
@@ -65,10 +69,16 @@ import {
   panelLayoutKey,
   useRememberedPanelLayout,
 } from "@/lib/layout/panel-layout"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
-import { appCanvasPanel } from "@/lib/app-options"
+import {
+  appCanvasHeaderStatus,
+  appCanvasPanel,
+  appOffersMemberTest,
+  appShowsRunButton,
+} from "@/lib/app-options"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
@@ -105,12 +115,7 @@ export function AutomationEditor({
   onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
 }) {
   const navigate = useNavigate()
-  const {
-    config,
-    automationPauseBusy,
-    onAutomationPauseChange,
-    reportSaveStatus,
-  } = useShellRuntime()
+  const { config, reportSaveStatus } = useShellRuntime()
   // Nothing on this page renames an automation any more, so the name is only
   // ever the one it loaded with — but it still has to ride along on every save,
   // or the record would be written back without it.
@@ -145,6 +150,13 @@ export function AutomationEditor({
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(
     null
   )
+  const [deleteTarget, setDeleteTarget] = React.useState<{
+    nodeId: string
+    name: string
+    connectionCount: number
+  } | null>(null)
+  const deleteConfirmedRef = React.useRef(false)
+  const closingDeleteTarget = useLastValue(deleteTarget)
   const [canvasSize, setCanvasSize] = React.useState<CanvasSize>({
     width: 0,
     height: 0,
@@ -155,7 +167,6 @@ export function AutomationEditor({
   const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
   const [savingLive, setSavingLive] = React.useState(false)
-  const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const templateMode = mode === "template"
   const saveTemplateGraphRef = React.useRef(onSaveTemplateGraph)
   React.useEffect(() => {
@@ -331,6 +342,14 @@ export function AutomationEditor({
   const canRunManually = compiled.config
     ? automationCanStartManually(compiled.config)
     : false
+  // What is on the canvas, for the two things that ask: whether this app wants
+  // its own panel here, and whether testing against one member means anything
+  // on a flow made of these steps.
+  const nodeKinds = React.useMemo(
+    () => graph.nodes.map((node) => node.kind),
+    [graph.nodes]
+  )
+  const offersMemberTest = appOffersMemberTest(nodeKinds)
   // Read off the draft, so the switch appears the moment a trigger is dropped
   // on the canvas rather than once the flow happens to compile.
   const triggerName = React.useMemo(() => {
@@ -340,11 +359,6 @@ export function AutomationEditor({
     return triggers.length === 1 ? automationNodeName(triggers[0]) : null
   }, [graph.nodes])
   const paused = config.automationPause.enabled
-
-  const handlePauseChange = async (enabled: boolean) => {
-    if (automationPauseBusy) return
-    if (await onAutomationPauseChange(enabled)) setConfirmPauseOpen(false)
-  }
 
   /**
    * The flow's own switch, and the only thing that makes a trigger act.
@@ -464,6 +478,26 @@ export function AutomationEditor({
     [changeGraph, previewNode?.id]
   )
 
+  const requestDeleteNode = React.useCallback(
+    (nodeId: string) => {
+      if (nodeId === previewNode?.id) {
+        deleteNode(nodeId)
+        return
+      }
+      const node = graphRef.current.nodes.find((item) => item.id === nodeId)
+      if (!node) return
+      setDeleteTarget({
+        nodeId,
+        name: automationNodeName(node),
+        connectionCount: graphRef.current.edges.filter(
+          (edge) => edge.from === nodeId || edge.to === nodeId
+        ).length,
+      })
+      deleteConfirmedRef.current = false
+    },
+    [deleteNode, previewNode?.id]
+  )
+
   const createNode = React.useCallback(
     (key: string) =>
       createAutomationNode(key, {
@@ -562,18 +596,21 @@ export function AutomationEditor({
           : undefined
       }
       onAddNode={previewNode ? placeNode : undefined}
-      onDeleteNode={deleteNode}
+      onDeleteNode={requestDeleteNode}
     />
   )
 
   const runsPanel =
     !templateMode && initialRuns ? (
-      <AutomationRunsPanel
-        key={`${initial.id}:${openRunId ?? "runs"}`}
-        automationId={initial.id}
-        initial={initialRuns}
-        openRunId={openRunId}
-      />
+      (active: boolean) => (
+        <AutomationRunsPanel
+          key={`${initial.id}:${openRunId ?? "runs"}`}
+          automationId={initial.id}
+          initial={initialRuns}
+          openRunId={openRunId}
+          active={active}
+        />
+      )
     ) : null
   const editingEmailNode = editingEmailNodeId
     ? (graph.nodes.find((node) => node.id === editingEmailNodeId) ?? null)
@@ -606,6 +643,7 @@ export function AutomationEditor({
       onGraphChange={handleCanvasGraphChange}
       onSelectNode={selectCanvasNode}
       onSelectEdge={setSelectedEdgeId}
+      onDeleteNode={requestDeleteNode}
       onSizeChange={setCanvasSize}
       onDropNode={
         draggedNodeKey
@@ -618,13 +656,20 @@ export function AutomationEditor({
     />
   )
   const canvasHeader = (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={
         templateMode ? (
           <LayoutTemplateIcon className="size-4" />
         ) : (
           <WorkflowIcon className="size-4" />
         )
+      }
+      // A template already carries its way out on the right, as a named
+      // button. Only the real flow's icon is spare enough to become the arrow.
+      back={
+        templateMode
+          ? undefined
+          : { to: "/admin/automations", label: "Back to automations" }
       }
       title={name}
       meta={templateMode ? "Template" : undefined}
@@ -672,54 +717,51 @@ export function AutomationEditor({
                 </label>
               </DisabledReason>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={automationPauseBusy}
-              onClick={() =>
-                paused
-                  ? void handlePauseChange(false)
-                  : setConfirmPauseOpen(true)
-              }
-            >
-              {automationPauseBusy ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : paused ? (
-                <PlayIcon className="size-4" />
-              ) : (
-                <PauseIcon className="size-4" />
-              )}
-              {paused ? "Resume all" : "Pause all"}
-            </Button>
-            <DisabledReason
-              disabled={paused || !compiled.config}
-              reason={
-                paused
-                  ? "Every automation is paused. Resume them to start this flow."
-                  : "Fix the steps marked in red before running this automation."
-              }
-            >
-              <Button
-                type="button"
-                variant="outline"
-                disabled={paused || !compiled.config || preparingTest}
-                onClick={() => void openMemberTest()}
-              >
-                {preparingTest ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <UserIcon className="size-4" />
-                )}
-                Test with member…
-              </Button>
-            </DisabledReason>
-            {canRunManually ? (
+            {/* The app's own controls, and every one of them.
+
+                This strip is the one home an app has in this header: what its
+                flow is right now, and anything a person would press about it.
+                It sits before the shell's own buttons so the app's answer is
+                read first. */}
+            {templateMode ? null : (
+              <CanvasHeaderStatus
+                automationId={initial.id}
+                nodeKinds={nodeKinds}
+              />
+            )}
+            {offersMemberTest ? (
               <DisabledReason
                 disabled={paused || !compiled.config}
                 reason={
                   paused
                     ? "Every automation is paused. Resume them to start this flow."
                     : "Fix the steps marked in red before running this automation."
+                }
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={paused || !compiled.config || preparingTest}
+                  onClick={() => void openMemberTest()}
+                >
+                  {preparingTest ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <UserIcon className="size-4" />
+                  )}
+                  Test with member…
+                </Button>
+              </DisabledReason>
+            ) : null}
+            {canRunManually && appShowsRunButton() ? (
+              <DisabledReason
+                disabled={paused || !compiled.config || running}
+                reason={
+                  paused
+                    ? "Every automation is paused. Resume them to start this flow."
+                    : !compiled.config
+                      ? "Fix the steps marked in red before running this automation."
+                      : null
                 }
               >
                 <Button
@@ -780,7 +822,7 @@ export function AutomationEditor({
             {canvas}
             <AppCanvasPanel
               automationId={initial.id}
-              nodeKinds={graph.nodes.map((node) => node.kind)}
+              nodeKinds={nodeKinds}
               runId={startedRunId}
               shut={appPanelShut}
               onShut={() => setAppPanelShut(true)}
@@ -836,7 +878,7 @@ export function AutomationEditor({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+      style={{ gap: pageGutter }}
       onKeyDown={(event) => {
         // Escape backs out of a node picked in the palette but not yet added.
         // It calls what the panel's Cancel button calls, so there is one way to
@@ -884,7 +926,7 @@ export function AutomationEditor({
                 onDoubleClick={runsDoubleClick}
                 headerOnly={runsShut.collapsed}
               >
-                {runsPanel}
+                {runsPanel?.(!runsShut.collapsed)}
               </WorkspacePanel>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -909,17 +951,41 @@ export function AutomationEditor({
               })
             }}
           />
-          <ConfirmDialog
-            open={confirmPauseOpen}
-            onOpenChange={setConfirmPauseOpen}
-            title="Pause every automation?"
-            description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
-            confirmLabel="Pause automations"
-            loading={automationPauseBusy}
-            onConfirm={() => void handlePauseChange(true)}
-          />
         </>
       ) : null}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title={
+          closingDeleteTarget
+            ? `Delete “${closingDeleteTarget.name}”?`
+            : "Delete this step?"
+        }
+        description={
+          closingDeleteTarget
+            ? closingDeleteTarget.connectionCount === 1
+              ? "Its 1 connection goes with it. This cannot be undone."
+              : `Its ${closingDeleteTarget.connectionCount} connections go with it. This cannot be undone.`
+            : "Its connections go with it. This cannot be undone."
+        }
+        confirmLabel="Delete step"
+        onCloseAutoFocus={(event) => {
+          if (!deleteConfirmedRef.current) return
+          event.preventDefault()
+          deleteConfirmedRef.current = false
+          document
+            .querySelector<HTMLElement>('[aria-label="Automation canvas"]')
+            ?.focus()
+        }}
+        onConfirm={() => {
+          if (!deleteTarget) return
+          deleteConfirmedRef.current = true
+          deleteNode(deleteTarget.nodeId)
+          setDeleteTarget(null)
+        }}
+      />
     </div>
   )
 }
@@ -938,6 +1004,53 @@ export function AutomationEditor({
 const lazyCanvasPanels = new Map<
   string,
   React.LazyExoticComponent<ComponentType<AutomationCanvasPanelProps>>
+>()
+
+/**
+ * The app's own status in the canvas header, or nothing at all.
+ *
+ * Nothing is the default and nothing is drawn around it: no chrome, no label,
+ * no fallback. An app that has not asked for this finds the header exactly as
+ * it has always been, which is what the option test checks.
+ */
+function CanvasHeaderStatus({
+  automationId,
+  nodeKinds,
+}: {
+  automationId: string
+  nodeKinds: readonly string[]
+}) {
+  const declared = appCanvasHeaderStatus()
+  const asked =
+    declared && (declared.appliesTo?.(nodeKinds) ?? true) ? declared : null
+
+  // Fetched as the editor draws rather than when it is first needed, for the
+  // reason written on the panel below.
+  React.useEffect(() => {
+    if (asked) void asked.status()
+  }, [asked])
+
+  if (!asked) return null
+
+  let chip = lazyHeaderStatus.get(asked)
+  if (!chip) {
+    chip = React.lazy(asked.status)
+    lazyHeaderStatus.set(asked, chip)
+  }
+
+  // No fallback: a header that flickers a placeholder every time it draws is
+  // worse than one that fills in a moment later.
+  return (
+    <React.Suspense fallback={null}>
+      {React.createElement(chip, { automationId })}
+    </React.Suspense>
+  )
+}
+
+/** Kept so the lazy import is made once rather than on every draw. */
+const lazyHeaderStatus = new Map<
+  AutomationCanvasStatus,
+  React.LazyExoticComponent<ComponentType<AutomationCanvasStatusProps>>
 >()
 
 function AppCanvasPanel({

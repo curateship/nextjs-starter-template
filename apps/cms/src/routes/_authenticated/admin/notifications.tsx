@@ -22,7 +22,6 @@ export const NOTIFICATION_TYPE_FILTERS = [
 ] as const
 export const NOTIFICATION_SORT_COLUMNS = [
   "activity",
-  "feedback",
   "recipient",
   "type",
   "status",

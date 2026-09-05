@@ -1,15 +1,22 @@
 import * as React from "react"
+import { SendIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { EmptyRow } from "@/components/shared/feed-card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
+import { ErrorRow } from "@/components/ui/error-row"
+import { InlineError } from "@/components/ui/inline-error"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getSystemEmailErrorMessage,
   loadSystemEmailSends,
   type SystemEmailSendItem,
 } from "@/lib/api/email/system-emails"
-import { SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
+import {
+  SYSTEM_EMAIL_META,
+  type SystemEmailKind,
+} from "@/lib/system-emails/kinds"
 import { formatDateTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
@@ -24,7 +31,7 @@ const PAGE_SIZE = 25
  * is the whole panel.
  *
  * What has to survive the panel being dragged shut lives in the header strip,
- * since those 46px are all that is left on screen when it is collapsed.
+ * since that header is all that is left on screen when it is collapsed.
  */
 export function SystemEmailSendsPanel({
   kind,
@@ -36,15 +43,18 @@ export function SystemEmailSendsPanel({
 }) {
   const [sends, setSends] = React.useState<SystemEmailSendItem[]>([])
   const [hasMore, setHasMore] = React.useState(false)
-  const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
 
   const meta = SYSTEM_EMAIL_META[kind]
+  const requestKey = `${kind}:${refreshToken}:${reloads}`
+  const loading = loadedRequest !== requestKey
+  const visibleError = loadedRequest === requestKey ? error : null
 
   React.useEffect(() => {
     let cancelled = false
-    setLoading(true)
     loadSystemEmailSends(kind, { limit: PAGE_SIZE })
       .then((page) => {
         if (cancelled) return
@@ -57,14 +67,15 @@ export function SystemEmailSendsPanel({
         setError(getSystemEmailErrorMessage(loadError))
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadedRequest(requestKey)
       })
     return () => {
       cancelled = true
     }
-  }, [kind, refreshToken])
+  }, [kind, requestKey])
 
   const loadMore = async () => {
+    if (loadingMore || !hasMore) return
     setLoadingMore(true)
     try {
       const page = await loadSystemEmailSends(kind, {
@@ -91,19 +102,23 @@ export function SystemEmailSendsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <div
-        data-slot="workspace-panel-header"
-        className="flex h-11 shrink-0 items-center gap-3 border-b px-3"
-      >
-        <span className="text-sm font-medium">Recent sends</span>
-        <span className="truncate text-xs text-muted-foreground">
-          {summary}
-        </span>
-      </div>
+      <DashboardCardTitleHeader
+        icon={<SendIcon className="size-4" />}
+        title="Recent sends"
+        meta={summary}
+      />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {error ? <ErrorBanner message={error} /> : null}
+          {visibleError ? (
+            <ErrorRow
+              message={visibleError}
+              onRetry={() => {
+                setError(null)
+                setReloads((count) => count + 1)
+              }}
+            />
+          ) : null}
 
           <div className="grid gap-1.5">
             <p className="text-sm text-muted-foreground">{meta.whenSent}</p>
@@ -130,7 +145,9 @@ export function SystemEmailSendsPanel({
             ) : null}
           </div>
 
-          {!loading && sends.length === 0 ? (
+          {loading && sends.length === 0 ? (
+            <LoadingRow label="Loading recent sends…" />
+          ) : !visibleError && sends.length === 0 ? (
             <EmptyRow>
               Nobody has been sent this yet. Every one that goes out from now on
               shows up here.
@@ -142,7 +159,7 @@ export function SystemEmailSendsPanel({
               {sends.map((send) => (
                 <div
                   key={send.id}
-                  className="grid gap-0.5 rounded-md border border-foreground/5 px-2 py-1.5 text-sm"
+                  className="grid gap-0.5 rounded-md border px-2 py-1.5 text-sm"
                 >
                   <div className="flex items-center gap-2">
                     <span
@@ -165,23 +182,18 @@ export function SystemEmailSendsPanel({
                       only half the answer; "at 2pm, and here is why" is the
                       other half. */}
                   {send.status === "failed" ? (
-                    <p className="pl-3.5 text-xs text-destructive">
+                    <InlineError className="pl-3.5">
                       {send.error ?? "Did not go through"}
-                    </p>
+                    </InlineError>
                   ) : null}
                 </div>
               ))}
               {hasMore ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <LoadMoreButton
                   className="mt-1 justify-self-start"
-                  disabled={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
-                >
-                  {loadingMore ? "Loading…" : "Show more"}
-                </Button>
+                />
               ) : null}
             </div>
           ) : null}

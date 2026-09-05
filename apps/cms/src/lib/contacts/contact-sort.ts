@@ -16,6 +16,8 @@ export const CONTACT_SORT_COLUMNS = [
   "name",
   "status",
   "created",
+  /** When anything was last sent to them. Never emailed sorts as the oldest. */
+  "emailed",
 ] as const
 
 export type ContactSortColumn = (typeof CONTACT_SORT_COLUMNS)[number]

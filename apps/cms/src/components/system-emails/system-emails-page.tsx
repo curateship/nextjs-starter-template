@@ -1,18 +1,20 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { MailCheckIcon, SettingsIcon } from "lucide-react"
+import { InboxIcon, MailCheckIcon, SettingsIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
-import type { SystemEmailListItem } from "@/lib/api/email/system-emails"
+import type { SystemEmailsPageData } from "@/lib/api/email/system-emails"
 import {
   RECENT_SEND_DAYS,
   SYSTEM_EMAIL_META,
@@ -22,6 +24,23 @@ import { formatDate } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "subject" | "sends" | "edited"
+
+const SYSTEM_EMAIL_COLUMNS: SortableColumn<SortColumn>[] = [
+  { key: "name", label: "Email", column: "main" },
+  {
+    key: "subject",
+    label: "Subject",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "sends",
+    label: `Last ${RECENT_SEND_DAYS} days`,
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  { key: "edited", label: "Edited", column: "meta" },
+]
 
 /**
  * The emails the app sends for itself.
@@ -34,24 +53,29 @@ type SortColumn = "name" | "subject" | "sends" | "edited"
 export function SystemEmailsPage({
   initial,
 }: {
-  initial: SystemEmailListItem[]
+  initial: SystemEmailsPageData
 }) {
+  const emails = initial.emails
   const navigate = useNavigate()
   // Starts in the order the emails are declared, which is roughly the order
   // somebody meets them: register, sign in, forget the password.
-  const { sort, direction, toggleSort } = useTableSort<SortColumn>("name", "asc", (column) => column === "sends" || column === "edited" ? "desc" : "asc")
+  const { sort, direction, toggleSort } = useTableSort<SortColumn>(
+    "name",
+    "asc",
+    (column) => (column === "sends" || column === "edited" ? "desc" : "asc"),
+  )
 
   const openEditor = (kind: SystemEmailKind) =>
     navigate({ to: "/admin/system-emails/$kind", params: { kind } })
 
   const rows = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
-    return [...initial].sort((left, right) => {
+    return [...emails].sort((left, right) => {
       if (sort === "name") {
         return (
           factor *
           SYSTEM_EMAIL_META[left.kind].name.localeCompare(
-            SYSTEM_EMAIL_META[right.kind].name
+            SYSTEM_EMAIL_META[right.kind].name,
           )
         )
       }
@@ -70,62 +94,40 @@ export function SystemEmailsPage({
       }
       // Never edited sorts as the oldest, so ascending puts the built-in ones
       // first and descending puts what you touched most recently on top.
-      return factor * (left.updated_at ?? "").localeCompare(right.updated_at ?? "")
+      return (
+        factor * (left.updated_at ?? "").localeCompare(right.updated_at ?? "")
+      )
     })
-  }, [direction, initial, sort])
+  }, [direction, emails, sort])
 
   return (
     <DashboardTable
       title="System emails"
       icon={<MailCheckIcon />}
-      count={initial.length}
+      count={emails.length}
+      controls={
+        initial.devOutboxAvailable ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/dev-outbox">
+              <InboxIcon aria-hidden="true" />
+              Dev outbox
+            </Link>
+          </Button>
+        ) : undefined
+      }
       footer={{
         type: "summary",
-        count: initial.length,
+        count: emails.length,
         label: "emails the app sends on its own",
       }}
       header={
-        <TableHeader>
-          <TableRow>
-            <TableHead column="main">
-              <TableSortButton
-                active={sort === "name"}
-                direction={direction}
-                onClick={() => toggleSort("name")}
-              >
-                Email
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta" className="hidden sm:table-cell">
-              <TableSortButton
-                active={sort === "subject"}
-                direction={direction}
-                onClick={() => toggleSort("subject")}
-              >
-                Subject
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta" className="hidden md:table-cell">
-              <TableSortButton
-                active={sort === "sends"}
-                direction={direction}
-                onClick={() => toggleSort("sends")}
-              >
-                Last {RECENT_SEND_DAYS} days
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta">
-              <TableSortButton
-                active={sort === "edited"}
-                direction={direction}
-                onClick={() => toggleSort("edited")}
-              >
-                Edited
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
+        <SortableTableHeader
+          columns={SYSTEM_EMAIL_COLUMNS}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          trailing={<TableHead column="meta">Actions</TableHead>}
+        />
       }
       isEmpty={false}
       // Never actually shown: these are built into the app and cannot be
@@ -175,7 +177,6 @@ export function SystemEmailsPage({
             )}
           </TableCell>
           <TableCell column="actions">
-            <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -185,7 +186,6 @@ export function SystemEmailsPage({
               >
                 <SettingsIcon className="size-4" />
               </Button>
-            </div>
           </TableCell>
         </TableRow>
       ))}

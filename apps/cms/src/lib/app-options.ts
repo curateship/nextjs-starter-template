@@ -5,7 +5,14 @@ import type {
   AutomationNodeDescriptor,
   AutomationPaletteGroup,
 } from "@/lib/automations/node-descriptor"
-import type { AutomationCanvasPanel } from "@/lib/automations/canvas-panel"
+import type {
+  AutomationCanvasPanel,
+  AutomationCanvasStatus,
+} from "@/lib/automations/canvas-panel"
+import {
+  normalizePublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
 /**
@@ -25,18 +32,95 @@ import type { AppSettingsTab } from "@/lib/settings-tab"
  * *here*, in custom-shell, with its default equal to today's behaviour; only
  * then can an app use it.
  *
- * Not everything belongs here. If an admin could plausibly change it on a
- * Settings screen it is `ShellConfig` instead, and if it differs between
- * staging and production of one app it is an environment variable. An app
- * option is decided once by whoever builds the app, is the same on every
- * install of it, and changing it means a deploy.
+ * Not everything belongs here. A value an admin changes while the app runs is
+ * `ShellConfig`; an app option may only supply its starting value when the
+ * shell offers that choice explicitly. A value that differs between staging
+ * and production of one app is an environment variable. An app option is
+ * decided once by whoever builds the app, is the same on every install of it,
+ * and changing it means a deploy.
  */
 export type AppOptions = {
+  /**
+   * The public look a fresh install starts with before an admin saves changes.
+   * An app names only the fields it wants to change. Saved app-wide values
+   * override matching fields, and omitted fields keep the shell's built-in look.
+   */
+  publicTheme?: Partial<PublicTheme>
+  header?: HeaderOptions
   landing?: LandingOptions
   pages?: PagesOptions
   automations?: AutomationOptions
   workspaces?: WorkspaceOptions
   settings?: SettingsOptions
+  notifications?: NotificationOptions
+}
+
+/** What the shell hands the app-owned piece of the signed-in header. */
+export type AppHeaderActionProps = { role: string }
+
+/**
+ * One app-owned item in the signed-in header's right side.
+ *
+ * The item carries the stable id, label and icon the shell needs to put it in
+ * the draggable Top right menu settings. Its component stays behind a pointer
+ * so an app can read its own APIs without putting that feature in every
+ * browser bundle.
+ */
+export type AppHeaderAction = {
+  id: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+  /** Unset means admins and members may both see it. */
+  roles?: readonly string[]
+  component: () => Promise<{
+    default: ComponentType<AppHeaderActionProps>
+  }>
+}
+
+type HeaderOptions = {
+  /**
+   * A single app-owned control in the draggable top-right menu. Unset leaves
+   * the signed-in header and its settings exactly as they were.
+   */
+  rightAction?: AppHeaderAction
+}
+
+/**
+ * The little the shell says about a notice when it asks the app where that
+ * notice came from. The id and the kind, and nothing else.
+ *
+ * Deliberately not the whole notice row. That type lives in
+ * `src/lib/api/notification.ts`, which reaches into the server's inbox module,
+ * which reaches back — and this file is imported by the browser. The two
+ * fields an app actually needs are written out here instead, the same way
+ * `notification-types.ts` keeps the words out of the circle.
+ */
+export type NoticeToLink = { id: string; type: string }
+
+type NotificationOptions = {
+  /**
+   * Where the app's own notices go when somebody clicks one.
+   *
+   * The shell knows what its own notices are about — a piece of feedback, a
+   * published update, a run waiting for approval — and opens each one. It
+   * cannot know what an app's notices are about. Trade writes its notices as
+   * announcements, so to the shell they are a title and a body with nowhere to
+   * go, and clicking one did nothing at all.
+   *
+   * The app is asked once per page of notices, not once per click, so the
+   * click itself never waits on a database sitting a second away. It is handed
+   * only the notices now on screen and answers with the ones it recognises:
+   * `{ <notice id>: "/admin/hyper-liquid?market=..." }`. A notice it says
+   * nothing about keeps the shell's own behaviour, which for an announcement
+   * is to open nothing and leave the tray up.
+   *
+   * Addresses inside this app only. Anything else — another site, a
+   * `javascript:` address, a protocol-relative `//host` — is dropped rather
+   * than followed, because these strings come out of a database.
+   */
+  linksFor?: (
+    notices: readonly NoticeToLink[]
+  ) => Promise<Record<string, string>>
 }
 
 type SettingsOptions = {
@@ -64,6 +148,8 @@ export type WorkspaceWord = { one: string; many: string }
 export type WhoMayHaveWorkspaces = "off" | "admins" | "everyone"
 
 type WorkspaceOptions = {
+  /** Allow each public site to override app-wide icons, logos and share images. */
+  siteBranding?: boolean
   /**
    * What this app calls a workspace, where somebody can see it.
    *
@@ -201,6 +287,48 @@ type AutomationOptions = {
    * See the type for why it is a pointer to a file rather than a component.
    */
   canvasPanel?: AutomationCanvasPanel
+  /**
+   * The app's own controls in the canvas header, on the right beside Run.
+   *
+   * **This is where every action of the app's own belongs**, and there is no
+   * second place. For what a flow IS right now rather than what a run produced,
+   * and for anything a person would press about it. Unset means the header is
+   * the shell's alone, which is what every app had before this existed.
+   *
+   * See the type for why it is a pointer to a file rather than a component.
+   */
+  canvasHeaderStatus?: AutomationCanvasStatus
+  /**
+   * Whether the shell's Run button appears on the canvas at all.
+   *
+   * "shown" is the default and is what every app had before this existed. An
+   * app sets "hidden" when Run is not an honest word for what its flows do —
+   * Trade's are a backtest, or real money being switched on, and it draws both
+   * itself in the header beside this button's place.
+   *
+   * Off, and not replaced in place: a header that is half the shell's buttons
+   * and half the app's has two places to look for an action and no line between
+   * them. What Run does while it is on stays the shell's business.
+   */
+  runButton?: "shown" | "hidden"
+  /**
+   * Which flows offer "Test with member…". Unset means every flow does, which
+   * is what every app did before this existed.
+   *
+   * The button runs the flow against one chosen member, which is the right way
+   * to try a welcome sequence and a meaningless thing to offer a flow with no
+   * member in it at all. The shell cannot tell the two apart: it would have to
+   * know what an app's own steps are about. Trade's backtest is exactly that —
+   * it walks a strategy over price history, and there is nobody to test it
+   * with.
+   *
+   * Deciding from the kinds of step on the canvas rather than per app, because
+   * one app has both: Trade's backtest flow has no member, and its ordinary
+   * flows still do.
+   */
+  memberTest?: {
+    appliesTo: (nodeKinds: readonly string[]) => boolean
+  }
 }
 
 type LandingOptions = {
@@ -318,6 +446,28 @@ export function landingPageOverride(
   return options.landing?.page ?? null
 }
 
+/** The app's starting public look, or the shell's when the app says nothing. */
+export function appPublicTheme(options: AppOptions = appOptions): PublicTheme {
+  return normalizePublicTheme(options.publicTheme)
+}
+
+/** The app's one control on the signed-in header, or none. */
+export function appHeaderRightAction(
+  options: AppOptions = appOptions
+): AppHeaderAction | null {
+  return options.header?.rightAction ?? null
+}
+
+/** The app-owned header item for this role, or none. */
+export function appHeaderRightActionForRole(
+  role: string,
+  options: AppOptions = appOptions
+): AppHeaderAction | null {
+  const action = appHeaderRightAction(options)
+  if (!action || (action.roles && !action.roles.includes(role))) return null
+  return action
+}
+
 /**
  * The app's page for addresses nothing else claims, or null to leave the
  * catch-all exactly as the shell wrote it.
@@ -381,6 +531,44 @@ export function appCanvasPanel(
   options: AppOptions = appOptions
 ): AutomationCanvasPanel | null {
   return options.automations?.canvasPanel ?? null
+}
+
+/**
+ * The app's status chip for the canvas header, or null when it has none.
+ *
+ * Null is the default and means the header is exactly what it has always been.
+ */
+export function appCanvasHeaderStatus(
+  options: AppOptions = appOptions
+): AutomationCanvasStatus | null {
+  return options.automations?.canvasHeaderStatus ?? null
+}
+
+/**
+ * Whether the shell's Run button is drawn on the canvas.
+ *
+ * True unless the app says otherwise, so an app that has never heard of this
+ * option behaves exactly as it did before.
+ */
+export function appShowsRunButton(options: AppOptions = appOptions): boolean {
+  return (options.automations?.runButton ?? "shown") === "shown"
+}
+
+/**
+ * Whether this flow offers "Test with member…".
+ *
+ * True unless the app says otherwise, so an app that has never heard of this
+ * option behaves exactly as it did before.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appOffersMemberTest(
+  nodeKinds: readonly string[],
+  options: AppOptions = appOptions
+): boolean {
+  return options.automations?.memberTest?.appliesTo(nodeKinds) ?? true
 }
 
 /**
@@ -463,4 +651,28 @@ export function workspaceWord(options: AppOptions = appOptions): WorkspaceWord {
 /** The same word with its first letter raised, for a heading or a button. */
 export function capitalise(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1)
+}
+
+/**
+ * Where the app says its own notices lead, or nothing when it has no answer.
+ *
+ * An app that never set the option, which is every app by default, returns an
+ * empty answer and every notice behaves exactly as it did before this existed.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export async function appNotificationLinks(
+  notices: readonly NoticeToLink[],
+  options: AppOptions = appOptions
+): Promise<Record<string, string>> {
+  const ask = options.notifications?.linksFor
+  if (!ask || notices.length === 0) return {}
+  return await ask(notices)
+}
+
+/** App-wide branding stays the default unless the app builds distinct sites. */
+export function appUsesSiteBranding(options: AppOptions = appOptions) {
+  return options.workspaces?.siteBranding ?? false
 }

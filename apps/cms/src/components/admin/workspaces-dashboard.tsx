@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -98,14 +99,16 @@ export function WorkspacesDashboard({
   const { open: openWorkspaceId } = workspacesRoute.useSearch()
   const { config } = useShellRuntime()
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
-  const [formOpen, setFormOpen] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
   const [run, busy] = useAsyncAction(getWorkspaceErrorMessage)
-  const { sort, direction: sortDirection, toggleSort } =
-    useTableSort<WorkspaceSortColumn>("name")
+  const {
+    sort,
+    direction: sortDirection,
+    toggleSort,
+  } = useTableSort<WorkspaceSortColumn>("name")
   const selection = useSelection()
   // The same act as the sidebar switcher, and deliberately the same code —
   // switching has to throw the page away, and that reasoning lives in one file.
@@ -125,6 +128,12 @@ export function WorkspacesDashboard({
     },
     [navigate]
   )
+  const editing = React.useMemo(
+    () =>
+      workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,
+    [openWorkspaceId, workspaces]
+  )
+  const formOpen = creating || Boolean(editing)
 
   // Built here rather than at the top of the file: the header names the thing
   // whatever this app calls it, and `workspaceWord()` may only be read inside a
@@ -133,9 +142,14 @@ export function WorkspacesDashboard({
   // so a memo keyed on it would rebuild every render anyway while looking as
   // though it did not.
   const columns: SortableColumn<WorkspaceSortColumn>[] = [
-    { key: "name", label: capitalise(word.one), column: "main" },
-    { key: "address", label: "Address", column: "meta" },
-    { key: "status", label: "Status", column: "meta" },
+    {
+      key: "name",
+      label: capitalise(word.one),
+      column: "main",
+      className: "min-w-0 md:min-w-80",
+    },
+    { key: "address", label: "Address", column: "preview" },
+    { key: "status", label: "Status", column: "preview" },
   ]
 
   // Worked out once per render and reused by the search, the sort and the cell,
@@ -194,30 +208,13 @@ export function WorkspacesDashboard({
   )
 
   function openCreateForm() {
-    setEditing(null)
-    setFormOpen(true)
+    setCreating(true)
   }
 
   function openEditForm(workspace: WorkspaceItem) {
-    setEditing(workspace)
-    setFormOpen(true)
+    setCreating(false)
     setOpenWorkspace(workspace.id)
   }
-
-  React.useEffect(() => {
-    if (openWorkspaceId) {
-      const workspace = workspaces.find((item) => item.id === openWorkspaceId)
-      if (workspace) {
-        setEditing(workspace)
-        setFormOpen(true)
-      }
-      return
-    }
-    if (!formOpen || editing) {
-      setEditing(null)
-      setFormOpen(false)
-    }
-  }, [editing, formOpen, openWorkspaceId, workspaces])
 
   // One request for the whole selection, and the server decides what it can
   // take — one workspace always has to survive, so the last one never goes.
@@ -271,15 +268,24 @@ export function WorkspacesDashboard({
         controls={
           <>
             {selectedIds.size ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
+              <DisabledReason
                 disabled={busy || selectedIds.size >= workspaces.length}
+                reason={
+                  busy
+                    ? "Wait for the delete that is already running to finish."
+                    : `This is your last ${word.one}, and the app needs one. Make another before deleting this.`
+                }
               >
-                <Trash2Icon className="size-4" />
-                Delete ({selectedIds.size})
-              </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setMassDeleteOpen(true)}
+                  disabled={busy || selectedIds.size >= workspaces.length}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete ({selectedIds.size})
+                </DashboardToolbarButton>
+              </DisabledReason>
             ) : null}
             <DashboardToolbarSearch
               name="workspace-search"
@@ -301,13 +307,11 @@ export function WorkspacesDashboard({
             direction={sortDirection}
             onSort={toggleSort}
             leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label={`Select visible ${word.many}`}
-                />
-              </TableHead>
+              <SelectAllTableHead
+                noun={word.many}
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
             }
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
@@ -330,8 +334,8 @@ export function WorkspacesDashboard({
                 aria-label={`Select ${workspace.name}`}
               />
             </TableCell>
-            <TableCell column="main">
-              <div className="flex items-center gap-3">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
+              <div className="flex max-w-28 items-center gap-3 sm:max-w-none">
                 <span className="flex h-8 min-w-8 shrink-0 items-center justify-center border-border">
                   {workspace.favicon ? (
                     <img
@@ -363,7 +367,7 @@ export function WorkspacesDashboard({
                 </div>
               </div>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {(() => {
                 const address = addressOf(workspace)
                 // A domain of its own is the real address, so it is set in the
@@ -390,13 +394,12 @@ export function WorkspacesDashboard({
                 )
               })()}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               <Badge variant={STATUS_BADGES[workspace.status].variant}>
                 {STATUS_BADGES[workspace.status].label}
               </Badge>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 {/*
                  * Going into a workspace, from the one screen that lists them
                  * all. The sidebar switcher used to be the only way, so this
@@ -449,7 +452,6 @@ export function WorkspacesDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -472,8 +474,7 @@ export function WorkspacesDashboard({
         open={formOpen}
         editing={editing}
         onClose={() => {
-          setEditing(null)
-          setFormOpen(false)
+          setCreating(false)
           setOpenWorkspace(undefined)
         }}
       />

@@ -51,7 +51,7 @@ export function InspectorCard({
   // parts you type into. Setting that here, once, means a node task writing new
   // fields gets it for free and cannot forget.
   const shell = cn(
-    "grid gap-3 rounded-lg border border-foreground/5 bg-muted/60 p-3",
+    "grid gap-3 rounded-lg border bg-muted/60 p-3",
     "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
   )
   if (!title) return <section className={shell}>{children}</section>
@@ -62,18 +62,20 @@ export function InspectorCard({
       onOpenChange={setOpen}
       className={cn("group/card", shell)}
     >
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "group/trigger flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
-            focusRingInset
-          )}
-        >
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover/card:opacity-100 group-focus-visible/trigger:opacity-100 group-data-[state=closed]/trigger:-rotate-90" />
-        </button>
-      </CollapsibleTrigger>
+      <h2 className="text-sm font-semibold">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "group/trigger flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
+              focusRingInset
+            )}
+          >
+            <span>{title}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover/card:opacity-100 group-focus-visible/trigger:opacity-100 group-data-[state=closed]/trigger:-rotate-90" />
+          </button>
+        </CollapsibleTrigger>
+      </h2>
       <CollapsibleContent data-collapse-key={noFlashKey} className="grid gap-3">
         {children}
       </CollapsibleContent>
@@ -96,7 +98,7 @@ export function InspectorNote({
   return (
     <div
       className={cn(
-        "rounded-lg border border-foreground/10 bg-background p-3 text-xs text-muted-foreground",
+        "rounded-lg border bg-background p-3 text-xs text-muted-foreground",
         className
       )}
     >

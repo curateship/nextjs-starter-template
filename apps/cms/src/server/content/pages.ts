@@ -1,6 +1,8 @@
 import { and, eq, gte, sql } from "drizzle-orm"
 
 import type { PageDescriptor } from "@/lib/pages/page-descriptor"
+import type { PublicNotFoundDiscovery } from "@/lib/pages/not-found-discovery"
+import { flattenPublicNavigationLinks } from "@/lib/pages/public-navigation"
 import { pageForPath, publicPages } from "@/lib/pages/page-registry"
 import {
   pageVisibility,
@@ -14,6 +16,11 @@ import {
 } from "@/server/schema"
 import { now } from "@/server/auth/security"
 import { parseWorkspaceSettings } from "@/server/people/workspaces"
+import { readShellGlobals } from "@/server/shell-settings"
+import {
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
 import { OTHER_KEY, trafficDay } from "@/server/traffic"
 import {
   findWrittenPage,
@@ -271,7 +278,7 @@ export async function setPageVisibility(
     )
   }
 
-  return database.transaction(async (tx) => {
+  const pages = await database.transaction(async (tx) => {
     // Read, merge and write with the row locked, the same dance the
     // maintenance switch and the automations kill switch do: the site's
     // settings are one JSON column, so two saves landing together would each
@@ -308,6 +315,35 @@ export async function setPageVisibility(
 
     return pages
   })
+
+  dropWorkspaceCache()
+  return pages
+}
+
+/** Current public ways onward for a 404, read from the site's own row. */
+export async function readPublicNotFoundDiscovery(
+  workspaceId: string | null,
+  database: CustomShellDb = db
+): Promise<PublicNotFoundDiscovery> {
+  const [workspace] = workspaceId
+    ? await database
+        .select({ settings: customShellWorkspaces.settings })
+        .from(customShellWorkspaces)
+        .where(eq(customShellWorkspaces.id, workspaceId))
+        .limit(1)
+    : []
+  const settings = parseWorkspaceSettings(workspace?.settings)
+  const searchPage = pageForPath("/search")
+  const publicNavigation = workspaceBaseDomain()
+    ? settings.publicNavigation
+    : (await readShellGlobals(database)).publicNavigation
+
+  return {
+    publicNavigation: flattenPublicNavigationLinks(publicNavigation),
+    publicSearchEnabled:
+      searchPage !== null &&
+      pageVisibility(settings.pages, searchPage) !== "off",
+  }
 }
 
 /**

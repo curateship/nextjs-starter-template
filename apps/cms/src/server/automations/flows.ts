@@ -369,6 +369,42 @@ export async function saveWorkspaceAutomation(
   }
 }
 
+/**
+ * Renames a flow, and touches nothing else about it.
+ *
+ * Deliberately not `saveWorkspaceAutomation` with the same graph passed back
+ * in. That one recompiles, rewrites `compiled_config` and recalculates the next
+ * scheduled run — all correct when the steps have actually changed, and all
+ * risk for free when only the name has. It would also mean the list page
+ * reading the whole graph and writing it back, so two people renaming from the
+ * list could hand each other's stale steps to the database.
+ */
+export async function renameWorkspaceAutomation(
+  workspaceId: string,
+  id: string,
+  name: string,
+  database: CustomShellDb = db
+): Promise<CustomShellAutomation | null> {
+  const trimmed = name.trim().slice(0, NAME_MAX_LENGTH)
+  if (!trimmed) throw new Error("NAME_REQUIRED")
+
+  try {
+    const [row] = await database
+      .update(customShellAutomations)
+      .set({ name: trimmed, updatedAt: now() })
+      .where(
+        and(
+          eq(customShellAutomations.id, id),
+          eq(customShellAutomations.workspaceId, workspaceId)
+        )
+      )
+      .returning()
+    return row ?? null
+  } catch (error) {
+    throw asNameTaken(error)
+  }
+}
+
 /** Cleans builder markup before an automation graph ever reaches storage. */
 export function sanitizeAutomationEmailBlocks(
   graph: AutomationGraph

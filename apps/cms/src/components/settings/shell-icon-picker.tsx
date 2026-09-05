@@ -3,9 +3,9 @@ import {
   CheckIcon,
   ImageIcon,
   PlusIcon,
-  SearchIcon,
 } from "lucide-react"
 
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -131,17 +131,15 @@ export function ShellIconPicker({
           {/* Pinned above the grid: the search box and the add button are how
               you drive the grid, so they must not scroll away with it. */}
           <DialogToolbar>
-            <div className="relative min-w-0 flex-1">
-              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="pl-9"
-                aria-label="Search icons"
-                placeholder="Search icons"
-              />
-            </div>
+            <DashboardToolbarSearch
+              className="min-w-0 flex-1 sm:flex-1"
+              inputClassName="sm:w-full lg:w-full"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              aria-label="Search icons"
+              placeholder="Search icons"
+            />
             <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
               <PopoverTrigger asChild>
                 <Button

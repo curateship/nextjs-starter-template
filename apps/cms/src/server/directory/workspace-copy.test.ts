@@ -71,7 +71,7 @@ describe("copying CMS site content", () => {
     expect(copied.status).toBe("draft")
     expect(parseWorkspaceSettings(copied.settings)).toMatchObject({
       logo: "https://example.test/logo.png",
-      accentColor: "#123456",
+      publicTheme: { brandColor: "#123456" },
       publicFooterCopyright: "Alpha Ltd",
     })
     const copiedPages = await database

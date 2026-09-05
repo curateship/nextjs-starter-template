@@ -9,6 +9,8 @@ type ThemeProviderProps = {
   defaultTheme?: Theme
   storageKey?: string
   disableTransitionOnChange?: boolean
+  /** A public-site choice that outranks the visitor's saved preference. */
+  forcedTheme?: ResolvedTheme
 }
 
 type ThemeProviderState = {
@@ -82,6 +84,7 @@ export function ThemeProvider({
   defaultTheme = "system",
   storageKey = "theme",
   disableTransitionOnChange = true,
+  forcedTheme,
   ...props
 }: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
@@ -105,6 +108,8 @@ export function ThemeProvider({
     [storageKey]
   )
 
+  const appliedTheme: Theme = forcedTheme ?? theme
+
   const applyTheme = React.useCallback(
     (nextTheme: Theme) => {
       const root = document.documentElement
@@ -125,9 +130,9 @@ export function ThemeProvider({
   )
 
   React.useEffect(() => {
-    applyTheme(theme)
+    applyTheme(appliedTheme)
 
-    if (theme !== "system") {
+    if (appliedTheme !== "system") {
       return undefined
     }
 
@@ -141,9 +146,13 @@ export function ThemeProvider({
     return () => {
       mediaQuery.removeEventListener("change", handleChange)
     }
-  }, [theme, applyTheme])
+  }, [appliedTheme, applyTheme])
 
   React.useEffect(() => {
+    if (forcedTheme) {
+      return undefined
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) {
         return
@@ -181,7 +190,7 @@ export function ThemeProvider({
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [storageKey])
+  }, [forcedTheme, storageKey])
 
   React.useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
@@ -210,10 +219,10 @@ export function ThemeProvider({
 
   const value = React.useMemo(
     () => ({
-      theme,
+      theme: appliedTheme,
       setTheme,
     }),
-    [theme, setTheme]
+    [appliedTheme, setTheme]
   )
 
   return (

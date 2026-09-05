@@ -1,5 +1,6 @@
 /**
- * The one background loop in this app, and the two jobs riding on it.
+ * The development background loop: a pass every fifteen seconds, started by
+ * whichever request happens to arrive first.
  *
  * There is no boot hook here, so the guards call `ensureBackgroundTicker` on
  * every request and the flag below makes every call after the first free. The
@@ -7,8 +8,16 @@
  * `globalThis` rather than in module scope — a module-scoped one resets on
  * reload and would leave a second interval running behind the first.
  *
- * Both jobs run on the same fifteen seconds, and each takes its work by
- * claiming it, so a slow pass overlapping the next one is harmless.
+ * **In production this does nothing on purpose.** A deployed app runs its
+ * background work in a separate worker program (`worker/src/index.ts`), which
+ * starts on its own and does not wait for a visitor. Leaving the timer on in
+ * the web container as well would mean every web replica running the same
+ * jobs: harmless, because each job claims its work before doing it, but it
+ * hides the real answer to "is background work running" behind however many
+ * web containers happen to be up. One place ticks, and it is the worker.
+ *
+ * What each pass actually does lives in `src/server/background-pass.ts`, which
+ * is the file the worker runs too.
  */
 
 const TICK_MS = 15_000
@@ -17,51 +26,37 @@ declare global {
   var __customShellBackgroundTicker: boolean | undefined
 }
 
-export function ensureBackgroundTicker() {
+/**
+ * Whether this process is the one that should be ticking.
+ *
+ * Split out from the timer below so it can be asked about an environment other
+ * than the one the question is asked in — otherwise "production does not tick"
+ * is untestable, because a test run is never production.
+ */
+export function backgroundTickerRunsHere(env: NodeJS.ProcessEnv = process.env) {
   // Tests drive each pass themselves; an interval would outlive the test run.
-  if (process.env.VITEST || process.env.NODE_ENV === "test") return
+  if (env.VITEST || env.NODE_ENV === "test") return false
+  // Production's passes belong to the worker — see the note above.
+  if (env.NODE_ENV === "production") return false
+  return true
+}
+
+export function ensureBackgroundTicker() {
+  if (!backgroundTickerRunsHere()) return
   if (globalThis.__customShellBackgroundTicker) return
   globalThis.__customShellBackgroundTicker = true
 
-  const tick = async () => {
-    // Fetched on every pass, never imported at the top of this file.
-    //
-    // The interval below is created ONCE and then outlives every reload. A
-    // normal import would hand it the versions of these jobs that existed at
-    // boot, and it would go on calling those forever — so editing a worker
-    // did nothing until the whole server was restarted, which is a miserable
-    // way to work and easy to mistake for the edit not working. Asking for
-    // them here gets whatever the module graph holds right now.
-    const [{ runAutomationTick }, { processDueBroadcasts }, { appBackgroundWorkers }] =
-      await Promise.all([
-        import("@/server/automations/engine"),
-        import("@/server/email/broadcast-send"),
-        import("@/server/app-options"),
-      ])
-
-    // Kept apart on purpose: a thrown automation pass must not stop the
-    // broadcast pass, and the other way round.
-    void runAutomationTick().catch((error) => {
-      console.error("Automation tick failed", error)
-    })
-    void processDueBroadcasts().catch((error) => {
-      console.error("Broadcast tick failed", error)
-    })
-    // The app's own workers ride the same loop, each as isolated as the two
-    // jobs above. Read inside the tick, never at module top level — the app's
-    // answers may still be loading while this module is first imported.
-    for (const worker of appBackgroundWorkers()) {
-      void worker.tick().catch((error) => {
-        console.error(`${worker.name} tick failed`, error)
-      })
-    }
-  }
-
+  // Imported inside the interval rather than at the top of the file, so an
+  // edit to a job reaches the loop that was created before it. The reason is
+  // written out in `background-pass.ts`.
   const safeTick = () => {
-    void tick().catch((error) => {
-      console.error("Background tick failed to start", error)
-    })
+    void import("@/server/background-pass")
+      .then(({ runBackgroundPass }) => runBackgroundPass())
+      .catch((error) => {
+        console.error("Background pass failed to start", error)
+      })
   }
+
   safeTick()
   setInterval(safeTick, TICK_MS)
 }

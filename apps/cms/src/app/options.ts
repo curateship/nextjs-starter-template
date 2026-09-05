@@ -58,7 +58,33 @@ const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageData>({
  */
 export const appOptions: AppOptions = {
   pages: { catchAll: directoryFrontPage },
+  settings: {
+    tabs: [
+      {
+        id: "site-identity",
+        label: "Site identity",
+        panel: () => import("@/components/settings/cms-settings"),
+      },
+      {
+        id: "directory",
+        label: "Directory",
+        panel: () =>
+          import("@/components/settings/directory-settings").then((module) => ({
+            default: module.DirectorySettings,
+          })),
+      },
+      {
+        id: "listing-badges",
+        label: "Listing badges",
+        panel: () =>
+          import("@/components/settings/listing-badge-settings").then(
+            (module) => ({ default: module.ListingBadgeSettings })
+          ),
+      },
+    ],
+  },
   workspaces: {
+    siteBranding: true,
     /**
      * This app builds websites, so its containers are sites. The shell says
      * "workspace" because that is what one is where a container is one

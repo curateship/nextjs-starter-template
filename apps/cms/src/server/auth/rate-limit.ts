@@ -8,6 +8,17 @@ type RateLimitOptions = {
   windowSeconds: number
 }
 
+/** The same public error code, plus facts only server-side callers can use. */
+export class RateLimitError extends Error {
+  readonly newlyBlocked: boolean
+
+  constructor(newlyBlocked: boolean) {
+    super("RATE_LIMITED")
+    this.name = "RateLimitError"
+    this.newlyBlocked = newlyBlocked
+  }
+}
+
 /**
  * Counts an attempt against `key` and throws once the window is exhausted.
  *
@@ -59,7 +70,7 @@ export async function enforceRateLimit(
     .returning()
 
   if (bucket?.blockedUntil && bucket.blockedUntil > timestamp) {
-    throw new Error("RATE_LIMITED")
+    throw new RateLimitError(bucket.attempts === maxAttempts + 1)
   }
 }
 

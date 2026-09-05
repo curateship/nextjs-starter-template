@@ -11,6 +11,7 @@ import {
   hostBelongsToThisApp,
   isPlatformHost,
   normalizeHost,
+  publicOriginFromParts,
   resolveWorkspaceByHost,
 } from "@/server/workspaces/host"
 import type { WorkspaceStatus } from "@/lib/workspaces/status"
@@ -76,6 +77,16 @@ describe("reading a host", () => {
   it("treats nothing at all as the deployment's own", () => {
     expect(isPlatformHost("")).toBe(true)
     expect(isPlatformHost(null)).toBe(true)
+  })
+
+  it("refuses a host that hides another domain behind credentials", () => {
+    expect(
+      publicOriginFromParts(
+        "http://internal:3000/about",
+        "alpha.example.com@other.example.com",
+        "https"
+      )
+    ).toBe("http://internal:3000")
   })
 })
 

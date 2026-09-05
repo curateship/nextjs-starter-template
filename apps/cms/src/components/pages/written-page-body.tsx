@@ -5,6 +5,8 @@ import {
   type WrittenPageMark,
   type WrittenPageNode,
 } from "@/lib/pages/written-page-body"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
 
 /**
  * Draws an admin-written page's body.
@@ -113,7 +115,10 @@ function RenderText({ node }: { node: WrittenPageNode }): React.ReactElement {
     return (
       <a
         href={link.attrs.href}
-        className="underline underline-offset-2 hover:text-primary"
+        className={cn(
+          "rounded-sm underline underline-offset-2 hover:text-primary",
+          focusRing
+        )}
         // An admin's link can point anywhere, so it never gets to speak for
         // this app in the page it opens.
         rel="noreferrer nofollow"

@@ -89,6 +89,39 @@ export function formatClockTime(
   )
 }
 
+/**
+ * How long something lasted: "20s", "9m", "3h 12m", or "3d 4h".
+ *
+ * The smaller part stays when it changes the answer. A decimal such as 3.2h
+ * makes somebody turn the fraction back into minutes, while rounding to 3h
+ * throws those minutes away. Callers that give zero a specific meaning can
+ * name it without keeping another duration formatter.
+ */
+export function formatDuration(
+  milliseconds: number,
+  { zero }: { zero?: string } = {}
+): string {
+  if (milliseconds <= 0 && zero !== undefined) return zero
+
+  const duration = Math.max(0, milliseconds)
+  if (duration < 60_000) {
+    return `${Math.max(1, Math.round(duration / 1000))}s`
+  }
+
+  const minutes = Math.floor(duration / 60_000)
+  if (minutes < 60) return `${minutes}m`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    const remainder = minutes % 60
+    return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`
+  }
+
+  const days = Math.floor(hours / 24)
+  const remainder = hours % 24
+  return remainder === 0 ? `${days}d` : `${days}d ${remainder}h`
+}
+
 const RELATIVE_TIME = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" })
 
 const RELATIVE_UNITS: [unit: Intl.RelativeTimeFormatUnit, ms: number][] = [

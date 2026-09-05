@@ -129,7 +129,8 @@ export function sendEmailAudienceWording(
     typeof node.settings.planSlug === "string" ? node.settings.planSlug : "",
     typeof node.settings.segmentName === "string"
       ? node.settings.segmentName
-      : ""
+      : "",
+    typeof node.settings.tag === "string" ? node.settings.tag : ""
   )
   return wording.charAt(0).toUpperCase() + wording.slice(1) + "."
 }

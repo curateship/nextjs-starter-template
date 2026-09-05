@@ -1,10 +1,19 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import {
+  getVisitorPageErrorMessage,
+  visitorRouteErrorComponent,
+} from "@/components/shell/route-error"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { catchAllOverride } from "@/lib/app-options"
 import { loadWrittenPage } from "@/lib/api/content/pages"
+import { resolveAppName } from "@/lib/branding"
+import {
+  publicSocialMeta,
+  resolveWrittenPageSeoMetadata,
+} from "@/lib/pages/public-metadata"
 
 /**
  * Every address the app has no route for lands here, and this is where a page
@@ -59,15 +68,39 @@ export const Route = createFileRoute("/$")({
       throw redirect({ to: "/login", search: { redirect: path } })
     }
 
-    return { source: "written" as const, page: view.page }
+    return {
+      source: "written" as const,
+      page: view.page,
+      branding: view.branding,
+    }
   },
+  errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   component: CatchAllRoute,
   head: ({ loaderData }) => {
     if (!loaderData) return {}
     if (loaderData.source === "app") {
       return appPage?.head?.({ data: loaderData.data }) ?? {}
     }
-    return { meta: [{ title: loaderData.page.title }] }
+
+    const appName = resolveAppName(loaderData.branding.appName)
+    const metadata = resolveWrittenPageSeoMetadata({
+      pageTitle: loaderData.page.title,
+      appName,
+      seo: loaderData.branding.publicSeo,
+    })
+
+    return {
+      meta: [
+        { title: metadata.title },
+        ...publicSocialMeta({
+          title: metadata.socialTitle,
+          description: metadata.description,
+          image: loaderData.branding.shareImage,
+          cardType: loaderData.branding.socialCardType,
+          handle: loaderData.branding.socialHandle,
+        }),
+      ],
+    }
   },
 })
 
@@ -86,7 +119,7 @@ function CatchAllRoute() {
 
   return (
     <PublicPageFrame>
-      <Card className="mx-auto w-full max-w-2xl">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>{page.title}</CardTitle>
         </CardHeader>

@@ -67,6 +67,7 @@ export function AdminAiUsageDashboard({
 }) {
   const navigate = useListSearchNavigate()
   const hasAnyUsage = data.totals.calls > 0
+  const rangeLabel = RANGE_LABELS[range]
 
   const figures: StatFigure[] = [
     {
@@ -85,13 +86,13 @@ export function AdminAiUsageDashboard({
       key: "tokens",
       label: "Tokens",
       value: formatTokenCount(data.totals.tokens),
-      footer: "in and out together",
+      footer: `in and out together · ${rangeLabel.toLowerCase()}`,
     },
     {
       key: "failed",
       label: "Failed calls",
       value: data.totals.failed.toLocaleString(),
-      footer: data.totals.failed ? "recorded, never dropped" : "none recorded",
+      footer: `${data.totals.failed ? "recorded, never dropped" : "none recorded"} · ${rangeLabel.toLowerCase()}`,
     },
   ]
 
@@ -109,7 +110,7 @@ export function AdminAiUsageDashboard({
               navigate({ range: value === "month" ? undefined : value })
             }
           >
-            <TabsList className="h-8 p-[3px]">
+            <TabsList>
               {(Object.keys(RANGE_LABELS) as AiUsageRange[]).map((key) => (
                 <TabsTrigger key={key} value={key} className="h-full">
                   {RANGE_LABELS[key]}
@@ -132,6 +133,7 @@ export function AdminAiUsageDashboard({
         searchText={searchText}
         onSearch={(text) => navigate({ q: text || undefined })}
         defaultPageSize={defaultPageSize}
+        rangeLabel={rangeLabel}
       />
 
       <div
@@ -149,6 +151,7 @@ export function AdminAiUsageDashboard({
             tokens: row.tokens,
             costCents: row.costCents,
           }))}
+          rangeLabel={rangeLabel}
         />
         <BreakdownTable
           title="By model"
@@ -162,6 +165,7 @@ export function AdminAiUsageDashboard({
             tokens: row.tokens,
             costCents: row.costCents,
           }))}
+          rangeLabel={rangeLabel}
         />
       </div>
     </div>
@@ -236,7 +240,7 @@ const personColumns: SortableColumn<PersonSort>[] = [
   { key: "tokens", label: "Tokens", column: "meta" },
   { key: "spend", label: "Spend", column: "meta" },
   { key: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
-  { key: "allowance", label: "Allowance", column: "meta", className: "hidden md:table-cell" },
+  { key: "allowance", label: "Monthly allowance", column: "meta", className: "hidden md:table-cell" },
   { key: "last", label: "Last used", column: "meta", className: "hidden sm:table-cell" },
 ]
 
@@ -250,12 +254,14 @@ function PersonTable({
   searchText,
   onSearch,
   defaultPageSize,
+  rangeLabel,
 }: {
   rows: AiUsagePersonRow[]
   totalCostCents: number
   searchText: string
   onSearch: (text: string) => void
   defaultPageSize: number
+  rangeLabel: string
 }) {
   const navigate = useNavigate()
   // The box types instantly; the address (and the filter) settles just after,
@@ -285,7 +291,7 @@ function PersonTable({
 
   return (
     <DashboardTable
-      title="By person"
+      title={`By person (${rangeLabel})`}
       icon={<UsersIcon className="text-muted-foreground" />}
       count={sorted.length}
       controls={
@@ -303,7 +309,6 @@ function PersonTable({
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          withAriaSort
         />
       }
       isEmpty={visible.length === 0}
@@ -424,11 +429,13 @@ function BreakdownTable({
   icon,
   nameLabel,
   rows,
+  rangeLabel,
 }: {
   title: string
   icon: React.ReactNode
   nameLabel: string
   rows: BreakdownRow[]
+  rangeLabel: string
 }) {
   const { sort, direction, toggleSort } = useTableSort<BreakdownSort>(
     "spend",
@@ -455,7 +462,7 @@ function BreakdownTable({
 
   return (
     <DashboardTable
-      title={title}
+      title={`${title} (${rangeLabel})`}
       icon={icon}
       count={sorted.length}
       header={
@@ -464,7 +471,6 @@ function BreakdownTable({
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          withAriaSort
         />
       }
       isEmpty={sorted.length === 0}
