@@ -196,6 +196,20 @@ describe("the protocol registry", () => {
     }
   })
 
+  it("registers pushed fills on every exchange that publishes them", () => {
+    const pushed = listProtocols()
+      .filter((entry) => entry.orders?.watchFills)
+      .map((entry) => entry.id)
+      .sort()
+
+    expect(pushed).toEqual(
+      ["aster", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
+    )
+    for (const id of ["hyperliquid", "kucoin", "phemex"] as const) {
+      expect(getProtocol(id).orders?.fillsNeedRecovery).toBeTypeOf("function")
+    }
+  })
+
   it("lets every exchange say when the price it gave was a stale one", () => {
     // The engine asks this before acting on a price it had to ask for. An
     // exchange that cannot say would have its rationed, stale price treated

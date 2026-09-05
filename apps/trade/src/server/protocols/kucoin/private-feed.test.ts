@@ -17,8 +17,13 @@ vi.mock("@/server/protocols/kucoin/client", () => ({
   parseKucoinCredential: (blob: string) => JSON.parse(blob),
 }))
 
-const { closeKucoinPrivateFeeds, kucoinQuietSince } =
-  await import("@/server/protocols/kucoin/private-feed")
+const {
+  closeKucoinPrivateFeeds,
+  kucoinFillsNeedRecovery,
+  kucoinFillsRecovered,
+  kucoinQuietSince,
+  watchKucoinOrderMatches,
+} = await import("@/server/protocols/kucoin/private-feed")
 const { venueTouched, clearVenueTouched } =
   await import("@/server/protocols/touched")
 
@@ -167,6 +172,35 @@ describe("what the private line will and will not vouch for", () => {
       data: { symbol: "SOLUSDTM", status: "done" },
     })
     expect(kucoinQuietSince("mainnet", KEY_ID, CREDENTIAL, readAt)).toBe(false)
+  })
+
+  it("hands each match to the fill reader and asks for one recovery read", async () => {
+    const onMatch = vi.fn()
+    watchKucoinOrderMatches("mainnet", KEY_ID, "wallet", CREDENTIAL, onMatch)
+    const socket = await comeUp()
+    socket.reply({
+      type: "message",
+      topic: "/contractMarket/tradeOrders",
+      data: {
+        type: "match",
+        tradeId: "trade-1",
+        orderId: "order-1",
+        symbol: "SOLUSDTM",
+        ts: 1788609600000000000,
+      },
+    })
+
+    expect(onMatch).toHaveBeenCalledWith({
+      type: "match",
+      tradeId: "trade-1",
+      orderId: "order-1",
+      symbol: "SOLUSDTM",
+      ts: 1788609600000000000,
+    })
+    expect(kucoinFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(true)
+
+    kucoinFillsRecovered("mainnet", KEY_ID)
+    expect(kucoinFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(false)
   })
 
   it("does not ring its own bell for a heartbeat", async () => {

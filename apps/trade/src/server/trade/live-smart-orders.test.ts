@@ -42,6 +42,7 @@ import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
 import { cancelLiveOrder, placeLiveOrder } from "@/server/trade/live-orders"
 import {
+  tradeLiveFills,
   tradeLiveJournal,
   tradeFlowRunOrders,
   tradeGridOrderRungs,
@@ -1313,10 +1314,30 @@ describe("live Smart orders", () => {
         updatedAt: new Date(Date.now() - 3_000),
       })
       .where(eq(tradeSmartLadders.userId, userId))
+    fills.mockResolvedValue([
+      {
+        fillId: "gap-fill",
+        orderId: "other-order",
+        marketId: "BTC",
+        side: "buy",
+        px: 99,
+        sz: 0.1,
+        at: Date.now(),
+        closedPnl: 0,
+        fee: 0.01,
+        dir: "Open Long",
+        liquidation: false,
+      },
+    ])
 
     await reconcileLiveLadders(userId, wallet)
 
     expect(fills.mock.calls[0][2]).toBe(started - 60_000)
+    const kept = await database
+      .select({ fillId: tradeLiveFills.fillId })
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, userId))
+    expect(kept).toEqual([{ fillId: "gap-fill" }])
   })
 
   it("skips fill history while the pushed feed says it is current", async () => {
@@ -1333,7 +1354,8 @@ describe("live Smart orders", () => {
 
     expect(fillsNeedRecovery).toHaveBeenCalledWith(
       wallet.network,
-      wallet.address
+      wallet.address,
+      expect.any(Function)
     )
     expect(fills).not.toHaveBeenCalled()
   })

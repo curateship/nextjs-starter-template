@@ -47,6 +47,7 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
 let exchangeIsQuiet = false
 vi.mock("@/server/protocols/kucoin/private-feed", () => ({
   kucoinQuietSince: () => exchangeIsQuiet,
+  kucoinFillsRecovered: () => {},
   dropIdleKucoinPrivateFeeds: () => {},
 }))
 
@@ -55,6 +56,7 @@ const {
   clearKucoinMarginModes,
   clearKucoinOrderCaches,
   fetchKucoinOrderFills,
+  fetchKucoinPushedFill,
   fetchKucoinPortfolio,
   placeKucoinOrder,
   setKucoinBrackets,
@@ -1233,6 +1235,115 @@ describe("reading the account back", () => {
 })
 
 describe("what a finished trade made", () => {
+  it("reads the fill named by a socket match from the low-latency history", async () => {
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/recentFills",
+          answer: ok([
+            {
+              tradeId: "pushed-fill",
+              orderId: "pushed-order",
+              symbol: "XBTUSDTM",
+              side: "buy",
+              price: 69_000,
+              size: 10,
+              openFeePay: 0.4,
+              fee: 0.4,
+              tradeTime: 2_000_000_000_000_000,
+              tradeType: "trade",
+            },
+          ]),
+        },
+      ],
+      sent
+    )
+
+    const fill = await fetchKucoinPushedFill(
+      "mainnet",
+      {
+        tradeId: "pushed-fill",
+        symbol: "XBTUSDTM",
+        ts: 2_000_000_000_000_000,
+      },
+      () => AUTH.agentKey
+    )
+
+    expect(fill).toMatchObject({
+      fillId: "pushed-fill",
+      orderId: "pushed-order",
+      marketId: "XBTUSDTM",
+      sz: 0.01,
+      fee: 0.4,
+      dir: "Buy",
+    })
+    expect(sent[0]?.url.pathname).toBe("/api/v1/recentFills")
+    expect(sent.map((one) => one.url.pathname)).not.toContain("/api/v1/fills")
+  })
+
+  it("uses the nearest matching close when a pushed fill reads closed money", async () => {
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/recentFills",
+          answer: ok([
+            {
+              tradeId: "pushed-close",
+              orderId: "pushed-order",
+              symbol: "XBTUSDTM",
+              side: "sell",
+              price: 70_000,
+              size: 10,
+              closeFeePay: 0.4,
+              tradeTime: 2_000_000,
+            },
+          ]),
+        },
+        {
+          path: "/api/v1/history-positions",
+          answer: ok({
+            items: [
+              {
+                symbol: "XBTUSDTM",
+                closeTime: 1_970_000,
+                pnl: 99,
+                tradeFee: 1,
+              },
+              {
+                symbol: "XBTUSDTM",
+                closeTime: 2_001_000,
+                pnl: 9.2,
+                tradeFee: 0.8,
+              },
+              {
+                symbol: "ETHUSDTM",
+                closeTime: 2_000_000,
+                pnl: 500,
+                tradeFee: 0,
+              },
+            ],
+          }),
+        },
+      ],
+      []
+    )
+
+    const fill = await fetchKucoinPushedFill(
+      "mainnet",
+      { tradeId: "pushed-close", symbol: "XBTUSDTM", ts: 2_000_000 },
+      () => AUTH.agentKey
+    )
+
+    expect(fill).toMatchObject({
+      fillId: "pushed-close",
+      dir: "Close Long",
+      closedPnl: 10,
+    })
+  })
+
   it("puts the closed position's money on the fill that closed it", async () => {
     stubExchange(
       [

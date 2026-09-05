@@ -101,6 +101,25 @@ Phemex's closed size and KuCoin's close fee decide when their fills are exits.
 Those fields still identify a short exit when it made exactly $0, so its buy
 fill says "Exited a trade" rather than being mistaken for a new long entry.
 
+Hyperliquid, Phemex and KuCoin now send new fills through their private socket
+connections. Hyperliquid and Phemex carry a complete fill in the message.
+KuCoin's match message omits the fee and the money made or lost, so Trade reads
+that named execution from KuCoin's low-latency recent-fill history before it
+writes the fill. All three paths call the same `recordLiveFills` function as the
+REST recovery sweep. The `trade_live_fills` primary key decides which process
+inserted the fill, and only that process sends the notice and sound.
+If KuCoin publishes a close before its final profit or loss is ready, the later
+recovery fills in that money on the existing row without sending another
+notice.
+
+Polling remains the safety net. Hyperliquid asks for history at startup and
+after a reconnect. Phemex and KuCoin also reconcile against REST every two
+minutes while their sockets are healthy. If a private socket is down, the
+existing 30-second watched cadence and two-minute unwatched cadence take over.
+A socket event that arrives while a recovery request is running leaves another
+recovery due, because the older response cannot prove what happened after it
+started.
+
 **The money on a close is the exchange's own figure, and it is measured
 against the whole position's average entry.** On 2 September 2026 Tyler bought
 782 ENA at 0.14737, sold them an hour later at 0.15105, and the bell said

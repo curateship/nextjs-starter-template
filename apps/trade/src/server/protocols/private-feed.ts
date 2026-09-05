@@ -5,6 +5,8 @@ const TRUST_MS = 30_000
 const IDLE_MS = 10 * 60_000
 const WATCHDOG_EVERY_MS = 3_000
 const STEADY_AFTER_MS = 30_000
+const FILL_RECOVERY_FLOOR_MS = 30_000
+const FILL_RECONCILE_MS = 2 * 60_000
 
 type Line<Connection> = {
   network: NetworkId
@@ -56,8 +58,39 @@ export type PrivateFeed = {
   close: () => void
 }
 
+export type PrivateFillState<Push> = {
+  watch: (
+    network: NetworkId,
+    keyId: string,
+    listenerId: string,
+    credential: () => string | null,
+    listener: (push: Push) => void
+  ) => void
+  push: (network: NetworkId, keyId: string, value: Push) => void
+  needsRecovery: (
+    network: NetworkId,
+    keyId: string,
+    credential: () => string | null
+  ) => boolean
+  recovered: (
+    network: NetworkId,
+    keyId: string,
+    coveredThrough?: number
+  ) => void
+  dropIdle: (now?: number) => void
+  close: () => void
+}
+
+type PrivateFillLine<Push> = {
+  askedAt: number
+  recoveryAskedAt: number
+  recoveredAt: number
+  listeners: Map<string, (push: Push) => void>
+}
+
 const scope = globalThis as {
   __tradePrivateFeedLines?: Map<string, Map<string, unknown>>
+  __tradePrivateFillLines?: Map<string, Map<string, unknown>>
 }
 
 function storedLines<Connection>(
@@ -67,6 +100,17 @@ function storedLines<Connection>(
   const found = stores.get(storageKey)
   if (found) return found as Map<string, Line<Connection>>
   const made = new Map<string, Line<Connection>>()
+  stores.set(storageKey, made as Map<string, unknown>)
+  return made
+}
+
+function storedFillLines<Push>(
+  storageKey: string
+): Map<string, PrivateFillLine<Push>> {
+  const stores = (scope.__tradePrivateFillLines ??= new Map())
+  const found = stores.get(storageKey)
+  if (found) return found as Map<string, PrivateFillLine<Push>>
+  const made = new Map<string, PrivateFillLine<Push>>()
   stores.set(storageKey, made as Map<string, unknown>)
   return made
 }
@@ -256,6 +300,87 @@ export function createPrivateFeed<Connection>(
     dropIdle,
     close() {
       dropIdle(Infinity)
+    },
+  }
+}
+
+/** The listener and recovery state shared by signed private fill feeds. */
+export function createPrivateFillState<Push>(
+  feed: PrivateFeed,
+  storageKey: string,
+  listenerErrorLabel: string
+): PrivateFillState<Push> {
+  // The socket survives a development reload, so its listener book must live
+  // in the same global store. Otherwise the old socket pushes into the old
+  // module while callers register on the new one, and the line looks healthy
+  // while every fill is missed.
+  const lines = storedFillLines<Push>(storageKey)
+  const keyFor = (network: NetworkId, keyId: string) => `${network}:${keyId}`
+  const lineFor = (
+    network: NetworkId,
+    keyId: string
+  ): PrivateFillLine<Push> => {
+    const key = keyFor(network, keyId)
+    const found = lines.get(key)
+    if (found) return found
+    const made: PrivateFillLine<Push> = {
+      askedAt: Date.now(),
+      recoveryAskedAt: 0,
+      recoveredAt: 0,
+      listeners: new Map(),
+    }
+    lines.set(key, made)
+    return made
+  }
+
+  return {
+    watch(network, keyId, listenerId, credential, listener) {
+      const line = lineFor(network, keyId)
+      line.askedAt = Date.now()
+      line.listeners.set(listenerId, listener)
+      feed.quietSince(network, keyId, credential, Date.now())
+    },
+    push(network, keyId, value) {
+      const line = lines.get(keyFor(network, keyId))
+      if (!line) return
+      for (const listener of line.listeners.values()) {
+        try {
+          listener(value)
+        } catch (error) {
+          console.error(`${listenerErrorLabel} fill listener failed`, error)
+        }
+      }
+    },
+    needsRecovery(network, keyId, credential) {
+      const line = lineFor(network, keyId)
+      const now = Date.now()
+      line.askedAt = now
+      // Smart-order reconciliation also asks this every second. Start the
+      // floor when recovery is requested, not only after it succeeds, so a
+      // failed or disconnected exchange stays on the old 30-second cadence.
+      if (now - line.recoveryAskedAt < FILL_RECOVERY_FLOOR_MS) return false
+      const quiet = feed.quietSince(
+        network,
+        keyId,
+        credential,
+        line.recoveredAt
+      )
+      const due = now - line.recoveredAt >= FILL_RECONCILE_MS || !quiet
+      if (due) line.recoveryAskedAt = now
+      return due
+    },
+    recovered(network, keyId, coveredThrough = Date.now()) {
+      const line = lineFor(network, keyId)
+      line.recoveredAt = coveredThrough
+      line.recoveryAskedAt = Date.now()
+    },
+    dropIdle(now = Date.now()) {
+      for (const [key, line] of lines) {
+        if (now - line.askedAt >= IDLE_MS) lines.delete(key)
+      }
+    },
+    close() {
+      lines.clear()
     },
   }
 }

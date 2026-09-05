@@ -225,18 +225,22 @@ export async function sweepLiveFills(
     const last = sweptAt.get(walletKey) ?? 0
     const pushedRecovery = force
       ? true
-      : orders.fillsNeedRecovery?.(wallet.network, wallet.address)
+      : orders.fillsNeedRecovery?.(wallet.network, wallet.address, credential)
     /**
      * How long this wallet waits between reads. Nobody looking at the Journal
      * makes it four times longer, never infinite — see
      * `UNWATCHED_SWEEP_EVERY_MS` for why the record still has to be kept.
      */
     const every = sweepWaitMs(watched)
-    // A venue that PUSHES its fills is driven by its own recovery flag, not
-    // by a clock — that is the whole saving, and it holds whether or not
-    // anyone is watching. Only the venues still read on a timer slow down.
+    // A healthy pushed venue skips this read until its recovery flag asks for
+    // one. The ordinary clock still limits that recovery read, so a dead
+    // socket cannot turn the engine's one-second pass into a one-second poll.
     if (!force && orders.watchFills && !pushedRecovery) return
-    if (!force && !pushedRecovery && now - last < every) return
+    // A dead pushed feed falls back to the same polling clock the venue used
+    // before it had a feed. Without this check a socket outage turns the
+    // engine's one-second pass into a one-second history poll, precisely when
+    // the exchange is already unhealthy.
+    if (!force && now - last < every) return
     sweptAt.set(walletKey, now)
 
     await resolveClosingOrders(userId, wallet, credential)
@@ -307,7 +311,62 @@ export async function recordLiveFills(
         // container and the engine both receive the same pushed fill, only the
         // one whose insert went in tells the person.
         .returning({ fillId: tradeLiveFills.fillId })
-      if (rows.length > 0) await bumpTradeHistory(tx, userId, [wallet.id])
+      const insertedIds = new Set(rows.map((row) => row.fillId))
+      let enriched = false
+      // KuCoin can publish the execution before its closed-position history
+      // has the final money. Find only the earlier rows that still say $0, so
+      // a recovery batch does not issue one update for every old close it
+      // contains.
+      const enrichable = new Map(
+        fills
+          .filter(
+            (fill) => !insertedIds.has(fill.fillId) && fill.closedPnl !== 0
+          )
+          .map((fill) => [fill.fillId, fill])
+      )
+      const zeroIds = new Set<string>()
+      const enrichableIds = [...enrichable.keys()]
+      for (
+        let offset = 0;
+        offset < enrichableIds.length;
+        offset += NOTICE_LOOKUP_CHUNK
+      ) {
+        const chunk = enrichableIds.slice(offset, offset + NOTICE_LOOKUP_CHUNK)
+        const found = await tx
+          .select({ fillId: tradeLiveFills.fillId })
+          .from(tradeLiveFills)
+          .where(
+            and(
+              eq(tradeLiveFills.userId, userId),
+              eq(tradeLiveFills.walletId, wallet.id),
+              inArray(tradeLiveFills.fillId, chunk),
+              eq(tradeLiveFills.closedPnl, 0)
+            )
+          )
+        for (const row of found) zeroIds.add(row.fillId)
+      }
+      for (const fillId of zeroIds) {
+        const fill = enrichable.get(fillId)
+        if (!fill) continue
+        // The first row already sent the immediate notice. Recovery updates
+        // only the money, so an ordinary duplicate remains unchanged.
+        const changed = await tx
+          .update(tradeLiveFills)
+          .set({ closedPnl: fill.closedPnl })
+          .where(
+            and(
+              eq(tradeLiveFills.userId, userId),
+              eq(tradeLiveFills.walletId, wallet.id),
+              eq(tradeLiveFills.fillId, fillId),
+              eq(tradeLiveFills.closedPnl, 0)
+            )
+          )
+          .returning({ fillId: tradeLiveFills.fillId })
+        if (changed.length > 0) enriched = true
+      }
+      if (rows.length > 0 || enriched) {
+        await bumpTradeHistory(tx, userId, [wallet.id])
+      }
       return rows
     })
     const insertedIds = new Set(inserted.map((row) => row.fillId))

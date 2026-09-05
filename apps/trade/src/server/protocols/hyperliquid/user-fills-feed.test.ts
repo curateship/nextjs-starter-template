@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-type Listener = (event: {
-  fills: unknown[]
-  isSnapshot?: true
-}) => void
+type Listener = (event: { fills: unknown[]; isSnapshot?: true }) => void
 
 const opened = vi.hoisted(() => ({
   count: 0,
@@ -33,6 +30,8 @@ const {
   fillsFeedCovered,
   fillsFeedGaps,
   fillsFromFeed,
+  hyperliquidFillsNeedRecovery,
+  watchHyperliquidFills,
 } = await import("@/server/protocols/hyperliquid/user-fills-feed")
 
 /**
@@ -103,7 +102,9 @@ describe("the pushed fills feed", () => {
     await settle()
     opened.push?.({ fills: [row("a", start + 10)], isSnapshot: true })
     opened.push?.({ fills: [row("b", start + 20)] })
-    expect(fillsFromFeed("mainnet", ADDRESS, start)?.map((o) => o.fillId)).toEqual(["a", "b"])
+    expect(
+      fillsFromFeed("mainnet", ADDRESS, start)?.map((o) => o.fillId)
+    ).toEqual(["a", "b"])
   })
 
   it("counts the same fill once however many times it is sent", async () => {
@@ -112,6 +113,30 @@ describe("the pushed fills feed", () => {
     opened.push?.({ fills: [row("a", start + 10)], isSnapshot: true })
     opened.push?.({ fills: [row("a", start + 10)] })
     expect(fillsFromFeed("mainnet", ADDRESS, start)).toHaveLength(1)
+  })
+
+  it("pushes a new fill to its listener once and keeps recovery as a safety net", async () => {
+    const start = Date.now()
+    const listener = vi.fn()
+    watchHyperliquidFills("mainnet", ADDRESS, "wallet", () => null, listener)
+    await settle()
+    opened.push?.({ fills: [row("a", start + 10)], isSnapshot: true })
+    opened.push?.({ fills: [row("a", start + 10)] })
+
+    expect(listener).toHaveBeenCalledOnce()
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ fillId: "a", marketId: "CHIP" })
+    )
+    expect(hyperliquidFillsNeedRecovery("mainnet", ADDRESS)).toBe(true)
+
+    fillsFeedCovered(
+      "mainnet",
+      ADDRESS,
+      start,
+      [],
+      fillsFeedGaps("mainnet", ADDRESS)
+    )
+    expect(hyperliquidFillsNeedRecovery("mainnet", ADDRESS)).toBe(false)
   })
 
   it("refuses a stretch of time it was not listening for", async () => {
@@ -144,10 +169,32 @@ describe("the pushed fills feed", () => {
 
     // Whoever asked the exchange hands the answer back, including the fill
     // that landed while the line was down.
-    fillsFeedCovered("mainnet", ADDRESS, start, [
-      { fillId: "b", orderId: "2", marketId: "CHIP", side: "buy", px: 1, sz: 1, at: start + 15, closedPnl: 0, fee: 0, dir: "", liquidation: false },
-    ], fillsFeedGaps("mainnet", ADDRESS))
-    expect(fillsFromFeed("mainnet", ADDRESS, start)?.map((o) => o.fillId).sort()).toEqual(["a", "b"])
+    fillsFeedCovered(
+      "mainnet",
+      ADDRESS,
+      start,
+      [
+        {
+          fillId: "b",
+          orderId: "2",
+          marketId: "CHIP",
+          side: "buy",
+          px: 1,
+          sz: 1,
+          at: start + 15,
+          closedPnl: 0,
+          fee: 0,
+          dir: "",
+          liquidation: false,
+        },
+      ],
+      fillsFeedGaps("mainnet", ADDRESS)
+    )
+    expect(
+      fillsFromFeed("mainnet", ADDRESS, start)
+        ?.map((o) => o.fillId)
+        .sort()
+    ).toEqual(["a", "b"])
   })
 
   it("does not widen its window on a read that failed", async () => {
@@ -200,7 +247,13 @@ describe("the pushed fills feed", () => {
     expect(fillsFromFeed("mainnet", ADDRESS, start)).toBeNull()
 
     // The next pass asks again, and that one really does cover it.
-    fillsFeedCovered("mainnet", ADDRESS, start, [], fillsFeedGaps("mainnet", ADDRESS))
+    fillsFeedCovered(
+      "mainnet",
+      ADDRESS,
+      start,
+      [],
+      fillsFeedGaps("mainnet", ADDRESS)
+    )
     expect(fillsFromFeed("mainnet", ADDRESS, start)).not.toBeNull()
   })
 
@@ -213,11 +266,39 @@ describe("the pushed fills feed", () => {
     const stale = fillsFeedGaps("mainnet", ADDRESS)
     opened.push?.({ fills: [], isSnapshot: true })
 
-    fillsFeedCovered("mainnet", ADDRESS, start, [
-      { fillId: "b", orderId: "2", marketId: "CHIP", side: "buy", px: 1, sz: 1, at: start + 15, closedPnl: 0, fee: 0, dir: "", liquidation: false },
-    ], stale)
-    fillsFeedCovered("mainnet", ADDRESS, start, [], fillsFeedGaps("mainnet", ADDRESS))
-    expect(fillsFromFeed("mainnet", ADDRESS, start)?.map((o) => o.fillId).sort()).toEqual(["a", "b"])
+    fillsFeedCovered(
+      "mainnet",
+      ADDRESS,
+      start,
+      [
+        {
+          fillId: "b",
+          orderId: "2",
+          marketId: "CHIP",
+          side: "buy",
+          px: 1,
+          sz: 1,
+          at: start + 15,
+          closedPnl: 0,
+          fee: 0,
+          dir: "",
+          liquidation: false,
+        },
+      ],
+      stale
+    )
+    fillsFeedCovered(
+      "mainnet",
+      ADDRESS,
+      start,
+      [],
+      fillsFeedGaps("mainnet", ADDRESS)
+    )
+    expect(
+      fillsFromFeed("mainnet", ADDRESS, start)
+        ?.map((o) => o.fillId)
+        .sort()
+    ).toEqual(["a", "b"])
   })
 
   it("lets old fills go rather than growing for ever, and says so", async () => {
@@ -225,7 +306,9 @@ describe("the pushed fills feed", () => {
     // cap a grid recycling for months piles up every fill it ever made.
     const start = Date.now()
     await settle()
-    const many = Array.from({ length: 5_400 }, (_, i) => row(`f${i}`, start + i))
+    const many = Array.from({ length: 5_400 }, (_, i) =>
+      row(`f${i}`, start + i)
+    )
     opened.push?.({ fills: many, isSnapshot: true })
 
     // 400 of the 5,400 were let go, oldest first.

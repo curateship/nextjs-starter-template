@@ -150,6 +150,127 @@ describe("how often a wallet's history is read", () => {
       closedPnl: -0.169648,
     })
   })
+
+  it("keeps a dead pushed feed on the ordinary polling clock", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Phemex",
+      kind: "live",
+      status: "active",
+      protocol: "phemex",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "phemex-key",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential"
+    )
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential"
+    )
+
+    expect(protocolMocks.fills).toHaveBeenCalledOnce()
+    expect(protocolMocks.fillsNeedRecovery).toHaveBeenCalledWith(
+      "mainnet",
+      "phemex-key",
+      expect.any(Function)
+    )
+  })
+
+  it("routes a pushed fill through storage before recovery sees it", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Hyperliquid",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const fill = {
+      fillId: "pushed-fill",
+      orderId: "pushed-order",
+      marketId: "ETH",
+      side: "buy" as const,
+      px: 2_500,
+      sz: 0.2,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0.3,
+      dir: "Open Long",
+      liquidation: false,
+    }
+    const pushed = { current: null as ((one: typeof fill) => void) | null }
+    protocolMocks.watchFills.mockImplementation(
+      (_network, _address, _listenerId, _credential, onFill) => {
+        pushed.current = onFill
+      }
+    )
+    protocolMocks.fillsNeedRecovery.mockReturnValue(false)
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential"
+    )
+    pushed.current?.(fill)
+    await vi.waitFor(async () => {
+      const rows = await database
+        .select()
+        .from(tradeLiveFills)
+        .where(eq(tradeLiveFills.userId, user.id))
+      expect(rows).toHaveLength(1)
+    })
+
+    protocolMocks.fills.mockResolvedValue([fill])
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential",
+      true,
+      true
+    )
+
+    expect(writeTradeNotice).toHaveBeenCalledOnce()
+  })
 })
 
 describe("live fill storage", () => {
@@ -222,6 +343,61 @@ describe("live fill storage", () => {
       .from(tradeLiveFills)
       .where(eq(tradeLiveFills.userId, user.id))
     expect(saved).toHaveLength(2)
+  })
+
+  it("adds KuCoin's settled close money later without another notice", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "KuCoin",
+      kind: "live",
+      status: "active",
+      protocol: "kucoin",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "kucoin-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const fill = {
+      fillId: "kucoin-close",
+      orderId: "kucoin-order",
+      marketId: "XBTUSDTM",
+      side: "sell" as const,
+      px: 70_000,
+      sz: 0.01,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0.4,
+      dir: "Close Long",
+      liquidation: false,
+    }
+
+    await recordLiveFills(user.id, wallet, [fill])
+    const beforeRecovery = await liveHistoryStamp(user.id, [wallet.id])
+    await recordLiveFills(user.id, wallet, [{ ...fill, closedPnl: 10 }])
+    const afterRecovery = await liveHistoryStamp(user.id, [wallet.id])
+    await recordLiveFills(user.id, wallet, [{ ...fill, closedPnl: 10 }])
+
+    const [saved] = await database
+      .select()
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, user.id))
+    expect(saved.closedPnl).toBe(10)
+    expect(afterRecovery).not.toBe(beforeRecovery)
+    expect(await liveHistoryStamp(user.id, [wallet.id])).toBe(afterRecovery)
+    expect(writeTradeNotice).toHaveBeenCalledOnce()
   })
 
   it("names the average entry only where the exchange prices every sale", async () => {

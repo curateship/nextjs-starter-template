@@ -29,6 +29,7 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
 let exchangeIsQuiet = false
 vi.mock("@/server/protocols/phemex/private-feed", () => ({
   phemexQuietSince: () => exchangeIsQuiet,
+  phemexFillsRecovered: () => {},
   dropIdlePhemexPrivateFeeds: () => {},
 }))
 import {

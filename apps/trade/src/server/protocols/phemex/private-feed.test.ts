@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   closePhemexPrivateFeeds,
+  phemexFillsNeedRecovery,
+  phemexFillsRecovered,
   phemexQuietSince,
+  watchPhemexFills,
 } from "@/server/protocols/phemex/private-feed"
 import { clearVenueTouched, venueTouched } from "@/server/protocols/touched"
 
@@ -136,6 +139,111 @@ describe("what the private line will and will not vouch for", () => {
       orders_p: [{ orderID: "abc", ordStatus: "Filled" }],
     })
     expect(phemexQuietSince("mainnet", KEY_ID, CREDENTIAL, readAt)).toBe(false)
+  })
+
+  it("pushes a complete fill and asks for one recovery read", () => {
+    const onFill = vi.fn()
+    watchPhemexFills("mainnet", KEY_ID, "wallet", CREDENTIAL, onFill)
+    const socket = FakeSocket.latest
+    if (!socket) throw new Error("expected a socket")
+    comeUp(socket)
+
+    socket.reply({
+      type: "incremental",
+      orders_p: [
+        {
+          execID: "fill-1",
+          orderID: "order-1",
+          symbol: "ETHUSDT",
+          side: "Sell",
+          execPriceRp: "2500",
+          execQty: "0.2",
+          execFeeRv: "0.3",
+          closedSize: "0.2",
+          closedPnlRv: "12",
+          tradeType: "Trade",
+          transactTimeNs: "1788609600000000000",
+          execStatus: "TakerFill",
+        },
+      ],
+    })
+
+    expect(onFill).toHaveBeenCalledWith({
+      fillId: "fill-1",
+      orderId: "order-1",
+      marketId: "ETHUSDT",
+      side: "sell",
+      px: 2500,
+      sz: 0.2,
+      at: 1788609600000,
+      closedPnl: 12,
+      fee: 0.3,
+      dir: "Close Long",
+      liquidation: false,
+    })
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(true)
+
+    phemexFillsRecovered("mainnet", KEY_ID)
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(false)
+  })
+
+  it("keeps recovery due when a fill arrives during the history read", () => {
+    watchPhemexFills("mainnet", KEY_ID, "wallet", CREDENTIAL, vi.fn())
+    const socket = FakeSocket.latest
+    if (!socket) throw new Error("expected a socket")
+    comeUp(socket)
+
+    const coveredThrough = Date.now()
+    vi.advanceTimersByTime(1_000)
+    socket.reply({
+      type: "incremental",
+      orders_p: [
+        {
+          execID: "fill-during-read",
+          orderID: "order-during-read",
+          symbol: "ETHUSDT",
+          side: "Buy",
+          execPriceRp: "2500",
+          execQty: "0.1",
+          execFeeRv: "0.1",
+          transactTimeNs: "1788609600000000000",
+        },
+      ],
+    })
+
+    phemexFillsRecovered("mainnet", KEY_ID, coveredThrough)
+    vi.advanceTimersByTime(30_000)
+    socket.reply({ id: 9, result: "pong" })
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(true)
+  })
+
+  it("does not ask every engine second while a recovery keeps failing", () => {
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(true)
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(false)
+
+    vi.advanceTimersByTime(29_999)
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(true)
+  })
+
+  it("checks the REST history every two minutes while the socket stays healthy", () => {
+    watchPhemexFills("mainnet", KEY_ID, "wallet", CREDENTIAL, vi.fn())
+    const socket = FakeSocket.latest
+    if (!socket) throw new Error("expected a socket")
+    comeUp(socket)
+    phemexFillsRecovered("mainnet", KEY_ID)
+
+    for (let beat = 0; beat < 5; beat += 1) {
+      vi.advanceTimersByTime(20_000)
+      socket.reply({ id: 9, result: "pong" })
+    }
+    vi.advanceTimersByTime(19_999)
+    socket.reply({ id: 9, result: "pong" })
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(false)
+
+    vi.advanceTimersByTime(1)
+    expect(phemexFillsNeedRecovery("mainnet", KEY_ID, CREDENTIAL)).toBe(true)
   })
 
   it("does not ring its own bell for a message carrying no orders", () => {

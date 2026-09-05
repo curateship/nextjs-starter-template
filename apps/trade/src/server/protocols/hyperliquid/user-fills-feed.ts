@@ -73,6 +73,8 @@ type Feed = {
   askedAt: number
   /** Set when a reconnect is spotted; cleared once the caller has covered it. */
   gapFrom: number | null
+  /** Startup and every reconnect need one successful history read. */
+  needsRecovery: boolean
   /**
    * Bumped every time a reconnect opens a hole.
    *
@@ -83,6 +85,8 @@ type Feed = {
    * finished before it happened, and the fills inside it were lost for good.
    */
   gaps: number
+  /** Callers waiting for a fill to be written and announced immediately. */
+  listeners: Map<string, (fill: WalletOrderFill) => void>
   close: () => void
 }
 
@@ -149,6 +153,7 @@ export function fillsFeedCovered(
   if (feed.gaps !== gapsWhenAsked) return
   feed.coveredFrom = Math.min(feed.coveredFrom, since)
   feed.gapFrom = null
+  feed.needsRecovery = false
   forget(feed)
 }
 
@@ -160,7 +165,9 @@ export function fillsFeedCovered(
  */
 function forget(feed: Feed): void {
   if (feed.fills.size <= KEEP_FILLS) return
-  const byTime = [...feed.fills.values()].sort((left, right) => left.at - right.at)
+  const byTime = [...feed.fills.values()].sort(
+    (left, right) => left.at - right.at
+  )
   const drop = byTime.slice(0, feed.fills.size - KEEP_FILLS)
   for (const fill of drop) feed.fills.delete(fill.fillId)
   const oldest = byTime[drop.length]
@@ -184,7 +191,9 @@ async function open(network: NetworkId, address: string): Promise<void> {
     started: false,
     askedAt: now,
     gapFrom: null,
+    needsRecovery: true,
     gaps: 0,
+    listeners: new Map(),
     close: () => {},
   }
   feeds.set(key, feed)
@@ -198,11 +207,22 @@ async function open(network: NetworkId, address: string): Promise<void> {
         // and resubscribed, and fills may have landed while it was away.
         if (event.isSnapshot && feed.started) {
           feed.gapFrom = Date.now()
+          feed.needsRecovery = true
           feed.gaps += 1
         }
         for (const row of event.fills) {
           const fill = readHyperliquidFill(row)
-          if (fill) feed.fills.set(fill.fillId, fill)
+          if (!fill) continue
+          const fresh = !feed.fills.has(fill.fillId)
+          feed.fills.set(fill.fillId, fill)
+          if (!fresh) continue
+          for (const listener of feed.listeners.values()) {
+            try {
+              listener(fill)
+            } catch (error) {
+              console.error("Hyperliquid fill listener failed", error)
+            }
+          }
         }
         feed.started = true
         forget(feed)
@@ -222,6 +242,36 @@ async function open(network: NetworkId, address: string): Promise<void> {
     // caller asks the exchange instead. Dropped so the next ask retries.
     feeds.delete(key)
   }
+}
+
+/** Keep one wallet's fill stream open and hand new fills to this caller. */
+export function watchHyperliquidFills(
+  network: NetworkId,
+  address: string,
+  listenerId: string,
+  _credential: () => string | null,
+  onFill: (fill: WalletOrderFill) => void
+): void {
+  const key = keyFor(network, address)
+  let feed = feeds.get(key)
+  if (!feed) {
+    // `open` stores the feed before its first await, so the listener is in
+    // place before the exchange can answer the subscription.
+    void open(network, address)
+    feed = feeds.get(key)
+  }
+  if (!feed) return
+  feed.askedAt = Date.now()
+  feed.listeners.set(listenerId, onFill)
+}
+
+/** True while startup or a reconnect still needs one gap-closing REST read. */
+export function hyperliquidFillsNeedRecovery(
+  network: NetworkId,
+  address: string
+): boolean {
+  const feed = feeds.get(keyFor(network, address))
+  return !feed?.started || feed.needsRecovery
 }
 
 /**

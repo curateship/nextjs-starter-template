@@ -46,9 +46,9 @@ screen: anything not written there has not been agreed yet.
   on a position with no stop.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
-- `notices.md` — the bell notices: one per fill, a second when a stop or target
-  fires, what a flow says when it stops or goes quiet on its own, and where
-  clicking one takes you.
+- `notices.md` — the bell notices: one per fill, how pushed fills and recovery
+  avoid repeats, what a flow says when it stops or goes quiet on its own, and
+  where clicking one takes you.
 - `sounds.md` — the separate optional sounds for fills and stops, and for price
   alerts, what collapses a burst, when a browser stays silent, and the one
   non-sound switch that shares their Settings tab.
@@ -141,7 +141,7 @@ screen: anything not written there has not been agreed yet.
 ## exchanges/ — the venues
 
 - `protocol-layer.md` — where the exchange lives in the code, one door per
-  venue.
+  venue, and which venues push fills.
 - `connector-helpers.md` — the shared order, cache, public socket and private
   order-line rules, including the five-second idle wait and 30-second trust
   window.

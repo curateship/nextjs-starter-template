@@ -33,7 +33,12 @@ import {
   phemexSigned,
 } from "@/server/protocols/phemex/client"
 import {
+  phemexFillSchema,
+  readPhemexFill,
+} from "@/server/protocols/phemex/fill"
+import {
   dropIdlePhemexPrivateFeeds,
+  phemexFillsRecovered,
   phemexQuietSince,
 } from "@/server/protocols/phemex/private-feed"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
@@ -1206,22 +1211,6 @@ export async function fetchPhemexPortfolio(
 
 // ----- Fills and old orders --------------------------------------------------
 
-const fillSchema = z.object({
-  execID: z.string().optional(),
-  execId: z.string().optional(),
-  orderID: z.string().optional(),
-  orderId: z.string().optional(),
-  symbol: z.string(),
-  side: z.string(),
-  execPriceRp: z.union([z.string(), z.number()]).optional(),
-  execQtyRq: z.union([z.string(), z.number()]).optional(),
-  execFeeRv: z.union([z.string(), z.number()]).optional(),
-  closedSizeRq: z.union([z.string(), z.number()]).optional(),
-  closedPnlRv: z.union([z.string(), z.number()]).optional(),
-  tradeType: z.string().optional(),
-  transactTimeNs: z.union([z.string(), z.number()]).optional(),
-})
-
 const FILL_PAGE = 200
 
 /**
@@ -1371,7 +1360,7 @@ async function readPhemexFills(
         }
       )
       const rows = ((answer as { rows?: unknown[] })?.rows ?? [])
-        .map((row) => fillSchema.safeParse(row))
+        .map((row) => phemexFillSchema.safeParse(row))
         .filter((row) => row.success)
         .map((row) => row.data)
 
@@ -1383,34 +1372,8 @@ async function readPhemexFills(
       for (const row of fresh) seenFills.add(row.execID ?? row.execId ?? "")
 
       for (const row of fresh) {
-        // Funding settlements arrive in the same feed; they are not fills
-        // and the journal accounts for funding elsewhere.
-        if (row.tradeType === "Funding") continue
-        const at = Math.floor((num(row.transactTimeNs) ?? 0) / 1_000_000)
-        const liquidation =
-          row.tradeType === "LiqTrade" || row.tradeType === "AdlTrade"
-        const side =
-          row.side === "Sell" ? ("sell" as const) : ("buy" as const)
-        const closed = Math.abs(num(row.closedSizeRq) ?? 0) > 0
-        fills.push({
-          fillId: row.execID ?? row.execId ?? "",
-          orderId: row.orderID ?? row.orderId ?? "",
-          marketId: row.symbol,
-          side,
-          px: num(row.execPriceRp) ?? 0,
-          sz: num(row.execQtyRq) ?? 0,
-          at,
-          closedPnl: num(row.closedPnlRv) ?? 0,
-          fee: num(row.execFeeRv) ?? 0,
-          dir: liquidation
-            ? "Liquidation"
-            : closed
-              ? side === "buy"
-                ? "Close Short"
-                : "Close Long"
-              : row.side,
-          liquidation,
-        })
+        const fill = readPhemexFill(row)
+        if (fill) fills.push(fill)
       }
       if (rows.length < FILL_PAGE || fresh.length === 0) break
     }
@@ -1433,6 +1396,7 @@ async function readPhemexFills(
   )
 
   fills.sort((a, b) => a.at - b.at)
+  phemexFillsRecovered(network, parsed.keyId, end)
   return fills
 }
 

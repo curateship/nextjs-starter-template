@@ -40,6 +40,7 @@ import {
 } from "@/server/protocols/kucoin/markets"
 import {
   dropIdleKucoinPrivateFeeds,
+  kucoinFillsRecovered,
   kucoinQuietSince,
 } from "@/server/protocols/kucoin/private-feed"
 import { clearVenueTouched } from "@/server/protocols/touched"
@@ -1376,6 +1377,74 @@ async function readKucoinFills(
     closedPositionMoney(network, parsed, start, end),
   ])
 
+  const fills = await kucoinFillsFromRows(network, rawFills, closed)
+  kucoinFillsRecovered(network, parsed.keyId, end)
+  return fills
+}
+
+/**
+ * Read the one execution a socket just named from KuCoin's low-latency recent
+ * history. The socket does not carry fees or the money banked by a close, so
+ * storing its raw match row would make the permanent Journal disagree with
+ * the exchange. This request happens only after a match, never on a timer.
+ */
+export async function fetchKucoinPushedFill(
+  network: NetworkId,
+  match: { tradeId: string; symbol: string; ts: string | number },
+  credential: () => string | null
+): Promise<WalletOrderFill | null> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const parsed = parseKucoinCredential(blob)
+  const answer = await kucoinSigned(
+    network,
+    parsed,
+    "GET",
+    "/api/v1/recentFills",
+    { symbol: match.symbol }
+  )
+  const rows = Array.isArray(answer) ? answer : []
+  const raw = rows.filter(
+    (row) =>
+      row !== null &&
+      typeof row === "object" &&
+      (row as { tradeId?: unknown }).tradeId === match.tradeId
+  )
+  if (raw.length === 0) return null
+
+  const first = await kucoinFillsFromRows(network, raw, [])
+  const fill = first.find((one) => one.fillId === match.tradeId)
+  if (!fill || !fill.dir.startsWith("Close")) return fill ?? null
+
+  const closed = await closedPositionMoney(
+    network,
+    parsed,
+    Math.max(0, fill.at - 60_000),
+    Date.now()
+  )
+  const closest = closed
+    .filter(
+      (one) =>
+        one.symbol === fill.marketId &&
+        Math.abs(one.closeTime - fill.at) <= 60_000
+    )
+    .sort(
+      (left, right) =>
+        Math.abs(left.closeTime - fill.at) - Math.abs(right.closeTime - fill.at)
+    )[0]
+  return (
+    (await kucoinFillsFromRows(network, raw, closest ? [closest] : [])).find(
+      (one) => one.fillId === match.tradeId
+    ) ?? null
+  )
+}
+
+/** One translator for the polled history and the event-driven recent read. */
+async function kucoinFillsFromRows(
+  network: NetworkId,
+  rawFills: readonly unknown[],
+  closed: readonly { symbol: string; closeTime: number; money: number }[]
+): Promise<WalletOrderFill[]> {
   const fills: WalletOrderFill[] = []
   for (const raw of rawFills) {
     const row = fillSchema.safeParse(raw)

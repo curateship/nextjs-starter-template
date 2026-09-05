@@ -7,6 +7,7 @@ import {
 } from "@/server/protocols/kucoin/client"
 import {
   createPrivateFeed,
+  createPrivateFillState,
   type PrivateFeedContext,
 } from "@/server/protocols/private-feed"
 import { venueTouchedAt } from "@/server/protocols/touched"
@@ -18,6 +19,16 @@ import { venueTouchedAt } from "@/server/protocols/touched"
  */
 
 const ORDERS_TOPIC = "/contractMarket/tradeOrders"
+
+const orderMatchSchema = z.object({
+  type: z.literal("match"),
+  tradeId: z.string().min(1),
+  orderId: z.string().min(1),
+  symbol: z.string().min(1),
+  ts: z.union([z.string(), z.number()]),
+})
+
+export type KucoinOrderMatch = z.infer<typeof orderMatchSchema>
 
 const bulletSchema = z.object({
   token: z.string(),
@@ -33,6 +44,12 @@ const bulletSchema = z.object({
 
 type Connection = {
   close: () => void
+}
+
+function pushMatch(context: PrivateFeedContext, data: unknown): void {
+  const parsed = orderMatchSchema.safeParse(data)
+  if (!parsed.success) return
+  fillState.push(context.network, context.keyId, parsed.data)
 }
 
 function send(socket: WebSocket, frame: unknown): void {
@@ -82,7 +99,7 @@ async function connect(context: PrivateFeedContext): Promise<Connection> {
 
   socket.addEventListener("message", (event) => {
     context.alive()
-    let message: { type?: unknown; topic?: unknown }
+    let message: { type?: unknown; topic?: unknown; data?: unknown }
     try {
       message = JSON.parse(String(event.data))
     } catch {
@@ -98,6 +115,7 @@ async function connect(context: PrivateFeedContext): Promise<Connection> {
     }
     if (message.type === "message" && message.topic === ORDERS_TOPIC) {
       context.changed()
+      pushMatch(context, message.data)
     }
   })
 
@@ -119,6 +137,11 @@ const feed = createPrivateFeed<Connection>({
   connect,
   close: (connection) => connection.close(),
 })
+const fillState = createPrivateFillState<KucoinOrderMatch>(
+  feed,
+  "kucoin",
+  "KuCoin"
+)
 
 export function kucoinQuietSince(
   network: NetworkId,
@@ -129,10 +152,41 @@ export function kucoinQuietSince(
   return feed.quietSince(network, keyId, credential, at)
 }
 
+/** Keep the private order line open and hand each execution to a listener. */
+export function watchKucoinOrderMatches(
+  network: NetworkId,
+  keyId: string,
+  listenerId: string,
+  credential: () => string | null,
+  onMatch: (match: KucoinOrderMatch) => void
+): void {
+  fillState.watch(network, keyId, listenerId, credential, onMatch)
+}
+
+/** Startup, a pushed change, and a reconnect each require one REST recovery. */
+export function kucoinFillsNeedRecovery(
+  network: NetworkId,
+  keyId: string,
+  credential: () => string | null
+): boolean {
+  return fillState.needsRecovery(network, keyId, credential)
+}
+
+/** Said only after the exchange's fill history completed successfully. */
+export function kucoinFillsRecovered(
+  network: NetworkId,
+  keyId: string,
+  coveredThrough: number = Date.now()
+): void {
+  fillState.recovered(network, keyId, coveredThrough)
+}
+
 export function dropIdleKucoinPrivateFeeds(now?: number): void {
   feed.dropIdle(now)
+  fillState.dropIdle(now)
 }
 
 export function closeKucoinPrivateFeeds(): void {
   feed.close()
+  fillState.close()
 }

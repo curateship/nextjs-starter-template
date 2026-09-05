@@ -82,7 +82,7 @@ import {
   setLiveBrackets,
   journalOverride,
 } from "@/server/trade/live-orders"
-import { sweepLiveFills } from "@/server/trade/live-fills"
+import { recordLiveFills, sweepLiveFills } from "@/server/trade/live-fills"
 import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
 import { rememberGridOrderRung } from "@/server/trade/grid-fills"
@@ -1240,7 +1240,8 @@ export async function reconcileLiveLaddersOnce(
   })
   const orderApi = ordersOf(protocol)
   const shouldReadFills =
-    orderApi.fillsNeedRecovery?.(wallet.network, wallet.address) !== false
+    orderApi.fillsNeedRecovery?.(wallet.network, wallet.address, credential) !==
+    false
   const [account, asked, fills] = await Promise.all([
     accountAnswer,
     askFor.length === 0
@@ -1294,6 +1295,14 @@ export async function reconcileLiveLaddersOnce(
           })
       : Promise.resolve([]),
   ])
+  // A smart-order pass can win the recovery read before the Journal sweep
+  // reaches it. Keep those rows through the same idempotent storage path, or
+  // a fill missed during a socket gap would advance the order and vanish from
+  // the Journal. Venues without a pushed recovery contract keep their older
+  // polling path and are recorded by the ordinary sweep.
+  if (orderApi.fillsNeedRecovery && fills.length > 0) {
+    await recordLiveFills(userId, wallet, fills)
+  }
   // The open line first, then whatever had to be asked for. The line already
   // speaks in market keys; the ask answers per market id and has to be
   // translated back. The two never overlap: only markets the line could not

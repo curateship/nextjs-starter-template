@@ -48,6 +48,10 @@ import {
   pricesWereRationed as hyperliquidPricesWereRationed,
 } from "@/server/protocols/hyperliquid/prices"
 import {
+  hyperliquidFillsNeedRecovery,
+  watchHyperliquidFills,
+} from "@/server/protocols/hyperliquid/user-fills-feed"
+import {
   livePrices as readHyperliquidLivePrices,
   livePricesFresh as hyperliquidLivePricesFresh,
   openLivePrices as openHyperliquidLivePrices,
@@ -90,6 +94,10 @@ import {
   phemexLivePricesFresh,
   readPhemexLivePrices,
 } from "@/server/protocols/phemex/live-prices"
+import {
+  phemexFillsNeedRecovery,
+  watchPhemexFills,
+} from "@/server/protocols/phemex/private-feed"
 import { fetchKucoinAccount } from "@/server/protocols/kucoin/account"
 import { verifyKucoinAgentKey } from "@/server/protocols/kucoin/agent"
 import {
@@ -122,6 +130,10 @@ import {
   setKucoinLeverage,
   setKucoinBrackets,
 } from "@/server/protocols/kucoin/orders"
+import {
+  kucoinFillsNeedRecovery,
+  watchKucoinFills,
+} from "@/server/protocols/kucoin/fill-feed"
 import {
   KUCOIN_DEFAULT_FUNDING_MS,
   kucoinIntervalMs,
@@ -652,8 +664,12 @@ export type ProtocolEntry = {
       credential: () => string | null,
       onFill: (fill: WalletOrderFill) => void
     ): void
-    /** True once a pushed feed is up and needs one gap-closing REST read. */
-    fillsNeedRecovery?(network: NetworkId, address: string): boolean
+    /** True when a pushed feed needs a gap-closing or periodic REST read. */
+    fillsNeedRecovery?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): boolean
   }
 }
 
@@ -730,6 +746,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchHyperliquidPortfolio,
       fills: fetchHyperliquidOrderFills,
       orderInfo: fetchHyperliquidOrderInfo,
+      watchFills: watchHyperliquidFills,
+      fillsNeedRecovery: hyperliquidFillsNeedRecovery,
     },
   },
   /**
@@ -799,6 +817,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchPhemexPortfolio,
       fills: fetchPhemexOrderFills,
       orderInfo: fetchPhemexOrderInfo,
+      watchFills: watchPhemexFills,
+      fillsNeedRecovery: phemexFillsNeedRecovery,
     },
   },
   /**
@@ -865,6 +885,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchKucoinPortfolio,
       fills: fetchKucoinOrderFills,
       orderInfo: fetchKucoinOrderInfo,
+      watchFills: watchKucoinFills,
+      fillsNeedRecovery: kucoinFillsNeedRecovery,
     },
   },
   /**
@@ -1000,7 +1022,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
        * five, and one idle tab was measured spending 46 of them.
        */
       watchFills: watchLighterFills,
-      fillsNeedRecovery: lighterFillsNeedRecovery,
+      fillsNeedRecovery: (network, address) =>
+        lighterFillsNeedRecovery(network, address),
     },
     credentials: {
       form: protocolDescription("lighter").credentialForm!,

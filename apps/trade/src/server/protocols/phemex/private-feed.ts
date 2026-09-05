@@ -1,12 +1,14 @@
 import { createHmac } from "node:crypto"
 
-import type { NetworkId } from "@/lib/protocols/contracts"
+import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
 import { phemexWsUrl } from "@/lib/protocols/phemex/translate"
 import { parsePhemexCredential } from "@/server/protocols/phemex/client"
 import {
   createPrivateFeed,
+  createPrivateFillState,
   type PrivateFeedContext,
 } from "@/server/protocols/private-feed"
+import { readPhemexFill } from "@/server/protocols/phemex/fill"
 import { venueTouchedAt } from "@/server/protocols/touched"
 
 /**
@@ -52,6 +54,16 @@ function saysSomethingHappened(message: unknown): boolean {
   return Array.isArray(orders) && orders.length > 0
 }
 
+function pushFills(context: PrivateFeedContext, message: unknown): void {
+  const orders = (message as { orders_p?: unknown }).orders_p
+  if (!Array.isArray(orders)) return
+  for (const raw of orders) {
+    const fill = readPhemexFill(raw)
+    if (!fill) continue
+    fillState.push(context.network, context.keyId, fill)
+  }
+}
+
 function connect(context: PrivateFeedContext): Connection {
   const socket = new WebSocket(phemexWsUrl(context.network))
   let pinger: ReturnType<typeof setInterval> | null = null
@@ -91,7 +103,10 @@ function connect(context: PrivateFeedContext): Connection {
       return
     }
     if (reply.id === 9) return
-    if (saysSomethingHappened(message)) context.changed()
+    if (saysSomethingHappened(message)) {
+      context.changed()
+      pushFills(context, message)
+    }
   })
 
   socket.addEventListener("close", context.fail)
@@ -112,6 +127,11 @@ const feed = createPrivateFeed<Connection>({
   connect,
   close: (connection) => connection.close(),
 })
+const fillState = createPrivateFillState<WalletOrderFill>(
+  feed,
+  "phemex",
+  "Phemex"
+)
 
 export function phemexQuietSince(
   network: NetworkId,
@@ -122,10 +142,41 @@ export function phemexQuietSince(
   return feed.quietSince(network, keyId, credential, at)
 }
 
+/** Keep the private line open and hand its complete execution rows to Trade. */
+export function watchPhemexFills(
+  network: NetworkId,
+  keyId: string,
+  listenerId: string,
+  credential: () => string | null,
+  onFill: (fill: WalletOrderFill) => void
+): void {
+  fillState.watch(network, keyId, listenerId, credential, onFill)
+}
+
+/** Startup, a pushed change, and a reconnect each require one REST recovery. */
+export function phemexFillsNeedRecovery(
+  network: NetworkId,
+  keyId: string,
+  credential: () => string | null
+): boolean {
+  return fillState.needsRecovery(network, keyId, credential)
+}
+
+/** Said only after the exchange's fill history completed successfully. */
+export function phemexFillsRecovered(
+  network: NetworkId,
+  keyId: string,
+  coveredThrough: number = Date.now()
+): void {
+  fillState.recovered(network, keyId, coveredThrough)
+}
+
 export function dropIdlePhemexPrivateFeeds(now?: number): void {
   feed.dropIdle(now)
+  fillState.dropIdle(now)
 }
 
 export function closePhemexPrivateFeeds(): void {
   feed.close()
+  fillState.close()
 }
