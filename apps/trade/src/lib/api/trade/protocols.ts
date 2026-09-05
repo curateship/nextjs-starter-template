@@ -37,6 +37,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: true,
       orders: true,
+      ordersAreSwaps: false,
       gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
@@ -64,6 +65,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: true,
       orders: true,
+      ordersAreSwaps: false,
       gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
@@ -92,6 +94,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: true,
       orders: true,
+      ordersAreSwaps: false,
       gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
@@ -123,6 +126,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: true,
       orders: true,
+      ordersAreSwaps: false,
       gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
@@ -148,6 +152,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: true,
       orders: true,
+      ordersAreSwaps: false,
       gridStop: "watched",
       changeLeverage: {
         can: false,
@@ -188,6 +193,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: false,
       orders: false,
+      ordersAreSwaps: false,
       gridStop: "exchange",
       changeLeverage: {
         can: false,
@@ -212,6 +218,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       markets: true,
       accounts: false,
       orders: false,
+      ordersAreSwaps: false,
       gridStop: "watched",
       changeLeverage: {
         can: false,
@@ -229,8 +236,9 @@ export const PROTOCOL_DESCRIPTIONS = [
   /**
    * Solana: buying and owning coins through Jupiter, the swap router. Spot
    * only — no leverage, no short side, no funding, no liquidation. Each
-   * capability is switched on by the task that builds it: markets and
-   * holdings are here, orders are not yet.
+   * capability is switched on by the task that builds it: markets, holdings
+   * and swaps are here. Every order is a swap, so `ordersAreSwaps` is what
+   * the order window reads to show a quote and drop the resting shape.
    *
    * Mainnet only. Solana has a practice network with a faucet, but Jupiter
    * cannot swap on it, so the first swap is a tiny real one.
@@ -243,7 +251,8 @@ export const PROTOCOL_DESCRIPTIONS = [
     capabilities: {
       markets: true,
       accounts: true,
-      orders: false,
+      orders: true,
+      ordersAreSwaps: true,
       gridStop: "watched",
       changeLeverage: {
         can: false,

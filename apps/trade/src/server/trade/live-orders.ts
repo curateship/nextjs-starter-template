@@ -33,7 +33,9 @@ import { overrodeNote } from "@/lib/trade/trading-rules"
 import { db } from "@/server/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
+import { slippageFraction } from "@/lib/trade/quick-order"
 import { marketRules } from "@/server/trade/market-rules"
+import { loadQuickOrder } from "@/server/trade/prefs"
 import {
   dropEngineExchangeReads,
   heldEngineAccount,
@@ -345,12 +347,16 @@ export async function placeLiveOrder(
     if (input.byHand) {
       void heldEngineAccount(row, () => credentialFor(row)).catch(() => null)
     }
-    const [prices, rules, portfolio] = await Promise.all([
+    // The slippage cap rides along in the same round: a swap venue reads it
+    // and a book venue ignores it, and asking after the price would put one
+    // more wait between the level and the order.
+    const [prices, rules, portfolio, quickPrefs] = await Promise.all([
       protocol.markets.prices(row.network, [ref.marketId]),
       marketRules(row.protocol, row.network, ref.marketId),
       ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
         credentialFor(row)
       ),
+      loadQuickOrder(userId).catch(() => null),
     ])
     const tFetch = Date.now()
     const mark = prices.get(ref.marketId)
@@ -435,6 +441,7 @@ export async function placeLiveOrder(
         : openingMarginMode(row.protocol, row.asterMarginMode),
       tpPx: input.tpPx,
       slPx: input.slPx,
+      slippage: slippageFraction(quickPrefs?.slippagePct),
     })
     dropEngineExchangeReads(row)
     console.log(

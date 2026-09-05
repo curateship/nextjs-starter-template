@@ -7,6 +7,7 @@ import {
   protocolLabel,
   type PlaceOrderOutcome,
   type ProtocolId,
+  type SwapQuote,
 } from "@/lib/protocols/contracts"
 import type { PollScope } from "@/lib/api/trade/paper"
 import type { LiveRefusal } from "@/lib/trade/live"
@@ -15,8 +16,10 @@ import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { formatUsd } from "@/lib/trade/format"
+import { slippageFraction } from "@/lib/trade/quick-order"
 import { overrodeSchema } from "@/lib/trade/trading-rules"
 import { userGet, userPost } from "@/server/guards"
+import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import {
   cancelLiveOrder as cancelOrderRow,
   closeLivePosition as closePositionRow,
@@ -230,9 +233,13 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
       style.catch(() => undefined)
       return await runLiveOrderAction(context.user.id, "order", async () => {
         const { market = false, ...order } = data
+        const wallet = await findWallet(context.user.id, order.walletId)
+        if (!wallet) throw new Error("LIVE_WALLET")
+        // A swap venue has no book to rest in, so a plain order there is
+        // always watched here and swapped when the price is reached,
+        // whatever the account's resting choice says.
+        const swaps = getProtocol(wallet.protocol).capabilities.ordersAreSwaps
         const watch = async () => {
-          const wallet = await findWallet(context.user.id, order.walletId)
-          if (!wallet) throw new Error("LIVE_WALLET")
           // A level waiting for a price commits no money and is never blocked
           // by today's cash. One that starts working immediately is a different
           // thing and is checked like any other order going out now.
@@ -283,7 +290,7 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
         // Watched rather than rested, when that is what the account is set to.
         // Nothing reaches the exchange until the price is actually there, so the
         // answer here is "it is waiting", the same shape a resting order gives.
-        if ((await style) === "watch") {
+        if (swaps || (await style) === "watch") {
           return await watch()
         }
         // Rest mode may put a passive limit on the exchange, but an unchecked
@@ -309,6 +316,45 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
       })
     }
   )
+
+const quoteSchema = z.object({
+  walletId: z.string().max(36),
+  marketKey: marketKeySchema,
+  side: z.enum(["buy", "sell"]),
+  sz: z.number().positive().finite(),
+  px: z.number().positive().finite(),
+  slippagePct: z.string().max(8),
+})
+
+/**
+ * What a swap venue would do with this order right now, for the order
+ * window to show before anything is placed. Only a venue whose orders are
+ * swaps answers; the window asks only when the market's exchange says so.
+ */
+const loadSwapQuoteFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(quoteSchema)
+  .handler(async ({ data, context }): Promise<{ quote: SwapQuote }> => {
+    const row = await liveWalletRow(context.user.id, data.walletId)
+    const ref = parseMarketKey(data.marketKey)
+    if (!ref || ref.protocol !== row.protocol) throw new Error("LIVE_MARKET")
+    if (ref.network !== row.network) throw new Error("LIVE_NETWORK_MISMATCH")
+    const quote = ordersOf(getProtocol(row.protocol)).quote
+    if (!quote) throw new Error("LIVE_NO_QUOTE")
+    return {
+      quote: await quote(row.network, row.address ?? "", {
+        marketId: ref.marketId,
+        side: data.side,
+        sz: data.sz,
+        px: data.px,
+        slippage: slippageFraction(data.slippagePct),
+      }),
+    }
+  })
+
+export function loadSwapQuote(input: z.infer<typeof quoteSchema>) {
+  return loadSwapQuoteFn({ data: input })
+}
 
 const moveSchema = z.object({
   walletId: z.string().max(36),
@@ -519,6 +565,7 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_NO_PRICE:
     "The exchange would not give a price for that market, so nothing was sent.",
   LIVE_UNLISTED: "The exchange does not list that market for orders.",
+  LIVE_NO_QUOTE: "This exchange does not quote an order before it is placed.",
   LIVE_TAKE_PROFIT_SIDE:
     "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
   LIVE_TAKE_PROFIT_SIZE:

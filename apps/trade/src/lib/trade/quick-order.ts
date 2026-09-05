@@ -9,6 +9,21 @@ import { z } from "zod"
  * the time, and a remembered yes would quietly shrink the next order somewhere
  * else.
  */
+export const DEFAULT_SLIPPAGE_PCT = "0.5"
+
+/**
+ * The typed slippage as a fraction the connector can use, or the default
+ * when the box holds nothing usable. Capped at 50%: a bigger number is a
+ * typo, and a swap that may fill half price away is not a cap at all.
+ */
+export function slippageFraction(pct: string | undefined): number {
+  const typed = Number(pct)
+  if (!Number.isFinite(typed) || typed <= 0 || typed > 50) {
+    return Number(DEFAULT_SLIPPAGE_PCT) / 100
+  }
+  return typed / 100
+}
+
 export const quickOrderPrefsSchema = z.object({
   /**
    * How the size was being said: in dollars, as a share of the free cash, or
@@ -29,6 +44,13 @@ export const quickOrderPrefsSchema = z.object({
   stopPrice: z.string().max(24).default(""),
   stopPct: z.string().max(12),
   targetPct: z.string().max(12),
+  /**
+   * The worst fill a swap may take, as a percent of the price, kept as
+   * typed. Only a venue whose orders are swaps reads it (Solana through
+   * Jupiter); a book venue's order has a price and needs no cap. Half a
+   * percent is Jupiter's own default.
+   */
+  slippagePct: z.string().max(8).default(DEFAULT_SLIPPAGE_PCT),
 })
 
 export type QuickOrderPrefs = z.infer<typeof quickOrderPrefsSchema>
@@ -45,6 +67,7 @@ export const DEFAULT_QUICK_ORDER: QuickOrderPrefs = {
   stopPrice: "",
   stopPct: "2",
   targetPct: "5",
+  slippagePct: DEFAULT_SLIPPAGE_PCT,
 }
 
 /** Stored settings, with the plain defaults for a first or unreadable value. */

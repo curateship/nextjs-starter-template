@@ -90,6 +90,15 @@ export type ProtocolCapabilities = {
   accounts: boolean
   /** Can sign and place real orders for a live wallet. */
   orders: boolean
+  /**
+   * True on a venue with no order book, where every order is a swap that
+   * fills the moment it is sent (Solana through Jupiter). Nothing can rest
+   * there, so a plain order is always watched here and sent when the price
+   * is reached, the order window shows the venue's quote and route before
+   * anything goes out, "reduce only" means "sell only what you hold", and a
+   * stop or a target is a sell smart order placed at its own price.
+   */
+  ordersAreSwaps: boolean
   /** Where a grid stop waits until its price is reached. */
   gridStop: "exchange" | "watched"
   /** Can change the leverage on a position that is already open. */
@@ -608,6 +617,34 @@ export type PlaceOrderParams = {
   marginMode?: "cross" | "isolated" | null
   tpPx: number | null
   slPx: number | null
+  /**
+   * The worst fill this order accepts, as a fraction of its price: 0.005 is
+   * half a percent. Read by a swap venue, which has no book to rest in and
+   * fills at that instant's price up to this cap; a book venue ignores it.
+   * Absent means the venue's own default.
+   */
+  slippage?: number | null
+}
+
+/**
+ * What a swap venue would do with an order right now, asked before anything
+ * is signed. The order window shows it so a size can be checked against the
+ * venue's own answer, and with real money switched off it is the whole path
+ * short of the send.
+ */
+export type SwapQuote = {
+  /** Coins the swap would hand over, or take, at this moment. */
+  sz: number
+  /** Dollars the swap would take, or hand over. */
+  usd: number
+  /** `usd / sz`: the price this quote works out to. */
+  price: number
+  /** How much worse the quote is than the pool's mid price, as a fraction. */
+  priceImpact: number
+  /** The pools the swap would go through, in order: "JupiterZ", "Raydium → Orca". */
+  route: string
+  /** Null when the order could go out; otherwise the sentence saying why not. */
+  refusal: string | null
 }
 
 /**

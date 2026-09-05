@@ -75,6 +75,7 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { intervalMs, stitchCandles } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
+import { protocolDescription } from "@/lib/api/trade/protocols"
 import {
   CANDLE_INTERVALS,
   parseMarketKey,
@@ -406,6 +407,14 @@ type PendingEntry = {
   unmet: UnmetRule[]
   send: (overrode: string[]) => void
   goBack: () => void
+}
+
+/** Whether this market's exchange fills every order as a swap (Solana). */
+function ordersAreSwaps(marketKey: string): boolean {
+  const ref = parseMarketKey(marketKey)
+  return ref
+    ? protocolDescription(ref.protocol).capabilities.ordersAreSwaps
+    : false
 }
 
 export function ChartPanel({
@@ -2012,6 +2021,7 @@ export function ChartPanel({
           menu={menu}
           wide={wide}
           orders={trading.wallet !== null}
+          swaps={market ? ordersAreSwaps(market.key) : false}
           smartOrders={trading.wallet !== null}
           recentOrderTypes={recentOrderTypes}
           onClose={() => setMenu(null)}
@@ -2077,6 +2087,8 @@ export function ChartPanel({
           wide={wide}
           market={market}
           wallet={trading.wallet?.label ?? ""}
+          walletId={trading.wallet?.id ?? null}
+          swaps={ordersAreSwaps(market.key)}
           addingTo={addingTo}
           free={free}
           equity={equity}

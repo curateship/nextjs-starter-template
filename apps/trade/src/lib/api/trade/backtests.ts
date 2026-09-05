@@ -117,7 +117,9 @@ export type BacktestMarket = {
  * minute, so the union costs no new exchange calls.
  *
  * Only venues that can trade are walked. Binance and Dukascopy are where the
- * history comes from, not somewhere to pick coins nobody could trade.
+ * history comes from, not somewhere to pick coins nobody could trade. A venue
+ * that publishes no candles of its own (Solana) is left out too: its charts
+ * are borrowed or recorded, and a run on either would read as a real result.
  */
 const backtestMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -126,6 +128,7 @@ const backtestMarketsFn = createServerFn({ method: "GET" })
       (one) =>
         one.capabilities.markets &&
         one.capabilities.orders &&
+        !one.markets.recordsOwnBars &&
         one.networks.includes("mainnet")
     )
     const catalogs = await Promise.all(
@@ -495,8 +498,7 @@ async function sourceFirstBar(key: string): Promise<number | null> {
   const ref = parseMarketKey(key)
   if (!ref) return null
   return (
-    getProtocol(ref.protocol).markets.historyFloor?.(ref.marketId, "1h") ??
-    null
+    getProtocol(ref.protocol).markets.historyFloor?.(ref.marketId, "1h") ?? null
   )
 }
 

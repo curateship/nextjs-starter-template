@@ -72,8 +72,10 @@ prices come from.
   on borrowed history would be testing another venue's prices, and a run on
   recorded history would have a hole wherever nobody had the page open. Either
   would read as a real result.
-- The picker offers venues that list markets AND take orders, so Solana falls
-  out on its own rather than by a special case. `charts/candle-store.md`
+- The picker offers venues that list markets, take orders and publish candles
+  of their own. Solana takes orders since the swap task, so the third rule is
+  what keeps it out: its registry entry says it records its own bars, and the
+  picker reads that rather than naming Solana. `charts/candle-store.md`
   explains where its bars come from.
 
 ## History and missing coins

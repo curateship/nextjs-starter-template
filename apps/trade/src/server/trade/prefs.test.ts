@@ -220,6 +220,7 @@ describe("the remembered order window", () => {
       stopPrice: "91",
       stopPct: "4",
       targetPct: "9",
+      slippagePct: "1",
     }
     await saveQuickOrder(id, prefs)
     expect(await loadQuickOrder(id)).toEqual(prefs)

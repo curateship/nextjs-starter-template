@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { type MarketRow } from "@/lib/protocols/contracts"
+import { getLiveErrorMessage, loadSwapQuote } from "@/lib/api/trade/live"
+import { type MarketRow, type SwapQuote } from "@/lib/protocols/contracts"
 import { absoluteStopPrice, bracketPrice } from "@/lib/trade/brackets"
 import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
@@ -24,7 +25,10 @@ import { useLiveFigures } from "@/lib/trade/live-market"
 import { BUY_BUTTON, LOST_MONEY, SELL_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { type TradePosition, type TradeSide } from "@/lib/trade/paper"
-import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import {
+  DEFAULT_SLIPPAGE_PCT,
+  type QuickOrderPrefs,
+} from "@/lib/trade/quick-order"
 import { cn } from "@/lib/utils"
 
 /**
@@ -77,12 +81,21 @@ type SizeUnit = "usd" | "pct" | "risk"
 
 const SHARE_PICKS = [10, 25, 50, 100]
 
+/**
+ * How long the window waits after the last keystroke before asking a swap
+ * venue for its quote. Each ask spends one of the venue's requests, and a
+ * size being typed is several sizes in a row.
+ */
+const QUOTE_WAIT_MS = 700
+
 export function ChartQuickOrder({
   quick,
   wide = true,
   market,
   /** The wallet this order will go to — not always the one whose lines you are looking at. */
   wallet,
+  walletId = null,
+  swaps = false,
   addingTo,
   /** Cash free to put behind a trade, from the account panel's own figures. */
   free,
@@ -97,6 +110,16 @@ export function ChartQuickOrder({
   wide?: boolean
   market: MarketRow
   wallet: string
+  /** The wallet's id, for asking a swap venue what it would do. */
+  walletId?: string | null
+  /**
+   * True on a venue whose orders are swaps (Solana through Jupiter). The
+   * window then says Buy and Sell rather than Long and Short, offers no
+   * stop or target because the chain holds none, shows the venue's own
+   * quote and route before anything is placed, and carries the cap on how
+   * much worse than the price the swap may fill.
+   */
+  swaps?: boolean
   /**
    * The position this order is adding to, when it was opened from that
    * position's row. Null for the ordinary right-click order.
@@ -189,9 +212,15 @@ export function ChartQuickOrder({
   const [stopPct, setStopPct] = React.useState(prefs.stopPct)
   const [targetPct, setTargetPct] = React.useState(prefs.targetPct)
   const [reduceOnly, setReduceOnly] = React.useState(false)
+  const [slippagePct, setSlippagePct] = React.useState(
+    prefs.slippagePct ?? DEFAULT_SLIPPAGE_PCT
+  )
   const [showValidation, setShowValidation] = React.useState(false)
 
   const buy = quick.side === "buy"
+  // A swap venue has no short side: "Sell" is selling coins the wallet
+  // holds. The words change; the side the server gets does not.
+  const sideWord = swaps ? (buy ? "Buy" : "Sell") : buy ? "Long" : "Short"
 
   // ----- What was typed, in coins -----------------------------------------
 
@@ -209,8 +238,10 @@ export function ChartQuickOrder({
   // is nothing to divide the money by. So choosing it switches the stop on and
   // holds it on.
   const byRisk = sizeUnit === "risk"
-  const wantsStop = stopOn || byRisk
-  const wantsTarget = targetOn
+  // The chain holds no stop or target, so a swap venue's order carries
+  // neither; a stop there is a sell smart order placed at its own price.
+  const wantsStop = !swaps && (stopOn || byRisk)
+  const wantsTarget = !swaps && targetOn
 
   const stopPx = wantsStop
     ? stopUnit === "price"
@@ -273,6 +304,72 @@ export function ChartQuickOrder({
   }, [addingTo, sizeCoin, entryPx])
 
   const ready = sizeCoin > 0 && !bracketBad
+
+  /**
+   * The swap venue's own answer for this order, asked a moment after the
+   * size settles. Shown, never enforced: a level waiting for a price is
+   * swapped later at that moment's quote, and this is what the quote looks
+   * like now. With real money switched off on the server it is the whole
+   * path short of the send, which is what makes it worth checking for free.
+   *
+   * The answer remembers which order it was for, so a stale answer is never
+   * shown against a size it was not asked about.
+   */
+  const quoteKey =
+    swaps && walletId && sizeCoin > 0 && entryPx > 0
+      ? `${walletId}:${market.key}:${quick.side}:${sizeCoin}:${entryPx}:${slippagePct}`
+      : null
+  const [quote, setQuote] = React.useState<
+    | { key: string; state: "answered"; quote: SwapQuote }
+    | { key: string; state: "failed"; message: string }
+    | null
+  >(null)
+  React.useEffect(() => {
+    if (!quoteKey || !walletId) return
+    let stale = false
+    const timer = window.setTimeout(() => {
+      loadSwapQuote({
+        walletId,
+        marketKey: market.key,
+        side: quick.side,
+        sz: sizeCoin,
+        px: entryPx,
+        slippagePct,
+      })
+        .then((answer) => {
+          if (!stale) {
+            setQuote({ key: quoteKey, state: "answered", quote: answer.quote })
+          }
+        })
+        .catch((error: unknown) => {
+          if (!stale) {
+            setQuote({
+              key: quoteKey,
+              state: "failed",
+              message: getLiveErrorMessage(error),
+            })
+          }
+        })
+    }, QUOTE_WAIT_MS)
+    return () => {
+      stale = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    quoteKey,
+    walletId,
+    market.key,
+    quick.side,
+    sizeCoin,
+    entryPx,
+    slippagePct,
+  ])
+  const shownQuote =
+    quoteKey === null
+      ? { state: "idle" as const }
+      : quote?.key === quoteKey
+        ? quote
+        : { state: "asking" as const }
 
   /**
    * Every reason this window can refuse. Leaving a bad box shows the reason
@@ -355,6 +452,7 @@ export function ChartQuickOrder({
       stopPrice,
       stopPct,
       targetPct,
+      slippagePct,
     })
     onClose()
   }
@@ -363,15 +461,17 @@ export function ChartQuickOrder({
     <FloatingOrderWindow
       label={
         marketOrder
-          ? `Market ${buy ? "long" : "short"} ${market.symbol} at the current price`
-          : `${buy ? "Long" : "Short"} ${market.symbol} at ${formatPrice(quick.px)}`
+          ? swaps
+            ? `${sideWord} ${market.symbol} now at the current price`
+            : `Market ${buy ? "long" : "short"} ${market.symbol} at the current price`
+          : `${sideWord} ${market.symbol} at ${formatPrice(quick.px)}`
       }
       wide={wide}
       openedAt={quick}
       width={PANEL_WIDTH}
       height={PANEL_HEIGHT}
       minimumHeight={PANEL_MIN_HEIGHT}
-      title={buy ? "Long" : "Short"}
+      title={sideWord}
       titleClassName={buy ? undefined : LOST_MONEY}
       wallet={wallet}
       free={free}
@@ -411,7 +511,9 @@ export function ChartQuickOrder({
               checked={marketOrder}
               onCheckedChange={(next) => setMarketOrder(next === true)}
             />
-            <Label htmlFor="quick-market">Market</Label>
+            <Label htmlFor="quick-market">
+              {swaps ? "Swap now at the current price" : "Market"}
+            </Label>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="quick-size">Size</Label>
@@ -476,7 +578,8 @@ export function ChartQuickOrder({
                 <SelectContent>
                   <SelectItem value="usd">USD</SelectItem>
                   <SelectItem value="pct">% of free</SelectItem>
-                  <SelectItem value="risk">Risk %</SelectItem>
+                  {/* Sized from the stop, which a swap venue has none of. */}
+                  {swaps ? null : <SelectItem value="risk">Risk %</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -533,115 +636,159 @@ export function ChartQuickOrder({
             </div>
           ) : null}
 
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <div className="flex items-center gap-2">
-                <DisabledReason
-                  disabled={byRisk}
-                  reason="Risk % works out the amount from the stop, so an order sized that way always has one."
+          {swaps ? (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="quick-slippage">Worst fill allowed %</Label>
+                <Input
+                  id="quick-slippage"
+                  inputMode="decimal"
+                  value={slippagePct}
+                  onChange={(event) => setSlippagePct(event.target.value)}
+                  aria-describedby="quick-slippage-help"
+                />
+                <span
+                  id="quick-slippage-help"
+                  className="text-xs leading-5 text-muted-foreground"
                 >
-                  <Checkbox
-                    id="quick-stop-on"
-                    checked={wantsStop}
+                  A swap fills at that moment&rsquo;s price. It is refused
+                  before signing if the fill would be worse than this, and
+                  nothing leaves the wallet.
+                </span>
+              </div>
+              {/* What the venue would do with this order now. Its own line
+                  rather than a refusal, because it does not block anything:
+                  a waiting level is swapped later at that moment's quote. */}
+              <p
+                className="text-xs leading-5 text-muted-foreground"
+                aria-live="polite"
+              >
+                {shownQuote.state === "idle"
+                  ? "Type a size to see Jupiter's quote and route."
+                  : shownQuote.state === "asking"
+                    ? "Asking Jupiter…"
+                    : shownQuote.state === "failed"
+                      ? shownQuote.message
+                      : (shownQuote.quote.refusal ??
+                        `Jupiter: ${shownQuote.quote.sz.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${market.symbol} for ${formatUsd(shownQuote.quote.usd)} at ${formatPrice(shownQuote.quote.price)}, price impact ${(shownQuote.quote.priceImpact * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })}%, via ${shownQuote.quote.route}.`)}
+              </p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                The chain holds no stop or take profit. To get out at a price,
+                place a Sell at that level; it waits here and swaps when the
+                price reaches it.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <div className="flex items-center gap-2">
+                  <DisabledReason
                     disabled={byRisk}
+                    reason="Risk % works out the amount from the stop, so an order sized that way always has one."
+                  >
+                    <Checkbox
+                      id="quick-stop-on"
+                      checked={wantsStop}
+                      disabled={byRisk}
+                      onCheckedChange={(next) => {
+                        setShowValidation(false)
+                        setStopOn(next === true)
+                      }}
+                    />
+                  </DisabledReason>
+                  <Label htmlFor="quick-stop-on">Stop loss</Label>
+                </div>
+                {wantsStop ? (
+                  <div className="grid gap-2">
+                    <Label htmlFor="quick-stop" className="text-xs">
+                      {stopUnit === "price" ? "Stop loss price" : "Stop loss %"}
+                    </Label>
+                    <div className="flex items-start gap-2">
+                      <Input
+                        id="quick-stop"
+                        inputMode="decimal"
+                        className="min-w-0 flex-1"
+                        value={stopUnit === "price" ? stopPrice : stopPct}
+                        onChange={(event) => {
+                          setShowValidation(false)
+                          if (stopUnit === "price") {
+                            setStopPrice(event.target.value)
+                          } else {
+                            setStopPct(event.target.value)
+                          }
+                        }}
+                        onBlur={() => setShowValidation(true)}
+                        aria-invalid={showValidation && badStop}
+                      />
+                      <Select
+                        value={stopUnit}
+                        onValueChange={(next) => {
+                          setShowValidation(false)
+                          setStopUnit(next as QuickOrderPrefs["stopUnit"])
+                        }}
+                      >
+                        <SelectTrigger
+                          className="w-fit"
+                          aria-label="How stop loss is measured"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pct">Percent</SelectItem>
+                          <SelectItem value="price">Price</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {stopPx && stopPx > 0 ? formatPrice(stopPx) : "—"}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="quick-target-on"
+                    checked={wantsTarget}
                     onCheckedChange={(next) => {
                       setShowValidation(false)
-                      setStopOn(next === true)
+                      setTargetOn(next === true)
                     }}
                   />
-                </DisabledReason>
-                <Label htmlFor="quick-stop-on">Stop loss</Label>
-              </div>
-              {wantsStop ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="quick-stop" className="text-xs">
-                    {stopUnit === "price" ? "Stop loss price" : "Stop loss %"}
-                  </Label>
-                  <div className="flex items-start gap-2">
+                  <Label htmlFor="quick-target-on">Take profit</Label>
+                </div>
+                {wantsTarget ? (
+                  <div className="grid gap-2">
+                    <Label htmlFor="quick-target" className="text-xs">
+                      Take profit %
+                    </Label>
                     <Input
-                      id="quick-stop"
+                      id="quick-target"
                       inputMode="decimal"
-                      className="min-w-0 flex-1"
-                      value={stopUnit === "price" ? stopPrice : stopPct}
+                      value={targetPct}
                       onChange={(event) => {
                         setShowValidation(false)
-                        if (stopUnit === "price") {
-                          setStopPrice(event.target.value)
-                        } else {
-                          setStopPct(event.target.value)
-                        }
+                        setTargetPct(event.target.value)
                       }}
                       onBlur={() => setShowValidation(true)}
-                      aria-invalid={showValidation && badStop}
+                      aria-invalid={showValidation && badTarget}
                     />
-                    <Select
-                      value={stopUnit}
-                      onValueChange={(next) => {
-                        setShowValidation(false)
-                        setStopUnit(next as QuickOrderPrefs["stopUnit"])
-                      }}
-                    >
-                      <SelectTrigger
-                        className="w-fit"
-                        aria-label="How stop loss is measured"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pct">Percent</SelectItem>
-                        <SelectItem value="price">Price</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {stopPx && stopPx > 0 ? formatPrice(stopPx) : "—"}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="grid gap-2">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="quick-target-on"
-                  checked={wantsTarget}
-                  onCheckedChange={(next) => {
-                    setShowValidation(false)
-                    setTargetOn(next === true)
-                  }}
-                />
-                <Label htmlFor="quick-target-on">Take profit</Label>
+                ) : null}
               </div>
-              {wantsTarget ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="quick-target" className="text-xs">
-                    Take profit %
-                  </Label>
-                  <Input
-                    id="quick-target"
-                    inputMode="decimal"
-                    value={targetPct}
-                    onChange={(event) => {
-                      setShowValidation(false)
-                      setTargetPct(event.target.value)
-                    }}
-                    onBlur={() => setShowValidation(true)}
-                    aria-invalid={showValidation && badTarget}
-                  />
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
-                  </span>
-                </div>
-              ) : null}
             </div>
-          </div>
+          )}
 
           {/* Not offered while adding to a position, because the two say
               opposite things. This window is headed "Adding to $500 long" and
               works out what the position becomes; a reduce-only order on the
               same side buys nothing, so the sentence above would be describing
               an order the exchange was about to refuse. */}
-          {addingTo ? null : (
+          {addingTo || (swaps && buy) ? null : (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="quick-reduce"
@@ -650,7 +797,9 @@ export function ChartQuickOrder({
                   setReduceOnly(next === true)
                 }}
               />
-              <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
+              <Label htmlFor="quick-reduce">
+                {swaps ? "Sell only what I hold" : "Only reduce what I hold"}
+              </Label>
             </div>
           )}
         </div>
@@ -671,8 +820,10 @@ export function ChartQuickOrder({
           className={cn("w-full", buy ? BUY_BUTTON : SELL_BUTTON)}
         >
           {marketOrder
-            ? `Market ${buy ? "long" : "short"} ${market.symbol}`
-            : `${buy ? "Long" : "Short"} ${market.symbol}`}
+            ? swaps
+              ? `${sideWord} ${market.symbol} now`
+              : `Market ${buy ? "long" : "short"} ${market.symbol}`
+            : `${sideWord} ${market.symbol}`}
         </Button>
       </div>
     </FloatingOrderWindow>

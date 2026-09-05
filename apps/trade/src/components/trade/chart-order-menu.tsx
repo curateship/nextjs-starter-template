@@ -43,7 +43,6 @@ export type ChartMenuState = { price: number; x: number; y: number }
 /** The presets the Smart order group offers. */
 export type SmartOrderPreset = "dca" | "grid"
 
-
 /** How close to the window's edge the menu may sit. */
 const EDGE = 8
 
@@ -54,6 +53,8 @@ export function ChartOrderMenu({
   menu,
   wide = true,
   orders,
+  /** True on a venue whose orders are swaps: the rows say Buy and Sell. */
+  swaps = false,
   smartOrders,
   recentOrderTypes,
   onPick,
@@ -64,6 +65,7 @@ export function ChartOrderMenu({
   onClose,
 }: {
   menu: ChartMenuState
+  swaps?: boolean
   /** The chart passes the shell's 1280px layout answer. Tests default wide. */
   wide?: boolean
   /** No wallet means the chart still offers alerts, but no order rows. */
@@ -180,6 +182,7 @@ export function ChartOrderMenu({
             </p>
             {recent.map((orderType) => (
               <OrderTypeRow
+                swaps={swaps}
                 key={orderType}
                 orderType={orderType}
                 onPick={onPick}
@@ -197,8 +200,8 @@ export function ChartOrderMenu({
             open={open === "manual"}
             onToggle={() => toggle("manual")}
           >
-            <MenuRow side="buy" onPick={() => onPick("buy")} />
-            <MenuRow side="sell" onPick={() => onPick("sell")} />
+            <MenuRow side="buy" swaps={swaps} onPick={() => onPick("buy")} />
+            <MenuRow side="sell" swaps={swaps} onPick={() => onPick("sell")} />
           </FoldRow>
           <FoldRow
             label="Smart order"
@@ -219,8 +222,8 @@ export function ChartOrderMenu({
         </>
       ) : orders ? (
         <>
-          <MenuRow side="buy" onPick={() => onPick("buy")} />
-          <MenuRow side="sell" onPick={() => onPick("sell")} />
+          <MenuRow side="buy" swaps={swaps} onPick={() => onPick("buy")} />
+          <MenuRow side="sell" swaps={swaps} onPick={() => onPick("sell")} />
         </>
       ) : null}
       {orders ? <div role="presentation" className="my-1 border-t" /> : null}
@@ -235,15 +238,23 @@ export function ChartOrderMenu({
 
 function OrderTypeRow({
   orderType,
+  swaps,
   onPick,
   onPickSmart,
 }: {
   orderType: RecentOrderType
+  swaps: boolean
   onPick: (side: TradeSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
 }) {
   if (orderType === "buy" || orderType === "sell") {
-    return <MenuRow side={orderType} onPick={() => onPick(orderType)} />
+    return (
+      <MenuRow
+        side={orderType}
+        swaps={swaps}
+        onPick={() => onPick(orderType)}
+      />
+    )
   }
   if (orderType === "dca") {
     return (
@@ -327,7 +338,15 @@ function IconRow({
   )
 }
 
-function MenuRow({ side, onPick }: { side: TradeSide; onPick: () => void }) {
+function MenuRow({
+  side,
+  swaps,
+  onPick,
+}: {
+  side: TradeSide
+  swaps: boolean
+  onPick: () => void
+}) {
   const buy = side === "buy"
   return (
     <button
@@ -341,7 +360,9 @@ function MenuRow({ side, onPick }: { side: TradeSide; onPick: () => void }) {
       ) : (
         <TrendingDownIcon className={cn("size-4", LOST_MONEY)} />
       )}
-      <span className="font-medium">{buy ? "Long" : "Short"}</span>
+      <span className="font-medium">
+        {swaps ? (buy ? "Buy" : "Sell") : buy ? "Long" : "Short"}
+      </span>
     </button>
   )
 }

@@ -50,6 +50,7 @@ const prefs: QuickOrderPrefs = {
   stopPrice: "",
   stopPct: "2",
   targetPct: "5",
+  slippagePct: "0.5",
 }
 
 let host: HTMLDivElement

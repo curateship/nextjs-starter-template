@@ -40,10 +40,16 @@ describe("the protocol registry", () => {
       // chain wallet that is made and funded before its holdings can be
       // read — but never without a way to prove the credential first.
       if (entry.capabilities.accounts) {
-        expect(entry.credentials, `${entry.label} has no sign-in form`).toBeTruthy()
+        expect(
+          entry.credentials,
+          `${entry.label} has no sign-in form`
+        ).toBeTruthy()
       }
       if (entry.credentials) {
-        expect(entry.agent, `${entry.label} stores a key it cannot prove`).toBeTruthy()
+        expect(
+          entry.agent,
+          `${entry.label} stores a key it cannot prove`
+        ).toBeTruthy()
         // The dialog offers "Make a new wallet" exactly where the entry can.
         expect(Boolean(entry.credentials.make)).toBe(
           entry.credentials.form.canMakeWallet
@@ -52,21 +58,27 @@ describe("the protocol registry", () => {
     }
   })
 
-  it("reads a Solana wallet's holdings by address, with no orders yet", () => {
+  it("reads a Solana wallet's holdings by address and swaps through Jupiter", () => {
     // Holdings are public on the chain, so the reader never needs the key.
-    // Orders stay off until the swap task switches them on.
+    // Every order is a swap: the entry says so, and offers the quote a swap
+    // venue shows before anything is signed.
     const entry = getProtocol("solana")
     expect(entry.networks).toEqual(["mainnet"])
     expect(entry.capabilities).toMatchObject({
       markets: true,
       accounts: true,
-      orders: false,
+      orders: true,
+      ordersAreSwaps: true,
     })
     expect(entry.account?.fetch).toBeTypeOf("function")
     expect(entry.account?.portfolio).toBeTypeOf("function")
     // The chain states no profit on a sale, so a zero is "not stated".
     expect(entry.account?.profitPerSale).toBe(false)
-    expect(entry.orders).toBeUndefined()
+    expect(entry.orders?.place).toBeTypeOf("function")
+    expect(entry.orders?.quote).toBeTypeOf("function")
+    expect(entry.orders?.fills).toBeTypeOf("function")
+    // Jupiter publishes no socket, so there is no line to push prices down;
+    // the engine asks through the rationed read instead (`solana.md`).
     expect(entry.livePrices).toBeUndefined()
     // An open network lists more coins than any list holds, so Solana is
     // the one venue with a lookup beside its list.
@@ -147,21 +159,20 @@ describe("the protocol registry", () => {
   })
 
   it("keeps a venue with no candles of its own out of the backtest picker", () => {
-    // The picker offers venues that can list markets AND take orders. Solana
-    // takes none, so it cannot be picked — which is what keeps borrowed and
-    // recorded history away from a run that would read as a real result.
+    // The picker offers venues that list markets, take orders and publish
+    // candles of their own — the rule `backtests.ts` applies. Solana takes
+    // orders and records its own bars, so the third rule is what keeps
+    // borrowed and recorded history away from a run that would read as a
+    // real result.
     const pickable = listProtocols().filter(
       (one) =>
         one.capabilities.markets &&
         one.capabilities.orders &&
+        !one.markets.recordsOwnBars &&
         one.networks.includes("mainnet")
     )
     expect(pickable.map((one) => one.id)).not.toContain("solana")
-    // And nothing that records its own bars is ever pickable, whichever
-    // venue does it next.
-    for (const entry of pickable) {
-      expect(entry.markets.recordsOwnBars, entry.label).toBeUndefined()
-    }
+    expect(pickable.map((one) => one.id)).toContain("hyperliquid")
   })
 
   it("gives every exchange the app trades on a pushed price feed", () => {
@@ -172,6 +183,12 @@ describe("the protocol registry", () => {
     // an order and has no feed is the gap this closes.
     for (const entry of listProtocols()) {
       if (!entry.capabilities.orders) continue
+      // Solana is the one venue with orders and no socket to push prices:
+      // Jupiter publishes none, and a coin's price there is a route across
+      // pools rather than one pool's number (`solana.md`, "Why not a
+      // socket"). The engine asks it through the rationed read, and the
+      // entry says so by recording its own bars from those reads.
+      if (entry.markets.recordsOwnBars) continue
       expect(
         entry.livePrices,
         `${entry.label} has no pushed price feed`

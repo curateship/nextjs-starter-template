@@ -17,6 +17,12 @@ import { scrubbedMessage } from "@/server/protocols/scrub"
  *
  * Every address and the key are read here and nowhere else. The fence test
  * fails any file outside this folder that names a node or Jupiter address.
+ *
+ * **The swap calls live under `/ultra/v1`, on both hosts.** Measured 4 Sep
+ * 2026: `/swap/v2/order`, the path the task file names, answered "Route not
+ * found" on the free host and the same body as `/ultra/v1/order` on the
+ * keyed one. `/ultra/v1/order` and `/ultra/v1/execute` answered on both, so
+ * they are the paths `orders.ts` uses whichever host the key picks.
  */
 
 /** Solana's own public node. Free, rate-limited, and enough to start with. */
@@ -181,10 +187,10 @@ export async function jupiterGet(
     url.searchParams.set(name, String(value))
   }
 
-  let response = await send(url, key, priority)
+  let response = await send(url, key, priority, {})
   if (response.status === 429) {
     await sleep(retryDelay(response))
-    response = await send(url, key, priority)
+    response = await send(url, key, priority, {})
     if (response.status === 429) throw new Error("EXCHANGE_BUSY")
   }
   if (!response.ok) {
@@ -193,10 +199,43 @@ export async function jupiterGet(
   return response.json()
 }
 
+/**
+ * One Jupiter write: today that is only `/ultra/v1/execute`, which hands
+ * Jupiter a signed swap to send.
+ *
+ * **Never retried.** A GET asked twice costs a request; a signed swap sent
+ * twice could be a swap made twice, so a 429 or a timeout here is answered
+ * "busy" once and the caller decides. Jupiter answers a refused execute
+ * with a 400 and `{code, error}` in the body, and that body is the one thing
+ * worth reading back, so a non-2xx answer is returned as the parsed body
+ * with its status rather than thrown blind.
+ */
+export async function jupiterPost(
+  path: string,
+  body: Record<string, unknown>
+): Promise<{ status: number; body: unknown }> {
+  const key = jupiterApiKey()
+  const url = new URL(path, key === null ? FREE_BASE : KEYED_BASE)
+  const response = await send(url, key, "order", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (response.status === 429) throw new Error("EXCHANGE_BUSY")
+  let parsed: unknown = null
+  try {
+    parsed = await response.json()
+  } catch {
+    throw new Error(`SOLANA_JUPITER_REFUSED:${response.status}`)
+  }
+  return { status: response.status, body: parsed }
+}
+
 async function send(
   url: URL,
   key: string | null,
-  priority: JupiterPriority
+  priority: JupiterPriority,
+  init: { method?: string; headers?: Record<string, string>; body?: string }
 ): Promise<Response> {
   // Refused before waiting a turn, so a request the minute has no room for
   // does not also queue for a second first.
@@ -204,12 +243,15 @@ async function send(
   await takeTurn()
   try {
     return await fetch(url, {
+      method: init.method ?? "GET",
       headers: {
         accept: "application/json",
+        ...(init.headers ?? {}),
         // A wrong key is refused outright (401), so the header goes on only
         // when there is a real one to send.
         ...(key === null ? {} : { "x-api-key": key }),
       },
+      body: init.body,
       signal: requestSignal(READ_TIMEOUT_MS),
     })
   } catch (error) {

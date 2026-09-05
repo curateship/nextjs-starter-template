@@ -637,8 +637,14 @@ describe("the bottom panel's tables say what they know", () => {
     expect(html).toContain("$225.07")
     // No price at all: says so rather than $0.00.
     expect(html).toContain("Unpriced")
+    // An owned coin can be bought more of and sold outright, and nothing
+    // else: no short to turn into, no leverage, no stop or target to edit.
+    expect(html).toContain("Add to the")
+    expect(html).toContain("Sell all the")
     expect(html).not.toContain("Close the")
-    expect(html).not.toContain("Add to the")
+    expect(html).not.toContain("stop and target")
+    expect(html).not.toContain("leverage and margin")
+    expect(html).not.toContain("position around")
   })
 
   it("explains the missing-stop mark on keyboard focus", async () => {

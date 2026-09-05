@@ -11,6 +11,7 @@ import type {
   PlaceOrderParams,
   ProtocolCapabilities,
   ProtocolId,
+  SwapQuote,
   WalletAccountFigures,
   WalletOrderFill,
   WalletOrderInfo,
@@ -219,6 +220,16 @@ import {
   fetchSolanaAccount,
   fetchSolanaPortfolio,
 } from "@/server/protocols/solana/account"
+import {
+  cancelSolanaOrder,
+  closeSolanaPosition,
+  fetchSolanaOrderFills,
+  fetchSolanaOrderInfo,
+  modifySolanaOrder,
+  placeSolanaOrder,
+  quoteSolanaSwap,
+  setSolanaBrackets,
+} from "@/server/protocols/solana/orders"
 import {
   makeSolanaWallet,
   packSolanaCredential,
@@ -498,6 +509,22 @@ export type ProtocolEntry = {
    * Absent on an exchange that cannot place one. See `account` above.
    */
   orders?: {
+    /**
+     * What a swap would do right now, before anything is signed. Present on
+     * a venue whose orders are swaps (`capabilities.ordersAreSwaps`); absent
+     * on a book venue, where the price on the order is the price.
+     */
+    quote?(
+      network: NetworkId,
+      address: string,
+      params: {
+        marketId: string
+        side: "buy" | "sell"
+        sz: number
+        px: number
+        slippage: number
+      }
+    ): Promise<SwapQuote>
     /** Signs and places one real order, with optional protection legs. */
     place(
       network: NetworkId,
@@ -1034,8 +1061,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * outside the list can be found by name or address (`search`). Candles
    * are borrowed or recorded (`recordsOwnBars`). Holdings are read off the
    * chain by address, priced through the same price feed, and each one is
-   * a position that is simply owned. `orders` is absent — an absent block
-   * is how this app says "cannot" — until the swap task builds it.
+   * a position that is simply owned. Every order is a swap through Jupiter
+   * that fills the moment it is sent: nothing rests, so cancel, modify and
+   * brackets refuse in plain words rather than pretending.
    *
    * Mainnet only. Solana's devnet has a faucet but Jupiter cannot swap on
    * it, so there is no practice network to list.
@@ -1055,6 +1083,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       // A swap has no price grid; `priceTick` is null on every row, and the
       // shared rounding leaves such a price alone.
       roundPx: roundToTick,
+      // A Solana price is never served stale: the page read is fresh or it
+      // is refused as busy, and the engine then sends nothing that pass.
+      pricesWereRationed: () => false,
       search: searchSolanaMarkets,
     },
     account: {
@@ -1070,6 +1101,17 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       form: protocolDescription("solana").credentialForm!,
       pack: packSolanaCredential,
       make: makeSolanaWallet,
+    },
+    orders: {
+      quote: quoteSolanaSwap,
+      place: placeSolanaOrder,
+      cancel: cancelSolanaOrder,
+      modify: modifySolanaOrder,
+      close: closeSolanaPosition,
+      setBrackets: setSolanaBrackets,
+      portfolio: fetchSolanaPortfolio,
+      fills: fetchSolanaOrderFills,
+      orderInfo: fetchSolanaOrderInfo,
     },
   },
 }

@@ -1,7 +1,7 @@
 # Solana
 
-Solana is a network the app can hold a wallet on, and later buy and sell
-coins on. It is not an exchange. There is no account to open anywhere: the
+Solana is a network the app can hold a wallet on, and buy and sell coins on
+through Jupiter. It is not an exchange. There is no account to open anywhere: the
 app makes or takes a wallet, the wallet holds the coins, and the app signs
 with that wallet's own key.
 
@@ -26,15 +26,22 @@ something, it says so, so nobody reads a promise as a feature.
 ## The two services and what each one does
 
 - **A Solana node** is how any wallet reaches the chain. The app uses it for
-  exactly two things: reading what a wallet holds (built, see "What a wallet
-  holds"), and sending a signed transaction (the swap task). Solana's public nodes are free and rate-limited; a paid node
-  from Helius or QuickNode is the same thing at a different address.
+  three things: reading what a wallet holds (see "What a wallet holds"),
+  reading a confirmed swap back so the Journal gets the real fill, and
+  listing the wallet's transactions so its swaps become fills. Solana's
+  public nodes are free and rate-limited; a paid node from Helius or
+  QuickNode is the same thing at a different address.
 - **Jupiter** is the swap router nearly every Solana app uses. One call finds
   the best price across Raydium, Orca, Meteora and the rest, and a second
   call hands back a ready transaction for the app to sign and send. Jupiter
   never holds money and never needs an account, only a free API key. If
   Jupiter went away, the one step that changes is "build me a swap", and
   Raydium's own API does the same job.
+- **The swap calls live under `/ultra/v1` on both Jupiter hosts.** Measured
+  4 Sep 2026: `/swap/v2/order`, the path the task file named, answered
+  "Route not found" on the free host and the same body as `/ultra/v1/order`
+  on the keyed one. `/ultra/v1/order` and `/ultra/v1/execute` answered on
+  both, so those are the paths used whichever host the key picks.
 - **Where each lives in the code:** `src/server/protocols/solana/client.ts`
   is the only file that knows either address or the key. The fence test
   fails the suite if any other file names a node or Jupiter address, or
@@ -69,8 +76,8 @@ something, it says so, so nobody reads a promise as a feature.
   rehearsed there. Jupiter cannot swap on devnet, so nothing that buys or
   sells can be rehearsed anywhere.
 - So the registry lists mainnet only, and the Solana page has no network
-  switch. The first swap, when that task lands, is a tiny real one placed by
-  Tyler.
+  switch. The first swap is a tiny real one placed by Tyler, and its
+  signature goes under "The first real swaps" below once it is placed.
 
 ## The wallet rule
 
@@ -108,12 +115,15 @@ wallet card and positions list draw them the way they draw every venue's.
 - **A position is a coin you own.** No leverage, no margin, no liquidation,
   no funding. Its badge in the positions list says "Owned" and how many are
   held, in place of "Long 5×". The Margin and Liquidation columns show a
-  dash. The row offers no buttons, because nothing can act on a Solana coin
-  until the swap task lands.
+  dash. The row offers two buttons: Add, which opens the order window at
+  today's price, and the bin, which sells everything the wallet holds of the
+  coin. No flip, no leverage, no stop-and-target button, because none of
+  those exists on a coin owned outright.
 - **The entry price is blank, so profit is blank.** The chain does not
-  remember what was paid. The app's own record of its buys will fill it in
-  once the swap task writes one; until then every coin reads as sent in, the
-  Unrealized column shows a dash, and the chart draws no entry line for it.
+  remember what was paid. Every coin reads as sent in, the Unrealized column
+  shows a dash, and the chart draws no entry line for it. The Journal knows
+  what each swap paid (see "Fills come off the chain"), and reading the
+  entry price back from those rows is not built yet.
 - **A coin Jupiter has no price for shows "Unpriced"** in the Value column
   rather than $0.00 or nothing. It adds nothing to the wallet's worth. Every
   coin already in the market list takes the list's own price, at most a
@@ -148,6 +158,123 @@ wallet card and positions list draw them the way they draw every venue's.
   amber sentence, Free $0.00, In trades $0.00 and SOL for fees 0 SOL. A real
   exchange wallet read through the same code answered $936,813,109.98 of
   USDC across 24 accounts and 4,180 coin rows.
+
+## Buying and selling
+
+There is no order book on Solana, so every order is a swap. Jupiter finds the
+best path across the pools and builds the transaction, the app signs it with
+the wallet's own key on the server, and Jupiter sends it. It fills at that
+instant's price or it does not fill at all. The code is
+`src/server/protocols/solana/orders.ts`.
+
+- **Only a market order, and only when the price is reached.** The app's
+  smart orders already send nothing until the price arrives
+  (`../orders/smart-orders.md`); on Solana what is sent at that moment is the
+  swap. A plain Buy or Sell placed at a level is always watched here, whatever
+  the account's resting choice in Settings says, because there is nowhere for
+  it to rest. "Swap now at the current price" in the order window sends the
+  swap straight away.
+- **The order window and the chart's right-click menu say Buy and Sell, not
+  Long and Short.** A Sell is selling coins the wallet holds. There is no
+  short side.
+- **Checked in the running app on 4 Sep 2026** on JUP with the empty test
+  wallet and the real-money switch off: the window read Buy, "Swap now at the
+  current price", "Worst fill allowed %" at 0.5, and Jupiter answered a real
+  quote for $10 (46.147 JUP at $0.2167 through the OKX DEX Router) followed
+  by its own refusal, "Insufficient funds", because the wallet holds nothing.
+  No console errors and no failed requests.
+- **The cap on a bad fill.** "Worst fill allowed %" on the order window,
+  half a percent unless changed, remembered with the window's other settings
+  in the account's trading preferences and read by the engine when a watched
+  level fires. Jupiter is told the cap as `slippageBps`, so a swap that would
+  fill worse fails on the chain and moves nothing. A cap over 50, or nothing
+  usable in the box, reads as the default.
+- **Refused before signing, so nothing leaves the wallet**, when Jupiter
+  cannot build the swap (its own words are shown), when the swap would move
+  the price by more than the cap (a thin coin), or when Jupiter's quoted
+  price is worse than the order's price by more than the cap. A buy at $100
+  with a 0.5% cap allows a quote up to $100.50 and refuses $101.
+- **The quote before the order.** On a Solana market the order window asks
+  Jupiter what it would do with the typed size, about a second after the
+  typing stops, and prints it: "Jupiter: 0.098 SOL for $10.00 at $101.88,
+  price impact 0.008%, via JupiterZ", or the sentence saying why the swap
+  would be refused. It is information, never a block: a level waiting for a
+  price is swapped later at that moment's quote. Each ask spends one of the
+  reads' share of the minute.
+- **The real-money switch sits between the quote and the signature.** With
+  `TRADE_ENABLE_MAINNET` off on the server, or the Settings toggle off, a
+  watched level that fires is quoted, checked, and then refused as switched
+  off, so the whole path short of the send can be walked for free. Solana has
+  no practice network Jupiter can swap on, so this switch is the only thing
+  between a level and money.
+- **A sell is capped at what the wallet holds.** The holding is read off the
+  chain at that moment. "Sell only what I hold" (the box that means
+  reduce-only elsewhere, only shown on a Sell) shrinks the sell to the
+  holding. Without it, a sell of more than the wallet holds is refused before
+  Jupiter is asked, and the refusal says how many are held.
+- **The fill is read back from the chain, never taken from the quote.** After
+  Jupiter reports the swap confirmed, the app reads the confirmed transaction
+  from the node, up to fifteen times a second apart, and the Journal gets the
+  size that really arrived and the dollars that really left. If the node has
+  not shown the transaction after those tries, the answer says sent with no
+  fill read yet, and the fills sweep below records it once the node has it.
+- **Nothing retries.** A swap sent twice could be a swap made twice. Jupiter
+  busy, a timeout, or a refused execute is one answer and the level is left
+  to its next pass.
+- **The signature is the order id.** A swap has no order behind it, so the
+  chain's transaction signature is what the Journal row and the fill both
+  carry.
+- **A stop or a take profit is a Sell placed at that price.** The chain holds
+  no protective order, so the stop and target boxes are not on a Solana order
+  window, the position row has no stop-and-target button, and an order that
+  arrives at the engine carrying either says so in the Journal as protection
+  not placed. Placing the sell smart orders automatically from a stop box is
+  not built; today the Sell is placed by hand at the level.
+- **Cancel and move refuse in plain words.** Nothing rests, so there is
+  nothing to cancel or drag. The watched level itself is cancelled the way
+  every watched level is, inside this app.
+
+## Fills come off the chain
+
+Solana has no fills endpoint. The record is the chain itself, so the fills
+reader reads it.
+
+- **One listing call a sweep** asks the node for the wallet's latest fifty
+  transactions with the time of each. Those newer than the sweep's start,
+  and not already read, are fetched one at a time and read as fills, at most
+  ten new ones a sweep, because the public node rations by address.
+- **What counts as a fill:** this wallet's USDC moved one way and exactly
+  one other coin moved the other way. A deposit moves one coin and no USDC; a
+  swap of SOL for some other coin moves two coins and no USDC. Neither is a
+  fill, because neither is a buy or sell the app prices in dollars. The saved
+  fixture holds one of each.
+- **SOL is read from the wallet's own balance** with the fee it paid added
+  back, and only when no token moved, because buying any other coin also
+  costs a little SOL in fees and the rent of a fresh token account. Wrapped
+  SOL the wallet keeps counts as SOL.
+- **The fill's price is dollars moved divided by coins moved.** The saved
+  fixture is a real buy of 4 Sep 2026: $0.20 of USDC for 0.001962107 SOL,
+  which is $101.93 a SOL.
+- **The fee** is the transaction fee in SOL times the last known SOL price,
+  and zero when Jupiter's market maker paid it (a "gasless" route). Nothing
+  on the chain states what a sale made, so every fill's profit reads as not
+  stated, the same rule as KuCoin's.
+- **A sale of a coin that was sent in, never bought here, is a fill but not
+  a round trip.** The Journal pairs a sell with the buy that opened it; with
+  no buy on record the sell stands alone in the fills and the trades list
+  starts at the next whole trade, the same as every other venue.
+- **Signing trusts Jupiter's transaction.** The app signs the transaction
+  Jupiter built without reading its instructions, which is how every Jupiter
+  client works. The protection is the wallet rule: keep in this wallet only
+  what you mean to trade.
+- **A transaction once read is remembered**, fill or not, up to two thousand
+  of them, so a sweep costs the listing call and nothing else once the wallet
+  is caught up.
+
+## The first real swaps
+
+Nothing here yet. The first $10 buy and the first $10 sell are Tyler's to
+place with the switch on; their signatures go here when they are.
 
 ## The market list
 
@@ -352,11 +479,20 @@ than switching Solana on.
   wallet's chain answers of 4 Sep 2026, trimmed to ten accounts, and
   Jupiter's prices for them the same minute.
 - `src/server/protocols/solana/markets.ts` — the market list, the lookup,
-  the engine's prices, and the chart's honest refusal until it is built.
+  the engine's prices, each listed coin's decimals, and the empty candle
+  answer.
+- `src/server/protocols/solana/orders.ts` — the quote, the swap, the sell
+  cap, the refusals, the confirmed-transaction read and the fills reader.
+- `src/server/protocols/solana/swap.fixture.json` — Jupiter's real answer to
+  "buy $10 of SOL" and two real confirmed transactions, all of 4 Sep 2026.
 - `src/server/protocols/solana/jupiter.fixture.json` — Jupiter's real
   answers of 3 Sep 2026, trimmed to the records the tests need.
 - `src/server/protocols/solana/base58.ts` — the alphabet Solana writes keys
   in, thirty lines rather than a package.
 - `src/lib/api/trade/protocols.ts` — what the browser knows: the capability
-  flags (markets and accounts on, orders off) and the Add wallet window's
-  labels and help.
+  flags (markets, accounts and orders on, and `ordersAreSwaps`, which is what
+  the order window reads to show the quote and drop the resting shape) and
+  the Add wallet window's labels and help.
+- `src/lib/api/trade/live.ts` — `loadSwapQuote`, the door the order window
+  asks the quote through, and the rule that a swap venue's plain order is
+  always watched.

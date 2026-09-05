@@ -244,9 +244,26 @@ export function lastKnownSolanaPrices(): ReadonlyMap<string, number> {
   return lastGoodPrices
 }
 
+/**
+ * Each listed coin's decimals, kept beside the prices for the same reason:
+ * a swap's amount is written in the coin's smallest unit, and the list
+ * already carries how many decimals that is (`sizeDecimals`), so a sell of
+ * a listed coin costs no chain read to size.
+ */
+let lastGoodDecimals: ReadonlyMap<string, number> = new Map()
+
+export function lastKnownSolanaDecimals(): ReadonlyMap<string, number> {
+  return lastGoodDecimals
+}
+
 function rememberCatalog(catalog: MarketCatalog): void {
   lastGood = catalog
   lastGoodPrices = new Map(catalog.rows.map((row) => [row.marketId, row.price]))
+  lastGoodDecimals = new Map(
+    catalog.rows.flatMap((row) =>
+      row.sizeDecimals === null ? [] : [[row.marketId, row.sizeDecimals]]
+    )
+  )
 }
 
 /**
@@ -315,17 +332,20 @@ async function fetchPricePage(
   }
   const held = pricePages.get(key)
   if (held && now - held.at < PRICES_HELD_MS) return held.answer
-  const load = jupiterGet("/price/v3", { ids: ids.join(",") }, { priority })
-    .then((answer) => {
-      const parsed = priceAnswerSchema.safeParse(answer)
-      const prices = new Map<string, number>()
-      if (!parsed.success) return prices
-      for (const [mint, row] of Object.entries(parsed.data)) {
-        const price = row?.usdPrice ?? null
-        if (price !== null && price > 0) prices.set(mint, price)
-      }
-      return prices
-    })
+  const load = jupiterGet(
+    "/price/v3",
+    { ids: ids.join(",") },
+    { priority }
+  ).then((answer) => {
+    const parsed = priceAnswerSchema.safeParse(answer)
+    const prices = new Map<string, number>()
+    if (!parsed.success) return prices
+    for (const [mint, row] of Object.entries(parsed.data)) {
+      const price = row?.usdPrice ?? null
+      if (price !== null && price > 0) prices.set(mint, price)
+    }
+    return prices
+  })
   // `rememberPromise` forgets a rejected answer itself, and it is the only
   // thing that can: it compares against the entry it stored, which does not
   // exist until the line below runs.
@@ -372,5 +392,6 @@ export async function solanaHasNoCandles(): Promise<CandleBar[]> {
 export function clearSolanaMarketState(): void {
   lastGood = null
   lastGoodPrices = new Map()
+  lastGoodDecimals = new Map()
   pricePages.clear()
 }

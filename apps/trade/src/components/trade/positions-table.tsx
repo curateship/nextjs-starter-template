@@ -522,53 +522,56 @@ function PositionRow({
         data-column="actions"
         className="px-3 py-2 text-left whitespace-nowrap"
       >
-        {/* An owned coin's venue takes no orders yet, so nothing here could
-            act on it. No buttons beats buttons that are refused. */}
-        {position.owned ? null : (
-          <span className="flex items-center gap-0.5">
-            {/* Turning a real position around in one go is not built yet, so
+        {/* An owned coin is bought and sold outright: it can be added to and
+            sold, and nothing else here applies to it. There is no short to
+            turn it into, no leverage or margin behind it, and no stop or
+            target the chain could hold, so those buttons are not offered
+            rather than offered and refused. */}
+        <span className="flex items-center gap-0.5">
+          {/* Turning a real position around in one go is not built yet, so
               the button is not offered rather than offered and refused. */}
-            {position.live ? null : (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={busy}
-                aria-label={`Turn the ${marketSymbol(position.marketKey)} position around`}
-                onClick={() => onFlip(position)}
-              >
-                <ArrowLeftRightIcon className="size-4" />
-              </Button>
-            )}
-            {/* Buying more of what this row holds. It charts the coin, switches
-              to the row's wallet and opens the order window at today's price —
-              the five steps that used to stand between a dip and $250 more, and
-              the wallet step is where the mistake went to another wallet. */}
+          {position.live || position.owned ? null : (
             <Button
               type="button"
               size="icon-sm"
               variant="ghost"
               disabled={busy}
-              aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
-              onClick={() => onAdd(position)}
+              aria-label={`Turn the ${marketSymbol(position.marketKey)} position around`}
+              onClick={() => onFlip(position)}
             >
-              <PlusIcon className="size-4" />
+              <ArrowLeftRightIcon className="size-4" />
             </Button>
-            {/* Leverage and the cash behind the position. Only where the
+          )}
+          {/* Buying more of what this row holds. It charts the coin, switches
+              to the row's wallet and opens the order window at today's price —
+              the five steps that used to stand between a dip and $250 more, and
+              the wallet step is where the mistake went to another wallet. */}
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={busy}
+            aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
+            onClick={() => onAdd(position)}
+          >
+            <PlusIcon className="size-4" />
+          </Button>
+          {/* Leverage and the cash behind the position. Only where the
               exchange really allows one of the two, so a button is never
               offered and then refused. */}
-            {onMargin ? (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={busy}
-                aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
-                onClick={() => onMargin(position)}
-              >
-                <GaugeIcon className="size-4" />
-              </Button>
-            ) : null}
+          {onMargin && !position.owned ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
+              onClick={() => onMargin(position)}
+            >
+              <GaugeIcon className="size-4" />
+            </Button>
+          ) : null}
+          {position.owned ? null : (
             <Button
               type="button"
               size="icon-sm"
@@ -578,18 +581,22 @@ function PositionRow({
             >
               <SettingsIcon className="size-4" />
             </Button>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`Close the ${marketSymbol(position.marketKey)} position`}
-              onClick={() => onClose(position)}
-            >
-              <Trash2Icon className="size-4" />
-            </Button>
-          </span>
-        )}
+          )}
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={busy}
+            aria-label={
+              position.owned
+                ? `Sell all the ${marketSymbol(position.marketKey)} this wallet holds`
+                : `Close the ${marketSymbol(position.marketKey)} position`
+            }
+            onClick={() => onClose(position)}
+          >
+            <Trash2Icon className="size-4" />
+          </Button>
+        </span>
       </td>
     </TableRow>
   )
@@ -1214,7 +1221,7 @@ export function TradesTable({
                   said "anyway". Kept on the row so a run of these can be read
                   against how the trades ended. */}
               {row.trade.overrode && row.trade.overrode.length > 0 ? (
-                <span className="mt-1 block text-xs text-muted-foreground whitespace-nowrap">
+                <span className="mt-1 block text-xs whitespace-nowrap text-muted-foreground">
                   {overrodeNote(row.trade.overrode)}
                 </span>
               ) : null}
@@ -1309,7 +1316,7 @@ export function TradesTable({
                     ? "Open, history incomplete"
                     : "History incomplete"}
                 </TradeBadge>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {row.history.fills.length.toLocaleString()} saved{" "}
                   {row.history.fills.length === 1 ? "fill" : "fills"}
                 </span>
