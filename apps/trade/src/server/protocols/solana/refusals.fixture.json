@@ -1,0 +1,96 @@
+{
+  "_about": "Real answers, saved so the refusals are tested on what Jupiter says rather than what a test imagined. 'measured' ones were fetched on 5 Sep 2026 with curl against the live hosts and cost nothing; 'documented' ones are copied from Jupiter's Ultra API response reference (developers.jup.ag/docs/ultra/response).",
+  "badKey": {
+    "source": "measured, api.jup.ag with x-api-key: not-a-real-key",
+    "status": 401,
+    "body": { "code": 401, "message": "Unauthorized" }
+  },
+  "unknownMint": {
+    "source": "measured, lite-api.jup.ag /ultra/v1/order for a mint that does not exist",
+    "status": 500,
+    "body": { "error": "Something unexpected occurred" }
+  },
+  "emptyWalletOrder": {
+    "source": "measured, lite-api.jup.ag /ultra/v1/order to buy $10 of SOL for a wallet holding nothing, trimmed to the fields read; the requestId is a stand-in for the real one",
+    "status": 200,
+    "body": {
+      "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "outputMint": "So11111111111111111111111111111111111111112",
+      "inAmount": "10000000",
+      "outAmount": "98092782",
+      "priceImpactPct": "-0.0002052309749636278",
+      "routePlan": [{ "swapInfo": { "label": "JupiterZ" } }],
+      "transaction": "",
+      "gasless": true,
+      "requestId": "3a0b2f0c-2f2e-4f6a-9a1e-0c0c0c0c0c0c"
+    }
+  },
+  "executeGarbage": {
+    "source": "measured, lite-api.jup.ag /ultra/v1/execute with a transaction that is not a transaction",
+    "status": 400,
+    "body": { "code": -2, "error": "Failed to decode signed transaction" }
+  },
+  "orderNoFunds": {
+    "source": "documented, /order errorCode 1; also seen live on 4 Sep 2026 as errorMessage 'Insufficient funds' on a JUP quote for the empty test wallet",
+    "status": 200,
+    "body": { "transaction": "", "errorCode": 1, "errorMessage": "Insufficient funds" }
+  },
+  "orderTopUp": {
+    "source": "documented, /order errorCode 2",
+    "status": 200,
+    "body": { "transaction": "", "errorCode": 2, "errorMessage": "Top up 0.01 SOL for gas" }
+  },
+  "orderGaslessMinimum": {
+    "source": "documented, /order errorCode 3",
+    "status": 200,
+    "body": { "transaction": "", "errorCode": 3, "errorMessage": "Minimum 0.05 for gasless" }
+  },
+  "orderNoQuotes": {
+    "source": "documented, /order 400",
+    "status": 400,
+    "body": { "error": "Failed to get quotes" }
+  },
+  "executeOrderNotFound": {
+    "source": "documented, /execute code -1: the order went stale before it was sent",
+    "status": 400,
+    "body": { "code": -1, "error": "Order not found, it might have expired" }
+  },
+  "executeExpired": {
+    "source": "documented, /execute code -1005: never reached the network",
+    "status": 400,
+    "body": {
+      "status": "Failed",
+      "slot": "0",
+      "signature": "transaction-signature",
+      "code": -1005,
+      "error": "Transaction expired"
+    }
+  },
+  "executeSlippage": {
+    "source": "documented, /execute code 6001: landed on the chain and failed there",
+    "status": 400,
+    "body": {
+      "status": "Failed",
+      "signature": "5UfDuX7hXbTiKFJqS1MzGsNpbXTzMKJe2bZP1zrd7DnFBSChKvF2FVDNAuqz7SJpaHXTB9E5DP6tMjfZmVDMJRs",
+      "slot": "368661931",
+      "code": 6001,
+      "error": "Slippage tolerance exceeded"
+    }
+  },
+  "executeRfqInternal": {
+    "source": "documented, /execute code -2005: Jupiter's own market maker fell over",
+    "status": 400,
+    "body": { "status": "Failed", "slot": "0", "code": -2005, "error": "Internal error" }
+  },
+  "executeProgramFailed": {
+    "source": "made up from the documented shape: a program error the app has no name for, on a transaction that landed",
+    "status": 400,
+    "body": {
+      "status": "Failed",
+      "signature": "2vqMadeUpSignatureForTheChainFailedCaseXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "slot": "368661999",
+      "code": 6025,
+      "error": "InvalidTokenAccount: secret-looking text 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+    }
+  }
+}

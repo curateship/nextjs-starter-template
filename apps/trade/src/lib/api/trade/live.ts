@@ -634,11 +634,16 @@ export function getLiveErrorMessage(error: unknown): string {
         : ""
   const auth = describeAuthError(message)
   if (auth) return auth
-  const busy = message.match(/EXCHANGE_BUSY(?::(spent .+))?$/s)
+  const busy = message.match(/EXCHANGE_BUSY(?::(.+))?$/s)
   if (busy) {
-    return busy[1]
-      ? `The exchange could not answer because Trade had ${busy[1].trim()}. Wait for the minute to roll over, then close again.`
-      : "The exchange could not answer the close right now. Wait a moment, then close again."
+    const detail = busy[1]?.trim() ?? ""
+    // A venue that wrote the whole sentence (Solana's refusals do) is
+    // printed as written; the older "spent 3 of 5" figure keeps its frame.
+    if (detail.startsWith("spent ")) {
+      return `The exchange could not answer because Trade had ${detail}. Wait for the minute to roll over, then close again.`
+    }
+    if (/^[A-Z]/.test(detail) && /[.!]$/.test(detail)) return detail
+    return "The exchange could not answer the close right now. Wait a moment, then close again."
   }
   const targetTotal = message.match(/LIVE_TAKE_PROFIT_TOTAL:([^:]+):([^:]+)/)
   if (targetTotal) {

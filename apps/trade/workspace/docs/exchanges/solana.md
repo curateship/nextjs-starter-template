@@ -181,8 +181,10 @@ instant's price or it does not fill at all. The code is
   wallet and the real-money switch off: the window read Buy, "Swap now at the
   current price", "Worst fill allowed %" at 0.5, and Jupiter answered a real
   quote for $10 (46.147 JUP at $0.2167 through the OKX DEX Router) followed
-  by its own refusal, "Insufficient funds", because the wallet holds nothing.
-  No console errors and no failed requests.
+  by its refusal because the wallet holds nothing. On 4 Sep that refusal
+  was Jupiter's own words, "Insufficient funds"; since 5 Sep it is the app's
+  sentence (see "When Solana says no"). No console errors and no failed
+  requests.
 - **The cap on a bad fill.** "Worst fill allowed %" on the order window,
   half a percent unless changed, remembered with the window's other settings
   in the account's trading preferences and read by the engine when a watched
@@ -190,10 +192,11 @@ instant's price or it does not fill at all. The code is
   fill worse fails on the chain and moves nothing. A cap over 50, or nothing
   usable in the box, reads as the default.
 - **Refused before signing, so nothing leaves the wallet**, when Jupiter
-  cannot build the swap (its own words are shown), when the swap would move
-  the price by more than the cap (a thin coin), or when Jupiter's quoted
-  price is worse than the order's price by more than the cap. A buy at $100
-  with a 0.5% cap allows a quote up to $100.50 and refuses $101.
+  cannot build the swap (said in the app's words, see "When Solana says
+  no"), when the swap would move the price by more than the cap (a thin
+  coin), or when Jupiter's quoted price is worse than the order's price by
+  more than the cap. A buy at $100 with a 0.5% cap allows a quote up to
+  $100.50 and refuses $101.
 - **The quote before the order.** On a Solana market the order window asks
   Jupiter what it would do with the typed size, about a second after the
   typing stops, and prints it: "Jupiter: 0.098 SOL for $10.00 at $101.88,
@@ -218,9 +221,12 @@ instant's price or it does not fill at all. The code is
   size that really arrived and the dollars that really left. If the node has
   not shown the transaction after those tries, the answer says sent with no
   fill read yet, and the fills sweep below records it once the node has it.
-- **Nothing retries.** A swap sent twice could be a swap made twice. Jupiter
-  busy, a timeout, or a refused execute is one answer and the level is left
-  to its next pass.
+- **Nothing retries, with one exception.** A swap sent twice could be a swap
+  made twice. Jupiter busy, a timeout, or a refused execute is one answer
+  and the level is left to its next pass. The exception is a swap Jupiter
+  says expired before it was sent (its codes -1 and -1005, which it
+  documents as never reaching the network): the app asks for one fresh
+  swap and sends that, and if the fresh one expires too it says so.
 - **The signature is the order id.** A swap has no order behind it, so the
   chain's transaction signature is what the Journal row and the fill both
   carry.
@@ -233,6 +239,80 @@ instant's price or it does not fill at all. The code is
 - **Cancel and move refuse in plain words.** Nothing rests, so there is
   nothing to cancel or drag. The watched level itself is cancelled the way
   every watched level is, inside this app.
+
+## When Solana says no
+
+Every way Jupiter, the node or the chain can refuse a swap is turned into one
+sentence that says what to do next. The code is
+`src/server/protocols/solana/refusals.ts`, and the rule is Aster's: the known
+refusals get a fixed sentence, and the text of an unknown one is thrown away.
+Jupiter's words, the node's words and the chain's program errors never reach a
+screen, the Journal or the app log. The one thing kept from outside is a
+figure Jupiter states (how much SOL to top up) and the chain's signature.
+
+- **Where the sentence shows.** The quote line in the order window (before
+  anything is placed), the toast when a placed order is refused, the Journal
+  row marked refused, and the reason beside a watched level the engine paused.
+  All four already printed the shared refusal shape, so no screen changed.
+- **What each refusal says.** The wording, in short:
+  - Jupiter rationing (a 429 that came back after the app waited a second and
+    asked once more): Jupiter is rationing requests, the free key allows 60
+    calls a minute, wait for the minute to roll over. When the app's own
+    budget said no before asking, the sentence carries the count, "spent 40
+    of its 40 Jupiter calls this minute".
+  - A missing or bad key (Jupiter answered 401 or 403): the key in
+    `TRADE_JUPITER_API_KEY` was not accepted, get a free one at portal.jup.ag
+    or take the line out to use the keyless host, then restart the app.
+  - Price moved past the cap (the chain's program error 6001, on a
+    transaction that landed and failed): nothing was bought or sold and the
+    wallet is as it was, try again or raise "Worst fill allowed %". The
+    signature is named so it can be looked up on solscan.io.
+  - No SOL for the fee (Jupiter's order code 2, "Top up 0.01 SOL for gas"):
+    send at least that much SOL to the wallet address on the wallet card.
+  - Not enough USDC for a buy, or not enough of the coin for a sell
+    (Jupiter's order code 1, or an order with no transaction and no code,
+    which is what the free host answers for a wallet holding nothing): send
+    USDC to the wallet address, or lower the size. On a sell, tick "Sell
+    only what I hold".
+  - The wallet could not cover the swap plus its fee on the chain (program
+    error 6024): check the USDC and SOL on the wallet card. Signature named.
+  - Expired before it reached the chain (Jupiter's -1 or -1005, after the one
+    fresh swap also expired): nothing moved, try the order again.
+  - No route (Jupiter's code 3 "under the fee-free minimum", a 400 on the
+    order call, or words about a route or quotes): Jupiter found no pool with
+    enough money in it to swap this coin at this size, try a smaller size or
+    a coin that trades more.
+  - The chain confirmed the swap as failed for any other program error:
+    nothing moved, and the signature is named so it can be looked up.
+  - Anything else, Jupiter's 500 "Something unexpected occurred" and the
+    node's own errors included: "Solana refused the trade, and nothing
+    moved. Try it again in a moment." plus the signature when there is one.
+- **Why "nothing moved" is always true.** A Solana transaction is one step:
+  the chain does all of it or none of it. A swap that fails on the chain, for
+  slippage or anything else, leaves the wallet as it was, less nothing.
+- **How each one reaches the screen.** A refusal that moved nothing is thrown
+  as `LIVE_ORDER_REFUSED:` plus the sentence, which the order form prints as
+  written, the Journal stores without the code, and the engine counts towards
+  pausing a watched level. A rate limit is thrown as `EXCHANGE_BUSY:` plus the
+  sentence, which the engine holds off from rather than counting, and a flow
+  files under "the exchange is asking us to slow down". Every other refusal
+  reads, on a flow, as "something refused it that this app does not have
+  words for", the same as every venue's written sentences do; the Journal
+  row under it carries the words.
+- **Proved on real answers.** `refusals.fixture.json` holds the answers the
+  tests run on: a bad key (401 from the keyed host), a mint that does not
+  exist (500), a wallet holding nothing (an order with an empty transaction
+  and no code), a broken execute (-2), all fetched on 5 Sep 2026 for free,
+  plus the order and execute bodies Jupiter's response reference documents
+  (codes 1, 2, 3, -1, -1005, 6001, -2005) and one made-up program error
+  carrying secret-looking text, to prove the text goes nowhere.
+- **Checked in the running app on 5 Sep 2026** on JUP with the empty test
+  wallet: the order window's quote line read "The wallet does not hold enough
+  USDC for this buy, so nothing was sent. Send USDC to the wallet address on
+  the wallet card, or lower the size." for $10 and $200, and "The wallet has
+  no SOL to pay the network fee…" for a size no pool could fill. No console
+  errors and no failed requests. The bad-key case needs the key changed in
+  `.env` and the server restarted, so it is proved by the test alone.
 
 ## Fills come off the chain
 
@@ -482,7 +562,10 @@ than switching Solana on.
   the engine's prices, each listed coin's decimals, and the empty candle
   answer.
 - `src/server/protocols/solana/orders.ts` — the quote, the swap, the sell
-  cap, the refusals, the confirmed-transaction read and the fills reader.
+  cap, the confirmed-transaction read and the fills reader.
+- `src/server/protocols/solana/refusals.ts` — every no from Jupiter, the
+  node or the chain as one sentence with a next step; the outside text
+  stops here. `refusals.fixture.json` holds the real answers it is tested on.
 - `src/server/protocols/solana/swap.fixture.json` — Jupiter's real answer to
   "buy $10 of SOL" and two real confirmed transactions, all of 4 Sep 2026.
 - `src/server/protocols/solana/jupiter.fixture.json` — Jupiter's real

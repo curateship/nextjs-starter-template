@@ -226,7 +226,9 @@ export function flowWaitCode(error: unknown): string {
   // A rate limit arrives as the exchange's own words, not as one of ours — an
   // HTTP status and a page of HTML. It is far too common and far too
   // explainable to land in "no words for it", which is where it was going.
-  if (isRateLimit(message)) return "EXCHANGE_BUSY"
+  if (isRateLimit(message) || message.startsWith("EXCHANGE_BUSY:")) {
+    return "EXCHANGE_BUSY"
+  }
   // The exchange's own refusals arrive as its words, not as one of our codes,
   // so the ones worth naming are recognised here. Everything else still falls
   // through to "no words for it" and is written to the log to be named later.

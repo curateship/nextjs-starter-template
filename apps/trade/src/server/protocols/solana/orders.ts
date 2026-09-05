@@ -15,7 +15,6 @@ import {
   orderCredential,
 } from "@/server/protocols/connector-helpers"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
-import { scrubbedMessage } from "@/server/protocols/scrub"
 import {
   fetchSolanaPortfolio,
   SOL_MINT,
@@ -30,6 +29,13 @@ import {
   lastKnownSolanaPrices,
   USDC_MINT,
 } from "@/server/protocols/solana/markets"
+import {
+  explainSolanaError,
+  jupiterExecuteRefusal,
+  jupiterOrderRefusal,
+  solanaRefusalError,
+  solanaRefusalSentence,
+} from "@/server/protocols/solana/refusals"
 import { parseSolanaCredential } from "@/server/protocols/solana/wallet"
 
 /**
@@ -63,7 +69,12 @@ import { parseSolanaCredential } from "@/server/protocols/solana/wallet"
  * - **The fill is read back from the chain**, never taken from the quote.
  *   The confirmed transaction says exactly what left the wallet and what
  *   arrived, and that is the price and size the Journal gets.
- * - **Nothing retries.** A swap sent twice could be a swap made twice.
+ * - **Nothing retries.** A swap sent twice could be a swap made twice. The
+ *   one exception is an order Jupiter says expired before it was sent,
+ *   which is asked for fresh once.
+ * - **Every no is said in the app's words.** `refusals.ts` turns Jupiter's
+ *   codes, the node's errors and the chain's program errors into one
+ *   sentence with a next step, and the outside text goes nowhere.
  */
 
 const USDC_DECIMALS = 6
@@ -153,6 +164,7 @@ const orderAnswerSchema = z.object({
     .optional(),
   transaction: z.string().nullable().optional(),
   requestId: z.string().optional(),
+  errorCode: z.number().optional(),
   errorMessage: z.string().optional(),
   error: z.string().optional(),
 })
@@ -169,8 +181,13 @@ export type SwapOrder = {
   /** The unsigned swap, base64, when Jupiter could build one. */
   transaction: string | null
   requestId: string | null
-  /** Jupiter's own words when it could not build the swap. */
+  /**
+   * Jupiter's own words when it could not build the swap, and its number
+   * for them. Read by `refusals.ts` and never shown: the sentence on the
+   * screen is the app's.
+   */
   error: string | null
+  errorCode: number | null
 }
 
 /** Jupiter's order answer as the figures the app reasons about. */
@@ -205,6 +222,7 @@ export function readSwapOrder(
     transaction: order.transaction ? order.transaction : null,
     requestId: order.requestId ?? null,
     error,
+    errorCode: order.errorCode ?? null,
   }
 }
 
@@ -224,17 +242,20 @@ function money(value: number): string {
  * Why this quote must not be signed, or null when it may be.
  *
  * Three refusals, each before anything is signed: Jupiter could not build
- * the swap; the swap would move the price more than the cap allows (a thin
- * coin); or the quoted price is worse than the order's price by more than
- * the cap. `px` null skips the last, for a close that takes today's price.
+ * the swap (not enough USDC, no SOL for the fee, no pool with enough money,
+ * said in the app's words by `refusals.ts`); the swap would move the price
+ * more than the cap allows (a thin coin); or the quoted price is worse than
+ * the order's price by more than the cap. `px` null skips the last, for a
+ * close that takes today's price.
  */
 export function swapRefusal(
   order: SwapOrder,
   input: { side: "buy" | "sell"; px: number | null; slippage: number }
 ): string | null {
-  if (order.error) return `Jupiter could not build this swap: ${order.error}.`
+  const notBuilt = jupiterOrderRefusal(order, input.side)
+  if (notBuilt) return solanaRefusalSentence(notBuilt.code, notBuilt.detail)
   if (order.transaction === null || order.requestId === null) {
-    return "Jupiter answered without a swap to sign."
+    return solanaRefusalSentence("SOLANA_REFUSED")
   }
   if (!(order.coins > 0) || !(order.usd > 0)) {
     return "Jupiter quoted nothing for this size."
@@ -262,16 +283,6 @@ function assertMainnet(network: NetworkId): void {
   // Jupiter routes the real network only; there is nothing to swap on
   // devnet, which is why the registry lists mainnet alone.
   if (network !== "mainnet") throw new Error("SOLANA_NETWORK_UNSUPPORTED")
-}
-
-function explainJupiter(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
-  const refused = message.match(/^SOLANA_JUPITER_REFUSED:(.*)$/)
-  if (refused) {
-    return new Error(`LIVE_EXCHANGE:Jupiter answered ${refused[1]}.`)
-  }
-  return new Error(`LIVE_EXCHANGE:${scrubbedMessage(error)}`)
 }
 
 /** One `/ultra/v1/order` ask, sized in the coin's smallest unit. */
@@ -310,7 +321,7 @@ async function askJupiter(input: {
       { priority: input.priority }
     )
   } catch (error) {
-    throw explainJupiter(error)
+    throw explainSolanaError(error)
   }
   return {
     order: readSwapOrder(answer, { side: input.side, coinDecimals }),
@@ -374,6 +385,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * How many times a swap is asked for when the one before went stale.
+ *
+ * "Nothing retries" holds for a swap that may have been sent. Jupiter's
+ * -1 and -1005 are the exception it documents: the order expired before
+ * it reached the network, so nothing was sent and a fresh order is a first
+ * try, not a second. One fresh order, then the expiry is reported.
+ */
+const FRESH_ORDERS_AFTER_EXPIRY = 1
+
+/**
  * The one path every swap takes: quote, refuse or not, gate, sign, send,
  * read back. `px` null is a close, which takes today's price.
  */
@@ -392,23 +413,57 @@ async function swap(input: {
 }> {
   const address = input.auth.accountAddress ?? ""
   if (!address) throw new Error("LIVE_WALLET_KEY")
-  const { order } = await askJupiter({
-    ...input,
-    address,
-    priority: "order",
-  })
-  const refusal = swapRefusal(order, {
-    side: input.side,
-    px: input.px,
-    slippage: input.slippage,
-  })
-  if (refusal !== null) throw new Error(`LIVE_ORDER_REFUSED:${refusal}`)
+  for (let fresh = 0; ; fresh += 1) {
+    const { order } = await askJupiter({
+      ...input,
+      address,
+      priority: "order",
+    })
+    const refusal = swapRefusal(order, {
+      side: input.side,
+      px: input.px,
+      slippage: input.slippage,
+    })
+    if (refusal !== null) throw new Error(`LIVE_ORDER_REFUSED:${refusal}`)
 
-  // Between the quote and the signature on purpose: everything above is
-  // free to walk with the switch off, and nothing below may run without it.
-  await assertRealMoneyAllowed(input.network)
+    // Between the quote and the signature on purpose: everything above is
+    // free to walk with the switch off, and nothing below may run without it.
+    await assertRealMoneyAllowed(input.network)
 
-  const keypair = orderCredential(input.auth, parseSolanaCredential)
+    const sent = await signAndSend(input.auth, order)
+    if ("signature" in sent) {
+      const fill = await confirmedSwapFill(
+        input.network,
+        sent.signature,
+        address
+      )
+      if (fill === null) {
+        console.warn(
+          `[solana] swap ${sent.signature} sent but not readable from the node after ${CONFIRM_TRIES} tries; the fills sweep will record it`
+        )
+        return { signature: sent.signature, avgPx: null, filledSz: null }
+      }
+      return { signature: sent.signature, avgPx: fill.px, filledSz: fill.sz }
+    }
+    if (sent.expired && fresh < FRESH_ORDERS_AFTER_EXPIRY) continue
+    throw solanaRefusalError(sent.code, sent.detail)
+  }
+}
+
+/**
+ * Signs Jupiter's transaction with the wallet's key and hands it back to
+ * Jupiter to send. The answer is the chain's signature, or why not, in the
+ * app's words, with whether the order merely went stale (never sent, safe
+ * to ask for again).
+ */
+async function signAndSend(
+  auth: OrderAuth,
+  order: SwapOrder
+): Promise<
+  | { signature: string }
+  | ReturnType<typeof jupiterExecuteRefusal>
+> {
+  const keypair = orderCredential(auth, parseSolanaCredential)
   let transaction: VersionedTransaction
   try {
     transaction = VersionedTransaction.deserialize(
@@ -429,35 +484,25 @@ async function swap(input: {
       requestId: order.requestId!,
     })
   } catch (error) {
-    throw explainJupiter(error)
+    throw explainSolanaError(error)
   }
   const result = executeSchema.safeParse(sent.body)
   const outcome = result.success ? result.data : {}
   if (
-    sent.status >= 400 ||
-    outcome.status !== "Success" ||
-    !outcome.signature
+    sent.status < 400 &&
+    outcome.status === "Success" &&
+    outcome.signature
   ) {
-    // A swap that failed on the chain moved no coins: the whole
-    // transaction is one step and it either happens or it does not.
-    const reason = outcome.error ?? `Jupiter answered ${sent.status}`
-    throw new Error(
-      `LIVE_ORDER_REFUSED:The swap did not go through: ${reason}. A swap that fails moves no coins.`
-    )
+    return { signature: outcome.signature }
   }
-
-  const fill = await confirmedSwapFill(
-    input.network,
-    outcome.signature,
-    address
-  )
-  if (fill === null) {
-    console.warn(
-      `[solana] swap ${outcome.signature} sent but not readable from the node after ${CONFIRM_TRIES} tries; the fills sweep will record it`
-    )
-    return { signature: outcome.signature, avgPx: null, filledSz: null }
-  }
-  return { signature: outcome.signature, avgPx: fill.px, filledSz: fill.sz }
+  // A swap that failed on the chain moved no coins: the whole transaction
+  // is one step and it either happens or it does not. Jupiter's words for
+  // why are read here and go no further.
+  return jupiterExecuteRefusal({
+    code: outcome.code ?? null,
+    error: outcome.error ?? null,
+    signature: outcome.signature || null,
+  })
 }
 
 /**
@@ -476,8 +521,9 @@ async function confirmedSwapFill(
     let answer: unknown
     try {
       answer = await readTransaction(network, signature)
-    } catch (error) {
-      console.warn(`[solana] could not read ${signature}`, error)
+    } catch {
+      // The node's own words go nowhere: the line says which read failed.
+      console.warn(`[solana] could not read ${signature} from the node yet`)
       continue
     }
     if (answer === null) continue

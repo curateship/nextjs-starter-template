@@ -42,7 +42,7 @@ export function smartOrderRefusalLimit(
 export function isSmartOrderRefusal(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   if (
-    message === "EXCHANGE_BUSY" ||
+    message.startsWith("EXCHANGE_BUSY") ||
     message.startsWith("LIVE_NO_ANSWER") ||
     message.startsWith("LIVE_EXCHANGE") ||
     message.startsWith("ASTER_CLOCK") ||

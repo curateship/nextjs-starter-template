@@ -279,8 +279,18 @@ describe("what is refused before signing", () => {
       { error: "Invalid taker" },
       { side: "buy", coinDecimals: 9 }
     )
-    expect(swapRefusal(failed, { side: "buy", px: 100, slippage: 0.005 })).toBe(
-      "Jupiter could not build this swap: Invalid taker."
+    // Jupiter's words are read for their shape and never shown.
+    const said = swapRefusal(failed, { side: "buy", px: 100, slippage: 0.005 })
+    expect(said).toBe(
+      "Solana refused the trade, and nothing moved. Try it again in a moment."
+    )
+    expect(said).not.toContain("Invalid taker")
+    const broke = readSwapOrder(
+      { ...fixture.order, transaction: "", errorCode: 1, errorMessage: "Insufficient funds" },
+      { side: "buy", coinDecimals: 9 }
+    )
+    expect(swapRefusal(broke, { side: "buy", px: 100, slippage: 0.005 })).toContain(
+      "does not hold enough USDC"
     )
   })
 })
@@ -417,18 +427,60 @@ describe("placing a buy", () => {
     expect(executesSent(sent)).toHaveLength(0)
   })
 
-  it("passes on a swap Jupiter reports as failed, with its words", async () => {
+  it("asks for one fresh order when the first expired before it was sent, then says so", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
-    stubNetwork({
+    const sent = stubNetwork({
       order,
       execute: {
         status: 400,
-        body: { status: "Failed", code: -3, error: "Transaction expired" },
+        body: { status: "Failed", code: -1005, error: "Transaction expired" },
       },
     })
     await expect(placeSolanaOrder("mainnet", AUTH, buy)).rejects.toThrow(
-      "The swap did not go through: Transaction expired. A swap that fails moves no coins."
+      "LIVE_ORDER_REFUSED:The swap expired before it reached the chain, so nothing moved. Trade already asked Jupiter for a fresh swap once and that expired too. Try the order again."
     )
+    expect(ordersAsked(sent)).toHaveLength(2)
+    expect(executesSent(sent)).toHaveLength(2)
+  })
+
+  it("says the price moved when the chain refused the cap, with the signature, and sends nothing more", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent = stubNetwork({
+      order,
+      execute: {
+        status: 400,
+        body: {
+          status: "Failed",
+          signature: "5UfDuX7hXbTiKFJqS1MzGsNpbXTzMKJe2bZP1zrd7DnFBSChKvF2FVDNAuqz7SJpaHXTB9E5DP6tMjfZmVDMJRs",
+          slot: "368661931",
+          code: 6001,
+          error: "Slippage tolerance exceeded",
+        },
+      },
+    })
+    const refused = await placeSolanaOrder("mainnet", AUTH, buy).catch(
+      (error: Error) => error.message
+    )
+    expect(refused).toContain("LIVE_ORDER_REFUSED:The price moved past the worst-fill cap")
+    expect(refused).toContain("5UfDuX7hXbTiKFJqS1MzGsNpbXTzMKJe2bZP1zrd7DnFBSChKvF2FVDNAuqz7SJpaHXTB9E5DP6tMjfZmVDMJRs")
+    expect(refused).not.toContain("Slippage tolerance exceeded")
+    expect(executesSent(sent)).toHaveLength(1)
+  })
+
+  it("says where to get a key when Jupiter answers 401, without Jupiter's words", async () => {
+    process.env.TRADE_JUPITER_API_KEY = "not-a-real-key"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ code: 401, message: "Unauthorized" }, { status: 401 })
+      )
+    )
+    const refused = await placeSolanaOrder("mainnet", AUTH, buy).catch(
+      (error: Error) => error.message
+    )
+    expect(refused).toContain("LIVE_ORDER_REFUSED:Jupiter did not accept the API key")
+    expect(refused).toContain("portal.jup.ag")
+    expect(refused).not.toContain("Unauthorized")
   })
 
   it("refuses a resting shape without asking Jupiter", async () => {
@@ -470,7 +522,7 @@ describe("placing a sell", () => {
     const sent = stubNetwork({ rpc: chain, order: { error: "stop here" } })
     await expect(
       placeSolanaOrder("mainnet", AUTH, { ...sell, reduceOnly: true })
-    ).rejects.toThrow("Jupiter could not build this swap: stop here")
+    ).rejects.toThrow("LIVE_ORDER_REFUSED:Solana refused the trade")
     const [asked] = ordersAsked(sent)
     const url = new URL(asked.url)
     expect(url.searchParams.get("inputMint")).toBe(SOL_MINT)

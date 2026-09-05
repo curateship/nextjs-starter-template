@@ -928,7 +928,8 @@ export function nothingStood(error: unknown): boolean {
     message.startsWith("LIVE_LEVERAGE") ||
     message.startsWith("ASTER_") ||
     message === "LIVE_SMART_ORDER_PRICE_MOVED" ||
-    message === "EXCHANGE_BUSY"
+    // Bare, or with the sentence a venue wrote after the colon.
+    message.startsWith("EXCHANGE_BUSY")
   )
 }
 
@@ -1874,7 +1875,7 @@ export async function reconcileLiveLaddersOnce(
                 // than per market, and the next attempt costs no request at
                 // all — so holding this market for a minute on top would only
                 // make the order late once the allowance came back.
-                if (!priceMoved && message !== "EXCHANGE_BUSY") {
+                if (!priceMoved && !message.startsWith("EXCHANGE_BUSY")) {
                   refusalHolds.set(holdKey, Date.now() + REFUSAL_HOLD_MS)
                 }
                 input.undo?.()
