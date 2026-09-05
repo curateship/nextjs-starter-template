@@ -57,20 +57,13 @@ deploy: the old website remains available while the engine changes containers,
 and the engine's lock is briefly free. The refresh now waits for the new engine
 instead of running the previous website build over live grids.
 
-They used to stand in after a minute without an engine. That is what ended
-seven short grids on 3 Sep 2026. Tyler redeployed the engine on its own, and
-in the thirty seconds it was away the Trade Worker container took the lock.
-That container was still the build from before short grids existed, so it
-read each short grid as a buying grid holding a short, ended all seven as
-"stopped", and saved the grids back without their Short setting. Nothing was
-sold, because the stops rest on Hyperliquid, but the grids stopped managing
-their coins. A stand-in that runs old code is worse than no stand-in.
-
-**Deploy Web, Worker and Engine together.** Each Coolify app builds whatever
-`develop` is at the moment its button is pressed, so pressing one leaves the
-other two on older builds. `npm run deploy` presses all three in order, and
-since 4 Sep 2026 a copy built before the newest leader is refused the lock
-whichever button was pressed. `deploying-all-three.md` has both.
+They used to stand in after a minute without an engine. A stand-in that
+runs old code is worse than no stand-in: on 3 and 4 Sep 2026 the stand-in
+that kept taking the lock during engine restarts was the old server at
+5.78.189.158, still running a 24 Aug build against the live database, and
+it ended over thirty short grids. No code on the German box reaches that
+machine; the fix is to delete its Trade apps. `deploying-all-three.md` has
+the whole story and the deploy command.
 
 ## A row written by a newer build is left alone
 
@@ -89,10 +82,10 @@ instead of guessed at. The check lives in `unknownPlanFields` in
 
 The same check runs the other way. A grid saved back by an older build has
 lost its `direction`, and reading it as "long" is how twelve stripped short
-grids kept trading for six minutes on 4 Sep 2026 after the old website was
-gone. A grid with no direction is skipped the same way, with its own console
-line (`missingPlanFields`, same file). `deploying-all-three.md` has the
-whole story.
+grids kept trading for six minutes on 4 Sep 2026 after the old server had
+handed the lock back. A grid with no direction is skipped the same way, with
+its own console line (`missingPlanFields`, same file). `deploying-all-three.md`
+has the whole story.
 
 This protects the next time round, not the last one. The build that did the
 damage on 3 Sep had no such check, and no change made today can reach a

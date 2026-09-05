@@ -1,6 +1,5 @@
 import { Client, Pool } from "pg"
 
-import { buildStamp, describeBuild, type BuildStamp } from "@/lib/build-stamp"
 import { getDatabaseUrl } from "@/server/db"
 
 /**
@@ -47,12 +46,6 @@ export type Leadership = {
   /** True when this process holds the lock and may trade. */
   readonly held: boolean
   /**
-   * Why the lock was handed straight back, when it was: this build is older
-   * than one that has already led. Null when the lock is held or simply
-   * taken by somebody else.
-   */
-  readonly refused?: string | null
-  /**
    * Whether the connection holding the lock has died. The lock died with it —
    * another copy may take it at any moment — so the holder must stop trading
    * the moment this says true, then ask for the lock again from scratch.
@@ -73,107 +66,6 @@ export function nonEngineProcessMayTrade(
   env: Readonly<{ NODE_ENV?: string }> = process.env
 ): boolean {
   return env.NODE_ENV === "development"
-}
-
-/**
- * **The newest build leads, and an older one never takes the lock again.**
- *
- * The website, the shell worker and the engine are three containers rebuilt
- * on three separate buttons. On 3 Sep 2026 and again on 4 Sep a container
- * built weeks earlier took this lock during an engine restart and ran old
- * code over live grids: it read short grids as buying grids, saved plans
- * back without their settings, and bought coins nobody asked for. Telling
- * people to press all three buttons did not stop it happening twice.
- *
- * So the lock remembers the build time of the newest copy that has held it,
- * on the ladders row of `trade_worker_controls`. A copy whose own build is
- * older than that hands the lock back at once, whatever container it is in.
- * A deliberate rollback is a fresh build with a fresh time, so it still
- * leads; only a container left behind is refused.
- *
- * A dev server and a test run carry no stamp. They neither raise the bar nor
- * are held to it, so running the app locally against the live database
- * behaves exactly as before.
- *
- * Answers the refusal to say, or null when this build may lead.
- */
-export function olderThanLastLeader(
-  mine: BuildStamp,
-  lastLeaderBuiltAt: Date | null
-): string | null {
-  if (lastLeaderBuiltAt === null) return null
-  if (lastLeaderBuiltAt.getTime() <= mine.builtAt) return null
-  const newest = describeBuild({
-    builtAt: lastLeaderBuiltAt.getTime(),
-    commit: null,
-  })
-  return `this copy was ${describeBuild(mine)}, and a copy ${newest} has led since. Redeploy this container so it runs the current build.`
-}
-
-/** The one query shape the rule needs, so a pooled client fits as well as a plain one. */
-type Querier = {
-  query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }>
-}
-
-let saidUnmigrated = false
-let lastRefusalSaid: string | null = null
-
-/**
- * Apply the rule above on the connection that just took the lock, and record
- * this build as the newest leader when it is allowed through.
- *
- * Runs while the lock is held, so two copies cannot both read "nobody yet"
- * and both write themselves in. A database that has not had migration 0161
- * yet cannot answer, and is allowed through with one warning: the engine is
- * deployed before the website that migrates, and a lock nobody could take
- * would stop every wallet trading.
- */
-async function buildAllowedToLead(client: Querier): Promise<string | null> {
-  const mine = buildStamp()
-  if (!mine) return null
-  let recorded: Date | null
-  try {
-    const answer = await client.query(
-      "select leader_build_at from trade_worker_controls where kind = 'ladders'",
-      []
-    )
-    const row = answer.rows[0] as { leader_build_at: Date | null } | undefined
-    recorded = row?.leader_build_at ?? null
-  } catch (error) {
-    const code = (error as { code?: string }).code
-    // 42703: no such column. 42P01: no such table. Both mean "not migrated".
-    if (code !== "42703" && code !== "42P01") throw error
-    if (!saidUnmigrated) {
-      saidUnmigrated = true
-      console.warn(
-        "Trade engine: the database has no leader_build_at column yet (migration 0161), so the newest-build rule is not applied until the website has migrated it."
-      )
-    }
-    return null
-  }
-  const refusal = olderThanLastLeader(mine, recorded)
-  if (refusal) {
-    if (lastRefusalSaid !== refusal) {
-      lastRefusalSaid = refusal
-      console.error(`Trade engine: standing back — ${refusal}`)
-    }
-    return refusal
-  }
-  await client.query(
-    `insert into trade_worker_controls (kind, leader_build_at, leader_build)
-       values ('ladders', $1, $2)
-     on conflict (kind) do update
-       set leader_build_at = excluded.leader_build_at,
-           leader_build = excluded.leader_build
-     where trade_worker_controls.leader_build_at is null
-        or trade_worker_controls.leader_build_at <= excluded.leader_build_at`,
-    [new Date(mine.builtAt), mine.commit]
-  )
-  return null
-}
-
-function refusedLeadership(refused: string): Leadership {
-  return { held: false, refused, lost: () => true, release: async () => {} }
 }
 
 function heldLeadership(client: Client): Leadership {
@@ -239,13 +131,6 @@ export async function tryBecomeLeader(): Promise<Leadership> {
       // lock, and a lock this process does not hold is as gone as gone gets.
       return { held: false, lost: () => true, release: async () => {} }
     }
-    const refused = await buildAllowedToLead(client)
-    if (refused) {
-      await client.query("select pg_advisory_unlock($1)", [TRADE_ENGINE_LOCK])
-      await client.end()
-      return refusedLeadership(refused)
-    }
-
     return heldLeadership(client)
   } catch (error) {
     await client.end().catch(() => {})
@@ -298,20 +183,6 @@ export async function tryBecomeLeaderForOnePass(): Promise<Leadership> {
   if (!held) {
     client.release()
     return { held: false, lost: () => true, release: async () => {} }
-  }
-  let refused: string | null = null
-  try {
-    refused = await buildAllowedToLead(client)
-    if (refused) {
-      await client.query("select pg_advisory_unlock($1)", [TRADE_ENGINE_LOCK])
-    }
-  } catch (error) {
-    client.release(true)
-    throw error
-  }
-  if (refused) {
-    client.release()
-    return refusedLeadership(refused)
   }
   let lost = false
   // A line that drops mid-pass took the lock with it. Listened for the same
@@ -387,12 +258,6 @@ export async function waitToBecomeLeader(): Promise<Leadership> {
   await client.connect()
   try {
     await client.query("select pg_advisory_lock($1)", [TRADE_ENGINE_LOCK])
-    const refused = await buildAllowedToLead(client)
-    if (refused) {
-      await client.query("select pg_advisory_unlock($1)", [TRADE_ENGINE_LOCK])
-      await client.end()
-      return refusedLeadership(refused)
-    }
     return heldLeadership(client)
   } catch (error) {
     await client.end().catch(() => {})

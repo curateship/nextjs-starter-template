@@ -59,21 +59,11 @@ const DATABASE_RETRY_MS = 5_000
  */
 const HEARTBEAT_EVERY_MS = 5_000
 
-/**
- * How long a copy that was refused the lock waits before asking again. It
- * was refused because a newer build has led, so the answer will not change
- * until this container is redeployed; asking every half minute only keeps
- * the heartbeat honest about why it is standing back.
- */
-const REFUSED_RETRY_MS = 30_000
-
 const WORKER_ID = randomUUID()
 const STARTED_AT = Date.now()
 const BUILD = buildStamp()
 
 let leadership: Leadership | null = null
-/** Why this copy is standing back from the lock, when it is. */
-let standingBack: string | null = null
 let loop: ReturnType<typeof setInterval> | null = null
 let beat: ReturnType<typeof setInterval> | null = null
 const passesInFlight = new Set<Promise<void>>()
@@ -94,12 +84,7 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
     role,
     meta: {
       host: `${hostname()} (its own program)`,
-      activity:
-        role === "leader"
-          ? lastPass.activity
-          : standingBack
-            ? `Standing back: ${standingBack}`
-            : "Waiting for the lock",
+      activity: role === "leader" ? lastPass.activity : "Waiting for the lock",
       build: BUILD,
       error: lastPass.error,
       priceFeed:
@@ -122,19 +107,12 @@ async function becomeLeaderOrWait(): Promise<void> {
       return null
     })
     if (taken?.held) {
-      standingBack = null
       leadership = taken
       return
     }
-    // Refused is different from failed. The blocking lock call waits its
-    // turn, so what reaches here is either a failed connection or a refusal:
-    // a newer build has led since this one was built, and the answer will
-    // not change until a redeploy replaces this container. Say so on the
-    // heartbeat and keep asking, slowly.
-    standingBack = taken?.refused ?? null
-    await new Promise((done) =>
-      setTimeout(done, standingBack ? REFUSED_RETRY_MS : DATABASE_RETRY_MS)
-    )
+    // The blocking lock call waits its turn, so what reaches here is a
+    // failed connection. Keep asking.
+    await new Promise((done) => setTimeout(done, DATABASE_RETRY_MS))
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * Deploy Trade: web, then worker, then engine, one after the other.
+ * Deploy Trade: engine, then worker, then web, one after the other.
  *
  *   npm run deploy            all three, in that order
  *   npm run deploy -- --force rebuild without Docker's cache
@@ -7,19 +7,9 @@
  *
  * Why one command: Trade runs as three Coolify apps, and each one builds
  * whatever `develop` is at the moment its own button is pressed. Pressing one
- * button leaves the other two on older builds. On 3 Sep and 4 Sep 2026 the
- * engine was redeployed alone, the website and the shell worker were still a
- * build from 24 Aug, and in the seconds the engine was away one of them took
- * the trading lock and ran old code over live grids. This script presses all
- * three buttons and waits for each build to finish before starting the next.
- *
- * Why the engine goes LAST: the moment the engine restarts, its lock is free
- * for a few seconds, and whatever website or worker is alive at that moment
- * may ask for it. On 4 Sep 2026 the engine went first, the old website was
- * still up, took the lock, and stripped twelve short grids in the five
- * minutes before the new website replaced it. Rebuilding the website and the
- * worker first means that by the time the engine restarts, nothing old is
- * left to stand in. The engine is still the newest build, so it still leads.
+ * button leaves the other two on older builds, and the three then disagree
+ * about what a saved plan means. This script presses all three buttons and
+ * waits for each build to finish before starting the next.
  *
  * What it needs, in `apps/trade/.env.live` (gitignored) or the environment:
  *
@@ -45,11 +35,8 @@ const DEFAULTS = {
   COOLIFY_TRADE_WEB: "mhp3m2mhz1mwrqve5dmtr4xh",
 }
 
-/**
- * The order matters: the engine LAST, so nothing old is alive when its lock
- * is briefly free, and it is still the newest build, so it leads.
- */
-const ORDER = ["web", "worker", "engine"]
+/** The engine first, so a new website never writes what an old engine misreads. */
+const ORDER = ["engine", "worker", "web"]
 
 const POLL_EVERY_MS = 5_000
 const GIVE_UP_AFTER_MS = 20 * 60_000

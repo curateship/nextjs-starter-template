@@ -36,9 +36,10 @@ to resting.
 The web app and the trading engine must run this behavior from the same commit.
 The web app records whether price must rise or fall into the level. An older
 engine ignores that new field and treats the row as an older watch, so a Short
-below the market becomes a market sell. Since 4 Sep 2026 an engine that finds a
-field it does not know leaves the row alone, and all three containers deploy
-together with the engine last (`../engine/deploying-all-three.md`).
+below the market becomes a market sell. Deploy the trading engine first and the
+web app second, all three containers from the same commit
+(`../engine/deploying-all-three.md`). An engine that finds a field it does not
+know leaves the row alone.
 
 The watch keeps the chosen leverage while it waits. Its settings window can
 change that leverage until the watch starts taking. DCA ladders start at 1×

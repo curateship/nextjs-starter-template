@@ -3,14 +3,11 @@
  *
  * The build writes it in as a constant: `vite.config.ts` for the website and
  * `scripts/build-worker.mjs` for the engine and the shell worker. A dev
- * server and a test run have no stamp, so they answer null and take no part
- * in the "newest build leads" rule in `src/server/trade/leadership.ts`.
+ * server and a test run have no stamp and answer null.
  *
- * Why it exists: the website, the shell worker and the engine are three
- * containers that are rebuilt separately. On 3 Sep and again on 4 Sep 2026 a
- * container built weeks earlier took the trading lock while the engine was
- * restarting and ran old code over live grids. A stamp is how a build knows
- * it is the old one.
+ * Why it exists: the engine says its build on every heartbeat, and the
+ * Workers card shows it, so a container left on an old build is found by
+ * reading the card instead of guessed at.
  */
 
 declare const __TRADE_BUILD_STAMP__: string | undefined

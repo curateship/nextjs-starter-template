@@ -67,12 +67,11 @@ add up to.
   app saves which way price must move, and the engine reads that field. An old
   engine does not know the field and applies the former rule, which turns a
   Short below the market into an immediate market sell. Deploy all three
-  containers from the same commit with `npm run deploy`: web, worker, then the
-  engine last, because an old website alive while the engine restarts takes
-  the lock and runs old code (4 Sep 2026). An engine that finds a field it
-  does not know leaves the row alone, so the minutes the new web spends in
-  front of the old engine are safe. `../engine/deploying-all-three.md` has
-  the order and why.
+  containers from the same commit with `npm run deploy`, engine first. Never
+  put the new web app in front of an old engine, and never leave a second
+  server pointed at the live database: the old server at 5.78.189.158 did
+  exactly that through 3 and 4 Sep 2026. `../engine/deploying-all-three.md`
+  has the story.
 - **The Market checkbox is the only plain-order choice that explicitly asks to
   fill now.** It sits inside the Long and Short window. When checked, the order
   uses the venue's current price, pays the taker fee, does not become a watched

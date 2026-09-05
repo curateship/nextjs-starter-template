@@ -165,9 +165,11 @@ screen: anything not written there has not been agreed yet.
   locally and the published order families Trade translates.
 - `solana.md` — Solana as a network the app holds a wallet on: why it is spot
   only, what the node and Jupiter each do, the three `.env` settings, why
-  there is no practice network, the wallet rule, what a wallet looks like
-  before its holdings can be read, the market list and its measured counts,
-  the lookup for a coin outside the list, and the sixty-a-minute budget.
+  there is no practice network, the wallet rule, what a wallet holds, buying
+  and selling as swaps through Jupiter with the slippage cap and the
+  refusals, how fills are read off the chain, the market list and its
+  measured counts, the lookup for a coin outside the list, and the
+  sixty-a-minute budget.
 
 ## backtests/
 
@@ -203,9 +205,9 @@ screen: anything not written there has not been agreed yet.
   journal behind the answer, the two-second real-money memory, and what
   stayed slow on purpose.
 - `deploying-all-three.md` — `npm run deploy`, which rebuilds engine, worker
-  and web in that order; why the newest build leads and an older container
-  hands the trading lock back; and why a saved plan keeps fields a build does
-  not know.
+  and web in that order; the old server at 5.78.189.158 that kept taking the
+  trading lock during engine restarts in September 2026; and why the engine
+  leaves a grid with no direction or with unknown fields alone.
 - `worker-restart.md` — the Restart button on the Workers screen: how the
   engine sees the request, why a pass in flight finishes first, and who does
   the starting.
