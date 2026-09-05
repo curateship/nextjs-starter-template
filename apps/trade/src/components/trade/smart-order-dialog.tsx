@@ -14,7 +14,6 @@ import {
   parseOrderNumber as parsed,
   useOrderWindowForm,
 } from "@/components/trade/order-window-form"
-import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ladderBase } from "@/lib/trade/ladder-base-cache"
@@ -406,7 +405,10 @@ export function SmartOrderDialog({
       </ScrollArea>
 
       {/* Below the scroll, not in it: however many rungs the ladder has, the
-            refusal and the button that explains it stay on screen. */}
+            button stays on screen. A refusal is said in the toast when the
+            button is pressed, and only there: Tyler had the red line above
+            the button taken off on 5 Sep 2026 because the toast already said
+            the same thing. */}
       <div className="border-t p-3">
         {pairedWithGrid ? (
           <p className="pb-3 text-xs text-muted-foreground">
@@ -417,13 +419,9 @@ export function SmartOrderDialog({
             close the grid's coins with it.
           </p>
         ) : null}
-        <OrderRefusal id="ladder-refusal" className="pb-3">
-          {showValidation ? blockedReason : null}
-        </OrderRefusal>
         <Button
           type="button"
           onClick={() => void submit()}
-          aria-describedby={showValidation ? "ladder-refusal" : undefined}
           disabled={busy}
           className={cn("w-full", BUY_BUTTON)}
         >

@@ -35,11 +35,13 @@
   unavailable only while the app is saving. Leaving a bad box or pressing the
   action shows the reason in one red sentence. Pressing also shows the same
   reason in a toast, so the button always answers. Every window that can refuse,
-  including the ladder, the grid, the order window, the stop-and-target window,
-  the running grid's window and a live ladder's exits, draws the sentence
-  through `order-refusal.tsx`. Floating chart windows place it directly above
-  the button. A modal places it beside the footer buttons, where a scrolling
-  body cannot carry it out of sight.
+  including the grid, the order window, the stop-and-target window, the
+  running grid's window and a live ladder's exits, draws the sentence through
+  `order-refusal.tsx`. Floating chart windows place it directly above the
+  button. A modal places it beside the footer buttons, where a scrolling body
+  cannot carry it out of sight. The one exception is the ladder window
+  (Smart order, "Place N longs"): it says the reason in the toast only. Tyler
+  had its red line removed on 5 Sep 2026, "we already have the toast".
 
   The words name the box and what would fix it, in dollars wherever money is
   involved. Never a code and never a field name out of the source. The box at
