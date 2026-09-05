@@ -29,6 +29,9 @@ screen: anything not written there has not been agreed yet.
 
 ## screens/ — what each screen shows
 
+- `market-explorer.md` — Markets across exchanges, live estimates, filters,
+  saved views, grouping, folder stars and the Moving now widget.
+
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close

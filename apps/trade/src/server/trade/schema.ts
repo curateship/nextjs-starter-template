@@ -157,6 +157,7 @@ export const tradeMarketFolderItems = pgTable(
  * Server-side so the memory follows the account, not the machine.
  */
 export const tradePrefs = pgTable("trade_prefs", {
+  marketExplorer: jsonb("market_explorer").$type<import("@/lib/trade/market-explorer").ExplorerPrefs>(),
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),

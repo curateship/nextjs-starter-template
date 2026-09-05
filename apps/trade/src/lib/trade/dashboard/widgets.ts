@@ -12,7 +12,7 @@ export type TradingDashboardWidgetSlot =
   (typeof TRADING_DASHBOARD_WIDGET_SLOTS)[number]
 
 export type TradingDashboardWidgetId =
-  "equity" | "active-trades" | "running-bots" | "trades"
+  "equity" | "active-trades" | "running-bots" | "trades" | "moving-now"
 
 export type TradingDashboardWidgetLayout = Record<
   TradingDashboardWidgetSlot,
@@ -29,6 +29,14 @@ export type TradingDashboardWidget = {
 }
 
 const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
+  {
+    id: "moving-now",
+    label: "Moving now",
+    description: "The ten markets with the most estimated trading in the last minute.",
+    icon: ChartNoAxesCombinedIcon,
+    size: 10,
+    minSize: "28%",
+  },
   {
     id: "equity",
     label: "PnL Graph",

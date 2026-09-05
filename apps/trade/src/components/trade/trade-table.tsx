@@ -77,7 +77,7 @@ export type ColumnSpec<Key extends string> = { key: Key; label: string }
  * read has really landed: still reading wins over both, and a failed read says
  * so rather than claiming the table is empty.
  */
-function TableStateRow({
+export function TableStateRow({
   span,
   loading,
   failed,

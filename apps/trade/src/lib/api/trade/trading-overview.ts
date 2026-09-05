@@ -15,11 +15,11 @@ import { loadTradingOverview } from "@/server/trade/trading-overview"
 
 import { createErrorMessage } from "../error-message"
 
-const widgetId = z.enum(["equity", "active-trades", "running-bots", "trades"])
+const widgetId = z.enum(["equity", "active-trades", "running-bots", "trades", "moving-now"])
 const layoutSchema = z.object({
-  top: z.array(widgetId).max(4),
-  left: z.array(widgetId).max(4),
-  right: z.array(widgetId).max(4),
+  top: z.array(widgetId).max(widgetId.options.length),
+  left: z.array(widgetId).max(widgetId.options.length),
+  right: z.array(widgetId).max(widgetId.options.length),
 })
 
 const loadPageFn = createServerFn({ method: "GET" })

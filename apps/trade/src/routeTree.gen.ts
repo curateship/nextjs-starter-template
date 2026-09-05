@@ -50,6 +50,7 @@ import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminHyperLiquidRouteImport } from './routes/_authenticated/admin/hyper-liquid'
 import { Route as AuthenticatedAdminKucoinRouteImport } from './routes/_authenticated/admin/kucoin'
 import { Route as AuthenticatedAdminLighterRouteImport } from './routes/_authenticated/admin/lighter'
+import { Route as AuthenticatedAdminMarketsRouteImport } from './routes/_authenticated/admin/markets'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
@@ -303,6 +304,12 @@ const AuthenticatedAdminLighterRoute =
   AuthenticatedAdminLighterRouteImport.update({
     id: '/lighter',
     path: '/lighter',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminMarketsRoute =
+  AuthenticatedAdminMarketsRouteImport.update({
+    id: '/markets',
+    path: '/markets',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
@@ -570,6 +577,7 @@ export interface FileRoutesByFullPath {
   '/admin/hyper-liquid': typeof AuthenticatedAdminHyperLiquidRoute
   '/admin/kucoin': typeof AuthenticatedAdminKucoinRoute
   '/admin/lighter': typeof AuthenticatedAdminLighterRoute
+  '/admin/markets': typeof AuthenticatedAdminMarketsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -649,6 +657,7 @@ export interface FileRoutesByTo {
   '/admin/hyper-liquid': typeof AuthenticatedAdminHyperLiquidRoute
   '/admin/kucoin': typeof AuthenticatedAdminKucoinRoute
   '/admin/lighter': typeof AuthenticatedAdminLighterRoute
+  '/admin/markets': typeof AuthenticatedAdminMarketsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -732,6 +741,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/hyper-liquid': typeof AuthenticatedAdminHyperLiquidRoute
   '/_authenticated/admin/kucoin': typeof AuthenticatedAdminKucoinRoute
   '/_authenticated/admin/lighter': typeof AuthenticatedAdminLighterRoute
+  '/_authenticated/admin/markets': typeof AuthenticatedAdminMarketsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -815,6 +825,7 @@ export interface FileRouteTypes {
     | '/admin/hyper-liquid'
     | '/admin/kucoin'
     | '/admin/lighter'
+    | '/admin/markets'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -894,6 +905,7 @@ export interface FileRouteTypes {
     | '/admin/hyper-liquid'
     | '/admin/kucoin'
     | '/admin/lighter'
+    | '/admin/markets'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -976,6 +988,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/hyper-liquid'
     | '/_authenticated/admin/kucoin'
     | '/_authenticated/admin/lighter'
+    | '/_authenticated/admin/markets'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/newsletter'
@@ -1336,6 +1349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminLighterRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/markets': {
+      id: '/_authenticated/admin/markets'
+      path: '/markets'
+      fullPath: '/admin/markets'
+      preLoaderRoute: typeof AuthenticatedAdminMarketsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/media': {
       id: '/_authenticated/admin/media'
       path: '/media'
@@ -1652,6 +1672,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminHyperLiquidRoute: typeof AuthenticatedAdminHyperLiquidRoute
   AuthenticatedAdminKucoinRoute: typeof AuthenticatedAdminKucoinRoute
   AuthenticatedAdminLighterRoute: typeof AuthenticatedAdminLighterRoute
+  AuthenticatedAdminMarketsRoute: typeof AuthenticatedAdminMarketsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
@@ -1695,6 +1716,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminHyperLiquidRoute: AuthenticatedAdminHyperLiquidRoute,
   AuthenticatedAdminKucoinRoute: AuthenticatedAdminKucoinRoute,
   AuthenticatedAdminLighterRoute: AuthenticatedAdminLighterRoute,
+  AuthenticatedAdminMarketsRoute: AuthenticatedAdminMarketsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
