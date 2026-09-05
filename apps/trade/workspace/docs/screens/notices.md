@@ -97,6 +97,10 @@ read from the money, because only an exit banks anything. A stop or target is
 always an exit. An add to a running position reads as "Entered a trade",
 because more money went in.
 
+Phemex's closed size and KuCoin's close fee decide when their fills are exits.
+Those fields still identify a short exit when it made exactly $0, so its buy
+fill says "Exited a trade" rather than being mistaken for a new long entry.
+
 **The money on a close is the exchange's own figure, and it is measured
 against the whole position's average entry.** On 2 September 2026 Tyler bought
 782 ENA at 0.14737, sold them an hour later at 0.15105, and the bell said

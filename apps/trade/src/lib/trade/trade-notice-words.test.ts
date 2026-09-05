@@ -134,7 +134,7 @@ describe("a fill's notice", () => {
       side: "buy",
       px: 90,
       sz: 5.5555,
-      closedPnl: 12,
+      closedPnl: 0,
       dir: "Close Short",
       liquidation: false,
       ...wallet,

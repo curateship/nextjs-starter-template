@@ -1394,12 +1394,14 @@ async function readKucoinFills(
       one.tradeType === "liquid" ||
       one.tradeType === "adl" ||
       one.tradeType === "liquidation"
+    const side = one.side === "sell" ? ("sell" as const) : ("buy" as const)
+    const closed = Math.abs(num(one.closeFeePay) ?? 0) > 0
 
     fills.push({
       fillId: one.tradeId ?? "",
       orderId: one.orderId ?? "",
       marketId: one.symbol,
-      side: one.side === "sell" ? "sell" : "buy",
+      side,
       px: num(one.price) ?? 0,
       sz: coinsOf(num(one.size) ?? 0, lot),
       at,
@@ -1408,7 +1410,15 @@ async function readKucoinFills(
       fee:
         num(one.fee) ??
         (num(one.openFeePay) ?? 0) + (num(one.closeFeePay) ?? 0),
-      dir: liquidation ? "Liquidation" : one.side === "sell" ? "Sell" : "Buy",
+      dir: liquidation
+        ? "Liquidation"
+        : closed
+          ? side === "buy"
+            ? "Close Short"
+            : "Close Long"
+          : one.side === "sell"
+            ? "Sell"
+            : "Buy",
       liquidation,
     })
   }

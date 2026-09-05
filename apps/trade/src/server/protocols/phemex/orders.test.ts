@@ -986,3 +986,72 @@ describe("how often the exchange is asked at all", () => {
     expect(sent.length).toBeGreaterThan(firstSweep)
   })
 })
+
+describe("the words a fill carries", () => {
+  it("calls a buy that reduced a short an exit even when it broke even", async () => {
+    stubExchange(
+      [
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [],
+            },
+          },
+        },
+        {
+          path: "/exchange/order/v2/orderList",
+          answer: {
+            code: 0,
+            data: [
+              {
+                orderID: "close-short",
+                symbol: "BTCUSDT",
+                side: "Buy",
+                ordType: "Market",
+                ordStatus: "Filled",
+                reduceOnly: true,
+              },
+            ],
+          },
+        },
+        {
+          path: "/api-data/g-futures/trades",
+          answer: {
+            code: 0,
+            data: {
+              rows: [
+                {
+                  execID: "fill-close-short",
+                  orderID: "close-short",
+                  symbol: "BTCUSDT",
+                  side: "Buy",
+                  posSide: "Short",
+                  execPriceRp: "50000",
+                  execQtyRq: "0.01",
+                  closedSizeRq: "0.01",
+                  closedPnlRv: "0",
+                  transactTimeNs: "1000000000",
+                  tradeType: "Trade",
+                },
+              ],
+            },
+          },
+        },
+      ],
+      []
+    )
+
+    const fills = await fetchPhemexOrderFills(
+      "mainnet",
+      "key-id",
+      0,
+      () => AUTH.agentKey
+    )
+
+    expect(fills).toHaveLength(1)
+    expect(fills[0].dir).toBe("Close Short")
+  })
+})

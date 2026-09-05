@@ -1216,6 +1216,7 @@ const fillSchema = z.object({
   execPriceRp: z.union([z.string(), z.number()]).optional(),
   execQtyRq: z.union([z.string(), z.number()]).optional(),
   execFeeRv: z.union([z.string(), z.number()]).optional(),
+  closedSizeRq: z.union([z.string(), z.number()]).optional(),
   closedPnlRv: z.union([z.string(), z.number()]).optional(),
   tradeType: z.string().optional(),
   transactTimeNs: z.union([z.string(), z.number()]).optional(),
@@ -1388,11 +1389,14 @@ async function readPhemexFills(
         const at = Math.floor((num(row.transactTimeNs) ?? 0) / 1_000_000)
         const liquidation =
           row.tradeType === "LiqTrade" || row.tradeType === "AdlTrade"
+        const side =
+          row.side === "Sell" ? ("sell" as const) : ("buy" as const)
+        const closed = Math.abs(num(row.closedSizeRq) ?? 0) > 0
         fills.push({
           fillId: row.execID ?? row.execId ?? "",
           orderId: row.orderID ?? row.orderId ?? "",
           marketId: row.symbol,
-          side: row.side === "Sell" ? "sell" : "buy",
+          side,
           px: num(row.execPriceRp) ?? 0,
           sz: num(row.execQtyRq) ?? 0,
           at,
@@ -1400,9 +1404,11 @@ async function readPhemexFills(
           fee: num(row.execFeeRv) ?? 0,
           dir: liquidation
             ? "Liquidation"
-            : row.side === "Sell"
-              ? "Sell"
-              : "Buy",
+            : closed
+              ? side === "buy"
+                ? "Close Short"
+                : "Close Long"
+              : row.side,
           liquidation,
         })
       }

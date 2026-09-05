@@ -1261,6 +1261,7 @@ describe("what a finished trade made", () => {
                 price: 70_000,
                 size: 10,
                 fee: 0.4,
+                closeFeePay: 0.4,
                 tradeTime: 2_000_000,
               },
             ],
@@ -1297,12 +1298,63 @@ describe("what a finished trade made", () => {
     // trading fee added back, because the app subtracts each fill's fee again
     // when it totals the trade: 9.2 + 0.8 − 0.4 − 0.4 lands on 9.2.
     expect(fills[1].closedPnl).toBeCloseTo(10, 10)
+    expect(fills[1].dir).toBe("Close Long")
     expect(fills[1].closedPnl - fills[1].fee - fills[0].fee).toBeCloseTo(
       9.2,
       10
     )
     // Sizes come back in coins, never contracts.
     expect(fills[0].sz).toBeCloseTo(0.01, 12)
+  })
+
+  it("calls a buy that closes a short an exit even when it broke even", async () => {
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/fills",
+          answer: ok({
+            items: [
+              {
+                tradeId: "close-short-fill",
+                orderId: "close-short-order",
+                symbol: "XBTUSDTM",
+                side: "buy",
+                price: 69_000,
+                size: 10,
+                closeFeePay: 0.4,
+                tradeTime: 2_000_000,
+              },
+            ],
+          }),
+        },
+        {
+          path: "/api/v1/history-positions",
+          answer: ok({
+            items: [
+              {
+                symbol: "XBTUSDTM",
+                closeTime: 2_000_000,
+                pnl: -0.4,
+                tradeFee: 0.4,
+              },
+            ],
+          }),
+        },
+      ],
+      []
+    )
+
+    const fills = await fetchKucoinOrderFills(
+      "mainnet",
+      "key-id",
+      0,
+      () => AUTH.agentKey
+    )
+
+    expect(fills).toHaveLength(1)
+    expect(fills[0].closedPnl).toBe(0)
+    expect(fills[0].dir).toBe("Close Short")
   })
 
   it("stops sweeping an account the exchange says is silent", async () => {
