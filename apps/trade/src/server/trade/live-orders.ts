@@ -56,6 +56,7 @@ import {
   tradeWalletNonces,
   tradeWallets,
 } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * Real orders, app side. The protocol adapter signs; this file owns
@@ -171,7 +172,7 @@ async function journal(
       note: entry.note ?? null,
     })
   } catch (error) {
-    console.error("trade_live_journal write failed", error)
+    recordEngineError("live-orders", "trade_live_journal write failed", error)
   }
 }
 

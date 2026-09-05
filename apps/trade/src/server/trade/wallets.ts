@@ -32,6 +32,7 @@ import {
   tradePaperJournal,
   tradeWallets,
 } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * The wallet store. Two rules run through every function here:
@@ -462,7 +463,7 @@ export async function loadWalletSummaries(
   const since = walletProfitWindowStart()
   const [paper, liveMoney, paperMoney] = await Promise.all([
     paperWalletFigures(userId, paperWallets).catch((error) => {
-      console.error("Paper wallets could not be settled", error)
+      recordEngineError("wallets", "Paper wallets could not be settled", error)
       return new Map<string, WalletAccountFigures>()
     }),
     liveWallets.length
@@ -569,7 +570,8 @@ export async function loadWalletSummaries(
           const message = scrubbedMessage(error)
           const mode = /^WALLET_POSITION_MODE:([^]+)/.exec(message)
           refusal = mode?.[1]?.trim() || null
-          console.error(
+          recordEngineError(
+            "wallets",
             `Wallet "${wallet.label}" (${wallet.protocol} ${wallet.network}) could not be read`,
             message
           )

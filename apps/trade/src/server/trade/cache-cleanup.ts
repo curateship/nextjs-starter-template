@@ -12,6 +12,7 @@ import {
   tradeFundingGaps,
   tradeFundingRates,
 } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 const DAY_MS = 86_400_000
 export const TRADE_CACHE_KEEP_DAYS = MAX_BACKTEST_DAYS
@@ -159,6 +160,6 @@ export async function maybeCleanTradeCaches(
   try {
     await cleanTradeCaches(database, at)
   } catch (error) {
-    console.error("Trade cache cleanup failed", error)
+    recordEngineError("cache-cleanup", "Trade cache cleanup failed", error)
   }
 }

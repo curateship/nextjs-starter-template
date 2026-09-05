@@ -11,6 +11,7 @@ import {
   tradeGridOrderRungs,
   tradeSmartLadders,
 } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 type GridFillLevel = Pick<
   GridPlan["levels"][number],
@@ -142,7 +143,11 @@ export async function rememberGridOrderRung(
   try {
     await recordGridOrderRung(db, input)
   } catch (error) {
-    console.error("trade_grid_order_rungs write failed", error)
+    recordEngineError(
+      "grid-fills",
+      "trade_grid_order_rungs write failed",
+      error
+    )
   }
 }
 

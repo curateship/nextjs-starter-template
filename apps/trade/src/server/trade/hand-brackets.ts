@@ -11,6 +11,7 @@ import { setLiveBrackets } from "@/server/trade/live-orders"
 import { tradeSmartLadders } from "@/server/trade/schema"
 import { saveLadderPlan } from "@/server/trade/smart-orders"
 import { nearNullable } from "@/server/trade/smart-engine"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * Setting a position's stop and targets by hand — the drag on the chart, the ×
@@ -116,7 +117,8 @@ async function recordHandProtection(
       }
     }
   } catch (error) {
-    console.error(
+    recordEngineError(
+      "hand-brackets",
       `Could not record a hand-set stop on ${input.marketKey}`,
       error
     )

@@ -259,14 +259,22 @@ export function TradeTablePanel<Row, Key extends string>({
 /** The scrolling table body, for a panel whose tabs own the outer frame. */
 export function TradeTableContent<Row, Key extends string>({
   className,
+  viewportClassName,
   ...table
 }: React.ComponentProps<typeof TradeTable<Row, Key>> & {
   className?: string
+  /**
+   * Classes for the scrolling box. A panel bounded by its own layout wants
+   * nothing here; a card sitting in a page that scrolls passes its ceiling
+   * (`max-h-*`) here rather than on the frame outside, because the viewport is
+   * what overflows and a height on the frame only clips it.
+   */
+  viewportClassName?: string
 }) {
   return (
     <ScrollArea
       className={cn("min-h-0 flex-1", className)}
-      viewportClassName="h-full min-h-24"
+      viewportClassName={cn("h-full min-h-24", viewportClassName)}
     >
       <div
         data-slot="table-container"

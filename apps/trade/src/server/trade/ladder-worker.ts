@@ -7,6 +7,7 @@ import { db } from "@/server/db"
 import { nonEngineProcessMayTrade } from "@/server/trade/leadership"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallets, walletMapKey } from "@/server/trade/wallets"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * The trading engine's own loop: every working ladder, looked at every second,
@@ -157,14 +158,14 @@ export function ensureLadderLoop(): void {
           return
         }
         void advanceWorkingLadders().catch((error) => {
-          console.error("Ladder loop failed", error)
+          recordEngineError("ladder-worker", "Ladder loop failed", error)
         })
       }, PASS_EVERY_MS)
       console.log(
         "Trade ladders: no worker holding the lock, so the site took it"
       )
     } catch (error) {
-      console.error("Ladder lock check failed", error)
+      recordEngineError("ladder-worker", "Ladder lock check failed", error)
     } finally {
       globalThis.__tradeLadderClaiming = false
     }
@@ -470,7 +471,8 @@ async function workOneWallet(
             marks: book.marks,
           })
           .catch((error) =>
-            console.error(
+            recordEngineError(
+              "ladder-worker",
               `Liquidation warning failed for wallet ${wallet.id}`,
               error
             )
@@ -481,7 +483,11 @@ async function workOneWallet(
     await engine.reconcileLiveLadders(userId, wallet)
     return true
   } catch (error) {
-    console.error(`Ladder pass failed for wallet ${wallet.id}`, error)
+    recordEngineError(
+      "ladder-worker",
+      `Ladder pass failed for wallet ${wallet.id}`,
+      error
+    )
     lastPass.error = error instanceof Error ? error.message : String(error)
     return false
   }
@@ -555,7 +561,11 @@ export async function advanceWorkingLadders(): Promise<void> {
       started.push(
         Promise.all(cleanup)
           .catch((error) => {
-            console.error("Flow cleanup pass failed", error)
+            recordEngineError(
+              "ladder-worker",
+              "Flow cleanup pass failed",
+              error
+            )
             lastPass.error =
               error instanceof Error ? error.message : String(error)
           })
@@ -600,12 +610,16 @@ export async function advanceWorkingLadders(): Promise<void> {
       started.push(
         Promise.all([
           checkPriceAlerts({ pushedMarks }).catch((error) =>
-            console.error("Price alert pass failed", error)
+            recordEngineError("ladder-worker", "Price alert pass failed", error)
           ),
           // The alerts drawn lines carry, checked the same way and from the
           // same prices. Its own catch, so one failing never silences the other.
           checkDrawingAlerts({ pushedMarks }).catch((error) =>
-            console.error("Drawing alert pass failed", error)
+            recordEngineError(
+              "ladder-worker",
+              "Drawing alert pass failed",
+              error
+            )
           ),
         ]).finally(() => {
           checkingPriceAlerts = false
@@ -648,7 +662,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       started.push(
         advanceRunningFlows(Date.now(), db, pass.wallets)
           .catch((error) => {
-            console.error("Flow pass failed", error)
+            recordEngineError("ladder-worker", "Flow pass failed", error)
             lastPass.error =
               error instanceof Error ? error.message : String(error)
           })

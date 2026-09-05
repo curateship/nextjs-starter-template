@@ -32,8 +32,8 @@ screen: anything not written there has not been agreed yet.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, and where the navigation lives.
 - `trading-overview.md`: the signed-in home page and its Active trades menu.
-- `engine-settings.md` — the trading engine settings screen and the health
-  notices it raises.
+- `engine-settings.md` — the trading engine settings screen, its history of
+  engine errors, and the health notices it raises.
 - `market-list.md` — the market list and the Watched row.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.

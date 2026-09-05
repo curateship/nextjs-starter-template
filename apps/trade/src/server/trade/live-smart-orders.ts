@@ -130,6 +130,7 @@ import {
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * How often the ENGINE asks a wallet's venue for its fills. See the sweep
@@ -1003,7 +1004,12 @@ export async function noteRowFailure(
   error: unknown
 ): Promise<void> {
   const message = error instanceof Error ? error.message : String(error)
-  console.error("trade engine: could not advance", marketKey, message)
+  recordEngineError(
+    "live-smart-orders",
+    "trade engine: could not advance",
+    marketKey,
+    message
+  )
   const now = Date.now()
   const holdKey = JSON.stringify([
     userId,
@@ -1124,7 +1130,11 @@ export async function reconcileLiveLaddersOnce(
     // **Not knowing what the account holds means not spending, not
     // stopping.** Cash of zero fails the affordability check, so a buy waits
     // for the next pass rather than going out on a guess.
-    console.error(`Account read failed for wallet ${wallet.id}`, error)
+    recordEngineError(
+      "live-smart-orders",
+      `Account read failed for wallet ${wallet.id}`,
+      error
+    )
     return null
   })
   const portfolio =
@@ -1214,7 +1224,11 @@ export async function reconcileLiveLaddersOnce(
     positions: warningPositions,
     marks: liveWarningMarks,
   }).catch((error) =>
-    console.error(`Liquidation warning failed for wallet ${wallet.id}`, error)
+    recordEngineError(
+      "live-smart-orders",
+      `Liquidation warning failed for wallet ${wallet.id}`,
+      error
+    )
   )
   const now = Date.now()
   const keys = rows.map((row) => row.marketKey)
@@ -1251,7 +1265,11 @@ export async function reconcileLiveLaddersOnce(
           // smart order stands still without one, which is exactly what
           // should happen. Letting it through stopped the rest of the
           // wallet being worked at all.
-          console.error(`Price read failed for wallet ${wallet.id}`, error)
+          recordEngineError(
+            "live-smart-orders",
+            `Price read failed for wallet ${wallet.id}`,
+            error
+          )
           return null
         }),
     shouldReadFills
@@ -1290,7 +1308,11 @@ export async function reconcileLiveLaddersOnce(
             // read all day on 20 Aug 2026 with a plain 400, while KuCoin's
             // answered and KuCoin's watches fired all day — which is what
             // pinned it to this read.
-            console.error(`Fills read failed for wallet ${wallet.id}`, error)
+            recordEngineError(
+              "live-smart-orders",
+              `Fills read failed for wallet ${wallet.id}`,
+              error
+            )
             return []
           })
       : Promise.resolve([]),
@@ -1627,7 +1649,11 @@ export async function reconcileLiveLaddersOnce(
           href: marketChartHref(raw.marketKey),
         })
       } catch (error) {
-        console.error("trade engine: could not write pause notice", error)
+        recordEngineError(
+          "live-smart-orders",
+          "trade engine: could not write pause notice",
+          error
+        )
       }
     }
     const originalOrders = new Map(
@@ -2233,7 +2259,8 @@ export async function reconcileLiveLaddersOnce(
                 })
               )
               .catch((error) =>
-                console.error(
+                recordEngineError(
+                  "live-smart-orders",
                   `Grid reversal failed for ${raw.marketKey}`,
                   error
                 )

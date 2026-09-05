@@ -28,6 +28,7 @@ import { pricesEverySale } from "@/server/protocols/registry"
 import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
 import { listLatestFlowRuns } from "@/server/trade/flow-run-report"
 import { listActiveSmartOrders } from "@/server/trade/smart-orders"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * Everything the trading overview needs. Wallet figures come through the one
@@ -205,11 +206,19 @@ async function loadActiveTrades(
 ) {
   const [paperPortfolio, livePortfolio, smartOrders] = await Promise.all([
     loadPaperPortfolio(userId, wallets).catch((error) => {
-      console.error("Active practice trades could not be read", error)
+      recordEngineError(
+        "trading-overview",
+        "Active practice trades could not be read",
+        error
+      )
       return null
     }),
     loadLivePortfolio(userId, wallets, { credentials }).catch((error) => {
-      console.error("Active live trades could not be read", error)
+      recordEngineError(
+        "trading-overview",
+        "Active live trades could not be read",
+        error
+      )
       return null
     }),
     listActiveSmartOrders(

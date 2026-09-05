@@ -35,6 +35,17 @@ Open, history incomplete, shows the exchange's side, entry, and size, and cannot
 be selected or removed. Old incomplete history may be removed only with the
 same explicit confirmation as a finished trade.
 
+## Where a height belongs on the shared frame
+
+A panel bounded by its own layout passes no height at all. A card sitting in a
+page that scrolls, such as the Errors card on Settings → Trading engine, passes
+its ceiling through `viewportClassName` and never through the class name on the
+frame outside. The scrolling box is what overflows. A `max-height` on the frame
+trims the frame and leaves the box at its full height inside it, so the oldest
+rows are clipped with nothing to scroll. Measured on 5 September 2026: 33 rows
+in a card capped the wrong way gave a 1429px box inside a 416px frame and no
+scrollbar at all.
+
 ## What each position loses if its stop hits
 
 The Positions table has an "If stopped" column, after Projected P / L. It says

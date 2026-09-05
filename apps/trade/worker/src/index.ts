@@ -32,6 +32,7 @@ import { waitToBecomeLeader, type Leadership } from "@/server/trade/leadership"
 import { priceFeedStatus } from "@/server/trade/price-feed-status"
 import { writeHeartbeat } from "@/server/trade/workers"
 import { waitForTradePasses } from "./trade-shutdown"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * **This process is the trading engine, and Lighter's budget needs to know.**
@@ -96,14 +97,18 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
     // A beat that cannot be written is not a reason to stop trading. It makes
     // the screen say "not running", which is the honest answer to a database
     // this process cannot reach.
-    console.error("trade worker: heartbeat failed", error)
+    recordEngineError("trade-engine", "trade worker: heartbeat failed", error)
   })
 }
 
 async function becomeLeaderOrWait(): Promise<void> {
   while (!stopping) {
     const taken = await waitToBecomeLeader().catch((error) => {
-      console.error("trade worker: could not reach the database", error)
+      recordEngineError(
+        "trade-engine",
+        "trade worker: could not reach the database",
+        error
+      )
       return null
     })
     if (taken?.held) {
@@ -141,7 +146,7 @@ function workUntilLockLost(): Promise<void> {
       const pass = advanceWorkingLadders().catch((error) => {
         // A pass that throws is one pass. The next one is a second away and
         // starts from the database, so nothing is carried over from the failure.
-        console.error("trade worker: pass failed", error)
+        recordEngineError("trade-engine", "trade worker: pass failed", error)
       })
       passesInFlight.add(pass)
       void pass.then(

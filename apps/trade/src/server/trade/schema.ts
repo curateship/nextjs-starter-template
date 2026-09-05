@@ -32,6 +32,7 @@ import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
 import type { DrawingAlert, DrawingShape } from "@/lib/trade/drawings"
+import type { EngineErrorKind } from "@/lib/trade/engine-errors"
 import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
@@ -1334,6 +1335,44 @@ export const tradeEngineOutages = pgTable("trade_engine_outages", {
   }).notNull(),
   announcedAt: timestamp("announced_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * Every error and warning the trading engine printed, with the time it
+ * happened.
+ *
+ * The container log has always held these lines and the heartbeat has always
+ * carried the newest one, which is one line and no dates. That was enough to
+ * know something was wrong and never enough to see a pattern — the hourly
+ * crash chased through August would have been obvious with times beside it.
+ *
+ * Repeats of one line from one place fold into a single row with a count
+ * (`ENGINE_ERROR_FOLD_MS`), and the table is trimmed to `ENGINE_ERROR_KEEP`
+ * rows on insert, so a site that fires once a second cannot bury the night.
+ */
+export const tradeEngineErrors = pgTable(
+  "trade_engine_errors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    kind: varchar("kind", { length: 10 }).notNull().$type<EngineErrorKind>(),
+    /** The part of the engine that reported it, named after its file. */
+    source: varchar("source", { length: 60 }).notNull(),
+    /** Already through the scrubber and already capped. Never a raw payload. */
+    message: text("message").notNull(),
+    times: integer("times").notNull().default(1),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("trade_engine_errors_seen_idx").on(table.lastSeenAt),
+    // What the fold looks a row up by, so the check before every insert is an
+    // index hit rather than a walk through five hundred rows.
+    index("trade_engine_errors_fold_idx").on(
+      table.source,
+      table.kind,
+      table.firstSeenAt
+    ),
+  ]
+)
 
 /**
  * A flow that has been switched on to trade a wallet.

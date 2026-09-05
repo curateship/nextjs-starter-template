@@ -3,6 +3,7 @@ import {
   unknownPlanFields,
   type SmartOrderKind,
 } from "@/lib/trade/smart-plan"
+import { recordEngineWarning } from "@/server/trade/engine-errors"
 
 /** Rows already complained about, so the log says it once per row, not once a second. */
 const noted = new Set<string>()
@@ -34,7 +35,8 @@ export function leftForANewerBuild(
   }
   if (!noted.has(rowId)) {
     noted.add(rowId)
-    console.warn(
+    recordEngineWarning(
+      "left-for-newer-build",
       unknown.length > 0
         ? `trade: smart order ${rowId} (${kind}) was written by a newer build and is left alone by this one — unknown fields: ${unknown.join(", ")}`
         : `trade: smart order ${rowId} (${kind}) was saved back by an older build and is left alone until a person looks at it — missing fields: ${missing.join(", ")}`

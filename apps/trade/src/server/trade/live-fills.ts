@@ -43,6 +43,7 @@ import {
   tradeLiveJournal,
   tradeLiveTriggers,
 } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * The real trading history, kept.
@@ -268,7 +269,7 @@ export async function sweepLiveFills(
     await recordLiveFills(userId, wallet, fills)
   } catch (error) {
     // Loud, because a silent gap here is a Journal that quietly stops growing.
-    console.error("trade_live_fills sweep failed", error)
+    recordEngineError("live-fills", "trade_live_fills sweep failed", error)
   }
 }
 
@@ -376,7 +377,7 @@ export async function recordLiveFills(
       fills.filter((fill) => insertedIds.has(fill.fillId))
     )
   } catch (error) {
-    console.error("trade_live_fills write failed", error)
+    recordEngineError("live-fills", "trade_live_fills write failed", error)
   }
 }
 
@@ -456,7 +457,7 @@ async function announceFills(
         }),
       })
     } catch (error) {
-      console.error("trade fill notice failed", error)
+      recordEngineError("live-fills", "trade fill notice failed", error)
     }
   }
 }
@@ -563,7 +564,7 @@ async function triggerRowsByOrder(
         )
       for (const row of rows) found.set(row.orderId, row)
     } catch (error) {
-      console.error("trade fill trigger read failed", error)
+      recordEngineError("live-fills", "trade fill trigger read failed", error)
     }
   }
   return found
@@ -705,7 +706,7 @@ async function resolveClosingOrders(
         }),
       })
     } catch (error) {
-      console.error("trade trigger notice failed", error)
+      recordEngineError("live-fills", "trade trigger notice failed", error)
     }
   }
 }
@@ -753,7 +754,7 @@ async function recentFillsByOrder(
         else found.set(row.orderId, [row])
       }
     } catch (error) {
-      console.error("trade trigger fill read failed", error)
+      recordEngineError("live-fills", "trade trigger fill read failed", error)
     }
   }
   return found

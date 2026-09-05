@@ -20,6 +20,7 @@ import {
   resolveHistorySource,
   sourceLabelOf,
 } from "@/server/trade/history-source"
+import { recordEngineWarning } from "@/server/trade/engine-errors"
 
 /**
  * The two reads behind every chart.
@@ -208,7 +209,8 @@ async function fillStore(
   try {
     await ensureCandleCoverage(source, interval, from, to)
   } catch (error) {
-    console.warn(
+    recordEngineWarning(
+      "candles",
       `[candle-store] ${source} ${interval}: fill failed, answering with what is stored — ${error instanceof Error ? error.message : String(error)}`
     )
     partial = true

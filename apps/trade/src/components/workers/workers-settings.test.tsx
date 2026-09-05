@@ -92,6 +92,7 @@ describe("the trading engine error", () => {
               liquidationWarning: { usd: null, pct: null },
               asterMargins: [],
               orderStyle: "rest",
+              engineErrors: [],
             }}
           >
             <WorkersSettings />

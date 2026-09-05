@@ -44,6 +44,7 @@ import {
   type WorkerStatus,
 } from "@/lib/trade/workers"
 import { cn } from "@/lib/utils"
+import { EngineErrorsCard } from "@/components/workers/engine-errors-card"
 import { LiquidationWarningSettings } from "@/components/workers/liquidation-warning-settings"
 import { AsterMarginSettings } from "@/components/workers/aster-margin-settings"
 import { useTradingEngineSettingsBootstrap } from "@/components/workers/trading-engine-settings-context"
@@ -404,6 +405,8 @@ export default function WorkersSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {bootstrap ? <EngineErrorsCard errors={bootstrap.engineErrors} /> : null}
 
       <ConfirmDialog
         open={restartAsking !== null}

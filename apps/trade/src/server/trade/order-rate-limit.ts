@@ -1,4 +1,5 @@
 import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 export const LIVE_ORDER_RATE_LIMITS = {
   order: { maxAttempts: 20, windowSeconds: 10 },
@@ -32,7 +33,11 @@ export async function runLiveOrderAction<T>(
       throw new Error("TRADE_ORDER_RATE_LIMITED")
     }
     if (direction !== "cancel") throw error
-    console.error("trade cancel rate-limit check failed", error)
+    recordEngineError(
+      "order-rate-limit",
+      "trade cancel rate-limit check failed",
+      error
+    )
   }
 
   return await action()

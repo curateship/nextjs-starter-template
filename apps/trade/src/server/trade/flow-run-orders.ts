@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { tradeFlowRunOrders, tradeFlowRuns } from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
 
 /**
  * Writing down which run sent which order, and reading it back.
@@ -65,7 +66,11 @@ export async function rememberFlowRunOrders(
   try {
     await recordFlowRunOrders(db, input)
   } catch (error) {
-    console.error("trade_flow_run_orders write failed", error)
+    recordEngineError(
+      "flow-run-orders",
+      "trade_flow_run_orders write failed",
+      error
+    )
   }
 }
 

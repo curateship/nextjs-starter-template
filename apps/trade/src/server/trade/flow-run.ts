@@ -61,6 +61,10 @@ import {
 } from "@/server/trade/schema"
 import { findWallet, walletMapKey } from "@/server/trade/wallets"
 import { marketFolderForRun } from "@/server/trade/market-folders"
+import {
+  recordEngineError,
+  recordEngineWarning,
+} from "@/server/trade/engine-errors"
 
 /**
  * Switching a flow on, off, and the pass that gives it something to do.
@@ -388,7 +392,7 @@ async function tellFlowOwner(
       database,
     })
   } catch (error) {
-    console.error("flow notice failed", error)
+    recordEngineError("flow-run", "flow notice failed", error)
   }
 }
 
@@ -1141,7 +1145,8 @@ export async function advanceRunningFlows(
         // in scope when it was thrown. Scrubbed even here, because "it is only
         // a log" is how a key gets written down.
         if (code === "FLOW_UNKNOWN") {
-          console.warn(
+          recordEngineWarning(
+            "flow-run",
             `Flow refusal with no words: ${marketKey} — ${scrubSecrets(
               error instanceof Error ? error.message : String(error)
             )}`
@@ -1314,7 +1319,8 @@ async function advanceSignalRun(
   } catch (error) {
     const code = flowWaitCode(error)
     if (code === "FLOW_UNKNOWN") {
-      console.warn(
+      recordEngineWarning(
+        "flow-run",
         `Signal refusal with no words — ${scrubSecrets(
           error instanceof Error ? error.message : String(error)
         )}`
@@ -1432,7 +1438,8 @@ async function advanceEmaGridRun(
   } catch (error) {
     const code = flowWaitCode(error)
     if (code === "FLOW_UNKNOWN") {
-      console.warn(
+      recordEngineWarning(
+        "flow-run",
         `EMA Grid refusal with no words: ${scrubSecrets(
           error instanceof Error ? error.message : String(error)
         )}`
