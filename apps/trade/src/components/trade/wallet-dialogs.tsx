@@ -974,7 +974,7 @@ function WalletSettingsWindow({
                   {saving ? (
                     <Loader2Icon className="size-4 animate-spin" />
                   ) : null}
-                  Save
+                  Save changes
                 </Button>
               </DialogFooter>
             </form>

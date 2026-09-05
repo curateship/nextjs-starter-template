@@ -394,6 +394,7 @@ export async function workersDashboard(
             ? "Working ladders"
             : "Nothing to do",
       latestError: safeWorkerError(meta.error),
+      latestErrorAt: typeof meta.errorAt === "string" ? meta.errorAt : null,
       host: typeof meta.host === "string" ? meta.host : null,
       figures: [
         { label: "Ladders working", value: String(ladderCount) },

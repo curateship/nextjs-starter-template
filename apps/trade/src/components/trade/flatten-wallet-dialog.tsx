@@ -1,6 +1,15 @@
-import * as React from "react"
-
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import { Loader2Icon } from "lucide-react"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { positionValue, type TradePosition } from "@/lib/trade/paper"
@@ -44,32 +53,63 @@ export function FlattenWalletDialog({
   onConfirm: (wallet: TradeWallet) => void
   onDismiss: () => void
 }) {
+  const mine = positions.filter((one) => one.walletId === wallet?.id)
+  const working = laddersAndGridsYouPlaced(smartOrders).filter(
+    (one) => one.walletId === wallet?.id
+  )
+  const empty = mine.length === 0 && working.length === 0
+  const emptyReason = `${wallet?.label ?? "This wallet"} holds nothing and has nothing waiting, so there is nothing to empty.`
   return (
-    <ConfirmDialog
+    <Dialog
       open={wallet !== null}
       onOpenChange={(open) => {
-        if (!open) onDismiss()
+        if (!open && !busy) onDismiss()
       }}
-      title={
-        wallet ? `Empty ${wallet.label}?` : "Empty this wallet?"
-      }
-      description={
-        wallet ? (
-          <FlattenWording
-            wallet={wallet}
-            positions={positions}
-            smartOrders={smartOrders}
-          />
-        ) : (
-          ""
-        )
-      }
-      confirmLabel="Empty the wallet"
-      loading={busy}
-      onConfirm={() => {
-        if (wallet) onConfirm(wallet)
-      }}
-    />
+    >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>
+            {wallet ? `Empty ${wallet.label}?` : "Empty this wallet?"}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <DialogDescription>
+            {empty ? (
+              emptyReason
+            ) : wallet ? (
+              <FlattenWording
+                wallet={wallet}
+                positions={mine}
+                smartOrders={working}
+              />
+            ) : null}
+          </DialogDescription>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={onDismiss}
+          >
+            Cancel
+          </Button>
+          <DisabledReason disabled={empty} reason={emptyReason}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busy || empty}
+              onClick={() => {
+                if (wallet && !busy && !empty) onConfirm(wallet)
+              }}
+            >
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Empty the wallet
+            </Button>
+          </DisabledReason>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -82,17 +122,8 @@ function FlattenWording({
   positions: readonly TradePosition[]
   smartOrders: readonly SmartOrder[]
 }) {
-  const mine = React.useMemo(
-    () => positions.filter((one) => one.walletId === wallet.id),
-    [positions, wallet.id]
-  )
-  const working = React.useMemo(
-    () =>
-      laddersAndGridsYouPlaced(smartOrders).filter(
-        (one) => one.walletId === wallet.id
-      ),
-    [smartOrders, wallet.id]
-  )
+  const mine = positions
+  const working = smartOrders
   const marks = useLiveMarks(mine.map((one) => one.marketKey))
   const worth = mine.reduce(
     (total, one) =>
@@ -100,10 +131,6 @@ function FlattenWording({
     0
   )
   const real = wallet.kind === "live"
-
-  if (mine.length === 0 && working.length === 0) {
-    return `${wallet.label} holds nothing and has nothing waiting, so there is nothing to empty.`
-  }
 
   const held =
     mine.length === 0
@@ -124,8 +151,7 @@ function FlattenWording({
         ? "The ladders and grids are called off first and lose their plan — what they bought stays, with its stop under it. Then each"
         : "Each"}{" "}
       position is sold with a limit that follows the price and never pays the
-      spread, so it fills when the market comes to it rather than straight
-      away.{" "}
+      spread, so it fills when the market comes to it rather than straight away.{" "}
       {real
         ? "This is real money, and it cannot be undone. "
         : "This cannot be undone. "}

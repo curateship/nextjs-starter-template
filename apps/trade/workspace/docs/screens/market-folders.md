@@ -38,7 +38,8 @@ its own top edge, so it remains separate from the markets above it. Folder
 presses never change the Markets panel above. Named folder rows include no
 management controls. The cog window holds create, rename, drag-to-reorder,
 hide and delete instead. Its New folder card holds the folder-name input and
-Create button.
+Create folder button. The inline form uses the same Create folder wording.
+The management window ends with a primary Done button.
 
 Markets inside an open folder run from the largest reported 24-hour gain to
 the largest loss. A market whose exchange did not report a 24-hour change sits

@@ -288,6 +288,7 @@ async function enginePassInputs(): Promise<{
 export const lastPass = {
   activity: "Not started",
   error: null as string | null,
+  errorAt: null as string | null,
   wallets: 0,
 }
 
@@ -363,9 +364,12 @@ function reportStuckWallets(now: number): boolean {
           (now - first.startedAt) / 60_000
         )} minutes.`
 
-  if (nextError) lastPass.error = nextError
-  else if (lastStuckWalletError && lastPass.error === lastStuckWalletError) {
+  if (nextError) {
+    lastPass.error = nextError
+    lastPass.errorAt = new Date(first.startedAt).toISOString()
+  } else if (lastStuckWalletError && lastPass.error === lastStuckWalletError) {
     lastPass.error = null
+    lastPass.errorAt = null
   }
   lastStuckWalletError = nextError
   return nextError !== null
@@ -489,6 +493,7 @@ async function workOneWallet(
       error
     )
     lastPass.error = error instanceof Error ? error.message : String(error)
+    lastPass.errorAt = new Date().toISOString()
     return false
   }
 }
@@ -568,6 +573,7 @@ export async function advanceWorkingLadders(): Promise<void> {
             )
             lastPass.error =
               error instanceof Error ? error.message : String(error)
+            lastPass.errorAt = new Date().toISOString()
           })
           .finally(() => {
             cleaningFlows = false
@@ -647,6 +653,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       lastPass.error = `The coin hunt has been running for ${Math.round(
         (Date.now() - flowScanStartedAt) / 60_000
       )} minutes and has not finished.`
+      lastPass.errorAt = new Date(flowScanStartedAt).toISOString()
     }
     if (
       !flowScanning &&
@@ -665,6 +672,7 @@ export async function advanceWorkingLadders(): Promise<void> {
             recordEngineError("ladder-worker", "Flow pass failed", error)
             lastPass.error =
               error instanceof Error ? error.message : String(error)
+            lastPass.errorAt = new Date().toISOString()
           })
           .finally(() => {
             flowScanning = false
@@ -728,6 +736,7 @@ export async function advanceWorkingLadders(): Promise<void> {
             // for twenty minutes, on 20 Aug 2026.
             if (worked && !reportStuckWallets(Date.now())) {
               lastPass.error = null
+              lastPass.errorAt = null
             }
           })
       )

@@ -59,7 +59,14 @@ stops the other three. What did not start is named and its row stays on screen.
 - **That it is real money**, on a live wallet.
 - **That a refused cancel stops the sale**, when there is anything to cancel.
 
-A wallet holding nothing says so instead of counting zero.
+A wallet with no positions and no ladders or grids to cancel says it holds
+nothing and has nothing waiting. Empty the wallet is disabled. Hovering over
+the button or reaching its wrapper with Tab shows the same reason. Cancel
+still closes the window. Holdings in another wallet do not enable the button.
+
+The app uses the shared dialog slots and DisabledReason for this confirmation
+because ConfirmDialog does not offer a wrapper for its confirm button. Busy
+actions still block Cancel, Escape and the close button.
 
 ## Calling one off after the press
 

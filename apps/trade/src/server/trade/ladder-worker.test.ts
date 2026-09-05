@@ -467,8 +467,12 @@ describe("a wallet that keeps failing", () => {
     expect(lastPass.error).toBe("this wallet is broken")
 
     // A second pass a second later must not report health it has not seen.
+    const firstErrorAt = lastPass.errorAt
+    expect(firstErrorAt).not.toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 5))
     await advanceWorkingLadders()
     expect(lastPass.error).toBe("this wallet is broken")
+    expect(lastPass.errorAt).not.toBe(firstErrorAt)
   })
 
   it("stops saying so once a wallet works again", async () => {
@@ -522,11 +526,19 @@ describe("a wallet whose turn never finishes", () => {
     expect(lastPass.error).toBe(
       "Wallet stuck has been working for 2 minutes and has not finished."
     )
+    const errorAt = lastPass.errorAt
+    expect(errorAt).not.toBeNull()
+    vi.setSystemTime(new Date("2026-08-29T12:03:00Z"))
+    const refresh = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(1)
+    await refresh
+    expect(lastPass.errorAt).toBe(errorAt)
 
     settled.hang.delete("stuck")
     settled.finish.get("stuck")?.()
     await first
     expect(lastPass.error).toBeNull()
+    expect(lastPass.errorAt).toBeNull()
   })
 
   it("reports the count and first name when several wallets are stuck", async () => {

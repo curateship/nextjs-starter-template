@@ -88,6 +88,7 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
       activity: role === "leader" ? lastPass.activity : "Waiting for the lock",
       build: BUILD,
       error: lastPass.error,
+      errorAt: lastPass.errorAt,
       priceFeed:
         role === "leader" ? priceFeedStatus() : "Not needed while waiting",
       wallets: lastPass.wallets,

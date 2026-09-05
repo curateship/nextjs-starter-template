@@ -12,7 +12,16 @@ checks its saved margin against the exchange after the page is visible.
 
 The Trading engine card puts its six figures in two rows of three. Price feeds
 sit beneath them as one chip per exchange. An error appears above the figures
-and can be dismissed. Engine, Trading, and Restart stay together in the card's
+and can be dismissed with a small ghost button. Dismiss hides that occurrence
+for the current page visit. A later failure with the same words appears again.
+The engine sends the error time with its heartbeat; refreshing the heartbeat
+does not change that time. A stuck wallet or coin hunt uses the start of that
+unfinished work, so the same ongoing delay does not reappear on every refresh.
+The engine start time also distinguishes errors across restarts. The web app
+and engine both need the matching code for new failure times to reach the UI;
+no database migration is needed.
+
+Engine, Trading, and Restart stay together in the card's
 footer. The title row has no subheader and a divider separates it from the
 status below. The title row uses the compact spacing left after the subheader
 was removed. The page does not print a separate "Read just now" line because
@@ -119,4 +128,3 @@ The tray uses its existing announcement-shaped message to carry these words.
 The app turns its banner off, so the health message only appears in the tray and
 notification list. The matching record remains in Announcements history because
 the shell keeps an announcement's words there.
-

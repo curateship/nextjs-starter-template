@@ -50,6 +50,7 @@ export type WorkerStatus = {
   /** How it described itself at the last beat. */
   activity: string
   latestError: string | null
+  latestErrorAt: string | null
   /** Where it is running: its own program, or inside the website. */
   host: string | null
   figures: Array<{ label: string; value: string }>

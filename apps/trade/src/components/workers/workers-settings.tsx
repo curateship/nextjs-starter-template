@@ -208,8 +208,8 @@ export default function WorkersSettings() {
         const figures = Object.fromEntries(
           worker.figures.map((figure) => [figure.label, figure.value])
         )
-        const showError =
-          worker.latestError && worker.latestError !== dismissedError
+        const errorKey = `${worker.kind}:${worker.startedAt}:${worker.latestErrorAt}`
+        const showError = worker.latestError && errorKey !== dismissedError
 
         return (
           <Card key={worker.kind} className="gap-0 py-0">
@@ -241,13 +241,15 @@ export default function WorkersSettings() {
               {showError ? (
                 <Notice
                   action={
-                    <button
+                    <Button
                       type="button"
-                      className="shrink-0 underline underline-offset-2"
-                      onClick={() => setDismissedError(worker.latestError)}
+                      variant="ghost"
+                      size="xs"
+                      className="shrink-0"
+                      onClick={() => setDismissedError(errorKey)}
                     >
                       Dismiss
-                    </button>
+                    </Button>
                   }
                 >
                   Last error · {worker.latestError}

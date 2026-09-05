@@ -29,6 +29,8 @@ screen: anything not written there has not been agreed yet.
 
 ## screens/ — what each screen shows
 
+- `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
+  both folder forms, and primary Done in folder management.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, and where the navigation lives.
 - `trading-overview.md`: the signed-in home page and its Active trades menu.

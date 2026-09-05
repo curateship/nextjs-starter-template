@@ -74,6 +74,26 @@ describe("the real-money switch", () => {
 })
 
 describe("the ladders switch", () => {
+  it("carries the error occurrence time independently of heartbeat refreshes", async () => {
+    const now = new Date()
+    const errorAt = new Date(now.getTime() - 10_000).toISOString()
+    await db.insert(tradeWorkerHeartbeats).values({
+      id: "error-leader",
+      kind: "ladders",
+      startedAt: now,
+      lastSeenAt: now,
+      role: "leader",
+      meta: { error: "Connection refused", errorAt },
+    })
+    expect((await workersDashboard(true, db)).workers[0]).toMatchObject({
+      latestError: "Connection refused",
+      latestErrorAt: errorAt,
+    })
+    await db.update(tradeWorkerHeartbeats).set({ lastSeenAt: new Date() })
+    expect((await workersDashboard(true, db)).workers[0].latestErrorAt).toBe(
+      errorAt
+    )
+  })
   it("allows market-first ladders only when every live engine supports them", async () => {
     const now = new Date("2026-09-03T14:00:00.000Z")
     expect(await engineCanMarketBuyFirstDca(db, now)).toBe(false)
@@ -107,7 +127,9 @@ describe("the ladders switch", () => {
       startedAt: now,
       lastSeenAt: now,
       role: "leader",
-      meta: { build: { builtAt: Date.UTC(2026, 8, 4, 12, 55), commit: "abc1234def" } },
+      meta: {
+        build: { builtAt: Date.UTC(2026, 8, 4, 12, 55), commit: "abc1234def" },
+      },
     })
     const stamped = await workersDashboard(true, db)
     const figures = Object.fromEntries(

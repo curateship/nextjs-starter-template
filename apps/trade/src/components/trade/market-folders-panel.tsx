@@ -507,7 +507,7 @@ export function MarketFoldersPanel({
               }}
             />
             <Button type="submit" disabled={busy || !newName.trim()}>
-              Add
+              Create folder
             </Button>
           </div>
         </form>
@@ -594,7 +594,7 @@ export function MarketFoldersPanel({
                       onChange={(event) => setNewName(event.target.value)}
                     />
                     <Button type="submit" disabled={busy || !newName.trim()}>
-                      Create
+                      Create folder
                     </Button>
                   </div>
                 </CardContent>
@@ -693,7 +693,6 @@ export function MarketFoldersPanel({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
               onClick={() => setManaging(false)}
             >
               Done
