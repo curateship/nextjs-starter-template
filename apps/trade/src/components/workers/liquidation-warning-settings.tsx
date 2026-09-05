@@ -124,8 +124,9 @@ export function LiquidationWarningSettings({
       <div>
         <h3 className="font-medium">Warn before liquidation</h3>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Send one notice when a worked position crosses either distance. Leave
-          both blank to switch it off.
+          These are the fallback distances for wallets with blank warning
+          fields. Send one notice when a worked position crosses either
+          distance. Leave both blank to switch off the account default.
         </p>
       </div>
       <fieldset

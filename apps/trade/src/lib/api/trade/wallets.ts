@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { liquidationWarningSchema } from "@/lib/trade/liquidation-warning"
 
 import { KNOWN_PROTOCOLS, type ProtocolId } from "@/lib/protocols/contracts"
 import {
@@ -73,6 +74,7 @@ const createWalletSchema = z
   )
 
 const updateWalletSchema = z.object({
+  liquidationWarning: liquidationWarningSchema.optional(),
   id: z.string().max(36),
   label: walletLabelSchema.optional(),
   startingBalance: z.number().positive().max(MAX_STARTING_BALANCE).optional(),

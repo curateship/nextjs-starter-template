@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 
+import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 import { createErrorMessage } from "@/lib/api/error-message"
 import {
   liquidationWarningSchema,
@@ -24,8 +25,12 @@ export function loadLiquidationWarningSettings() {
   return loadFn()
 }
 
-export function saveLiquidationWarningSettings(value: LiquidationWarning) {
-  return saveFn({ data: value })
+export async function saveLiquidationWarningSettings(
+  value: LiquidationWarning
+) {
+  const warning = await saveFn({ data: value })
+  invalidateDashboardBootstrap()
+  return warning
 }
 
 export const getLiquidationWarningLoadErrorMessage = createErrorMessage(

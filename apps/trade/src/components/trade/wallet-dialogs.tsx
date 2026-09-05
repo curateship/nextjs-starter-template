@@ -3,7 +3,7 @@ import { CheckIcon, CopyIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
@@ -31,13 +32,17 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { loadProtocolsOnce, type ProtocolDescription } from "@/lib/api/trade/protocols"
+import {
+  loadProtocolsOnce,
+  type ProtocolDescription,
+} from "@/lib/api/trade/protocols"
 import {
   createWallet,
   deleteWallet,
   getWalletErrorMessage,
   updateWallet,
 } from "@/lib/api/trade/wallets"
+import { liquidationWarningSchema } from "@/lib/trade/liquidation-warning"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   cleanAgentKey,
@@ -711,6 +716,27 @@ function WalletSettingsWindow({
   const [secret, setSecret] = React.useState("")
   const [passphrase, setPassphrase] = React.useState("")
   const [status, setStatus] = React.useState<WalletStatus>(wallet.status)
+  const [warningUsd, setWarningUsd] = React.useState(
+    String(wallet.liquidationWarning?.usd ?? "")
+  )
+  const [warningPct, setWarningPct] = React.useState(
+    String(wallet.liquidationWarning?.pct ?? "")
+  )
+  const [warningAttempted, setWarningAttempted] = React.useState(false)
+  const warning = {
+    usd: warningUsd.trim() === "" ? null : Number(warningUsd),
+    pct: warningPct.trim() === "" ? null : Number(warningPct),
+  }
+  const invalidWarningUsd = !liquidationWarningSchema.shape.usd.safeParse(
+    warning.usd
+  ).success
+  const invalidWarningPct = !liquidationWarningSchema.shape.pct.safeParse(
+    warning.pct
+  ).success
+  const warningDirty =
+    warningUsd !== String(wallet.liquidationWarning?.usd ?? "") ||
+    warningPct !== String(wallet.liquidationWarning?.pct ?? "")
+
   // Ticked here, applied on Save with everything else — the tick is part of
   // the form, not a separate action that fires as you touch it.
   const [makeActive, setMakeActive] = React.useState(false)
@@ -725,6 +751,7 @@ function WalletSettingsWindow({
   const dirty =
     label !== wallet.label ||
     balanceDirty ||
+    warningDirty ||
     replacingKey ||
     status !== wallet.status ||
     makeActive
@@ -750,6 +777,15 @@ function WalletSettingsWindow({
       onClose()
       return
     }
+    setWarningAttempted(true)
+    if (invalidWarningUsd || invalidWarningPct) {
+      showErrorToast(
+        invalidWarningUsd
+          ? "Enter dollars above zero and up to $1,000,000,000, or leave blank to use the account setting."
+          : "Enter a distance above zero and up to 100 out of 100, or leave blank to use the account setting."
+      )
+      return
+    }
     if (refusal) {
       showErrorToast(refusal)
       return
@@ -760,11 +796,13 @@ function WalletSettingsWindow({
       if (
         label !== wallet.label ||
         balanceDirty ||
+        warningDirty ||
         replacingKey ||
         status !== wallet.status
       ) {
         await updateWallet({
           id: wallet.id,
+          ...(warningDirty ? { liquidationWarning: warning } : {}),
           ...(label !== wallet.label ? { label: label.trim() } : {}),
           ...(balanceDirty ? { startingBalance: balanceNumber } : {}),
           ...(replacingKey && form
@@ -946,6 +984,49 @@ function WalletSettingsWindow({
                         )}
                       </>
                     )}
+                  </CardContent>
+                </Card>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Warn before liquidation</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="wallet-warning-usd"
+                        hint="Price dollars away from liquidation. Leave blank to use the account dollar distance."
+                      >
+                        Dollars away
+                      </FieldLabel>
+                      <Input
+                        id="wallet-warning-usd"
+                        inputMode="decimal"
+                        placeholder="Use account setting"
+                        value={warningUsd}
+                        disabled={saving}
+                        aria-invalid={warningAttempted && invalidWarningUsd}
+                        onBlur={() => setWarningAttempted(true)}
+                        onChange={(event) => setWarningUsd(event.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="wallet-warning-pct"
+                        hint="The price gap divided by the current price, out of 100. Leave blank to use the account distance."
+                      >
+                        Out of 100 away
+                      </FieldLabel>
+                      <Input
+                        id="wallet-warning-pct"
+                        inputMode="decimal"
+                        placeholder="Use account setting"
+                        value={warningPct}
+                        disabled={saving}
+                        aria-invalid={warningAttempted && invalidWarningPct}
+                        onBlur={() => setWarningAttempted(true)}
+                        onChange={(event) => setWarningPct(event.target.value)}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </DialogBody>

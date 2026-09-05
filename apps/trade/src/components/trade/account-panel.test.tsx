@@ -378,3 +378,42 @@ describe("the other wallet tabs", () => {
     expect(onOpenWalletDetails).toHaveBeenCalledWith(wallets[1])
   })
 })
+
+it.each([
+  [50, "$50"],
+  [0.001, "$0.001"],
+] as const)(
+  "shows effective warning distance %s on a wallet card",
+  async (usd, formatted) => {
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <AllWalletsView
+            wallets={[
+              { ...wallets[0], liquidationWarningInUse: { usd, pct: 5 } },
+            ]}
+            summaryOf={() => null}
+            activeWalletId={null}
+            onOpenWalletDetails={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+    expect(host.textContent).toContain(
+      `Liquidation warning: ${formatted} away or 5 out of 100 away`
+    )
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <AllWalletsView
+            wallets={wallets}
+            summaryOf={() => null}
+            activeWalletId={null}
+            onOpenWalletDetails={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+    expect(host.textContent).not.toContain("Liquidation warning:")
+  }
+)

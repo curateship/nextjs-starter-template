@@ -1,9 +1,38 @@
 # Liquidation warning
 
-Settings → Trading engine has one account-wide liquidation warning. Dollars
-away and out of 100 away can be used separately or together. A position warns
-when it crosses either saved distance. Leaving both boxes blank switches the
-warning off.
+Settings → Trading engine holds the account's default liquidation warning.
+Dollars away and out of 100 away can be used separately or together. A position
+warns when it crosses either distance in use for its wallet. Leaving both
+account boxes blank switches off the default, but a wallet can still set its
+own warning.
+
+## Each wallet's distances
+
+Wallet settings has two optional fields under Warn before liquidation. Each
+blank field uses the matching account setting. A wallet with $50 saved uses
+$50 even when the account dollar distance is $200. If the wallet's out of 100
+field is blank, the account's out of 100 distance can still cause an earlier
+notice. The warning fires when either distance is reached.
+
+Clearing both wallet fields returns both distances to the account settings.
+Wallets created before these fields existed have blank values and keep using
+the account settings. Changing a wallet's name or key leaves its distances
+alone. Zero is refused. Dollar distances must be above zero and no more than
+$1,000,000,000. Out of 100 distances must be above zero and no more than 100.
+
+Wallet rows show the distances in use when either differs from the account.
+The row includes the inherited distance too, so both ways to receive a notice
+are visible. The row stops showing the extra text when both distances match
+the account again. The browser keeps those distances in its saved display
+while a wallet refresh is loading or has failed. Saving the account defaults
+also refreshes the next dashboard visit, so the opening answer uses the new
+fallback distances.
+
+The two nullable columns arrive in migration
+`0167_trade_wallet_liquidation_warning.sql`. Apply the migration before running
+the updated web app or engine. Existing wallet rows need no backfill.
+
+## Which wallets are checked
 
 If the setting cannot load, the card shows the error and a Try again button
 instead of presenting blank values as though the warning were switched off.

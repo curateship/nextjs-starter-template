@@ -140,8 +140,9 @@ screen: anything not written there has not been agreed yet.
   why the liquidation figure on the window is an estimate.
 - `stuck-wallet-warning.md` — when a wallet turn is called stuck, what the
   Workers screen says, and why the engine does not cancel the turn.
-- `liquidation-warning.md` — where the warning is set, how distance is
-  measured, and why one crossing sends one notice.
+- `liquidation-warning.md` — each wallet's distances, the account fallback,
+  the saved wallet display, how distance is measured, and why one crossing
+  sends one notice.
 
 ## exchanges/ — the venues
 

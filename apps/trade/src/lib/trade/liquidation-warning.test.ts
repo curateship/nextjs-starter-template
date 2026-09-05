@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   isInsideLiquidationWarning,
   liquidationWarningSchema,
+  resolveLiquidationWarning,
 } from "@/lib/trade/liquidation-warning"
 import { liquidationDistance, type TradePosition } from "@/lib/trade/paper"
 
@@ -79,5 +80,21 @@ describe("liquidation warnings", () => {
     expect(() =>
       liquidationWarningSchema.parse({ usd: null, pct: 101 })
     ).toThrow()
+  })
+})
+
+it("resolves each wallet field independently and keeps old wallets on the account defaults", () => {
+  const account = { usd: 200, pct: 10 }
+  expect(resolveLiquidationWarning(undefined, account)).toEqual(account)
+  expect(resolveLiquidationWarning({ usd: null, pct: null }, account)).toEqual(
+    account
+  )
+  expect(resolveLiquidationWarning({ usd: 50, pct: null }, account)).toEqual({
+    usd: 50,
+    pct: 10,
+  })
+  expect(resolveLiquidationWarning({ usd: null, pct: 5 }, account)).toEqual({
+    usd: 200,
+    pct: 5,
   })
 })

@@ -7,6 +7,13 @@ export const liquidationWarningSchema = z.object({
 
 export type LiquidationWarning = z.infer<typeof liquidationWarningSchema>
 
+export function resolveLiquidationWarning(
+  wallet: LiquidationWarning | undefined,
+  account: LiquidationWarning
+): LiquidationWarning {
+  return { usd: wallet?.usd ?? account.usd, pct: wallet?.pct ?? account.pct }
+}
+
 export const NO_LIQUIDATION_WARNING: LiquidationWarning = {
   usd: null,
   pct: null,

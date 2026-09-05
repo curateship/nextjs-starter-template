@@ -337,6 +337,8 @@ export const tradeWallets = pgTable(
     // 64 is the cap the wallet API enforces on the way in.
     address: varchar("address", { length: 64 }),
     agentKeyEncrypted: text("agent_key_encrypted"),
+    liquidationWarnUsd: doublePrecision("liquidation_warn_usd"),
+    liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
     // When the exchange says the trading key's approval runs out, recorded at
     // save time so the wallet card can warn BEFORE orders start being refused.
     // Null: paper wallets, and approvals the exchange gave no expiry for.

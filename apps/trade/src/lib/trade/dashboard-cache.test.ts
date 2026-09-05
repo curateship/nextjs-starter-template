@@ -57,6 +57,29 @@ describe("the dashboard cache", () => {
     ).not.toContain("0xprivate-account-id")
   })
 
+  it("keeps the wallet warning distances through a browser cache round trip", () => {
+    const wallet = {
+      id: "wallet",
+      label: "Main",
+      kind: "paper" as const,
+      status: "active" as const,
+      protocol: "hyperliquid" as const,
+      network: "testnet" as const,
+      startingBalance: 1000,
+      address: null,
+      hasKey: false,
+      keyValidUntil: null,
+      liquidationWarning: { usd: 50, pct: null },
+      liquidationWarningInUse: { usd: 50, pct: 5 },
+    }
+    writeWalletPanelCache(scope, {
+      wallets: [wallet],
+      summaries: [],
+      lastWalletId: wallet.id,
+    })
+    expect(readWalletPanelCache(scope)?.wallets[0]).toEqual(wallet)
+  })
+
   it("keeps valid smart orders with only the position fields their PnL needs", () => {
     const order: SmartOrder = {
       id: "one",

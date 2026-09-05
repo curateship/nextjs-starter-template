@@ -17,6 +17,7 @@ import {
 } from "@/server/test-support"
 import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
 import { saveLiquidationWarning } from "@/server/trade/prefs"
+import { findTradingWallet, updateWallet } from "@/server/trade/wallets"
 import { tradeLiquidationWarnings, tradeWallets } from "@/server/trade/schema"
 
 let client: PGlite
@@ -127,6 +128,99 @@ describe("the liquidation crossing record", () => {
     })
     expect(await database.select().from(customShellNotifications)).toHaveLength(
       0
+    )
+  })
+})
+
+describe("wallet liquidation distances", () => {
+  it("uses $50 instead of $200, keeps one notice per crossing, and inherits again after clearing", async () => {
+    await saveLiquidationWarning(userId, { usd: 200, pct: null })
+    const saved = await updateWallet(userId, {
+      id: wallet.id,
+      liquidationWarning: { usd: 50, pct: null },
+    })
+    const check = (currentWallet: TradeWallet, mark: number) =>
+      checkLiquidationWarnings({
+        userId,
+        wallet: currentWallet,
+        positions: [position],
+        marks: new Map([[position.marketKey, mark]]),
+        database,
+      })
+    await check(saved, 133)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      0
+    )
+    await check(saved, 132)
+    await check(saved, 131)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      1
+    )
+    await check(saved, 133)
+    const cleared = await updateWallet(userId, {
+      id: wallet.id,
+      liquidationWarning: { usd: null, pct: null },
+    })
+    await check(cleared, 133)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      2
+    )
+  })
+
+  it("loads a wallet made without the new fields and uses the account distance", async () => {
+    await saveLiquidationWarning(userId, { usd: 200, pct: null })
+    const loaded = await findTradingWallet(userId, wallet.id)
+    expect(loaded?.liquidationWarning).toEqual({ usd: null, pct: null })
+    await checkLiquidationWarnings({
+      userId,
+      wallet: loaded!,
+      positions: [position],
+      marks: new Map([[position.marketKey, 132]]),
+      database,
+    })
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      1
+    )
+  })
+
+  it("uses the wallet out-of-100 distance and inherits the blank dollar field", async () => {
+    await saveLiquidationWarning(userId, { usd: 5, pct: 50 })
+    const saved = await updateWallet(userId, {
+      id: wallet.id,
+      liquidationWarning: { usd: null, pct: 10 },
+    })
+    const check = (mark: number) =>
+      checkLiquidationWarnings({
+        userId,
+        wallet: saved,
+        positions: [position],
+        marks: new Map([[position.marketKey, mark]]),
+        database,
+      })
+    await check(100)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      0
+    )
+    await check(90)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      1
+    )
+  })
+
+  it("can warn when the account default is off", async () => {
+    const saved = await updateWallet(userId, {
+      id: wallet.id,
+      liquidationWarning: { usd: 50, pct: null },
+    })
+    await checkLiquidationWarnings({
+      userId,
+      wallet: saved,
+      positions: [position],
+      marks: new Map([[position.marketKey, 132]]),
+      database,
+    })
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      1
     )
   })
 })
