@@ -437,6 +437,38 @@ describe("the line for an order being sent", () => {
     expect(latest?.positions[0].live).toBeDefined()
   })
 
+  it("does not interrupt a smaller fill with a toast", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "filled",
+        orderId: null,
+        avgPx: 0.1,
+        filledSz: 5,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+    expect(latest?.positions[0].szi).toBe(5)
+  })
+
   it("paints nothing for a reduce-only fill", async () => {
     api.placeLiveOrder.mockResolvedValue({
       outcome: {

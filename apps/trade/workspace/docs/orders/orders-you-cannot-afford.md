@@ -57,10 +57,9 @@ indistinguishable from a whole one.
 
 - The Journal row reads **"Filled $5,000.00 of the $50,000.00 asked for."**
   instead of "Filled straight away."
-- A toast says the same thing on screen, so the only sign is no longer the
-  position itself being smaller than expected.
+- No toast interrupts the order. The smaller position appears on screen, and
+  the Journal keeps the exact amounts for anyone who needs to check the fill.
 
 Where it lives: `src/server/trade/live-orders.ts` (the refusal and the Journal
-line), `src/lib/api/trade/live.ts` (which orders count as by hand, and the
-sentence the browser shows), `src/components/trade/use-trading.ts` (the short
-fill toast).
+line), `src/lib/api/trade/live.ts` (which orders count as by hand), and
+`src/components/trade/use-trading.ts` (the position shown after a fill).
