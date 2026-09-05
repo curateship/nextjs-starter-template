@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## How to reply to Tyler
+
+Use **bold text for the main point and key details** so replies are easy to
+scan. Lead with the answer, keep paragraphs short, and use short bullets when
+they make the details easier to read. Keep the tone natural and conversational.
+Do not turn replies into release notes or checklists, and do not bold entire
+paragraphs. Apply this in replies without waiting for Tyler to remind you.
+
 The map for this app is `CLAUDE.md`, in this folder. Read it first. It routes to
 the skills in `.agents/skills/`, the shared docs in the repo's `docs/`, and this
 app's own docs in `workspace/docs/`, and it holds nothing that is not a pointer.
