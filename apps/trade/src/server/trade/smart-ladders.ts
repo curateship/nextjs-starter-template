@@ -897,14 +897,21 @@ function restingLadderSellPx(
     : wanted
 }
 
-/** Keep the first rung's planned climb when its buy moved up to the market. */
+/** Apply the chosen first-market exit percentage to the fill price. */
 function marketFirstLadderSellPx(
-  plan: Pick<LadderPlan, "anchorPx" | "rungs">,
+  plan: Pick<LadderPlan, "anchorPx" | "rungs" | "marketFirstExitPct">,
   wantedPx: number,
   entryPx: number,
   mark: number | null,
   roundPx: (px: number) => number
 ): number | null {
+  if (plan.marketFirstExitPct !== undefined) {
+    return restingLadderSellPx(
+      entryPx * (1 + plan.marketFirstExitPct / 100),
+      Math.max(mark ?? 0, entryPx),
+      roundPx
+    )
+  }
   const plannedFirstPx = plan.rungs[0]?.px
   const firstRungPct = plannedFirstPx ? 1 - plannedFirstPx / plan.anchorPx : 0
   const extraExitPct = wantedPx / plan.anchorPx - 1

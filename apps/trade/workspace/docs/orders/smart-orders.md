@@ -11,11 +11,14 @@ now** spends rung 1's shown dollar amount at today's price as part of placement.
 The app changes the coin amount to keep those dollars fixed. Every deeper rung
 stays at its shown price and waits under the same rules as before. The choice is
 off by default, so an older saved setup still sends nothing when placed.
+With a rung-based exit, Rung 1 exit % measures the first target above the actual
+market purchase price. A $100 fill with 10% targets $110. The entry gap below
+the base and the mirrored ladder's extra gap do not add to that target.
 
 The real-wallet request belongs to the trading engine, not the web process.
 Every running engine copy announces whether it understands the market-first
-field. The web app refuses the placement before saving anything unless all of
-them do. Deploy the web app and trading engine together; opening new web code
+instruction and the separate exit percentage. The web app refuses the placement
+before saving anything unless all of them do. Deploy the web app and trading engine together; opening new web code
 against an older engine would otherwise leave the ladder untouched forever.
 
 Placing a ladder or grid does not reserve its planned buys from today's free

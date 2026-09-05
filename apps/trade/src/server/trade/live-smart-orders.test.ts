@@ -396,7 +396,7 @@ beforeEach(async () => {
     startedAt: new Date(),
     lastSeenAt: new Date(),
     role: "leader",
-    meta: { dcaMarketFirst: true },
+    meta: { dcaMarketFirst: true, dcaMarketFirstExit: true },
   })
   wallet = {
     id: "live-1",
@@ -637,7 +637,7 @@ describe("live Smart orders", () => {
       .mockResolvedValueOnce({
         status: "filled",
         orderId: "first-rung",
-        avgPx: 100,
+        avgPx: 102,
         filledSz: null,
       })
       .mockResolvedValueOnce({
@@ -653,6 +653,7 @@ describe("live Smart orders", () => {
       interval: "1m",
       params: params({
         marketBuyFirst: true,
+        marketFirstExitPct: 10,
         takeProfit: { mode: "prevRung", pct: 2 },
       }),
     })
@@ -688,7 +689,7 @@ describe("live Smart orders", () => {
         {
           marketId: "BTC",
           szi: bought.sz,
-          entryPx: 100,
+          entryPx: 102,
           leverage: 1,
           marginUsed: bought.budget,
           liquidationPx: null,
@@ -721,7 +722,7 @@ describe("live Smart orders", () => {
       })
     )
     const exitRequest = place.mock.calls[1]?.[2]
-    expect(exitRequest?.px).toBeCloseTo(105, 9)
+    expect(exitRequest?.px).toBeCloseTo(112.2, 9)
     expect((await ladder()).rungs[0].sellOrderId).toBe("first-exit")
   })
 

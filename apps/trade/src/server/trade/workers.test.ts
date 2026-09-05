@@ -104,7 +104,7 @@ describe("the ladders switch", () => {
       startedAt: now,
       lastSeenAt: now,
       role: "leader",
-      meta: { dcaMarketFirst: true },
+      meta: { dcaMarketFirst: true, dcaMarketFirstExit: true },
     })
     expect(await engineCanMarketBuyFirstDca(db, now)).toBe(true)
 
@@ -114,7 +114,7 @@ describe("the ladders switch", () => {
       startedAt: now,
       lastSeenAt: now,
       role: "standby",
-      meta: {},
+      meta: { dcaMarketFirst: true },
     })
     expect(await engineCanMarketBuyFirstDca(db, now)).toBe(false)
   })

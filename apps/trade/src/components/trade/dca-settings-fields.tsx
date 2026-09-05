@@ -194,6 +194,29 @@ export function DcaSettingsFields({
               </FieldLabel>
             </div>
           ) : null}
+          {marketBuyFirstOption &&
+          form.marketBuyFirst &&
+          form.tpOn &&
+          form.tpMode !== "average" ? (
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor={id("market-first-exit")}
+                hint="The exit above rung 1's actual market purchase price. A $100 buy with 10% exits at $110. The entry gap and extra exit gap do not add to this target."
+              >
+                Rung 1 exit %
+              </FieldLabel>
+              <PercentField
+                id={id("market-first-exit")}
+                value={form.marketFirstExitPct}
+                disabled={busy}
+                invalid={
+                  showValidation && inspection.invalid.marketFirstExitPct
+                }
+                onChange={(value) => change("marketFirstExitPct", value)}
+                onBlur={onBlur}
+              />
+            </div>
+          ) : null}
         </OptionCard>
       ) : null}
 

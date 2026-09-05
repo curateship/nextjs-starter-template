@@ -306,6 +306,8 @@ export const dcaParamsSchema = z.object({
    * placement used by older saved settings.
    */
   marketBuyFirst: z.boolean().default(false),
+  /** Rung-based exit above the first market fill, independent of entry gaps. */
+  marketFirstExitPct: z.number().positive().max(999).optional(),
   /**
    * Where rung 1 is measured from. Defaults to the base, so a ladder saved
    * before this existed gets the rule the QFL automation uses.
@@ -386,6 +388,7 @@ export type DcaParams = z.infer<typeof dcaParamsSchema>
  */
 export const dcaLadderSettingsSchema = dcaParamsSchema.pick({
   rungs: true,
+  marketFirstExitPct: true,
   maxPositionPct: true,
   sizeMultiplier: true,
   leverage: true,
@@ -728,6 +731,7 @@ export const ladderPlanSchema = z.object({
    * the hand-placement choice to buy that first slice immediately.
    */
   marketBuyFirst: z.boolean().optional(),
+  marketFirstExitPct: z.number().positive().max(999).optional(),
   /**
    * When this ladder came into existence, in epoch milliseconds.
    *
@@ -969,6 +973,7 @@ export function dcaLadderSettingsFromPlan(
       Number(Math.min(10, Math.max(1, inferredMultiplier)).toFixed(6)),
     leverage: plan.leverage,
     maxOrderVolPct: plan.maxOrderVolPct ?? 0,
+    marketFirstExitPct: plan.marketFirstExitPct,
     twoGreen: plan.twoGreen,
     anchor: plan.anchor,
     takeProfit,

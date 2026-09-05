@@ -93,6 +93,7 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
         role === "leader" ? priceFeedStatus() : "Not needed while waiting",
       wallets: lastPass.wallets,
       dcaMarketFirst: true,
+      dcaMarketFirstExit: true,
     },
   }).catch((error) => {
     // A beat that cannot be written is not a reason to stop trading. It makes

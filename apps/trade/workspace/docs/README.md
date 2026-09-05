@@ -91,7 +91,8 @@ screen: anything not written there has not been agreed yet.
   looks, how repeated failures are counted, how a DCA ladder sells back up its
   mirrored exits, how one extra gap moves those exits together, and what a
   backtest does differently.
-- `smart-order-windows.md` — the windows a smart order is placed from: the
+- `smart-order-windows.md` — the separate Rung 1 exit % for market buys and
+  the windows a smart order is placed from: the
   floating frame, the DCA exit choices and draggable exit gap, the base stop,
   and the grid window.
 - `rules-before-an-entry.md` — the three rules Tyler sets for himself before a

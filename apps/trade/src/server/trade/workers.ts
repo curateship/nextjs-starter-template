@@ -65,7 +65,11 @@ export async function engineCanMarketBuyFirstDca(
 
   return (
     online.some((beat) => beat.role === "leader") &&
-    online.every((beat) => beat.meta?.dcaMarketFirst === true)
+    online.every(
+      (beat) =>
+        beat.meta?.dcaMarketFirst === true &&
+        beat.meta?.dcaMarketFirstExit === true
+    )
   )
 }
 

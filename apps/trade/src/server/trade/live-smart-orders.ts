@@ -394,7 +394,10 @@ function ladderPlan(
     // change does not quietly rewrite what every past run measured.
     rungEntry: "market" as const,
     ...(input.flowRunId == null && input.params.marketBuyFirst
-      ? { marketBuyFirst: true }
+      ? {
+          marketBuyFirst: true,
+          marketFirstExitPct: input.params.marketFirstExitPct,
+        }
       : {}),
     startedAt: Date.now(),
     baseDetection: input.params.baseDetection,

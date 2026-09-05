@@ -343,7 +343,9 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     // are one strategy — a replay that modelled resting fills would be testing
     // behaviour the live wallet no longer has.
     rungEntry: "market" as const,
-    ...(params.marketBuyFirst ? { marketBuyFirst: true } : {}),
+    ...(params.marketBuyFirst
+      ? { marketBuyFirst: true, marketFirstExitPct: params.marketFirstExitPct }
+      : {}),
     // Where the candle watch starts reading. Anything earlier belongs to a
     // market this ladder was not alive for.
     startedAt: input.startedAt ?? 0,
