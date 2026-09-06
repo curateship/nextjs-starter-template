@@ -1,5 +1,30 @@
 # Backtest screens
 
+## How long a run took
+
+The Backtests list has a sortable Took column. A finished run says "Took 4m".
+The stats panel on the run page repeats the same duration under its title.
+Both screens use the shared duration formatter for seconds, minutes, hours
+and days. Sorting compares the full elapsed time, not the rounded text.
+Pinned runs stay above the sort.
+
+Elapsed time starts when the run was created and ends at its saved finish
+time. The duration includes waiting, loading candles and retries. A run that
+ended with a market error says "Gave up after 12m". A stopped run keeps the
+time until its saved finish. Selecting a different chart window never changes
+how long the backtest took.
+
+An unfinished run says "Running for 2m". One local clock per screen updates
+every second without adding server requests. The existing progress polling
+still checks whether the run has finished. The timer stops when no unfinished
+run remains. Before the first client clock tick the label says "Running…",
+so server rendering does not guess the browser's clock. A future start time
+shows zero until the clock catches up.
+
+The list reads a failure flag derived from the market statuses already loaded
+by the server. The run page uses its existing market rows. No database column,
+migration or backtest rerun is needed to show durations on saved runs.
+
 ## Backtest results
 
 - The Results table calls each coin's main figure Total because the figure

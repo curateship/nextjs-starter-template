@@ -2,11 +2,25 @@
 
 ## How to reply to Tyler
 
-Use **bold text for the main point and key details** so replies are easy to
-scan. Lead with the answer, keep paragraphs short, and use short bullets when
-they make the details easier to read. Keep the tone natural and conversational.
-Do not turn replies into release notes or checklists, and do not bold entire
-paragraphs. Apply this in replies without waiting for Tyler to remind you.
+Tyler wants shorter sentences and more bullet points. Paragraph blocks are
+hard for him to read. Apply these rules to progress updates and final replies:
+
+- **Lead with the answer in one short sentence.** Bold the main point.
+- **Use bullets for the details by default.** Do not follow the opening with
+  several paragraphs. A reply that needs only one sentence can stop there.
+- **Keep one idea per bullet.** Use one or two short sentences at most.
+- **Aim for sentences under 20 words.** Split sentences that stack clauses or
+  need several commas. Keep the wording natural rather than clipped.
+- **Bold key details, not whole paragraphs.** Make the result, limitation or
+  action easy to spot.
+- **Keep recaps complete through separate bullets.** Say what changed, what
+  was tested and what remains. Never squeeze those into one dense paragraph.
+- **Use short steps for a testing road map.** Each step says what to do and
+  what to expect.
+- **Conversational does not mean paragraph-only.** Keep short bullets when
+  polishing the tone. Do not turn them into prose blocks to sound natural.
+- **Check the draft before sending.** Split long sentences and break up dense
+  text. Tyler should not need to ask for this format again.
 
 The map for this app is `CLAUDE.md`, in this folder. Read it first. It routes to
 the skills in `.agents/skills/`, the shared docs in the repo's `docs/`, and this

@@ -1,4 +1,9 @@
 import {
+  backtestDurationText,
+  backtestElapsedMs,
+  useBacktestClock,
+} from "@/components/backtest/backtest-duration"
+import {
   signedUsd,
   usd,
 } from "@/components/backtest/backtest-kpi"
@@ -60,7 +65,7 @@ import type { BacktestListRow } from "@/lib/trade/backtest/result"
  * when. Everything heavier — the trades, the chart — waits until a row is
  * opened.
  */
-type Column = "name" | "coins" | "madeOrLost" | "worstDip" | "ran"
+type Column = "name" | "coins" | "madeOrLost" | "worstDip" | "ran" | "took"
 
 export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
   const router = useRouter()
@@ -95,6 +100,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
   // A run still going moves on its own, so the list follows it — and stops the
   // moment nothing is running.
   const anyRunning = runs.some((run) => run.finishedAt === null)
+  const now = useBacktestClock(anyRunning)
   React.useEffect(() => {
     if (!anyRunning) return
     const timer = setInterval(() => void refresh(showArchived), 2_000)
@@ -117,6 +123,10 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
           return (
             way * ((left.summary?.madeOrLost ?? 0) - (right.summary?.madeOrLost ?? 0))
           )
+        case "took":
+          return (
+            way * (backtestElapsedMs(left, now) - backtestElapsedMs(right, now))
+          )
         case "worstDip":
           return (
             way *
@@ -126,7 +136,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
           return way * (left.createdAt - right.createdAt)
       }
     })
-  }, [runs, sort, direction])
+  }, [runs, sort, direction, now])
 
   const visibleIds = sorted.map((run) => run.id)
   const chosen = [...selected].filter((id) => visibleIds.includes(id))
@@ -273,13 +283,22 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
                   Ran
                 </TableSortButton>
               </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sort === "took"}
+                  direction={direction}
+                  onClick={() => toggleSort("took")}
+                >
+                  Took
+                </TableSortButton>
+              </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
         isEmpty={sorted.length === 0}
         emptyText="No backtests yet. Draw a pretend wallet, the markets to test and a DCA ladder on an automation canvas, then press Run above it."
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{ type: "summary", count: sorted.length, label: "run" }}
       >
         {sorted.map((row) => (
@@ -332,6 +351,9 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
             </TableCell>
             <TableCell column="meta" title={formatDateTime(new Date(row.createdAt))}>
               {formatRelativeTime(new Date(row.createdAt), formatDateTime)}
+            </TableCell>
+            <TableCell column="meta" className="whitespace-nowrap tabular-nums">
+              {backtestDurationText(row, now)}
             </TableCell>
             <TableCell column="actions">
               <div className="flex justify-end gap-1">
