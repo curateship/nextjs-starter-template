@@ -192,7 +192,8 @@ screen: anything not written there has not been agreed yet.
 - `market-selection.md` — how the Markets step picks the coins from one list,
   and where each coin's prices come from.
 - `minute-zoom.md` — how a backtest reads a candle, and why saved results from
-  before 18 Aug 2026 are too kind.
+  before 18 Aug 2026 are too kind, plus opening-gap fills and uncertain
+  stop-versus-target order inside each minute.
 - `dca-rules-vs-old-app.md` — the DCA rules here beside the ones in the old
   trading app, line by line.
 

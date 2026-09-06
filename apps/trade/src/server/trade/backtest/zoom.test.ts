@@ -149,6 +149,34 @@ describe("walking a bar on real minute prices", () => {
     expect(sellsInEventful(zoomed).length).toBeGreaterThan(0)
   })
 
+  it("zooms a gap that skips every waiting rung", async () => {
+    const gap = bar(2, 10, 11, 9, 10)
+    const zoomIn = vi.fn(async (_marketKey: string, barOpen: number) =>
+      barOpen === gap.openTime ? [{ ...gap }] : null
+    )
+    const outcome = await runBacktest({
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingUsd: 10_000,
+      costs: defaultPaperCosts(),
+      strategy: { kind: "dca", params: params() },
+      interval: "4h",
+      coins: [{ ...coin(), bars: [BARS[0], BARS[1], gap] }],
+      from: START,
+      to: START + 3 * FOUR_HOURS,
+      zoomIn,
+    })
+    expect(zoomIn).toHaveBeenCalledWith(
+      coin().marketKey,
+      gap.openTime,
+      FOUR_HOURS
+    )
+    const buys = outcome.coins[0].fills.filter((fill) => fill.side === "buy")
+    expect(buys.length).toBeGreaterThan(0)
+    expect(buys.every((fill) => fill.px > gap.high)).toBe(true)
+    expect(buys.every((fill) => fill.fillTime === gap.openTime)).toBe(true)
+  })
+
   it("banks the money that sale made", async () => {
     const guessed = await run()
     const zoomed = await run(async (_marketKey, barOpen) =>

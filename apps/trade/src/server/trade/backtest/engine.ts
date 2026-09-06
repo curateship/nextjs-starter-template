@@ -39,7 +39,9 @@ import {
 } from "@/lib/trade/indicators/registry"
 import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
 import {
+  isMarketable,
   liquidationPx,
+  positionTargets,
   paperAccountFigures,
   positionMargin,
   slippedPx,
@@ -111,12 +113,11 @@ const CHUNK_BARS = 50
  * The answer is what makes zooming affordable. A ladder rests for days with
  * price nowhere near a rung, and fetching minutes for every one of those days
  * was most of the cost and changed nothing: with no level inside the bar's
- * range, the minute-by-minute walk and the whole-bar walk fill exactly the same
- * nothing.
+ * range or already passed at its open, neither walk can fill anything.
  *
  * **It cannot miss anything.** Every price the real minutes visit is inside the
  * bar's own high and low, so a level the minutes reach is a level this test has
- * already said yes to. It is a superset, not a sample.
+ * already said yes to. Prices skipped at the open also qualify.
  */
 function couldActInBar(
   book: WalletBook,
@@ -130,10 +131,11 @@ function couldActInBar(
   // The order's own price only. A resting buy carries the sell it will hand to
   // the position (`exitPx`), and that price sits above the market for days on
   // end — but it cannot fire until the buy has filled, and a bar the buy fills
-  // in has the buy's own price inside it anyway.
+  // in either reaches the buy's price or opens past it.
   for (const order of book.orders) {
     if (order.marketKey !== marketKey) continue
-    if (inRange(order.px)) return true
+    if (inRange(order.px) || isMarketable(order.side, order.px, bar.open))
+      return true
   }
 
   if (grid) {
@@ -154,7 +156,17 @@ function couldActInBar(
   const held = book.positions.get(marketKey)
   if (!held) return false
   return (
-    inRange(held.tpPx) || inRange(held.slPx) || inRange(liquidationPx(held))
+    positionTargets(held).some(
+      (target) =>
+        inRange(target.px) ||
+        (held.szi > 0 ? bar.open >= target.px : bar.open <= target.px)
+    ) ||
+    [held.slPx, liquidationPx(held)].some(
+      (level) =>
+        level != null &&
+        (inRange(level) ||
+          (held.szi > 0 ? bar.open <= level : bar.open >= level))
+    )
   )
 }
 
