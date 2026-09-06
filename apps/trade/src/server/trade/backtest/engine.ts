@@ -175,6 +175,25 @@ const MINUTE_MS = 60_000
 
 type WalkCoin = { marketKey: string }
 
+function withSortedKey(
+  keys: readonly string[],
+  marketKey: string
+): readonly string[] {
+  if (keys.includes(marketKey)) return keys
+  const at = keys.findIndex((key) => key > marketKey)
+  return at < 0
+    ? [...keys, marketKey]
+    : [...keys.slice(0, at), marketKey, ...keys.slice(at)]
+}
+
+function withoutKey(
+  keys: readonly string[],
+  marketKey: string
+): readonly string[] {
+  const at = keys.indexOf(marketKey)
+  return at < 0 ? keys : [...keys.slice(0, at), ...keys.slice(at + 1)]
+}
+
 /**
  * The old walk: one candle per coin, coins taken in turn.
  *
@@ -187,23 +206,21 @@ type WalkCoin = { marketKey: string }
 function walkWholeBar(input: {
   book: WalletBook
   coins: readonly WalkCoin[]
-  barAt: Map<string, Map<number, CandleBar>>
-  time: number
+  bars: readonly CandleBar[]
   barMs: number
   closeTime: number
 }): void {
-  const { book, coins, barAt, time, barMs, closeTime } = input
+  const { book, coins, bars, barMs, closeTime } = input
 
   const lows = new Map<string, number>()
-  for (const coin of coins) {
-    const bar = barAt.get(coin.marketKey)?.get(time)
-    if (bar && bar.low > 0) lows.set(coin.marketKey, bar.low)
+  for (const [index, coin] of coins.entries()) {
+    const bar = bars[index]
+    if (bar.low > 0) lows.set(coin.marketKey, bar.low)
   }
   openBar(book, lows)
 
-  for (const coin of coins) {
-    const bar = barAt.get(coin.marketKey)?.get(time)
-    if (!bar) continue
+  for (const [index, coin] of coins.entries()) {
+    const bar = bars[index]
     // No price "right now": a replay only knows what the bar said, and handing
     // it today's price would let a trade see the future.
     settleMarket(book, coin.marketKey, {
@@ -241,7 +258,7 @@ function walkWholeBar(input: {
 async function walkByMinute(input: {
   book: WalletBook
   coins: readonly WalkCoin[]
-  barAt: Map<string, Map<number, CandleBar>>
+  bars: readonly CandleBar[]
   time: number
   barMs: number
   zoomed: Map<string, readonly CandleBar[]>
@@ -271,7 +288,7 @@ async function walkByMinute(input: {
   const {
     book,
     coins,
-    barAt,
+    bars,
     time,
     barMs,
     zoomed,
@@ -359,17 +376,16 @@ async function walkByMinute(input: {
   // on it: a coin the exchange had no minutes for still must not be valued at a
   // price this bar only reached later.
   const restLows = new Map<string, number>()
-  for (const coin of coins) {
+  for (const [index, coin] of coins.entries()) {
     if (zoomed.has(coin.marketKey)) continue
-    const bar = barAt.get(coin.marketKey)?.get(time)
-    if (bar && bar.low > 0) restLows.set(coin.marketKey, bar.low)
+    const bar = bars[index]
+    if (bar.low > 0) restLows.set(coin.marketKey, bar.low)
   }
   openBar(book, restLows)
 
-  for (const coin of coins) {
+  for (const [index, coin] of coins.entries()) {
     if (zoomed.has(coin.marketKey)) continue
-    const bar = barAt.get(coin.marketKey)?.get(time)
-    if (!bar) continue
+    const bar = bars[index]
     marks.set(coin.marketKey, bar.close)
     settleMarket(book, coin.marketKey, {
       bars: [bar],
@@ -617,6 +633,11 @@ export async function runBacktest(
   const trades = new Map<string, SignalRow>()
   /** Every EMA Grid still working, one per coin at most. */
   const grids = new Map<string, GridRow>()
+  /** Sorted snapshots change only when their matching working rows change. */
+  let activeMarketKeys: readonly string[] = []
+  let signalTradeKeys: readonly string[] = []
+  let ladderBars: LadderBars = new Map()
+  let ladderBarsDirty = true
   /**
    * How far through each coin's arrows the walk has read.
    *
@@ -700,9 +721,16 @@ export async function runBacktest(
       // and the coin is free to start a fresh one, which is the whole of what
       // "saving" means inside a replay.
       if (status === "done") {
-        ladders.delete(row.marketKey)
-        trades.delete(row.marketKey)
-        grids.delete(row.marketKey)
+        const removedLadder = ladders.delete(row.marketKey)
+        const removedTrade = trades.delete(row.marketKey)
+        const removedGrid = grids.delete(row.marketKey)
+        if (removedLadder) ladderBarsDirty = true
+        if (removedTrade) {
+          signalTradeKeys = withoutKey(signalTradeKeys, row.marketKey)
+        }
+        if (removedLadder || removedGrid) {
+          activeMarketKeys = withoutKey(activeMarketKeys, row.marketKey)
+        }
       }
     },
   }
@@ -807,8 +835,10 @@ export async function runBacktest(
   const fundingPaidByMarket = new Map<string, number>(
     coins.map((coin) => [coin.marketKey, 0])
   )
-  const fundingIndex = new Map<string, number>(
-    coins.map((coin) => [coin.marketKey, 0])
+  const fundingCursors = new Set(
+    coins
+      .filter((coin) => coin.funding.length > 0)
+      .map((coin) => ({ coin, index: 0 }))
   )
 
   /**
@@ -817,8 +847,9 @@ export async function runBacktest(
    * is the closest fact available at that same hour.
    */
   const applyFundingThrough = (time: number, includeTime: boolean) => {
-    for (const coin of coins) {
-      let index = fundingIndex.get(coin.marketKey) ?? 0
+    for (const cursor of fundingCursors) {
+      const { coin } = cursor
+      let index = cursor.index
       while (index < coin.funding.length) {
         const funding = coin.funding[index]
         if (funding.time > time || (!includeTime && funding.time === time))
@@ -838,7 +869,11 @@ export async function runBacktest(
         }
         index += 1
       }
-      fundingIndex.set(coin.marketKey, index)
+      if (index === coin.funding.length) {
+        fundingCursors.delete(cursor)
+      } else {
+        cursor.index = index
+      }
     }
   }
 
@@ -991,9 +1026,15 @@ export async function runBacktest(
     //
     // The first price of the window per coin, for buy-and-hold, and the close
     // every coin is worth once the whole bar has finished for all of them.
+    // Paired by index so the nested bar lookup happens once without allocating
+    // one wrapper object per coin per bar.
+    const currentCoins: WalkCoin[] = []
+    const currentBars: CandleBar[] = []
     for (const coin of coins) {
       const bar = barAt.get(coin.marketKey)?.get(time)
       if (!bar) continue
+      currentCoins.push(coin)
+      currentBars.push(bar)
       if (!firstPx.has(coin.marketKey)) {
         firstPx.set(coin.marketKey, bar.open)
         firstAt.set(coin.marketKey, bar.openTime)
@@ -1001,20 +1042,15 @@ export async function runBacktest(
       marks.set(coin.marketKey, bar.close)
     }
 
-    // The feeds themselves are made ONCE, up at `feeds`, and handed over as
-    // they are. They used to be copied here — every coin's whole history, twice
-    // over, on every bar. A run of 250 coins over ten years copied about ninety
-    // megabytes of pointers per bar and did it twenty-two thousand times, which
-    // is most of why the server fell over rather than finishing.
-    //
-    // Built before the walk rather than after it, because a bar walked minute
-    // by minute works its ladders inside the walk.
-    const ladderBars: LadderBars = new Map(
-      [...ladders.keys()].flatMap((marketKey) => {
-        const feed = feeds.get(marketKey)
-        return feed ? feed : []
-      })
-    )
+    // Keep one immutable snapshot for this bar. A ladder may finish during a
+    // minute walk, but the old code had already built this bar's feeds by then.
+    // Replacing the snapshot at the next bar preserves that timing.
+    if (ladderBarsDirty) {
+      ladderBars = new Map(
+        [...ladders.keys()].flatMap((marketKey) => feeds.get(marketKey) ?? [])
+      )
+      ladderBarsDirty = false
+    }
 
     /** Work one coin's ladder, as of a moment part-way through the bar. */
     const advanceCoin = async (
@@ -1133,9 +1169,8 @@ export async function runBacktest(
     // actually live rather than every day of the window.
     const zoomed = new Map<string, readonly CandleBar[]>()
     if (input.zoomIn) {
-      for (const coin of coins) {
-        const bar = barAt.get(coin.marketKey)?.get(time)
-        if (!bar) continue
+      for (const [index, coin] of currentCoins.entries()) {
+        const bar = currentBars[index]
         if (
           !couldActInBar(book, coin.marketKey, bar, grids.get(coin.marketKey))
         )
@@ -1148,8 +1183,8 @@ export async function runBacktest(
     if (zoomed.size > 0) {
       await walkByMinute({
         book,
-        coins,
-        barAt,
+        coins: currentCoins,
+        bars: currentBars,
         time,
         barMs,
         zoomed,
@@ -1160,7 +1195,13 @@ export async function runBacktest(
         notePot,
       })
     } else {
-      walkWholeBar({ book, coins, barAt, time, barMs, closeTime })
+      walkWholeBar({
+        book,
+        coins: currentCoins,
+        bars: currentBars,
+        barMs,
+        closeTime,
+      })
     }
 
     // Every coin has been walked, so the bar has finished for all of them.
@@ -1171,9 +1212,7 @@ export async function runBacktest(
     applyFundingThrough(closeTime, true)
 
     // ----- What the ladders make of it -----------------------------------
-    for (const marketKey of [
-      ...new Set([...ladders.keys(), ...grids.keys()]),
-    ].sort()) {
+    for (const marketKey of activeMarketKeys) {
       // `advanceCoin` remembers the rung's order id before working it, because
       // a rung that fills inside this pass throws its order id away and the
       // fills are not written down until later.
@@ -1182,7 +1221,7 @@ export async function runBacktest(
 
     // ----- What the signal trades make of it ------------------------------
     if (signals) {
-      for (const marketKey of [...trades.keys()].sort()) {
+      for (const marketKey of signalTradeKeys) {
         const row = trades.get(marketKey)
         if (!row) continue
         await advanceSignal(
@@ -1263,6 +1302,7 @@ export async function runBacktest(
             startedAt: closeTime,
           },
         })
+        signalTradeKeys = withSortedKey(signalTradeKeys, coin.marketKey)
       }
     }
 
@@ -1307,6 +1347,7 @@ export async function runBacktest(
           }
           current.plan.closedReason = "cancelled"
           grids.delete(coin.marketKey)
+          activeMarketKeys = withoutKey(activeMarketKeys, coin.marketKey)
         }
 
         // A reduce-only close is synchronous in the replay. If anything is
@@ -1345,6 +1386,7 @@ export async function runBacktest(
             marketKey: coin.marketKey,
             plan: drafted.plan,
           })
+          activeMarketKeys = withSortedKey(activeMarketKeys, coin.marketKey)
         } catch (error) {
           noteRefusal(
             coin.marketKey,
@@ -1441,6 +1483,8 @@ export async function runBacktest(
         marketKey: coin.marketKey,
         plan: outcome.plan,
       })
+      activeMarketKeys = withSortedKey(activeMarketKeys, coin.marketKey)
+      ladderBarsDirty = true
     }
 
     // ----- Take the fills off the book and record the pot -----------------

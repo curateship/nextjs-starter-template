@@ -189,7 +189,8 @@ screen: anything not written there has not been agreed yet.
 - `backtest-screens.md` — the results, candle history and funding screens,
   plus elapsed time in the sortable Took column and the run header.
 - `backtest-speed.md`: the one-pass base scan, one-statement saved-run
-  actions, bounded coin preparation and the time and memory saved with a run.
+  actions, bounded coin preparation, cached per-candle work and the time and
+  memory saved with a run.
 - `market-selection.md` — how the Markets step picks the coins from one list,
   and where each coin's prices come from.
 - `minute-zoom.md` — how a backtest reads a candle, and why saved results from
