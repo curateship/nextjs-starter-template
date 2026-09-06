@@ -6,10 +6,50 @@ import {
   type CandleBar,
   type CandleInterval,
   type LiveFigures,
+  type LiveFeedStatus,
   type MarketCatalog,
 } from "@/lib/protocols/contracts"
 import { getLiveAdapter } from "@/lib/protocols/live-registry"
 import { refreshMarketPrices } from "@/lib/api/trade/markets"
+import { MarketHistory } from "@/lib/trade/market-history"
+
+export const marketHistory = new MarketHistory()
+const figureTimes = new Map<string, number>()
+const venueTimes = new Map<string, number>()
+const venueStarted = new Map<string, number>()
+let historyReaders = 0
+
+export function retainMarketHistory() {
+  historyReaders++
+  return () => {
+    historyReaders--
+    if (!historyReaders) marketHistory.clear()
+  }
+}
+
+export function liveVenueTime(catalog: MarketCatalog) {
+  return venueTimes.get(`${catalog.protocol}:${catalog.network}`) ?? 0
+}
+
+export function liveVenueStatus(catalog: MarketCatalog, now: number, visible = true): LiveFeedStatus {
+  if (!visible) return "paused"
+  const at = liveVenueTime(catalog)
+  if (at && now - at <= 30_000) return "live"
+  const started = venueStarted.get(`${catalog.protocol}:${catalog.network}`)
+  return !at && (!started || now - started < 30_000) ? "connecting" : "stale"
+}
+
+export function clearLiveCatalog(catalog: MarketCatalog) {
+  venueTimes.delete(`${catalog.protocol}:${catalog.network}`)
+  const prefix = `${catalog.protocol}:${catalog.network}:`
+  const keys = new Set([...catalog.rows.map((row) => row.key), ...[...figures.keys()].filter((key) => key.startsWith(prefix))])
+  for (const key of keys) {
+    figures.delete(key)
+    figureTimes.delete(key)
+    marketHistory.clear(key)
+  }
+  notifyKeys(keys)
+}
 
 /**
  * The app's one live-data store, and the hooks screens read it through.
@@ -25,6 +65,48 @@ import { refreshMarketPrices } from "@/lib/api/trade/markets"
  */
 
 const figures = new Map<string, LiveFigures>()
+const emptyFigures: ReadonlyMap<string, LiveFigures> = new Map()
+
+function figureMapStore(wanted: readonly string[]) {
+  let snapshot: ReadonlyMap<string, LiveFigures> = emptyFigures
+  const refresh = () => {
+    const next = new Map<string, LiveFigures>()
+    const now = Date.now()
+    for (const key of wanted) {
+      const value = figures.get(key)
+      if (value && now - (figureTimes.get(key) ?? 0) <= 30_000) next.set(key, value)
+    }
+    snapshot = next
+  }
+  refresh()
+  return {
+    read: () => snapshot,
+    subscribe: (listener: () => void) => {
+      const changed = () => { refresh(); listener() }
+      for (const key of wanted) {
+        const listeners = keyListeners.get(key) ?? new Set<() => void>()
+        listeners.add(changed)
+        keyListeners.set(key, listeners)
+      }
+      const timer = setInterval(changed, 1000)
+      return () => {
+        clearInterval(timer)
+        for (const key of wanted) {
+          const listeners = keyListeners.get(key)
+          listeners?.delete(changed)
+          if (!listeners?.size) keyListeners.delete(key)
+        }
+      }
+    },
+  }
+}
+
+/** One snapshot for every displayed figure, shared by sorting and cells. */
+export function useLiveFiguresMap(keys: readonly string[]) {
+  const joined = keys.join("|")
+  const store = React.useMemo(() => figureMapStore(joined ? joined.split("|") : []), [joined])
+  return React.useSyncExternalStore(store.subscribe, store.read, () => emptyFigures)
+}
 const keyListeners = new Map<string, Set<() => void>>()
 const catchUpListeners = new Set<() => void>()
 const pendingKeys = new Set<string>()
@@ -92,7 +174,7 @@ export function startLiveMarketData(
 ): () => void {
   const stops = catalogs.flatMap((catalog) => {
     const adapter = getLiveAdapter(catalog.protocol)
-    if (!adapter) {
+    if (!adapter?.watchFigures) {
       // No socket here. A venue that has none may still say how often its
       // screen is allowed to ASK — see `priceRefresh` on the catalogue, and
       // `startPriceRefresh` below for why that is not a live feed. A venue
@@ -102,12 +184,17 @@ export function startLiveMarketData(
         ? [startPriceRefresh(catalog, catalog.priceRefresh)]
         : []
     }
+    venueStarted.set(`${catalog.protocol}:${catalog.network}`, Date.now())
     return [
       // An exchange whose socket cannot follow a whole list contributes no
       // figures watch; its rows draw from the catalogue and redraw when the
       // page does.
       adapter.watchFigures?.(catalog.network, (updates) => {
         const changed: string[] = []
+        const now = Date.now()
+        const previous = liveVenueTime(catalog)
+        if (previous && now - previous > 30_000) clearLiveCatalog(catalog)
+        if (updates.size) venueTimes.set(`${catalog.protocol}:${catalog.network}`, now)
         for (const [marketId, next] of updates) {
           const key = marketKey({
             protocol: catalog.protocol,
@@ -115,11 +202,14 @@ export function startLiveMarketData(
             marketId,
           })
           figures.set(key, next)
+          figureTimes.set(key, now)
+          if (historyReaders) marketHistory.sample(key, now, next.price, next.volume24hUsd)
           changed.push(key)
         }
         notifyKeys(changed)
       }),
       adapter.watchCatchUp(catalog.network, () => {
+        clearLiveCatalog(catalog)
         onCatchUp()
         // Consumers with their own fetches — the chart's candles — refetch
         // on the same signal.
@@ -207,6 +297,7 @@ function startPriceRefresh(
           openInterestUsd: was?.openInterestUsd ?? row.openInterestUsd,
           price,
         })
+        figureTimes.set(key, Date.now())
         changed.push(key)
       }
       notifyKeys(changed)

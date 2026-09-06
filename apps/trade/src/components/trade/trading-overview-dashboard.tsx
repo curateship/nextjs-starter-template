@@ -1,3 +1,4 @@
+import { MovingNowWidget } from "@/components/trade/market-explorer/moving-now-widget"
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { InfoIcon, LayoutDashboardIcon, ListIcon } from "lucide-react"
@@ -189,6 +190,8 @@ function renderWidget(
   className: string
 ) {
   switch (id) {
+    case "moving-now":
+      return <MovingNowWidget className={className} />
     case "equity":
       return <PnlGraphWidget overview={overview} className={className} />
     case "active-trades":
