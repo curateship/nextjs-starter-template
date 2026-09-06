@@ -53,7 +53,12 @@ export async function loadDrawingAlerts(
   for (const row of rows) {
     const alert = readDrawingAlert(row.alert)
     const shape = readDrawingShape(row.shape)
-    if (!alert || !shape) continue
+    if (
+      !alert ||
+      !shape ||
+      (shape.kind !== "level" && shape.kind !== "trendline")
+    )
+      continue
     const listed: LineAlert = {
       id: row.id,
       marketKey: row.marketKey,
@@ -128,7 +133,10 @@ export async function checkDrawingAlerts({
   const armed = rows.flatMap((row) => {
     const alert = readDrawingAlert(row.alert)
     const shape = readDrawingShape(row.shape)
-    return drawingAlertArmed(alert) && alert && shape
+    return drawingAlertArmed(alert) &&
+      alert &&
+      shape &&
+      (shape.kind === "level" || shape.kind === "trendline")
       ? [{ ...row, alert, shape }]
       : []
   })

@@ -67,7 +67,7 @@ screen: anything not written there has not been agreed yet.
 
 ## charts/ — the chart itself
 
-- `drawing.md` — the paint tools, by mouse and by touch.
+- `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.
 - `smart-tools.md` — alerts carried by drawn lines: the cog, the alert
   window, every way into it without a mouse, naming a line, the bell and the
   dot on the chart, what fires it, the percentage past the line it waits for,

@@ -7,23 +7,28 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 const api = vi.hoisted(() => ({
   load: vi.fn(),
+  save: vi.fn(async () => undefined),
+  remove: vi.fn(async () => undefined),
+  toast: vi.fn(),
   setAlert: vi.fn(),
   setBuffer: vi.fn(),
 }))
 
 vi.mock("@/lib/api/trade/drawings", () => ({
   clearDrawings: vi.fn(),
-  deleteDrawing: vi.fn(async () => undefined),
+  deleteDrawing: api.remove,
   getDrawingsErrorMessage: vi.fn(),
   getDrawingAlertErrorMessage: vi.fn(),
   getDrawingsLoadErrorMessage: vi.fn(),
   loadDrawings: api.load,
-  saveDrawing: vi.fn(async () => undefined),
+  saveDrawing: api.save,
   setDrawingAlert: api.setAlert,
   setDrawingAlertBuffer: api.setBuffer,
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
+vi.mock("sonner", () => ({ toast: { success: api.toast } }))
+
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 
@@ -72,6 +77,10 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement("div")
   root = createRoot(host)
+  api.save.mockReset().mockResolvedValue(undefined)
+  api.remove.mockReset().mockResolvedValue(undefined)
+  api.toast.mockReset()
+  vi.mocked(showErrorToast).mockClear()
   api.load.mockReset()
   api.load.mockImplementation(async (marketKey: string) => ({
     drawings: [
@@ -150,9 +159,7 @@ it("keeps a line changed while a re-read was on its way, and drops one deleted m
         { id: "gone", shape: { kind: "level", price: 300 }, alert: null },
       ],
     }))
-    .mockImplementationOnce(
-      () => new Promise((resolve) => (answer = resolve))
-    )
+    .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
   await act(async () => root.render(<Harness marketKey={secondMarket} />))
   expect(host.textContent).toBe("second@200,gone@300")
   await act(async () => latest!.refresh())
@@ -163,7 +170,11 @@ it("keeps a line changed while a re-read was on its way, and drops one deleted m
       drawings: [
         { id: "second", shape: { kind: "level", price: 200 }, alert: null },
         { id: "gone", shape: { kind: "level", price: 300 }, alert: null },
-        { id: "engine-wrote", shape: { kind: "level", price: 400 }, alert: null },
+        {
+          id: "engine-wrote",
+          shape: { kind: "level", price: 400 },
+          alert: null,
+        },
       ],
     })
   })
@@ -284,4 +295,82 @@ it("waits for a new alert to exist before saving an immediately typed buffer", a
   })
 
   expect(api.setBuffer).toHaveBeenCalledWith("quick-buffer", 2.5)
+})
+
+it("offers Undo after deletion finishes and saves the restored drawing", async () => {
+  let finish: () => void = () => undefined
+  api.remove.mockImplementationOnce(
+    () =>
+      new Promise<undefined>((resolve) => {
+        finish = () => resolve(undefined)
+      })
+  )
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () => latest!.remove("opening"))
+  expect(host.textContent).toBe("")
+  expect(api.toast).not.toHaveBeenCalled()
+  await act(async () => finish())
+  const action = api.toast.mock.calls[0]![1].action
+  expect(action.label).toBe("Undo")
+  await act(async () => action.onClick())
+  expect(host.textContent).toBe("opening@100")
+  expect(api.save).toHaveBeenCalledWith(firstMarket, initial.rows[0])
+})
+
+it("keeps an undone drawing on its original market after switching markets", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () => latest!.remove("opening"))
+  await act(async () => root.render(<Harness marketKey={secondMarket} />))
+  await act(async () => api.toast.mock.calls[0]![1].action.onClick())
+  expect(host.textContent).toBe("second@200")
+  expect(api.save).toHaveBeenCalledWith(firstMarket, initial.rows[0])
+})
+
+it("takes a failed Undo save back off the chart", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () => latest!.remove("opening"))
+  api.save.mockRejectedValueOnce(new Error("save failed"))
+  await act(async () => api.toast.mock.calls[0]![1].action.onClick())
+  expect(host.textContent).toBe("")
+})
+
+it("restores a failed deletion without offering Undo", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  api.remove.mockRejectedValueOnce(new Error("delete failed"))
+  await act(async () => latest!.remove("opening"))
+  expect(host.textContent).toBe("opening@100")
+  expect(api.toast).not.toHaveBeenCalled()
+})
+
+it("deletes a fib without showing a success toast or Undo action", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () =>
+    latest!.create({
+      kind: "fib",
+      from: { time: 1000, price: 100 },
+      to: { time: 2000, price: 200 },
+    })
+  )
+  const fib = latest!.drawings.find((drawing) => drawing.shape.kind === "fib")!
+  await act(async () => latest!.remove(fib.id))
+  expect(api.remove).toHaveBeenCalledWith(fib.id)
+  expect(latest!.drawings.some((drawing) => drawing.id === fib.id)).toBe(false)
+  expect(api.toast).not.toHaveBeenCalled()
+})
+
+it("restores a fib and reports an error when deletion fails", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () =>
+    latest!.create({
+      kind: "fib",
+      from: { time: 1000, price: 100 },
+      to: { time: 2000, price: 200 },
+    })
+  )
+  const fib = latest!.drawings.find((drawing) => drawing.shape.kind === "fib")!
+  api.remove.mockRejectedValueOnce(new Error("delete failed"))
+  await act(async () => latest!.remove(fib.id))
+  expect(latest!.drawings).toContainEqual(fib)
+  expect(showErrorToast).toHaveBeenCalled()
+  expect(api.toast).not.toHaveBeenCalled()
 })

@@ -13,6 +13,7 @@ import {
   describeDrawing,
   describeDrawingInline,
   drawingAlertArmed,
+  fibLevels,
   moveShape,
   namedShape,
   priceAtTime,
@@ -168,8 +169,8 @@ function dragged(grab: Grab, now: DrawingPoint): DrawingShape {
       now.price - grab.at.price
     )
   }
-  // Only a trendline has ends, and only its ends are ever handed out.
-  if (grab.original.kind !== "trendline") return grab.original
+  // Every shape except a level has two movable ends.
+  if (grab.original.kind === "level") return grab.original
   return grab.part === "from"
     ? { ...grab.original, from: now }
     : { ...grab.original, to: now }
@@ -191,13 +192,110 @@ function segmentOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
   }
 }
 
+// These are annotation colours, independent of the chart's candle colours.
+const FIB_COLORS: Record<number, string> = {
+  0: "#787b86",
+  23.6: "#f23645",
+  38.2: "#ff9800",
+  50: "#4caf50",
+  61.8: "#089981",
+  78.6: "#00bcd4",
+  100: "#787b86",
+}
+
+function projectedFib(shape: DrawingShape, surface: ChartSurface) {
+  if (shape.kind !== "fib") return []
+  const x1 = Math.max(0, surface.xOf(Math.min(shape.from.time, shape.to.time)))
+  if (x1 > surface.width) return []
+  let lastLabelY = -Infinity
+  return fibLevels(shape)
+    .flatMap((level) => {
+      const y = surface.yOf(level.price)
+      return y === null ? [] : [{ ...level, y, x1, x2: surface.width }]
+    })
+    .sort((a, b) => a.y - b.y)
+    .map((level) => {
+      const onScreen = level.y >= 0 && level.y <= surface.height
+      const showLabel = onScreen && level.y - lastLabelY >= 16
+      if (showLabel) lastLabelY = level.y
+      return { ...level, showLabel, onScreen }
+    })
+}
+
+function FibLines({
+  shape,
+  surface,
+  selected,
+  clipId,
+}: {
+  shape: DrawingShape
+  surface: ChartSurface
+  selected: boolean
+  clipId: string
+}) {
+  const levels = projectedFib(shape, surface)
+  return (
+    <g clipPath={`url(#${clipId})`} style={{ pointerEvents: "none" }}>
+      {levels.slice(0, -1).map((level, index) => {
+        const next = levels[index + 1]!
+        const top = Math.max(0, level.y)
+        const bottom = Math.min(surface.height, next.y)
+        return bottom > top ? (
+          <path
+            key={level.percent}
+            data-fib-band
+            d={`M ${level.x1} ${top} H ${level.x2} V ${bottom} H ${level.x1} Z`}
+            fill={FIB_COLORS[Math.min(level.percent, next.percent)]}
+            fillOpacity={0.1}
+          />
+        ) : null
+      })}
+      {levels
+        .filter((level) => level.onScreen)
+        .map((level) => {
+          const labelOutside = level.x1 >= 130
+          return (
+            <g key={level.percent} data-fib-level={level.percent}>
+              <line
+                x1={level.x1}
+                x2={level.x2}
+                y1={level.y}
+                y2={level.y}
+                stroke={FIB_COLORS[level.percent]}
+                strokeWidth={selected ? 1.5 : 1}
+              />
+              <text
+                data-fib-label={level.percent}
+                className={`stroke-background ${selected || level.showLabel ? "" : "opacity-0 group-hover/fib:opacity-100"}`}
+                fill={FIB_COLORS[level.percent]}
+                fontSize={12}
+                paintOrder="stroke"
+                strokeWidth={2}
+                x={labelOutside ? level.x1 - 8 : level.x1 + 6}
+                y={level.y}
+                dy={labelOutside ? "0.35em" : "-0.4em"}
+                textAnchor={labelOutside ? "end" : "start"}
+                style={{ userSelect: "none" }}
+              >
+                {`${Number((level.percent / 100).toFixed(3))} (${formatPrice(level.price)})`}
+              </text>
+            </g>
+          )
+        })}
+    </g>
+  )
+}
+
 /**
  * The dashed part of a trendline that carries on past its later point to the
  * right edge, on the same slope, or null when the line does not extend or
  * already reaches the edge. Read through the same `priceAtTime` the engine
  * uses, so the dashes land exactly where the alert would fire.
  */
-function extensionOf(shape: DrawingShape, surface: ChartSurface): Segment | null {
+function extensionOf(
+  shape: DrawingShape,
+  surface: ChartSurface
+): Segment | null {
   if (shape.kind !== "trendline" || shape.extendRight !== true) return null
   const later = shape.to.time >= shape.from.time ? shape.to : shape.from
   const x1 = surface.xOf(later.time)
@@ -215,7 +313,10 @@ function extensionOf(shape: DrawingShape, surface: ChartSurface): Segment | null
  * right edge. Kept until the alert is switched on again, which replaces the
  * record, or the line is deleted.
  */
-function fireMarkOf(drawing: Drawing, surface: ChartSurface): ScreenPoint | null {
+function fireMarkOf(
+  drawing: Drawing,
+  surface: ChartSurface
+): ScreenPoint | null {
   const alert = drawing.alert
   if (!alert || alert.firedAt === null || alert.firedPrice === undefined) {
     return null
@@ -235,9 +336,11 @@ function fireMarkOf(drawing: Drawing, surface: ChartSurface): ScreenPoint | null
  * left end is off the side of the plot is labelled where it comes into view,
  * read along its own slope, so the name never scrolls off with the end.
  */
-function labelAnchor(
-  segment: Segment
-): { x: number; y: number; angle: number } {
+function labelAnchor(segment: Segment): {
+  x: number
+  y: number
+  angle: number
+} {
   const [from, to] =
     segment.x1 <= segment.x2
       ? [
@@ -252,7 +355,8 @@ function labelAnchor(
   const angle =
     Math.round((Math.atan2(to.y - from.y, across) * 18000) / Math.PI) / 100
   const x = Math.max(from.x, 0)
-  const y = across === 0 ? from.y : from.y + ((to.y - from.y) / across) * (x - from.x)
+  const y =
+    across === 0 ? from.y : from.y + ((to.y - from.y) / across) * (x - from.x)
   return { x, y, angle }
 }
 
@@ -526,6 +630,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   onExtendPreference?: (on: boolean) => void
 }) {
   const svgRef = React.useRef<SVGSVGElement>(null)
+  const plotClipId = React.useId()
   // The moment the window opened and the live price then, so "where the line
   // is right now" is read once at the press rather than on every render.
   const [alertOpen, setAlertOpen] = React.useState<{
@@ -725,7 +830,13 @@ export const PaintLayer = React.memo(function PaintLayer({
     from: ScreenPoint
   ) => {
     clearLineHold()
-    if (!onSetAlert) return
+    if (
+      !onSetAlert &&
+      !drawings.some(
+        (drawing) => drawing.id === id && drawing.shape.kind === "fib"
+      )
+    )
+      return
     const target = event.currentTarget
     const pointerId = event.pointerId
     const hold: LineHold = {
@@ -828,7 +939,8 @@ export const PaintLayer = React.memo(function PaintLayer({
     // Matched rather than looked up by a selector built from the id: an id is
     // only bounded in length on the way in, and a stray quote in one would
     // throw here and leave the keyboard nowhere.
-    const lines = svgRef.current?.querySelectorAll<SVGElement>("[data-drawing-id]")
+    const lines =
+      svgRef.current?.querySelectorAll<SVGElement>("[data-drawing-id]")
     for (const line of lines ?? []) {
       if (line.getAttribute("data-drawing-id") === id) {
         line.focus()
@@ -839,24 +951,27 @@ export const PaintLayer = React.memo(function PaintLayer({
 
   // A line that has gone, or a chart that lost its alerts, closes the window
   // during the same render rather than leaving it hanging over nothing.
-  const alertDrawing =
-    onSetAlert && alertOpen
-      ? (drawings.find((drawing) => drawing.id === alertOpen.id) ?? null)
-      : null
+  const alertDrawing = alertOpen
+    ? (drawings.find(
+        (drawing) =>
+          drawing.id === alertOpen.id &&
+          (onSetAlert || drawing.shape.kind === "fib")
+      ) ?? null)
+    : null
   if (alertOpen && !alertDrawing) setAlertOpen(null)
 
   // ----- Drawing a new one ----------------------------------------------
 
   // Every new trendline starts the way the last Continuous line switch was
   // left. Only written when on, so a line drawn plain looks as it always did.
-  const newTrendline = (
+  const newTwoPointShape = (
     from: DrawingPoint,
     to: DrawingPoint
   ): DrawingShape => ({
-    kind: "trendline",
+    kind: tool === "fib" ? "fib" : "trendline",
     from,
     to,
-    ...(extendNewLines ? { extendRight: true } : {}),
+    ...(tool === "trendline" && extendNewLines ? { extendRight: true } : {}),
   })
 
   const sheetDown = (event: React.PointerEvent<SVGElement>) => {
@@ -873,9 +988,9 @@ export const PaintLayer = React.memo(function PaintLayer({
       startTouchHold(event, reading)
       return
     }
-    if (tool !== "trendline") return
+    if (!tool) return
     if (pending?.anchored) {
-      onCreate(newTrendline(pending.from, reading.point))
+      onCreate(newTwoPointShape(pending.from, reading.point))
       setSnapTip(null)
       return
     }
@@ -939,7 +1054,7 @@ export const PaintLayer = React.memo(function PaintLayer({
     // pointer until a second tap puts it down, which is the only way there is
     // to draw one on a touchscreen.
     if (apart(reading.local, pending.startedAt)) {
-      onCreate(newTrendline(pending.from, reading.point))
+      onCreate(newTwoPointShape(pending.from, reading.point))
       setSnapTip(null)
     } else {
       setPending({
@@ -983,15 +1098,21 @@ export const PaintLayer = React.memo(function PaintLayer({
       // Marks everything the paint tools own, so a press anywhere else on the
       // page can let the picked line go without this one doing it too.
       data-chart-paint
-      width={surface.width}
+      width={surface.width + surface.axisWidth}
       height={surface.height}
       className="absolute top-0 left-0"
     >
+      <defs>
+        <clipPath id={plotClipId}>
+          <path d={`M 0 0 H ${surface.width} V ${surface.height} H 0 Z`} />
+        </clipPath>
+      </defs>
       {drawings.map((drawing) => {
         const shape = grab?.id === drawing.id ? grab.shape : drawing.shape
         const segment = segmentOf(shape, surface)
         if (!segment) return null
         const selected = drawing.id === selectedId
+        const HitShape = shape.kind === "fib" ? "path" : "line"
         const extension = extensionOf(shape, surface)
         const armed = drawingAlertArmed(drawing.alert)
         const firedAt = fireMarkOf(drawing, surface)
@@ -1001,7 +1122,9 @@ export const PaintLayer = React.memo(function PaintLayer({
         // while a tool is in hand, where the sheet above would swallow the
         // click anyway.
         const showButtons = selected && !tool
-        const withCog = onSetAlert !== undefined
+        const withCog =
+          onSetAlert !== undefined &&
+          (shape.kind === "level" || shape.kind === "trendline")
         const marks = markColumn(
           segment,
           surface,
@@ -1015,7 +1138,7 @@ export const PaintLayer = React.memo(function PaintLayer({
         return (
           <g
             key={drawing.id}
-            className={selected ? "text-foreground" : "text-foreground/55"}
+            className={`group/fib ${selected ? "text-foreground" : "text-foreground/55"}`}
           >
             {/* The picked line is drawn darker and thicker than the rest, and
                 that is the whole mark. It used to carry a grey halo as well —
@@ -1025,10 +1148,20 @@ export const PaintLayer = React.memo(function PaintLayer({
                 round the whole thing, which on a line running corner to corner
                 is a rectangle over half the chart. */}
             <line
+              clipPath={`url(#${plotClipId})`}
               {...segment}
               stroke="currentColor"
-              strokeWidth={selected ? 2.5 : 1.5}
+              strokeWidth={shape.kind === "fib" ? 1 : selected ? 2.5 : 1.5}
+              strokeDasharray={shape.kind === "fib" ? "6 6" : undefined}
             />
+            {shape.kind === "fib" ? (
+              <FibLines
+                shape={shape}
+                surface={surface}
+                selected={selected}
+                clipId={plotClipId}
+              />
+            ) : null}
             {/* The carried-on part, dashed and thinner so the drawn part
                 still reads as the drawn part. It takes no pointer, so a click
                 on it reaches the chart rather than picking the line, and a
@@ -1049,8 +1182,19 @@ export const PaintLayer = React.memo(function PaintLayer({
                 target is not one. Focus picks the line out, so the darker,
                 thicker line above is the focus mark too — one thing to look
                 for whether the line was clicked or tabbed to. */}
-            <line
+            <HitShape
+              clipPath={`url(#${plotClipId})`}
               {...segment}
+              d={
+                `M ${segment.x1} ${segment.y1} L ${segment.x2} ${segment.y2}` +
+                projectedFib(shape, surface)
+                  .map(
+                    (level) =>
+                      ` M ${level.x1} ${level.y} L ${level.x2} ${level.y}`
+                  )
+                  .join("")
+              }
+              fill="none"
               stroke="currentColor"
               strokeOpacity={0}
               strokeWidth={14}
@@ -1073,7 +1217,9 @@ export const PaintLayer = React.memo(function PaintLayer({
               // travelled, so no drag starts; and a tool in hand means the
               // sheet above has the pointer, so this never arrives then.
               onDoubleClick={
-                onSetAlert ? () => openAlert(drawing.id, false) : undefined
+                onSetAlert || shape.kind === "fib"
+                  ? () => openAlert(drawing.id, false)
+                  : undefined
               }
               onKeyDown={(event) => {
                 if (event.key === "Delete" || event.key === "Backspace") {
@@ -1082,7 +1228,10 @@ export const PaintLayer = React.memo(function PaintLayer({
                 }
                 // Enter and Space are the keyboard's double-click. Only on
                 // a watched chart, where the window exists to open.
-                if ((event.key === "Enter" || event.key === " ") && onSetAlert) {
+                if (
+                  (event.key === "Enter" || event.key === " ") &&
+                  (onSetAlert || shape.kind === "fib")
+                ) {
                   event.preventDefault()
                   openAlert(drawing.id, true)
                 }
@@ -1092,24 +1241,26 @@ export const PaintLayer = React.memo(function PaintLayer({
                 takes no pointer, and a screen reader already hears it in the
                 line's own label. */}
             {shape.name ? (
-              <text
-                data-line-description
-                aria-hidden
-                // Turned with the line and measured from it, so the words sit
-                // along the line rather than lying flat beside it. Five pixels
-                // clear of the stroke, whichever way the line leans.
-                transform={`translate(${label.x} ${label.y}) rotate(${label.angle})`}
-                x={6}
-                y={-5}
-                fontSize={11}
-                fill="currentColor"
-                paintOrder="stroke"
-                className="stroke-background"
-                strokeWidth={3}
-                style={{ pointerEvents: "none", userSelect: "none" }}
-              >
-                {shape.name}
-              </text>
+              <g clipPath={`url(#${plotClipId})`}>
+                <text
+                  data-line-description
+                  aria-hidden
+                  // Turned with the line and measured from it, so the words sit
+                  // along the line rather than lying flat beside it. Five pixels
+                  // clear of the stroke, whichever way the line leans.
+                  transform={`translate(${label.x} ${label.y}) rotate(${label.angle})`}
+                  x={6}
+                  y={-5}
+                  fontSize={11}
+                  fill="currentColor"
+                  paintOrder="stroke"
+                  className="stroke-background"
+                  strokeWidth={3}
+                  style={{ pointerEvents: "none", userSelect: "none" }}
+                >
+                  {shape.name}
+                </text>
+              </g>
             ) : null}
             {/* A bell on every armed line, picked out or not, so which lines
                 are watched can be read off the chart. */}
@@ -1128,13 +1279,14 @@ export const PaintLayer = React.memo(function PaintLayer({
                 style={{ pointerEvents: "none" }}
               />
             ) : null}
-            {/* Only the picked-out line shows its ends, and only a trendline
-                has ends to show — a level runs the whole width, so there is
+            {/* Only the picked-out drawing shows its ends. A level has no
+                ends to show — a level runs the whole width, so there is
                 nothing to take hold of but the line itself. */}
-            {selected && shape.kind === "trendline"
+            {selected && shape.kind !== "level"
               ? (["from", "to"] as const).map((end) => (
                   <circle
                     key={end}
+                    clipPath={`url(#${plotClipId})`}
                     cx={end === "from" ? segment.x1 : segment.x2}
                     cy={end === "from" ? segment.y1 : segment.y2}
                     r={5}
@@ -1169,7 +1321,7 @@ export const PaintLayer = React.memo(function PaintLayer({
         )
       })}
 
-      {alertDrawing && alertOpen && onSetAlert
+      {alertDrawing && alertOpen
         ? (() => {
             const segment = segmentOf(alertDrawing.shape, surface)
             // Hung off the foot of a full column, whether or not the line is
@@ -1199,7 +1351,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                 // window can sit there a while and the direction should come
                 // from the price at the moment the switch goes on.
                 onSetAlert={(on) =>
-                  onSetAlert(alertDrawing.id, on, currentPrice())
+                  onSetAlert?.(alertDrawing.id, on, currentPrice())
                 }
                 // Saved the way a drag is saved: it is the same line with one
                 // more thing true of it, and the same optimistic write.
@@ -1220,22 +1372,31 @@ export const PaintLayer = React.memo(function PaintLayer({
                     currentPrice()
                   )
                 }
-                onSetBuffer={(buffer) =>
-                  onSetBuffer?.(alertDrawing.id, buffer)
-                }
+                onSetBuffer={(buffer) => onSetBuffer?.(alertDrawing.id, buffer)}
               />
             )
           })()
         : null}
 
       {preview ? (
-        <line
-          {...preview}
-          className="text-foreground/70"
-          stroke="currentColor"
-          strokeWidth={1.5}
-          strokeDasharray="4 4"
-        />
+        <g className="text-foreground/70">
+          {pending && tool === "fib" ? (
+            <FibLines
+              shape={{ kind: "fib", from: pending.from, to: pending.to }}
+              surface={surface}
+              selected={false}
+              clipId={plotClipId}
+            />
+          ) : null}
+          <line
+            clipPath={`url(#${plotClipId})`}
+            {...preview}
+            className="text-foreground/70"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
+          />
+        </g>
       ) : null}
 
       {visibleSnap ? (

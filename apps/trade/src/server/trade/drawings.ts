@@ -117,7 +117,11 @@ export async function saveChartDrawing(
     })
     .onConflictDoUpdate({
       target: [tradeChartDrawings.userId, tradeChartDrawings.id],
-      set: { shape: drawing.shape, updatedAt: new Date() },
+      set: {
+        shape: drawing.shape,
+        ...(drawing.shape.kind === "fib" ? { alert: null } : {}),
+        updatedAt: new Date(),
+      },
     })
 
   if (currentPrice === null) return

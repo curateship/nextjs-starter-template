@@ -30,16 +30,16 @@ relative place across live, backtest and flow-run charts, even when the chart
 panel changes size. A selected named workspace layout remembers the same place.
 The grip has no hover message.
 
-- **Two tools: a level and a trendline.** Press a tool, draw one thing, and
+- **Three tools: a level, trendline and fib retracement.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into
   another line. Pressing the tool that is already held puts it down too, and
   so does Escape. A right-click puts the held tool down without opening the
   browser menu or the order menu.
-- **A level is one click**; a **trendline is a drag from one end to the
+- **A level is one click**; a **trendline or fib is a drag from one end to the
   other**, or a tap at each end, which is the only way there is on a
   touchscreen. Either way a dashed preview shows where the line will land
   before it lands.
-- **Levels and trendline ends snap to candle highs and lows within eight screen
+- **Levels and the ends of trendlines and fibs snap to candle highs and lows within eight screen
   pixels as they are drawn or moved.** A small dot marks the wick tip that will
   take the point. Hold Alt to draw or drag an end exactly under the pointer
   instead. On touch, hold the first point still for half a second before
@@ -55,7 +55,7 @@ The grip has no hover message.
   deleted on this screen after the re-read began. The re-read's copy is older
   than that change, so it must not flip a switch back or bring a line back.
 - **Clicking a line picks it out** — it thickens and takes a soft glow along
-  its length, and a trendline shows a handle at each end. Dragging the line
+  its length, and every shape except a level shows a handle at each end. Dragging the line
   moves the whole thing; dragging a handle moves that end alone. Pressing
   anywhere else on the chart, or Escape, lets it go.
 - **The glow is the focus mark too, and the browser's own ring is turned
@@ -63,11 +63,10 @@ The grip has no hover message.
   running corner to corner that is a grey rectangle over half the chart.
 - **The Tab key reaches every line**, and landing on one picks it out. Delete
   or Backspace throws the focused one away.
-- **One line at a time goes from the line itself** — the small × in the column
-  under its right-hand end while it is picked out, or Delete on the keyboard —
-  and it comes back
-  with **Undo** in the toast that follows. A marked base is work, and a slip of
-  the mouse must not quietly erase it.
+- **Delete one drawing with its small × or the Delete key.** A fib disappears
+  without a success toast or Undo action. Levels and trendlines offer Undo
+  after deletion saves. Undo restores the shape and description; deleted alerts
+  stay off. A failed delete restores the drawing and shows an error toast.
 - **The bin in the toolbar clears the whole chart**, and asks first. It only
   appears once there is something to clear, it names how many go, and it takes
   this market's lines only — the others keep theirs. There is no Undo on that
@@ -97,3 +96,38 @@ The grip has no hover message.
   last saved input on any line becomes the starting value for the next alert.
   All of it is smart tools, in `smart-tools.md`. Orders on lines are still out
   of scope and attach to the same surface in their own task.
+
+### Fib retracements
+
+Fib sits beside Level and Trendline in the chart toolbar on desktop
+and touch screens. The tool puts itself down after one drawing. The
+current touch layout uses the same toolbar, with drawing settings in a bottom
+sheet below 1280 pixels.
+
+- **Fib prices follow the drag direction.** The first point is 0% and the
+  second is 100%. From $50,000 to $60,000, the seven prices are 0% at $50,000,
+  23.6% at $52,360, 38.2% at $53,820, 50% at $55,000, 61.8% at $56,180,
+  78.6% at $57,860 and 100% at $60,000. Reversing the drag puts 0% at $60,000.
+- **Fib uses TradingView's appearance.** Tyler asked, "The fib tool should look
+  like how TradingView does it." Solid coloured levels start at the earlier
+  anchor time and extend to the chart's right edge. Transparent coloured bands
+  fill the spaces between levels, and a dashed diagonal joins the handles.
+  Each label combines the ratio and price, such as `0.5 ($55,000)`, beside the
+  drawing's left edge. Near the chart's left edge, labels move inside the
+  drawing so they remain readable. Labels less than 16 pixels apart hide until
+  the fib is hovered or selected. The lines and bands remain visible.
+  The reference is [TradingView's fib retracement guide](https://www.tradingview.com/support/solutions/43000518158-fibonacci-retracement-drawing-tool/).
+- **Every fib line can be dragged.** The diagonal between the two handles can
+  also be dragged. Either moves the whole fib, while a handle moves only its
+  end. Moving an end recalculates all seven prices.
+- **Descriptions work without alerts.** Double-click, press Enter or Space on
+  a focused shape, or hold a finger still for half a second to open its
+  Description field. Fib has no alert cog, alert switch, continuous
+  line switch, custom levels or colour controls. The server refuses alerts on
+  fibs.
+- **Fibs stay saved.** Reloading or changing markets keeps
+  the shapes. View options hides them together with other drawings. Tab reaches
+  each shape and Delete removes it without a success toast. Tyler requested,
+  "remove the toast for deleting the fib and remove the arrow line tool".
+  The Arrow drawing tool is removed. Previously saved arrow drawings are no
+  longer displayed; the stored rows are not deleted by this change.
