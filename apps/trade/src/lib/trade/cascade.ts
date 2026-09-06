@@ -123,7 +123,12 @@ export function defaultCascade(): CascadeSettings {
  */
 export function worstFallIn(bars: readonly CandleBar[]): number {
   let worst = 0
+  let earlierHigh = -Infinity
   for (let j = 0; j < bars.length; j += 1) {
+    // Include every earlier high, even when its bar had an unusable low.
+    if (j > 0 && bars[j - 1].high > earlierHigh) {
+      earlierHigh = bars[j - 1].high
+    }
     const low = bars[j].low
     if (!(low > 0)) continue
 
@@ -140,9 +145,7 @@ export function worstFallIn(bars: readonly CandleBar[]): number {
     // Earlier bars are different: they finished, so their high is a real price
     // that really did come before this low.
     let from = bars[j].open
-    for (let i = 0; i < j; i += 1) {
-      if (bars[i].high > from) from = bars[i].high
-    }
+    if (earlierHigh > from) from = earlierHigh
     if (!(from > 0)) continue
 
     const fall = 1 - low / from

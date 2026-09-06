@@ -83,3 +83,40 @@ no longer get checked twice for every candle.
 These caches do not change prices, fills, fees, funding or ordering. A speed
 comparison uses the same saved run before and after the engine change, then
 checks every dollar result and fill before comparing elapsed time.
+
+## Checking a market-wide fall
+
+The cascade calculation remembers the highest earlier candle price while
+walking each coin's current window. Each high is considered once, instead of
+searching all earlier highs again for every candle. For a 96-candle window,
+the old inner search made 4,560 comparisons. The new search makes 95 checks
+of an earlier high, plus one comparison with each candle's opening price.
+
+The remembered high starts fresh for each window. The window still includes
+both endpoints. A candle's own high cannot measure its own fall, because the
+low may have happened first. Its opening price can. A candle with an invalid
+low still contributes its high to later candles, just as before.
+
+Live ladders and backtests use the same calculation. Thresholds, hold times,
+prices and fills do not change. The speed benefit applies when the cascade
+rule runs, and grows with the number of candles in the lookback window.
+
+### Checking the calculation
+
+Run `npx vitest run src/lib/trade/cascade.test.ts`. The tests compare exact
+answers against the former scan across 5,000 seeded series, including empty
+windows and unusual prices. Separate cases cover the exact window edge,
+short windows, same-candle rallies and invalid lows. A high-read count test
+rejects repeated scanning without relying on machine speed.
+
+Run `npx vitest run src/server/trade/backtest/engine.test.ts -t "holding through a market-wide crash"`
+for the three backtest cases covering the crash rule on, off and an isolated
+coin falling.
+
+For a saved-run comparison, replay identical coins, candles, funding, dates,
+settings and starting money with the former and current calculation. Enable
+the cascade rule. Compare every fill, fees, funding, ending balance and the
+account-value curve exactly before comparing elapsed time. An older saved
+result from a different engine version is not a reliable baseline. Candle
+loading time can hide the calculation saving, so whole-run speed needs its
+own measurement.

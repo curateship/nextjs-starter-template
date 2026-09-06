@@ -32,6 +32,80 @@ function coin(crashAt: number, low: number, bars = 4): CandleBar[] {
 }
 
 describe("worstFallIn", () => {
+  it("reads highs in linear work instead of rescanning earlier candles", () => {
+    let reads = 0
+    const series = Array.from({ length: 96 }, (_, i) => ({
+      ...bar({ openTime: i * HOUR }),
+      get high() {
+        reads += 1
+        return 100 + i
+      },
+    }))
+    worstFallIn(series)
+    expect(reads).toBeLessThanOrEqual(series.length * 2)
+  })
+
+  it("matches the original scan exactly across 5,000 seeded series", () => {
+    // Independent oracle for the calculation before the running maximum.
+    function original(bars: readonly CandleBar[]): number {
+      let worst = 0
+      for (let j = 0; j < bars.length; j += 1) {
+        const low = bars[j].low
+        if (!(low > 0)) continue
+        let from = bars[j].open
+        for (let i = 0; i < j; i += 1) {
+          if (bars[i].high > from) from = bars[i].high
+        }
+        if (!(from > 0)) continue
+        const fall = 1 - low / from
+        if (fall > worst) worst = fall
+      }
+      return worst
+    }
+    let seed = 123456789
+    function random() {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+      return seed / 4294967296
+    }
+    const unusual = [0, -10, NaN, Infinity, -Infinity]
+    function price() {
+      return random() < 0.1
+        ? unusual[Math.floor(random() * unusual.length)]
+        : random() * 1000
+    }
+    for (let sample = 0; sample < 5000; sample += 1) {
+      const series = Array.from(
+        { length: Math.floor(random() * 150) },
+        (_, i) =>
+          bar({
+            openTime: i * HOUR,
+            open: price(),
+            high: price(),
+            low: price(),
+          })
+      )
+      expect(worstFallIn(series), `series ${sample}`).toBe(original(series))
+    }
+  })
+
+  it("keeps an earlier high even when that bar has an invalid low", () => {
+    expect(
+      worstFallIn([
+        bar({ openTime: 0, high: 200, low: 0 }),
+        bar({ openTime: HOUR, open: 100, low: 50 }),
+      ])
+    ).toBe(0.75)
+  })
+
+  it("does not carry an open higher than its high into the next bar", () => {
+    expect(
+      worstFallIn([
+        bar({ openTime: 0, open: 200, high: 100, low: 200 }),
+        bar({ openTime: HOUR, open: 100, low: 100 }),
+      ])
+    ).toBe(0)
+  })
+
   it("measures a high to a LATER low, never a low to a later high", () => {
     // Falls to 40 on the second bar, then climbs to 200 over the two after
     // it. The climb must not be read backwards as a fall from 200 to 40.
@@ -49,7 +123,9 @@ describe("worstFallIn", () => {
     // candle and bounced back before it closed, so the fall exists only as
     // that bar's own open against its own low. Comparing one bar's close to
     // the next bar's would miss it completely.
-    const bars = [bar({ openTime: 0, open: 100, high: 100, low: 25, close: 90 })]
+    const bars = [
+      bar({ openTime: 0, open: 100, high: 100, low: 25, close: 90 }),
+    ]
     expect(worstFallIn(bars)).toBeCloseTo(0.75, 6)
   })
 
@@ -65,13 +141,41 @@ describe("worstFallIn", () => {
     // A bar says what it opened, ranged and closed at, never in what order.
     // Scoring its own high against its own low would call this +100% bar a
     // 50% fall — and ten coins rallying together would fire the rule.
-    const bars = [bar({ openTime: 0, open: 100, high: 200, low: 100, close: 200 })]
+    const bars = [
+      bar({ openTime: 0, open: 100, high: 200, low: 100, close: 200 }),
+    ]
     expect(worstFallIn(bars)).toBe(0)
   })
 })
 
 describe("marketIsCascading", () => {
   const settings = defaultCascade()
+
+  it("drops the earlier peak immediately after the inclusive window edge", () => {
+    const coins = new Map([
+      [
+        "coin",
+        [
+          bar({ openTime: 0, open: 100, high: 200, low: 100 }),
+          bar({ openTime: HOUR, open: 100, high: 100, low: 100 }),
+        ],
+      ],
+    ])
+    const rule = { ...settings, withinHours: 1, minCoins: 1 }
+    expect(marketIsCascading({ settings: rule, coins, now: HOUR })).toBe(true)
+    expect(marketIsCascading({ settings: rule, coins, now: HOUR + 1 })).toBe(
+      false
+    )
+  })
+
+  it("handles a window shorter than the interval, including an empty window", () => {
+    const coins = new Map([["coin", [bar({ openTime: HOUR, low: 25 })]]])
+    const rule = { ...settings, withinHours: 0.25, minCoins: 1 }
+    expect(marketIsCascading({ settings: rule, coins, now: HOUR })).toBe(true)
+    expect(marketIsCascading({ settings: rule, coins, now: 1.5 * HOUR })).toBe(
+      false
+    )
+  })
 
   it("fires when enough coins fall far enough at the same time", () => {
     const coins = new Map(
