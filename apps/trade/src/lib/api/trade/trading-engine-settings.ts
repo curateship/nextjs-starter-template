@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 
 import { createErrorMessage } from "@/lib/api/error-message"
 import type { AsterMarginModeSetting } from "@/lib/trade/aster-margin-mode"
+import type { EngineUptime } from "@/lib/trade/engine-uptime"
 import type { EngineErrorRow } from "@/lib/trade/engine-errors"
 import type { LiquidationWarning } from "@/lib/trade/liquidation-warning"
 import type { OrderStyle } from "@/lib/trade/order-style"
@@ -9,6 +10,7 @@ import type { WorkersDashboard } from "@/lib/trade/workers"
 import { adminGet } from "@/server/guards"
 import { loadRememberedAsterMarginModeSettings } from "@/server/protocols/aster-margin-mode"
 import { listEngineErrors } from "@/server/trade/engine-errors"
+import { loadEngineUptime } from "@/server/trade/engine-uptime"
 import { loadLiquidationWarning, loadOrderStyle } from "@/server/trade/prefs"
 import { workersDashboard } from "@/server/trade/workers"
 
@@ -19,6 +21,7 @@ export type TradingEngineSettingsPage = {
   orderStyle: OrderStyle
   /** What the engine has got wrong lately, newest first. */
   engineErrors: EngineErrorRow[]
+  engineUptime: EngineUptime
 }
 
 const loadFn = createServerFn({ method: "GET" })
@@ -30,12 +33,14 @@ const loadFn = createServerFn({ method: "GET" })
       asterMargins,
       orderStyle,
       engineErrors,
+      engineUptime,
     ] = await Promise.all([
       workersDashboard(true),
       loadLiquidationWarning(context.user.id),
       loadRememberedAsterMarginModeSettings(context.user.id).catch(() => null),
       loadOrderStyle(context.user.id),
       listEngineErrors(),
+      loadEngineUptime(),
     ])
 
     return {
@@ -44,6 +49,7 @@ const loadFn = createServerFn({ method: "GET" })
       asterMargins,
       orderStyle,
       engineErrors,
+      engineUptime,
     }
   })
 

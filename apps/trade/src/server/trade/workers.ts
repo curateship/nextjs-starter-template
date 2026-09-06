@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm"
+import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm"
 
 import {
   safeWorkerError,
@@ -15,6 +15,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { forgetRealMoneySwitch } from "@/server/protocols/real-money-memory"
 import {
   tradeSmartLadders,
+  tradeEngineOutageHistory,
   tradeWorkerControls,
   tradeWorkerHeartbeats,
 } from "@/server/trade/schema"
@@ -183,14 +184,32 @@ export async function setWorkerSwitch(
   // Seeded first so switching a worker that has never run still writes.
   await workerControl(kind, database)
   const changedAt = new Date()
-  await database
-    .update(tradeWorkerControls)
-    .set({
-      ...change,
-      ...(change.enabled === true ? { enabledAt: changedAt } : {}),
-      updatedAt: changedAt,
-    })
-    .where(eq(tradeWorkerControls.kind, kind))
+  await database.transaction(async (tx) => {
+    // Updating the control takes the same row lock as the health monitor.
+    await tx
+      .update(tradeWorkerControls)
+      .set({
+        ...change,
+        ...(change.enabled === true ? { enabledAt: changedAt } : {}),
+        updatedAt: changedAt,
+      })
+      .where(eq(tradeWorkerControls.kind, kind))
+    if (change.enabled === false) {
+      // updatedAt also changes for pause, restart and scan requests. Save the
+      // actual switch time now, before another action can replace that value.
+      await tx
+        .update(tradeEngineOutageHistory)
+        .set({
+          endedAt: sql`greatest(${tradeEngineOutageHistory.startedAt}, ${changedAt.toISOString()}::timestamptz)`,
+        })
+        .where(
+          and(
+            eq(tradeEngineOutageHistory.kind, kind),
+            isNull(tradeEngineOutageHistory.endedAt)
+          )
+        )
+    }
+  })
 }
 
 /**

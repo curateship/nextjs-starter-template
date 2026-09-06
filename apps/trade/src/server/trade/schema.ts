@@ -1346,6 +1346,26 @@ export const tradeEngineOutages = pgTable("trade_engine_outages", {
   announcedAt: timestamp("announced_at", { withTimezone: true }).notNull(),
 })
 
+export const tradeEngineOutageHistory = pgTable(
+  "trade_engine_outage_history",
+  {
+    kind: varchar("kind", { length: 30 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.kind, table.startedAt] }),
+    uniqueIndex("trade_engine_outage_history_open_idx")
+      .on(table.kind)
+      .where(sql`${table.endedAt} is null`),
+    index("trade_engine_outage_history_ended_idx").on(table.endedAt),
+    check(
+      "trade_engine_outage_history_times_check",
+      sql`${table.endedAt} >= ${table.startedAt}`
+    ),
+  ]
+)
+
 /**
  * Every error and warning the trading engine printed, with the time it
  * happened.

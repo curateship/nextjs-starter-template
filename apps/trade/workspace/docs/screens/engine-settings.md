@@ -2,8 +2,8 @@
 
 ## Trading engine settings
 
-Settings → Trading engine uses four full-width cards. Trading engine comes
-first, then Safety and Orders, and Errors is last.
+Settings → Trading engine uses five full-width cards. Trading engine comes
+first, then Safety, Orders, Engine uptime over the last 30 days, and Errors.
 
 The route arrives with the engine, liquidation warning, Aster margin, and plain
 order style already read. The page never replaces itself with "Asking the
@@ -37,7 +37,7 @@ own visible labels in both layouts.
 ## The Errors card
 
 The Errors card is a history of what the engine got wrong, newest first. It
-sits at the bottom of the tab, under Orders, because it is a record to go
+sits at the bottom of the tab, under the uptime history, because it is a record to go
 looking through rather than a setting to change. The Trading engine card at the
 top says what the engine is doing now and carries one error, the last one,
 because that is the only one the heartbeat can hold. That was never enough. Two failures at 3am and one at 4am left the screen showing the 4am one
@@ -81,6 +81,23 @@ the line has already been printed by then, and a database that has gone away
 must not turn one failed pass into two. During an outage the queue stops
 accepting after fifty are waiting, for the same reason.
 
+## Engine uptime over the last 30 days
+
+The uptime card keeps a history of detected downtime after the engine recovers.
+
+- **Rows:** Each outage shows its start, end and duration in minutes. The newest start appears first.
+- **Ongoing outages:** An open outage says "Ongoing" and shows its duration when the page loaded.
+- **Total:** The summary counts outages overlapping the last 30 days and adds only downtime inside that window.
+- **Long outages:** A row shows its full duration even when its start falls before the 30-day window.
+- **Refresh:** Reload the page to update the list and total. The card shows when the history was read.
+- **Empty history:** "No outages recorded" means there are no saved records for that window. History cannot reconstruct earlier outages.
+- **Recovery:** A later heartbeat closes the outage. A new engine instance closes the outage at its recorded start time.
+- **Intentional shutdown:** Switching the engine off saves the outage end in the same transaction. Later pause, restart or scan requests cannot change that end. No all-clear notice is added.
+- **Quick switch cycle:** Turning the engine off and on between checks keeps the original switch-off time. An outage left by an older switch implementation closes at the new enable time.
+- **Storage:** Migration `0170_trade_engine_outage_history.sql` adds the history table and copies any currently announced outage.
+- **Retention:** The existing daily cache sweep removes outages that ended more than 90 days ago. Open outages remain available for recovery.
+- **Notices:** History is saved even without active administrators. The 45-second threshold and existing bell notices are unchanged.
+
 ## Engine health notices
 
 Engine health goes through the notification tray that the rest of the app
@@ -120,7 +137,8 @@ the heartbeat returns, one all clear reads:
 
 The outage start is the last heartbeat. The return is the first heartbeat that
 the monitor sees after the outage. The app keeps one outage row while the engine
-is down, then deletes the row after writing the all clear. A later outage can
+is down, then deletes that current-status row after writing the all clear. The
+separate outage history keeps its start and end. A later outage can
 therefore make its own pair without one outage producing a message every 15
 seconds.
 

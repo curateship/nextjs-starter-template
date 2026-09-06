@@ -5,6 +5,7 @@ import { MAX_BACKTEST_DAYS } from "@/lib/recipes/trade-markets"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   tradeBacktests,
+  tradeEngineOutageHistory,
   tradeCandleCoverage,
   tradeCandleGaps,
   tradeCandles,
@@ -37,13 +38,19 @@ const EMPTY_COUNTS: TradeCacheCleanupCounts = {
 }
 
 /**
- * Trims only exchange data that can be fetched again. Trading records and
- * completed backtests are deliberately absent.
+ * Trims closed outage history and exchange data that can be fetched again.
+ * Trading records and completed backtests are deliberately absent.
  */
 export async function cleanTradeCaches(
   database: CustomShellDb = db,
   at: Date = new Date()
 ): Promise<TradeCacheCleanupCounts> {
+  await deleteCapped(
+    database,
+    tradeEngineOutageHistory,
+    tradeEngineOutageHistory.endedAt,
+    lt(tradeEngineOutageHistory.endedAt, new Date(at.getTime() - 90 * DAY_MS))
+  )
   const [active] = await database
     .select({ id: tradeBacktests.id })
     .from(tradeBacktests)

@@ -165,6 +165,11 @@ describe("the trading engine error", () => {
               asterMargins: [],
               orderStyle: "rest",
               engineErrors: [],
+              engineUptime: {
+                outages: [],
+                totalDowntimeMs: 0,
+                checkedAt: "2026-09-06T12:00:00.000Z",
+              },
             }}
           >
             <WorkersSettings />

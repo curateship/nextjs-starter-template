@@ -13,6 +13,7 @@ import {
 } from "@/server/test-support"
 import {
   tradeEngineOutages,
+  tradeEngineOutageHistory,
   tradeWorkerControls,
   tradeWorkerHeartbeats,
 } from "@/server/trade/schema"
@@ -42,6 +43,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.useRealTimers()
   await close()
 })
 
@@ -112,6 +114,9 @@ describe("trading engine health notices", () => {
     ])
     expect(publish).toHaveBeenCalledTimes(1)
     expect(await database.select().from(tradeEngineOutages)).toHaveLength(1)
+    expect(await database.select().from(tradeEngineOutageHistory)).toEqual([
+      { kind: "ladders", startedAt, endedAt: null },
+    ])
   })
 
   it("sends one all clear with the outage length, then clears the outage", async () => {
@@ -145,6 +150,9 @@ describe("trading engine health notices", () => {
         title: "The trading engine came back at 3:13 AM EDT",
         body: "It was unavailable for 1 minute 12 seconds. Watched orders and ladder rungs are working again.",
       },
+    ])
+    expect(await database.select().from(tradeEngineOutageHistory)).toEqual([
+      { kind: "ladders", startedAt, endedAt: recoveredAt },
     ])
     expect(publish).toHaveBeenCalledTimes(2)
     expect(await database.select().from(tradeEngineOutages)).toEqual([])
@@ -251,5 +259,145 @@ describe("trading engine health notices", () => {
 
     expect(await notices()).toEqual([])
     expect(publish).not.toHaveBeenCalled()
+  })
+  it("closes history at the restart time after missed monitoring passes", async () => {
+    await setControl(true)
+    await heartbeat(startedAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 60_000),
+      publish,
+    })
+    const restartedAt = new Date(startedAt.getTime() + 120_000)
+    await database.insert(tradeWorkerHeartbeats).values({
+      id: crypto.randomUUID(),
+      kind: "ladders",
+      role: "leader",
+      startedAt: restartedAt,
+      lastSeenAt: new Date(startedAt.getTime() + 180_000),
+      meta: {},
+    })
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 190_000),
+      publish,
+    })
+    expect(await database.select().from(tradeEngineOutageHistory)).toEqual([
+      { kind: "ladders", startedAt, endedAt: restartedAt },
+    ])
+  })
+
+  it("records and closes history without notification recipients", async () => {
+    const { customShellUsers } = await import("@/server/schema")
+    await database
+      .update(customShellUsers)
+      .set({ role: "member" })
+      .where(eq(customShellUsers.id, adminId))
+    await setControl(true)
+    await heartbeat(startedAt)
+    for (const seconds of [60, 75]) {
+      await monitorTradingEngine({
+        database,
+        checkedAt: new Date(startedAt.getTime() + seconds * 1000),
+        publish,
+      })
+    }
+    const recoveredAt = new Date(startedAt.getTime() + 90_000)
+    await heartbeat(recoveredAt)
+    await monitorTradingEngine({ database, checkedAt: recoveredAt, publish })
+    expect(await database.select().from(tradeEngineOutageHistory)).toEqual([
+      { kind: "ladders", startedAt, endedAt: recoveredAt },
+    ])
+    expect(await notices()).toEqual([])
+  })
+
+  it("ends downtime when intentionally switched off, and retains later outages separately", async () => {
+    await setControl(true)
+    await heartbeat(startedAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 60_000),
+      publish,
+    })
+    const disabledAt = new Date(startedAt.getTime() + 75_000)
+    await setControl(false, disabledAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 90_000),
+      publish,
+    })
+    const enabledAt = new Date(startedAt.getTime() + 120_000)
+    await setControl(true, enabledAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 180_000),
+      publish,
+    })
+    const rows = await database.select().from(tradeEngineOutageHistory)
+    expect(rows).toHaveLength(2)
+    expect(rows).toContainEqual({
+      kind: "ladders",
+      startedAt,
+      endedAt: disabledAt,
+    })
+    expect(rows).toContainEqual({
+      kind: "ladders",
+      startedAt: enabledAt,
+      endedAt: null,
+    })
+  })
+  it("closes a recovered outage and records a later missed heartbeat in the same pass", async () => {
+    await setControl(true)
+    await heartbeat(startedAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 60_000),
+      publish,
+    })
+    const recoveredAt = new Date(startedAt.getTime() + 90_000)
+    await heartbeat(recoveredAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 180_000),
+      publish,
+    })
+    const rows = await database.select().from(tradeEngineOutageHistory)
+    expect(rows).toHaveLength(2)
+    expect(rows).toContainEqual({
+      kind: "ladders",
+      startedAt,
+      endedAt: recoveredAt,
+    })
+    expect(rows).toContainEqual({
+      kind: "ladders",
+      startedAt: recoveredAt,
+      endedAt: null,
+    })
+  })
+  it("keeps the switch-off time when later controls change before the monitor runs", async () => {
+    const { setWorkerSwitch, requestWorkerRestart } =
+      await import("@/server/trade/workers")
+    await setControl(true)
+    await heartbeat(startedAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 60_000),
+      publish,
+    })
+    const disabledAt = new Date(startedAt.getTime() + 75_000)
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(disabledAt)
+    await setWorkerSwitch("ladders", { enabled: false }, database)
+    vi.setSystemTime(new Date(startedAt.getTime() + 80_000))
+    await requestWorkerRestart("ladders", database)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + 90_000),
+      publish,
+    })
+    expect(await database.select().from(tradeEngineOutageHistory)).toEqual([
+      { kind: "ladders", startedAt, endedAt: disabledAt },
+    ])
+    expect(await notices()).toHaveLength(1)
   })
 })

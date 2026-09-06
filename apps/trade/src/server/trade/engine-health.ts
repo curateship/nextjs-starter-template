@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, isNull, sql } from "drizzle-orm"
 
 import { publishNotificationCreatedMany } from "@/server/notifications/events"
 import { db, type CustomShellDb } from "@/server/db"
@@ -12,6 +12,7 @@ import {
 } from "@/server/schema"
 import {
   tradeEngineOutages,
+  tradeEngineOutageHistory,
   tradeWorkerControls,
   tradeWorkerHeartbeats,
 } from "@/server/trade/schema"
@@ -131,106 +132,167 @@ export async function monitorTradingEngine({
   checkedAt?: Date
   publish?: (userIds: string[], database: CustomShellDb) => Promise<void>
 } = {}): Promise<void> {
-  const notice = await database.transaction(async (tx): Promise<HealthNotice> => {
-    await tx
-      .insert(tradeWorkerControls)
-      .values({
-        kind: LADDER_WORKER_KIND,
-        enabled: true,
-        enabledAt: checkedAt,
-        paused: false,
-        updatedAt: checkedAt,
-      })
-      .onConflictDoNothing()
+  const notice = await database.transaction(
+    async (tx): Promise<HealthNotice> => {
+      await tx
+        .insert(tradeWorkerControls)
+        .values({
+          kind: LADDER_WORKER_KIND,
+          enabled: true,
+          enabledAt: checkedAt,
+          paused: false,
+          updatedAt: checkedAt,
+        })
+        .onConflictDoNothing()
 
-    await tx.execute(
-      sql`select "kind" from "trade_worker_controls" where "kind" = ${LADDER_WORKER_KIND} for update`
-    )
-
-    const [control] = await tx
-      .select()
-      .from(tradeWorkerControls)
-      .where(eq(tradeWorkerControls.kind, LADDER_WORKER_KIND))
-      .limit(1)
-    const [heartbeat] = await tx
-      .select({ lastSeenAt: tradeWorkerHeartbeats.lastSeenAt })
-      .from(tradeWorkerHeartbeats)
-      .where(
-        and(
-          eq(tradeWorkerHeartbeats.kind, LADDER_WORKER_KIND),
-          eq(tradeWorkerHeartbeats.role, "leader")
-        )
+      await tx.execute(
+        sql`select "kind" from "trade_worker_controls" where "kind" = ${LADDER_WORKER_KIND} for update`
       )
-      .orderBy(desc(tradeWorkerHeartbeats.lastSeenAt))
-      .limit(1)
-    const [savedOutage] = await tx
-      .select()
-      .from(tradeEngineOutages)
-      .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
-      .limit(1)
 
-    if (!control?.enabled) {
-      if (savedOutage) {
+      const [control] = await tx
+        .select()
+        .from(tradeWorkerControls)
+        .where(eq(tradeWorkerControls.kind, LADDER_WORKER_KIND))
+        .limit(1)
+      const [heartbeat] = await tx
+        .select({
+          lastSeenAt: tradeWorkerHeartbeats.lastSeenAt,
+          startedAt: tradeWorkerHeartbeats.startedAt,
+        })
+        .from(tradeWorkerHeartbeats)
+        .where(
+          and(
+            eq(tradeWorkerHeartbeats.kind, LADDER_WORKER_KIND),
+            eq(tradeWorkerHeartbeats.role, "leader")
+          )
+        )
+        .orderBy(desc(tradeWorkerHeartbeats.lastSeenAt))
+        .limit(1)
+      const [savedOutage] = await tx
+        .select()
+        .from(tradeEngineOutages)
+        .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
+        .limit(1)
+
+      // History is independent of notice recipients. The same control-row lock
+      // serializes both records, including when no active admin receives notices.
+      const [openHistory] = await tx
+        .select()
+        .from(tradeEngineOutageHistory)
+        .where(
+          and(
+            eq(tradeEngineOutageHistory.kind, LADDER_WORKER_KIND),
+            isNull(tradeEngineOutageHistory.endedAt)
+          )
+        )
+        .limit(1)
+      const lastExpectedAt =
+        heartbeat && heartbeat.lastSeenAt > control.enabledAt
+          ? heartbeat.lastSeenAt
+          : control.enabledAt
+      let historyEndedAt: Date | undefined
+      if (openHistory) {
+        if (!control.enabled) historyEndedAt = control.updatedAt
+        else if (control.enabledAt > openHistory.startedAt)
+          historyEndedAt = control.enabledAt
+        else if (heartbeat && heartbeat.lastSeenAt > openHistory.startedAt) {
+          historyEndedAt =
+            heartbeat.startedAt > openHistory.startedAt
+              ? heartbeat.startedAt
+              : heartbeat.lastSeenAt
+        }
+        if (historyEndedAt) {
+          await tx
+            .update(tradeEngineOutageHistory)
+            .set({
+              endedAt: new Date(
+                Math.max(
+                  openHistory.startedAt.getTime(),
+                  Math.min(checkedAt.getTime(), historyEndedAt.getTime())
+                )
+              ),
+            })
+            .where(
+              and(
+                eq(tradeEngineOutageHistory.kind, LADDER_WORKER_KIND),
+                eq(tradeEngineOutageHistory.startedAt, openHistory.startedAt)
+              )
+            )
+        }
+      }
+      if (
+        control.enabled &&
+        (!openHistory || historyEndedAt) &&
+        checkedAt.getTime() - lastExpectedAt.getTime() > ENGINE_OUTAGE_AFTER_MS
+      ) {
+        await tx.insert(tradeEngineOutageHistory).values({
+          kind: LADDER_WORKER_KIND,
+          startedAt: lastExpectedAt,
+        })
+      }
+
+      if (!control?.enabled) {
+        if (savedOutage) {
+          await tx
+            .delete(tradeEngineOutages)
+            .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
+        }
+        return { recipients: [] }
+      }
+
+      // The switch may have gone off and back on between two monitoring passes.
+      // In that case the old outage belongs to the earlier run, and the fresh
+      // start-up window is not proof that a heartbeat came back.
+      const outageIsFromPreviousRun =
+        savedOutage !== undefined && control.enabledAt > savedOutage.announcedAt
+      if (outageIsFromPreviousRun) {
         await tx
           .delete(tradeEngineOutages)
           .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
       }
-      return { recipients: [] }
-    }
+      const outage = outageIsFromPreviousRun ? undefined : savedOutage
 
-    // The switch may have gone off and back on between two monitoring passes.
-    // In that case the old outage belongs to the earlier run, and the fresh
-    // start-up window is not proof that a heartbeat came back.
-    const outageIsFromPreviousRun =
-      savedOutage !== undefined && control.enabledAt > savedOutage.announcedAt
-    if (outageIsFromPreviousRun) {
-      await tx
-        .delete(tradeEngineOutages)
-        .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
-    }
-    const outage = outageIsFromPreviousRun ? undefined : savedOutage
+      const heartbeatIsFresh =
+        checkedAt.getTime() - lastExpectedAt.getTime() <= ENGINE_OUTAGE_AFTER_MS
 
-    const lastExpectedAt =
-      heartbeat && heartbeat.lastSeenAt > control.enabledAt
-        ? heartbeat.lastSeenAt
-        : control.enabledAt
-    const heartbeatIsFresh =
-      checkedAt.getTime() - lastExpectedAt.getTime() <= ENGINE_OUTAGE_AFTER_MS
+      if (heartbeatIsFresh) {
+        if (!outage) return { recipients: [] }
 
-    if (heartbeatIsFresh) {
-      if (!outage) return { recipients: [] }
+        const recipients = await writeNotice(
+          recoveryWords(
+            outage.outageStartedAt,
+            heartbeat?.lastSeenAt ?? checkedAt
+          ),
+          "info",
+          checkedAt,
+          tx
+        )
+        if (!recipients.length) return { recipients: [] }
+
+        await tx
+          .delete(tradeEngineOutages)
+          .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
+        return { recipients }
+      }
+
+      if (outage) return { recipients: [] }
 
       const recipients = await writeNotice(
-        recoveryWords(outage.outageStartedAt, heartbeat?.lastSeenAt ?? checkedAt),
-        "info",
+        outageWords(lastExpectedAt),
+        "critical",
         checkedAt,
         tx
       )
       if (!recipients.length) return { recipients: [] }
 
-      await tx
-        .delete(tradeEngineOutages)
-        .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
+      await tx.insert(tradeEngineOutages).values({
+        kind: LADDER_WORKER_KIND,
+        outageStartedAt: lastExpectedAt,
+        announcedAt: checkedAt,
+      })
       return { recipients }
     }
-
-    if (outage) return { recipients: [] }
-
-    const recipients = await writeNotice(
-      outageWords(lastExpectedAt),
-      "critical",
-      checkedAt,
-      tx
-    )
-    if (!recipients.length) return { recipients: [] }
-
-    await tx.insert(tradeEngineOutages).values({
-      kind: LADDER_WORKER_KIND,
-      outageStartedAt: lastExpectedAt,
-      announcedAt: checkedAt,
-    })
-    return { recipients }
-  })
+  )
 
   if (notice.recipients.length) {
     await publish(notice.recipients, database)

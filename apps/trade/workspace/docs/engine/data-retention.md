@@ -34,8 +34,12 @@ for that stretch again instead of believing deleted rows are still present. A de
 the exception. An exchange may no longer return its old history, so cached data
 older than ten years can be lost. Trading and backtest result records remain.
 
-The sweep does nothing while any backtest is waiting or running. The pause
+The exchange-cache sweep does nothing while any backtest is waiting or running. The pause
 keeps a backtest from losing rows between its coverage check and its data read.
+
+The same daily sweep removes engine outages that ended more than 90 days ago,
+up to 10,000 rows per pass. Open outages remain until recovery closes them.
+Outage cleanup runs even while a backtest is active because backtests do not read outage history.
 
 The database first addressed through the shell host name `base` could not be
 counted on 28 August 2026 because that name did not resolve. Migrations `0150`
