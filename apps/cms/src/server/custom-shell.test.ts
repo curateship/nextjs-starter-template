@@ -66,13 +66,13 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   isActiveShellHref,
+  isShellEntryVisible,
   isShellItem,
   MAX_AUTOMATION_PAUSE_NAME_LENGTH,
   normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
-  resolveMaintenanceMessage,
   type ShellChildItem,
   type ShellItem,
   type ShellSection,
@@ -86,6 +86,7 @@ import { setSessionPolicy } from "@/server/auth/session-policy"
 import {
   parseShellGlobals,
   pickShellGlobals,
+  readBranding,
   readShellGlobals,
   readShellSettings,
 } from "@/server/shell-settings"
@@ -126,10 +127,13 @@ import {
   createSignInLinkToken,
 } from "@/server/auth/sign-in-link"
 import { describeDevice } from "@/lib/format/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenTtlMs,
+} from "@/lib/email/auth-token-expiry"
 import {
   addAutomationTemplatesLink,
+  addMeteredUsageLink,
   addNewsletterLink,
   addOverviewLink,
   addPagesLink,
@@ -297,7 +301,7 @@ describe("magic-link sign-in", () => {
     expect(row.tokenHash).toBe(hashToken(link!.token))
     expect(row.tokenHash).not.toBe(link!.token)
     expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
-      SIGN_IN_LINK_MINUTES * 60 * 1000
+      authTokenTtlMs("login", DEFAULT_AUTH_LINK_EXPIRY)
     )
   })
 
@@ -740,7 +744,7 @@ describe("self-serve email change", () => {
     expect(row.tokenHash).toBe(hashToken(token))
     expect(row.tokenHash).not.toBe(token)
     expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
-      EMAIL_CHANGE_HOURS * 60 * 60 * 1000
+      authTokenTtlMs("change_email", DEFAULT_AUTH_LINK_EXPIRY)
     )
 
     // Nothing about the account moves until the link is opened.
@@ -1104,6 +1108,166 @@ describe("self-serve email change", () => {
 })
 
 describe("custom shell workspaces", () => {
+  it("carries one-site public links through an app-wide settings save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      publicNavigation: [
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
+      publicFooter: [{ label: "Privacy", href: "/privacy" }],
+      publicFooterCopyright: "Copyright",
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      publicNavigation: [
+        { type: "search", visible: true },
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
+      publicFooter: [{ label: "Privacy", href: "/privacy" }],
+      publicFooterCopyright: "Copyright",
+    })
+  })
+
+  it("uses one app colour unless public domains give each site its own", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const testDb = database as unknown as CustomShellDb
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "public-theme-owner@internal.dev",
+      name: "Public Theme Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    const workspace = await startWorkspaceFor(userId, testDb)
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...parseWorkspaceSettings(workspace.settings),
+          publicNavigation: [{ label: "Workspace menu", href: "/workspace" }],
+          publicFooter: [{ label: "Workspace footer", href: "/workspace" }],
+          publicFooterCopyright: "Workspace copyright",
+          publicTheme: {
+            brandColor: "#3b82f6",
+            brandOverrides: { hoverColor: "#1d4ed8" },
+          },
+        },
+      })
+      .where(eq(customShellWorkspaces.id, workspace.id))
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicNavigation: [{ label: "App menu", href: "/app" }],
+        publicFooter: [{ label: "App footer", href: "/app" }],
+        publicFooterCopyright: "App copyright",
+        publicTheme: {
+          brandColor: "#dc2626",
+          brandOverrides: { darkColor: "#f87171" },
+          canvasColor: "#f1f5f9",
+          pageWidth: 960,
+          mainSpacing: 24,
+          contentAlignment: "right",
+          headerBorder: false,
+          footerBorder: true,
+          colorScheme: "dark",
+          font: "serif",
+          radius: 4,
+        },
+      },
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+    try {
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+      const singleSiteConfig = await readShellSettings(
+        { id: userId, role: "admin" },
+        testDb
+      )
+      expect(singleSiteConfig.publicNavigation).toEqual([
+        { type: "search", visible: true },
+        { label: "App menu", href: "/app" },
+      ])
+      expect(singleSiteConfig.publicFooter).toEqual([
+        { label: "App footer", href: "/app" },
+      ])
+      expect(singleSiteConfig.publicFooterCopyright).toBe("App copyright")
+      expect(singleSiteConfig.publicTheme).toEqual({
+        brandColor: "#dc2626",
+        brandOverrides: { darkColor: "#f87171" },
+        canvasColor: "#f1f5f9",
+        pageWidth: 960,
+        mainSpacing: 24,
+        contentAlignment: "right",
+        backgroundPattern: "none",
+        backgroundPatternSize: "medium",
+        backgroundPatternOpacity: 8,
+        buttonStyle: "solid",
+        buttonCasing: "as-written",
+        headerBorder: false,
+        footerBorder: true,
+        colorScheme: "dark",
+        useCustomFont: false,
+        font: "serif",
+        radius: 4,
+      })
+
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = "localhost"
+      const multiSiteConfig = await readShellSettings(
+        { id: userId, role: "admin" },
+        testDb
+      )
+      expect(multiSiteConfig.publicNavigation).toEqual([
+        { type: "search", visible: true },
+        { label: "Workspace menu", href: "/workspace" },
+      ])
+      expect(multiSiteConfig.publicFooter).toEqual([
+        { label: "Workspace footer", href: "/workspace" },
+      ])
+      expect(multiSiteConfig.publicFooterCopyright).toBe("Workspace copyright")
+      expect(multiSiteConfig.publicTheme).toEqual({
+        brandColor: "#3b82f6",
+        brandOverrides: { hoverColor: "#1d4ed8" },
+        canvasColor: "#f1f5f9",
+        pageWidth: 960,
+        mainSpacing: 24,
+        contentAlignment: "right",
+        backgroundPattern: "none",
+        backgroundPatternSize: "medium",
+        backgroundPatternOpacity: 8,
+        buttonStyle: "solid",
+        buttonCasing: "as-written",
+        headerBorder: false,
+        footerBorder: true,
+        colorScheme: "dark",
+        useCustomFont: false,
+        font: "serif",
+        radius: 4,
+      })
+    } finally {
+      if (savedBaseDomain === undefined) {
+        delete process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+      } else {
+        process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = savedBaseDomain
+      }
+    }
+  })
+
   it("creates a default workspace and switches the active workspace", async () => {
     const createdAt = now()
     const userId = uuid()
@@ -1184,6 +1348,7 @@ describe("custom shell workspaces", () => {
           { label: "Feedback", href: "/admin/feedback" },
           { label: "Users", href: "/admin/users" },
           { label: "Plans", href: "/admin/plans" },
+          { label: "Metered usage", href: "/admin/ai-usage" },
         ],
       },
       {
@@ -1510,7 +1675,7 @@ describe("custom shell workspaces", () => {
     ])
   })
 
-  it("normalizes public links and broken public settings safely", () => {
+  it("normalizes public links safely", () => {
     const saved = parseWorkspaceSettings({
       publicNavigation: [
         { label: "About", href: "/about" },
@@ -1521,28 +1686,63 @@ describe("custom shell workspaces", () => {
     })
 
     expect(saved.publicNavigation).toEqual([
+      { type: "search", visible: true },
       { label: "About", href: "/about" },
     ])
     expect(saved.publicFooter).toEqual([])
     expect(saved.publicFooterCopyright).toBe("")
   })
 
-  it("keeps a site's own appearance and drops an invalid accent colour", () => {
-    expect(
-      parseWorkspaceSettings({
-        logo: "https://media.example.test/site/logo.png",
-        logoDark: "https://media.example.test/site/logo-dark.png",
-        accentColor: " #3B82F6 ",
-        shareImage: "https://media.example.test/site/share.png",
-      })
-    ).toMatchObject({
-      logo: "https://media.example.test/site/logo.png",
-      logoDark: "https://media.example.test/site/logo-dark.png",
-      accentColor: "#3b82f6",
-      shareImage: "https://media.example.test/site/share.png",
+  it("uses the app-wide public theme and ignores removed colors", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicTheme: {
+          brandColor: { light: "#ffffff", dark: "#000000" },
+          backgroundColor: { light: "#ffffff", dark: "#000000" },
+          textColor: { light: "#000000", dark: "#ffffff" },
+          font: "system",
+          radius: 0,
+        },
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     })
 
-    expect(parseWorkspaceSettings({ accentColor: "blue" }).accentColor).toBe("")
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicTheme).toEqual({
+      brandColor: "",
+      brandOverrides: {},
+      canvasColor: "",
+      pageWidth: 1152,
+      mainSpacing: 40,
+      contentAlignment: "center",
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: 8,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
+      headerBorder: true,
+      footerBorder: true,
+      colorScheme: "system",
+      useCustomFont: false,
+      font: "system",
+      radius: 0,
+    })
+  })
+
+  it("reads CMS's old accent only until a public brand choice exists", () => {
+    expect(
+      parseWorkspaceSettings({ accentColor: " #3B82F6 " }).publicTheme
+    ).toEqual({ brandColor: "#3b82f6", brandOverrides: {} })
+    expect(
+      parseWorkspaceSettings({
+        accentColor: "#3b82f6",
+        publicTheme: { brandColor: "" },
+      }).publicTheme
+    ).toEqual({ brandColor: "", brandOverrides: {} })
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {
@@ -1734,7 +1934,8 @@ describe("membership section", () => {
     // Newsletter next — this saved sidebar has no Automations link and no
     // Platform Settings section, so it falls back to the end of the only
     // section there is — Membership folded into the Overview, and the Pages
-    // link handed out after Traffic last.
+    // link handed out after Traffic. Metered usage joins the Overview's
+    // children last so the shell can draw it in the top-left menu.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
@@ -1750,6 +1951,7 @@ describe("membership section", () => {
     expect(overview.children?.map((child) => child.id)).toEqual([
       "item-admin-users",
       "item-admin-plans",
+      "item-admin-metered-usage",
     ])
     expect(overview.children?.[0].label).toBe("People")
 
@@ -1781,8 +1983,8 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The AI usage, Traffic, Pages and Newsletter links stay: all were handed
-    // out by the same upgrade, and none is what was deleted.
+    // AI usage, Traffic, Pages and Newsletter stay. Metered usage was a child
+    // of the Overview, so deleting that group removes its menu entry too.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
@@ -2034,9 +2236,9 @@ describe("overview link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
-      // navVersions 8, 9 and 17 hand the AI usage, Traffic and Pages links to
-      // every older workspace. Membership is not on the list: navVersion 14
-      // folds it into the Overview after those have used it as their anchor.
+      // Navigation upgrades hand the usage, Traffic and Pages links to every
+      // older workspace. Membership is not on the list: navVersion 14 folds it
+      // into the Overview after those have used it as their anchor.
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -2072,6 +2274,189 @@ describe("overview link", () => {
       "item-admin-traffic",
       "item-admin-pages",
     ])
+  })
+})
+
+describe("metered usage link", () => {
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-overview",
+            label: "Overview",
+            href: "/admin/dashboard",
+            icon: "layoutDashboard",
+            visible: true,
+            children: [
+              {
+                id: "item-admin-plans",
+                label: "Plans",
+                href: "/admin/plans",
+              },
+            ],
+          },
+          {
+            type: "item",
+            id: "item-admin-ai-usage",
+            label: "AI usage",
+            href: "/admin/ai",
+            icon: "sparkles",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  it("puts Metered usage in the dashboard group that supplies the top-left menu", () => {
+    const sections = addMeteredUsageLink(savedSections())
+
+    expect(sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-ai-usage",
+    ])
+    expect((sections[0].entries[0] as ShellItem).children).toMatchObject([
+      {
+        id: "item-admin-plans",
+        href: "/admin/plans",
+      },
+      {
+        id: "item-admin-metered-usage",
+        label: "Metered usage",
+        href: "/admin/ai-usage",
+        icon: "barChart3",
+        roles: ["admin"],
+      },
+    ])
+  })
+
+  it("repairs an absolute saved child and removes the duplicate standalone link", () => {
+    const sections = savedSections()
+    const overview = sections[0].entries[0] as ShellItem
+    overview.children?.push({
+      id: "my-metered-usage",
+      label: "Metered usage",
+      href: "http://localhost:3002/admin/ai-usage",
+      icon: "barChart3",
+      roles: ["admin"],
+    })
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-metered-usage",
+      label: "Metered usage",
+      href: "/admin/ai-usage",
+      icon: "barChart3",
+      visible: true,
+    })
+
+    const upgraded = addMeteredUsageLink(sections)
+    const upgradedOverview = upgraded[0].entries[0] as ShellItem
+
+    expect(upgraded[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-ai-usage",
+    ])
+    expect(
+      upgradedOverview.children?.filter(
+        (child) => child.href === "/admin/ai-usage"
+      )
+    ).toHaveLength(1)
+  })
+
+  it("moves a saved child from another group into the dashboard group", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-tools",
+      label: "Tools",
+      href: "/admin/tools",
+      icon: "wrench",
+      visible: true,
+      children: [
+        {
+          id: "my-metered-usage",
+          label: "Metered usage",
+          href: "/admin/ai-usage",
+          icon: "barChart3",
+        },
+      ],
+    })
+
+    const upgraded = addMeteredUsageLink(sections)
+    const overview = upgraded[0].entries[0] as ShellItem
+    const tools = upgraded[0].entries[2] as ShellItem
+
+    expect(overview.children?.at(-1)?.href).toBe("/admin/ai-usage")
+    expect(tools.children).toEqual([])
+  })
+
+  it("does not double a link already saved under another id", () => {
+    const sections = savedSections()
+    const overview = sections[0].entries[0] as ShellItem
+    overview.children?.push({
+      id: "my-metered-usage",
+      label: "Usage billing",
+      href: "/admin/ai-usage",
+      icon: "barChart3",
+    })
+
+    const upgraded = addMeteredUsageLink(sections)
+    expect(
+      (upgraded[0].entries[0] as ShellItem).children?.filter(
+        (child) => child.href === "/admin/ai-usage"
+      )
+    ).toHaveLength(1)
+  })
+
+  it("brings a version-18 sidebar forward once", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "metered-usage@example.com",
+      name: "Metered Usage Admin",
+      passwordHash: "hash",
+      role: "admin",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Saved",
+      settings: {
+        icon: "briefcaseBusiness",
+        navVersion: 18,
+        sections: savedSections(),
+      },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await startWorkspaceFor(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-ai-usage",
+    ])
+    expect(
+      (upgraded.sections[0].entries[0] as ShellItem).children?.map(
+        (child) => child.id
+      )
+    ).toEqual(["item-admin-plans", "item-admin-metered-usage"])
   })
 })
 
@@ -2248,6 +2633,7 @@ describe("traffic link", () => {
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
+      "item-admin-metered-usage",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -2280,6 +2666,7 @@ describe("traffic link", () => {
     expect(idsIn(reloaded.sections, 0)).toEqual([
       "item-admin-ai-usage",
       "item-admin-pages",
+      "item-admin-metered-usage",
     ])
   })
 })
@@ -2871,6 +3258,7 @@ describe("revenue folds into membership", () => {
       "item-admin-traffic",
       "item-admin-pages",
       "item-newsletter",
+      "item-admin-metered-usage",
     ])
 
     // Somebody making their own link to the old address afterwards keeps it —
@@ -3631,6 +4019,7 @@ describe("feeds section", () => {
       "item-notifications",
       "item-changelog",
       "item-admin-users",
+      "item-admin-metered-usage",
     ])
 
     // Delete the Overview the way Settings → Sidebar would, then load again.
@@ -3879,6 +4268,7 @@ describe("feeds section", () => {
       "item-notifications",
       "item-changelog",
       "item-feedback",
+      "item-admin-metered-usage",
     ])
     expect(allLinkIds(upgraded.sections)).not.toContain("item-admin-feeds")
     expect(allLinkIds(upgraded.sections)).not.toContain(
@@ -4279,6 +4669,97 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ logoDark: 42 }).logoDark).toBe("")
   })
 
+  it("carries the app-wide favicon set through a save and back", () => {
+    const light = {
+      source: "https://media.example.test/owner/favicon.png",
+      icon16: "https://media.example.test/owner/favicons/v1/light-16.png",
+      icon32: "https://media.example.test/owner/favicons/v1/light-32.png",
+      appleTouchIcon:
+        "https://media.example.test/owner/favicons/v1/light-180.png",
+      icon512: "https://media.example.test/owner/favicons/v1/light-512.png",
+    }
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+    expect(parseShellGlobals({ favicon: 42, faviconDark: 42 })).toMatchObject({
+      favicon: "",
+      faviconDark: "",
+      faviconSet: null,
+    })
+  })
+
+  it("carries app-wide SEO, social cards, and public system copy through a save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
+        siteDescription: "The public site default.",
+      },
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
+        siteDescription: "The public site default.",
+      },
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals({ appName: "x" })).toMatchObject({
+      shareImage: "",
+      shareImageVersion: "",
+      socialCardType: "summary",
+      socialHandle: "",
+      publicSeo: {
+        homeTitle: "",
+        homeDescription: "",
+        writtenTitleTemplate: "",
+        writtenDescriptionTemplate: "",
+        siteDescription: "",
+      },
+      publicSystemCopy: {
+        notFoundHeading: "",
+        notFoundBody: "",
+        maintenanceHeading: "",
+        maintenanceBody: "",
+      },
+    })
+  })
+
   it("carries the top-bar link limit through a save and back", () => {
     // Same trap as the three above: miss it in `pickShellGlobals` and every
     // save drops the limit, so the top bar quietly goes back to a long row.
@@ -4326,6 +4807,14 @@ describe("member sidebar", () => {
     expect(entry.href).toBe("/admin/users")
     expect(canSeeShellEntry(entry, "member")).toBe(false)
     expect(canSeeShellEntry(entry, "admin")).toBe(true)
+  })
+})
+
+describe("saved child visibility", () => {
+  it("shows older child links unless an admin explicitly hides them", () => {
+    expect(isShellEntryVisible({})).toBe(true)
+    expect(isShellEntryVisible({ visible: true })).toBe(true)
+    expect(isShellEntryVisible({ visible: false })).toBe(false)
   })
 })
 
@@ -4419,6 +4908,30 @@ describe("top right menu", () => {
       { type: "builtIn", id: "theme", visible: true },
       { type: "builtIn", id: "notifications", visible: true },
     ])
+  })
+
+  it("adds an app-owned control without losing its saved place or visibility", () => {
+    expect(
+      normalizeTopRightNavigation(
+        [
+          { id: "theme", visible: true },
+          { type: "app", id: "app-status", visible: false },
+          { id: "feedback", visible: true },
+        ],
+        ["app-status"]
+      )
+    ).toEqual([
+      { type: "builtIn", id: "theme", visible: true },
+      { type: "app", id: "app-status", visible: false },
+      { type: "builtIn", id: "feedback", visible: true },
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+
+    expect(normalizeTopRightNavigation([], ["app-status"])[0]).toEqual({
+      type: "app",
+      id: "app-status",
+      visible: true,
+    })
   })
 
   it("gives a member the admin-built menu and an admin their own", async () => {
@@ -5435,7 +5948,7 @@ describe("custom shell feedback notifications", () => {
         workspaceId,
         userId: recipientId,
         type: "suggestion",
-        message: `Feedback ${index}`,
+        message: ["Zulu feedback", "Feedback 1", "Alpha feedback"][index],
         createdAt,
         updatedAt: createdAt,
       }))
@@ -5485,11 +5998,11 @@ describe("custom shell feedback notifications", () => {
       notificationIds[1],
     ])
 
-    const byActor = await list({ sort: "activity", direction: "asc" })
-    expect(byActor.notifications.map((item) => item.actor_name)).toEqual([
-      "Buried Person",
-      "Middle Person",
-      "Recent Person",
+    const byActivity = await list({ sort: "activity", direction: "asc" })
+    expect(byActivity.notifications.map((item) => item.id)).toEqual([
+      notificationIds[2],
+      notificationIds[1],
+      notificationIds[0],
     ])
 
     // Type sorts by the words on screen: "Comment" before "Thumbs up".
@@ -6190,29 +6703,17 @@ describe("custom shell maintenance mode", () => {
   it("reads as off when the settings row has never been written", async () => {
     const db = database as unknown as CustomShellDb
 
-    expect(await readMaintenance(db)).toEqual({ enabled: false, message: "" })
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
-  it("turns the app off and back on, keeping the message either way", async () => {
+  it("turns the app off and back on", async () => {
     const db = database as unknown as CustomShellDb
 
-    await setMaintenance(
-      { enabled: true, message: "  Upgrading the database.  " },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: true,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: true }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: true })
 
-    await setMaintenance(
-      { enabled: false, message: "Upgrading the database." },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: false,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: false }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
   it("leaves the other app-wide settings alone", async () => {
@@ -6221,37 +6722,35 @@ describe("custom shell maintenance mode", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf", adminRoute: "/admin/media" },
+      settings: {
+        appName: "Bookshelf",
+        adminRoute: "/admin/media",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
 
-    await setMaintenance({ enabled: true, message: "" }, db)
+    await setMaintenance({ enabled: true }, db)
 
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.adminRoute).toBe("/admin/media")
     expect(globals.maintenance.enabled).toBe(true)
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("treats a missing or hand-edited value as off", () => {
-    expect(normalizeMaintenance(undefined)).toEqual({
-      enabled: false,
-      message: "",
-    })
+    expect(normalizeMaintenance(undefined)).toEqual({ enabled: false })
     expect(normalizeMaintenance({ enabled: "yes", message: 7 })).toEqual({
       enabled: false,
-      message: "",
     })
     expect(normalizeMaintenance({ enabled: true, message: "Back soon" })).toEqual({
       enabled: true,
-      message: "Back soon",
     })
-  })
-
-  it("falls back to the default wording when no message was written", () => {
-    expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
-    expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
   })
 })
 
@@ -6352,7 +6851,10 @@ describe("custom shell session policy", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf" },
+      settings: {
+        appName: "Bookshelf",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
@@ -6362,6 +6864,10 @@ describe("custom shell session policy", () => {
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.sessionPolicy).toEqual({ maxAgeDays: 30, idleMinutes: 60 })
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("creates the settings row when the policy is saved on a fresh install", async () => {
@@ -6593,6 +7099,10 @@ describe("custom shell announcements", () => {
     await createAnnouncement(
       workspaceId,
       baseInput({ audience: "everyone", startsOn: dayField(7) }),
+      db
+    )
+    await createAnnouncement(workspaceId,
+      baseInput({ audience: "everyone", showBanner: false, notify: true }),
       db
     )
     await createAnnouncement(

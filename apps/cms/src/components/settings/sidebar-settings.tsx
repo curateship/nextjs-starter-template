@@ -17,6 +17,8 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  EyeIcon,
+  EyeOffIcon,
   GripVertical,
   MinusIcon,
   PlusIcon,
@@ -213,6 +215,7 @@ function SortableChild({
   // and a screen reader could not tell which one it was in. Where the row sits
   // is the only thing that tells them apart until one is typed.
   const childName = isNamed ? child.label : `child link ${position}`
+  const visible = child.visible !== false
   const addressCheck = useCheckedAddress(child.href, isNamed)
   const { attributes, listeners, setNodeRef, style } = useSortableRow(child.id)
 
@@ -220,7 +223,7 @@ function SortableChild({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto]"
+      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
     >
       <button
         type="button"
@@ -258,6 +261,20 @@ function SortableChild({
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
         {...addressCheck}
       />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => onChange(child.id, { visible: !visible })}
+        aria-label={`${visible ? "Hide" : "Show"} ${childName}`}
+        title={visible ? "Visible" : "Hidden"}
+      >
+        {visible ? (
+          <EyeIcon className="h-4 w-4" />
+        ) : (
+          <EyeOffIcon className="h-4 w-4" />
+        )}
+      </Button>
       <Button
         type="button"
         variant="ghost"
@@ -979,6 +996,7 @@ export function SidebarSettings({
       id: createShellId("child"),
       label: "",
       href: "",
+      visible: true,
     }
 
     setNewChildId(child.id)

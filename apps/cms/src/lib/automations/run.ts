@@ -30,6 +30,11 @@ export type AutomationRunStatus =
   | "completed"
   | "failed"
   | "rejected"
+  | "canceled"
+
+/** Statuses that never change again. Anything else is still moving. */
+export const finalAutomationRunStatuses: ReadonlySet<AutomationRunStatus> =
+  new Set(["completed", "failed", "rejected", "canceled"])
 
 export type AutomationRunStepStatus = "completed" | "failed" | "rejected"
 
@@ -52,6 +57,7 @@ export function automationRunStatusLabel(
     waiting_approval: "Waiting for approval",
     completed: "Completed",
     failed: "Failed",
+    canceled: "Canceled",
   }[status]
 }
 

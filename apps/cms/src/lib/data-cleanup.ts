@@ -19,6 +19,7 @@ export type CleanupCounts = {
   throttles: number
   notifications: number
   emailSends: number
+  pendingEmails: number
 }
 
 /**
@@ -54,6 +55,9 @@ export const THROTTLE_KEEP_HOURS = 24
  */
 export const EMAIL_SEND_KEEP_DAYS = 90
 
+/** A failed email is kept for follow-up this long after retries stop. */
+export const PENDING_EMAIL_KEEP_DAYS = 30
+
 const EMPTY_RESULT = "Nothing to clean up — there was no old data."
 
 /** One line naming what a run deleted, or saying it found nothing. */
@@ -73,6 +77,9 @@ export function describeCleanupResult(counts: CleanupCounts) {
       : null,
     counts.emailSends > 0
       ? `${counts.emailSends} ${plural(counts.emailSends, `email record over ${EMAIL_SEND_KEEP_DAYS} days old`, `email records over ${EMAIL_SEND_KEEP_DAYS} days old`)}`
+      : null,
+    counts.pendingEmails > 0
+      ? `${counts.pendingEmails} ${plural(counts.pendingEmails, `failed email over ${PENDING_EMAIL_KEEP_DAYS} days old`, `failed emails over ${PENDING_EMAIL_KEEP_DAYS} days old`)}`
       : null,
   ].filter((part) => part !== null)
 

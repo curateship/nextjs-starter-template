@@ -1,33 +1,100 @@
 import { createServerFn } from "@tanstack/react-start"
-import {
-  parseWorkspaceSettings,
-  requireCurrentWorkspace,
-} from "@/server/people/workspaces"
+import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { appPublicTheme } from "@/lib/app-options"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   SHELL_ROLES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import {
+  MAX_PUBLIC_SEO_DESCRIPTION_LENGTH,
+  MAX_PUBLIC_SEO_TITLE_LENGTH,
+  MAX_PUBLIC_SYSTEM_BODY_LENGTH,
+  MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
+  MAX_SOCIAL_HANDLE_LENGTH,
+  SOCIAL_CARD_TYPES,
+  normalizeShareImage,
+} from "@/lib/pages/public-metadata"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import type {
+  PublicFaviconSet,
+  PublicFaviconVariant,
+} from "@/lib/favicon"
+import type { PublicFontAsset } from "@/lib/public-font"
+import {
+  FRONT_PAGE_ROW_LAYOUTS,
+  MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
+  MAX_FRONT_PAGE_FAQ_ITEMS,
+  MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+  MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
+  MAX_FRONT_PAGE_ITEM_ROLE_LENGTH,
+  MAX_FRONT_PAGE_LOGOS,
+  MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
+  MAX_FRONT_PAGE_ROW_ID_LENGTH,
+  MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  MAX_FRONT_PAGE_ROWS,
+  MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH,
+  MAX_FRONT_PAGE_SCREENSHOTS,
+  MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
+  MAX_FRONT_PAGE_TESTIMONIALS,
+  frontPageRowImageUrls,
+  normalizeFrontPageImageUrl,
+  normalizeFrontPageRows,
+} from "@/lib/pages/front-page"
 import {
   cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
+  MAX_PUBLIC_FOOTER_LINKS,
   MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
-  MAX_PUBLIC_NAVIGATION_LINKS,
 } from "@/lib/pages/public-navigation"
+import {
+  PUBLIC_HEADER_LOGO_SIZES,
+  PUBLIC_HEADER_MENU_ALIGNMENTS,
+} from "@/lib/pages/public-header"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
+import {
+  MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  MAX_PUBLIC_MAIN_SPACING,
+  MAX_PUBLIC_PAGE_WIDTH,
+  MAX_PUBLIC_RADIUS,
+  MIN_PUBLIC_PAGE_WIDTH,
+  PUBLIC_BACKGROUND_PATTERNS,
+  PUBLIC_BACKGROUND_PATTERN_SIZES,
+  PUBLIC_BRAND_COLOR_PATTERN,
+  PUBLIC_BRAND_OVERRIDE_KEYS,
+  PUBLIC_BUTTON_CASINGS,
+  PUBLIC_BUTTON_STYLES,
+  PUBLIC_COLOR_SCHEMES,
+  PUBLIC_CONTENT_ALIGNMENTS,
+  PUBLIC_THEME_FONTS,
+  normalizePublicBrandTheme,
+  publicThemeForAppWideSave,
+  publicThemeOverrides,
+} from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
-import { dropWorkspaceCache } from "@/server/workspaces/host"
-import { isOwnedImageUrl } from "@/server/media/library"
+import {
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
+import {
+  findOwnedImageByUrl,
+  isOwnedImageUrl,
+} from "@/server/media/library"
+import {
+  createFaviconVariant,
+  deleteReplacedFaviconFiles,
+} from "@/server/media/favicon"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -36,11 +103,19 @@ import {
 import {
   parseShellGlobals,
   pickShellGlobals,
+  readShellGlobals,
 } from "@/server/shell-settings"
 import { adminPost, userPost } from "@/server/guards"
 import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
+const faviconSourceSchema = z.string().trim().max(2048)
+const publicFontAssetSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    version: z.string().uuid(),
+  })
+  .nullable()
 
 const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
 
@@ -49,6 +124,7 @@ const shellChildItemSchema = z.object({
   label: z.string(),
   href: z.string(),
   icon: shellIconSchema.optional(),
+  visible: z.boolean().optional(),
   roles: shellRolesSchema,
 })
 
@@ -86,6 +162,11 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("builtIn"),
     id: z.enum(["feedback", "theme", "notifications"]),
+    visible: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("app"),
+    id: z.string().trim().min(1).max(64),
     visible: z.boolean(),
   }),
   z.object({
@@ -130,9 +211,150 @@ const publicNavigationLinkSchema = z.object({
 })
 
 const publicNavigationSchema = z
+  .array(
+    z.union([
+      publicNavigationLinkSchema,
+      z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
+      z.object({
+        type: z.literal("group"),
+        label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
+        links: z.array(publicNavigationLinkSchema),
+      }),
+    ])
+  )
+  .transform(cleanPublicNavigationItems)
+
+const publicFooterSchema = z
   .array(publicNavigationLinkSchema)
-  .max(MAX_PUBLIC_NAVIGATION_LINKS)
+  .max(MAX_PUBLIC_FOOTER_LINKS)
   .transform(cleanPublicNavigationLinks)
+
+const publicBrandOverridesSchema = z.object(
+  Object.fromEntries(
+    PUBLIC_BRAND_OVERRIDE_KEYS.map((key) => [
+      key,
+      z.string().regex(PUBLIC_BRAND_COLOR_PATTERN).optional(),
+    ])
+  ) as Record<
+    (typeof PUBLIC_BRAND_OVERRIDE_KEYS)[number],
+    z.ZodOptional<z.ZodString>
+  >
+)
+
+const publicThemeSchema = z.object({
+  brandColor: z.union([
+    z.literal(""),
+    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
+  ]),
+  brandOverrides: publicBrandOverridesSchema,
+  canvasColor: z.union([
+    z.literal(""),
+    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
+  ]),
+  pageWidth: z
+    .number()
+    .int()
+    .min(MIN_PUBLIC_PAGE_WIDTH)
+    .max(MAX_PUBLIC_PAGE_WIDTH),
+  mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
+  contentAlignment: z.enum(PUBLIC_CONTENT_ALIGNMENTS),
+  backgroundPattern: z.enum(PUBLIC_BACKGROUND_PATTERNS),
+  backgroundPatternSize: z.enum(PUBLIC_BACKGROUND_PATTERN_SIZES),
+  backgroundPatternOpacity: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY),
+  buttonStyle: z.enum(PUBLIC_BUTTON_STYLES),
+  buttonCasing: z.enum(PUBLIC_BUTTON_CASINGS),
+  headerBorder: z.boolean(),
+  footerBorder: z.boolean(),
+  colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
+  useCustomFont: z.boolean(),
+  font: z.enum(PUBLIC_THEME_FONTS),
+  radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
+})
+
+const frontPageRowBaseShape = {
+  id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
+  heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
+  intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
+  layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+}
+
+const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)
+const frontPageImageSchema = z
+  .string()
+  .trim()
+  .max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH)
+  .refine(
+    (value) => !value || normalizeFrontPageImageUrl(value) === value,
+    "Choose an image from the media library."
+  )
+
+const frontPageRowsSchema = z
+  .array(
+    z.discriminatedUnion("kind", [
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("testimonials"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              quote: z.string().max(MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH),
+              name: z.string().max(MAX_FRONT_PAGE_ITEM_NAME_LENGTH),
+              role: z.string().max(MAX_FRONT_PAGE_ITEM_ROLE_LENGTH),
+              picture: frontPageImageSchema,
+            })
+          )
+          .max(MAX_FRONT_PAGE_TESTIMONIALS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("faq"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              question: z.string().max(MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH),
+              answer: z.string().max(MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_FAQ_ITEMS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("logos"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_LOGOS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("screenshots"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              caption: z.string().max(MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_SCREENSHOTS),
+      }),
+    ])
+  )
+  .max(MAX_FRONT_PAGE_ROWS)
+  .transform(normalizeFrontPageRows)
 
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
@@ -176,22 +398,52 @@ const shellConfigSchema = z.object({
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
-  favicon: z.string(),
-  workspaceLogo: z.string().max(2048),
-  workspaceLogoDark: z.string().max(2048),
-  workspaceAccentColor: z.union([
-    z.literal(""),
-    z.string().regex(/^#[0-9a-f]{6}$/i, "Enter a 6-digit hex colour."),
-  ]),
-  workspaceShareImage: z.string().max(2048),
+  workspaceFavicon: faviconSourceSchema,
+  workspaceLogo: z.string().trim().max(2048),
+  workspaceLogoDark: z.string().trim().max(2048),
+  workspaceShareImage: z.string().trim().max(2048),
+  favicon: faviconSourceSchema,
+  faviconDark: faviconSourceSchema,
   logo: z.string(),
   logoDark: z.string(),
+  shareImage: z.string().trim().max(2048),
+  // Carried by the client for the full config shape. The handler always takes
+  // the saved version or writes a fresh timestamp instead of trusting this.
+  shareImageVersion: z.string().max(64),
+  socialCardType: z.enum(SOCIAL_CARD_TYPES),
+  socialHandle: z
+    .string()
+    .max(MAX_SOCIAL_HANDLE_LENGTH)
+    .regex(/^[A-Za-z0-9_]*$/),
+  publicSeo: z.object({
+    homeTitle: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
+    homeDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+    writtenTitleTemplate: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
+    writtenDescriptionTemplate: z
+      .string()
+      .max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+    siteDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+  }),
+  publicSystemCopy: z.object({
+    notFoundHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
+    notFoundBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
+    maintenanceHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
+    maintenanceBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
+  }),
+  frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
-  publicFooter: publicNavigationSchema,
+  publicFooter: publicFooterSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
     .transform(cleanPublicFooterCopyright),
+  publicHeader: z.object({
+    sticky: z.boolean(),
+    menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
+    logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+  }),
+  publicFont: publicFontAssetSchema,
+  publicTheme: publicThemeSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
@@ -204,7 +456,6 @@ const shellConfigSchema = z.object({
   ),
   maintenance: z.object({
     enabled: z.boolean(),
-    message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
   }),
   // Carried in the config for display only; the save below never writes it.
   sessionPolicy: z.object({
@@ -226,9 +477,36 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const updatedAt = now()
     const workspace = await requireCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
+    }
+
+    let previousFaviconSet: PublicFaviconSet | null = null
+    let savedFaviconSet: PublicFaviconSet | null = null
+    let savedPublicFont: PublicFontAsset | null = null
+    const generatedFaviconSet: PublicFaviconSet = {}
+    const startingGlobals = await readShellGlobals()
+
+    try {
+      generatedFaviconSet.light = await generateFaviconVariantForSave({
+        source: data.favicon,
+        saved: startingGlobals.faviconSet?.light,
+        mode: "light",
+        userId: context.user.id,
+      })
+      generatedFaviconSet.dark = await generateFaviconVariantForSave({
+        source: data.faviconDark,
+        saved: startingGlobals.faviconSet?.dark,
+        mode: "dark",
+        userId: context.user.id,
+      })
+    } catch (error) {
+      await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+        () => undefined
+      )
+      throw error
     }
 
     await db.transaction(async (tx) => {
@@ -238,15 +516,21 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
+            favicon: data.workspaceFavicon,
+            logo: normalizeShareImage(data.workspaceLogo),
+            logoDark: normalizeShareImage(data.workspaceLogoDark),
+            shareImage: normalizeShareImage(data.workspaceShareImage),
             sidebarWidth: data.sidebarWidth,
-            favicon: data.favicon,
-            logo: data.workspaceLogo,
-            logoDark: data.workspaceLogoDark,
-            accentColor: data.workspaceAccentColor,
-            shareImage: data.workspaceShareImage,
-            publicNavigation: data.publicNavigation,
-            publicFooter: data.publicFooter,
-            publicFooterCopyright: data.publicFooterCopyright,
+            publicTheme: normalizePublicBrandTheme(data.publicTheme),
+            publicNavigation: workspaceDomainsEnabled
+              ? data.publicNavigation
+              : workspaceSettings.publicNavigation,
+            publicFooter: workspaceDomainsEnabled
+              ? data.publicFooter
+              : workspaceSettings.publicFooter,
+            publicFooterCopyright: workspaceDomainsEnabled
+              ? data.publicFooterCopyright
+              : workspaceSettings.publicFooterCopyright,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -274,27 +558,13 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // The maintenance switch is only ever flipped by its own confirmed
       // action (lib/api/maintenance.ts). An admin whose settings page loaded
       // before somebody turned it on must not switch it back off by renaming
-      // the app, so the switch keeps whatever the row already says; only its
-      // message comes from this save. The session policy and the automations
-      // kill switch are kept whole for the same reason — their one writer each
-      // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
+      // the app, so the switch keeps whatever the row already says. The
+      // session policy and the automations kill switch are kept whole for the
+      // same reason — their one writer each is lib/api/auth/session-policy.ts
+      // and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
-
-      for (const [next, saved] of [
-        [data.workspaceLogo, workspaceSettings.logo],
-        [data.workspaceLogoDark, workspaceSettings.logoDark],
-        [data.workspaceShareImage, workspaceSettings.shareImage],
-      ]) {
-        if (
-          next &&
-          next !== saved &&
-          !(await isOwnedImageUrl(context.user.id, next, tx))
-        ) {
-          throw new Error(
-            "That image is no longer in your media library. Pick another one."
-          )
-        }
-      }
+      previousFaviconSet = existingGlobals.faviconSet
+      savedPublicFont = existingGlobals.publicFont
 
       // The logos are drawn on the signed-out pages, so what gets stored has to
       // be a picture somebody here really uploaded — not any address a browser
@@ -316,6 +586,52 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         }
       }
 
+      if (
+        data.shareImage &&
+        data.shareImage !== existingGlobals.shareImage &&
+        !(await isOwnedImageUrl(context.user.id, data.shareImage, tx))
+      ) {
+        throw new Error(
+          "That share image is no longer in your media library. Pick another one."
+        )
+      }
+
+      const savedFrontPageImages = new Set(
+        frontPageRowImageUrls(existingGlobals.frontPageRows)
+      )
+      for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
+        if (
+          !savedFrontPageImages.has(image) &&
+          !(await isOwnedImageUrl(context.user.id, image, tx))
+        ) {
+          throw new Error(
+            "A front page image is no longer in your media library. Pick another one."
+          )
+        }
+      }
+
+      const light = faviconVariantForLockedSave(
+        data.favicon,
+        existingGlobals.faviconSet?.light,
+        generatedFaviconSet.light
+      )
+      const dark = faviconVariantForLockedSave(
+        data.faviconDark,
+        existingGlobals.faviconSet?.dark,
+        generatedFaviconSet.dark
+      )
+      savedFaviconSet = light || dark
+        ? {
+            ...(light ? { light } : {}),
+            ...(dark ? { dark } : {}),
+          }
+        : null
+
+      const nextPublicTheme = publicThemeForAppWideSave(
+        data.publicTheme,
+        existingGlobals.publicTheme,
+        workspaceDomainsEnabled
+      )
       const globalSettings = {
         // The kill switch is not in this request's shape at all, on purpose:
         // the settings page never sends it, so there is no version of this
@@ -323,11 +639,34 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
+          faviconSet: savedFaviconSet,
+          // One-site apps have one public menu and footer regardless of which
+          // workspace an admin is viewing. Multisite apps keep these choices
+          // on the workspace named by the domain.
+          publicNavigation: workspaceDomainsEnabled
+            ? existingGlobals.publicNavigation
+            : data.publicNavigation,
+          publicFooter: workspaceDomainsEnabled
+            ? existingGlobals.publicFooter
+            : data.publicFooter,
+          publicFooterCopyright: workspaceDomainsEnabled
+            ? existingGlobals.publicFooterCopyright
+            : data.publicFooterCopyright,
+          // A dedicated upload action owns the stored font. A stale settings
+          // tab may choose whether to use it, but cannot replace its identity.
+          publicFont: existingGlobals.publicFont,
+          shareImageVersion:
+            data.shareImage === existingGlobals.shareImage
+              ? existingGlobals.shareImageVersion
+              : data.shareImage
+                ? updatedAt.toISOString()
+                : "",
+          publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
         }),
+        publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
-          message: data.maintenance.message,
         },
         sessionPolicy: existingGlobals.sessionPolicy,
       }
@@ -345,6 +684,24 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           updatedAt,
         })
       }
+    }).catch(async (error) => {
+      await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+        () => undefined
+      )
+      throw error
+    })
+
+    await deleteReplacedFaviconFiles(
+      previousFaviconSet,
+      savedFaviconSet
+    ).catch((error) => {
+      console.error("Replaced favicon files could not be removed", error)
+    })
+    await deleteReplacedFaviconFiles(
+      generatedFaviconSet,
+      savedFaviconSet
+    ).catch((error) => {
+      console.error("Unused favicon files could not be removed", error)
     })
 
     // The public pages, the feed and the sitemap all read a site's name and
@@ -354,11 +711,54 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     // not throw away a cache that still matches the database.
     dropWorkspaceCache()
 
-    return { settings: data }
+    return { faviconSet: savedFaviconSet, publicFont: savedPublicFont }
   })
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
+}
+
+async function generateFaviconVariantForSave({
+  source,
+  saved,
+  mode,
+  userId,
+}: {
+  source: string
+  saved: PublicFaviconVariant | undefined
+  mode: "light" | "dark"
+  userId: string
+}): Promise<PublicFaviconVariant | undefined> {
+  if (!source || saved?.source === source) return undefined
+
+  const media = await findOwnedImageByUrl(userId, source)
+  if (!media) {
+    throw new Error(
+      "That favicon is no longer in your media library. Pick another one."
+    )
+  }
+
+  try {
+    return await createFaviconVariant(media, mode)
+  } catch {
+    throw new Error(
+      "The favicon sizes could not be created. Try another image."
+    )
+  }
+}
+
+function faviconVariantForLockedSave(
+  source: string,
+  saved: PublicFaviconVariant | undefined,
+  generated: PublicFaviconVariant | undefined
+) {
+  if (!source) return undefined
+  if (saved?.source === source) return saved
+  if (generated?.source === source) return generated
+
+  throw new Error(
+    "The favicon changed while these settings were saving. Try again."
+  )
 }
 
 // Lightweight, per-user save for the draggable sidebar width. Unlike the full

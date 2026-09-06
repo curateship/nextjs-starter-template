@@ -6,6 +6,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
+- `shell-integration.md` — shell updates, CMS settings extensions, site branding
+  and the database and worker commands needed after an update.
 - `directory-saves-featured-outreach.md` — saved collections, featured
   placement, and the outreach that goes with them.
 - `embeddable-listing-badge.md` — the badge a listing owner can put on another

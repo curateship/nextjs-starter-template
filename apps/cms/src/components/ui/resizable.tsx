@@ -2,6 +2,8 @@ import * as React from "react"
 import * as ResizablePrimitive from "react-resizable-panels"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
+import { DASHBOARD_CARD_COLLAPSED_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 function ResizablePanelGroup({
@@ -29,6 +31,7 @@ function ResizableHandle({
   gap,
   collapsed,
   className,
+  style,
   ...props
 }: ResizablePrimitive.SeparatorProps & {
   withHandle?: boolean
@@ -52,11 +55,17 @@ function ResizableHandle({
           // Gap between full-screen workspace panels tracks the content-spacing
           // setting. The transparent after-strip stays as the drag hit area so
           // panels remain draggable even when the gutter is 0 (flat mode).
-          "w-[var(--shell-gutter,0.75rem)] bg-transparent aria-[orientation=horizontal]:h-[var(--shell-gutter,0.75rem)] aria-[orientation=horizontal]:w-full",
+          "w-[var(--resizable-handle-size)] bg-transparent aria-[orientation=horizontal]:h-[var(--resizable-handle-size)] aria-[orientation=horizontal]:w-full",
         collapsed && "w-0 bg-transparent aria-[orientation=horizontal]:h-0",
         className
       )}
       {...props}
+      style={
+        {
+          ...style,
+          "--resizable-handle-size": pageGutter,
+        } as React.CSSProperties
+      }
     >
       {withHandle && !collapsed && (
         <div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-border" />
@@ -67,12 +76,12 @@ function ResizableHandle({
 
 /**
  * What a workspace's bottom panel collapses to: exactly its own header (the
- * 50.4px row plus the card's top and bottom hairlines). The panel stays on
+ * 57px row plus the card's top and bottom hairlines). The panel stays on
  * screen when collapsed — its header holds the reopen controls, and the handle
  * above it keeps its gap so the bar stays draggable back open. Pass `gap`
  * alone to that handle, never `collapsed`.
  */
-const BOTTOM_COLLAPSED_HEIGHT = "52.4px"
+const BOTTOM_COLLAPSED_HEIGHT = `${DASHBOARD_CARD_COLLAPSED_HEIGHT_PX}px`
 
 function WorkspacePanel({
   className,
@@ -131,7 +140,7 @@ function WorkspacePanel({
         // clipping the background to the padding box lets the page background
         // show through the border strip, so the line renders exactly like
         // Card/TableSurface borders do.
-        "h-full min-h-0 overflow-hidden rounded-xl border border-foreground/10 bg-card bg-clip-padding",
+        "h-full min-h-0 overflow-hidden rounded-xl border bg-card bg-clip-padding",
         className
       )}
       {...props}
@@ -161,7 +170,7 @@ function PanelReopenTab({
       title={label}
       onClick={onClick}
       className={cn(
-        "absolute top-1/2 z-10 flex h-14 w-5 -translate-y-1/2 items-center justify-center border border-foreground/10 bg-card text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "absolute top-1/2 z-10 flex h-14 w-5 -translate-y-1/2 items-center justify-center border bg-card text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         side === "left"
           ? "left-0 rounded-r-lg border-l-0"
           : "right-0 rounded-l-lg border-r-0"

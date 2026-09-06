@@ -4,9 +4,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { authLinkClassName } from "@/components/shell/auth-shell"
+import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
-import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
+import { PricingTable } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { loadCurrentUser, type AuthUser } from "@/lib/api/auth/auth"
 import {
@@ -17,9 +19,15 @@ import {
   type PlanOption,
 } from "@/lib/api/billing/billing"
 import { requirePageVisible } from "@/lib/api/content/pages"
+import {
+  readPricingChoice,
+  type BillingInterval,
+} from "@/lib/billing/pricing-choice"
 
 export const Route = createFileRoute("/pricing")({
-  loader: async () => {
+  validateSearch: readPricingChoice,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ deps }) => {
     // An admin can hide this page or make it members-only. Asked alongside the
     // session rather than before it: the answer has to arrive before the page
     // draws, not before the page starts fetching, and a public page should not
@@ -39,6 +47,9 @@ export const Route = createFileRoute("/pricing")({
     return {
       user,
       plans: pricing.plans,
+      selectedPlanSlug:
+        pricing.plans.some((plan) => plan.slug === deps.plan) ? deps.plan : null,
+      selectedInterval: deps.interval ?? null,
       // The public answer, so a signed-out visitor is told the same thing a
       // member is rather than being shown a grid on the assumption it is on.
       billingEnabled: pricing.billingEnabled,
@@ -53,6 +64,7 @@ export const Route = createFileRoute("/pricing")({
       trialUsed: Boolean(overview?.trialUsed),
     }
   },
+  errorComponent: visitorRouteErrorComponent(getBillingErrorMessage),
   component: PricingRoute,
 })
 
@@ -60,6 +72,8 @@ function PricingRoute() {
   const {
     user,
     plans,
+    selectedPlanSlug,
+    selectedInterval,
     currentPlanSlug,
     currentInterval,
     manageInStripe,
@@ -70,14 +84,17 @@ function PricingRoute() {
   // Opens on the period they already pay, so a yearly subscriber is not shown
   // monthly prices for a plan they are on.
   const [interval, setInterval] = React.useState<BillingInterval>(
-    currentInterval ?? "monthly"
+    selectedInterval ?? currentInterval ?? "monthly"
   )
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
 
   const handleSelect = React.useCallback(
     async (plan: PlanOption, selectedInterval: BillingInterval) => {
       if (!user) {
-        await navigate({ to: "/register" })
+        await navigate({
+          to: "/register",
+          search: { plan: plan.slug, interval: selectedInterval },
+        })
         return
       }
 
@@ -99,8 +116,8 @@ function PricingRoute() {
 
   return (
     <PublicPageFrame>
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 md:gap-3">
-        <header className="flex flex-col items-center gap-2 text-center">
+      <div className="flex w-full flex-col gap-2 md:gap-3">
+        <header className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold">Plans</h1>
           <p className="text-sm text-muted-foreground">
             Start free. Move up when you need more.
@@ -111,6 +128,7 @@ function PricingRoute() {
           <PricingTable
             plans={plans}
             currentPlanSlug={currentPlanSlug ?? undefined}
+            selectedPlanSlug={selectedPlanSlug}
             currentInterval={currentInterval}
             interval={interval}
             onIntervalChange={setInterval}
@@ -134,7 +152,7 @@ function PricingRoute() {
 function PricingFooter({ user }: { user: AuthUser | null }) {
   if (user) {
     return (
-      <div className="flex justify-center">
+      <div className={`flex ${publicContentAlignmentRowClassName}`}>
         <Button asChild variant="outline">
           <Link to="/home" search={{ account: "billing" }}>
             Back to billing
@@ -145,7 +163,7 @@ function PricingFooter({ user }: { user: AuthUser | null }) {
   }
 
   return (
-    <p className="text-center text-sm text-muted-foreground">
+    <p className="text-sm text-muted-foreground">
       Already have an account?{" "}
       <Link to="/login" className={authLinkClassName}>
         Sign in

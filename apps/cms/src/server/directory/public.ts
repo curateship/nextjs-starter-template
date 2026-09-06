@@ -160,7 +160,7 @@ export async function visitorSite(
   return {
     id: row.id,
     name: row.name,
-    accentColor: parseWorkspaceSettings(row.settings).accentColor,
+    accentColor: parseWorkspaceSettings(row.settings).publicTheme.brandColor,
     url: requestOrigin(),
   }
 }

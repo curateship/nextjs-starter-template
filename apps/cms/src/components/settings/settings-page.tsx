@@ -4,20 +4,28 @@ import { Link } from "@tanstack/react-router"
 import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
+import { FrontPageRowsSettings } from "@/components/settings/front-page-rows-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
-import { CmsSettings } from "@/components/settings/cms-settings"
-import { DirectorySettings } from "@/components/settings/directory-settings"
-import { ListingBadgeSettings } from "@/components/settings/listing-badge-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import {
+  PublicSeoSettings,
+  PublicSocialSettings,
+  PublicSystemPagesSettings,
+} from "@/components/settings/public-metadata-settings"
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
+import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
-import { appSettingsTabs } from "@/lib/app-options"
+import { CardGroup } from "@/components/ui/card"
+import {
+  appHeaderRightActionForRole,
+  appSettingsTabs,
+} from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -43,13 +51,6 @@ const settingsTabs = [
   { id: "ai", label: "AI" },
 ] as const
 
-/** Settings owned by CMS rather than the shared platform shell. */
-const cmsSettingsTabs = [
-  { id: "site-identity", label: "Site identity" },
-  { id: "directory", label: "Directory" },
-  { id: "listing-badges", label: "Listing badges" },
-] as const
-
 /**
  * Settings an admin decides on a member's behalf. Their own card in the rail,
  * so it is obvious at a glance which of these change somebody else's screen.
@@ -62,18 +63,20 @@ const memberSettingsTabs = [
 /** Settings for the pages a site's visitors see before signing in. */
 const publicSettingsTabs = [
   { id: "public-navigation", label: "Navigation" },
+  { id: "public-styling", label: "Styling" },
+  { id: "public-pages", label: "Pages" },
+  { id: "public-seo", label: "SEO" },
+  { id: "public-social", label: "Social" },
 ] as const
 
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
-  | (typeof cmsSettingsTabs)[number]["id"]
   | (typeof memberSettingsTabs)[number]["id"]
   | (typeof publicSettingsTabs)[number]["id"]
 
 /** Every id the shell itself owns — what an app's tab may not be called. */
 const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
-  ...cmsSettingsTabs.map((tab) => tab.id),
   ...memberSettingsTabs.map((tab) => tab.id),
   ...publicSettingsTabs.map((tab) => tab.id),
 ]
@@ -116,6 +119,9 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
+  const adminHeaderAction = appHeaderRightActionForRole("admin")
+  const memberHeaderAction = appHeaderRightActionForRole("member")
+
   return (
     <div
       className="flex flex-col items-start lg:flex-row"
@@ -129,13 +135,6 @@ export function SettingsPage({
           storageId="settings-rail-platform"
           title="Platform"
           tabs={settingsTabs}
-          activeTab={activeTab}
-        />
-
-        <SettingsTabGroup
-          storageId="settings-rail-cms"
-          title="CMS"
-          tabs={cmsSettingsTabs}
           activeTab={activeTab}
         />
 
@@ -171,11 +170,6 @@ export function SettingsPage({
       </div>
 
       <div className="min-w-0 flex-1">
-        {activeTab === "site-identity" ? (
-          <CmsSettings config={config} onConfigChange={onConfigChange} />
-        ) : null}
-        {activeTab === "listing-badges" ? <ListingBadgeSettings /> : null}
-        {activeTab === "directory" ? <DirectorySettings /> : null}
         {activeTab === "general" ? (
           <GeneralSettings
             config={config}
@@ -189,6 +183,7 @@ export function SettingsPage({
             navigation={config.publicNavigation}
             footer={config.publicFooter}
             footerCopyright={config.publicFooterCopyright}
+            publicHeader={config.publicHeader}
             onNavigationChange={(publicNavigation) =>
               onConfigChange({ ...config, publicNavigation })
             }
@@ -198,7 +193,49 @@ export function SettingsPage({
             onFooterCopyrightChange={(publicFooterCopyright) =>
               onConfigChange({ ...config, publicFooterCopyright })
             }
+            onPublicHeaderChange={(publicHeader) =>
+              onConfigChange({ ...config, publicHeader })
+            }
             onSaveConfig={onSaveConfig}
+          />
+        ) : null}
+        {activeTab === "public-styling" ? (
+          <PublicThemeSettings
+            theme={config.publicTheme}
+            publicFont={config.publicFont}
+            onThemeChange={(publicTheme) =>
+              onConfigChange({ ...config, publicTheme })
+            }
+            onFontStateChange={(publicTheme, publicFont) =>
+              onConfigChange({ ...config, publicTheme, publicFont })
+            }
+            onSaveConfig={onSaveConfig}
+          />
+        ) : null}
+        {activeTab === "public-pages" ? (
+          <CardGroup>
+            <FrontPageRowsSettings
+              rows={config.frontPageRows}
+              onRowsChange={(frontPageRows) =>
+                onConfigChange({ ...config, frontPageRows })
+              }
+            />
+            <PublicSystemPagesSettings
+              config={config}
+              onConfigChange={onConfigChange}
+            />
+          </CardGroup>
+        ) : null}
+        {activeTab === "public-seo" ? (
+          <PublicSeoSettings
+            config={config}
+            onConfigChange={onConfigChange}
+          />
+        ) : null}
+        {activeTab === "public-social" ? (
+          <PublicSocialSettings
+            config={config}
+            onConfigChange={onConfigChange}
           />
         ) : null}
         {activeTab === "sidebar" ? (
@@ -219,7 +256,7 @@ export function SettingsPage({
             reset={{
               label: "Reset all to defaults",
               description:
-                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
+                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
               onReset: () => onConfigChange(createDefaultShellConfig()),
             }}
           />
@@ -231,6 +268,7 @@ export function SettingsPage({
               onConfigChange({ ...config, topRightNavigation })
             }
             onSaveConfig={onSaveConfig}
+            appAction={adminHeaderAction}
             card={{
               storageId: "top-right",
               title: "Your top right menu",
@@ -240,11 +278,13 @@ export function SettingsPage({
             reset={{
               label: "Reset top right menu",
               description:
-                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
+                "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
               onReset: () =>
                 onConfigChange({
                   ...config,
-                  topRightNavigation: createDefaultTopRightNavigation(),
+                  topRightNavigation: createDefaultTopRightNavigation(
+                    adminHeaderAction ? [adminHeaderAction.id] : []
+                  ),
                 }),
             }}
           />
@@ -256,6 +296,7 @@ export function SettingsPage({
               onConfigChange({ ...config, memberTopRightNavigation })
             }
             onSaveConfig={onSaveConfig}
+            appAction={memberHeaderAction}
             card={{
               storageId: "member-top-right",
               title: "Member top right menu",
@@ -265,11 +306,13 @@ export function SettingsPage({
             reset={{
               label: "Reset member menu",
               description:
-                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
+                "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
               onReset: () =>
                 onConfigChange({
                   ...config,
-                  memberTopRightNavigation: createDefaultTopRightNavigation(),
+                  memberTopRightNavigation: createDefaultTopRightNavigation(
+                    memberHeaderAction ? [memberHeaderAction.id] : []
+                  ),
                 }),
             }}
           />

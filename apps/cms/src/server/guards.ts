@@ -35,9 +35,11 @@ import { requireAdmin, requireUser } from "@/server/auth/security"
  * member and insists it is refused, so a guard cannot go missing unnoticed.
  *
  * All four also start the background ticker, which drives automation runs and
- * newsletter sending. This app has no boot hook to hang
+ * newsletter sending in development. This app has no boot hook to hang
  * a background loop on, so the first request of the process starts it and every
- * call after that returns on a flag — see `ensureBackgroundTicker`.
+ * call after that returns on a flag — see `ensureBackgroundTicker`. A deployed
+ * app ticks in its own worker container instead, and the call here does
+ * nothing.
  */
 
 /**

@@ -17,6 +17,7 @@ import {
   MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
   MAX_SOCIAL_HANDLE_LENGTH,
   SOCIAL_CARD_TYPES,
+  normalizeShareImage,
 } from "@/lib/pages/public-metadata"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import type {
@@ -397,6 +398,10 @@ const shellConfigSchema = z.object({
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
+  workspaceFavicon: faviconSourceSchema,
+  workspaceLogo: z.string().trim().max(2048),
+  workspaceLogoDark: z.string().trim().max(2048),
+  workspaceShareImage: z.string().trim().max(2048),
   favicon: faviconSourceSchema,
   faviconDark: faviconSourceSchema,
   logo: z.string(),
@@ -511,6 +516,10 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
+            favicon: data.workspaceFavicon,
+            logo: normalizeShareImage(data.workspaceLogo),
+            logoDark: normalizeShareImage(data.workspaceLogoDark),
+            shareImage: normalizeShareImage(data.workspaceShareImage),
             sidebarWidth: data.sidebarWidth,
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
             publicNavigation: workspaceDomainsEnabled

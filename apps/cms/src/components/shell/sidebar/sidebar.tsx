@@ -23,6 +23,7 @@ import {
   canSeeShellEntry,
   isActiveShellHref,
   isShellEntryNamed,
+  isShellEntryVisible,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
@@ -59,7 +60,10 @@ function getActiveHref(config: ShellConfig, currentPath: string, role: string) {
       hrefs.push(entry.href)
       entry.children
         ?.filter(
-          (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+          (child) =>
+            isShellEntryVisible(child) &&
+            canSeeShellEntry(child, role) &&
+            isShellEntryNamed(child)
         )
         .forEach((child) => hrefs.push(child.href))
     })
@@ -96,7 +100,10 @@ function mapSectionEntries(
     }
 
     const children = entry.children?.filter(
-      (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+      (child) =>
+        isShellEntryVisible(child) &&
+        canSeeShellEntry(child, role) &&
+        isShellEntryNamed(child)
     )
 
     entries.push({
@@ -171,11 +178,13 @@ export function AppSidebar({
             workspaces={workspaces}
             baseDomain={baseDomain}
             copyChoices={copyChoices}
-            favicon={config.favicon}
           />
         )}
       </SidebarHeader>
-      <SidebarContent onDoubleClick={handleDoubleClick}>
+      <SidebarContent
+        aria-label="Main navigation"
+        onDoubleClick={handleDoubleClick}
+      >
         {sections.length ? (
           sections.map(({ section, entries }) => (
             <SidebarCollapsible

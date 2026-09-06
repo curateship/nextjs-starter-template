@@ -142,5 +142,15 @@ describe("automation schedules", () => {
         dayOfMonth: 32,
       }).success
     ).toBe(false)
+    const invalidDay = automationScheduleSchema.safeParse({
+      frequency: "monthly",
+      time: "09:00",
+      timezone: "UTC",
+      dayOfMonth: 0,
+    })
+    expect(invalidDay.success).toBe(false)
+    if (!invalidDay.success) {
+      expect(invalidDay.error.issues[0]?.message).toContain("Day of month")
+    }
   })
 })

@@ -19,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -49,6 +48,7 @@ import {
   validateDripConfig,
   type DripConfig,
 } from "@/lib/broadcasts/drip"
+import { useErrorToast } from "@/lib/toast/error-toast"
 
 /** The datetime-local value for "in about an hour", in the reader's own clock. */
 function defaultScheduleValue() {
@@ -159,6 +159,7 @@ export function SendBroadcastDialog({
   const [sendingTest, setSendingTest] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  useErrorToast(error)
 
   // Start the form afresh each time it opens. Done during render, which is
   // React's own answer to this, rather than a setState inside an effect.
@@ -574,7 +575,6 @@ export function SendBroadcastDialog({
             </CardContent>
           </Card>
 
-          {error ? <ErrorBanner message={error} /> : null}
         </DialogBody>
         <DialogFooter>
           {/* Hard left, so the button that calls the whole thing off can never

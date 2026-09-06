@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { setPageVisibility } from "@/server/content/pages"
-import { searchWrittenPages } from "@/server/content/search"
 import { createWrittenPage } from "@/server/content/written-pages"
 import { customShellWorkspaces } from "@/server/schema"
+import { searchWrittenPages } from "@/server/content/search"
 import { createTestDatabase, insertWorkspace, type TestDatabase } from "@/server/test-support"
 
 let client: PGlite

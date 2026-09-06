@@ -5,8 +5,15 @@ import { z } from "zod"
 
 import {
   appAutomationNodes,
+  appCanvasHeaderStatus,
   appCanvasPanel,
+  appHeaderRightAction,
+  appHeaderRightActionForRole,
+  appNotificationLinks,
+  appShowsRunButton,
+  appOffersMemberTest,
   appPaletteGroups,
+  appPublicTheme,
   appSettingsTabs,
   catchAllOverride,
   landingPageOverride,
@@ -15,6 +22,7 @@ import {
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { workspaceAddress } from "@/lib/workspaces/addresses"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
@@ -57,12 +65,28 @@ function testNode(kind: string) {
 }
 
 describe("an option nobody set means what the shell always did", () => {
+  it("keeps the shell's public look", () => {
+    expect(appPublicTheme({})).toEqual(createDefaultPublicTheme())
+  })
+
+  it("adds no app-owned control to the signed-in header", () => {
+    expect(appHeaderRightAction({})).toBeNull()
+  })
+
   it("keeps the shell's own front page", () => {
     expect(landingPageOverride({})).toBeNull()
   })
 
   it("adds no automation steps of its own", () => {
     expect(appAutomationNodes({})).toEqual([])
+  })
+
+  it("says no notice of its own leads anywhere", async () => {
+    // The bell then falls back to what it always read off the notice itself,
+    // which for an announcement is to open nothing and stay up.
+    expect(
+      await appNotificationLinks([{ id: "n1", type: "announcement" }], {})
+    ).toEqual({})
   })
 
   it("leaves the catch-all to the written pages", () => {
@@ -74,6 +98,71 @@ describe("an option nobody set means what the shell always did", () => {
 })
 
 describe("an app's answer wins", () => {
+  it("uses the app's default public look", () => {
+    const publicTheme = {
+      brandColor: "#123456",
+      colorScheme: "dark" as const,
+      font: "serif" as const,
+    }
+
+    expect(appPublicTheme({ publicTheme })).toEqual({
+      ...createDefaultPublicTheme(),
+      ...publicTheme,
+    })
+  })
+
+  it("hands over the signed-in header's app-owned control", () => {
+    const rightAction = {
+      id: "app-status",
+      label: "App status",
+      icon: () => null,
+      roles: ["admin"],
+      component: async () => ({ default: () => null }),
+    }
+    expect(appHeaderRightAction({ header: { rightAction } })).toBe(rightAction)
+    expect(
+      appHeaderRightActionForRole("admin", { header: { rightAction } })
+    ).toBe(rightAction)
+    expect(
+      appHeaderRightActionForRole("member", { header: { rightAction } })
+    ).toBeNull()
+  })
+
+  it("sends a notice where the app says it came from", async () => {
+    const asked: string[] = []
+    const links = await appNotificationLinks(
+      [
+        { id: "n1", type: "announcement" },
+        { id: "n2", type: "feedback_vote" },
+      ],
+      {
+        notifications: {
+          linksFor: async (notices) => {
+            for (const one of notices) asked.push(one.id)
+            return { n1: "/admin/hyper-liquid?market=x" }
+          },
+        },
+      }
+    )
+    expect(links).toEqual({ n1: "/admin/hyper-liquid?market=x" })
+    // Which notices reach the app is the app's own business; the shell hands
+    // over everything on screen and lets the app say which ones it knows.
+    expect(asked).toEqual(["n1", "n2"])
+  })
+
+  it("does not ask the app about an empty tray", async () => {
+    let asked = 0
+    await appNotificationLinks([], {
+      notifications: {
+        linksFor: async () => {
+          asked += 1
+          return {}
+        },
+      },
+    })
+    expect(asked).toBe(0)
+  })
+
   it("hands over the front page", () => {
     const page = { Component: () => null }
     expect(landingPageOverride({ landing: { page } })).toBe(page)
@@ -241,6 +330,57 @@ describe("the app's own canvas panel", () => {
       panel: async () => ({ default: () => null }),
     }
     expect(appCanvasPanel({ automations: { canvasPanel } })).toBe(canvasPanel)
+  })
+})
+
+describe("the app's own status in the canvas header", () => {
+  it("is nothing unless an app asks for one", () => {
+    // The default has to be nothing, or every app copied from this shell would
+    // grow a piece of header it never asked for.
+    expect(appCanvasHeaderStatus({})).toBeNull()
+  })
+
+  it("hands back what the app asked for", () => {
+    const canvasHeaderStatus = {
+      status: async () => ({ default: () => null }),
+    }
+    expect(
+      appCanvasHeaderStatus({ automations: { canvasHeaderStatus } })
+    ).toBe(canvasHeaderStatus)
+  })
+})
+
+describe("whether the shell's Run button is drawn", () => {
+  it("is shown unless an app says otherwise", () => {
+    // The default has to be shown, or every app copied from this shell would
+    // lose its button.
+    expect(appShowsRunButton({})).toBe(true)
+  })
+
+  it("is hidden when an app draws its own instead", () => {
+    expect(appShowsRunButton({ automations: { runButton: "hidden" } })).toBe(
+      false
+    )
+  })
+})
+
+describe("testing a flow with one member", () => {
+  it("is offered on every flow unless an app says otherwise", () => {
+    expect(appOffersMemberTest([], {})).toBe(true)
+    expect(appOffersMemberTest(["sendEmail"], {})).toBe(true)
+  })
+
+  it("is kept off the flows the app names, and left on the rest", () => {
+    const options = {
+      automations: {
+        memberTest: {
+          appliesTo: (kinds: readonly string[]) => !kinds.includes("tradeDca"),
+        },
+      },
+    }
+
+    expect(appOffersMemberTest(["tradeWallet", "tradeDca"], options)).toBe(false)
+    expect(appOffersMemberTest(["sendEmail"], options)).toBe(true)
   })
 })
 

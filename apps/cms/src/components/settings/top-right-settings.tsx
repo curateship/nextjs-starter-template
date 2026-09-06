@@ -33,12 +33,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import type { AppHeaderAction } from "@/lib/app-options"
 import {
   isShellEntryNamed,
   isShellTopRightLink,
   renderShellIcon,
   topRightBuiltInMeta,
   type ShellTopRightBuiltIn,
+  type ShellTopRightAppAction,
   type ShellTopRightLink,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
@@ -48,6 +50,8 @@ type TopRightSettingsProps = {
   items: ShellTopRightNavigationItem[]
   onItemsChange: (items: ShellTopRightNavigationItem[]) => void
   onSaveConfig: () => Promise<boolean>
+  /** The app-owned item this menu may contain, including its editor details. */
+  appAction?: AppHeaderAction | null
   /** The card the chips sit in. Reset stays outside it. */
   card: { storageId: string; title: string; description: string }
   /** What the Reset button does, and what it warns it will do. */
@@ -62,14 +66,15 @@ type TopRightSettingsProps = {
 const CHIP_CLASS =
   "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
 
-function SortableBuiltInChip({
+function SortableFixedChip({
   item,
+  meta,
   onVisibleChange,
 }: {
-  item: ShellTopRightBuiltIn
+  item: ShellTopRightBuiltIn | ShellTopRightAppAction
+  meta: { label: string; icon: AppHeaderAction["icon"] }
   onVisibleChange: (visible: boolean) => void
 }) {
-  const meta = topRightBuiltInMeta[item.id]
   const Icon = meta.icon
   const { attributes, listeners, setNodeRef, style } = useSortableRow(
     item.id,
@@ -256,6 +261,7 @@ export function TopRightSettings({
   items,
   onItemsChange,
   onSaveConfig,
+  appAction,
   card,
   reset,
 }: TopRightSettingsProps) {
@@ -311,7 +317,7 @@ export function TopRightSettings({
   const handleVisibleChange = (builtInId: string, visible: boolean) => {
     onItemsChange(
       items.map((item) =>
-        item.type === "builtIn" && item.id === builtInId
+        item.type !== "link" && item.id === builtInId
           ? { ...item, visible }
           : item
       )
@@ -363,10 +369,22 @@ export function TopRightSettings({
                     onDelete={() => setPendingDeleteId(item.id)}
                     onSaveConfig={onSaveConfig}
                   />
+                ) : item.type === "app" ? (
+                  appAction && item.id === appAction.id ? (
+                    <SortableFixedChip
+                      key={item.id}
+                      item={item}
+                      meta={appAction}
+                      onVisibleChange={(visible) =>
+                        handleVisibleChange(item.id, visible)
+                      }
+                    />
+                  ) : null
                 ) : (
-                  <SortableBuiltInChip
+                  <SortableFixedChip
                     key={item.id}
                     item={item}
+                    meta={topRightBuiltInMeta[item.id]}
                     onVisibleChange={(visible) =>
                       handleVisibleChange(item.id, visible)
                     }

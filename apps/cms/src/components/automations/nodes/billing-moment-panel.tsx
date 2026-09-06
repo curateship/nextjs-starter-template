@@ -57,7 +57,7 @@ export default function BillingMomentFields({
         >
           <SelectTrigger
             id={`billing-moment-${node.id}-moment`}
-            className="w-full"
+            className="w-full sm:w-fit"
           >
             <SelectValue />
           </SelectTrigger>

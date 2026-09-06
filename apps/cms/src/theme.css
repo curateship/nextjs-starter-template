@@ -74,6 +74,7 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    /* Public Styling changes --radius at runtime, so every utility must follow it. */
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -85,9 +86,14 @@
 
 :root {
     --app-font-sans: ui-sans-serif, system-ui, sans-serif;
-    --shell-primary: oklch(0.205 0 0);
-    --shell-primary-foreground: oklch(0.985 0 0);
-    --shell-ring: oklch(0.708 0 0);
+    --shell-primary: var(--shell-public-primary-light, oklch(0.205 0 0));
+    --shell-primary-foreground: var(
+      --shell-public-primary-foreground-light,
+      oklch(0.985 0 0)
+    );
+    --shell-primary-hover: var(--shell-public-primary-hover-light);
+    --shell-primary-soft: var(--shell-public-primary-soft-light);
+    --shell-ring: var(--shell-public-primary-light, oklch(0.708 0 0));
     --shell-sidebar-primary: oklch(0.205 0 0);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
     --shell-sidebar-accent: oklch(0.97 0 0);
@@ -128,9 +134,14 @@
 }
 
 .dark {
-    --shell-primary: oklch(0.922 0 0);
-    --shell-primary-foreground: oklch(0.205 0 0);
-    --shell-ring: oklch(0.556 0 0);
+    --shell-primary: var(--shell-public-primary-dark, oklch(0.922 0 0));
+    --shell-primary-foreground: var(
+      --shell-public-primary-foreground-dark,
+      oklch(0.205 0 0)
+    );
+    --shell-primary-hover: var(--shell-public-primary-hover-dark);
+    --shell-primary-soft: var(--shell-public-primary-soft-dark);
+    --shell-ring: var(--shell-public-primary-dark, oklch(0.556 0 0));
     --shell-sidebar-primary: oklch(0.488 0.243 264.376);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
     --shell-sidebar-accent: oklch(0.269 0 0);
@@ -183,6 +194,61 @@
 body.app-font {
     --app-font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     font-family: var(--app-font-sans);
+}
+
+html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
+  background-color: var(--shell-primary-hover);
+}
+
+html[data-public-brand] ::selection {
+  color: var(--foreground);
+  background-color: var(--shell-primary-soft);
+}
+
+html[data-public-pattern="dots"] [data-public-canvas] {
+  background-image: radial-gradient(
+    circle,
+    var(--shell-public-pattern-color) 1px,
+    transparent 1px
+  );
+  background-size: var(--shell-public-pattern-size)
+    var(--shell-public-pattern-size);
+}
+
+html[data-public-pattern="grid"] [data-public-canvas] {
+  background-image:
+    linear-gradient(
+      to right,
+      var(--shell-public-pattern-color) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      var(--shell-public-pattern-color) 1px,
+      transparent 1px
+    );
+  background-size: var(--shell-public-pattern-size)
+    var(--shell-public-pattern-size);
+}
+
+html[data-public-button-style="outline"]
+  [data-slot="button"][data-variant="default"] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: transparent;
+}
+
+html[data-public-button-style="outline"]
+  [data-slot="button"][data-variant="default"]:hover {
+  color: var(--primary);
+  background-color: var(
+    --shell-primary-soft,
+    color-mix(in oklab, var(--primary) 10%, transparent)
+  );
+}
+
+html[data-public-button-casing="uppercase"] [data-slot="button"] {
+  text-transform: uppercase;
 }
 
 @layer base {
@@ -296,7 +362,7 @@ body.app-font {
  * geometry and happens whether or not the styling wrapper is above it.
  */
 [data-slot="workspace-panel"][data-header-only="true"]
-  [data-slot="workspace-panel-header"] {
+  [data-slot="dashboard-card-header"] {
   border-bottom-width: 0;
 }
 
@@ -383,7 +449,7 @@ body.app-font {
   /*
    * Settings → Styling → "Divider lines", the same as every other line that
    * parts one thing from another. `--border` is what that setting writes; see
-   * the note on `workspace-panel-header.tsx`.
+   * the note on `dashboard-card-header.tsx`.
    */
   --shell-panel-edge: var(--border);
   width: 1px;
@@ -396,13 +462,13 @@ body.app-font {
    * The top stretch is painted in the panel's own colour rather than left
    * see-through, because this handle is a real one-pixel column in the layout:
    * clear, it shows the page behind the panels and still reads as a line, just
-   * a grey one. The height is one header — the `h-[3.15rem]` in
-   * `workspace-panel-header.tsx`, which includes its own hairline.
+   * a grey one. The height comes from the same variable as
+   * `dashboard-card-header.tsx`, including the header's own hairline.
    */
   background-image: linear-gradient(
     to bottom,
-    var(--card) 0 3.15rem,
-    var(--shell-panel-edge) 3.15rem
+    var(--card) 0 var(--dashboard-card-header-height),
+    var(--shell-panel-edge) var(--dashboard-card-header-height)
   );
 }
 [data-content-styling][data-flat="true"]
@@ -453,6 +519,22 @@ body:has(
   box-shadow: 0 0 0 calc(var(--shell-modal-border-width, 1) * 1px)
     var(
       --shell-modal-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+/*
+ * Popovers and dropdown menus portal to document.body like the dialog, so
+ * their hairline follows the card border settings the same way: replace the
+ * fixed ring-1 ring-foreground/10 with a width- and color-adjustable ring.
+ * Only --tw-ring-shadow is overridden so the elevation shadow (shadow-md)
+ * stays. The variables are set on the document root by ShellLayout.
+ */
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"] {
+  --tw-ring-shadow: 0 0 0 calc(var(--shell-card-border-width, 1) * 1px)
+    var(
+      --shell-card-border-color,
       color-mix(in oklab, var(--foreground) 10%, transparent)
     );
 }

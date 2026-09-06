@@ -18,6 +18,11 @@ footer wording, branding, and page-level overrides. Public links use the app
 router when the destination belongs to this site, so moving around the public
 site does not reload the whole application.
 
+The missing-page screen can refresh the visited domain's public menu links and
+search visibility through `loadPublicNotFoundDiscovery`. That endpoint is
+intentionally available without a session and appears in the shell guard
+test's public-endpoint list.
+
 Public > Navigation also controls the full header's layout across the app. The
 header can scroll with the page or stay at the top, and its desktop menu can sit
 in the normal header flow or in the exact centre of the page. Logo sizes are
@@ -57,6 +62,11 @@ The root page load also puts the app-wide favicon set in the document head.
 Public pages and signed-in pages therefore use the same light favicon, optional
 dark favicon, and generated browser sizes. With no saved favicon the document
 adds no custom icon links, which keeps the app's built-in browser behavior.
+
+Apps that enable `workspaces.siteBranding` can override those images per public
+domain. Custom Shell leaves that option unset and continues using app-wide
+branding. The shared contract and site-settings fields are documented in the
+repo's `docs/shell/shell-and-apps.md`.
 
 Every public page also gets its sharing title and description in the first HTML
 response. Coded pages use the summary in their page declaration. Written pages

@@ -5,6 +5,7 @@ import {
   broadcastBlocksSchema,
   parseStoredBlocks,
   type BroadcastBlock,
+  type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import {
   SYSTEM_EMAIL_META,
@@ -19,6 +20,7 @@ import {
   getSystemEmail as getSystemEmailRow,
   listSystemEmailSends as listSends,
   listSystemEmails,
+  resetSystemEmail as removeSystemEmail,
   updateSystemEmail as saveSystemEmail,
 } from "@/server/email/system-emails"
 import {
@@ -26,8 +28,14 @@ import {
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
 import { appUrlFor } from "@/server/app-url"
+import { devOutboxIsAvailable } from "@/server/email/dev-outbox"
 
 import { createErrorMessage } from "../error-message"
+import {
+  describeAdminEmailDeliveryError,
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
 
 export type SystemEmailListItem = {
   kind: SystemEmailKind
@@ -37,6 +45,11 @@ export type SystemEmailListItem = {
   updated_at: string | null
   recentSent: number
   recentFailed: number
+}
+
+export type SystemEmailsPageData = {
+  emails: SystemEmailListItem[]
+  devOutboxAvailable: boolean
 }
 
 /**
@@ -72,37 +85,49 @@ const systemEmailErrorMessages: Record<string, string> = {
   CREATE_FAILED: "We could not open that email. Please try again.",
   EMAIL_NOT_CONFIGURED:
     "Email is not set up on this server, so nothing can go out.",
-  EMAIL_DELIVERY_FAILED:
-    "The email service would not take it. Please try again.",
+  [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+    "The email service needs attention before this can be sent.",
+  [EMAIL_DELIVERY_RETRYABLE]:
+    "The email service had a temporary problem. Please try again shortly.",
 }
 
-export const getSystemEmailErrorMessage = createErrorMessage(
+const getBaseSystemEmailErrorMessage = createErrorMessage(
   systemEmailErrorMessages,
-  "We could not save that change. Please try again."
+  "We could not save that change. Please try again.",
 )
+
+export function getSystemEmailErrorMessage(error: unknown) {
+  return (
+    describeAdminEmailDeliveryError(error, "The test email was not sent.") ??
+    getBaseSystemEmailErrorMessage(error)
+  )
+}
 
 /** The same codes, said the way a page that would not open needs them said. */
 export const getSystemEmailLoadErrorMessage = createErrorMessage(
   systemEmailErrorMessages,
-  "We could not load the app's emails. Please try again."
+  "We could not load the app's emails. Please try again.",
 )
 
 const kindSchema = z.object({ kind: systemEmailKindSchema })
 
 const loadSystemEmailsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<SystemEmailListItem[]> => {
+  .handler(async ({ context }): Promise<SystemEmailsPageData> => {
     const rows = await listSystemEmails(
-      await workspaceIdForRequest(context.user.id)
+      await workspaceIdForRequest(context.user.id),
     )
-    return rows.map((row) => ({
-      kind: row.kind,
-      subject: row.subject,
-      edited: row.edited,
-      updated_at: row.updatedAt?.toISOString() ?? null,
-      recentSent: row.recentSent,
-      recentFailed: row.recentFailed,
-    }))
+    return {
+      devOutboxAvailable: devOutboxIsAvailable(),
+      emails: rows.map((row) => ({
+        kind: row.kind,
+        subject: row.subject,
+        edited: row.edited,
+        updated_at: row.updatedAt?.toISOString() ?? null,
+        recentSent: row.recentSent,
+        recentFailed: row.recentFailed,
+      })),
+    }
   })
 
 const getSystemEmailFn = createServerFn({ method: "GET" })
@@ -116,24 +141,19 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
     // real change — see `updateSystemEmail`.
     const row = await getSystemEmailRow(
       await workspaceIdForRequest(context.user.id),
-      data.kind
+      data.kind,
     )
     if (row) return toDetail(data.kind, row)
 
     // An email nobody has saved starts from the workspace's saved block
     // setups, so its header and footer open already carrying the logo and
     // company lines every other email uses.
-    const workspace = await requireCurrentWorkspace(context.user.id)
-    return {
-      kind: data.kind,
-      subject: SYSTEM_EMAIL_META[data.kind].defaults.subject,
-      preheader: "",
-      fromName: null,
-      blocks: createSystemEmailBlocks(
-        data.kind,
-        parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults
-      ),
-    }
+    return builtInSystemEmail(
+      data.kind,
+      parseWorkspaceSettings(
+        (await requireCurrentWorkspace(context.user.id)).settings,
+      ).broadcastBlockDefaults,
+    )
   })
 
 const updateSystemEmailFn = createServerFn({ method: "POST" })
@@ -144,7 +164,7 @@ const updateSystemEmailFn = createServerFn({ method: "POST" })
       preheader: z.string().max(500).optional(),
       fromName: z.string().max(255).nullable().optional(),
       blocks: broadcastBlocksSchema.optional(),
-    })
+    }),
   )
   .handler(async ({ data, context }): Promise<SystemEmailDetail> => {
     const { kind, ...fields } = data
@@ -153,8 +173,20 @@ const updateSystemEmailFn = createServerFn({ method: "POST" })
       await saveSystemEmail(
         await workspaceIdForRequest(context.user.id),
         kind,
-        fields
-      )
+        fields,
+      ),
+    )
+  })
+
+const resetSystemEmailFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(kindSchema)
+  .handler(async ({ data, context }): Promise<SystemEmailDetail> => {
+    const workspace = await requireCurrentWorkspace(context.user.id)
+    await removeSystemEmail(workspace.id, data.kind)
+    return builtInSystemEmail(
+      data.kind,
+      parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults,
     )
   })
 
@@ -164,13 +196,13 @@ const loadSystemEmailSendsFn = createServerFn({ method: "GET" })
     kindSchema.extend({
       limit: z.number().int().min(1).max(100).optional(),
       offset: z.number().int().min(0).optional(),
-    })
+    }),
   )
   .handler(async ({ data, context }): Promise<SystemEmailSendsPage> => {
     const { sends, hasMore } = await listSends(
       await workspaceIdForRequest(context.user.id),
       data.kind,
-      { limit: data.limit, offset: data.offset }
+      { limit: data.limit, offset: data.offset },
     )
     return {
       sends: sends.map((send) => ({
@@ -199,12 +231,16 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(kindSchema)
   .handler(async ({ data, context }): Promise<{ delivered: boolean }> => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const sampleTokens: Record<SystemEmailKind, Record<string, string>> = {
       "verify-email": {},
-      "sign-in-link": { minutes: "15" },
+      "verification-reminder": {},
+      "sign-in-link": {},
       "password-reset": {},
-      "email-change": { old_email: context.user.email, hours: "24" },
-      "email-change-warning": { new_email: "new-address@example.com", hours: "24" },
+      "email-change": { old_email: context.user.email },
+      "email-change-warning": {
+        new_email: "new-address@example.com",
+      },
       "email-change-done": {
         new_email: "new-address@example.com",
         when: "Jan 1, 2026, 9:00 AM UTC",
@@ -217,6 +253,11 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
         device: "Chrome on macOS",
         when: "Jan 1, 2026, 9:00 AM UTC",
       },
+      "account-locked": {
+        device: "Chrome on macOS",
+        when: "Jan 1, 2026, 9:00 AM UTC",
+        lockout_duration: "15 minutes",
+      },
       "new-account": {},
       "account-closed": {
         deletion_date: "Jan 31, 2026",
@@ -224,13 +265,32 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
         restore_instructions:
           "To restore the account before then, sign in and choose Restore my account.",
       },
+      "account-updated": {
+        change_summary: "Your role changed to Admin.",
+        changed_when: "Jan 1, 2026, 9:00 AM UTC",
+        practical_effect: "You can now open the admin area and manage the app.",
+      },
+      "ai-limit-warning": {},
+      "ai-limit-reached": {},
     }
-    return sendAuthEmail({
-      kind: data.kind,
-      to: context.user.email,
-      tokens: sampleTokens[data.kind],
-      actionUrl: appUrlFor("/"),
-    })
+    return sendAuthEmail(
+      {
+        kind: data.kind,
+        to: context.user.email,
+        recipientName: context.user.name,
+        workspaceId,
+        showFailureReasonToAdmin: true,
+        tokens: sampleTokens[data.kind],
+        actionUrl: appUrlFor("/"),
+        reportUrl:
+          data.kind === "sign-in-link" || data.kind === "password-reset"
+            ? "#"
+            : undefined,
+      },
+      // A test is an immediate answer for the admin, not an account email that
+      // should arrive unexpectedly after the screen already reported failure.
+      { retryOnFailure: false }
+    )
   })
 
 function toDetail(
@@ -240,7 +300,7 @@ function toDetail(
     preheader: string
     fromName: string | null
     blocks: unknown
-  }
+  },
 ): SystemEmailDetail {
   return {
     kind,
@@ -248,6 +308,19 @@ function toDetail(
     preheader: row.preheader,
     fromName: row.fromName,
     blocks: parseStoredBlocks(row.blocks),
+  }
+}
+
+function builtInSystemEmail(
+  kind: SystemEmailKind,
+  blockDefaults: BroadcastBlockDefaults,
+): SystemEmailDetail {
+  return {
+    kind,
+    subject: SYSTEM_EMAIL_META[kind].defaults.subject,
+    preheader: "",
+    fromName: null,
+    blocks: createSystemEmailBlocks(kind, blockDefaults),
   }
 }
 
@@ -269,9 +342,13 @@ export function updateSystemEmail(input: {
   return updateSystemEmailFn({ data: input })
 }
 
+export function resetSystemEmail(kind: SystemEmailKind) {
+  return resetSystemEmailFn({ data: { kind } })
+}
+
 export function loadSystemEmailSends(
   kind: SystemEmailKind,
-  options: { limit?: number; offset?: number } = {}
+  options: { limit?: number; offset?: number } = {},
 ) {
   return loadSystemEmailSendsFn({ data: { kind, ...options } })
 }

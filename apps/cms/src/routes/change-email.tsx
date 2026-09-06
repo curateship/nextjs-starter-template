@@ -4,12 +4,14 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import {
   confirmEmailChange,
   getAuthErrorMessage,
+  loadSignInOptions,
   loadCurrentUser,
 } from "@/lib/api/auth/auth"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
+import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -23,13 +25,17 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  */
 export const Route = createFileRoute("/change-email")({
   validateSearch: z.object({ token: z.string().optional() }),
-  loader: async () => ({ signedIn: Boolean(await loadCurrentUser()) }),
+  loader: async () => ({
+    signedIn: Boolean(await loadCurrentUser()),
+    linkExpiry: (await loadSignInOptions()).linkExpiry,
+  }),
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: ChangeEmailRoute,
 })
 
 function ChangeEmailRoute() {
   const { token } = Route.useSearch()
-  const { signedIn } = Route.useLoaderData()
+  const { signedIn, linkExpiry } = Route.useLoaderData()
   const [email, setEmail] = React.useState<string | null>(null)
   const [failed, setFailed] = React.useState(!token)
   // The link a browser has already tried. It is single-use, so a second attempt
@@ -114,9 +120,9 @@ function ChangeEmailRoute() {
         }
       >
         <p className="text-sm text-muted-foreground">
-          Confirmation links work once and expire after {EMAIL_CHANGE_HOURS}{" "}
-          hours. The address may also have been taken by someone else in the
-          meantime.
+          Confirmation links work once and expire after{" "}
+          {authTokenExpiryText("change_email", linkExpiry)}. The address may
+          also have been taken by someone else in the meantime.
         </p>
       </AuthShell>
     )

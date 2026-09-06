@@ -338,7 +338,6 @@ export function ListingsDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            withAriaSort
             leading={
               <TableHead column="select">
                 <Checkbox

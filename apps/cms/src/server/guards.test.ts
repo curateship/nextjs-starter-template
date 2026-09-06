@@ -73,6 +73,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "The confirmation link is followed from whichever browser opened the email; the token is the guard.",
   "auth/auth.ts:revokeEmailChangeFn":
     "The “this wasn’t me” link exists for somebody who may be losing the account, so it cannot require a session; the token is the guard.",
+  "auth/auth.ts:reportUnwantedAuthRequestFn":
+    "The report link is opened from an email while signed out; its one-use token is the guard.",
   "billing/billing.ts:loadPublicPricingFn":
     "The pricing page is public, so the plans on it have to be readable signed out.",
   "auth/passkeys.ts:beginPasskeySignInFn":
@@ -83,6 +85,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "The maintenance notice has to render for people who are not signed in.",
   "content/pages.ts:readPageAccessFn":
     "Decides what a signed-out visitor is shown on a public page, so a session check here would hide every page it protects.",
+  "content/pages.ts:loadPublicNotFoundDiscoveryFn":
+    "The public 404 page reads the visited domain's public navigation links and search visibility without requiring an account.",
   "content/pages.ts:readWrittenPageFn":
     "An admin-written page is a public page; requiring a session to read one would hide every page an admin ever writes.",
   "content/search.ts:readSiteSearchFn":

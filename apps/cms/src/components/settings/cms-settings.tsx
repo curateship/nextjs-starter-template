@@ -1,3 +1,4 @@
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import { ColorSwatch } from "@/components/ui/color-swatch"
@@ -17,8 +18,8 @@ export function CmsSettings({
 }) {
   const workspaceNameMissing = !config.workspaceName.trim()
   const accentInvalid = Boolean(
-    config.workspaceAccentColor &&
-      !/^#[0-9a-f]{6}$/i.test(config.workspaceAccentColor)
+    config.publicTheme.brandColor &&
+    !/^#[0-9a-f]{6}$/i.test(config.publicTheme.brandColor)
   )
 
   return (
@@ -56,8 +57,10 @@ export function CmsSettings({
 
         <ImageUpload
           label="Favicon"
-          value={config.favicon}
-          onChange={(favicon) => onConfigChange({ ...config, favicon })}
+          value={config.workspaceFavicon}
+          onChange={(favicon) =>
+            onConfigChange({ ...config, workspaceFavicon: favicon })
+          }
           aspect="square"
           fit="contain"
           emptyLabel="Select favicon"
@@ -109,43 +112,50 @@ export function CmsSettings({
             <ColorSwatch
               aria-label="Pick accent colour"
               value={
-                accentInvalid || !config.workspaceAccentColor
+                accentInvalid || !config.publicTheme.brandColor
                   ? "#000000"
-                  : config.workspaceAccentColor
+                  : config.publicTheme.brandColor
               }
               onChange={(event) =>
                 onConfigChange({
                   ...config,
-                  workspaceAccentColor: event.target.value,
+                  publicTheme: {
+                    ...config.publicTheme,
+                    brandColor: event.target.value,
+                  },
                 })
               }
             />
             <Input
               id="workspace-accent-color"
-              value={config.workspaceAccentColor}
+              value={config.publicTheme.brandColor}
               placeholder="#3b82f6"
               className="w-40"
               aria-invalid={accentInvalid || undefined}
               onBlur={() => {
                 if (accentInvalid) {
-                  showErrorToast(
-                    "Enter a 6-digit accent colour, like #3b82f6."
-                  )
+                  showErrorToast("Enter a 6-digit accent colour, like #3b82f6.")
                 }
               }}
               onChange={(event) =>
                 onConfigChange({
                   ...config,
-                  workspaceAccentColor: event.target.value,
+                  publicTheme: {
+                    ...config.publicTheme,
+                    brandColor: event.target.value,
+                  },
                 })
               }
             />
-            {config.workspaceAccentColor ? (
+            {config.publicTheme.brandColor ? (
               <Button
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  onConfigChange({ ...config, workspaceAccentColor: "" })
+                  onConfigChange({
+                    ...config,
+                    publicTheme: { ...config.publicTheme, brandColor: "" },
+                  })
                 }
               >
                 Use app colour
@@ -167,4 +177,9 @@ export function CmsSettings({
       </CollapsibleSettingsCard>
     </CardGroup>
   )
+}
+
+export default function CmsSettingsPanel() {
+  const { config, onConfigChange } = useShellRuntime()
+  return <CmsSettings config={config} onConfigChange={onConfigChange} />
 }

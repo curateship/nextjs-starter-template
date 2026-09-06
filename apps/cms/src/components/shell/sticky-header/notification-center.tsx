@@ -7,7 +7,8 @@ import { BellIcon, CheckCheckIcon, Loader2Icon } from "lucide-react"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
@@ -26,6 +27,7 @@ import {
   type NotificationItem,
 } from "@/lib/api/notification"
 import { notificationAction } from "@/lib/notification-action"
+import { useAppNotificationLinks } from "@/lib/hooks/use-app-notification-links"
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream"
 import { cn } from "@/lib/utils"
 
@@ -89,7 +91,7 @@ export function NotificationCenter({
     setUnreadCount(initialUnreadCount)
   }
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
-  const [loading, setLoading] = React.useState(false)
+  const [firstPageLoaded, setFirstPageLoaded] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [markingAll, setMarkingAll] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -108,6 +110,10 @@ export function NotificationCenter({
       ? notifications.filter((item) => !item.read_at)
       : notifications
 
+  // Where this app's own notices lead, looked up while the tray is being read
+  // rather than after a click. Empty in an app that has not set the option.
+  const appLinks = useAppNotificationLinks(notifications)
+
   // The Unread tab can only filter the rows it has pulled, so with unread
   // notices sitting further back than the first page the tab would say 3 and
   // show none. Own up to the gap and offer the pages that close it.
@@ -117,7 +123,7 @@ export function NotificationCenter({
       : 0
   const canLoadHiddenUnread = hiddenUnreadCount > 0 && nextCursor !== null
 
-  const loadNotificationRows = React.useCallback(async (cursor?: string) => {
+  const loadNotificationRows = React.useCallback(async () => {
     // One request at a time. Three things ask for pages now — opening the
     // panel, scrolling to the bottom, and the Load more button — and the
     // busy flags they check only go up on the next render, so two can start
@@ -127,11 +133,27 @@ export function NotificationCenter({
     if (requestInFlightRef.current) return
     requestInFlightRef.current = true
 
-    if (cursor) {
-      setLoadingMore(true)
-    } else {
-      setLoading(true)
+    try {
+      const data = await listNotificationPage({
+        limit: NOTIFICATION_PAGE_SIZE,
+      })
+      setNotifications(data.notifications)
+      setUnreadCount(data.unread_count)
+      setNextCursor(data.next_cursor)
+      setError(null)
+      pendingReadIdsRef.current.clear()
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    } finally {
+      requestInFlightRef.current = false
+      setFirstPageLoaded(true)
     }
+  }, [])
+
+  const loadMoreNotificationRows = React.useCallback(async (cursor: string) => {
+    if (requestInFlightRef.current) return
+    requestInFlightRef.current = true
+    setLoadingMore(true)
     setError(null)
 
     try {
@@ -139,9 +161,7 @@ export function NotificationCenter({
         cursor,
         limit: NOTIFICATION_PAGE_SIZE,
       })
-      setNotifications((current) =>
-        cursor ? [...current, ...data.notifications] : data.notifications
-      )
+      setNotifications((current) => [...current, ...data.notifications])
       setUnreadCount(data.unread_count)
       setNextCursor(data.next_cursor)
       pendingReadIdsRef.current.clear()
@@ -149,15 +169,29 @@ export function NotificationCenter({
       setError(getNotificationErrorMessage(loadError))
     } finally {
       requestInFlightRef.current = false
-      setLoading(false)
       setLoadingMore(false)
     }
   }, [])
 
   React.useEffect(() => {
-    if (!open) return
-    void loadNotificationRows()
-  }, [loadNotificationRows, open])
+    if (!open || requestInFlightRef.current) return
+    requestInFlightRef.current = true
+    void listNotificationPage({ limit: NOTIFICATION_PAGE_SIZE })
+      .then((data) => {
+        setNotifications(data.notifications)
+        setUnreadCount(data.unread_count)
+        setNextCursor(data.next_cursor)
+        setError(null)
+        pendingReadIdsRef.current.clear()
+      })
+      .catch((loadError) => {
+        setError(getNotificationErrorMessage(loadError))
+      })
+      .finally(() => {
+        requestInFlightRef.current = false
+        setFirstPageLoaded(true)
+      })
+  }, [open])
 
   /**
    * What the live connection (and its slow fallback check) asks for.
@@ -190,16 +224,20 @@ export function NotificationCenter({
     onSync: () => void syncNotifications(),
   })
 
-  const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
-    const distanceFromBottom =
-      element.scrollHeight - element.scrollTop - element.clientHeight
+  const loading = open && !firstPageLoaded
+  const loadMoreFromElement = React.useCallback(
+    (element: HTMLDivElement) => {
+      const distanceFromBottom =
+        element.scrollHeight - element.scrollTop - element.clientHeight
 
-    if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
-      return
-    }
+      if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
+        return
+      }
 
-    void loadNotificationRows(nextCursor)
-  }, [loadNotificationRows, loading, loadingMore, nextCursor])
+      void loadMoreNotificationRows(nextCursor)
+    },
+    [loadMoreNotificationRows, loading, loadingMore, nextCursor]
+  )
 
   React.useEffect(() => {
     const element = scrollAreaRootRef.current?.querySelector<HTMLDivElement>(
@@ -275,6 +313,19 @@ export function NotificationCenter({
   }
 
   function openNotification(item: NotificationItem) {
+    // The app's own answer first. A notice the app wrote knows where it came
+    // from — the coin that filled, the flow that stopped — and the app is the
+    // only side that can say so. To the shell those same rows are
+    // announcements, which it opens nothing for, so without this the reading
+    // that has an address loses to the one that does not.
+    const appHref = appLinks[item.id]
+    if (appHref) {
+      setOpen(false)
+      void navigate({ href: appHref })
+      markReadInBackground(item)
+      return
+    }
+
     const action = notificationAction(item)
 
     // A notice with nowhere to go — an announcement, whose own words are the
@@ -311,7 +362,15 @@ export function NotificationCenter({
     // none of what is inside here is a menu item, so none of that ever worked.
     // A popover is the primitive for a panel of mixed content: it still closes
     // on Escape and on a click outside, and still hands focus back to the bell.
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen && notifications.length === 0) {
+          setFirstPageLoaded(false)
+        }
+        setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -395,8 +454,8 @@ export function NotificationCenter({
                 </div>
               ) : canLoadHiddenUnread || error ? null : (
                 // A failed load leaves no rows either, and saying "none" there
-                // would be the same lie in a different place — the banner below
-                // is the only honest thing to show.
+                // would be the same lie in a different place — the error row
+                // below is the only honest thing to show.
                 <EmptyNotifications
                   // Nothing loaded at all is a different thing from having read
                   // everything, and the two deserve different words.
@@ -416,20 +475,12 @@ export function NotificationCenter({
                       ? "1 unread notice further back"
                       : `${hiddenUnreadCount} unread notices further back`}
                   </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={loading || loadingMore}
+                  <LoadMoreButton
+                    loading={loading || loadingMore}
                     onClick={() => {
-                      if (nextCursor) void loadNotificationRows(nextCursor)
+                      if (nextCursor) void loadMoreNotificationRows(nextCursor)
                     }}
-                  >
-                    {loadingMore ? (
-                      <Loader2Icon className="size-3.5 animate-spin" />
-                    ) : null}
-                    Load more
-                  </Button>
+                  />
                 </div>
               ) : loadingMore ? (
                 <div className="flex justify-center pt-4" role="status">
@@ -438,12 +489,17 @@ export function NotificationCenter({
               ) : null}
 
               {error ? (
-                <div className="mt-4">
-                  <ErrorBanner
-                    message={error}
-                    onRetry={() => void loadNotificationRows()}
-                  />
-                </div>
+                <ErrorRow
+                  className={cn(
+                    notifications.length === 0 ? "min-h-56" : "mt-4"
+                  )}
+                  message={error}
+                  onRetry={() => {
+                    setFirstPageLoaded(false)
+                    setError(null)
+                    void loadNotificationRows()
+                  }}
+                />
               ) : null}
             </div>
           </ScrollArea>

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import { aiAllowanceCentsFromFeatures } from "@/lib/ai/ai-models"
 import type { SubscriptionEvent } from "@/lib/billing/subscription-events"
@@ -7,9 +7,11 @@ import { loadEntitlements } from "@/server/billing/entitlements"
 import { loadAccountStorage, type AccountStorage } from "@/server/media/library"
 import {
   customShellAiAllowanceOverrides,
+  customShellAuthSecurityReports,
   customShellUsers,
 } from "@/server/schema"
 import { listSubscriptionEvents } from "@/server/billing/subscription-events"
+import { listMemberTags } from "@/server/people/member-tags"
 
 /**
  * Everything the account window shows, gathered from the tables the existing
@@ -21,6 +23,7 @@ type AccountProfile = {
   id: string
   email: string
   name: string
+  tags: string[]
   role: string
   status: string
   /** When this account was marked for deletion, and null when it was not. */
@@ -61,6 +64,10 @@ export type AccountDetail = {
   storage: AccountStorage
   /** What has happened to their plan since the app started recording it. */
   billingHistory: SubscriptionEvent[]
+  securityReports: {
+    count: number
+    latestAt: string | null
+  }
 }
 
 export async function loadAccountDetail(
@@ -90,9 +97,9 @@ export async function loadAccountDetail(
     throw new Error("USER_NOT_FOUND")
   }
 
-  // Two waves rather than one, on purpose. Every query below is independent, so
-  // the obvious thing is to fire them together — but too many connections for
-  // one page view has exhausted the pool before. This caps it at two in flight.
+  // These bounded waves are deliberate. Every query below is independent, but
+  // too many connections for one page view has exhausted the pool before. This
+  // keeps no more than two queries in flight at once.
   const [{ entitlements }, storage] = await Promise.all([
     loadEntitlements(userId, database),
     loadAccountStorage(userId, database),
@@ -107,12 +114,26 @@ export async function loadAccountDetail(
       .limit(1),
     listSubscriptionEvents(userId, database),
   ])
+  const [tagsByUser, [securityReports]] = await Promise.all([
+    listMemberTags([userId], database),
+    database
+      .select({
+        count: sql<number>`count(*)::int`,
+        latestAt: sql<Date | null>`max(${customShellAuthSecurityReports.createdAt})`.mapWith(
+          customShellAuthSecurityReports.createdAt
+        ),
+      })
+      .from(customShellAuthSecurityReports)
+      .where(eq(customShellAuthSecurityReports.userId, userId)),
+  ])
+  const tags = tagsByUser.get(userId) ?? []
 
   return {
     profile: {
       id: user.id,
       email: user.email,
       name: user.name,
+      tags,
       role: user.role,
       status: user.status,
       deletedAt: user.deletedAt?.toISOString() ?? null,
@@ -139,5 +160,9 @@ export async function loadAccountDetail(
     },
     storage,
     billingHistory,
+    securityReports: {
+      count: securityReports?.count ?? 0,
+      latestAt: securityReports?.latestAt?.toISOString() ?? null,
+    },
   }
 }

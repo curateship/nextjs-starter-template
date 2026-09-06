@@ -3,6 +3,7 @@ import {
   asc,
   countDistinct,
   eq,
+  exists,
   gt,
   isNotNull,
   isNull,
@@ -25,11 +26,13 @@ import { activeSubscriptionCondition } from "@/server/billing/entitlements"
 import {
   customShellContactSegments,
   customShellContacts,
+  customShellMemberTags,
   customShellPlans,
   customShellSubscriptions,
   customShellUsers,
 } from "@/server/schema"
 import { now } from "@/server/auth/security"
+import { normalizeMemberTag } from "@/lib/member-tags"
 
 /**
  * Who a flow is about, worked out fresh every single time.
@@ -55,6 +58,8 @@ export type AutomationAudience = {
   planSlug: string
   /** The segment's row id, and "" for every kind except "segment". */
   segmentId: string
+  /** The normalized account label, and "" for every kind except "tag". */
+  tag: string
 }
 
 /** Thrown when a flow points at a plan that no longer exists. */
@@ -104,7 +109,11 @@ export function readAutomationAudience(
     kind === "segment" && typeof settings.segmentId === "string"
       ? settings.segmentId.trim()
       : ""
-  return { kind, planSlug, segmentId }
+  const tag =
+    kind === "tag" && typeof settings.tag === "string"
+      ? normalizeMemberTag(settings.tag)
+      : ""
+  return { kind, planSlug, segmentId, tag }
 }
 
 /**
@@ -123,7 +132,8 @@ function audienceCondition(
   workspaceId: string,
   planId: string | null,
   segmentFilter: SQL | null,
-  timestamp: Date
+  timestamp: Date,
+  database: CustomShellDb
 ): SQL {
   const filters: SQL[] = [
     eq(customShellContacts.workspaceId, workspaceId),
@@ -167,6 +177,27 @@ function audienceCondition(
     // quietly widen into "everyone".
     if (!segmentFilter) throw new MissingAudienceSegmentError()
     filters.push(segmentFilter)
+  }
+
+  if (audience.kind === "tag") {
+    if (!audience.tag) {
+      throw new Error(
+        "This audience step does not say which member tag to match."
+      )
+    }
+    filters.push(
+      exists(
+        database
+          .select({ userId: customShellMemberTags.userId })
+          .from(customShellMemberTags)
+          .where(
+            and(
+              eq(customShellMemberTags.userId, customShellContacts.userId),
+              eq(customShellMemberTags.tag, audience.tag)
+            )
+          )
+      )
+    )
   }
 
   return and(...filters) as SQL
@@ -265,7 +296,8 @@ async function audienceFilter(
     workspaceId,
     planId,
     segmentFilter,
-    timestamp
+    timestamp,
+    database
   )
 }
 
@@ -486,7 +518,7 @@ export async function previewAutomationAudience(
     audience.kind === "everyone"
       ? null
       : countAutomationAudience(
-          { kind: "everyone", planSlug: "", segmentId: "" },
+          { kind: "everyone", planSlug: "", segmentId: "", tag: "" },
           workspaceId,
           database,
           timestamp

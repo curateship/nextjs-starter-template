@@ -130,6 +130,7 @@ export function BroadcastEditor({
     <>
       <EmailBlockEditor
         title={broadcast.name}
+        back={{ to: "/admin/newsletter", label: "Back to newsletters" }}
         fields={fields}
         fieldsVersion={fieldsVersion}
         initialBlockDefaults={initialBlockDefaults}

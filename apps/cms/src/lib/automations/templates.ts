@@ -78,6 +78,7 @@ export const AUTOMATION_TEMPLATES: readonly AutomationTemplate[] = [
             planSlug: "",
             segmentId: "",
             segmentName: "",
+            tag: "",
           },
         },
         {
@@ -118,6 +119,7 @@ export const AUTOMATION_TEMPLATES: readonly AutomationTemplate[] = [
             planSlug: "",
             segmentId: "",
             segmentName: "",
+            tag: "",
           },
         },
         {

@@ -1,18 +1,18 @@
 "use client"
 
-import { MessageSquarePlusIcon, Moon, Sun } from "lucide-react"
+import * as React from "react"
+import { MessageSquarePlusIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
-import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
+import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  appHeaderRightActionForRole,
+  type AppHeaderAction,
+  type AppHeaderActionProps,
+} from "@/lib/app-options"
 import {
   canSeeShellEntry,
   isShellEntryNamed,
@@ -22,30 +22,28 @@ import {
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 
-function ThemeToggle() {
-  const { setTheme } = useTheme()
+const lazyHeaderActions = new Map<
+  AppHeaderAction["component"],
+  React.LazyExoticComponent<React.ComponentType<AppHeaderActionProps>>
+>()
+
+/** The app's one place in the signed-in header. */
+function AppHeaderRightAction({
+  action,
+  role,
+}: AppHeaderActionProps & { action: AppHeaderAction }) {
+  const asked = action.component
+
+  let Action = lazyHeaderActions.get(asked)
+  if (!Action) {
+    Action = React.lazy(asked)
+    lazyHeaderActions.set(asked, Action)
+  }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" data-nav-shape="icon">
-          <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <React.Suspense fallback={null}>
+      {React.createElement(Action, { role })}
+    </React.Suspense>
   )
 }
 
@@ -108,7 +106,11 @@ export function StickyHeaderRightNav({
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
-  const navItems = normalizeTopRightNavigation(items)
+  const appAction = appHeaderRightActionForRole(role)
+  const navItems = normalizeTopRightNavigation(
+    items,
+    appAction ? [appAction.id] : []
+  )
 
   return (
     <div className="flex items-center gap-1 pr-1 [&>[data-nav-shape=icon]+[data-nav-shape=text]]:ml-2 [&>[data-nav-shape=text]+[data-nav-shape=icon]]:ml-2">
@@ -125,6 +127,16 @@ export function StickyHeaderRightNav({
         }
 
         if (!item.visible) return null
+
+        if (item.type === "app") {
+          return appAction && item.id === appAction.id ? (
+            <AppHeaderRightAction
+              key={item.id}
+              action={appAction}
+              role={role}
+            />
+          ) : null
+        }
 
         if (item.id === "feedback") {
           return onOpenFeedback ? (

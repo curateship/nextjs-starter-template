@@ -1,12 +1,12 @@
 import { formatDate } from "@/lib/format/format-time"
 
 /**
- * The words for one member's billing history.
+ * The facts and wording for billing history.
  *
  * The table stores facts — a kind, the plan's name at the time, one extra
- * detail — and this turns them into the sentence the timeline shows. Kept here,
- * away from the server, so the admin window and the member's own billing page
- * (a later task) can never word the same event two different ways.
+ * detail — and this turns them into the sentences the admin and member
+ * timelines show. The member wording also decides which event kinds are safe
+ * to show outside the back office.
  */
 
 /**
@@ -61,6 +61,100 @@ export type SubscriptionEvent = {
   detail: string | null
   source: SubscriptionEventSource
   createdAt: string
+}
+
+type MemberEventFacts = {
+  planName: string | null
+  previousPlanName: string | null
+  endsAt: string | null
+}
+
+/**
+ * The billing events a member may read, and the words they see for each one.
+ *
+ * This map is also the allowlist. A new internal event stays off the member's
+ * page until it has an entry here, which makes the safe wording a deliberate
+ * decision instead of exposing a new kind by default.
+ */
+const MEMBER_EVENT_DESCRIPTIONS = {
+  trial_started: (event: MemberEventFacts) =>
+    `You started a trial of ${event.planName ?? "your plan"}.`,
+  subscribed: (event: MemberEventFacts) =>
+    `You subscribed to ${event.planName ?? "your plan"}.`,
+  trial_converted: (event: MemberEventFacts) =>
+    `Your trial ended and billing for ${event.planName ?? "your plan"} began.`,
+  plan_changed: (event: MemberEventFacts) =>
+    event.previousPlanName
+      ? `You switched from ${event.previousPlanName} to ${event.planName ?? "your new plan"}.`
+      : `You switched to ${event.planName ?? "a new plan"}.`,
+  payment_failed: () => "Your payment failed.",
+  payment_recovered: (event: MemberEventFacts) =>
+    `Your payment went through and ${event.planName ?? "your plan"} is active again.`,
+  cancel_scheduled: (event: MemberEventFacts) =>
+    `${event.planName ?? "Your plan"} is set to end ${
+      event.endsAt
+        ? `on ${formatDate(event.endsAt)}`
+        : "at the end of your current billing period"
+    }. It will not renew.`,
+  cancel_stopped: (event: MemberEventFacts) =>
+    `The cancellation was stopped. ${event.planName ?? "Your plan"} will renew.`,
+  canceled: (event: MemberEventFacts) =>
+    `${event.planName ?? "Your plan"} ended.`,
+  paused: (event: MemberEventFacts) =>
+    `${event.planName ?? "Your plan"} was paused. Billing stopped and your account moved to the free plan.`,
+  resumed: (event: MemberEventFacts) =>
+    `${event.planName ?? "Your plan"} restarted. Billing started again.`,
+  plan_granted: (event: MemberEventFacts) =>
+    event.endsAt
+      ? `${event.planName ?? "A plan"} was added to your account until ${formatDate(event.endsAt)}.`
+      : `${event.planName ?? "A plan"} was added to your account with no end date.`,
+  grant_removed: () => "The plan added to your account was removed.",
+} satisfies Partial<
+  Record<SubscriptionEventKind, (event: MemberEventFacts) => string>
+>
+
+type MemberSubscriptionEventKind = keyof typeof MEMBER_EVENT_DESCRIPTIONS
+
+export type MemberSubscriptionEvent = Pick<
+  SubscriptionEvent,
+  "id" | "createdAt"
+> &
+  MemberEventFacts & { kind: MemberSubscriptionEventKind }
+
+export const MEMBER_SUBSCRIPTION_EVENT_KINDS = Object.keys(
+  MEMBER_EVENT_DESCRIPTIONS
+) as MemberSubscriptionEventKind[]
+
+function isMemberSubscriptionEventKind(
+  kind: string
+): kind is MemberSubscriptionEventKind {
+  return Object.hasOwn(MEMBER_EVENT_DESCRIPTIONS, kind)
+}
+
+/** Remove provider status and who caused the change before returning it. */
+export function memberSubscriptionEvent(
+  event: SubscriptionEvent
+): MemberSubscriptionEvent | null {
+  if (!isMemberSubscriptionEventKind(event.kind)) return null
+
+  return {
+    id: event.id,
+    kind: event.kind,
+    planName: event.planName,
+    previousPlanName: event.kind === "plan_changed" ? event.detail : null,
+    endsAt:
+      event.kind === "cancel_scheduled" || event.kind === "plan_granted"
+        ? event.detail
+        : null,
+    createdAt: event.createdAt,
+  }
+}
+
+/** One plan change in words written for the member it happened to. */
+export function describeMemberSubscriptionEvent(
+  event: MemberSubscriptionEvent
+) {
+  return MEMBER_EVENT_DESCRIPTIONS[event.kind](event)
 }
 
 /**

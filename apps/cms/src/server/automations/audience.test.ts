@@ -20,6 +20,7 @@ import { syncContactsFromUsers } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
+  customShellMemberTags,
   customShellPlans,
   customShellSubscriptions,
   customShellWorkspaces,
@@ -66,7 +67,7 @@ const audienceOf = (
   kind: AutomationAudience["kind"],
   planSlug = "",
   segmentId = ""
-): AutomationAudience => ({ kind, planSlug, segmentId })
+): AutomationAudience => ({ kind, planSlug, segmentId, tag: "" })
 
 /**
  * Counts the way the running step does: contacts brought up to date with the
@@ -176,21 +177,38 @@ async function insertPayingUser(
 
 describe("reading a saved audience", () => {
   it("keeps the plan only for the one-plan choice", () => {
-    expect(readAutomationAudience({ audience: "plan", planSlug: " pro " })).toEqual(
-      { kind: "plan", planSlug: "pro", segmentId: "" }
-    )
+    expect(
+      readAutomationAudience({ audience: "plan", planSlug: " pro " })
+    ).toEqual({ kind: "plan", planSlug: "pro", segmentId: "", tag: "" })
     expect(
       readAutomationAudience({ audience: "paying", planSlug: "pro" })
-    ).toEqual({ kind: "paying", planSlug: "", segmentId: "" })
+    ).toEqual({ kind: "paying", planSlug: "", segmentId: "", tag: "" })
   })
 
   it("keeps the segment only for the segment choice", () => {
     expect(
       readAutomationAudience({ audience: "segment", segmentId: " seg-1 " })
-    ).toEqual({ kind: "segment", planSlug: "", segmentId: "seg-1" })
+    ).toEqual({ kind: "segment", planSlug: "", segmentId: "seg-1", tag: "" })
     expect(
       readAutomationAudience({ audience: "everyone", segmentId: "seg-1" })
-    ).toEqual({ kind: "everyone", planSlug: "", segmentId: "" })
+    ).toEqual({ kind: "everyone", planSlug: "", segmentId: "", tag: "" })
+  })
+
+  it("keeps and normalizes a tag only for the tag choice", () => {
+    expect(readAutomationAudience({ audience: "tag", tag: " Beta " })).toEqual({
+      kind: "tag",
+      planSlug: "",
+      segmentId: "",
+      tag: "beta",
+    })
+    expect(
+      readAutomationAudience({ audience: "everyone", tag: "beta" })
+    ).toEqual({
+      kind: "everyone",
+      planSlug: "",
+      segmentId: "",
+      tag: "",
+    })
   })
 
   // Falling back would mean a broken flow quietly reaching *more* people than
@@ -200,6 +218,34 @@ describe("reading a saved audience", () => {
       /does not say who the flow is about/
     )
     expect(() => readAutomationAudience({})).toThrow()
+  })
+})
+
+describe("member tag audiences", () => {
+  it("matches exactly the accounts carrying the chosen tag", async () => {
+    const beta = await insertUser(db, { email: "beta@example.test" })
+    await insertUser(db, { email: "other@example.test" })
+    await syncContactsFromUsers(WORKSPACE_ID, db)
+    await db.insert(customShellMemberTags).values({
+      userId: beta.id,
+      tag: "beta",
+      createdAt: now(),
+    })
+
+    await expect(
+      countAutomationAudience(
+        { kind: "tag", planSlug: "", segmentId: "", tag: "beta" },
+        WORKSPACE_ID,
+        db
+      )
+    ).resolves.toBe(1)
+    await expect(
+      countAutomationAudience(
+        { kind: "tag", planSlug: "", segmentId: "", tag: "missing" },
+        WORKSPACE_ID,
+        db
+      )
+    ).resolves.toBe(0)
   })
 })
 
@@ -227,9 +273,25 @@ describe("the compiler", () => {
 
   it("accepts a segment audience once one is picked", () => {
     expect(
-      compileAutomationGraph(graphOf({ audience: "segment", segmentId: "seg-1" }))
-        .errors
+      compileAutomationGraph(
+        graphOf({ audience: "segment", segmentId: "seg-1" })
+      ).errors
     ).toEqual([])
+  })
+
+  it("requires a tag for a tag audience", () => {
+    expect(
+      compileAutomationGraph(graphOf({ audience: "tag", tag: "" })).errors[0]
+        ?.message
+    ).toContain("Enter which member tag")
+    expect(
+      compileAutomationGraph(graphOf({ audience: "tag", tag: "Beta" })).config
+        ?.nodes.n0.settings.tag
+    ).toBe("beta")
+    expect(
+      compileAutomationGraph(graphOf({ audience: "tag", tag: "beta,vip" }))
+        .config
+    ).toBeNull()
   })
 
   it("accepts the other choices with no plan", () => {
@@ -269,7 +331,9 @@ describe("counting who matches", () => {
       .set({ status: "unsubscribed" })
       .where(eq(customShellContacts.userId, member.id))
 
-    expect(await countAutomationAudience(audienceOf("everyone"), WORKSPACE_ID, db)).toBe(1)
+    expect(
+      await countAutomationAudience(audienceOf("everyone"), WORKSPACE_ID, db)
+    ).toBe(1)
     expect(
       await countAutomationAudience(audienceOf("registered"), WORKSPACE_ID, db)
     ).toBe(1)
@@ -522,7 +586,9 @@ describe("the step the engine runs", () => {
       segmentId: segment.id,
     })
     expect(result.summary).toContain("Matched 1 person")
-    expect(result.summary).toContain('the people in the "Lapsed trials" segment')
+    expect(result.summary).toContain(
+      'the people in the "Lapsed trials" segment'
+    )
   })
 
   it("says nobody matched instead of failing", async () => {

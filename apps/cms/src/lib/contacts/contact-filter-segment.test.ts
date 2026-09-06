@@ -20,6 +20,7 @@ describe("turning contact filters into a segment draft", () => {
     const filters: SegmentRules = {
       conditions: [
         { type: "tag", operator: "includes", tags: ["member"] },
+        { type: "in", segmentIds: ["vip"] },
       ],
     }
     const draft = segmentRulesFromContactFilters(filters)
@@ -27,10 +28,14 @@ describe("turning contact filters into a segment draft", () => {
     if (draft.conditions[0]?.type === "tag") {
       draft.conditions[0].tags.push("staff")
     }
+    if (draft.conditions[1]?.type === "in") {
+      draft.conditions[1].segmentIds.push("founders")
+    }
 
     expect(filters).toEqual({
       conditions: [
         { type: "tag", operator: "includes", tags: ["member"] },
+        { type: "in", segmentIds: ["vip"] },
       ],
     })
   })

@@ -148,6 +148,8 @@ export type WorkspaceWord = { one: string; many: string }
 export type WhoMayHaveWorkspaces = "off" | "admins" | "everyone"
 
 type WorkspaceOptions = {
+  /** Allow each public site to override app-wide icons, logos and share images. */
+  siteBranding?: boolean
   /**
    * What this app calls a workspace, where somebody can see it.
    *
@@ -668,4 +670,9 @@ export async function appNotificationLinks(
   const ask = options.notifications?.linksFor
   if (!ask || notices.length === 0) return {}
   return await ask(notices)
+}
+
+/** App-wide branding stays the default unless the app builds distinct sites. */
+export function appUsesSiteBranding(options: AppOptions = appOptions) {
+  return options.workspaces?.siteBranding ?? false
 }

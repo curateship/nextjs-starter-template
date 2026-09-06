@@ -17,6 +17,7 @@ import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users
 import { workspaceForRun } from "@/server/automations/runs"
 import type { CustomShellDb } from "@/server/db"
 import { getEmailProvider, type EmailProvider } from "@/server/email/provider"
+import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
 import { composeFromAddress } from "@/server/email/send"
 import { getSendableEmailConfig } from "@/server/email/settings"
 import {
@@ -369,6 +370,7 @@ export async function executeSendEmailNode({
   const fixedAt = now()
   const htmlTemplate = renderBroadcastEmailHtml(settings.blocks, {
     preheader: settings.preheader,
+    appName: await emailBrandName(workspaceId, database),
   })
   const includeUnsubscribe = settings.blocks.some(
     (block) => block.kind === "footer" && block.content.showUnsubscribe
@@ -377,6 +379,7 @@ export async function executeSendEmailNode({
   let attempted = 0
   let emptyReason = ""
   let sender: Awaited<ReturnType<typeof emailProvider>> | null = null
+  let logoProtection: Promise<number> | null = null
 
   const processRecipient = async (recipient: Recipient) => {
     if (recipient.userId && !recipient.emailVerifiedAt) {
@@ -389,6 +392,12 @@ export async function executeSendEmailNode({
       )
     }
     sender ??= await emailProvider(workspaceId, database)
+    logoProtection ??= protectSentEmailLogos(
+      workspaceId,
+      settings.blocks,
+      database
+    )
+    await logoProtection
     if (attempted % CLAIM_REFRESH_EVERY === 0) {
       await refreshRunClaim(run, database, now())
     }
@@ -523,6 +532,7 @@ async function executeTestEmail({
   }
 
   const sender = await emailProvider(workspaceId, database)
+  await protectSentEmailLogos(workspaceId, settings.blocks, database)
   const subject = `[TEST for ${recipient.email}] ${personalizeEmail(
     settings.subject,
     recipient,
@@ -531,6 +541,7 @@ async function executeTestEmail({
   const html = personalizeEmail(
     renderBroadcastEmailHtml(settings.blocks, {
       preheader: settings.preheader,
+      appName: await emailBrandName(workspaceId, database),
     }),
     recipient,
     { html: true, unsubscribeUrl: "#" }

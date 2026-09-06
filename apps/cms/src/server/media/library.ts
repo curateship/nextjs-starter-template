@@ -12,6 +12,7 @@ import {
   type SQL,
 } from "drizzle-orm"
 
+import { isGeneratedFaviconStoragePath } from "@/lib/favicon"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   deleteFromR2,
@@ -359,7 +360,11 @@ export async function findOwnedImageByUrl(
   if (!storagePath) return null
 
   const [row] = await database
-    .select({ id: customShellMedia.id, fileType: customShellMedia.fileType })
+    .select({
+      id: customShellMedia.id,
+      fileType: customShellMedia.fileType,
+      storagePath: customShellMedia.storagePath,
+    })
     .from(customShellMedia)
     .where(
       and(
@@ -405,7 +410,7 @@ export async function clearAvatarsForStoragePaths(
  * The bucket key a public media URL points at, or null when the URL is not one
  * this app would ever have handed out.
  */
-function storagePathForUrl(url: string) {
+export function storagePathForUrl(url: string) {
   let prefix: string
   try {
     // Passing the empty key yields the public base with its trailing slash,
@@ -479,6 +484,8 @@ export type AdminMediaItem = MediaItem & {
   owner_name: string
   owner_email: string
   storage_path: string
+  /** Once set, deleting this file would break email already in inboxes. */
+  email_protected_at: string | null
 }
 
 export type AdminMediaListQuery = {
@@ -588,6 +595,7 @@ export async function listAllMedia(
       owner_name: row.owner.name,
       owner_email: row.owner.email,
       storage_path: row.media.storagePath,
+      email_protected_at: row.media.emailProtectedAt?.toISOString() ?? null,
     })),
     total,
     page,
@@ -612,6 +620,7 @@ export async function getAdminMedia(mediaId: string): Promise<AdminMediaItem | n
         owner_name: row.owner.name,
         owner_email: row.owner.email,
         storage_path: row.media.storagePath,
+        email_protected_at: row.media.emailProtectedAt?.toISOString() ?? null,
       }
     : null
 }
@@ -776,7 +785,12 @@ async function scanMediaOrphans(
   // still be traced back to a person.
   const unlinked = objects
     .filter(
-      (object) => !knownPaths.has(object.key) && APP_STORAGE_KEY.test(object.key)
+      (object) =>
+        !knownPaths.has(object.key) &&
+        APP_STORAGE_KEY.test(object.key) &&
+        // Favicon sizes have no media row by design. Their settings save owns
+        // replacement and cleanup, so the generic orphan tool must leave them.
+        !isGeneratedFaviconStoragePath(object.key)
     )
     .map((object) => {
       const [ownerId, ...rest] = object.key.split("/")
@@ -872,29 +886,38 @@ export async function deleteMediaAsAdmin(
   database: CustomShellDb = db
 ) {
   const uniqueIds = Array.from(new Set(mediaIds))
-  const rows = await database
-    .select()
-    .from(customShellMedia)
-    .where(inArray(customShellMedia.id, uniqueIds))
+  return database.transaction(async (transaction) => {
+    // Hold each row until its file and record agree. A send trying to protect
+    // the same logo waits here, then either sees the protected row or sees that
+    // it has gone and refuses to send a broken address.
+    const rows = await transaction
+      .select()
+      .from(customShellMedia)
+      .where(inArray(customShellMedia.id, uniqueIds))
+      .for("update")
 
-  for (const row of rows) {
-    await deleteFromR2(row.storagePath)
-  }
+    const protectedCount = rows.filter((row) => row.emailProtectedAt).length
+    const deletableRows = rows.filter((row) => !row.emailProtectedAt)
 
-  if (rows.length) {
-    await database.delete(customShellMedia).where(
-      inArray(
-        customShellMedia.id,
-        rows.map((row) => row.id)
+    for (const row of deletableRows) {
+      await deleteFromR2(row.storagePath)
+    }
+
+    if (deletableRows.length) {
+      await transaction.delete(customShellMedia).where(
+        inArray(
+          customShellMedia.id,
+          deletableRows.map((row) => row.id)
+        )
       )
-    )
-    await clearAvatarsForStoragePaths(
-      rows.map((row) => row.storagePath),
-      database
-    )
-  }
+      await clearAvatarsForStoragePaths(
+        deletableRows.map((row) => row.storagePath),
+        transaction
+      )
+    }
 
-  return { deletedCount: rows.length }
+    return { deletedCount: deletableRows.length, protectedCount }
+  })
 }
 
 function defaultExtensionForMimeType(mimeType: string) {
