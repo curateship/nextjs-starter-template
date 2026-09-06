@@ -93,6 +93,11 @@ the guess that one might:
   announcements has a title, a body and nowhere to go, which is what this
   answers. Addresses inside the app only: anything else is dropped rather than
   followed, because these strings come out of a database
+- `header.leftContent` — optional app-owned left navigation, lazy-loaded for
+  the allowed roles. The component receives `fallback`, the current sidebar
+  links, and renders that value when it has nothing to show. The same links
+  remain visible while the component loads. Custom Shell leaves the option
+  unset.
 - `header.rightAction` — one app-owned control in the signed-in header. Its
   stable id, label, icon and allowed roles put it in the same draggable Top
   right menu settings as the shell controls. Its component loads only when the
