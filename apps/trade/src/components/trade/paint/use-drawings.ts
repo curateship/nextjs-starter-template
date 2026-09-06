@@ -17,6 +17,7 @@ import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   bufferedAlert,
   DEFAULT_DRAWING_BUFFER_PCT,
+  DRAWING_ALERT_NO_PRICE,
   drawingAlertArmed,
   extendedRight,
   priceAtTime,
@@ -73,7 +74,9 @@ export function useChartDrawings(
   /** The buffer a line with no earlier alert starts with. */
   defaultBuffer: number | null = DEFAULT_DRAWING_BUFFER_PCT,
   /** Told after a buffer saves, so the next line starts with the same value. */
-  onBufferPreference?: (buffer: number | null) => void
+  onBufferPreference?: (buffer: number | null) => void,
+  defaultAlertOn = true,
+  onAlertPreference?: (on: boolean) => void
 ) {
   // Tagged with the market it belongs to, so an answer that lands after
   // another market was picked is dropped rather than drawn on the wrong chart.
@@ -202,29 +205,89 @@ export function useChartDrawings(
     async (key: string, drawing: Drawing) => {
       try {
         await saveDrawing(key, drawing)
+        return true
       } catch (error) {
         revise(key, (current) =>
           current.filter((candidate) => candidate.id !== drawing.id)
         )
         showErrorToast(getDrawingsErrorMessage(error))
+        return false
       }
     },
     [revise]
   )
 
-  /** Draw a new one. It appears at once and is the picked one straight away. */
+  /** Draw a new one, then enable its alert using the remembered choice. */
   const create = React.useCallback(
-    (shape: DrawingShape) => {
+    (shape: DrawingShape, currentPrice: number | null = null) => {
       if (!marketKey) return
-      const drawing: Drawing = { id: crypto.randomUUID(), shape, alert: null }
-      revise(marketKey, (current) => [...current, drawing])
+      const key = marketKey
+      const now = Date.now()
+      const linePrice = priceAtTime(shape, now)
+      const wantsAlert = defaultAlertOn && shape.kind !== "fib"
+      const canAlert = wantsAlert && linePrice !== null && currentPrice !== null
+      const drawing: Drawing = {
+        id: crypto.randomUUID(),
+        shape: canAlert ? extendedRight(shape) : shape,
+        alert: canAlert
+          ? bufferedAlert(
+              {
+                direction: priceAlertDirection(linePrice, currentPrice),
+                armedAt: now,
+                firedAt: null,
+              },
+              defaultBuffer
+            )
+          : null,
+      }
+      revise(key, (current) => [...current, drawing])
       setSelectedId(drawing.id)
-      // One shape per press of a tool button. Staying armed would turn a
-      // stray click anywhere on the chart into another line.
       setTool(null)
-      void put(marketKey, drawing)
+      const request = put(key, drawing).then(async (saved) => {
+        if (!saved) return false
+        if (!wantsAlert) return true
+        if (!canAlert) {
+          showErrorToast(
+            getDrawingAlertErrorMessage(new Error(DRAWING_ALERT_NO_PRICE))
+          )
+          return false
+        }
+        try {
+          const savedDrawing = await setDrawingAlert(
+            drawing.id,
+            true,
+            currentPrice,
+            defaultBuffer
+          )
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === drawing.id
+                ? { ...candidate, alert: savedDrawing.alert }
+                : candidate
+            )
+          )
+          onAlertChange?.()
+          return true
+        } catch (error) {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === drawing.id
+                ? { ...candidate, alert: null }
+                : candidate
+            )
+          )
+          showErrorToast(getDrawingAlertErrorMessage(error))
+          return false
+        }
+      })
+      pendingAlertSaves.current.set(drawing.id, request)
+      void request.finally(() => {
+        if (pendingAlertSaves.current.get(drawing.id) === request) {
+          pendingAlertSaves.current.delete(drawing.id)
+        }
+      })
     },
-    [marketKey, put, revise]
+    [marketKey, put, revise, defaultAlertOn, defaultBuffer, onAlertChange]
   )
 
   /**
@@ -243,18 +306,22 @@ export function useChartDrawings(
           candidate.id === id ? { ...candidate, shape } : candidate
         )
       )
-      saveDrawing(
-        key,
-        { id, shape },
-        drawingAlertArmed(previous.alert) ? currentPrice : null
-      ).catch((error: unknown) => {
-        revise(key, (current) =>
-          current.map((candidate) =>
-            candidate.id === id ? previous : candidate
+      Promise.resolve(pendingAlertSaves.current.get(id))
+        .then(() =>
+          saveDrawing(
+            key,
+            { id, shape },
+            drawingAlertArmed(previous.alert) ? currentPrice : null
           )
         )
-        showErrorToast(getDrawingsErrorMessage(error))
-      })
+        .catch((error: unknown) => {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id ? previous : candidate
+            )
+          )
+          showErrorToast(getDrawingsErrorMessage(error))
+        })
     },
     [drawings, marketKey, revise]
   )
@@ -296,7 +363,8 @@ export function useChartDrawings(
             : candidate
         )
       )
-      const request = setDrawingAlert(id, on, currentPrice, defaultBuffer)
+      const request = Promise.resolve(pendingAlertSaves.current.get(id))
+        .then(() => setDrawingAlert(id, on, currentPrice, defaultBuffer))
         .then((saved) => {
           revise(key, (current) =>
             current.map((candidate) =>
@@ -306,6 +374,7 @@ export function useChartDrawings(
             )
           )
           onAlertChange?.()
+          onAlertPreference?.(on)
           return true
         })
         .catch((error: unknown) => {
@@ -324,7 +393,14 @@ export function useChartDrawings(
         }
       })
     },
-    [drawings, marketKey, revise, onAlertChange, defaultBuffer]
+    [
+      drawings,
+      marketKey,
+      revise,
+      onAlertChange,
+      defaultBuffer,
+      onAlertPreference,
+    ]
   )
 
   /**
@@ -392,32 +468,14 @@ export function useChartDrawings(
         current.filter((candidate) => candidate.id !== id)
       )
       setSelectedId((current) => (current === id ? null : current))
-      deleteDrawing(id)
-        .then(() => {
-          if (removed.shape.kind === "fib") return
-          toast.success("Drawing deleted.", {
-            action: {
-              label: "Undo",
-              onClick: () => {
-                // The delete has finished before Undo is offered. Its restore
-                // cannot overtake the delete and disappear on the next reload.
-                const restored = { ...removed, alert: null }
-                revise(key, (current) =>
-                  current.some((candidate) => candidate.id === id)
-                    ? current
-                    : [...current, restored]
-                )
-                void put(key, restored)
-              },
-            },
-          })
-        })
+      Promise.resolve(pendingAlertSaves.current.get(id))
+        .then(() => deleteDrawing(id))
         .catch((error: unknown) => {
           revise(key, (current) => [...current, removed])
           showErrorToast(getDrawingsErrorMessage(error))
         })
     },
-    [drawings, marketKey, put, revise]
+    [drawings, marketKey, revise]
   )
 
   /**
@@ -436,6 +494,9 @@ export function useChartDrawings(
     revise(key, () => [])
     setSelectedId(null)
     try {
+      await Promise.all(
+        previous.map(({ id }) => pendingAlertSaves.current.get(id))
+      )
       const { deleted } = await clearDrawings(key)
       toast.success(
         deleted === 1 ? "1 drawing deleted." : `${deleted} drawings deleted.`

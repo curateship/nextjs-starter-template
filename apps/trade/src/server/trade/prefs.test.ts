@@ -68,6 +68,7 @@ describe("the remembered chart options", () => {
       orderArrowTrades: 7,
       drawings: false,
       extendTrendlines: false,
+      lineAlertsOn: false,
       lineAlertBuffer: 2.5,
       zone: "America/New_York" as const,
     }
@@ -87,6 +88,7 @@ describe("the remembered chart options", () => {
       orderArrowTrades: 43,
       drawings: false,
       extendTrendlines: true,
+      lineAlertsOn: false,
       lineAlertBuffer: null,
       zone: "Europe/London" as const,
     })

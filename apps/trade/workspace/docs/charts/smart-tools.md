@@ -179,6 +179,34 @@ instruction on every coin.
 The engine compares the price against the line moved by that percentage. The percentage is measured off the size of the
 price, so a line dragged below zero still moves the way the words say.
 
+## The next line remembers Alert
+
+Tyler's rule: "For the line tool. Make the alert on by default and it also
+must remember its last selected".
+
+New trendlines and horizontal drawing lines start with **Alert on** until the
+account saves a manual choice. Switching Alert off on a line makes the next
+line start off. Switching Alert on makes the next line start on. The choice
+survives market changes and reloads through the saved chart options.
+
+An alert firing does not change that preference. Existing drawings keep their
+own alert state, and opening an old drawing does not apply the new-line
+default to it. The existing remembered Break buffer still supplies the next
+alert's buffer. Fib drawings do not carry alerts.
+
+The drawing appears immediately. Its alert is enabled after the drawing saves,
+using the current market price to choose its direction. A failed alert save
+leaves the drawing with Alert off and reports the failure. A line without a
+usable price, including a vertical trendline, stays off with the existing
+explanation. Neither failure changes the remembered manual choice.
+
+The Line alerts master switch still pauses evaluation. Creating a line does
+not turn the account's master switch back on.
+
+Deleting, clearing or moving a newly drawn line waits for its initial alert
+save to finish. A late save must not bring back a deleted line or enable an
+alert at the line's old position.
+
 ## What the switch does
 
 On, the direction is fixed from the live price at that moment, the same rule

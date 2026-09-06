@@ -60,7 +60,9 @@ it("replaces a cached opening buffer with the account's current preference", asy
     options: { ...DEFAULT_CHART_OPTIONS, lineAlertBuffer: 2.5 },
   })
 
-  await act(async () => root.render(<Harness initial={DEFAULT_CHART_OPTIONS} />))
+  await act(async () =>
+    root.render(<Harness initial={DEFAULT_CHART_OPTIONS} />)
+  )
 
   expect(host.firstElementChild?.getAttribute("data-buffer")).toBe("2.5")
 })
@@ -71,7 +73,9 @@ it("keeps a buffer changed while the account preference read is in flight", asyn
     () => new Promise((resolve) => (answer = resolve))
   )
 
-  await act(async () => root.render(<Harness initial={DEFAULT_CHART_OPTIONS} />))
+  await act(async () =>
+    root.render(<Harness initial={DEFAULT_CHART_OPTIONS} />)
+  )
   act(() => latest!.setLineAlertBuffer(3.5))
   await act(async () =>
     answer({
@@ -80,4 +84,20 @@ it("keeps a buffer changed while the account preference read is in flight", asyn
   )
 
   expect(host.firstElementChild?.getAttribute("data-buffer")).toBe("3.5")
+})
+
+it("loads a saved Alert choice and persists the next manual choice", async () => {
+  api.load.mockResolvedValue({
+    options: { ...DEFAULT_CHART_OPTIONS, lineAlertsOn: false },
+  })
+  await act(async () =>
+    root.render(<Harness initial={DEFAULT_CHART_OPTIONS} />)
+  )
+  expect(latest!.options.lineAlertsOn).toBe(false)
+  act(() => latest!.setLineAlertsOn(true))
+  expect(latest!.options.lineAlertsOn).toBe(true)
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 550)))
+  expect(api.save).toHaveBeenLastCalledWith(
+    expect.objectContaining({ lineAlertsOn: true })
+  )
 })

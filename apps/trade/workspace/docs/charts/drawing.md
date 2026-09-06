@@ -63,10 +63,9 @@ The grip has no hover message.
   running corner to corner that is a grey rectangle over half the chart.
 - **The Tab key reaches every line**, and landing on one picks it out. Delete
   or Backspace throws the focused one away.
-- **Delete one drawing with its small × or the Delete key.** A fib disappears
-  without a success toast or Undo action. Levels and trendlines offer Undo
-  after deletion saves. Undo restores the shape and description; deleted alerts
-  stay off. A failed delete restores the drawing and shows an error toast.
+- **Delete one drawing with its small × or the Delete key.** Every shape disappears
+  without a success toast or Undo action. A failed delete restores the drawing
+  and shows an error toast.
 - **The bin in the toolbar clears the whole chart**, and asks first. It only
   appears once there is something to clear, it names how many go, and it takes
   this market's lines only — the others keep theirs. There is no Undo on that

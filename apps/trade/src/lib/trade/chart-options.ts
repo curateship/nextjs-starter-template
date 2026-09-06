@@ -40,12 +40,10 @@ export const chartOptionsSchema = z.object({
    * answer for the next line drawn.
    */
   extendTrendlines: z.boolean(),
+  /** The last manual Alert choice, used for newly drawn lines. */
+  lineAlertsOn: z.boolean().default(true),
   /** The buffer a newly switched-on line starts with. Null means none. */
-  lineAlertBuffer: z
-    .number()
-    .positive()
-    .max(MAX_DRAWING_BUFFER_PCT)
-    .nullable(),
+  lineAlertBuffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).nullable(),
   /**
    * The one timezone — the axis, the crosshair and every session boundary read
    * it. See `chart-timezone.ts`; a name this build no longer offers falls back
@@ -64,6 +62,7 @@ export type ChartOptionToggle = Exclude<
   | "orderArrowTrades"
   | "extendTrendlines"
   | "lineAlertBuffer"
+  | "lineAlertsOn"
 >
 
 export const DEFAULT_CHART_OPTIONS: ChartOptions = {
@@ -75,6 +74,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   orderArrowTrades: null,
   drawings: true,
   extendTrendlines: true,
+  lineAlertsOn: true,
   lineAlertBuffer: DEFAULT_DRAWING_BUFFER_PCT,
   zone: DEFAULT_TRADING_ZONE,
 }

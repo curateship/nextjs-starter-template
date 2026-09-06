@@ -22,6 +22,7 @@ describe("chart view options", () => {
         orderArrowTrades: 7,
         drawings: false,
         extendTrendlines: false,
+        lineAlertsOn: false,
         lineAlertBuffer: 2.5,
         zone: "Europe/London",
       })
@@ -34,6 +35,7 @@ describe("chart view options", () => {
       orderArrowTrades: 7,
       drawings: false,
       extendTrendlines: false,
+      lineAlertsOn: false,
       lineAlertBuffer: 2.5,
       zone: "Europe/London",
     })
@@ -53,6 +55,7 @@ describe("chart view options", () => {
       orderArrowTrades: null,
       drawings: true,
       extendTrendlines: true,
+      lineAlertsOn: true,
       lineAlertBuffer: 1,
       zone: "UTC",
     })

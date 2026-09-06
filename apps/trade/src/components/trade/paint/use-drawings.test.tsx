@@ -30,6 +30,8 @@ vi.mock("sonner", () => ({ toast: { success: api.toast } }))
 
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+import { LineAlertPopover } from "@/components/trade/paint/line-alert-popover"
+
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 
 const firstMarket = "hyperliquid:mainnet:BTC"
@@ -49,8 +51,24 @@ const initial = {
 type Paint = ReturnType<typeof useChartDrawings>
 let latest: Paint | null = null
 
-function Harness({ marketKey }: { marketKey: string }) {
-  const paint = useChartDrawings(marketKey, initial)
+function Harness({
+  marketKey,
+  defaultAlertOn = true,
+  onAlertPreference,
+}: {
+  marketKey: string
+  defaultAlertOn?: boolean
+  onAlertPreference?: (on: boolean) => void
+}) {
+  const paint = useChartDrawings(
+    marketKey,
+    initial,
+    undefined,
+    1,
+    undefined,
+    defaultAlertOn,
+    onAlertPreference
+  )
   // Handed out after render, so the test can call the hook's functions.
   React.useEffect(() => {
     latest = paint
@@ -145,6 +163,17 @@ it("loads the remembered market again after visiting another market", async () =
     secondMarket,
     firstMarket,
   ])
+})
+
+it("enables a new line's alert by default after saving its drawing", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () => latest!.create({ kind: "level", price: 200 }, 100))
+  const created = latest!.drawings.at(-1)!
+  expect(api.setAlert).toHaveBeenCalledWith(created.id, true, 100, 1)
+  expect(created.alert?.firedAt).toBeNull()
+  expect(api.save.mock.invocationCallOrder[0]).toBeLessThan(
+    api.setAlert.mock.invocationCallOrder[0]!
+  )
 })
 
 it("keeps a line changed while a re-read was on its way, and drops one deleted meanwhile", async () => {
@@ -297,7 +326,7 @@ it("waits for a new alert to exist before saving an immediately typed buffer", a
   expect(api.setBuffer).toHaveBeenCalledWith("quick-buffer", 2.5)
 })
 
-it("offers Undo after deletion finishes and saves the restored drawing", async () => {
+it("deletes a drawing without a success toast before or after the save", async () => {
   let finish: () => void = () => undefined
   api.remove.mockImplementationOnce(
     () =>
@@ -310,28 +339,9 @@ it("offers Undo after deletion finishes and saves the restored drawing", async (
   expect(host.textContent).toBe("")
   expect(api.toast).not.toHaveBeenCalled()
   await act(async () => finish())
-  const action = api.toast.mock.calls[0]![1].action
-  expect(action.label).toBe("Undo")
-  await act(async () => action.onClick())
-  expect(host.textContent).toBe("opening@100")
-  expect(api.save).toHaveBeenCalledWith(firstMarket, initial.rows[0])
-})
-
-it("keeps an undone drawing on its original market after switching markets", async () => {
-  await act(async () => root.render(<Harness marketKey={firstMarket} />))
-  await act(async () => latest!.remove("opening"))
-  await act(async () => root.render(<Harness marketKey={secondMarket} />))
-  await act(async () => api.toast.mock.calls[0]![1].action.onClick())
-  expect(host.textContent).toBe("second@200")
-  expect(api.save).toHaveBeenCalledWith(firstMarket, initial.rows[0])
-})
-
-it("takes a failed Undo save back off the chart", async () => {
-  await act(async () => root.render(<Harness marketKey={firstMarket} />))
-  await act(async () => latest!.remove("opening"))
-  api.save.mockRejectedValueOnce(new Error("save failed"))
-  await act(async () => api.toast.mock.calls[0]![1].action.onClick())
   expect(host.textContent).toBe("")
+  expect(api.toast).not.toHaveBeenCalled()
+  expect(api.save).not.toHaveBeenCalled()
 })
 
 it("restores a failed deletion without offering Undo", async () => {
@@ -339,6 +349,7 @@ it("restores a failed deletion without offering Undo", async () => {
   api.remove.mockRejectedValueOnce(new Error("delete failed"))
   await act(async () => latest!.remove("opening"))
   expect(host.textContent).toBe("opening@100")
+  expect(showErrorToast).toHaveBeenCalled()
   expect(api.toast).not.toHaveBeenCalled()
 })
 
@@ -373,4 +384,194 @@ it("restores a fib and reports an error when deletion fails", async () => {
   expect(latest!.drawings).toContainEqual(fib)
   expect(showErrorToast).toHaveBeenCalled()
   expect(api.toast).not.toHaveBeenCalled()
+})
+
+it("leaves a new line's alert off when that is the remembered choice", async () => {
+  await act(async () =>
+    root.render(<Harness marketKey={firstMarket} defaultAlertOn={false} />)
+  )
+  await act(async () => latest!.create({ kind: "level", price: 200 }, 100))
+  expect(latest!.drawings.at(-1)?.alert).toBeNull()
+  expect(api.setAlert).not.toHaveBeenCalled()
+})
+
+it("remembers only successful manual alert choices, never automatic enabling", async () => {
+  const remember = vi.fn()
+  await act(async () =>
+    root.render(
+      <Harness marketKey={firstMarket} onAlertPreference={remember} />
+    )
+  )
+  await act(async () => latest!.create({ kind: "level", price: 200 }, 100))
+  expect(remember).not.toHaveBeenCalled()
+  const id = latest!.drawings.at(-1)!.id
+  await act(async () => latest!.setAlert(id, false, 100))
+  expect(remember).toHaveBeenLastCalledWith(false)
+  api.setAlert.mockRejectedValueOnce(new Error("save refused"))
+  await act(async () => latest!.setAlert(id, true, 100))
+  expect(remember).toHaveBeenCalledTimes(1)
+  expect(latest!.drawings.at(-1)?.alert).toBeNull()
+  await act(async () => latest!.setAlert(id, true, 100))
+  expect(remember).toHaveBeenLastCalledWith(true)
+})
+
+it("keeps the drawing but shows an error if its automatic alert cannot save", async () => {
+  api.setAlert.mockRejectedValueOnce(new Error("save refused"))
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () => latest!.create({ kind: "level", price: 200 }, 100))
+  expect(latest!.drawings).toHaveLength(2)
+  expect(latest!.drawings.at(-1)?.alert).toBeNull()
+  expect(showErrorToast).toHaveBeenCalledTimes(1)
+})
+
+it("does not enable an alert when saving the new drawing fails", async () => {
+  api.save.mockRejectedValueOnce(new Error("save refused"))
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () => latest!.create({ kind: "level", price: 200 }, 100))
+  expect(latest!.drawings).toHaveLength(1)
+  expect(api.setAlert).not.toHaveBeenCalled()
+})
+
+it("leaves fibs alone and explains lines without a usable alert price", async () => {
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  await act(async () =>
+    latest!.create(
+      {
+        kind: "fib",
+        from: { time: 1, price: 100 },
+        to: { time: 2, price: 200 },
+      },
+      100
+    )
+  )
+  expect(showErrorToast).not.toHaveBeenCalled()
+  await act(async () =>
+    latest!.create(
+      {
+        kind: "trendline",
+        from: { time: 1, price: 100 },
+        to: { time: 1, price: 200 },
+      },
+      100
+    )
+  )
+  await act(async () => latest!.create({ kind: "level", price: 200 }, null))
+  expect(api.setAlert).not.toHaveBeenCalled()
+  expect(showErrorToast).toHaveBeenCalledTimes(2)
+})
+
+it("finishes saving a new line before honoring a quick manual switch off", async () => {
+  let finish: () => void = () => undefined
+  api.save.mockImplementationOnce(
+    () =>
+      new Promise<undefined>((resolve) => {
+        finish = () => resolve(undefined)
+      })
+  )
+  const remember = vi.fn()
+  await act(async () =>
+    root.render(
+      <Harness marketKey={firstMarket} onAlertPreference={remember} />
+    )
+  )
+  act(() => latest!.create({ kind: "level", price: 200 }, 100))
+  const id = latest!.drawings.at(-1)!.id
+  act(() => latest!.setAlert(id, false, 100))
+  expect(api.setAlert).not.toHaveBeenCalled()
+  await act(async () => finish())
+  expect(api.setAlert.mock.calls.map((call) => call[1])).toEqual([true, false])
+  expect(latest!.drawings.at(-1)?.alert).toBeNull()
+  expect(remember).toHaveBeenCalledExactlyOnceWith(false)
+})
+
+it("renders Alert on for a new line and uses the switch choice for the next line", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  document.body.appendChild(host)
+  function Controls() {
+    const [on, remember] = React.useState(true)
+    const paint = useChartDrawings(
+      firstMarket,
+      initial,
+      undefined,
+      1,
+      undefined,
+      on,
+      remember
+    )
+    const svg = React.useRef<SVGSVGElement>(null)
+    const selected = paint.drawings.find((row) => row.id === paint.selectedId)
+    return (
+      <>
+        <svg ref={svg} />
+        <button
+          onClick={() => paint.create({ kind: "level", price: 200 }, 100)}
+        >
+          Draw line
+        </button>
+        {selected ? (
+          <LineAlertPopover
+            drawing={selected}
+            linePrice={200}
+            currentPrice={100}
+            svg={svg}
+            at={{ x: 0, y: 0 }}
+            open
+            wide
+            autoFocus={false}
+            paused={false}
+            onOpenChange={() => undefined}
+            onSetAlert={(value) => paint.setAlert(selected.id, value, 100)}
+            onSetExtend={() => undefined}
+            onSetName={() => undefined}
+            onSetBuffer={() => undefined}
+          />
+        ) : null}
+      </>
+    )
+  }
+  try {
+    await act(async () => root.render(<Controls />))
+    await act(async () => host.querySelector("button")!.click())
+    const toggle = () =>
+      document.querySelector<HTMLButtonElement>('[role="switch"]')!
+    expect(toggle().getAttribute("aria-checked")).toBe("true")
+    await act(async () => toggle().click())
+    expect(toggle().getAttribute("aria-checked")).toBe("false")
+    await act(async () => host.querySelector("button")!.click())
+    expect(toggle().getAttribute("aria-checked")).toBe("false")
+    api.setAlert.mockRejectedValueOnce(new Error("save refused"))
+    await act(async () => toggle().click())
+    expect(toggle().getAttribute("aria-checked")).toBe("false")
+    expect(showErrorToast).toHaveBeenCalled()
+    await act(async () => toggle().click())
+    await act(async () => host.querySelector("button")!.click())
+    expect(toggle().getAttribute("aria-checked")).toBe("true")
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it("waits for automatic alert creation before deleting a new line", async () => {
+  let finish: () => void = () => undefined
+  api.save.mockImplementationOnce(
+    () =>
+      new Promise<undefined>((resolve) => {
+        finish = () => resolve(undefined)
+      })
+  )
+  await act(async () => root.render(<Harness marketKey={firstMarket} />))
+  act(() => latest!.create({ kind: "level", price: 200 }, 100))
+  const id = latest!.drawings.at(-1)!.id
+  await act(async () => latest!.remove(id))
+  expect(api.remove).not.toHaveBeenCalled()
+  await act(async () => finish())
+  expect(api.remove).toHaveBeenCalledWith(id)
+  expect(latest!.drawings.some((row) => row.id === id)).toBe(false)
 })

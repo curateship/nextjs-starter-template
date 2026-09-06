@@ -429,6 +429,7 @@ export function ChartPanel({
   lineAlertsPaused = false,
   onExtendPreference,
   onBufferPreference,
+  onAlertPreference,
   selectDrawing = null,
   onDrawingSelected,
   initialQuickOrder,
@@ -479,6 +480,7 @@ export function ChartPanel({
   onExtendPreference?: (on: boolean) => void
   /** A break buffer saved on one line: remember it for the next line. */
   onBufferPreference?: (buffer: number | null) => void
+  onAlertPreference?: (on: boolean) => void
   /**
    * A line to pick out once its market's drawings have arrived, from a row in
    * the Alerts panel. Answered with `onDrawingSelected` once done.
@@ -626,9 +628,12 @@ export function ChartPanel({
     initialDrawings,
     onDrawingAlertChange,
     options.lineAlertBuffer,
-    onBufferPreference
+    onBufferPreference,
+    options.lineAlertsOn,
+    onAlertPreference
   )
   const setPaintTool = paint.setTool
+  const createPaintDrawing = paint.create
   const setSelectedDrawing = paint.setSelectedId
 
   // A row in the Alerts panel names a line on another market. The market is
@@ -1704,7 +1709,14 @@ export function ChartPanel({
             tool={paintTool}
             selectedId={paint.selectedId}
             onSelect={paint.setSelectedId}
-            onCreate={paint.create}
+            onCreate={(shape) =>
+              createPaintDrawing(
+                shape,
+                selectedKey
+                  ? (liveMarkOf(selectedKey) ?? currentMarketPx)
+                  : null
+              )
+            }
             onMove={paint.move}
             onDelete={paint.remove}
             onSetAlert={paint.setAlert}
@@ -1849,7 +1861,7 @@ export function ChartPanel({
       paint.drawings,
       paint.selectedId,
       paint.setSelectedId,
-      paint.create,
+      createPaintDrawing,
       paint.move,
       paint.setAlert,
       paint.setBuffer,

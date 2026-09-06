@@ -118,6 +118,14 @@ export function useChartOptions(initial: ChartOptions) {
     [change]
   )
 
+  const setLineAlertsOn = React.useCallback(
+    (on: boolean) => {
+      if (optionsRef.current.lineAlertsOn === on) return
+      change({ ...optionsRef.current, lineAlertsOn: on })
+    },
+    [change]
+  )
+
   const replace = React.useCallback(
     (next: ChartOptions) => change(next),
     [change]
@@ -130,6 +138,7 @@ export function useChartOptions(initial: ChartOptions) {
     setOrderArrowTrades,
     setExtendTrendlines,
     setLineAlertBuffer,
+    setLineAlertsOn,
     replace,
   }
 }
