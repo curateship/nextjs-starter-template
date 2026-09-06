@@ -731,12 +731,18 @@ export function useTrading(
     protocol: ProtocolId
     pageOpenedAt: number
     shown: Set<string>
+    retryToasts: Map<string, string | number>
   } | null>(null)
   React.useEffect(() => {
-    refusalToastsRef.current = {
+    const state = {
       protocol,
       pageOpenedAt: Date.now(),
       shown: new Set<string>(),
+      retryToasts: new Map<string, string | number>(),
+    }
+    refusalToastsRef.current = state
+    return () => {
+      for (const id of state.retryToasts.values()) toast.dismiss(id)
     }
   }, [protocol])
 
@@ -1261,14 +1267,34 @@ export function useTrading(
     if (!liveAnswer) return
     const state = refusalToastsRef.current
     if (!state || state.protocol !== protocol) return
-    for (const alert of refusalAlertsForActiveWatches(
+    const alerts = refusalAlertsForActiveWatches(
       liveAnswer.refusals,
       liveAnswer.smartOrders,
       state.pageOpenedAt
-    )) {
+    )
+    const retryKeys = new Set(
+      alerts.filter((one) => one.refusal.retrying).map((one) => one.key)
+    )
+    for (const [key, id] of state.retryToasts) {
+      if (retryKeys.has(key)) continue
+      toast.dismiss(id)
+      state.retryToasts.delete(key)
+      state.shown.delete(key)
+    }
+    for (const alert of alerts) {
       if (state.shown.has(alert.key)) continue
       state.shown.add(alert.key)
-      showErrorToast(alert.refusal.note)
+      if (alert.refusal.retrying) {
+        state.retryToasts.set(
+          alert.key,
+          toast.info(
+            `${marketSymbol(alert.refusal.marketKey)}: ${alert.refusal.note}`,
+            { duration: Infinity }
+          )
+        )
+      } else {
+        showErrorToast(alert.refusal.note)
+      }
     }
   }, [liveAnswer, protocol])
 

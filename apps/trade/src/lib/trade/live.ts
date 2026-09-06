@@ -22,7 +22,7 @@ import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
  * What a live journal row records was done.
  *
  * The Journal tab is built from fills, not from this table. What IS read back
- * is the last `refused` row on each market — see `LiveRefusal` below. The rest
+ * is the last refusal or retry notice on each market — see `LiveRefusal` below. The rest
  * is the record you go digging through when a real order has gone wrong.
  */
 export type LiveJournalAction =
@@ -37,6 +37,13 @@ export type LiveJournalAction =
   | "brackets"
   /** The exchange, or this app's own rails, said no. */
   | "refused"
+  /** A confirmed passive-price refusal that the watched order will retry. */
+  | "retrying"
+
+export const POST_ONLY_RETRY_NOTE =
+  "The order could not wait at that price. Trade is checking the price and trying again."
+export const POST_ONLY_PAUSED_NOTE =
+  "The order repeatedly could not wait at the requested price. Trade paused it. Check the market and resume the order when ready."
 
 /**
  * The last thing that went wrong on one market, for the screens to show.
@@ -57,6 +64,7 @@ export type LiveRefusal = {
   note: string
   /** Epoch ms. */
   at: number
+  retrying?: boolean
 }
 
 /** A refusal belongs to one wallet and one market, never every matching coin. */

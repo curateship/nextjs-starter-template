@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { liquidationWarningSchema } from "@/lib/trade/liquidation-warning"
 import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
 import {
   readSmartOrderKind,
@@ -23,6 +24,8 @@ const walletSchema = z.object({
   address: z.string().nullable(),
   hasKey: z.boolean(),
   keyValidUntil: z.number().nullable(),
+  liquidationWarning: liquidationWarningSchema.optional(),
+  liquidationWarningInUse: liquidationWarningSchema.optional(),
 })
 
 const summarySchema = z.discriminatedUnion("state", [

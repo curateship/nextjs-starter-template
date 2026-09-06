@@ -411,6 +411,11 @@ export function BacktestRunPage({
 
   const statsPanel = (
     <BacktestStatsPanel
+      timing={{
+        createdAt: run.createdAt,
+        finishedAt: run.finishedAt,
+        failed: coins.some((coin) => coin.status === "error"),
+      }}
       // Nothing tested is not a result. A run stopped before it started still
       // writes a summary — same ending code either way — and drawn as figures
       // it reads as a finished backtest that found nothing rather than one that

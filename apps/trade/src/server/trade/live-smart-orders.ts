@@ -52,6 +52,7 @@ import {
   type TradePosition,
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
+import { POST_ONLY_RETRY_NOTE, POST_ONLY_PAUSED_NOTE } from "@/lib/trade/live"
 import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
 import {
   heldEngineAccount,
@@ -64,6 +65,7 @@ import {
   recordSmartOrderRefusal,
   recordSmartOrderSendSuccess,
   smartOrderRefusalReason,
+  POST_ONLY_RETRY,
 } from "@/server/trade/smart-order-pause"
 import {
   assertFlowRunAcceptingPlacements,
@@ -394,7 +396,10 @@ function ladderPlan(
     // change does not quietly rewrite what every past run measured.
     rungEntry: "market" as const,
     ...(input.flowRunId == null && input.params.marketBuyFirst
-      ? { marketBuyFirst: true }
+      ? {
+          marketBuyFirst: true,
+          marketFirstExitPct: input.params.marketFirstExitPct,
+        }
       : {}),
     startedAt: Date.now(),
     baseDetection: input.params.baseDetection,
@@ -1776,6 +1781,7 @@ export async function reconcileLiveLaddersOnce(
                 tpPx: null,
                 slPx: null,
                 restingOnly: true,
+                retryPostOnly: entry.kind === "watch",
               })
               recordSmartOrderSendSuccess(entry.plan)
               // A resting-only order that the venue reports FILLED anyway is
@@ -1948,6 +1954,39 @@ export async function reconcileLiveLaddersOnce(
             if (marketActionStarted) {
               await saveLadderPlan(userId, row.id, row.plan, statusToSave)
               throw error
+            }
+            if (
+              entry.kind === "watch" &&
+              accepted.length === 0 &&
+              error instanceof Error &&
+              error.message === POST_ONLY_RETRY
+            ) {
+              // Placement follows confirmed cancellations. The refused
+              // replacement kept nothing, so the next pass may price again.
+              // Do not restore the old order at its now-stale price.
+              const watch = originalPlan as WatchPlan
+              watch.orderId = null
+              watch.orderPx = null
+              watch.sent = false
+              watch.phase = "taking"
+              rememberRefusal(error)
+              copySmartOrderPauseState(watch, entry.plan)
+              await saveLadderPlan(userId, row.id, watch, "active")
+              await announcePause()
+              await db.insert(tradeLiveJournal).values({
+                id: randomUUID(),
+                userId,
+                walletId: wallet.id,
+                marketKey: row.marketKey,
+                action: watch.paused ? "refused" : "retrying",
+                side: watch.side,
+                px: 0,
+                sz: 0,
+                note: watch.paused
+                  ? POST_ONLY_PAUSED_NOTE
+                  : POST_ONLY_RETRY_NOTE,
+              })
+              return
             }
             const recoveryFailed = await restoreLiveOrders({
               userId,

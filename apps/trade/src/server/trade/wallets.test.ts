@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { tradeLiveFills, tradeWallets } from "@/server/trade/schema"
+import { saveLiquidationWarning } from "@/server/trade/prefs"
 import { walletProfitWindowStart } from "@/lib/trade/wallets"
 import {
   createWallet,
@@ -499,7 +500,9 @@ describe("the figures sweep", () => {
       {
         walletId: wallet.id,
         state: "unread",
-        reason: expect.stringContaining("cannot read what a Mock wallet holds yet"),
+        reason: expect.stringContaining(
+          "cannot read what a Mock wallet holds yet"
+        ),
       },
     ])
   })
@@ -585,4 +588,101 @@ describe("the figures sweep", () => {
     expect(summaries[0].state).toBe("ok")
     expect(summaries[1]).toEqual({ walletId: live.id, state: "unreachable" })
   })
+})
+
+describe("wallet liquidation warning storage", () => {
+  it("persists both distances, preserves them on unrelated edits, and clears them", async () => {
+    const user = await insertUser(database)
+    const wallet = await createWallet(user.id, {
+      label: "Warning test",
+      kind: "paper",
+      protocol: "hyperliquid",
+      network: "testnet",
+      startingBalance: 1000,
+    })
+    expect(wallet.liquidationWarning).toEqual({ usd: null, pct: null })
+    await updateWallet(user.id, {
+      id: wallet.id,
+      liquidationWarning: { usd: 50, pct: 5 },
+    })
+    await updateWallet(user.id, { id: wallet.id, label: "Renamed" })
+    expect((await listWallets(user.id))[0].liquidationWarning).toEqual({
+      usd: 50,
+      pct: 5,
+    })
+    expect(
+      (await findTradingWallet(user.id, wallet.id))?.liquidationWarning
+    ).toEqual({ usd: 50, pct: 5 })
+    await updateWallet(user.id, {
+      id: wallet.id,
+      liquidationWarning: { usd: null, pct: null },
+    })
+    expect((await listWallets(user.id))[0].liquidationWarning).toEqual({
+      usd: null,
+      pct: null,
+    })
+  })
+
+  it("refuses invalid distances and another user's wallet", async () => {
+    const user = await insertUser(database)
+    const other = await insertUser(database)
+    const wallet = await createWallet(user.id, {
+      label: "Warning test",
+      kind: "paper",
+      protocol: "hyperliquid",
+      network: "testnet",
+      startingBalance: 1000,
+    })
+    for (const warning of [
+      { usd: 0, pct: null },
+      { usd: -1, pct: null },
+      { usd: Infinity, pct: null },
+      { usd: 1000000001, pct: null },
+      { usd: null, pct: 101 },
+    ]) {
+      await expect(
+        updateWallet(user.id, { id: wallet.id, liquidationWarning: warning })
+      ).rejects.toThrow()
+    }
+    await expect(
+      updateWallet(other.id, {
+        id: wallet.id,
+        liquidationWarning: { usd: 50, pct: null },
+      })
+    ).rejects.toThrow("WALLET_NOT_FOUND")
+    expect((await listWallets(user.id))[0].liquidationWarning).toEqual({
+      usd: null,
+      pct: null,
+    })
+  })
+})
+
+it("shows the complete effective distances only when a wallet differs from the account", async () => {
+  const user = await insertUser(database)
+  const wallet = await createWallet(user.id, {
+    label: "Warning test",
+    kind: "paper",
+    protocol: "hyperliquid",
+    network: "testnet",
+    startingBalance: 1000,
+  })
+  await saveLiquidationWarning(user.id, { usd: 200, pct: 5 })
+  await updateWallet(user.id, {
+    id: wallet.id,
+    liquidationWarning: { usd: 50, pct: null },
+  })
+  expect(
+    (await loadWalletSummaries(user.id)).wallets[0].liquidationWarningInUse
+  ).toEqual({ usd: 50, pct: 5 })
+  await saveLiquidationWarning(user.id, { usd: 50, pct: 10 })
+  expect(
+    (await loadWalletSummaries(user.id)).wallets[0].liquidationWarningInUse
+  ).toBeUndefined()
+  await updateWallet(user.id, {
+    id: wallet.id,
+    liquidationWarning: { usd: null, pct: null },
+  })
+  expect(
+    (await loadWalletSummaries(user.id)).wallets[0].liquidationWarningInUse
+  ).toBeUndefined()
 })

@@ -52,6 +52,7 @@ import {
   formatSignedUsd,
   formatSize,
   formatUsd,
+  formatPrice,
 } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -198,7 +199,26 @@ function WalletRowCells({
     <>
       <span className="flex min-w-0 items-center gap-2">
         {selector}
-        <span className="truncate text-sm font-medium">{wallet.label}</span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">
+            {wallet.label}
+          </span>
+          {wallet.liquidationWarningInUse ? (
+            <span className="block text-xs break-words text-muted-foreground">
+              Liquidation warning:{" "}
+              {[
+                wallet.liquidationWarningInUse.usd !== null
+                  ? `${formatPrice(wallet.liquidationWarningInUse.usd)} away`
+                  : null,
+                wallet.liquidationWarningInUse.pct !== null
+                  ? `${wallet.liquidationWarningInUse.pct} out of 100 away`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" or ")}
+            </span>
+          ) : null}
+        </span>
         <WalletStatusDot state={state} />
         {inactive ? (
           <span className="sr-only">Not switched on</span>

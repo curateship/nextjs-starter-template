@@ -158,6 +158,12 @@ export const tradeMarketFolderItems = pgTable(
  */
 export const tradePrefs = pgTable("trade_prefs", {
   marketExplorer: jsonb("market_explorer").$type<import("@/lib/trade/market-explorer").ExplorerPrefs>(),
+  /**
+   * The P&L page's AI scores, one per period, each remembering which closed
+   * trades it was built from so it is reused until a trade closes. See
+   * `@/server/trade/pnl-score`.
+   */
+  pnlScores: jsonb("pnl_scores").$type<import("@/server/trade/pnl-score").StoredPnlScores>(),
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -207,6 +213,7 @@ export const tradePrefs = pgTable("trade_prefs", {
    */
   dashboardWidgets:
     jsonb("dashboard_widgets").$type<TradingDashboardWidgetLayout>(),
+  pinnedMarkets: jsonb("pinned_markets").$type<string[]>().notNull().default([]),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
   smartDca: jsonb("smart_dca").$type<DcaParams>(),
@@ -337,6 +344,8 @@ export const tradeWallets = pgTable(
     // 64 is the cap the wallet API enforces on the way in.
     address: varchar("address", { length: 64 }),
     agentKeyEncrypted: text("agent_key_encrypted"),
+    liquidationWarnUsd: doublePrecision("liquidation_warn_usd"),
+    liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
     // When the exchange says the trading key's approval runs out, recorded at
     // save time so the wallet card can warn BEFORE orders start being refused.
     // Null: paper wallets, and approvals the exchange gave no expiry for.

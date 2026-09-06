@@ -333,6 +333,7 @@ describe("a run that keeps failing", () => {
     expect(found?.coins.every((coin) => coin.status === "error")).toBe(true)
     expect(found?.coins[0].error).toBe("the exchange said no")
     expect(found?.group.finishedAt).not.toBeNull()
+    expect((await listBacktests(userId, {}, db))[0].failed).toBe(true)
   })
 })
 

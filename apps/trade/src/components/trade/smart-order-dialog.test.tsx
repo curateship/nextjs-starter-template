@@ -184,7 +184,11 @@ describe("the DCA ladder window", () => {
   })
 
   it("offers to buy rung 1 at market when the ladder is placed", async () => {
-    rememberDcaPrefs({ ...defaultDcaParams(), marketBuyFirst: true })
+    rememberDcaPrefs({
+      ...defaultDcaParams(),
+      marketBuyFirst: true,
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
     const onPlace = vi.fn(async () => false)
     await act(async () => {
       root.render(
@@ -210,7 +214,29 @@ describe("the DCA ladder window", () => {
     )
     expect(marketFirst).not.toBeNull()
     expect(marketFirst?.getAttribute("aria-checked")).toBe("false")
+    expect(host.querySelector("#smart-market-first-exit")).toBeNull()
     await act(async () => marketFirst?.click())
+    const exit = host.querySelector<HTMLInputElement>(
+      "#smart-market-first-exit"
+    )!
+    expect(exit).not.toBeNull()
+    const typeExit = async (value: string) => {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )!.set!.call(exit, value)
+        exit.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+    }
+    await typeExit("0")
+    const invalidPlace = [
+      ...host.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.startsWith("Place"))!
+    await act(async () => invalidPlace.click())
+    expect(onPlace).not.toHaveBeenCalled()
+    expect(exit.getAttribute("aria-invalid")).toBe("true")
+    await typeExit("10")
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.startsWith("Place")
@@ -219,7 +245,10 @@ describe("the DCA ladder window", () => {
 
     expect(onPlace).toHaveBeenCalledWith(
       expect.objectContaining({
-        params: expect.objectContaining({ marketBuyFirst: true }),
+        params: expect.objectContaining({
+          marketBuyFirst: true,
+          marketFirstExitPct: 10,
+        }),
       })
     )
   })

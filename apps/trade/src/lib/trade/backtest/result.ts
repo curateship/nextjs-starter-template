@@ -1036,6 +1036,8 @@ export type BacktestListRow = {
   archived: boolean
   createdAt: number
   finishedAt: number | null
+  /** At least one market ended with an error. */
+  failed: boolean
   stopRequested: boolean
   spec: BacktestSpecSnapshot
   summary: BacktestSummary | null

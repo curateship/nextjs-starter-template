@@ -1,6 +1,7 @@
 import * as React from "react"
 import { BotIcon, InfoIcon, ListIcon } from "lucide-react"
 
+import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -136,6 +137,7 @@ export function MarketHeader({
         }
         onCreate={(name) => folderActions.create(selection.row.key, name)}
       />
+      <PinnedMarketButton marketKey={selection.row.key} />
       <div className="flex h-8 min-w-0 items-center rounded-lg border bg-muted/60">
         <MarketPicker
           key={parseMarketKey(selection.row.key)?.protocol}

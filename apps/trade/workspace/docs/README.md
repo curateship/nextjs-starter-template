@@ -29,8 +29,14 @@ screen: anything not written there has not been agreed yet.
 
 ## screens/ — what each screen shows
 
+- `pinned-markets.md` — fixed member links, saved header pins, price refreshes,
+  the five-market limit, narrow screens and the pending member-access decision.
+
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   saved views, grouping, folder stars and the Moving now widget.
+- `pnl-page.md` — the P&L page at `/pnl`: the whole Journal read-only, the
+  month grid on the Toronto clock, the three period windows, the five pattern
+  groupings, what the AI score sends to the model and how long it is kept.
 
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
@@ -64,7 +70,7 @@ screen: anything not written there has not been agreed yet.
 
 ## charts/ — the chart itself
 
-- `drawing.md` — the paint tools, by mouse and by touch.
+- `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.
 - `smart-tools.md` — alerts carried by drawn lines: the cog, the alert
   window, every way into it without a mouse, naming a line, the bell and the
   dot on the chart, what fires it, the percentage past the line it waits for,
@@ -91,7 +97,8 @@ screen: anything not written there has not been agreed yet.
   looks, how repeated failures are counted, how a DCA ladder sells back up its
   mirrored exits, how one extra gap moves those exits together, and what a
   backtest does differently.
-- `smart-order-windows.md` — the windows a smart order is placed from: the
+- `smart-order-windows.md` — the separate Rung 1 exit % for market buys and
+  the windows a smart order is placed from: the
   floating frame, the DCA exit choices and draggable exit gap, the base stop,
   and the grid window.
 - `rules-before-an-entry.md` — the three rules Tyler sets for himself before a
@@ -119,8 +126,8 @@ screen: anything not written there has not been agreed yet.
 - `take-profit-levels.md` — how one position banks profit at up to three fixed
   prices, and how the app replaces, reads and fills those targets safely.
 - `part-close.md` — selling some of a position instead of all of it: why a part
-  is chased as a maker where all of it is not, what the window asks, and what
-  happens to the stop on the rest.
+  is chased as a maker where all of it is not, safe retries after a refused
+  waiting price, progress notices, and what happens to the stop on the rest.
 - `stopping-flow-ladders.md` — how Stop finds every ladder a flow owns, cancels
   real exchange orders, blocks a coin hunt already in flight, and reports a
   coin the exchange would not cancel.
@@ -140,8 +147,9 @@ screen: anything not written there has not been agreed yet.
   why the liquidation figure on the window is an estimate.
 - `stuck-wallet-warning.md` — when a wallet turn is called stuck, what the
   Workers screen says, and why the engine does not cancel the turn.
-- `liquidation-warning.md` — where the warning is set, how distance is
-  measured, and why one crossing sends one notice.
+- `liquidation-warning.md` — each wallet's distances, the account fallback,
+  the saved wallet display, how distance is measured, and why one crossing
+  sends one notice.
 
 ## exchanges/ — the venues
 
@@ -178,13 +186,16 @@ screen: anything not written there has not been agreed yet.
 
 ## backtests/
 
-- `backtest-screens.md` — the results, candle history and funding screens.
+- `backtest-screens.md` — the results, candle history and funding screens,
+  plus elapsed time in the sortable Took column and the run header.
 - `backtest-speed.md`: the one-pass base scan, one-statement saved-run
-  actions, bounded coin preparation and the time and memory saved with a run.
+  actions, bounded coin preparation, cached per-candle work and the time and
+  memory saved with a run.
 - `market-selection.md` — how the Markets step picks the coins from one list,
   and where each coin's prices come from.
 - `minute-zoom.md` — how a backtest reads a candle, and why saved results from
-  before 18 Aug 2026 are too kind.
+  before 18 Aug 2026 are too kind, plus opening-gap fills and uncertain
+  stop-versus-target order inside each minute.
 - `dca-rules-vs-old-app.md` — the DCA rules here beside the ones in the old
   trading app, line by line.
 

@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { TriangleAlertIcon } from "lucide-react"
+import { InfoIcon, TriangleAlertIcon } from "lucide-react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
@@ -405,12 +405,13 @@ function WatchedRow({
  * happening anyway would be a lie about who is stuck.
  */
 function RefusalNote({ refusal }: { refusal: LiveRefusal }) {
+  const Icon = refusal.retrying ? InfoIcon : TriangleAlertIcon
   return (
     <span
       title={refusal.note}
-      className="mt-0.5 flex items-start gap-1 text-xs leading-4 text-destructive"
+      className={`mt-0.5 flex items-start gap-1 text-xs leading-4 ${refusal.retrying ? "text-muted-foreground" : "text-destructive"}`}
     >
-      <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
+      <Icon aria-hidden className="mt-0.5 size-3 shrink-0" />
       {/* `anywhere` rather than plain wrapping: an exchange's own code comes
           through as one unbroken token — `PHEMEX_11150:TE_OI_LIMIT_REDUCE_ONLY`
           — and a word longer than the panel runs off the edge instead of

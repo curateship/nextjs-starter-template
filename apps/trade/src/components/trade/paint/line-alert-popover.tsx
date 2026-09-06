@@ -16,6 +16,7 @@ import { formatTimeAgo } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   drawingAlertArmed,
+  describeDrawing,
   MAX_DRAWING_BUFFER_PCT,
   MAX_DRAWING_DESCRIPTION_LENGTH,
   readDrawingBuffer,
@@ -124,7 +125,13 @@ export function LineAlertPopover({
     if (!open) return null
     return (
       <TouchOrderFrame
-        label={drawing.shape.kind === "level" ? "Level" : "Trendline"}
+        label={
+          drawing.shape.kind === "fib"
+            ? "Fib retracement"
+            : drawing.shape.kind === "level"
+              ? "Level"
+              : "Trendline"
+        }
         wide={false}
         desktopClassName=""
         sheetClassName="p-4"
@@ -201,39 +208,48 @@ function LineAlertBody({
   const descriptionId = `line-description-${drawing.id}`
   const bufferId = `line-buffer-${drawing.id}`
   const shape = drawing.shape
+  const supportsAlert = shape.kind === "level" || shape.kind === "trendline"
   const noun = shape.kind === "level" ? "level" : "line"
 
   return (
     <>
       <PopoverHeader className={headerClassName}>
         <PopoverTitle>
-          {shape.kind === "level" ? "Level" : "Trendline"}
+          {shape.kind === "fib"
+            ? "Fib retracement"
+            : shape.kind === "level"
+              ? "Level"
+              : "Trendline"}
         </PopoverTitle>
         <p className="text-muted-foreground">
-          {linePrice === null
-            ? "This line is straight up and down."
-            : `The ${noun} is at ${formatPrice(linePrice)} right now.`}
+          {!supportsAlert
+            ? describeDrawing(shape, formatPrice)
+            : linePrice === null
+              ? "This line is straight up and down."
+              : `The ${noun} is at ${formatPrice(linePrice)} right now.`}
         </p>
       </PopoverHeader>
-      {paused ? (
+      {supportsAlert && paused ? (
         <p role="status" className="text-xs text-muted-foreground">
-          Paused in Settings. No line alert fires until the Line alerts
-          switch there goes back on.
+          Paused in Settings. No line alert fires until the Line alerts switch
+          there goes back on.
         </p>
       ) : null}
-      <div className="flex items-center justify-between gap-4">
-        <label htmlFor={switchId} className="text-sm">
-          Alert
-        </label>
-        <DisabledReason reason={reason} disabled={noPrice && !armed}>
-          <Switch
-            id={switchId}
-            checked={armed}
-            disabled={noPrice && !armed}
-            onCheckedChange={onSetAlert}
-          />
-        </DisabledReason>
-      </div>
+      {supportsAlert ? (
+        <div className="flex items-center justify-between gap-4">
+          <label htmlFor={switchId} className="text-sm">
+            Alert
+          </label>
+          <DisabledReason reason={reason} disabled={noPrice && !armed}>
+            <Switch
+              id={switchId}
+              checked={armed}
+              disabled={noPrice && !armed}
+              onCheckedChange={onSetAlert}
+            />
+          </DisabledReason>
+        </div>
+      ) : null}
       {shape.kind === "trendline" ? (
         <div className="flex items-center justify-between gap-4">
           <label htmlFor={extendId} className="text-sm">
@@ -248,7 +264,7 @@ function LineAlertBody({
       ) : null}
       {/* Only offered while the alert is on, because that is the record the
           dollars are kept on. */}
-      {armed && drawing.alert ? (
+      {supportsAlert && armed && drawing.alert ? (
         <BufferField
           id={bufferId}
           noun={noun}
@@ -264,11 +280,11 @@ function LineAlertBody({
       {/* Only once there is something to say. A line with no alert used to
           carry a sentence explaining what the switch above it would do, which
           is what the switch itself says. */}
-      {armed ? (
+      {supportsAlert && armed ? (
         <p className="text-xs text-muted-foreground">
           {`Fires once when the price crosses ${drawing.alert?.direction === "above" ? "up through" : "down through"} the ${noun}, then switches itself off.`}
         </p>
-      ) : fired !== null ? (
+      ) : supportsAlert && fired !== null ? (
         <p className="text-xs text-muted-foreground">
           {`Fired ${formatTimeAgo(new Date(fired))}${firedPrice === undefined ? "" : ` at ${formatPrice(firedPrice)}`}. Switch it on again to watch the ${noun} once more.`}
         </p>

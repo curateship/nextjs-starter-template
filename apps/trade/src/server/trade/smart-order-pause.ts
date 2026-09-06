@@ -1,5 +1,8 @@
 import { scrubSecrets } from "@/server/protocols/scrub"
 import type { PausableSmartPlan } from "@/lib/trade/smart-order-pause"
+import { POST_ONLY_PAUSED_NOTE } from "@/lib/trade/live"
+
+export const POST_ONLY_RETRY = "LIVE_POST_ONLY_RETRY"
 
 export const DEFAULT_SMART_ORDER_REFUSAL_LIMIT = 5
 
@@ -41,6 +44,7 @@ export function smartOrderRefusalLimit(
  */
 export function isSmartOrderRefusal(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
+  if (message === POST_ONLY_RETRY) return true
   if (
     message.startsWith("EXCHANGE_BUSY") ||
     message.startsWith("LIVE_NO_ANSWER") ||
@@ -71,6 +75,9 @@ export function isSmartOrderRefusal(error: unknown): boolean {
 /** The refusal text a person sees beside the paused strategy. */
 export function smartOrderRefusalReason(error: unknown): string | null {
   if (!isSmartOrderRefusal(error)) return null
+  if (error instanceof Error && error.message === POST_ONLY_RETRY) {
+    return POST_ONLY_PAUSED_NOTE
+  }
   const raw = scrubSecrets(
     error instanceof Error ? error.message : String(error)
   ).trim()

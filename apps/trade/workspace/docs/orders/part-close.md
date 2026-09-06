@@ -71,10 +71,9 @@ engine already knows how to place an order in either, and a practice run that
 filled instantly where the real one had to queue would make practice a worse
 guide than no practice at all.
 
-**It does not give up.** The order follows the price for as long as it takes.
-That is the app's existing rule rather than an oversight: being half out of a
-position is worse than any price the rest would have got. The window says so
-before the press.
+**Following the price has no time limit.** The order keeps following until the
+requested part sells or the person cancels. Repeated order refusals can still
+pause the close, as described below.
 
 **It never asks for more than is left.** The chase cancels and re-places its
 order whenever the price drifts, and a fill landing in between would otherwise
@@ -90,6 +89,37 @@ order list can briefly leave out an order that is still working. Trade waits
 until the whole requested piece has left the position before it releases that
 order number. A partial fill does not prove the unsold remainder has gone. A
 replacement could meet the first order and sell too much.
+
+## When the exchange refuses the waiting price
+
+A post-only sell must wait on the exchange before filling. If the submitted
+price can already match a buyer, Hyperliquid refuses the attempt. The watched
+order keeps trying at a newly read price. Trade does not turn the sale into a
+market order.
+
+Trade recognizes both Hyperliquid's original rejection and its translated
+sentence. A price rejected by Trade before any request is sent follows the
+same retry path. The engine clears the refused attempt from its plan and
+discards the cached Hyperliquid price. The next engine pass reads the price
+again and calculates a new waiting price.
+
+The popup and watched row say the order is still trying. The popup clears when
+Trade records an accepted order or an immediate fill, or the watch is removed.
+Repeated refusals use the existing consecutive-refusal limit, five by default.
+At the limit the order pauses and the popup becomes an error asking the person
+to check the market and resume. An accepted send resets the count.
+
+A lost response is different. The exchange may have accepted the sale, so Trade
+does not send another sale while its outcome is unknown. Even a partial fill
+does not authorize another order, because the first order may still hold the
+remaining coins. The close can finish when the requested amount has left the
+position. An unconfirmed cancellation also prevents a replacement.
+
+`live-orders.ts` identifies safe retries before the engine changes its saved
+plan. `live-smart-orders.ts` records retry progress after that save.
+`loadLiveRefusals` clears retry progress on acceptance while retaining separate
+errors such as failed position protection. No database migration is needed;
+the existing journal action column also stores `retrying`.
 
 ## Calling one off
 

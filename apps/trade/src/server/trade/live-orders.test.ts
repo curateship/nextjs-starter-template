@@ -1235,6 +1235,45 @@ describe("reading refusals back", () => {
     })
   }
 
+  it("clears only retry progress after acceptance on the same wallet and market", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const otherWallet = await liveWallet(userId)
+    const at = Date.now()
+    const event = async (
+      wallet: string,
+      market: string,
+      action: "retrying" | "placed" | "refused",
+      offset: number
+    ) => {
+      await database.insert(tradeLiveJournal).values({
+        id: randomUUID(),
+        userId,
+        walletId: wallet,
+        marketKey: market,
+        action,
+        side: "sell",
+        px: 0,
+        sz: 0,
+        note: action,
+        createdAt: new Date(at + offset),
+      })
+    }
+    await event(walletId, MARKET, "retrying", -5000)
+    await event(otherWallet, MARKET, "placed", -4000)
+    await event(walletId, "hyperliquid:mainnet:ETH", "placed", -3000)
+    expect(await loadLiveRefusals(userId, [walletId])).toEqual([
+      expect.objectContaining({ note: "retrying", retrying: true }),
+    ])
+    await event(walletId, MARKET, "placed", -2000)
+    expect(await loadLiveRefusals(userId, [walletId])).toEqual([])
+    await event(walletId, MARKET, "refused", -1000)
+    await event(walletId, MARKET, "placed", 0)
+    expect(await loadLiveRefusals(userId, [walletId])).toEqual([
+      expect.objectContaining({ note: "refused" }),
+    ])
+  })
+
   it("keeps only the newest refusal on each market", async () => {
     // A full market refuses every retry, so twenty identical rows are one
     // fact. Twenty lines on screen would bury every other market.

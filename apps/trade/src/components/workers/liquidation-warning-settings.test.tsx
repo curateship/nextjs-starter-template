@@ -90,7 +90,9 @@ describe("liquidation warning settings", () => {
     const pct = host.querySelector<HTMLInputElement>("#liquidation-warning-pct")
     expect(usd?.value).toBe("")
     expect(pct?.value).toBe("50")
-    expect(host.textContent).toContain("Leave both blank to switch it off")
+    expect(host.textContent).toContain(
+      "Leave both blank to switch off the account default"
+    )
 
     await act(async () => {
       enter(usd!, "5.1")

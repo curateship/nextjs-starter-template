@@ -1012,6 +1012,11 @@ function endingTone(trade: LiveTrade): TradeBadgeTone {
  * Pressing a row draws it on the chart rather than opening anything. The
  * market's name still goes to its chart on its own, the way it does in the
  * three tables above.
+ *
+ * The P&L page shows the same rows `readOnly`: no chart to draw on, no bin
+ * and no ticks, because removing a trade is a workspace decision made beside
+ * the chart it is drawn on. Everything else about a row is identical, so the
+ * two can never disagree on a trade.
  */
 export function TradesTable({
   trades,
@@ -1033,6 +1038,7 @@ export function TradesTable({
   onTickTrade,
   onTickVisible,
   tickAllState,
+  readOnly = false,
 }: {
   trades: readonly LiveTrade[]
   /** Saved fills that cannot be paired into a finished trade. */
@@ -1053,18 +1059,20 @@ export function TradesTable({
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
-  onSelectTrade: (trade: LiveTrade) => void
-  onSelectMarket: (marketKey: string) => void
-  onRemove: (trade: RemovableTradeHistory) => void
+  onSelectTrade?: (trade: LiveTrade) => void
+  onSelectMarket?: (marketKey: string) => void
+  onRemove?: (trade: RemovableTradeHistory) => void
   onLoadOlder?: () => void
   olderBusy?: boolean
   olderDone?: boolean
   /** The trades ticked for a mass remove, by trade id. */
-  ticked: ReadonlySet<string>
-  onTickTrade: (id: string) => void
+  ticked?: ReadonlySet<string>
+  onTickTrade?: (id: string) => void
   /** The header checkbox: every listed row on, or every listed row off. */
-  onTickVisible: (ids: string[]) => void
-  tickAllState: (ids: string[]) => boolean | "indeterminate"
+  onTickVisible?: (ids: string[]) => void
+  tickAllState?: (ids: string[]) => boolean | "indeterminate"
+  /** No ticks, no bins and no row press — see above. */
+  readOnly?: boolean
 }) {
   const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
     "opened",
@@ -1148,34 +1156,47 @@ export function TradesTable({
       sort={sort}
       direction={direction}
       onSort={toggleSort}
+      actions={!readOnly}
       leadingHeader={
-        <Checkbox
-          checked={tickAllState(listedIds)}
-          onCheckedChange={() => onTickVisible(listedIds)}
-          aria-label="Select every removable Journal row"
-        />
+        readOnly ? undefined : (
+          <Checkbox
+            checked={tickAllState?.(listedIds) ?? false}
+            onCheckedChange={() => onTickVisible?.(listedIds)}
+            aria-label="Select every removable Journal row"
+          />
+        )
       }
       renderRow={(row) =>
         row.kind === "finished" ? (
           <TableRow
             key={row.id}
-            rowAction={() => onSelectTrade(row.trade)}
+            rowAction={
+              readOnly || !onSelectTrade
+                ? undefined
+                : () => onSelectTrade(row.trade)
+            }
             data-state={row.id === selectedId ? "selected" : undefined}
             className="border-t"
           >
             {/* Marked as the select column so ticking a row never also fires
                 the row action and draws the trade on the chart. */}
-            <td data-column="select" className="w-8 px-3 py-2">
-              <Checkbox
-                checked={ticked.has(row.id)}
-                onCheckedChange={() => onTickTrade(row.id)}
-                aria-label={`Select the ${marketSymbol(row.trade.marketKey)} trade`}
-              />
-            </td>
+            {readOnly ? null : (
+              <td data-column="select" className="w-8 px-3 py-2">
+                <Checkbox
+                  checked={ticked?.has(row.id) ?? false}
+                  onCheckedChange={() => onTickTrade?.(row.id)}
+                  aria-label={`Select the ${marketSymbol(row.trade.marketKey)} trade`}
+                />
+              </td>
+            )}
             <MarketCell
               marketKey={row.trade.marketKey}
               market={markets.get(row.trade.marketKey) ?? null}
-              onSelect={() => onSelectMarket(row.trade.marketKey)}
+              onSelect={
+                onSelectMarket
+                  ? () => onSelectMarket(row.trade.marketKey)
+                  : undefined
+              }
               badge={
                 row.trade.live ? (
                   <TestnetBadge marketKey={row.trade.marketKey} />
@@ -1229,40 +1250,48 @@ export function TradesTable({
             {/* Marked as the actions column so a press on the bin — or on the
                 blank around a greyed-out one — never also fires the row and
                 draws the trade you were trying to be rid of. */}
-            <td
-              data-column="actions"
-              className="px-3 py-2 text-left whitespace-nowrap"
-            >
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={busy}
-                aria-label={`Remove the ${marketSymbol(row.trade.marketKey)} trade from the Journal`}
-                onClick={() => onRemove(row.trade)}
+            {readOnly ? null : (
+              <td
+                data-column="actions"
+                className="px-3 py-2 text-left whitespace-nowrap"
               >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </td>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={busy}
+                  aria-label={`Remove the ${marketSymbol(row.trade.marketKey)} trade from the Journal`}
+                  onClick={() => onRemove?.(row.trade)}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </td>
+            )}
           </TableRow>
         ) : (
           <TableRow key={row.id} className="border-t">
-            <td data-column="select" className="w-8 px-3 py-2">
-              <Checkbox
-                checked={row.history.open ? false : ticked.has(row.id)}
-                disabled={row.history.open}
-                onCheckedChange={() => onTickTrade(row.id)}
-                aria-label={
-                  row.history.open
-                    ? `${marketSymbol(row.history.marketKey)} is still open and cannot be removed`
-                    : `Select the incomplete ${marketSymbol(row.history.marketKey)} history`
-                }
-              />
-            </td>
+            {readOnly ? null : (
+              <td data-column="select" className="w-8 px-3 py-2">
+                <Checkbox
+                  checked={row.history.open ? false : (ticked?.has(row.id) ?? false)}
+                  disabled={row.history.open}
+                  onCheckedChange={() => onTickTrade?.(row.id)}
+                  aria-label={
+                    row.history.open
+                      ? `${marketSymbol(row.history.marketKey)} is still open and cannot be removed`
+                      : `Select the incomplete ${marketSymbol(row.history.marketKey)} history`
+                  }
+                />
+              </td>
+            )}
             <MarketCell
               marketKey={row.history.marketKey}
               market={markets.get(row.history.marketKey) ?? null}
-              onSelect={() => onSelectMarket(row.history.marketKey)}
+              onSelect={
+                onSelectMarket
+                  ? () => onSelectMarket(row.history.marketKey)
+                  : undefined
+              }
               badge={
                 row.history.live ? (
                   <TestnetBadge marketKey={row.history.marketKey} />
@@ -1325,26 +1354,31 @@ export function TradesTable({
                   {row.history.fills.length === 1 ? "fill" : "fills"}, but its
                   matching entry or exit is missing. The Journal keeps it
                   visible because the history and its money still exist.
+                  {readOnly
+                    ? " The position may still be open; the exchange's own screen says which."
+                    : null}
                 </InfoMark>
               </span>
             </Cell>
-            <td
-              data-column="actions"
-              className="px-3 py-2 text-left whitespace-nowrap"
-            >
-              {row.history.open ? null : (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  disabled={busy}
-                  aria-label={`Remove the incomplete ${marketSymbol(row.history.marketKey)} history from the Journal`}
-                  onClick={() => onRemove(row.history)}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
-              )}
-            </td>
+            {readOnly ? null : (
+              <td
+                data-column="actions"
+                className="px-3 py-2 text-left whitespace-nowrap"
+              >
+                {row.history.open ? null : (
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label={`Remove the incomplete ${marketSymbol(row.history.marketKey)} history from the Journal`}
+                    onClick={() => onRemove?.(row.history)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                )}
+              </td>
+            )}
           </TableRow>
         )
       }
@@ -1353,7 +1387,7 @@ export function TradesTable({
           <tfoot>
             <tr className={panelSectionBarClassName}>
               <td
-                colSpan={TRADE_COLUMNS.length + 2}
+                colSpan={TRADE_COLUMNS.length + (readOnly ? 0 : 2)}
                 className="px-5 py-3 text-center"
               >
                 {olderDone ? (

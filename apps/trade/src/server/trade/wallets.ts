@@ -16,6 +16,12 @@ import {
   type WalletAccountSummary,
   type WalletKind,
 } from "@/lib/trade/wallets"
+import {
+  liquidationWarningSchema,
+  resolveLiquidationWarning,
+  type LiquidationWarning,
+} from "@/lib/trade/liquidation-warning"
+import { loadLiquidationWarning } from "@/server/trade/prefs"
 import { db, type CustomShellDb } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import {
@@ -67,6 +73,8 @@ type WalletFields = Pick<
   | "address"
   | "agentKeyEncrypted"
   | "agentValidUntil"
+  | "liquidationWarnUsd"
+  | "liquidationWarnPct"
 >
 
 function toWallet(row: WalletFields): TradeWallet {
@@ -81,6 +89,10 @@ function toWallet(row: WalletFields): TradeWallet {
     address: row.address,
     hasKey: row.agentKeyEncrypted !== null,
     keyValidUntil: row.agentValidUntil?.getTime() ?? null,
+    liquidationWarning: {
+      usd: row.liquidationWarnUsd,
+      pct: row.liquidationWarnPct,
+    },
   }
 }
 
@@ -96,6 +108,8 @@ const publicWalletSelection = {
   address: tradeWallets.address,
   hasKey: sql<boolean>`${tradeWallets.agentKeyEncrypted} is not null`,
   keyValidUntil: tradeWallets.agentValidUntil,
+  liquidationWarnUsd: tradeWallets.liquidationWarnUsd,
+  liquidationWarnPct: tradeWallets.liquidationWarnPct,
 }
 
 function selectedWallet(row: {
@@ -109,6 +123,8 @@ function selectedWallet(row: {
   address: string | null
   hasKey: boolean
   keyValidUntil: Date | null
+  liquidationWarnUsd: number | null
+  liquidationWarnPct: number | null
 }): TradeWallet {
   return {
     id: row.id,
@@ -121,6 +137,10 @@ function selectedWallet(row: {
     address: row.address,
     hasKey: row.hasKey,
     keyValidUntil: row.keyValidUntil?.getTime() ?? null,
+    liquidationWarning: {
+      usd: row.liquidationWarnUsd,
+      pct: row.liquidationWarnPct,
+    },
   }
 }
 
@@ -329,6 +349,8 @@ export async function createWallet(
     address,
     agentKeyEncrypted,
     agentValidUntil,
+    liquidationWarnUsd: null,
+    liquidationWarnPct: null,
     positionMode,
   }
   await db.insert(tradeWallets).values(row)
@@ -347,6 +369,7 @@ export async function updateWallet(
     secret?: string
     passphrase?: string
     status?: TradeWallet["status"]
+    liquidationWarning?: LiquidationWarning
   }
 ): Promise<TradeWallet> {
   const rows = await db
@@ -373,6 +396,11 @@ export async function updateWallet(
   }
   if (input.label !== undefined) set.label = input.label
   if (input.status !== undefined) set.status = input.status
+  if (input.liquidationWarning !== undefined) {
+    const warning = liquidationWarningSchema.parse(input.liquidationWarning)
+    set.liquidationWarnUsd = warning.usd
+    set.liquidationWarnPct = warning.pct
+  }
   if (input.startingBalance !== undefined) {
     set.startingBalance = input.startingBalance
   }
@@ -435,13 +463,29 @@ export async function loadWalletSummaries(
    */
   protocol?: ProtocolId
 ): Promise<{ wallets: TradeWallet[]; summaries: WalletAccountSummary[] }> {
-  const rows = await db
-    .select()
-    .from(tradeWallets)
-    .where(eq(tradeWallets.userId, userId))
-    .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
+  const [rows, accountWarning] = await Promise.all([
+    db
+      .select()
+      .from(tradeWallets)
+      .where(eq(tradeWallets.userId, userId))
+      .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id)),
+    loadLiquidationWarning(userId),
+  ])
 
-  const wallets = rows.map(toWallet)
+  const wallets = rows.map((row) => {
+    const wallet = toWallet(row)
+    const warning = resolveLiquidationWarning(
+      wallet.liquidationWarning,
+      accountWarning
+    )
+    if (
+      warning.usd !== accountWarning.usd ||
+      warning.pct !== accountWarning.pct
+    ) {
+      wallet.liquidationWarningInUse = warning
+    }
+    return wallet
+  })
   // The ciphertext rides along from the same read, decrypted only if the
   // wallet's exchange needs a key to answer an account question at all.
   const cipherById = new Map(

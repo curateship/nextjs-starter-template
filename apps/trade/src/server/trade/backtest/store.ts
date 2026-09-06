@@ -649,6 +649,7 @@ export async function listBacktests(
       ...group,
       createdAt: group.createdAt.getTime(),
       finishedAt: group.finishedAt?.getTime() ?? null,
+      failed: own.some((coin) => coin.status === "error"),
       progress:
         own.length === 0
           ? 0

@@ -1,3 +1,8 @@
+import {
+  backtestDurationText,
+  useBacktestClock,
+  type BacktestTiming,
+} from "@/components/backtest/backtest-duration"
 import { ChevronDownIcon, FlaskConicalIcon } from "lucide-react"
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 
@@ -73,6 +78,7 @@ function count(value: number | null): string {
 }
 
 export function BacktestStatsPanel({
+  timing,
   summary,
   result,
   spec,
@@ -85,6 +91,7 @@ export function BacktestStatsPanel({
   stopRequested,
   onStop,
 }: {
+  timing: BacktestTiming
   summary: BacktestSummary | null
   result: BacktestResult | null
   spec: BacktestSpecSnapshot
@@ -103,6 +110,8 @@ export function BacktestStatsPanel({
   /** Asks the run to stop. Left out on a run that has already finished. */
   onStop?: () => void
 }) {
+  const now = useBacktestClock(timing.finishedAt === null)
+  const duration = backtestDurationText(timing, now)
   const scoped =
     stats !== null &&
     (window.sel !== null ||
@@ -120,7 +129,17 @@ export function BacktestStatsPanel({
     <>
       <DashboardCardTitleHeader
         icon={<FlaskConicalIcon />}
-        title="Backtest · all markets"
+        title={
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate">Backtest · all markets</span>
+            <span
+              className="truncate text-xs font-normal text-muted-foreground tabular-nums"
+              title={duration}
+            >
+              {duration}
+            </span>
+          </span>
+        }
         action={
           running && onStop ? (
             <Button

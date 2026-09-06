@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import {
   BookOpenIcon,
   LayersIcon,
@@ -370,6 +371,13 @@ export function ActivityPanel({
               >
                 <Trash2Icon className="size-4" />
                 Remove ({tickedTrades.length})
+              </Button>
+            ) : null}
+            {/* The same Journal across every exchange, at full height, with
+                the month grid and the pattern cards beside it. */}
+            {tab === "journal" ? (
+              <Button type="button" variant="outline" asChild>
+                <Link to="/pnl">Open P&amp;L</Link>
               </Button>
             ) : null}
             {/* The emergency button: one press opens the list of what can go,

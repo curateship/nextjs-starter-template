@@ -67,10 +67,18 @@ describe("the drawings on a chart", () => {
 
     expect(await loadChartDrawings(userId, BTC)).toHaveLength(1)
     expect(await loadChartDrawings(userId, BTC)).toEqual([
-      { id: expect.any(String), shape: { kind: "level", price: 61_500 }, alert: null },
+      {
+        id: expect.any(String),
+        shape: { kind: "level", price: 61_500 },
+        alert: null,
+      },
     ])
     expect(await loadChartDrawings(userId, ETH)).toEqual([
-      { id: expect.any(String), shape: { kind: "level", price: 2_400 }, alert: null },
+      {
+        id: expect.any(String),
+        shape: { kind: "level", price: 2_400 },
+        alert: null,
+      },
     ])
   })
 
@@ -203,7 +211,9 @@ describe("deleting a drawing", () => {
     await deleteChartDrawing(userId, id)
     await saveChartDrawing(userId, BTC, { id, shape })
 
-    expect(await loadChartDrawings(userId, BTC)).toEqual([{ id, shape, alert: null }])
+    expect(await loadChartDrawings(userId, BTC)).toEqual([
+      { id, shape, alert: null },
+    ])
   })
 })
 
@@ -406,7 +416,10 @@ describe("the alert a trendline carries", () => {
     // not arming the alert again.
     expect(set.alert?.armedAt).toBe(2_000)
 
-    const cleared = await setChartDrawingAlertBuffer(userId, { id, buffer: null })
+    const cleared = await setChartDrawingAlertBuffer(userId, {
+      id,
+      buffer: null,
+    })
     expect(cleared.alert).toEqual(armed.alert)
     expect(cleared.alert).not.toHaveProperty("buffer")
   })
@@ -420,7 +433,11 @@ describe("the alert a trendline carries", () => {
       setChartDrawingAlertBuffer(userId, { id, buffer: 0.1 })
     ).rejects.toThrow(DRAWING_ALERT_NOT_ARMED)
 
-    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 100 }, 2_000)
+    await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 100 },
+      2_000
+    )
     await database
       .update(tradeChartDrawings)
       .set({ alert: { direction: "above", armedAt: 2_000, firedAt: 3_000 } })
@@ -435,7 +452,11 @@ describe("the alert a trendline carries", () => {
     const theirs = await person()
     const id = uuid()
     await saveChartDrawing(theirs, BTC, { id, shape: line })
-    await setChartDrawingAlert(theirs, { id, on: true, currentPrice: 100 }, 2_000)
+    await setChartDrawingAlert(
+      theirs,
+      { id, on: true, currentPrice: 100 },
+      2_000
+    )
 
     await expect(
       setChartDrawingAlertBuffer(mine, { id, buffer: 0.1 })
@@ -449,16 +470,28 @@ describe("the alert a trendline carries", () => {
     const userId = await person()
     const id = uuid()
     await saveChartDrawing(userId, BTC, { id, shape: line })
-    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 100 }, 2_000)
+    await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 100 },
+      2_000
+    )
 
     // Dragged up to $200 and above, with the price still at $150: waits for a rise.
-    const higher = { ...line, from: { time: 0, price: 200 }, to: { time: 1_000, price: 210 } }
+    const higher = {
+      ...line,
+      from: { time: 0, price: 200 },
+      to: { time: 1_000, price: 210 },
+    }
     await saveChartDrawing(userId, BTC, { id, shape: higher }, 150, 2_000)
     expect((await loadChartDrawings(userId, BTC))[0]?.alert?.direction).toBe(
       "above"
     )
     // Dragged below the price: now waits for a fall.
-    const lower = { ...line, from: { time: 0, price: 50 }, to: { time: 1_000, price: 60 } }
+    const lower = {
+      ...line,
+      from: { time: 0, price: 50 },
+      to: { time: 1_000, price: 60 },
+    }
     await saveChartDrawing(userId, BTC, { id, shape: lower }, 150, 2_000)
     expect((await loadChartDrawings(userId, BTC))[0]?.alert?.direction).toBe(
       "below"
@@ -479,5 +512,51 @@ describe("the alert a trendline carries", () => {
       armedAt: 2_000,
       firedAt: 3_000,
     })
+  })
+})
+
+describe("saved fib drawings", () => {
+  const kind = "fib" as const
+  it("removes an existing alert when a request changes a level into this shape", async () => {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, {
+      id,
+      shape: { kind: "level", price: 50000 },
+    })
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 49000 })
+    const shape = {
+      kind,
+      from: { time: 1000, price: 50000 },
+      to: { time: 2000, price: 60000 },
+    }
+    await saveChartDrawing(userId, BTC, { id, shape })
+    expect(await loadChartDrawings(userId, BTC)).toEqual([
+      { id, shape, alert: null },
+    ])
+  })
+  it("survives rereads and market switches, rejects alerts, and supports delete and restore", async () => {
+    const userId = await person()
+    const id = uuid()
+    const shape = {
+      kind,
+      name: "BTC move",
+      from: { time: 1000, price: 50000 },
+      to: { time: 2000, price: 60000 },
+    }
+    await saveChartDrawing(userId, BTC, { id, shape })
+    expect(await loadChartDrawings(userId, ETH)).toEqual([])
+    expect(await loadChartDrawings(userId, BTC)).toEqual([
+      { id, shape, alert: null },
+    ])
+    await expect(
+      setChartDrawingAlert(userId, { id, on: true, currentPrice: 55000 })
+    ).rejects.toThrow("DRAWING_ALERT_NO_PRICE")
+    await deleteChartDrawing(userId, id)
+    expect(await loadChartDrawings(userId, BTC)).toEqual([])
+    await saveChartDrawing(userId, BTC, { id, shape })
+    expect(await loadChartDrawings(userId, BTC)).toEqual([
+      { id, shape, alert: null },
+    ])
   })
 })

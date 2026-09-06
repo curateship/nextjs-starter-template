@@ -1091,6 +1091,34 @@ describe("placing a ladder", () => {
     expect(await orders()).toHaveLength(0)
   })
 
+  it.each(["prevRung", "nearestRung", "exitLadder"] as const)(
+    "uses an independent market-first exit percentage with %s",
+    async (mode) => {
+      const placed = await place({
+        marketBuyFirst: true,
+        marketFirstExitPct: 10,
+        takeProfit: { mode, pct: 2, exitGapPct: 3 },
+      })
+      expect(placed.ladder.plan.marketFirstExitPct).toBe(10)
+      const [held] = await positions()
+      expect(held.entryPx).toBe(100)
+      if (mode === "nearestRung") {
+        expect(held.tpPx).toBeCloseTo(110, 9)
+      } else {
+        const sells = (await orders()).filter((order) => order.side === "sell")
+        expect(sells.length).toBeGreaterThan(0)
+        expect(sells.every((sell) => Math.abs(sell.px - 110) < 1e-8)).toBe(true)
+      }
+      await backdate()
+      marks.set("BTC", 109)
+      await settle()
+      expect(await positions()).toHaveLength(1)
+      marks.set("BTC", 110.01)
+      await settle()
+      expect(await positions()).toHaveLength(0)
+    }
+  )
+
   it("rests a previous-rung sell after the market-first buy", async () => {
     const placed = await place({
       marketBuyFirst: true,

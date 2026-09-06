@@ -363,6 +363,65 @@ describe("what trading costs", () => {
     expect(outcome.coins[0].fundingPaid).toBeCloseTo(checkedByHand, 10)
     expect(outcome.endingUsd).toBeCloseTo(10_000 - checkedByHand - buy!.sz, 6)
   })
+
+  it("keeps a late funding history after another coin's history ends", async () => {
+    const shape: CandleBar[] = [
+      {
+        openTime: START,
+        open: 100,
+        high: 100,
+        low: 100,
+        close: 100,
+        volume: 1,
+      },
+      {
+        openTime: START + FOUR_HOURS,
+        open: 100,
+        high: 100,
+        low: 94,
+        close: 94,
+        volume: 1,
+      },
+      {
+        openTime: START + 2 * FOUR_HOURS,
+        open: 94,
+        high: 94,
+        low: 94,
+        close: 94,
+        volume: 1,
+      },
+    ]
+    const firstCloseWithPositions = START + 2 * FOUR_HOURS
+    const outcome = await runBacktest(
+      inputFor(
+        [
+          coin("hyperliquid:mainnet:AAA", shape, [
+            { time: firstCloseWithPositions, rate: 0.001 },
+          ]),
+          coin("hyperliquid:mainnet:BBB", shape, [
+            { time: firstCloseWithPositions + 2 * 3_600_000, rate: 0.002 },
+          ]),
+        ],
+        {
+          costs: { takerFeeRate: 0, makerFeeRate: 0, slippageRate: 0 },
+          params: params({
+            rungs: [{ deviation: 5 }],
+            maxPositionPct: 40,
+            takeProfit: { mode: "prevRung", pct: 1 },
+          }),
+        }
+      )
+    )
+
+    const first = outcome.coins.find((one) => one.marketKey.endsWith("AAA"))
+    const late = outcome.coins.find((one) => one.marketKey.endsWith("BBB"))
+    expect(first?.fundingPaid).toBeGreaterThan(0)
+    expect(late?.fundingPaid).toBeGreaterThan(0)
+    expect(outcome.fundingPaid).toBeCloseTo(
+      (first?.fundingPaid ?? 0) + (late?.fundingPaid ?? 0),
+      10
+    )
+  })
 })
 
 describe("stopping", () => {
@@ -409,6 +468,22 @@ describe("a coin with no bars in the window", () => {
     const empty = outcome.coins.find((one) => one.marketKey.endsWith("ZZZ"))
     expect(empty?.fills).toEqual([])
     expect(empty?.lastPx).toBeNull()
+  })
+
+  it("walks only the bars a coin actually has", async () => {
+    const complete = bars(10, 10)
+    const sparse = complete.filter((_, index) => index % 3 === 0)
+    const outcome = await runBacktest(
+      inputFor([
+        coin("hyperliquid:mainnet:AAA", complete),
+        coin("hyperliquid:mainnet:BBB", sparse),
+      ])
+    )
+
+    const partial = outcome.coins.find((one) => one.marketKey.endsWith("BBB"))
+    expect(partial?.firstAt).toBe(sparse[0].openTime)
+    expect(partial?.lastPx).toBe(sparse[sparse.length - 1].close)
+    expect(outcome.equity).toHaveLength(complete.length)
   })
 })
 

@@ -7,6 +7,7 @@ import {
   describeDrawingInline,
   drawingAlertArmed,
   extendedRight,
+  fibLevels,
   moveShape,
   namedShape,
   priceAtTime,
@@ -44,7 +45,9 @@ describe("reading a saved drawing", () => {
       ...line,
       extendRight: true,
     })
-    expect(readDrawingShape(line)?.kind === "trendline" && readDrawingShape(line)).not.toHaveProperty("extendRight")
+    expect(
+      readDrawingShape(line)?.kind === "trendline" && readDrawingShape(line)
+    ).not.toHaveProperty("extendRight")
     expect(readDrawingShape({ ...line, extendRight: "yes" })).toBeNull()
   })
 
@@ -190,7 +193,10 @@ describe("describing a line", () => {
   }
 
   it("keeps a trimmed name, and drops the key when the name is taken away", () => {
-    expect(namedShape(line, "  4h base  ")).toEqual({ ...line, name: "4h base" })
+    expect(namedShape(line, "  4h base  ")).toEqual({
+      ...line,
+      name: "4h base",
+    })
     expect(namedShape({ ...line, name: "4h base" }, "   ")).toEqual(line)
     expect(namedShape({ ...line, name: "4h base" }, "   ")).not.toHaveProperty(
       "name"
@@ -237,13 +243,13 @@ describe("describing a line", () => {
     expect(
       describeDrawingInline({ ...line, name: "This is a test" }, price)
     ).toBe("This is a test, trendline from $10 to $30")
-    expect(describeDrawingInline(line, price)).toBe(
-      "trendline from $10 to $30"
-    )
+    expect(describeDrawingInline(line, price)).toBe("trendline from $10 to $30")
   })
 
   it("refuses a name that is nothing but spaces", () => {
-    expect(readDrawingShape({ kind: "level", price: 1, name: "   " })).toBeNull()
+    expect(
+      readDrawingShape({ kind: "level", price: 1, name: "   " })
+    ).toBeNull()
     expect(readDrawingShape({ kind: "level", price: 1, name: " a " })).toEqual({
       kind: "level",
       price: 1,
@@ -344,9 +350,71 @@ describe("reading a saved alert", () => {
         firedAt: 9,
         firedPrice: 61_200,
       })
-    ).toEqual({ direction: "above", armedAt: 5, firedAt: 9, firedPrice: 61_200 })
+    ).toEqual({
+      direction: "above",
+      armedAt: 5,
+      firedAt: 9,
+      firedPrice: 61_200,
+    })
     expect(
       readDrawingAlert({ direction: "above", armedAt: 5, firedAt: 9 })
     ).not.toHaveProperty("firedPrice")
   })
+})
+
+describe("fib drawings", () => {
+  const kind = "fib" as const
+  const shape = {
+    kind,
+    from: { time: 1000, price: 50000 },
+    to: { time: 2000, price: 60000 },
+  }
+  it("reads, names and moves both ends without making an alert price", () => {
+    expect(readDrawingShape(shape)).toEqual(shape)
+    expect(priceAtTime(shape, 1500)).toBeNull()
+    expect(namedShape(shape, " BTC move ").name).toBe("BTC move")
+    expect(describeDrawing(shape, String)).toContain("Fib retracement")
+    expect(moveShape(shape, 100, -500)).toEqual({
+      kind,
+      from: { time: 1100, price: 49500 },
+      to: { time: 2100, price: 59500 },
+    })
+    expect(extendedRight(shape)).toEqual(shape)
+  })
+  it("rejects invalid endpoints and names", () => {
+    for (const from of [
+      { time: -1, price: 1 },
+      { time: 1.5, price: 1 },
+      { time: 4102444800001, price: 1 },
+      { time: 1, price: Infinity },
+      { time: 1, price: NaN },
+    ]) {
+      expect(readDrawingShape({ ...shape, from })).toBeNull()
+      expect(readDrawingShape({ ...shape, to: from })).toBeNull()
+    }
+    expect(readDrawingShape({ ...shape, name: "x".repeat(241) })).toBeNull()
+  })
+})
+
+it("calculates the seven worked fib prices in both drag directions", () => {
+  const from = { time: 1000, price: 50000 }
+  const to = { time: 2000, price: 60000 }
+  expect(
+    fibLevels({ kind: "fib", from, to }).map(({ price }) => Math.round(price))
+  ).toEqual([50000, 52360, 53820, 55000, 56180, 57860, 60000])
+  expect(
+    fibLevels({ kind: "fib", from: to, to: from }).map(({ price }) =>
+      Math.round(price)
+    )
+  ).toEqual([60000, 57640, 56180, 55000, 53820, 52140, 50000])
+})
+
+it("does not accept the removed arrow drawing kind", () => {
+  expect(
+    readDrawingShape({
+      kind: "arrow",
+      from: { time: 1000, price: 100 },
+      to: { time: 2000, price: 200 },
+    })
+  ).toBeNull()
 })

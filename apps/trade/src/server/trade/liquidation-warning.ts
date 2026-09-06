@@ -6,7 +6,10 @@ import {
   protocolLabel,
 } from "@/lib/protocols/contracts"
 import { formatAway, formatUsd } from "@/lib/trade/format"
-import { isInsideLiquidationWarning } from "@/lib/trade/liquidation-warning"
+import {
+  isInsideLiquidationWarning,
+  resolveLiquidationWarning,
+} from "@/lib/trade/liquidation-warning"
 import { liquidationDistance, type TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
@@ -31,7 +34,7 @@ export async function checkLiquidationWarnings({
 }): Promise<void> {
   const openKeys = new Set(positions.map((position) => position.marketKey))
   // The setting and the remembered rows do not depend on each other.
-  const [warning, remembered] = await Promise.all([
+  const [accountWarning, remembered] = await Promise.all([
     loadLiquidationWarning(userId, database),
     database
       .select()
@@ -43,6 +46,10 @@ export async function checkLiquidationWarnings({
         )
       ),
   ])
+  const warning = resolveLiquidationWarning(
+    wallet.liquidationWarning,
+    accountWarning
+  )
 
   // This runs on every poll, for every live wallet. The usual pass has
   // nothing to write, and it must cost nothing then: rows are only deleted

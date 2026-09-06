@@ -85,13 +85,25 @@ engine must be deployed together before this choice can place real money.
 An ordinary ladder does not store the new field, so it keeps working while the
 engine versions are being changed.
 
-With any rung-based exit, the market buy goes first. Its sell waits until the
-exchange shows the new position. If the original exit is at or below either
-the fill price or the current price, the sell moves up with the buy and keeps
-the first rung's planned climb. A first rung designed to buy at $95 and sell at
-$100 has a 5% step, so it sells at $105 after a $100 market buy, not at $100.02.
-A sell that cannot rest must never stop the requested buy from reaching the
-exchange.
+With a rung-based exit and the market-buy choice on, **Rung 1 exit %** sets
+the target above the actual purchase price. The field starts with the saved
+exit percentage, or the first entry gap when none has been saved. The exit
+percentage is separate from the entry gap and accepts values above zero up to
+999%. A $100 market purchase with 10% exits at $110. Neither the base price nor
+the extra exit gap adds to that target. The average-price mode already has its
+own Target % field and continues to use that field instead.
+
+The market buy goes first. Its sell waits until the exchange shows the new
+position. Previous-rung mode gives the first buy its own target. Nearest-rung
+and mirrored-ladder modes use this target while only rung 1 has bought, then
+follow their ordinary exit rules after deeper buys. A target the market has
+already passed moves just above the market so the sell can rest. A sell that
+cannot rest must never stop the requested buy from reaching the exchange.
+
+Already placed ladders without this setting keep their derived entry-gap
+target. New market-first placements require every running engine and standby
+to support the separate exit setting. The percentage is stored in the ladder's
+existing JSON plan and needs no database migration.
 
 The chart draws a rung sell at the price of its actual resting order. The
 planned anchor is only a fallback while that order is missing from a wallet

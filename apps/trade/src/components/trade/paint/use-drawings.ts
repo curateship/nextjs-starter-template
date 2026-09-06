@@ -92,9 +92,7 @@ export function useChartDrawings(
   const handledInitial = React.useRef(false)
   // The buffer field appears with the optimistic alert. If somebody types in
   // it straight away, its write must wait until that alert exists in storage.
-  const pendingAlertSaves = React.useRef(
-    new Map<string, Promise<boolean>>()
-  )
+  const pendingAlertSaves = React.useRef(new Map<string, Promise<boolean>>())
   // When each line was last changed on this screen, so a read that was
   // already on its way when the change was made cannot put the old copy back.
   const touchedAt = React.useRef(new Map<string, number>())
@@ -293,7 +291,9 @@ export function useChartDrawings(
       const shape = guess ? extendedRight(previous.shape) : previous.shape
       revise(key, (current) =>
         current.map((candidate) =>
-          candidate.id === id ? { ...candidate, shape, alert: guess } : candidate
+          candidate.id === id
+            ? { ...candidate, shape, alert: guess }
+            : candidate
         )
       )
       const request = setDrawingAlert(id, on, currentPrice, defaultBuffer)
@@ -392,12 +392,32 @@ export function useChartDrawings(
         current.filter((candidate) => candidate.id !== id)
       )
       setSelectedId((current) => (current === id ? null : current))
-      deleteDrawing(id).catch((error: unknown) => {
-        revise(key, (current) => [...current, removed])
-        showErrorToast(getDrawingsErrorMessage(error))
-      })
+      deleteDrawing(id)
+        .then(() => {
+          if (removed.shape.kind === "fib") return
+          toast.success("Drawing deleted.", {
+            action: {
+              label: "Undo",
+              onClick: () => {
+                // The delete has finished before Undo is offered. Its restore
+                // cannot overtake the delete and disappear on the next reload.
+                const restored = { ...removed, alert: null }
+                revise(key, (current) =>
+                  current.some((candidate) => candidate.id === id)
+                    ? current
+                    : [...current, restored]
+                )
+                void put(key, restored)
+              },
+            },
+          })
+        })
+        .catch((error: unknown) => {
+          revise(key, (current) => [...current, removed])
+          showErrorToast(getDrawingsErrorMessage(error))
+        })
     },
-    [drawings, marketKey, revise]
+    [drawings, marketKey, put, revise]
   )
 
   /**

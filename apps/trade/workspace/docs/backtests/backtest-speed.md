@@ -58,3 +58,28 @@ Every new saved run keeps these preparation measurements in
 The measurements belong to the saved run. Comparing two runs of the same
 window can therefore check speed and memory together instead of timing one run
 and guessing what happened to memory.
+
+## Walking each candle
+
+The engine fetches each coin's current candle once. The whole-candle walk, the
+one-minute check and the fallback for coins without minute prices all reuse that
+same candle. A coin with no candle at that time stays out of the walk.
+
+The sorted lists of active ladders, grids and signal trades change only when a
+trade starts or finishes. Each change replaces the list with a new sorted copy.
+Code already walking the previous copy can finish without skipping the next
+coin.
+
+The ladder's candle feeds also stay in one cached map. A ladder change marks the
+map for replacement at the start of the next candle. That boundary matters. A
+ladder that finishes part-way through a candle must still see the feed map that
+existed when the candle began.
+
+Funding checks keep only coins with unread funding entries. A coin stays in the
+set when its first funding entry is still in the future, then leaves after its
+last entry is applied. Coins with no funding and coins whose history has ended
+no longer get checked twice for every candle.
+
+These caches do not change prices, fills, fees, funding or ordering. A speed
+comparison uses the same saved run before and after the engine change, then
+checks every dollar result and fill before comparing elapsed time.

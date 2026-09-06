@@ -139,3 +139,36 @@ worse than the trigger. The gap between those two is biggest at exactly the
 moment these results make their money. Until the replay models the
 market-order fill, crash-day profits should be read as the ceiling, not the
 expectation.
+
+## Opening gaps and uncertain order inside a minute
+
+The replay checks each candle's opening price before walking its range. A stop
+at $95 with a next opening price of $93 sells at $93, then pays the configured
+slippage and market-order fee. A later recovery to $95 cannot improve that
+fill. The same rule applies to short positions and forced closures when the
+position runs out of margin.
+
+Resting buys, sells and profit targets keep their own limit price when the
+open has passed them. A buy limit at $95 still pays $95 when the candle opens
+at $90. The replay does not award the better opening price. Existing exits
+happen before a new entry can change the position's average price. Orders
+created after the candle opened cannot use that opening price.
+
+A rising candle follows open, low, high, close. A falling candle follows open,
+high, low, close. When one candle covers both a position's target and stop,
+the stop wins in either direction. Separate minute candles retain their known
+time order, so a target reached in an earlier minute can sell before a later
+minute reaches the old stop. The order inside each minute remains unknown.
+
+A parent candle that opens past an order or position exit qualifies for minute
+replay even when that level lies outside its range. Without available minutes,
+the opening-price rule applies to the parent candle itself.
+
+These rules live in `src/server/trade/paper-replay.ts`, shared by backtests and
+practice replay. `paper-replay.test.ts` covers skipped levels, costs, both
+candle directions and orders that did not yet exist. The backtest zoom test
+also covers a parent candle that skips every waiting rung.
+
+Saved results do not change automatically. Runs made before the opening-gap
+fix on 6 September 2026 need rerunning to include those fills. The market-order
+modelling limit described above still applies to watched rungs.

@@ -562,6 +562,59 @@ export function closeBar(
   }
 }
 
+/**
+ * Read the open before walking the candle's three legs. A skipped stop or
+ * liquidation takes the opening price plus slippage. Resting limits keep
+ * their own price, so a favourable gap never awards a better fill.
+ * Existing exits are settled before new entries can change the position.
+ * The stop still wins when this candle covers both brackets.
+ */
+function settleBarOpen(
+  book: WalletBook,
+  marketKey: string,
+  bar: CandleBar,
+  at: number
+): void {
+  const tried = new Set<string>()
+  while (true) {
+    const held = book.positions.get(marketKey)
+    const level = held
+      ? passedLevels(held, bar.open).find(
+          (one) => one.reason !== "take_profit" || !bracketsTie(bar, held)
+        )
+      : undefined
+    if (held && level) {
+      if (level.reason === "take_profit") {
+        takeProfitAt(book, held, { px: level.px, at })
+      } else {
+        closeAt(book, held, {
+          px: worseOf(held.szi, level.px, bar.open),
+          feeRate: book.costs.takerFeeRate,
+          slip: true,
+          reason: level.reason,
+          at,
+        })
+      }
+      continue
+    }
+    const waiting = book.orders.find(
+      (order) =>
+        order.marketKey === marketKey &&
+        order.updatedAt <= bar.openTime &&
+        !tried.has(order.id) &&
+        isMarketable(order.side, order.px, bar.open)
+    )
+    if (!waiting) break
+    // An entry limit can leave an order waiting. Give the other orders a turn.
+    tried.add(waiting.id)
+    fillOrder(book, waiting, {
+      px: waiting.px,
+      feeRate: book.costs.makerFeeRate,
+      at,
+    })
+  }
+}
+
 export function settleMarket(
   book: WalletBook,
   marketKey: string,
@@ -587,6 +640,8 @@ export function settleMarket(
     // A fill inside a bar is stamped at the bar's close: it happened somewhere
     // in there, and the close is the only moment it had definitely happened by.
     const at = barOpen + input.barMs
+
+    settleBarOpen(book, marketKey, bar, at)
 
     for (const leg of candleLegs(bar)) {
       let reached = leg.from

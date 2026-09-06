@@ -28,6 +28,7 @@ export type DcaSettingsFormState = {
   maxOrderVolPct: string
   twoGreen: boolean
   marketBuyFirst: boolean
+  marketFirstExitPct: string
   anchor: DcaAnchor
   tpOn: boolean
   tpMode: DcaTpMode
@@ -60,6 +61,9 @@ export function dcaSettingsFormState(
     maxOrderVolPct: String(settings.maxOrderVolPct),
     twoGreen: settings.twoGreen,
     marketBuyFirst: false,
+    marketFirstExitPct: String(
+      settings.marketFirstExitPct ?? settings.rungs[0].deviation
+    ),
     anchor: settings.anchor,
     tpOn: settings.takeProfit !== null,
     tpMode: settings.takeProfit?.mode ?? "average",
@@ -86,6 +90,7 @@ type InvalidFields = {
   sizeMultiplier: boolean
   leverage: boolean
   maxOrderVolPct: boolean
+  marketFirstExitPct: boolean
   takeProfit: boolean
   exitGap: boolean
   stopLoss: boolean
@@ -129,6 +134,15 @@ export function inspectDcaSettingsForm(
   const badVolume =
     full &&
     (maxOrderVolPct === null || maxOrderVolPct < 0 || maxOrderVolPct > 5)
+  const marketFirstExitPct = parseOrderNumber(form.marketFirstExitPct)
+  const badMarketFirstExit =
+    full &&
+    form.marketBuyFirst &&
+    form.tpOn &&
+    form.tpMode !== "average" &&
+    (marketFirstExitPct === null ||
+      marketFirstExitPct <= 0 ||
+      marketFirstExitPct > 999)
   const tpPct = parseOrderNumber(form.tpPct)
   const badTakeProfit =
     form.tpOn &&
@@ -155,6 +169,7 @@ export function inspectDcaSettingsForm(
     sizeMultiplier: badMultiplier,
     leverage: badLeverage,
     maxOrderVolPct: badVolume,
+    marketFirstExitPct: badMarketFirstExit,
     takeProfit: badTakeProfit,
     exitGap: badExitGap,
     stopLoss: badStopLoss,
@@ -198,7 +213,8 @@ export function inspectDcaSettingsForm(
     !badPosition &&
     !badMultiplier &&
     !badLeverage &&
-    !badVolume
+    !badVolume &&
+    !badMarketFirstExit
       ? dcaLadderSettingsSchema.safeParse({
           rungs: rungValues.map((deviation) => ({
             deviation: deviation as number,
@@ -207,14 +223,21 @@ export function inspectDcaSettingsForm(
           sizeMultiplier,
           leverage,
           maxOrderVolPct,
+          marketFirstExitPct:
+            marketFirstExitPct !== null &&
+            marketFirstExitPct > 0 &&
+            marketFirstExitPct <= 999
+              ? marketFirstExitPct
+              : undefined,
           twoGreen: form.twoGreen,
           anchor: form.anchor,
           ...exits,
         })
       : null
   const settings = candidate?.success ? candidate.data : null
-  const refusal =
-    full && (rungCount || invalidRungs.some(Boolean))
+  const refusal = badMarketFirstExit
+    ? "Rung 1 exit % has to be above zero and no more than 999%."
+    : full && (rungCount || invalidRungs.some(Boolean))
       ? "Every rung step has to be a number above zero and below 100."
       : badPosition
         ? "Max position has to be a number above zero and no more than 100%."

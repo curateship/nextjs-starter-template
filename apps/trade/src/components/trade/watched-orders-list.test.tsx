@@ -98,6 +98,36 @@ describe("the Watched tab", () => {
     expect(refused).toContain("could not be read")
   })
 
+  it("shows retry progress as information and a persistent refusal as an error", () => {
+    const key = liveRefusalKey(waitingLevel.walletId, waitingLevel.marketKey)
+    const refusal = {
+      walletId: waitingLevel.walletId,
+      marketKey: waitingLevel.marketKey,
+      at: 2,
+      note: "Trade is checking the price and trying again.",
+      retrying: true,
+    }
+    const progress = draw({
+      orders: [waitingLevel],
+      settled: true,
+      failed: false,
+      refusals: new Map([[key, refusal]]),
+    })
+    expect(progress).toContain(refusal.note)
+    expect(progress).toContain("lucide-info")
+    expect(progress).not.toContain("text-destructive")
+    const failed = draw({
+      orders: [waitingLevel],
+      settled: true,
+      failed: false,
+      refusals: new Map([
+        [key, { ...refusal, retrying: false, note: "The order paused." }],
+      ]),
+    })
+    expect(failed).toContain("The order paused.")
+    expect(failed).toContain("text-destructive")
+  })
+
   it("draws the levels it has", () => {
     const rows = draw({ orders: [waitingLevel], settled: true, failed: false })
     expect(rows).not.toContain(EMPTY)

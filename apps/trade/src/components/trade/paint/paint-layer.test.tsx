@@ -99,14 +99,18 @@ async function draw({
   extendNewLines,
   onExtendPreference,
 }: {
-  tool: "level" | "trendline" | null
+  tool: DrawingShape["kind"] | null
   drawings?: Drawing[]
   selectedId?: string | null
   watchLiveBars?: (onBar: (bar: (typeof candles)[number]) => void) => () => void
   wide?: boolean
   lineAlertsPaused?: boolean
   onCreate?: (shape: DrawingShape) => void
-  onMove?: (id: string, shape: DrawingShape, currentPrice: number | null) => void
+  onMove?: (
+    id: string,
+    shape: DrawingShape,
+    currentPrice: number | null
+  ) => void
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
   onSetBuffer?: (id: string, buffer: number | null) => void
   extendNewLines?: boolean
@@ -369,7 +373,9 @@ describe("the alert a trendline carries", () => {
   }
 
   function cog() {
-    return host.querySelector<SVGGElement>('[aria-label="Alert on trendline from $100 to $120"]')
+    return host.querySelector<SVGGElement>(
+      '[aria-label="Alert on trendline from $100 to $120"]'
+    )
   }
 
   it("shows a cog beside the x only on a watched chart's trendline", async () => {
@@ -407,7 +413,9 @@ describe("the alert a trendline carries", () => {
       selectedId: level.id,
       onSetAlert,
     })
-    const levelCog = host.querySelector<SVGGElement>('[aria-label="Alert on level at $100"]')
+    const levelCog = host.querySelector<SVGGElement>(
+      '[aria-label="Alert on level at $100"]'
+    )
     expect(levelCog).not.toBeNull()
     // A level runs the whole width, so its end is the right edge of the plot.
     expect(chips()).toEqual([
@@ -418,7 +426,9 @@ describe("the alert a trendline carries", () => {
     await act(async () => {
       levelCog!.dispatchEvent(pointer("pointerdown", 0, 0))
     })
-    expect(document.body.textContent).toContain("The level is at $100 right now.")
+    expect(document.body.textContent).toContain(
+      "The level is at $100 right now."
+    )
     expect(document.getElementById("line-extend-level-1")).toBeNull()
     await act(async () => {
       document.getElementById("line-alert-level-1")!.click()
@@ -440,12 +450,16 @@ describe("the alert a trendline carries", () => {
     expect(host.querySelector("[data-line-extension]")).toBeNull()
 
     await draw({ tool: null, drawings: [extended], selectedId: null })
-    const extension = host.querySelector<SVGLineElement>("[data-line-extension]")!
+    const extension = host.querySelector<SVGLineElement>(
+      "[data-line-extension]"
+    )!
     expect(extension).not.toBeNull()
     // From the later end (time 1,400, $120) to the right edge (time 2,000,
     // where the slope of $20 per 400 puts the line at $150).
     expect(
-      ["x1", "y1", "x2", "y2"].map((name) => Number(extension.getAttribute(name)))
+      ["x1", "y1", "x2", "y2"].map((name) =>
+        Number(extension.getAttribute(name))
+      )
     ).toEqual([140, 80, 200, 50])
     expect(extension.getAttribute("stroke-dasharray")).toBe("4 4")
     expect(extension.style.pointerEvents).toBe("none")
@@ -572,7 +586,9 @@ describe("the alert a trendline carries", () => {
 
     const toggle = document.getElementById("line-alert-line-1")
     expect(toggle?.getAttribute("aria-checked")).toBe("true")
-    expect(document.body.textContent).toContain("Fires once when the price crosses up through the line")
+    expect(document.body.textContent).toContain(
+      "Fires once when the price crosses up through the line"
+    )
   })
 
   it("says when a fired alert went off and at what price", async () => {
@@ -695,7 +711,9 @@ describe("the ways into a line's window without a mouse", () => {
     document.addEventListener("pointerdown", reachedChart)
 
     await act(async () => {
-      body.dispatchEvent(pointer("pointerdown", 120, 90, { pointerType: "touch" }))
+      body.dispatchEvent(
+        pointer("pointerdown", 120, 90, { pointerType: "touch" })
+      )
     })
     expect(reachedChart).not.toHaveBeenCalled()
     expect(document.getElementById("line-alert-line-1")).toBeNull()
@@ -705,7 +723,9 @@ describe("the ways into a line's window without a mouse", () => {
 
     // The press that opened the window is not also a move of the line.
     await act(async () => {
-      body.dispatchEvent(pointer("pointerup", 120, 90, { pointerType: "touch" }))
+      body.dispatchEvent(
+        pointer("pointerup", 120, 90, { pointerType: "touch" })
+      )
     })
     expect(onMove).not.toHaveBeenCalled()
     document.removeEventListener("pointerdown", reachedChart)
@@ -725,16 +745,22 @@ describe("the ways into a line's window without a mouse", () => {
     preparePointerTarget(body)
 
     await act(async () => {
-      body.dispatchEvent(pointer("pointerdown", 120, 90, { pointerType: "touch" }))
+      body.dispatchEvent(
+        pointer("pointerdown", 120, 90, { pointerType: "touch" })
+      )
     })
     await act(async () => {
-      body.dispatchEvent(pointer("pointermove", 150, 90, { pointerType: "touch" }))
+      body.dispatchEvent(
+        pointer("pointermove", 150, 90, { pointerType: "touch" })
+      )
     })
     await act(async () => vi.advanceTimersByTime(500))
     expect(document.getElementById("line-alert-line-1")).toBeNull()
 
     await act(async () => {
-      body.dispatchEvent(pointer("pointerup", 150, 90, { pointerType: "touch" }))
+      body.dispatchEvent(
+        pointer("pointerup", 150, 90, { pointerType: "touch" })
+      )
     })
     expect(onMove).toHaveBeenCalledOnce()
   })
@@ -845,7 +871,10 @@ describe("the marks a line's alert leaves on the chart", () => {
     expect(host.querySelector("[data-line-bell]")).toBeNull()
     const dot = host.querySelector<SVGCircleElement>("[data-line-fired]")!
     // Time 1,200 is x 120, and $110 is y 90.
-    expect([dot.getAttribute("cx"), dot.getAttribute("cy")]).toEqual(["120", "90"])
+    expect([dot.getAttribute("cx"), dot.getAttribute("cy")]).toEqual([
+      "120",
+      "90",
+    ])
     expect(dot.style.pointerEvents).toBe("none")
   })
 
@@ -873,23 +902,28 @@ describe("a line with a description", () => {
 
   it("draws the name at the line's start and tells a screen reader the same", async () => {
     await draw({ tool: null, drawings: [named], selectedId: null })
-    const label = host.querySelector<SVGTextElement>(
-      "[data-line-description]"
-    )!
+    const label = host.querySelector<SVGTextElement>("[data-line-description]")!
     expect(label.textContent).toBe("4h base")
     expect(label.getAttribute("aria-hidden")).toBe("true")
     expect(label.style.pointerEvents).toBe("none")
     // Hung off the left-hand end, at x 100, y 100, and turned to the line's
     // own slope: it rises $20 over 400ms, which is 20 pixels up over 40 across.
-    expect(label.getAttribute("transform")).toBe("translate(100 100) rotate(-26.57)")
-    expect([label.getAttribute("x"), label.getAttribute("y")]).toEqual(["6", "-5"])
+    expect(label.getAttribute("transform")).toBe(
+      "translate(100 100) rotate(-26.57)"
+    )
+    expect([label.getAttribute("x"), label.getAttribute("y")]).toEqual([
+      "6",
+      "-5",
+    ])
     expect(lineBody().getAttribute("aria-label")).toBe(
       "4h base, trendline from $100 to $120"
     )
     // The buttons name the line the same way, with the typed capitals kept.
     await draw({
       tool: null,
-      drawings: [{ ...named, shape: { ...named.shape, name: "This Is A Test" } }],
+      drawings: [
+        { ...named, shape: { ...named.shape, name: "This Is A Test" } },
+      ],
       selectedId: named.id,
       onSetAlert: vi.fn(),
     })
@@ -932,7 +966,11 @@ describe("a line with a description", () => {
     await draw({
       tool: null,
       drawings: [
-        { id: "l", shape: { kind: "level", price: 100, name: "flat" }, alert: null },
+        {
+          id: "l",
+          shape: { kind: "level", price: 100, name: "flat" },
+          alert: null,
+        },
       ],
       selectedId: null,
     })
@@ -1187,4 +1225,131 @@ describe("the master switch in Settings", () => {
     })
     expect(document.body.textContent).not.toContain("Paused in Settings")
   })
+})
+
+describe("the fib tool", () => {
+  const kind = "fib" as const
+  it.each(["mouse", "touch"])(
+    "draws and snaps with %s input",
+    async (pointerType) => {
+      const { svg, onCreate } = await draw({ tool: kind })
+      const sheet = svg.querySelector("rect")!
+      preparePointerTarget(sheet)
+      await act(async () => {
+        sheet.dispatchEvent(pointer("pointerdown", 103, 104, { pointerType }))
+      })
+      await act(async () => {
+        sheet.dispatchEvent(pointer("pointermove", 148, 94, { pointerType }))
+      })
+      expect(svg.querySelector("[data-fib-level]")).not.toBeNull()
+      await act(async () => {
+        sheet.dispatchEvent(pointer("pointerup", 148, 94, { pointerType }))
+      })
+      expect(onCreate).toHaveBeenCalledWith({
+        kind,
+        from: { time: 1000, price: 101 },
+        to: { time: 1500, price: 111 },
+      })
+    }
+  )
+  it("offers endpoint handles and a description without alert controls", async () => {
+    const drawing: Drawing = {
+      id: "new-shape",
+      shape: {
+        kind,
+        from: { time: 1000, price: 100 },
+        to: { time: 1400, price: 120 },
+      },
+      alert: null,
+    }
+    const { svg, onMove } = await draw({
+      tool: null,
+      drawings: [drawing],
+      selectedId: drawing.id,
+      onSetAlert: vi.fn(),
+    })
+    expect(svg.querySelector("[data-line-alert-cog]")).toBeNull()
+    expect(svg.querySelectorAll('circle[r="5"]')).toHaveLength(2)
+    const handle = svg.querySelectorAll('circle[r="5"]')[1]!
+    preparePointerTarget(handle)
+    await act(async () => {
+      handle.dispatchEvent(pointer("pointerdown", 140, 80))
+    })
+    await act(async () => {
+      handle.dispatchEvent(pointer("pointermove", 148, 94))
+    })
+    await act(async () => {
+      handle.dispatchEvent(pointer("pointerup", 148, 94))
+    })
+    expect(onMove).toHaveBeenCalledWith(
+      drawing.id,
+      { ...drawing.shape, to: { time: 1500, price: 111 } },
+      105
+    )
+    await act(async () => {
+      svg
+        .querySelector("[data-drawing-id]")!
+        .dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })
+        )
+    })
+    expect(document.querySelector("textarea")).not.toBeNull()
+    expect(document.querySelector('[role="switch"]')).toBeNull()
+    await act(async () => {
+      typeInto(document.querySelector("textarea")!, "My drawing")
+    })
+    await act(async () => {
+      document
+        .querySelector("textarea")!
+        .dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    })
+    expect(onMove).toHaveBeenLastCalledWith(
+      drawing.id,
+      { ...drawing.shape, name: "My drawing" },
+      105
+    )
+  })
+})
+
+it("draws solid coloured fib levels with shaded bands from the earlier time", async () => {
+  const drawing: Drawing = {
+    id: "fib",
+    shape: {
+      kind: "fib",
+      from: { time: 1400, price: 100 },
+      to: { time: 1000, price: 120 },
+    },
+    alert: null,
+  }
+  const { svg } = await draw({ tool: null, drawings: [drawing] })
+  const lines = [...svg.querySelectorAll("[data-fib-level] > line")]
+  expect(lines).toHaveLength(7)
+  expect(svg.querySelectorAll("[data-fib-band]")).toHaveLength(6)
+  expect(
+    [...svg.querySelectorAll("[data-fib-label]")].map(
+      (label) => label.textContent?.split(" ")[0]
+    )
+  ).toEqual(["1", "0.786", "0.618", "0.5", "0.382", "0.236", "0"])
+
+  expect(new Set(lines.map((line) => line.getAttribute("stroke"))).size).toBe(6)
+  expect(svg.querySelector('[data-fib-label="50"]')?.textContent).toBe(
+    "0.5 ($110)"
+  )
+  expect(svg.querySelector('[data-fib-label="50"]')?.getAttribute("x")).toBe(
+    "106"
+  )
+
+  for (const line of lines) {
+    expect(line.getAttribute("x1")).toBe("100")
+    expect(line.getAttribute("x2")).toBe("200")
+    expect(line.getAttribute("stroke-dasharray")).toBeNull()
+  }
+  expect(
+    svg.querySelectorAll("[data-fib-label].opacity-0").length
+  ).toBeGreaterThan(0)
+  expect(svg.querySelector("[data-drawing-id]")?.getAttribute("d")).toContain(
+    "M 100 100 L 200 100"
+  )
+  await draw({ tool: null, drawings: [drawing], selectedId: drawing.id })
+  expect(svg.querySelectorAll("[data-fib-label].opacity-0")).toHaveLength(0)
 })

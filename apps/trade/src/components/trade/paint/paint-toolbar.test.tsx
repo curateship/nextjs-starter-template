@@ -211,3 +211,12 @@ describe("the chart drawing toolbar", () => {
     expect(onPositionChange).toHaveBeenLastCalledWith(null)
   })
 })
+
+it("offers only a level, trendline and fib drawing tool", async () => {
+  await draw()
+  expect(
+    [...host.querySelectorAll('button[aria-label^="Draw "]')].map((button) =>
+      button.getAttribute("aria-label")
+    )
+  ).toEqual(["Draw a level", "Draw a trendline", "Draw a fib retracement"])
+})

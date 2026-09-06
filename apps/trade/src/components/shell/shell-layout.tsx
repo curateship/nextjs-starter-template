@@ -13,6 +13,7 @@ import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AppHeaderLeftContent } from "@/components/shell/sticky-header/app-header-left-content"
 import { AppSidebar } from "@/components/shell/sidebar/sidebar"
 import {
   StickyHeader,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/custom-shell"
 import {
   appHeaderRightActionForRole,
+  appHeaderLeftContentForRole,
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
@@ -558,6 +560,13 @@ export function ShellLayout({
           <SidebarInset>
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
+              navContent={appHeaderLeftContentForRole(user.role) ? (
+                <AppHeaderLeftContent
+                  role={user.role}
+                  navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
+                  limit={config.topLeftNavLimit}
+                />
+              ) : undefined}
               navLinkLimit={config.topLeftNavLimit}
               rightNavItems={config.topRightNavigation}
               role={user.role}

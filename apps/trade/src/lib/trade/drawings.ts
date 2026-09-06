@@ -3,8 +3,8 @@ import { z } from "zod"
 /**
  * What a drawing on the chart is.
  *
- * Two shapes today — a horizontal level and a trendline — and the chart knows
- * about neither. It offers coordinates and a place to draw; everything in this
+ * Levels, trendlines and fibs are shapes, and the chart knows
+ * about none of them. It offers coordinates and a place to draw; everything in this
  * file and the paint components is the consumer of that surface. An alert or
  * an order attached to a line later is another consumer, not a change here.
  *
@@ -38,6 +38,7 @@ export type DrawingShape =
       to: DrawingPoint
       extendRight?: boolean
     } & Named)
+  | ({ kind: "fib"; from: DrawingPoint; to: DrawingPoint } & Named)
 
 /** Enough room for a useful sentence without accepting unbounded browser input. */
 export const MAX_DRAWING_DESCRIPTION_LENGTH = 240
@@ -89,7 +90,11 @@ export type DrawingAlert = {
 }
 
 /** One saved drawing: its id, where it sits, and the alert it carries. */
-export type Drawing = { id: string; shape: DrawingShape; alert: DrawingAlert | null }
+export type Drawing = {
+  id: string
+  shape: DrawingShape
+  alert: DrawingAlert | null
+}
 
 // Bounds that keep a stored row sane rather than expressing a trading rule.
 // Times run from the epoch to the year 2100; a price is any real number,
@@ -123,6 +128,12 @@ export const drawingShapeSchema: z.ZodType<DrawingShape> = z.discriminatedUnion(
     z.object({
       kind: z.literal("level"),
       price: z.number().finite(),
+      name: nameSchema,
+    }),
+    z.object({
+      kind: z.literal("fib"),
+      from: pointSchema,
+      to: pointSchema,
       name: nameSchema,
     }),
     z.object({
@@ -249,10 +260,12 @@ export function bufferedAlert(
  * A level is the same price at every moment. A trendline is read along its
  * slope, carried on past either end, so a line drawn through last week still
  * has a price today. Two ends at the same moment make a vertical line, which
- * has no one price, so that answers null.
+ * has no one price, so that answers null. Fibs also answer null
+ * because a fib does not support an alert.
  */
 export function priceAtTime(shape: DrawingShape, time: number): number | null {
   if (shape.kind === "level") return shape.price
+  if (shape.kind !== "trendline") return null
   const span = shape.to.time - shape.from.time
   if (span === 0) return null
   const slope = (shape.to.price - shape.from.price) / span
@@ -270,7 +283,7 @@ export function describeDrawingInline(
   const where =
     shape.kind === "level"
       ? `level at ${formatPrice(shape.price)}`
-      : `trendline from ${formatPrice(shape.from.price)} to ${formatPrice(shape.to.price)}`
+      : `${shape.kind === "fib" ? "fib retracement" : shape.kind} from ${formatPrice(shape.from.price)} to ${formatPrice(shape.to.price)}`
   return shape.name ? `${shape.name}, ${where}` : where
 }
 
@@ -336,4 +349,13 @@ export function extendedRight(shape: DrawingShape): DrawingShape {
   return shape.kind === "trendline" && shape.extendRight !== true
     ? { ...shape, extendRight: true }
     : shape
+}
+
+/** Seven levels between the first price and the second, in drag order. */
+export function fibLevels(shape: Extract<DrawingShape, { kind: "fib" }>) {
+  return [0, 23.6, 38.2, 50, 61.8, 78.6, 100].map((percent) => ({
+    percent,
+    price:
+      shape.from.price * (1 - percent / 100) + shape.to.price * (percent / 100),
+  }))
 }

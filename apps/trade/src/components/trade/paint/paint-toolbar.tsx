@@ -1,6 +1,7 @@
 import * as React from "react"
 import type { ReactNode } from "react"
 import {
+  ListFilterIcon,
   GripVerticalIcon,
   MinusIcon,
   SlashIcon,
@@ -40,6 +41,7 @@ const TOOLS: Array<{
     label: "Draw a trendline",
     icon: <SlashIcon />,
   },
+  { kind: "fib", label: "Draw a fib retracement", icon: <ListFilterIcon /> },
 ]
 
 const EDGE_GAP = 8

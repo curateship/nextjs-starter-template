@@ -214,8 +214,11 @@ add up to.
   than added to the market buy. The choice starts off. The buy reaches the
   exchange before any sell created for it. That sell waits for the position to
   appear. A rung-based target stays above both the fill price and the current
-  price and applies the rung's planned percentage to the actual fill instead of
-  carrying forward an old dollar price.
+  price. New placements use the separate Rung 1 exit % above the actual fill.
+  The entry gap below the base does not set that target.
+- Tyler, 5 Sep 2026: **"if we're not buying under a base but at market then the
+  ladder need a parameter to exit at".** Rung-based exits offer Rung 1 exit %
+  when buying the first rung at market. A $100 purchase with 10% targets $110.
 - **A real market-first ladder waits for a matching engine build.** Every live
   engine and standby must announce that it understands the new plan field.
   Otherwise the app refuses before saving the ladder or sending money. Deploy

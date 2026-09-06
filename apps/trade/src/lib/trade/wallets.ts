@@ -5,6 +5,7 @@ import {
   type WalletAccountFigures,
 } from "@/lib/protocols/contracts"
 import { runAtFromTimezoneInput } from "@/lib/automations/schedule"
+import type { LiquidationWarning } from "@/lib/trade/liquidation-warning"
 
 const WALLET_PROFIT_TIMEZONE = "America/Toronto"
 
@@ -41,6 +42,10 @@ export type TradeWallet = {
    * at save time. Null on paper wallets and on approvals with no expiry.
    */
   keyValidUntil: number | null
+  /** Each blank distance inherits the account setting. */
+  liquidationWarning?: LiquidationWarning
+  /** Included by the account panel read only when distances differ from the account. */
+  liquidationWarningInUse?: LiquidationWarning
 }
 
 /**
