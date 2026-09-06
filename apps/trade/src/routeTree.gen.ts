@@ -33,6 +33,7 @@ import { Route as AuthenticatedBacktestsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -208,6 +209,11 @@ const AuthenticatedFlowRunsRoute = AuthenticatedFlowRunsRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
+  id: '/pnl',
+  path: '/pnl',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
@@ -561,6 +567,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/pnl': typeof AuthenticatedPnlRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -641,6 +648,7 @@ export interface FileRoutesByTo {
   '/backtests': typeof AuthenticatedBacktestsRoute
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/pnl': typeof AuthenticatedPnlRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -725,6 +733,7 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -809,6 +818,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/flow-runs'
     | '/home'
+    | '/pnl'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -889,6 +899,7 @@ export interface FileRouteTypes {
     | '/backtests'
     | '/flow-runs'
     | '/home'
+    | '/pnl'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -972,6 +983,7 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/flow-runs'
     | '/_authenticated/home'
+    | '/_authenticated/pnl'
     | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/api/health'
@@ -1228,6 +1240,13 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/pnl': {
+      id: '/_authenticated/pnl'
+      path: '/pnl'
+      fullPath: '/pnl'
+      preLoaderRoute: typeof AuthenticatedPnlRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/trade': {
@@ -1783,6 +1802,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
@@ -1796,6 +1816,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,

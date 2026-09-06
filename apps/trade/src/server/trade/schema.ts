@@ -158,6 +158,12 @@ export const tradeMarketFolderItems = pgTable(
  */
 export const tradePrefs = pgTable("trade_prefs", {
   marketExplorer: jsonb("market_explorer").$type<import("@/lib/trade/market-explorer").ExplorerPrefs>(),
+  /**
+   * The P&L page's AI scores, one per period, each remembering which closed
+   * trades it was built from so it is reused until a trade closes. See
+   * `@/server/trade/pnl-score`.
+   */
+  pnlScores: jsonb("pnl_scores").$type<import("@/server/trade/pnl-score").StoredPnlScores>(),
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),

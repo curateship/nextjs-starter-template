@@ -16,6 +16,7 @@ import {
 import {
   moneyForWalletFill,
   walletProfitWindowStart,
+  type TradeWallet,
 } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { tradeLiveFills } from "@/server/trade/schema"
@@ -63,51 +64,7 @@ export async function loadTradingOverview(
     },
   }))
 
-  const rows =
-    liveWallets.length === 0
-      ? []
-      : await db
-          .select()
-          .from(tradeLiveFills)
-          .where(
-            and(
-              eq(tradeLiveFills.userId, userId),
-              inArray(
-                tradeLiveFills.walletId,
-                liveWallets.map((wallet) => wallet.id)
-              ),
-              eq(tradeLiveFills.hidden, false)
-            )
-          )
-          .orderBy(desc(tradeLiveFills.at))
-
-  const walletById = new Map(liveWallets.map((wallet) => [wallet.id, wallet]))
-  const fills: TradingOverviewFill[] = rows.flatMap((row) => {
-    const wallet = walletById.get(row.walletId)
-    if (!wallet) return []
-    const marketRef = parseMarketKey(row.marketKey)
-    const protocol = marketRef?.protocol ?? wallet.protocol
-    return [
-      {
-        fillId: row.fillId,
-        walletId: wallet.id,
-        walletLabel: wallet.label,
-        venue: protocolLabel(protocol),
-        market: marketRef?.marketId ?? row.marketKey,
-        side: row.side,
-        px: row.px,
-        sz: row.sz,
-        at: Number(row.at),
-        fee: row.fee,
-        money: moneyForWalletFill({
-          profitPerSale: pricesEverySale(protocol),
-          side: row.side,
-          closedPnl: row.closedPnl,
-          fee: row.fee,
-        }),
-      },
-    ]
-  })
+  const fills = await loadOverviewFills(userId, liveWallets)
 
   const missingVenues = [
     ...new Set(
@@ -179,6 +136,60 @@ export async function loadTradingOverview(
       (fill) => fill.at >= performanceSince && fill.money === null
     ).length,
   }
+}
+
+/**
+ * Every visible real fill of the wallets given, newest first, priced the way
+ * the overview's Made or lost figure prices them. Shared with the P&L page so
+ * its month grid adds up the same fills, and the same money, as the PnL Graph.
+ */
+export async function loadOverviewFills(
+  userId: string,
+  wallets: readonly Pick<TradeWallet, "id" | "label" | "protocol">[]
+): Promise<TradingOverviewFill[]> {
+  if (wallets.length === 0) return []
+  const rows = await db
+    .select()
+    .from(tradeLiveFills)
+    .where(
+      and(
+        eq(tradeLiveFills.userId, userId),
+        inArray(
+          tradeLiveFills.walletId,
+          wallets.map((wallet) => wallet.id)
+        ),
+        eq(tradeLiveFills.hidden, false)
+      )
+    )
+    .orderBy(desc(tradeLiveFills.at))
+
+  const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  return rows.flatMap((row) => {
+    const wallet = walletById.get(row.walletId)
+    if (!wallet) return []
+    const marketRef = parseMarketKey(row.marketKey)
+    const protocol = marketRef?.protocol ?? wallet.protocol
+    return [
+      {
+        fillId: row.fillId,
+        walletId: wallet.id,
+        walletLabel: wallet.label,
+        venue: protocolLabel(protocol),
+        market: marketRef?.marketId ?? row.marketKey,
+        side: row.side,
+        px: row.px,
+        sz: row.sz,
+        at: Number(row.at),
+        fee: row.fee,
+        money: moneyForWalletFill({
+          profitPerSale: pricesEverySale(protocol),
+          side: row.side,
+          closedPnl: row.closedPnl,
+          fee: row.fee,
+        }),
+      },
+    ]
+  })
 }
 
 /** The small account-wide answer used by the active-trades header menu. */
