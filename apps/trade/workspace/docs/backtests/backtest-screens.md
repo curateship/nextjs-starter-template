@@ -104,3 +104,21 @@ migration or backtest rerun is needed to show durations on saved runs.
 - Stocks have no funding on Dukascopy. A "Funding not counted" line names them
   and says "Stocks: no funding in this run". A Hyperliquid or Lighter stock
   perpetual does charge funding in real life; this run did not count it.
+
+## Why a coin was skipped or failed
+
+- The run header counts coins skipped before testing and coins that failed.
+  Clicking the count opens the Skipped / failed tab and expands its panel.
+- Each row shows its saved reason in muted, wrapping text. Failed rows show
+  their own saved error. A coin appears once even when both the run result
+  and its coin record mention the skip.
+- The tab also keeps coins that finished without a trade and explains why.
+  Those coins do not count as skipped in the header because they were tested.
+- From 6 Sep 2026, a new empty-history skip keeps the candle store's reason.
+  Runs saved earlier retain their original wording. No migration rewrites them.
+- A young coin with some prices still runs from its first available price.
+  The app does not infer a listing date from missing candles. Missing funding
+  remains a run warning and does not turn a tested coin into a skipped coin.
+- Download and engine failures retain the existing retry and failure rules.
+  A failure that stops the whole run can leave the same error on several coins.
+  The screen displays the saved evidence without inventing a separate cause.

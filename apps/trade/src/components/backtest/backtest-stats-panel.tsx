@@ -78,6 +78,9 @@ function count(value: number | null): string {
 }
 
 export function BacktestStatsPanel({
+  skippedCount = 0,
+  failedCount = 0,
+  onShowSkipped,
   timing,
   summary,
   result,
@@ -91,6 +94,9 @@ export function BacktestStatsPanel({
   stopRequested,
   onStop,
 }: {
+  skippedCount?: number
+  failedCount?: number
+  onShowSkipped?: () => void
   timing: BacktestTiming
   summary: BacktestSummary | null
   result: BacktestResult | null
@@ -138,6 +144,27 @@ export function BacktestStatsPanel({
             >
               {duration}
             </span>
+            {skippedCount + failedCount > 0 ? (
+              <button
+                type="button"
+                onClick={onShowSkipped}
+                className={cn(
+                  "text-left text-xs font-normal text-muted-foreground underline underline-offset-4",
+                  focusRing
+                )}
+              >
+                {[
+                  skippedCount > 0
+                    ? `${skippedCount} ${plural(skippedCount, "coin", "coins")} skipped`
+                    : null,
+                  failedCount > 0
+                    ? `${failedCount} ${plural(failedCount, "coin", "coins")} failed`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </button>
+            ) : null}
           </span>
         }
         action={

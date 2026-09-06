@@ -934,7 +934,9 @@ describe("a run the worker picks up", () => {
     expect(coins.find((c) => c.symbol === "AAA")?.status).toBe("done")
     const ghost = coins.find((c) => c.symbol === "GHOST")
     expect(ghost?.status).toBe("skipped")
-    expect(ghost?.skipReason).toContain("no price history")
+    expect(ghost?.skipReason).toBe(
+      "The exchange has no price history at all for this window."
+    )
     expect(coins.some((c) => c.status === "error")).toBe(false)
 
     // And the run says so on its own summary, with the count — a result built

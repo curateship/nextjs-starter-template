@@ -333,7 +333,8 @@ async function loadOneCoin(
       userId,
       groupId,
       marketKey,
-      "There is no price history for this coin over this window."
+      [...new Set(window.gaps.map((gap) => gap.reason))].join(" ") ||
+        "There is no price history for this coin over this window."
     )
     return
   }

@@ -62,14 +62,17 @@ export function BacktestMarketsPanel({
   skipped,
   openCoin,
   onOpenCoin,
+  tab,
+  onTabChange,
 }: {
+  tab: PanelTab
+  onTabChange: (tab: PanelTab) => void
   coins: readonly BacktestCoinRow[]
   /** Coins the run could not test at all, with the reason it gives. */
   skipped: readonly BacktestSkip[]
   openCoin: string | null
   onOpenCoin: (marketKey: string) => void
 }) {
-  const [tab, setTab] = React.useState<PanelTab>("results")
   const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
 
   // **Every coin that produced nothing**, whichever way it produced nothing:
@@ -84,10 +87,13 @@ export function BacktestMarketsPanel({
   const skippedRows = React.useMemo(() => {
     const rows = new Map<string, { symbol: string; reason: string }>()
     for (const coin of coins) {
-      if (coin.status === "skipped") {
+      if (coin.status === "skipped" || coin.status === "error") {
         rows.set(coin.marketKey, {
           symbol: coin.symbol,
-          reason: coin.skipReason ?? coin.error ?? "No reason recorded.",
+          reason:
+            (coin.status === "error"
+              ? coin.error
+              : (coin.skipReason ?? coin.error)) ?? "No reason recorded.",
         })
         continue
       }
@@ -120,6 +126,7 @@ export function BacktestMarketsPanel({
       coins.filter(
         (coin) =>
           coin.status !== "skipped" &&
+          coin.status !== "error" &&
           !(coin.status === "done" && coin.summary && coin.summary.trades === 0)
       ),
     [coins]
@@ -186,7 +193,7 @@ export function BacktestMarketsPanel({
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as PanelTab)}
+      onValueChange={(value) => onTabChange(value as PanelTab)}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
     >
       <DashboardCardTabsHeader>
@@ -202,7 +209,7 @@ export function BacktestMarketsPanel({
         <DashboardCardTab
           value="skipped"
           icon={<SkipForwardIcon className="size-4" />}
-          label="Skipped"
+          label="Skipped / failed"
           count={skippedRows.length}
         />
       </DashboardCardTabsHeader>
@@ -434,7 +441,7 @@ export function BacktestMarketsPanel({
                         guessing at the only thing this row says. */}
                     <TableCell
                       column="meta"
-                      className="whitespace-normal text-muted-foreground"
+                      className="break-words whitespace-normal text-muted-foreground"
                     >
                       {row.reason}
                     </TableCell>

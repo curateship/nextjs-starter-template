@@ -136,6 +136,9 @@ export function BacktestRunPage({
   const statsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const tradesPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const [marketsTab, setMarketsTab] = React.useState<"results" | "skipped">(
+    "results"
+  )
   const [statsCollapsed, setStatsCollapsed] = React.useState(false)
   const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
 
@@ -411,6 +414,19 @@ export function BacktestRunPage({
 
   const statsPanel = (
     <BacktestStatsPanel
+      skippedCount={
+        new Set([
+          ...coins
+            .filter((coin) => coin.status === "skipped")
+            .map((coin) => coin.marketKey),
+          ...(run.result?.skipped ?? []).map((coin) => coin.marketKey),
+        ]).size
+      }
+      failedCount={coins.filter((coin) => coin.status === "error").length}
+      onShowSkipped={() => {
+        setMarketsTab("skipped")
+        marketsPanelRef.current?.expand()
+      }}
       timing={{
         createdAt: run.createdAt,
         finishedAt: run.finishedAt,
@@ -435,6 +451,8 @@ export function BacktestRunPage({
   )
   const marketsPanel = (
     <BacktestMarketsPanel
+      tab={marketsTab}
+      onTabChange={setMarketsTab}
       coins={coins}
       skipped={run.result?.skipped ?? []}
       openCoin={activeCoin}
