@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import {
   defaultExplorerPrefs,
@@ -33,6 +33,24 @@ export async function saveExplorerPrefs(userId: string, prefs: ExplorerPrefs) {
     .values({ userId, marketExplorer: prefs, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { marketExplorer: prefs, updatedAt: new Date() },
+      set: {
+        marketExplorer: sql`jsonb_set(jsonb_set(${JSON.stringify(prefs)}::jsonb, '{discoverySound}', COALESCE(${tradePrefs.marketExplorer}->'discoverySound', 'false'::jsonb)), '{lastVisit}', to_jsonb(GREATEST(COALESCE((${tradePrefs.marketExplorer}->>'lastVisit')::numeric, 0), ${prefs.lastVisit}::numeric)))`,
+        updatedAt: new Date(),
+      },
     })
+}
+
+export async function saveExplorerSound(userId: string, enabled: boolean) {
+  const initial = { ...defaultExplorerPrefs(), discoverySound: enabled }
+  await db
+    .insert(tradePrefs)
+    .values({ userId, marketExplorer: initial, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        marketExplorer: sql`jsonb_set(COALESCE(${tradePrefs.marketExplorer}, ${JSON.stringify(defaultExplorerPrefs())}::jsonb), '{discoverySound}', ${JSON.stringify(enabled)}::jsonb)`,
+        updatedAt: new Date(),
+      },
+    })
+  return enabled
 }

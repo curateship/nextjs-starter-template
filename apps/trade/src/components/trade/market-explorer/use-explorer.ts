@@ -158,13 +158,29 @@ export function useExplorerLive(
   return catalogs
 }
 
-export function useExplorerPrefs(initial: ExplorerPrefs) {
+export function useExplorerPrefs(initial: ExplorerPrefs, trackVisit = false) {
+  const [openedAt] = React.useState(() => Date.now())
   const [prefs, setPrefs] = React.useState(initial)
   const saved = React.useRef(initial)
   const queue = React.useRef(Promise.resolve())
   const revision = React.useRef(0)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  React.useEffect(() => {
+    if (!trackVisit) return
+    queue.current = queue.current.then(async () => {
+      try {
+        const next = { ...initial, lastVisit: openedAt }
+        await saveMarketExplorer(next)
+        saved.current = next
+      } catch {
+        showErrorToast(
+          "Your Markets visit could not be saved. New-listing badges may repeat next time."
+        )
+      }
+    })
+  }, [initial, openedAt, trackVisit])
   function change(next: ExplorerPrefs) {
+    if (trackVisit) next = { ...next, lastVisit: openedAt }
     setPrefs(next)
     const currentRevision = ++revision.current
     if (timer.current) clearTimeout(timer.current)

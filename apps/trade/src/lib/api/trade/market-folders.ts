@@ -1,3 +1,4 @@
+import { publishFolderDeleted } from "@/lib/trade/folder-events"
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
@@ -149,8 +150,10 @@ export function setHiddenMarket(input: {
 }): Promise<MarketPanelRows> {
   return setMarketHiddenFn({ data: input })
 }
-export function deleteFolder(folderId: string) {
-  return deleteMarketFolderFn({ data: { folderId } })
+export async function deleteFolder(folderId: string) {
+  const answer = await deleteMarketFolderFn({ data: { folderId } })
+  publishFolderDeleted(folderId)
+  return answer
 }
 
 export const getMarketFolderErrorMessage = createErrorMessage(

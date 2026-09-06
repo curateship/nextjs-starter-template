@@ -3,6 +3,12 @@ import { z } from "zod"
 import { KNOWN_PROTOCOLS, MARKET_CATEGORIES } from "@/lib/protocols/contracts"
 
 export const EXPLORER_COLUMNS = [
+  "pace",
+  "longDaily",
+  "shortDaily",
+  "folders",
+  "listed",
+  "sparkline",
   "price",
   "change24h",
   "volume24hUsd",
@@ -18,6 +24,12 @@ export const EXPLORER_COLUMNS = [
 ] as const
 export type ExplorerColumn = (typeof EXPLORER_COLUMNS)[number]
 export const EXPLORER_LABELS: Record<ExplorerColumn, string> = {
+  pace: "Pace",
+  longDaily: "Long, $/day",
+  shortDaily: "Short, $/day",
+  folders: "Folders",
+  listed: "Listed",
+  sparkline: "5m line",
   price: "Price",
   change24h: "24h change",
   volume24hUsd: "24h volume",
@@ -34,6 +46,26 @@ export const EXPLORER_LABELS: Record<ExplorerColumn, string> = {
 const amount = z.number().finite().min(0).max(1e15)
 export const explorerViewSchema = z
   .object({
+    minimumPace: amount.default(0),
+    dailyFunding: z
+      .enum([
+        "any",
+        "longEarns",
+        "shortEarns",
+        "longCostsUnder",
+        "shortCostsUnder",
+      ])
+      .default("any"),
+    maximumDailyCost: amount.default(0),
+    onlyMine: z.boolean().default(false),
+    folder: z.string().max(80).default(""),
+    recentListings: z.boolean().default(false),
+    hideQuiet: z.boolean().default(false),
+    pins: z.array(z.string().max(200)).max(3000).default([]),
+    layout: z.enum(["table", "map"]).default("table"),
+    mapWindow: z.enum(["5s", "1m", "5m", "24h"]).default("1m"),
+    arrivals: z.boolean().default(false),
+    alertPace: amount.default(5),
     search: z.string().max(120),
     exchanges: z.array(z.enum(KNOWN_PROTOCOLS)).max(KNOWN_PROTOCOLS.length),
     categories: z
@@ -63,6 +95,18 @@ export const explorerViewSchema = z
   )
 export type ExplorerView = z.infer<typeof explorerViewSchema>
 export const DEFAULT_EXPLORER_VIEW: ExplorerView = {
+  minimumPace: 0,
+  dailyFunding: "any",
+  maximumDailyCost: 0,
+  onlyMine: false,
+  folder: "",
+  recentListings: false,
+  hideQuiet: false,
+  pins: [],
+  layout: "table",
+  mapWindow: "1m",
+  arrivals: false,
+  alertPace: 5,
   search: "",
   exchanges: [...KNOWN_PROTOCOLS],
   categories: [],
@@ -76,7 +120,16 @@ export const DEFAULT_EXPLORER_VIEW: ExplorerView = {
   direction: "desc",
   liveSort: false,
   groupByCoin: false,
-  columns: EXPLORER_COLUMNS.filter((column) => column !== "openInterestUsd"),
+  columns: EXPLORER_COLUMNS.filter(
+    (column) =>
+      ![
+        "openInterestUsd",
+        "folders",
+        "listed",
+        "sparkline",
+        "fundingHourly",
+      ].includes(column)
+  ),
 }
 
 export function clearExplorerFilters(view: ExplorerView): ExplorerView {
@@ -93,6 +146,13 @@ export function clearExplorerFilters(view: ExplorerView): ExplorerView {
   } = DEFAULT_EXPLORER_VIEW
   return {
     ...view,
+    minimumPace: 0,
+    dailyFunding: "any",
+    maximumDailyCost: 0,
+    onlyMine: false,
+    folder: "",
+    recentListings: false,
+    hideQuiet: false,
     search,
     exchanges,
     categories,
@@ -106,6 +166,8 @@ export function clearExplorerFilters(view: ExplorerView): ExplorerView {
 }
 export const explorerPrefsSchema = z
   .object({
+    discoverySound: z.boolean().default(false),
+    lastVisit: z.number().finite().min(0).default(0),
     current: explorerViewSchema,
     activeView: z.string().max(80),
     views: z
@@ -139,6 +201,8 @@ export const explorerPrefsSchema = z
 export type ExplorerPrefs = z.infer<typeof explorerPrefsSchema>
 export function defaultExplorerPrefs(): ExplorerPrefs {
   return {
+    discoverySound: false,
+    lastVisit: 0,
     current: { ...DEFAULT_EXPLORER_VIEW },
     activeView: "all",
     views: [

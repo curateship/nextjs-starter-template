@@ -344,6 +344,8 @@ export type MarketRow = {
  * markets with the same name being read as each other.
  */
 export type MarketCatalog = {
+  firstSeen?: Record<string, number>
+  firstSeenError?: string
   protocol: ProtocolId
   protocolLabel: string
   network: NetworkId

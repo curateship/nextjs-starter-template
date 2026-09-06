@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+vi.mock("@/server/trade/market-first-seen", () => ({
+  recordMarketFirstSeen: vi.fn(async () => ({})),
+}))
+
 const exchange = vi.hoisted(() => ({ fetch: vi.fn() }))
 
 vi.mock("@/server/protocols/registry", () => ({
@@ -23,7 +27,7 @@ describe("the shared raw market catalog", () => {
     const second = loadRawMarketCatalog("hyperliquid", "mainnet")
 
     expect(first).toBe(second)
-    await expect(first).resolves.toBe(catalog)
+    await expect(first).resolves.toEqual({ ...catalog, firstSeen: {} })
     expect(exchange.fetch).toHaveBeenCalledOnce()
 
     vi.advanceTimersByTime(60_000)
@@ -41,6 +45,7 @@ describe("the shared raw market catalog", () => {
     )
     await expect(loadRawMarketCatalog("phemex", "mainnet")).resolves.toEqual({
       rows: [],
+      firstSeen: {},
     })
     expect(exchange.fetch).toHaveBeenCalledTimes(2)
   })

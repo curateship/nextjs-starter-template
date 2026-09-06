@@ -1,3 +1,4 @@
+import { subscribeFolderDeleted } from "@/lib/trade/folder-events"
 import * as React from "react"
 
 import {
@@ -10,10 +11,41 @@ import type { MarketRow, ProtocolId } from "@/lib/protocols/contracts"
 import { type MarketFolder } from "@/lib/trade/market-folders"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-export function useExplorerFolders(protocols: readonly ProtocolId[]) {
+export function useExplorerFolders(
+  protocols: readonly ProtocolId[],
+  onRemoved?: (name: string) => void
+) {
   const [folders, setFolders] = React.useState<
     Partial<Record<ProtocolId, MarketFolder[]>>
   >({})
+  const current = React.useRef({ folders, onRemoved })
+  React.useEffect(() => {
+    current.current = { folders, onRemoved }
+  })
+  React.useEffect(
+    () =>
+      subscribeFolderDeleted((id) => {
+        const previous = current.current.folders
+        const removed = Object.values(previous)
+          .flat()
+          .find((folder) => folder?.id === id)
+        if (!removed) return
+        const next = Object.fromEntries(
+          Object.entries(previous).map(([protocol, list]) => [
+            protocol,
+            list?.filter((folder) => folder.id !== id),
+          ])
+        )
+        setFolders(next)
+        if (
+          !Object.values(next)
+            .flat()
+            .some((folder) => folder?.name === removed.name)
+        )
+          current.current.onRemoved?.(removed.name)
+      }),
+    []
+  )
   const [busy, setBusy] = React.useState(false)
   const saving = React.useRef(false)
   const signature = protocols.join("|")

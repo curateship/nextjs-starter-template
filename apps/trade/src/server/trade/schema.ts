@@ -1573,3 +1573,8 @@ export const tradeNoticeLinks = pgTable("trade_notice_links", {
     "fill" | "stop" | "alert"
   >(),
 })
+
+export const tradeMarketFirstSeen = pgTable("trade_market_first_seen", {
+  marketKey: text("market_key").primaryKey(),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+})

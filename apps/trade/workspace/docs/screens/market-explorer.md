@@ -12,10 +12,12 @@ Markets at `/admin/markets` compares mainnet markets across exchanges.
 - Clear filters keeps the chosen columns, sort and grouping.
 - Exchange and Market always show. Open interest starts hidden. A hidden
   sorted column falls back to 24h volume. Narrow screens hide secondary figures.
-- The title, counts, view tabs, controls, feed badges and table share one
-  rounded surface. Save, Rename and Delete stay together at the right of the
-  title row. Market symbols, categories and badges sit on one line, and
-  numeric columns align right. Feed badges scroll sideways on narrow screens.
+- The header uses the same shared toolbar as Newsletter. The icon, title and
+  count sit left; search, Filters and View sit right. Exchanges live in Filters.
+  View contains saved views, Table/Map, columns, grouping, live sorting,
+  arrival settings and feed status. Pin actions appear only after selecting
+  rows. The arrival strip appears only when it has arrivals to show.
+- Header and row checkboxes use the shared table's matching left inset.
 - The footer pages through 25, 50 or 100 results, starting at 50. Filters and
   sorting return to page one; incoming exchange lists keep the current page
   unless that page no longer exists. Markets that stop matching a filter are
@@ -185,3 +187,124 @@ venues, retains their menu choices, makes no requests for an empty selection,
 releases disabled feeds and refreshes only enabled venues. ESLint passed on the
 changed files. TypeScript reports no errors in the explorer files; unrelated
 existing test errors remain. No full suite, commit or application deployment ran.
+
+## Discovery
+
+Discovery adds comparisons to the same catalogues and browser history.
+
+- **Pace:** Last-minute estimated dollars divided by 24h dollars divided by
+  1,440. A coin doing $60,000 against its usual $10,000 shows 6× usual.
+  Pace stays blank without a complete live minute or positive 24h volume.
+  Surging requires at least 5× and at least $10,000 traded in that minute.
+- **Daily funding:** Long and Short columns show the signed daily cost or
+  income on $1,000. Hourly funding of 0.0001 means a long loses $2.40 a day
+  and a short makes $2.40. Venues without funding stay blank and sort last.
+  Filters select the earning side or a daily cost ceiling for either side.
+- **Wallet marks:** The existing portfolio readers supply one account-wide
+  answer every four seconds. Held shows coin sizes and Waiting marks orders.
+  Hover names each wallet. Failed wallets contribute no marks and the count
+  names how many did not answer. Only mine filters these marks.
+- **Folders:** The filter offers each loaded folder name once, including Fav.
+  Matching names combine memberships across exchanges. Folders remain tied
+  to one exchange. The optional Folders column lists a market's memberships.
+  A deletion in an open tab clears its active filter when no matching folder
+  remains. The count explains why the filter cleared.
+- **First seen:** Migration `0169_trade_market_first_seen.sql` creates the
+  timestamp table. Every one-minute catalogue refresh records unseen keys.
+  Repeated and concurrent reads preserve the original timestamp. Listed
+  means first seen by this app, never the exchange's listing date.
+  The initial catalogue stamps all existing markets that day, so the age
+  filter becomes useful only after the app has observed markets for a while.
+  New since your last visit compares the timestamp with the account's saved
+  previous visit. The first visit has no previous-visit badge.
+- **Sparklines:** The optional 5m line column uses canvas and the existing
+  five-minute samples. Fewer than 30 samples draws nothing. Lines use the
+  chart's money colours. Reduced motion redraws once a minute.
+- **Pins:** Select rows with the first-column checkboxes, then Pin selected.
+  Pins stay above the sorted list in pin order and keep their live figures.
+  Select them again and use Unpin selected to remove their pins. Pins belong
+  to the current saved view and still obey its filters.
+- **Arrivals:** Watch arrivals detects entry into the current sort's top ten
+  or a crossing of the chosen pace threshold. The strip keeps the latest
+  five entries for one minute. Initial rows and changed filters establish
+  a fresh starting comparison without announcing the whole list.
+- **Quiet:** Ten minutes of unchanged live prices earns Quiet. A feed gap or
+  reconnect starts the ten-minute wait again. Catalogue-only feeds cannot
+  earn Quiet. Hide quiet markets removes those rows. Stock and forex quiet
+  badges are omitted because stillness does not establish session status.
+- **Map:** Table and Map share filters and chart links. The map groups squares
+  by exchange and uses the selected price-move window for colour. The
+  largest square measures 160px. Area follows volume with an 8px minimum.
+  Squares below 24px have no label. Hover or focus shows the figures.
+  The busiest 400 markets appear, because 3,000 squares obscure useful moves.
+  Updates run every two seconds, or every ten seconds with reduced motion.
+  A live 400-square check recorded five pauses above 50ms in five seconds
+  at the original one-second refresh, so the refresh was reduced.
+
+## Discovery validation and release requirements
+
+- **Focused checks:** 36 focused tests passed across twelve files during implementation.
+  Coverage includes arithmetic, reconnects, first-seen concurrency, account
+  preferences, pin actions, wallet failures, and the existing table workflow.
+- **Migration:** The timestamp migration passed against the isolated test
+  database and was applied to Trade's configured database on 6 September 2026.
+  The app recorded 5,532 market keys with no missing dates. View → Status
+  stopped reporting unavailable dates. Market rows still load if date storage fails.
+- **Sound settings:** Discovery has a separate account switch in Sounds and
+  alerts. The setting starts off and survives saves from an older open view.
+  The sound requires a click in the Markets page and collapses bursts to one
+  sound every ten seconds. The app currently has no master sound switch.
+  Discovery deliberately keeps an independent switch, off by default.
+- **Stock hours:** A Closed badge has not been added. Aster permits stock
+  perpetual orders outside the underlying stock market's normal hours.
+  Stock and forex rows omit closed and quiet badges because price stillness
+  does not establish session status. See [Aster's trading sessions](https://docs.asterdex.com/product/aster-perpetual-pro/stock-contracts).
+
+## Discovery browser checks
+
+- **Saved controls:** Signed-in Chromium added Pace, Long and Short daily
+  funding, Listed, Folders and the sparkline column. A selected market stayed
+  pinned after reload. The original account preferences were restored.
+- **Map:** The signed-in page rendered 400 squares. Document widths matched
+  viewport widths at 1440px and 390px. Light and dark modes produced no
+  Markets page errors. Map updates now skip unchanged squares. In the
+  400-market fixture, measured changed-square updates fell from 121 to
+  136ms to 7.8 to 8.8ms. Initial drawing took 111ms. These are local
+  Chromium measurements, not a guarantee for every laptop.
+- **Reduced motion:** Changing the fixture's move left the square unchanged
+  at the early check. The square showed the new value after ten seconds.
+- **Canvas:** Thirty samples produced 288 nontransparent pixels in the
+  actual sparkline component. The fixture uses the same live-store module
+  as the component. Helper tests cover blank lines before 30 samples and
+  after a gap.
+- **Sound:** Browser instrumentation counted no oscillator for an arrival
+  before a click. Two later arrivals produced one oscillator. The real
+  Sounds setting previewed once and remained on after reload. The previous
+  sound choice was restored afterward.
+- **Existing Settings error:** Direct loads of Sounds and alerts report
+  Shell runtime is missing and recover through browser rendering. The same
+  error occurred with the new discovery card removed. The shared Settings
+  route was left unchanged. Markets itself had no page errors in these checks.
+- **Limits:** Real wallet holdings were not verified against an existing
+  funded wallet. Component and server tests cover wallet sizes and failures.
+  First-seen dates were tested in the isolated database, not the running
+  account. No full suite, commit, migration application or deployment ran.
+- **Audit:** ESLint and diff whitespace checks passed. TypeScript reports
+  unrelated existing test errors and none in the discovery implementation.
+  The full task is not ready to commit while the master-switch choice,
+  session wording and database authorization remain outstanding.
+
+## Audit coverage
+
+The discovery audit checked account guards, owner-scoped wallet reads, sound
+preference writes, first-seen persistence, filtering, selection, live history
+and the shared header. Account credentials stay on the server. Sound writes
+validate a boolean and require the app origin.
+
+All 36 focused tests across 12 files pass, along with lint on the changed
+TypeScript files and the diff whitespace check. The header browser checks
+cover desktop and mobile alignment, view menus and row selection. The audit's
+cleanup only removes unused helper exports and a redundant disabled condition.
+The latest type check still fails in unrelated test fixtures. The authorized first-seen migration is applied and the running app stores dates.
+Sound and session choices are settled. Live wallet comparisons, a full quiet
+interval and an actual new market's next-visit badge remain unverified.

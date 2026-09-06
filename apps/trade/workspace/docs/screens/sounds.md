@@ -50,3 +50,17 @@ Each open browser tab follows its own audio permission and its own two-second
 collapse. Tabs do not coordinate sounds with each other. The app has to be open
 on a Trade screen. Sounds do not turn the browser into a push-notification
 service after the app closes.
+
+## Market discovery
+
+- **Separate switch:** Market discovery sounds in Sounds and alerts starts off.
+  The setting belongs to the account and uses the existing Markets preference
+  record. Changing a view does not replace the sound choice.
+- **Open page only:** With Watch arrivals enabled, Markets plays a short rising
+  two-note sound for a top-ten entry or a pace crossing. A click in that page
+  must come first. Bursts collapse to one sound every ten seconds.
+- **Record:** The Markets strip holds the latest five arrivals for one minute.
+  Discovery creates no bell notices, engine alerts or emails.
+- **Master switch:** The existing fill and price-alert switches are separate.
+  Discovery also keeps its own switch, off by default. There is no master
+  sound switch.

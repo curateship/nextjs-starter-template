@@ -1,9 +1,21 @@
+import {
+  DashboardToolbar,
+  DashboardToolbarTitle,
+  DashboardToolbarControls,
+  DashboardToolbarSearch,
+} from "@/components/shared/dashboard-toolbar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import * as React from "react"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
   ChevronDownIcon,
-  SearchIcon,
+  ChartNoAxesCombinedIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -25,7 +37,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -83,9 +95,11 @@ function Amount({
   label,
   value,
   onChange,
+  zeroIsAny = true,
 }: {
   label: string
   value: number
+  zeroIsAny?: boolean
   onChange: (value: number) => void
 }) {
   const id = React.useId()
@@ -97,8 +111,8 @@ function Amount({
         type="number"
         min="0"
         max="1000000000000000"
-        value={value || ""}
-        placeholder="Any"
+        value={zeroIsAny ? value || "" : value}
+        placeholder={zeroIsAny ? "Any" : "0"}
         onChange={(event) => {
           const next = Number(event.target.value)
           if (Number.isFinite(next) && next >= 0 && next <= 1e15) onChange(next)
@@ -114,7 +128,11 @@ export function ExplorerControls({
   opening,
   venues,
   summary,
+  folderNames = [],
+  status,
 }: {
+  status?: React.ReactNode
+  folderNames?: string[]
   summary?: React.ReactNode
   prefs: ExplorerPrefs
   change: (prefs: ExplorerPrefs) => void
@@ -192,344 +210,464 @@ export function ExplorerControls({
   }
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h1 className="text-xl font-semibold tracking-tight">Markets</h1>
+      <DashboardToolbar>
+        <DashboardToolbarTitle>
+          <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
+            <ChartNoAxesCombinedIcon aria-hidden="true" />
+          </span>
+          <h1 className="text-sm font-medium sm:text-base">Markets</h1>
           {summary}
-        </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setName("")
-              setEditing("create")
-            }}
-          >
-            Save view
-          </Button>
-          {active && (
-            <>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setName(active.name)
-                  setEditing("rename")
-                }}
-              >
-                Rename view
-              </Button>
-              <Button variant="ghost" onClick={() => setEditing("delete")}>
-                Delete view
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <Tabs
-          className="max-w-full min-w-0"
-          value={prefs.activeView}
-          onValueChange={(id) =>
-            change({
-              ...prefs,
-              activeView: id,
-              current:
-                id === "all"
-                  ? { ...DEFAULT_EXPLORER_VIEW }
-                  : prefs.views.find((one) => one.id === id)!.view,
-            })
-          }
-        >
-          <ScrollArea viewportClassName="h-10">
-            <TabsList>
-              <TabsTrigger value="all">All markets</TabsTrigger>
-              {prefs.views.map((one) => (
-                <TabsTrigger key={one.id} value={one.id}>
-                  {one.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </Tabs>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-80">
-          <Label className="sr-only" htmlFor="market-search">
-            Search markets
-          </Label>
-          <SearchIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            id="market-search"
-            className="pl-9"
+        </DashboardToolbarTitle>
+        <DashboardToolbarControls>
+          <DashboardToolbarSearch
+            aria-label="Search markets"
+            placeholder="Search markets…"
             value={view.search}
             maxLength={120}
-            placeholder="Search symbol or full name"
             onChange={(event) => update({ search: event.target.value })}
           />
-        </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline">
-              Exchanges
-              <span className="rounded-sm bg-muted px-1.5 font-mono text-xs">
-                {selectedExchanges}
-              </span>
-              <ChevronDownIcon
-                aria-hidden="true"
-                className="text-muted-foreground"
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent>
-            <div className="grid gap-2">
-              {opening.availableVenues.map((venue) => (
-                <label
-                  key={venue.protocol}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <Checkbox
-                    checked={view.exchanges.includes(venue.protocol)}
-                    onCheckedChange={(checked) => {
-                      const current = view.exchanges
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                Filters{" "}
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  className="text-muted-foreground"
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <ScrollArea viewportClassName="max-h-[65vh]">
+                <div className="grid gap-4 p-1">
+                  <Label>Exchanges · {selectedExchanges}</Label>
+                  <div className="grid gap-2">
+                    {opening.availableVenues.map((venue) => (
+                      <label
+                        key={venue.protocol}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={view.exchanges.includes(venue.protocol)}
+                          onCheckedChange={(checked) => {
+                            const current = view.exchanges
+                            update({
+                              exchanges: checked
+                                ? [...new Set([...current, venue.protocol])]
+                                : current.filter((id) => id !== venue.protocol),
+                            })
+                          }}
+                        />
+                        {venue.protocolLabel}
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Kind of market</Label>
+                    {categories.map((category) => (
+                      <label
+                        key={category}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={view.categories.includes(category)}
+                          onCheckedChange={(checked) =>
+                            update({
+                              categories: checked
+                                ? [...view.categories, category]
+                                : view.categories.filter(
+                                    (one) => one !== category
+                                  ),
+                            })
+                          }
+                        />
+                        {category}
+                      </label>
+                    ))}
+                  </div>
+                  <Choice
+                    label="24h volume at least"
+                    value={
+                      [0, 1e6, 1e7, 1e8].includes(view.minimumVolume)
+                        ? String(view.minimumVolume)
+                        : "custom"
+                    }
+                    options={[
+                      ["0", "Any"],
+                      ["1000000", "$1m"],
+                      ["10000000", "$10m"],
+                      ["100000000", "$100m"],
+                      ["custom", "Custom"],
+                    ]}
+                    onChange={(value) =>
                       update({
-                        exchanges: checked
-                          ? [...new Set([...current, venue.protocol])]
-                          : current.filter((id) => id !== venue.protocol),
+                        minimumVolume: value === "custom" ? 1 : Number(value),
                       })
-                    }}
+                    }
                   />
-                  {venue.protocolLabel}
-                </label>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline">
-              Filters{" "}
-              <ChevronDownIcon
-                aria-hidden="true"
-                className="text-muted-foreground"
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80">
-            <ScrollArea viewportClassName="max-h-[65vh]">
-              <div className="grid gap-4 p-1">
-                <div className="grid gap-2">
-                  <Label>Kind of market</Label>
-                  {categories.map((category) => (
+                  <Amount
+                    label="Minimum 24h volume in dollars"
+                    value={view.minimumVolume}
+                    onChange={(minimumVolume) => update({ minimumVolume })}
+                  />
+                  <Choice
+                    label="24h move direction"
+                    value={view.moveDirection}
+                    options={[
+                      ["either", "Either"],
+                      ["up", "Up"],
+                      ["down", "Down"],
+                    ]}
+                    onChange={(moveDirection) =>
+                      update({
+                        moveDirection:
+                          moveDirection as ExplorerView["moveDirection"],
+                      })
+                    }
+                  />
+                  <Amount
+                    label="24h move at least %"
+                    value={view.minimumMove}
+                    onChange={(minimumMove) => update({ minimumMove })}
+                  />
+                  <Amount
+                    label="Pace at least N×"
+                    value={view.minimumPace}
+                    onChange={(minimumPace) => update({ minimumPace })}
+                  />
+                  <Choice
+                    label="Daily funding on $1,000"
+                    value={view.dailyFunding}
+                    options={[
+                      ["any", "Any"],
+                      ["longEarns", "Long earns"],
+                      ["shortEarns", "Short earns"],
+                      ["longCostsUnder", "Long costs under"],
+                      ["shortCostsUnder", "Short costs under"],
+                    ]}
+                    onChange={(dailyFunding) =>
+                      update({
+                        dailyFunding:
+                          dailyFunding as ExplorerView["dailyFunding"],
+                      })
+                    }
+                  />
+                  {view.dailyFunding.endsWith("CostsUnder") && (
+                    <Amount
+                      label="Costs under $ per day"
+                      zeroIsAny={false}
+                      value={view.maximumDailyCost}
+                      onChange={(maximumDailyCost) =>
+                        update({ maximumDailyCost })
+                      }
+                    />
+                  )}
+                  <Choice
+                    label="In folder"
+                    value={view.folder ? `folder:${view.folder}` : "__all"}
+                    options={[
+                      ["__all", "Any folder"],
+                      ...folderNames.map(
+                        (name) => [`folder:${name}`, name] as const
+                      ),
+                    ]}
+                    onChange={(folder) =>
+                      update({
+                        folder: folder === "__all" ? "" : folder.slice(7),
+                      })
+                    }
+                  />
+                  {(
+                    [
+                      ["onlyMine", "Only mine"],
+                      ["recentListings", "Listed in the last 7 days"],
+                      ["hideQuiet", "Hide quiet markets"],
+                    ] as const
+                  ).map(([key, label]) => (
                     <label
-                      key={category}
+                      key={key}
                       className="flex items-center gap-2 text-sm"
                     >
                       <Checkbox
-                        checked={view.categories.includes(category)}
+                        checked={view[key]}
                         onCheckedChange={(checked) =>
+                          update({ [key]: checked === true })
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  <Choice
+                    label="Funding"
+                    value={view.funding}
+                    options={[
+                      ["any", "Any"],
+                      ["paying", "Paying longs"],
+                      ["costing", "Costing longs"],
+                      ["cheap", "Paying or near zero"],
+                    ]}
+                    onChange={(funding) =>
+                      update({ funding: funding as ExplorerView["funding"] })
+                    }
+                  />
+                  <Amount
+                    label="Max leverage at least"
+                    value={view.minimumLeverage}
+                    onChange={(minimumLeverage) => update({ minimumLeverage })}
+                  />
+                  <Choice
+                    label="Trading available"
+                    value={view.tradeable}
+                    options={[
+                      ["any", "Any"],
+                      ["yes", "Tradeable only"],
+                      ["no", "Test only"],
+                    ]}
+                    onChange={(tradeable) =>
+                      update({
+                        tradeable: tradeable as ExplorerView["tradeable"],
+                      })
+                    }
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => update(clearExplorerFilters(view))}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                View
+                <ChevronDownIcon />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <ScrollArea viewportClassName="max-h-[65vh]">
+                <div className="grid gap-4 p-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={prefs.activeView}
+                      onValueChange={(id) =>
+                        change({
+                          ...prefs,
+                          activeView: id,
+                          current:
+                            id === "all"
+                              ? { ...DEFAULT_EXPLORER_VIEW }
+                              : prefs.views.find((one) => one.id === id)!.view,
+                        })
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label="Saved view"
+                        className="max-w-48"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All markets</SelectItem>
+                        {prefs.views.map((one) => (
+                          <SelectItem key={one.id} value={one.id}>
+                            {one.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost">
+                          View options
+                          <ChevronDownIcon />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setName("")
+                            setEditing("create")
+                          }}
+                        >
+                          Save view
+                        </DropdownMenuItem>
+                        {active && (
+                          <>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setName(active.name)
+                                setEditing("rename")
+                              }}
+                            >
+                              Rename view
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => setEditing("delete")}
+                            >
+                              Delete view
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Tabs
+                      value={view.layout}
+                      onValueChange={(layout) =>
+                        update({ layout: layout as ExplorerView["layout"] })
+                      }
+                    >
+                      <TabsList>
+                        <TabsTrigger value="table">Table</TabsTrigger>
+                        <TabsTrigger value="map">Map</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                  <div className="grid gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={view.liveSort}
+                        onCheckedChange={(liveSort) => update({ liveSort })}
+                      />
+                      Live sort
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={view.groupByCoin}
+                        onCheckedChange={(groupByCoin) =>
+                          update({ groupByCoin })
+                        }
+                      />
+                      Group by coin
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={view.arrivals}
+                        onCheckedChange={(arrivals) => update({ arrivals })}
+                      />
+                      Watch arrivals
+                    </label>
+                    {view.arrivals && (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Only while this page is open.
+                        </p>
+                        <Amount
+                          label="Notify when pace crosses N×"
+                          value={view.alertPace}
+                          onChange={(alertPace) => update({ alertPace })}
+                        />
+                      </>
+                    )}
+                    {view.layout === "map" && (
+                      <Choice
+                        label="Map move window"
+                        value={view.mapWindow}
+                        options={[
+                          ["5s", "5 seconds"],
+                          ["1m", "1 minute"],
+                          ["5m", "5 minutes"],
+                          ["24h", "24 hours"],
+                        ]}
+                        onChange={(mapWindow) =>
                           update({
-                            categories: checked
-                              ? [...view.categories, category]
-                              : view.categories.filter(
-                                  (one) => one !== category
-                                ),
+                            mapWindow: mapWindow as ExplorerView["mapWindow"],
                           })
                         }
                       />
-                      {category}
-                    </label>
-                  ))}
-                </div>
-                <Choice
-                  label="24h volume at least"
-                  value={
-                    [0, 1e6, 1e7, 1e8].includes(view.minimumVolume)
-                      ? String(view.minimumVolume)
-                      : "custom"
-                  }
-                  options={[
-                    ["0", "Any"],
-                    ["1000000", "$1m"],
-                    ["10000000", "$10m"],
-                    ["100000000", "$100m"],
-                    ["custom", "Custom"],
-                  ]}
-                  onChange={(value) =>
-                    update({
-                      minimumVolume: value === "custom" ? 1 : Number(value),
-                    })
-                  }
-                />
-                <Amount
-                  label="Minimum 24h volume in dollars"
-                  value={view.minimumVolume}
-                  onChange={(minimumVolume) => update({ minimumVolume })}
-                />
-                <Choice
-                  label="24h move direction"
-                  value={view.moveDirection}
-                  options={[
-                    ["either", "Either"],
-                    ["up", "Up"],
-                    ["down", "Down"],
-                  ]}
-                  onChange={(moveDirection) =>
-                    update({
-                      moveDirection:
-                        moveDirection as ExplorerView["moveDirection"],
-                    })
-                  }
-                />
-                <Amount
-                  label="24h move at least %"
-                  value={view.minimumMove}
-                  onChange={(minimumMove) => update({ minimumMove })}
-                />
-                <Choice
-                  label="Funding"
-                  value={view.funding}
-                  options={[
-                    ["any", "Any"],
-                    ["paying", "Paying longs"],
-                    ["costing", "Costing longs"],
-                    ["cheap", "Paying or near zero"],
-                  ]}
-                  onChange={(funding) =>
-                    update({ funding: funding as ExplorerView["funding"] })
-                  }
-                />
-                <Amount
-                  label="Max leverage at least"
-                  value={view.minimumLeverage}
-                  onChange={(minimumLeverage) => update({ minimumLeverage })}
-                />
-                <Choice
-                  label="Trading available"
-                  value={view.tradeable}
-                  options={[
-                    ["any", "Any"],
-                    ["yes", "Tradeable only"],
-                    ["no", "Test only"],
-                  ]}
-                  onChange={(tradeable) =>
-                    update({
-                      tradeable: tradeable as ExplorerView["tradeable"],
-                    })
-                  }
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => update(clearExplorerFilters(view))}
-                >
-                  Clear filters
-                </Button>
-              </div>
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline">
-              Columns{" "}
-              <ChevronDownIcon
-                aria-hidden="true"
-                className="text-muted-foreground"
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80">
-            <ScrollArea viewportClassName="max-h-[65vh]">
-              <div className="grid gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Exchange and Market always show.
-                </p>
-                {[
-                  ...view.columns,
-                  ...EXPLORER_COLUMNS.filter(
-                    (column) => !view.columns.includes(column)
-                  ),
-                ]
-                  .filter(
-                    (column) =>
-                      column !== "openInterestUsd" ||
-                      venues.some((venue) => venue.catalog?.picker.openInterest)
-                  )
-                  .map((column) => (
-                    <div key={column} className="flex items-center gap-2">
-                      <label className="flex flex-1 items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={view.columns.includes(column)}
-                          onCheckedChange={(checked) => {
-                            const columns = checked
-                              ? [...view.columns, column]
-                              : view.columns.filter((one) => one !== column)
-                            const sort =
-                              view.sort === column && !checked
-                                ? "volume24hUsd"
-                                : view.sort
-                            if (
-                              sort === "volume24hUsd" &&
-                              !columns.includes(sort)
+                    )}
+                  </div>
+
+                  <div className="border-t pt-3">
+                    <Label>Columns</Label>
+                    <div className="grid gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        Exchange and Market always show.
+                      </p>
+                      {[
+                        ...view.columns,
+                        ...EXPLORER_COLUMNS.filter(
+                          (column) => !view.columns.includes(column)
+                        ),
+                      ]
+                        .filter(
+                          (column) =>
+                            column !== "openInterestUsd" ||
+                            venues.some(
+                              (venue) => venue.catalog?.picker.openInterest
                             )
-                              columns.push(sort)
-                            update({ columns, sort })
-                          }}
-                        />
-                        {EXPLORER_LABELS[column]}
-                      </label>
-                      {view.columns.includes(column) && (
-                        <>
-                          {[-1, 1].map((step) => (
-                            <Button
-                              key={step}
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Move ${EXPLORER_LABELS[column]} ${step < 0 ? "left" : "right"}`}
-                              onClick={() => {
-                                const columns = [...view.columns]
-                                const index = columns.indexOf(column)
-                                const target = index + step
-                                if (target < 0 || target >= columns.length)
-                                  return
-                                ;[columns[index], columns[target]] = [
-                                  columns[target],
-                                  columns[index],
-                                ]
-                                update({ columns })
-                              }}
-                            >
-                              {step < 0 ? <ArrowUpIcon /> : <ArrowDownIcon />}
-                            </Button>
-                          ))}
-                        </>
-                      )}
+                        )
+                        .map((column) => (
+                          <div key={column} className="flex items-center gap-2">
+                            <label className="flex flex-1 items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={view.columns.includes(column)}
+                                onCheckedChange={(checked) => {
+                                  const columns = checked
+                                    ? [...view.columns, column]
+                                    : view.columns.filter(
+                                        (one) => one !== column
+                                      )
+                                  const sort =
+                                    view.sort === column && !checked
+                                      ? "volume24hUsd"
+                                      : view.sort
+                                  if (
+                                    sort === "volume24hUsd" &&
+                                    !columns.includes(sort)
+                                  )
+                                    columns.push(sort)
+                                  update({ columns, sort })
+                                }}
+                              />
+                              {EXPLORER_LABELS[column]}
+                            </label>
+                            {view.columns.includes(column) && (
+                              <>
+                                {[-1, 1].map((step) => (
+                                  <Button
+                                    key={step}
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Move ${EXPLORER_LABELS[column]} ${step < 0 ? "left" : "right"}`}
+                                    onClick={() => {
+                                      const columns = [...view.columns]
+                                      const index = columns.indexOf(column)
+                                      const target = index + step
+                                      if (
+                                        target < 0 ||
+                                        target >= columns.length
+                                      )
+                                        return
+                                      ;[columns[index], columns[target]] = [
+                                        columns[target],
+                                        columns[index],
+                                      ]
+                                      update({ columns })
+                                    }}
+                                  >
+                                    {step < 0 ? (
+                                      <ArrowUpIcon />
+                                    ) : (
+                                      <ArrowDownIcon />
+                                    )}
+                                  </Button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        ))}
                     </div>
-                  ))}
-              </div>
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
-        <div className="flex w-full flex-wrap items-center gap-4 pt-2 text-muted-foreground xl:ml-auto xl:w-auto xl:border-l xl:pt-0 xl:pl-4">
-          <label className="flex h-8 items-center gap-2 text-sm">
-            <Switch
-              checked={view.liveSort}
-              onCheckedChange={(liveSort) => update({ liveSort })}
-            />
-            Live sort
-          </label>
-          <label className="flex h-8 items-center gap-2 text-sm">
-            <Switch
-              checked={view.groupByCoin}
-              onCheckedChange={(groupByCoin) => update({ groupByCoin })}
-            />
-            Group by coin
-          </label>
-        </div>
-      </div>
+                  </div>
+                  {status}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+        </DashboardToolbarControls>
+      </DashboardToolbar>
       <FormDialog
         open={editing === "create" || editing === "rename"}
         dirty={name !== (editing === "rename" ? (active?.name ?? "") : "")}

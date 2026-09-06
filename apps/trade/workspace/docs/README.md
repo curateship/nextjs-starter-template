@@ -33,7 +33,8 @@ screen: anything not written there has not been agreed yet.
   the five-market limit, narrow screens and the pending member-access decision.
 
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
-  saved views, grouping, folder stars and the Moving now widget.
+  standard table header, saved views, grouping, folder stars, discovery filters,
+  pins, map, first-seen migration verification, audit coverage and the Moving now widget.
 - `pnl-page.md` — the P&L page at `/pnl`: the whole Journal read-only, the
   month grid on the Toronto clock, the three period windows, the five pattern
   groupings, what the AI score sends to the model and how long it is kept.

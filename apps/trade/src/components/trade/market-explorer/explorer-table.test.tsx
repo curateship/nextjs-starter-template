@@ -263,3 +263,145 @@ it("fills pages from markets that still match when live figures remove earlier r
   expect(host.querySelector("tbody a")?.textContent).toBe("COIN9")
   expect(host.querySelectorAll("tr[aria-rowindex]")).toHaveLength(10)
 })
+
+it("pins selected markets ahead of the sort and lets the same selection unpin them", async () => {
+  const changeView = vi.fn()
+  const view = {
+    ...DEFAULT_EXPLORER_VIEW,
+    columns: ["price" as const],
+    sort: "price" as const,
+  }
+  const rows = [row(1), row(2)]
+  await draw(rows, { view, changeView })
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Select COIN1 on Aster"]')!
+      .click()
+  )
+  await act(async () =>
+    [...host.querySelectorAll("button")]
+      .find((button) => button.textContent === "Pin selected")!
+      .click()
+  )
+  const pinned = changeView.mock.calls.at(-1)![0] as ExplorerView
+  expect(pinned.pins).toEqual([rows[0].key])
+  await draw(rows, { view: pinned, changeView })
+  expect(host.querySelector('a[data-market-index="0"]')?.textContent).toBe(
+    "COIN1"
+  )
+  expect(host.textContent).toContain("Pinned")
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Select COIN1 on Aster"]')!
+      .click()
+  )
+  await act(async () =>
+    [...host.querySelectorAll("button")]
+      .find((button) => button.textContent === "Unpin selected")!
+      .click()
+  )
+  expect(changeView.mock.calls.at(-1)![0].pins).toEqual([])
+})
+
+it("shows both wallet sizes and leaves missing funding at the end of either sort", async () => {
+  const { sortExplorerRows } = await import("./explorer-rows")
+  const held = {
+    ...row(1),
+    holdings: [
+      { wallet: "One", size: 2 },
+      { wallet: "Two", size: 3 },
+    ],
+    fundingHourly: 0.0001,
+  }
+  const missing = row(2)
+  const view = {
+    ...DEFAULT_EXPLORER_VIEW,
+    columns: ["longDaily" as const],
+    sort: "longDaily" as const,
+  }
+  await draw([held, missing], { view })
+  expect(host.textContent).toContain("Held 5 coins")
+  expect(
+    host.querySelector('[title="One: 2 coins held; Two: 3 coins held"]')
+  ).not.toBeNull()
+  for (const direction of ["asc", "desc"] as const)
+    expect(
+      sortExplorerRows([held, missing], { ...view, direction }).at(-1)?.key
+    ).toBe(missing.key)
+})
+
+it("filters folders and owned coins without merging ambiguous listings", async () => {
+  const { explorerRows } = await import("./explorer-rows")
+  const { MarketHistory } = await import("@/lib/trade/market-history")
+  const one = { ...row(1), symbol: "BTC" }
+  const duplicate = { ...row(2), symbol: "BTC" }
+  const venue = {
+    ...one.venue,
+    catalog: {
+      protocol: "aster",
+      protocolLabel: "Aster",
+      network: "mainnet",
+      rows: [one, duplicate],
+      picker: { funding: true, openInterest: true },
+    } as unknown as import("@/lib/protocols/contracts").MarketCatalog,
+  }
+  const folders = {
+    aster: [
+      {
+        id: "folder",
+        name: "Shortlist",
+        isFav: false,
+        position: 1,
+        hidden: false,
+        marketKeys: [one.key],
+      },
+    ],
+  }
+  const marks = [{ marketKey: one.key, wallet: "One", size: 2 }]
+  const filtered = explorerRows(
+    [venue],
+    new Map(),
+    new MarketHistory(),
+    Date.now(),
+    { ...DEFAULT_EXPLORER_VIEW, onlyMine: true, folder: "Shortlist" },
+    { folders, marks }
+  )
+  expect(filtered.map((market) => market.key)).toEqual([one.key])
+  const all = explorerRows(
+    [venue],
+    new Map(),
+    new MarketHistory(),
+    Date.now(),
+    DEFAULT_EXPLORER_VIEW,
+    { folders, marks }
+  )
+  expect(all.find((market) => market.key === duplicate.key)?.holdings).toEqual(
+    []
+  )
+})
+
+it("omits quiet badges on stock and forex rows because stillness does not establish session status", async () => {
+  const { explorerRows } = await import("./explorer-rows")
+  const { MarketHistory } = await import("@/lib/trade/market-history")
+  const history = new MarketHistory()
+  const market = row(1)
+  for (let second = 0; second <= 600; second++)
+    history.sample(market.key, 1_000_000 + second * 1000, 10, 100)
+  for (const category of ["crypto", "stocks", "forex"] as const) {
+    const venue = {
+      ...market.venue,
+      catalog: {
+        rows: [{ ...market, category }],
+        picker: { funding: true, openInterest: false },
+      } as unknown as import("@/lib/protocols/contracts").MarketCatalog,
+    }
+    const rows = explorerRows(
+      [venue],
+      new Map(),
+      history,
+      1_600_000,
+      DEFAULT_EXPLORER_VIEW
+    )
+    expect(rows[0].quiet).toBe(category === "crypto")
+  }
+})

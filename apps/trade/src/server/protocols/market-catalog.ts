@@ -5,6 +5,8 @@ import type {
 } from "@/lib/protocols/contracts"
 import { getProtocol } from "@/server/protocols/registry"
 
+import { recordMarketFirstSeen } from "@/server/trade/market-first-seen"
+
 const MARKET_CATALOG_TTL_MS = 60_000
 
 type CachedCatalog = {
@@ -34,10 +36,25 @@ export function loadRawMarketCatalog(
   if (remembered && remembered.expiresAt > now) return remembered.answer
 
   const protocol = getProtocol(protocolId)
-  const answer = protocol.markets.fetch(network).catch((error: unknown) => {
-    if (catalogs.get(key)?.answer === answer) catalogs.delete(key)
-    throw error
-  })
+  const answer = protocol.markets
+    .fetch(network)
+    .then(async (catalog) => {
+      try {
+        const firstSeen = await recordMarketFirstSeen(
+          catalog.rows.map((row) => row.key)
+        )
+        return { ...catalog, firstSeen }
+      } catch {
+        return {
+          ...catalog,
+          firstSeenError: "First-seen dates could not be saved or loaded.",
+        }
+      }
+    })
+    .catch((error: unknown) => {
+      if (catalogs.get(key)?.answer === answer) catalogs.delete(key)
+      throw error
+    })
   catalogs.set(key, { expiresAt: now + MARKET_CATALOG_TTL_MS, answer })
   return answer
 }

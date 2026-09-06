@@ -1,3 +1,4 @@
+import { DiscoverySoundSettings } from "./market-explorer/discovery-sound-settings"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -41,6 +42,7 @@ export default function TradeSoundSettings() {
   return (
     <CardGroup>
       <TradeSoundSettingsCard />
+      <DiscoverySoundSettings />
       <LineAlertSettings />
     </CardGroup>
   )

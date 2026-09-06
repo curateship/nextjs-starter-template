@@ -1,5 +1,9 @@
 import * as React from "react"
 
+import { Checkbox } from "@/components/ui/checkbox"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { isSurging } from "@/lib/trade/market-discovery"
+import { ExplorerSparkline } from "./explorer-sparkline"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import { CautionBadge } from "@/components/trade/caution-badge"
 import { TradeBadge } from "@/components/trade/trade-badge"
@@ -75,7 +79,9 @@ function ExplorerSortButton({
       liveSort:
         sort === view.sort
           ? view.liveSort
-          : sort.startsWith("move") || sort.startsWith("traded"),
+          : sort === "pace" ||
+            sort.startsWith("move") ||
+            sort.startsWith("traded"),
     })
   }, [sort, direction, view, changeView])
   return (
@@ -90,6 +96,26 @@ function ExplorerSortButton({
   )
 }
 function Figure({ row, column }: { row: ExplorerRow; column: ExplorerColumn }) {
+  if (column === "sparkline") return <ExplorerSparkline marketKey={row.key} />
+  if (column === "folders")
+    return (
+      <span title={row.folders?.join(", ")}>
+        {row.folders?.join(", ") || "—"}
+      </span>
+    )
+  if (column === "listed")
+    return row.listed ? (
+      <span
+        title={`First seen by this app on ${new Date(row.listed).toLocaleDateString()}`}
+      >
+        {new Date(row.listed).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        })}
+      </span>
+    ) : (
+      "—"
+    )
   const value = explorerValue(row, column)
   if (value === null)
     return (
@@ -105,6 +131,17 @@ function Figure({ row, column }: { row: ExplorerRow; column: ExplorerColumn }) {
       </span>
     )
   const number = Number(value)
+  if (column === "pace")
+    return (
+      <span>
+        {number.toFixed(1)}× usual{" "}
+        {isSurging(row.volume24hUsd, row.windows[60]) && (
+          <TradeBadge>Surging</TradeBadge>
+        )}
+      </span>
+    )
+  if (column === "longDaily" || column === "shortDaily")
+    return <span className={moneyTone(number)}>{formatSignedUsd(number)}</span>
   if (column.startsWith("move")) {
     const seconds = column.endsWith("5s") ? 5 : column.endsWith("1m") ? 60 : 300
     return (
@@ -131,8 +168,10 @@ export function ExplorerTable({
   retry,
   folders,
   catalogVersion = "initial",
+  lastVisit = 0,
 }: {
   rows: ExplorerRow[]
+  lastVisit?: number
   catalogVersion?: string
   view: ExplorerView
   changeView: (view: ExplorerView) => void
@@ -141,6 +180,7 @@ export function ExplorerTable({
   retry: () => void
   folders: ReturnType<typeof useExplorerFolders>
 }) {
+  const selection = useSelection()
   const host = React.useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = React.useState({ top: 0, height: 600 })
   const [expanded, setExpanded] = React.useState(new Set<string>())
@@ -316,6 +356,40 @@ export function ExplorerTable({
         setHovered(false)
       }}
     >
+      {selection.selected.size > 0 && (
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              changeView({
+                ...view,
+                pins: [...new Set([...view.pins, ...selection.selected])],
+              })
+              selection.clear()
+            }}
+          >
+            Pin selected
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={
+              ![...selection.selected].some((key) => view.pins.includes(key))
+            }
+            onClick={() => {
+              changeView({
+                ...view,
+                pins: view.pins.filter((key) => !selection.selected.has(key)),
+              })
+              selection.clear()
+            }}
+          >
+            Unpin selected
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {view.pins.length} pinned
+          </span>
+        </div>
+      )}
       <div className="relative min-h-0 flex-1">
         <ScrollArea
           type="always"
@@ -324,12 +398,29 @@ export function ExplorerTable({
         >
           <Table
             containerClassName="overflow-visible pb-2.5"
-            className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-5 [&_td:last-child]:pr-5"
+            className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:last-child]:pr-5"
             aria-label="Markets"
             aria-rowcount={ordered.length + 1}
           >
             <TableHeader>
               <TableRow>
+                <TableHead className="sticky top-0 z-10 w-14 bg-muted px-5">
+                  <Checkbox
+                    aria-label="Select visible markets"
+                    checked={selection.selectAllState(
+                      ordered
+                        .filter((entry) => !entry.child)
+                        .map((entry) => rowIdentity(entry.row))
+                    )}
+                    onCheckedChange={() =>
+                      selection.toggleVisible(
+                        ordered
+                          .filter((entry) => !entry.child)
+                          .map((entry) => rowIdentity(entry.row))
+                      )
+                    }
+                  />
+                </TableHead>
                 <TableHead className="sticky top-0 z-10 w-28 bg-muted px-5 text-muted-foreground lg:w-40">
                   Exchange
                 </TableHead>
@@ -376,7 +467,7 @@ export function ExplorerTable({
             <TableBody>
               {!ordered.length ? (
                 <TableStateRow
-                  span={columns.length + 3}
+                  span={columns.length + 4}
                   loading={pending}
                   failed={failed}
                   loadingLabel="Loading markets…"
@@ -400,7 +491,7 @@ export function ExplorerTable({
                   {start > 0 && (
                     <tr aria-hidden="true">
                       <td
-                        colSpan={columns.length + 3}
+                        colSpan={columns.length + 4}
                         style={{ height: start * ROW_HEIGHT, padding: 0 }}
                       />
                     </tr>
@@ -422,6 +513,17 @@ export function ExplorerTable({
                             : undefined
                         }
                       >
+                        <TableCell column="actions" className="px-5 py-2">
+                          {!child && (
+                            <Checkbox
+                              aria-label={`Select ${row.symbol} on ${row.venue.protocolLabel}`}
+                              checked={selection.selected.has(rowIdentity(row))}
+                              onCheckedChange={() =>
+                                selection.toggle(rowIdentity(row))
+                              }
+                            />
+                          )}
+                        </TableCell>
                         <TableCell className="truncate px-5 py-2 text-muted-foreground">
                           {row.venue.protocolLabel}
                         </TableCell>
@@ -476,7 +578,38 @@ export function ExplorerTable({
                                 {row.caution && (
                                   <CautionBadge caution={row.caution} />
                                 )}
-                                {fresh && <TradeBadge>new</TradeBadge>}
+                                {fresh && <TradeBadge>Top ten</TradeBadge>}
+                                {view.pins.includes(rowIdentity(row)) && (
+                                  <TradeBadge>Pinned</TradeBadge>
+                                )}
+                                {row.quiet && <TradeBadge>Quiet</TradeBadge>}
+                                {!!lastVisit &&
+                                  !!row.listed &&
+                                  row.listed > lastVisit && (
+                                    <span title="First seen by this app since your last visit">
+                                      <TradeBadge>
+                                        New since your last visit
+                                      </TradeBadge>
+                                    </span>
+                                  )}
+                                {!!row.holdings?.length && (
+                                  <span
+                                    title={row.holdings
+                                      .map(
+                                        (mark) =>
+                                          `${mark.wallet}: ${mark.size === null ? "Waiting" : `${mark.size} coins held`}`
+                                      )
+                                      .join("; ")}
+                                  >
+                                    <TradeBadge>
+                                      {row.holdings.some(
+                                        (mark) => mark.size !== null
+                                      )
+                                        ? `Held ${row.holdings.reduce((sum, mark) => sum + Math.abs(mark.size ?? 0), 0)} coins`
+                                        : "Waiting"}
+                                    </TradeBadge>
+                                  </span>
+                                )}
                                 {row.children.length > 0 && !child && (
                                   <span title="Prices are compared per coin, after contract multipliers.">
                                     {row.children.length} exchanges · gap{" "}
@@ -510,7 +643,7 @@ export function ExplorerTable({
                   {end < ordered.length && (
                     <tr aria-hidden="true">
                       <td
-                        colSpan={columns.length + 3}
+                        colSpan={columns.length + 4}
                         style={{
                           height: (ordered.length - end) * ROW_HEIGHT,
                           padding: 0,
