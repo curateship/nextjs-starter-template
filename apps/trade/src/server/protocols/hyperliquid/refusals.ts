@@ -49,3 +49,13 @@ export function hyperliquidRefusalError(reason: string): Error {
     `Hyperliquid refused the request for a reason Trade does not recognize: ${safeReason}. Check Hyperliquid's status before trying again.`
   )
 }
+
+/** Recognize the same refusal before and after its plain-word translation. */
+export function isHyperliquidPostOnlyRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    /^(?:LIVE_EXCHANGE:|LIVE_ORDER_REFUSED:)/.test(message) &&
+    (hyperliquidRefusalCode(message) === "HYPERLIQUID_POST_ONLY" ||
+      message.endsWith(SENTENCES.HYPERLIQUID_POST_ONLY))
+  )
+}

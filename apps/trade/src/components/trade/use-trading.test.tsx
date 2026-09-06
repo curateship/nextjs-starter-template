@@ -26,9 +26,17 @@ const api = vi.hoisted(() => ({
   reconcileLiveSmartOrders: vi.fn(),
   showErrorToast: vi.fn(),
   toastSuccess: vi.fn(),
+  toastInfo: vi.fn(),
+  toastDismiss: vi.fn(),
 }))
 
-vi.mock("sonner", () => ({ toast: { success: api.toastSuccess } }))
+vi.mock("sonner", () => ({
+  toast: {
+    success: api.toastSuccess,
+    info: api.toastInfo,
+    dismiss: api.toastDismiss,
+  },
+}))
 
 vi.mock("@/lib/api/trade/live", () => ({
   cancelLiveOrder: vi.fn(),
@@ -183,6 +191,8 @@ beforeEach(() => {
   api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
   api.showErrorToast.mockReset()
+  api.toastInfo.mockReset().mockReturnValue("retry-toast")
+  api.toastDismiss.mockReset()
   api.toastSuccess.mockReset()
   host = document.createElement("div")
   root = createRoot(host)
@@ -855,5 +865,79 @@ describe("editing a watched order", () => {
       tpPx: 110,
       slPx: 85,
     })
+  })
+})
+
+describe("post-only retry notices", () => {
+  function answer(retrying = true) {
+    return {
+      ...emptyLiveAnswer,
+      smartOrders: [
+        {
+          id: "watch-retry",
+          kind: "watch",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          status: "active",
+          flowRunId: null,
+          createdAt: Date.now() - 1000,
+          updatedAt: Date.now(),
+          plan: readWatchPlan({
+            triggerPx: 95,
+            side: "buy",
+            sz: 1,
+            leverage: 1,
+            maxLeverage: 50,
+            sizeDecimals: 3,
+            tpPx: null,
+            slPx: null,
+            phase: "taking",
+          }),
+        },
+      ],
+      refusals: [
+        {
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          at: Date.now(),
+          retrying,
+          note: retrying
+            ? "Trade is checking the price and trying again."
+            : "The order is paused.",
+        },
+      ],
+    }
+  }
+  it("shows progress once and dismisses it after acceptance without dismissing other errors", async () => {
+    api.loadLiveTrading.mockResolvedValue(answer())
+    await finishFirstRead()
+    expect(api.toastInfo).toHaveBeenCalledWith(
+      "BTC: Trade is checking the price and trying again.",
+      { duration: Infinity }
+    )
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+    await act(async () => {
+      latest?.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.toastInfo).toHaveBeenCalledTimes(1)
+    api.loadLiveTrading.mockResolvedValue({ ...answer(), refusals: [] })
+    await act(async () => {
+      latest?.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.toastDismiss).toHaveBeenCalledWith("retry-toast")
+    expect(latest?.refusals.size).toBe(0)
+  })
+  it("replaces progress with an error when repeated refusals pause the order", async () => {
+    api.loadLiveTrading.mockResolvedValue(answer())
+    await finishFirstRead()
+    api.loadLiveTrading.mockResolvedValue(answer(false))
+    await act(async () => {
+      latest?.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.toastDismiss).toHaveBeenCalledWith("retry-toast")
+    expect(api.showErrorToast).toHaveBeenCalledWith("The order is paused.")
   })
 })

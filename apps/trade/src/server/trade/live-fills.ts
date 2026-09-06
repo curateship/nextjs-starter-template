@@ -1,4 +1,16 @@
-import { and, desc, eq, gt, inArray, like, lt, sql } from "drizzle-orm"
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  inArray,
+  like,
+  lt,
+  sql,
+  or,
+  notExists,
+} from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import {
   marketChartHref,
@@ -865,11 +877,13 @@ export async function loadLiveRefusals(
   walletIds: readonly string[]
 ): Promise<LiveRefusal[]> {
   if (walletIds.length === 0) return []
+  const later = alias(tradeLiveJournal, "later_order_result")
   const rows = await db
     .select({
       walletId: tradeLiveJournal.walletId,
       marketKey: tradeLiveJournal.marketKey,
       note: tradeLiveJournal.note,
+      action: tradeLiveJournal.action,
       createdAt: tradeLiveJournal.createdAt,
     })
     .from(tradeLiveJournal)
@@ -877,7 +891,26 @@ export async function loadLiveRefusals(
       and(
         eq(tradeLiveJournal.userId, userId),
         inArray(tradeLiveJournal.walletId, [...walletIds]),
-        eq(tradeLiveJournal.action, "refused"),
+        inArray(tradeLiveJournal.action, ["refused", "retrying"]),
+        // Only progress notices clear on acceptance. A separate protection
+        // failure must not disappear because an entry was accepted later.
+        or(
+          eq(tradeLiveJournal.action, "refused"),
+          notExists(
+            db
+              .select({ id: later.id })
+              .from(later)
+              .where(
+                and(
+                  eq(later.userId, tradeLiveJournal.userId),
+                  eq(later.walletId, tradeLiveJournal.walletId),
+                  eq(later.marketKey, tradeLiveJournal.marketKey),
+                  inArray(later.action, ["placed", "fill"]),
+                  gt(later.createdAt, tradeLiveJournal.createdAt)
+                )
+              )
+          )
+        ),
         gt(
           tradeLiveJournal.createdAt,
           new Date(Date.now() - REFUSAL_SHOWN_FOR_MS)
@@ -908,6 +941,7 @@ export async function loadLiveRefusals(
       // regex on a handful of rows.
       note: scrubSecrets(row.note),
       at: row.createdAt.getTime(),
+      ...(row.action === "retrying" ? { retrying: true } : {}),
     })
   }
   return [...newest.values()]

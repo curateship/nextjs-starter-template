@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto"
+import { isHyperliquidPostOnlyRefusal } from "@/server/protocols/hyperliquid/refusals"
+import { forgetHyperliquidPrice } from "@/server/protocols/hyperliquid/prices"
+import { POST_ONLY_RETRY } from "@/server/trade/smart-order-pause"
 
 import { and, eq, sql } from "drizzle-orm"
 
@@ -292,6 +295,8 @@ export async function placeLiveOrder(
     slPx: number | null
     /** Stay passive; refuse instead of turning into an instant fill. */
     restingOnly?: boolean
+    /** The watched-order engine owns safe retries and their progress notice. */
+    retryPostOnly?: boolean
     /** Fill at the fresh venue price and keep out of the resting-order path. */
     marketOnly?: boolean
     /** A smart order is skipped if the fresh quote left its trigger level. */
@@ -372,6 +377,7 @@ export async function placeLiveOrder(
     const marketable =
       input.marketOnly || isMarketable(input.side, input.px, mark)
     if (input.restingOnly && marketable) {
+      if (input.retryPostOnly) throw new Error(POST_ONLY_RETRY)
       throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
     }
     const entryPx = marketable ? mark : input.px
@@ -491,6 +497,20 @@ export async function placeLiveOrder(
     })()
     return outcome
   } catch (error) {
+    if (
+      input.restingOnly &&
+      input.retryPostOnly &&
+      ((error instanceof Error && error.message === POST_ONLY_RETRY) ||
+        (row.protocol === "hyperliquid" && isHyperliquidPostOnlyRefusal(error)))
+    ) {
+      if (row.protocol === "hyperliquid") {
+        const ref = checkedMarket(row, input.marketKey)
+        forgetHyperliquidPrice(row.network, ref.marketId)
+      }
+      dropEngineExchangeReads(row)
+      // The engine records progress only after restoring its saved plan.
+      throw new Error(POST_ONLY_RETRY)
+    }
     if (
       error instanceof Error &&
       (error.message === "LIVE_SMART_ORDER_PRICE_MOVED" ||

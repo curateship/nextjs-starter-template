@@ -123,8 +123,8 @@ screen: anything not written there has not been agreed yet.
 - `take-profit-levels.md` — how one position banks profit at up to three fixed
   prices, and how the app replaces, reads and fills those targets safely.
 - `part-close.md` — selling some of a position instead of all of it: why a part
-  is chased as a maker where all of it is not, what the window asks, and what
-  happens to the stop on the rest.
+  is chased as a maker where all of it is not, safe retries after a refused
+  waiting price, progress notices, and what happens to the stop on the rest.
 - `stopping-flow-ladders.md` — how Stop finds every ladder a flow owns, cancels
   real exchange orders, blocks a coin hunt already in flight, and reports a
   coin the exchange would not cancel.

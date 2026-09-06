@@ -28,7 +28,18 @@ type Mids = z.infer<typeof midsSchema>
  * Two seconds is far inside the 3% cap a market order carries anyway.
  */
 const MIDS_CACHE_MS = 2_000
-const midsCache = new Map<string, { at: number; answer: Promise<Mids | null> }>()
+const midsCache = new Map<
+  string,
+  { at: number; answer: Promise<Mids | null> }
+>()
+
+/** A refused passive price must not be reused by the next engine pass. */
+export function forgetHyperliquidPrice(
+  network: NetworkId,
+  marketId: string
+): void {
+  midsCache.delete(`${network}:${dexOf(marketId)}`)
+}
 
 /**
  * How long "it was a rate limit" is worth remembering, in ms.
@@ -51,7 +62,10 @@ const rationedAt = new Map<string, number>()
  * screen as "the exchange would not give a price for this coin", sending
  * somebody hunting for a delisted market that was trading perfectly well.
  */
-export function pricesWereRationed(network: NetworkId, marketId: string): boolean {
+export function pricesWereRationed(
+  network: NetworkId,
+  marketId: string
+): boolean {
   const at = rationedAt.get(`${network}:${dexOf(marketId)}`)
   return at !== undefined && Date.now() - at < WHY_REMEMBERED_MS
 }

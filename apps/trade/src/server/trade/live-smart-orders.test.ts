@@ -38,6 +38,8 @@ import {
   resetRowFailureHolds,
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
+import { loadLiveRefusals } from "@/server/trade/live-fills"
+import { POST_ONLY_RETRY_NOTE, POST_ONLY_PAUSED_NOTE } from "@/lib/trade/live"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
 import { cancelLiveOrder, placeLiveOrder } from "@/server/trade/live-orders"
@@ -3105,5 +3107,168 @@ describe("which refusals promise nothing stood", () => {
 
   it("keeps not trusting an ambiguous transport failure", () => {
     expect(nothingStood(new Error("LIVE_EXCHANGE:fetch failed"))).toBe(false)
+  })
+})
+
+describe("post-only watch recovery", () => {
+  const rejected = new Error(
+    "LIVE_EXCHANGE:Hyperliquid says this post-only order would trade straight away. Move it behind the current best price and try again."
+  )
+  const position = {
+    marketId: "BTC",
+    szi: 4,
+    entryPx: 90,
+    leverage: 1,
+    marginUsed: 360,
+    liquidationPx: null,
+    targets: [],
+    tpPx: null,
+    tpSz: null,
+    tpOrderId: null,
+    slPx: null,
+    slOrderId: null,
+    protectionOrderIds: [],
+  }
+  async function startClose() {
+    await watchThroughTheLevel({
+      maker: true,
+      reduceOnly: true,
+      side: "sell",
+      sz: 1,
+      heldAtStart: 4,
+      phase: "taking",
+    })
+    portfolio.mockResolvedValue({ positions: [position], orders: [] })
+  }
+  async function nextPass() {
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    dropEngineExchangeReads(wallet)
+    await reconcileLiveLadders(userId, wallet)
+  }
+  it("retries a refused part close at a fresh price and stops after its fill", async () => {
+    await startClose()
+    place.mockRejectedValueOnce(rejected).mockResolvedValueOnce({
+      status: "resting",
+      orderId: "accepted-close",
+      avgPx: null,
+      filledSz: null,
+      protection: null,
+      protectionNote: null,
+    })
+    await nextPass()
+    expect(await watchPlanNow()).toMatchObject({
+      sent: false,
+      orderId: null,
+      refusalStreak: 1,
+    })
+    expect(await loadLiveRefusals(userId, [wallet.id])).toEqual([
+      expect.objectContaining({ retrying: true, note: POST_ONLY_RETRY_NOTE }),
+    ])
+    prices.mockResolvedValue(new Map([["BTC", 101]]))
+    await nextPass()
+    expect(place).toHaveBeenCalledTimes(2)
+    expect(place.mock.calls[1][2]).toMatchObject({
+      kind: "postOnly",
+      reduceOnly: true,
+      sz: 1,
+    })
+    expect(place.mock.calls[1][2].px).toBeGreaterThan(place.mock.calls[0][2].px)
+    expect(await watchPlanNow()).toMatchObject({
+      orderId: "accepted-close",
+      sent: true,
+      refusalStreak: 0,
+    })
+    // The placement journal is intentionally written behind the answer.
+    await vi.waitFor(async () =>
+      expect(await loadLiveRefusals(userId, [wallet.id])).toEqual([])
+    )
+    portfolio.mockResolvedValue({
+      positions: [{ ...position, szi: 3 }],
+      orders: [],
+    })
+    await nextPass()
+    expect(place).toHaveBeenCalledTimes(2)
+    const [row] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    expect(row.status).toBe("done")
+  })
+  it("retries a price rejected locally without sending the stale order", async () => {
+    await startClose()
+    prices
+      .mockResolvedValueOnce(new Map([["BTC", 100]]))
+      .mockResolvedValueOnce(new Map([["BTC", 102]]))
+    await nextPass()
+    expect(place).not.toHaveBeenCalled()
+    expect(await watchPlanNow()).toMatchObject({
+      sent: false,
+      refusalStreak: 1,
+    })
+    expect((await loadLiveRefusals(userId, [wallet.id]))[0]).toMatchObject({
+      retrying: true,
+    })
+  })
+  it("pauses and reports persistent post-only refusals after five attempts", async () => {
+    await insertWorkspace(database, { userId })
+    await startClose()
+    place.mockRejectedValue(rejected)
+    for (let attempt = 0; attempt < 5; attempt++) await nextPass()
+    expect(await watchPlanNow()).toMatchObject({
+      paused: true,
+      refusalStreak: 5,
+      pauseReason: POST_ONLY_PAUSED_NOTE,
+    })
+    const [refusal] = await loadLiveRefusals(userId, [wallet.id])
+    expect(refusal.note).toBe(POST_ONLY_PAUSED_NOTE)
+    expect(refusal.retrying).not.toBe(true)
+    await nextPass()
+    expect(place).toHaveBeenCalledTimes(5)
+  })
+  it("retries a refused replacement only after the old order was cancelled", async () => {
+    await chasingWatch()
+    place.mockRejectedValueOnce(rejected).mockResolvedValueOnce({
+      status: "resting",
+      orderId: "replacement",
+      avgPx: null,
+      filledSz: null,
+    })
+    await nextPass()
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(await watchPlanNow()).toMatchObject({ sent: false, orderId: null })
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+    await nextPass()
+    expect(place).toHaveBeenCalledTimes(2)
+    expect(await watchPlanNow()).toMatchObject({
+      sent: true,
+      orderId: "replacement",
+    })
+  })
+  it("does not place a replacement when cancellation is unconfirmed", async () => {
+    await chasingWatch()
+    cancel.mockRejectedValue(new Error("LIVE_EXCHANGE:fetch failed"))
+    await nextPass()
+    expect(place).not.toHaveBeenCalled()
+    expect(await watchPlanNow()).toMatchObject({ sent: true })
+  })
+  it("does not repeat a part close after an ambiguous placement failure or a partial fill", async () => {
+    await startClose()
+    place.mockRejectedValue(new Error("LIVE_EXCHANGE:fetch failed"))
+    await nextPass()
+    expect(await watchPlanNow()).toMatchObject({ sent: true, orderId: null })
+    await nextPass()
+    portfolio.mockResolvedValue({
+      positions: [{ ...position, szi: 3.5 }],
+      orders: [],
+    })
+    await nextPass()
+    expect(place).toHaveBeenCalledTimes(1)
+    expect((await loadLiveRefusals(userId, [wallet.id]))[0].retrying).not.toBe(
+      true
+    )
   })
 })

@@ -191,10 +191,14 @@ export async function advanceWatch(
   // person calls the watch off. Placing here instead is how one $50 watch
   // bought $150 of coin on 20 Aug 2026.
   //
-  // A part close never reaches this guard. Its missing order number stays
-  // attached until the whole requested piece has left the position, because
-  // a partial fill does not prove the order's unfilled remainder is gone.
-  if (plan.orderId === null && plan.sent && !plan.maker) {
+  // A part close can also lose the placement response before receiving an
+  // order number. Wait for the whole requested piece before considering it
+  // done; a partial fill may still have an unfilled remainder on the book.
+  if (
+    plan.orderId === null &&
+    plan.sent &&
+    (!plan.maker || floorSize(partCloseRemaining, plan.sizeDecimals) > 0)
+  ) {
     if (changed) await deps.saveLadder(row, "active", now)
     return
   }

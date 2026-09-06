@@ -277,17 +277,23 @@ The chase only ever sends post-only orders, and a market that moves into one
 between the price read and the send is refused by the exchange rather than
 filled as a taker. That refusal is normal; the next pass simply asks again.
 
-What decides whether the watch survives it is `nothingStood` in
-`live-smart-orders.ts`: the short list of exchange answers trusted to mean
-"nothing was kept", which clear the watch's money-was-sent flag so it can act
-again. Hyperliquid says this refusal two ways — as an order status on a plain
-place, and wrapped in "Error placing new order during modify" when the chase
-moved an order — and both are on the list. The second was not until
-23 Aug 2026, and the untrusted wording left a reached ETH watch frozen for
-good: flag raised, no order anywhere, and nothing left that could clear it.
-Any answer NOT on the list still freezes the watch on purpose, because a
-timeout mid-order may have filled, and spending again on top of that fill is
-worse than standing still.
+The watched-order placement path recognizes Hyperliquid's original rejection
+and its translated sentence. It also recognizes a stale waiting price refused
+locally before any request was sent. Those confirmed refusals clear the attempt
+and invalidate the cached Hyperliquid price. The next engine pass calculates a
+new waiting price, without converting the order to a market order or restoring
+a cancelled order at its old price.
+
+The watched row and popup say the order is still trying. Acceptance clears that
+progress notice. Five consecutive refusals pause the order and produce an error,
+using the same limit as other order refusals. An accepted send resets the count.
+`part-close.md` explains the same handling when selling part of a position.
+
+An unknown placement result still keeps the sent flag. A timeout may have
+filled, so another order could buy or sell twice. A part close follows that rule
+too, including after a partial fill whose remaining order is still unaccounted
+for. A cancellation that the exchange has not confirmed never authorizes a
+replacement.
 
 ### A level refused five times running pauses, and stays on its own rows
 
