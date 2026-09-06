@@ -1,6 +1,14 @@
-import { eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
+import { createHash } from "node:crypto"
+import {
+  CANDLE_INTERVALS,
+  type CandleInterval,
+} from "@/lib/protocols/contracts"
 
-import { backtestSpecFromFlow } from "@/lib/trade/backtest/flow"
+import {
+  backtestSpecFromFlow,
+  type BacktestSpec,
+} from "@/lib/trade/backtest/flow"
 import type { RecipeCompiledConfig } from "@/lib/recipes/compile"
 import { db, type CustomShellDb } from "@/server/db"
 import { createBacktest } from "@/server/trade/backtest/store"
@@ -27,6 +35,7 @@ export type StartOutcome =
       started: true
       alreadyStarted: boolean
       groupId: string
+      groupIds: string[]
       coins: number
       problem: null
     }
@@ -37,6 +46,7 @@ export type RecipeBacktestInput = {
   recipeName: string
   compiledConfig: RecipeCompiledConfig
   idempotencyKey: string
+  intervals?: CandleInterval[]
 }
 
 /** Starts one saved recipe backtest, once for each browser press. */
@@ -46,15 +56,48 @@ export async function startBacktestForRecipe(
   now: number,
   database: CustomShellDb = db
 ): Promise<StartOutcome> {
-  const [existing] = await database
-    .select({ id: tradeBacktestGroups.id })
-    .from(tradeBacktestGroups)
-    .where(eq(tradeBacktestGroups.automationRunId, input.idempotencyKey))
-  if (existing) {
+  const selected =
+    input.intervals === undefined ? undefined : [...new Set(input.intervals)]
+  if (
+    selected &&
+    (selected.length === 0 ||
+      selected.some((size) => !CANDLE_INTERVALS.includes(size)))
+  ) {
+    return {
+      started: false,
+      groupId: null,
+      coins: 0,
+      problem: "Choose at least one supported candle size.",
+    }
+  }
+  const keyFor = (interval: CandleInterval) => {
+    const hex = createHash("sha256")
+      .update(
+        JSON.stringify([userId, input.recipeId, input.idempotencyKey, interval])
+      )
+      .digest("hex")
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+  }
+  // Read every possible size so retrying the press cannot add a changed selection.
+  const pressKeys = [input.idempotencyKey, ...CANDLE_INTERVALS.map(keyFor)]
+  const findExisting = () =>
+    database
+      .select({ id: tradeBacktestGroups.id })
+      .from(tradeBacktestGroups)
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, userId),
+          eq(tradeBacktestGroups.automationId, input.recipeId),
+          inArray(tradeBacktestGroups.automationRunId, pressKeys)
+        )
+      )
+  const existing = await findExisting()
+  if (existing.length) {
     return {
       started: true,
       alreadyStarted: true,
-      groupId: existing.id,
+      groupId: existing[0].id,
+      groupIds: existing.map((row) => row.id),
       coins: 0,
       problem: null,
     }
@@ -83,34 +126,58 @@ export async function startBacktestForRecipe(
       }
     }
   }
-  const read = backtestSpecFromFlow(input.compiledConfig, resolvedFolder)
-  if (!read.spec) {
-    return { started: false, groupId: null, coins: 0, problem: read.problem }
+  const specs: BacktestSpec[] = []
+  for (const interval of selected ?? [undefined]) {
+    const read = backtestSpecFromFlow(
+      input.compiledConfig,
+      resolvedFolder,
+      interval
+    )
+    if (!read.spec) {
+      return {
+        started: false,
+        groupId: null,
+        coins: 0,
+        problem: interval ? `${interval}: ${read.problem}` : read.problem,
+      }
+    }
+    specs.push(read.spec)
   }
-  // Every coin is tested on its history source, and once: a folder holding
-  // BTC on Lighter and BTC on Aster tests Binance's BTC one time. A market
-  // no source covers keeps its own key and the venue's own history.
-  read.spec.markets.marketKeys = await sourceKeysFor(
-    read.spec.markets.marketKeys
-  )
+  const keys = await sourceKeysFor(specs[0].markets.marketKeys)
+  for (const spec of specs) spec.markets.marketKeys = keys
 
   try {
-    const created = await createBacktest(
-      userId,
-      {
-        automationId: input.recipeId,
-        automationName: input.recipeName,
-        idempotencyKey: input.idempotencyKey,
-        spec: read.spec,
-        now,
-      },
-      database
-    )
+    // A failed insert or invalid window rolls the whole set back.
+    const created = await database.transaction(async (tx) => {
+      const groups = []
+      for (const spec of specs) {
+        groups.push(
+          await createBacktest(
+            userId,
+            {
+              automationId: input.recipeId,
+              automationName: input.recipeName,
+              name: selected
+                ? `${input.recipeName}, ${spec.interval}`
+                : undefined,
+              idempotencyKey: selected
+                ? keyFor(spec.interval)
+                : input.idempotencyKey,
+              spec,
+              now,
+            },
+            tx
+          )
+        )
+      }
+      return groups
+    })
     return {
       started: true,
       alreadyStarted: false,
-      groupId: created.groupId,
-      coins: created.coins,
+      groupId: created[0].groupId,
+      groupIds: created.map((row) => row.groupId),
+      coins: created[0].coins,
       problem: null,
     }
   } catch (error) {
@@ -124,15 +191,13 @@ export async function startBacktestForRecipe(
       }
     }
     if (isUniqueViolation(error)) {
-      const [duplicate] = await database
-        .select({ id: tradeBacktestGroups.id })
-        .from(tradeBacktestGroups)
-        .where(eq(tradeBacktestGroups.automationRunId, input.idempotencyKey))
-      if (duplicate) {
+      const duplicates = await findExisting()
+      if (duplicates.length) {
         return {
           started: true,
           alreadyStarted: true,
-          groupId: duplicate.id,
+          groupId: duplicates[0].id,
+          groupIds: duplicates.map((row) => row.id),
           coins: 0,
           problem: null,
         }

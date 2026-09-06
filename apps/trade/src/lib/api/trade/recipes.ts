@@ -1,3 +1,7 @@
+import {
+  CANDLE_INTERVALS,
+  type CandleInterval,
+} from "@/lib/protocols/contracts"
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
@@ -76,7 +80,14 @@ const saveSchema = recipeIdSchema.extend({
   graph: automationGraphSchema,
 })
 const renameSchema = recipeIdSchema.extend({ name: nameSchema })
-const runSchema = recipeIdSchema.extend({ pressId: z.string().uuid() })
+const runSchema = recipeIdSchema.extend({
+  pressId: z.string().uuid(),
+  intervals: z
+    .array(z.enum(CANDLE_INTERVALS))
+    .min(1)
+    .max(CANDLE_INTERVALS.length)
+    .optional(),
+})
 
 const recipeErrorMessages: Record<string, string> = {
   NOT_FOUND: "That recipe no longer exists.",
@@ -192,6 +203,7 @@ const runRecipeFn = createServerFn({ method: "POST" })
       workspaceId: await workspaceIdForRequest(context.user.id),
       recipeId: data.recipeId,
       pressId: data.pressId,
+      intervals: data.intervals,
       now: Date.now(),
     })
   )
@@ -228,8 +240,12 @@ export function deleteRecipes(recipeIds: string[]) {
   return deleteRecipesFn({ data: { recipeIds } })
 }
 
-export function runRecipe(recipeId: string, pressId: string) {
-  return runRecipeFn({ data: { recipeId, pressId } })
+export function runRecipe(
+  recipeId: string,
+  pressId: string,
+  intervals?: CandleInterval[]
+) {
+  return runRecipeFn({ data: { recipeId, pressId, intervals } })
 }
 
 function serializeRecipe(row: TradeRecipe): RecipeDetail {

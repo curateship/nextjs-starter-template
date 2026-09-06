@@ -154,6 +154,7 @@ export async function createBacktest(
   input: {
     automationId: string
     automationName: string
+    name?: string
     /** One browser press. The unique index makes retrying that press safe. */
     idempotencyKey?: string | null
     spec: BacktestSpec
@@ -186,6 +187,7 @@ export async function createBacktest(
       id: groupId,
       automationId: input.automationId,
       automationName: input.automationName,
+      name: input.name ?? null,
       automationRunId: input.idempotencyKey ?? null,
       spec: snapshotOf(input.spec, window),
       createdAt: new Date(input.now),

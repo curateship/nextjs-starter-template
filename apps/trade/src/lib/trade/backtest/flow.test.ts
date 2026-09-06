@@ -49,6 +49,29 @@ const ladder = {
 }
 
 describe("a flow that is a backtest", () => {
+  it("overrides the candle size without changing the recipe", () => {
+    const config = flowOf({ a: wallet, b: markets, c: ladder })
+    const before = structuredClone(config)
+    const read = backtestSpecFromFlow(config, undefined, "1h")
+    expect(read.spec?.interval).toBe("1h")
+    expect(read.spec?.strategy).toMatchObject({
+      kind: "dca",
+      dca: { interval: "1h" },
+    })
+    expect(config).toEqual(before)
+  })
+
+  it("does not offer other sizes for the fixed 4h Grid", () => {
+    const config = flowOf({
+      a: wallet,
+      b: markets,
+      c: { kind: tradeGridNode.kind, settings: tradeGridNode.createSettings() },
+    })
+    expect(backtestSpecFromFlow(config, undefined, "1h").problem).toContain(
+      "only supports 4h"
+    )
+  })
+
   it("reads all three steps off it", () => {
     const read = backtestSpecFromFlow(
       flowOf({ a: wallet, b: markets, c: ladder })

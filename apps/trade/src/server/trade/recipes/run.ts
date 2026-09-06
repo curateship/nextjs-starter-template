@@ -1,3 +1,4 @@
+import type { CandleInterval } from "@/lib/protocols/contracts"
 import { and, eq } from "drizzle-orm"
 
 import { tradeDcaNode } from "@/lib/recipes/trade-dca"
@@ -23,6 +24,7 @@ type RecipeRunInput = {
   workspaceId: string
   recipeId: string
   pressId: string
+  intervals?: CandleInterval[]
   now: number
 }
 
@@ -168,6 +170,7 @@ async function runLockedWorkspaceRecipe(
         recipeName: recipe.name,
         compiledConfig: compiled.data,
         idempotencyKey: input.pressId,
+        intervals: input.intervals,
       },
       input.now,
       database
@@ -185,7 +188,16 @@ async function runLockedWorkspaceRecipe(
     return {
       started: true,
       mode: "backtest",
-      summary: `Backtest started over ${outcome.coins} ${plural(outcome.coins, "coin", "coins")}. It carries on in the background.`,
+      summary: `${outcome.groupIds.length > 1 ? `${outcome.groupIds.length} backtests started` : "Backtest started"} over ${outcome.coins} ${plural(outcome.coins, "coin", "coins")}. It carries on in the background.`,
+    }
+  }
+
+  if (input.intervals !== undefined) {
+    return {
+      started: false,
+      mode: "trades",
+      summary:
+        "Set the Wallet step to pretend money before starting backtests.",
     }
   }
 

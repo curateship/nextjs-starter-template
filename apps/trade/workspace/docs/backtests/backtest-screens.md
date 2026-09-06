@@ -122,3 +122,40 @@ migration or backtest rerun is needed to show durations on saved runs.
 - Download and engine failures retain the existing retry and failure rules.
   A failure that stops the whole run can leave the same error on several coins.
   The screen displays the saved evidence without inventing a separate cause.
+
+## Several candle sizes from one press
+
+The recipe canvas Backtest panel has a Candle sizes checklist on desktop and
+narrow screens. The strategy's
+own size starts checked. DCA and Signals offer 1m, 5m, 15m, 1h, 4h and 1d.
+Grid offers only its fixed 4h size. Selecting sizes does not edit the strategy.
+Changing the strategy's own size resets the checklist to that size.
+
+Each row estimates the candles needed for the recipe's coin count and date
+window, including the base history used by the existing memory check. These
+are workload estimates, not a promise of new downloads. Cached history is
+reused. A folder's displayed count is an estimate; the server resolves its
+current contents when the run starts.
+
+Backtest saves the recipe before starting one named run per checked size,
+such as "My recipe, 1h" and "My recipe, 4h". View all backtests opens the list
+where those runs appear as separate rows. Each run has its own result page.
+The panel continues to show the newest run's progress and result.
+
+An empty selection reports an error. A size that exceeds the memory budget
+refuses the whole selection and names the size. No rows are created for the
+other sizes. All rows are inserted in one transaction, so a database failure
+also leaves no partial set. Each size has a separate identifier derived from
+the same button press. Retrying that press returns the existing set, including
+when the submitted selection changed. A later intentional press starts a new
+set. A failed network request keeps its press identifier for a retry with the
+same recipe and selection.
+
+This control starts backtests only. If the saved Wallet step now names a
+trading wallet, the request is refused instead of switching on trading.
+
+To check the workflow, select 1h, 4h and 1d on a pretend-money DCA recipe and
+press Backtest once. Follow View all backtests and check the three names.
+Reload the list and open each result to check its candle size. Then choose
+an oversized small-candle window and confirm that the refusal names the size
+and creates no rows. Clear all checkboxes to check the empty-selection error.

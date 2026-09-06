@@ -1,3 +1,14 @@
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import type { CandleInterval } from "@/lib/protocols/contracts"
+import type { RecipeCompiledConfig } from "@/lib/recipes/compile"
+import { backtestIntervalsFromFlow } from "@/lib/trade/backtest/flow"
+import {
+  candlesPerCoin,
+  windowDays,
+  tradeMarketsNode,
+  tradeMarketsSettingsSchema,
+} from "@/lib/recipes/trade-markets"
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { FlaskConicalIcon, Loader2Icon, XIcon } from "lucide-react"
@@ -56,9 +67,44 @@ export default function BacktestCanvasPanel({
   runId,
   onClose,
   beforeRun,
+  compiledConfig,
 }: AutomationCanvasPanelProps & {
   beforeRun?: () => Promise<boolean>
+  compiledConfig?: RecipeCompiledConfig | null
 }) {
+  const sizes = compiledConfig
+    ? backtestIntervalsFromFlow(compiledConfig)
+    : null
+  const selectionKey = `${automationId}:${sizes?.initial}:${sizes?.allowed.join(",")}`
+  const [selection, setSelection] = React.useState<{
+    key: string
+    values: CandleInterval[]
+  } | null>(null)
+  const intervals = sizes
+    ? selection?.key === selectionKey
+      ? selection.values
+      : [sizes.initial]
+    : undefined
+  const marketStep =
+    compiledConfig &&
+    Object.values(compiledConfig.nodes).find(
+      (node) => node.kind === tradeMarketsNode.kind
+    )
+  const marketSettings = marketStep
+    ? tradeMarketsSettingsSchema.safeParse(marketStep.settings)
+    : null
+  const estimate = marketSettings?.success
+    ? {
+        days: windowDays(marketSettings.data),
+        coins: marketSettings.data.folderId
+          ? marketSettings.data.folderCount
+          : marketSettings.data.marketKeys.length,
+      }
+    : null
+  const pressPending = React.useRef(false)
+  const retryPress = React.useRef<{ signature: string; id: string } | null>(
+    null
+  )
   const navigate = useNavigate()
   const [run, setRun] = React.useState<Run | null>(null)
   /**
@@ -504,6 +550,67 @@ export default function BacktestCanvasPanel({
             </p>
           )}
 
+          {sizes && intervals ? (
+            <fieldset
+              className="grid gap-2"
+              disabled={running}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <legend className="mb-2 text-xs font-medium">Candle sizes</legend>
+              {sizes.allowed.map((interval) => {
+                const id = `backtest-${automationId}-${interval}`
+                const each = estimate
+                  ? candlesPerCoin(interval, estimate.days)
+                  : null
+                return (
+                  <div key={interval} className="flex items-center gap-2">
+                    <Checkbox
+                      id={id}
+                      checked={intervals.includes(interval)}
+                      onCheckedChange={(checked) => {
+                        setSelection({
+                          key: selectionKey,
+                          values: sizes.allowed.filter((size) =>
+                            size === interval
+                              ? checked === true
+                              : intervals.includes(size)
+                          ),
+                        })
+                      }}
+                    />
+                    <Label
+                      htmlFor={id}
+                      className="flex flex-1 justify-between gap-2 text-xs"
+                    >
+                      {interval}
+                      {each !== null ? (
+                        <span className="text-muted-foreground">
+                          About{" "}
+                          {(estimate?.coins == null
+                            ? each
+                            : each * estimate.coins
+                          ).toLocaleString()}{" "}
+                          candles{estimate?.coins == null ? " per coin" : ""}
+                        </span>
+                      ) : null}
+                    </Label>
+                  </div>
+                )
+              })}
+              <p className="text-xs text-muted-foreground">
+                {intervals.length}{" "}
+                {plural(intervals.length, "backtest", "backtests")}, one per
+                size. Candle counts are estimates; cached history is reused.
+              </p>
+              <Link
+                to="/backtests"
+                className={cn("text-xs underline", focusRing)}
+              >
+                View all backtests
+              </Link>
+            </fieldset>
+          ) : null}
+
           {/* Starting a backtest belongs with the last backtest's result, not
               out in the header beside the buttons that trade real money. It is
               the same act as reading this panel — run it, read it, adjust,
@@ -531,6 +638,12 @@ export default function BacktestCanvasPanel({
                   // The card itself opens the full run page when clicked, and a
                   // button inside it must not do both.
                   event.stopPropagation()
+                  if (pressPending.current) return
+                  if (intervals?.length === 0) {
+                    showErrorToast("Choose at least one candle size.")
+                    return
+                  }
+                  pressPending.current = true
                   // Remembered before the request goes out, so the next read can
                   // tell a new run from the one already on screen.
                   runIdWhenPressed.current = run?.id ?? null
@@ -542,10 +655,22 @@ export default function BacktestCanvasPanel({
                         setStarting(false)
                         return
                       }
+                      const signature = JSON.stringify([
+                        automationId,
+                        compiledConfig,
+                        intervals,
+                      ])
+                      if (retryPress.current?.signature !== signature)
+                        retryPress.current = {
+                          signature,
+                          id: crypto.randomUUID(),
+                        }
                       const outcome = await runRecipe(
                         automationId,
-                        crypto.randomUUID()
+                        retryPress.current.id,
+                        intervals
                       )
+                      retryPress.current = null
                       if (!outcome.started) {
                         setStarting(false)
                         setRunProblem(outcome.summary)
@@ -555,6 +680,8 @@ export default function BacktestCanvasPanel({
                     } catch (error) {
                       setStarting(false)
                       showErrorToast(getRecipeErrorMessage(error))
+                    } finally {
+                      pressPending.current = false
                     }
                   })()
                 }}

@@ -1,5 +1,9 @@
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  CANDLE_INTERVALS,
+  type CandleInterval,
+  parseMarketKey,
+} from "@/lib/protocols/contracts"
 import {
   tradeDcaNode,
   tradeDcaSettingsSchema,
@@ -82,7 +86,8 @@ function stepsOfKind(config: AutomationCompiledConfig, kind: string) {
  */
 export function backtestSpecFromFlow(
   config: AutomationCompiledConfig,
-  resolvedFolder?: Pick<MarketFolder, "id" | "name" | "marketKeys">
+  resolvedFolder?: Pick<MarketFolder, "id" | "name" | "marketKeys">,
+  selectedInterval?: CandleInterval
 ): BacktestSpecResult {
   const wallets = stepsOfKind(config, tradeWalletNode.kind)
   const markets = stepsOfKind(config, tradeMarketsNode.kind)
@@ -250,19 +255,24 @@ export function backtestSpecFromFlow(
     }
   }
 
-  const interval = dca?.success
+  const recipeInterval = dca?.success
     ? dca.data.interval
     : signal?.success
       ? signal.data.interval
       : grid?.success
         ? ("4h" as const)
         : null
-  if (interval === null) {
+  if (recipeInterval === null) {
     return {
       spec: null,
       problem: "Add a DCA ladder, Signals, or Grid step after the markets.",
     }
   }
+
+  if (selectedInterval && grid?.success && selectedInterval !== "4h") {
+    return { spec: null, problem: "The Grid step only supports 4h candles." }
+  }
+  const interval = selectedInterval ?? recipeInterval
 
   // Any exchange's coins may sit on one list now: each is tested on its
   // history source, and the run start maps them there. Only a practice
@@ -281,7 +291,7 @@ export function backtestSpecFromFlow(
   const dates = windowProblem(market.data)
   if (dates !== null) return { spec: null, problem: dates }
 
-  if (market.data.folderId) {
+  if (market.data.folderId && selectedInterval === undefined) {
     market.data.marketKeys = trimMarketsToFit(
       market.data,
       interval,
@@ -337,6 +347,7 @@ export function backtestSpecFromFlow(
             kind: "dca",
             dca: {
               ...dca.data,
+              interval,
               params: {
                 ...dca.data.params,
                 anchor: "base" as const,
@@ -351,7 +362,7 @@ export function backtestSpecFromFlow(
               // buy spends, and how far it follows — and the replay models its
               // resting orders the way it models every other one.
               kind: "signals",
-              signals: signal.data,
+              signals: { ...signal.data, interval },
             }
           : {
               kind: "emaGrid",
@@ -360,4 +371,25 @@ export function backtestSpecFromFlow(
     },
     problem: null,
   }
+}
+
+/** The sizes supported by the drawn strategy, before a run is requested. */
+export function backtestIntervalsFromFlow(config: AutomationCompiledConfig) {
+  for (const node of Object.values(config.nodes)) {
+    if (node.kind === tradeGridNode.kind) {
+      return {
+        initial: "4h" as CandleInterval,
+        allowed: ["4h"] as readonly CandleInterval[],
+      }
+    }
+    const parsed =
+      node.kind === tradeDcaNode.kind
+        ? tradeDcaSettingsSchema.safeParse(node.settings)
+        : node.kind === tradeSignalsNode.kind
+          ? tradeSignalsSettingsSchema.safeParse(node.settings)
+          : null
+    if (parsed?.success)
+      return { initial: parsed.data.interval, allowed: CANDLE_INTERVALS }
+  }
+  return null
 }

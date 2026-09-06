@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { tradeDcaNode } from "@/lib/recipes/trade-dca"
 import {
@@ -27,6 +27,10 @@ import {
   flowStrategyProblem,
   runWorkspaceRecipe,
 } from "@/server/trade/recipes/run"
+
+vi.mock("@/server/trade/history-source", () => ({
+  resolveHistorySource: async (key: string) => key,
+}))
 
 const NOW = 1_700_000_000_000
 
@@ -71,6 +75,116 @@ describe("reading the Grid strategy from a flow", () => {
 
   afterEach(async () => {
     await client.close()
+  })
+
+  async function savedDca(days = 30, count = 1) {
+    const user = await insertUser(database)
+    const workspace = await insertWorkspace(database, { userId: user.id })
+    const config = compiled()
+    config.nodes.strategy = {
+      kind: tradeDcaNode.kind,
+      settings: tradeDcaNode.createSettings(),
+    }
+    config.nodes.markets.settings = {
+      ...tradeMarketsNode.createSettings(),
+      days,
+      marketKeys: Array.from(
+        { length: count },
+        (_, i) => `binance:mainnet:C${i}`
+      ),
+    }
+    await database.insert(tradeRecipes).values({
+      id: "batch-recipe",
+      userId: user.id,
+      workspaceId: workspace.id,
+      name: "Batch recipe",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: config,
+      createdAt: new Date(NOW),
+      updatedAt: new Date(NOW),
+    })
+    return {
+      user,
+      input: {
+        workspaceId: workspace.id,
+        recipeId: "batch-recipe",
+        pressId: "00000000-0000-4000-8000-000000000010",
+        now: NOW,
+      },
+    }
+  }
+
+  it("starts three named sizes atomically and does not duplicate a retried press", async () => {
+    const { user, input } = await savedDca()
+    const intervals = ["1h", "4h", "1d"] as const
+    expect(
+      (
+        await runWorkspaceRecipe(
+          user.id,
+          { ...input, intervals: [...intervals] },
+          database
+        )
+      ).started
+    ).toBe(true)
+    const first = await database.select().from(tradeBacktestGroups)
+    expect(first.map((row) => row.name).sort()).toEqual([
+      "Batch recipe, 1d",
+      "Batch recipe, 1h",
+      "Batch recipe, 4h",
+    ])
+    expect(first.map((row) => row.spec.interval).sort()).toEqual(
+      [...intervals].sort()
+    )
+    expect(new Set(first.map((row) => row.automationRunId)).size).toBe(3)
+    await runWorkspaceRecipe(
+      user.id,
+      { ...input, intervals: ["1h", "4h", "1d", "15m"] },
+      database
+    )
+    expect(await database.select().from(tradeBacktestGroups)).toHaveLength(3)
+  })
+
+  it("refuses the entire set when one size exceeds the candle budget", async () => {
+    const { user, input } = await savedDca(365, 100)
+    const outcome = await runWorkspaceRecipe(
+      user.id,
+      { ...input, intervals: ["4h", "1m"] },
+      database
+    )
+    expect(outcome.started).toBe(false)
+    expect(outcome.summary).toContain("1m:")
+    expect(outcome.summary).toContain("Pick at most")
+    expect(await database.select().from(tradeBacktestGroups)).toHaveLength(0)
+  })
+
+  it("rolls back earlier sizes if a later insert fails", async () => {
+    const { user, input } = await savedDca()
+    await client.exec(`
+      CREATE FUNCTION reject_daily_backtest() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.spec->>'interval' = '1d' THEN RAISE EXCEPTION 'test insert failure'; END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER reject_daily BEFORE INSERT ON trade_backtest_groups
+      FOR EACH ROW EXECUTE FUNCTION reject_daily_backtest();
+    `)
+    await expect(
+      runWorkspaceRecipe(
+        user.id,
+        { ...input, intervals: ["1h", "1d"] },
+        database
+      )
+    ).rejects.toThrow()
+    expect(await database.select().from(tradeBacktestGroups)).toHaveLength(0)
+  })
+
+  it("rejects an empty selection without starting a group", async () => {
+    const { user, input } = await savedDca()
+    expect(
+      (await runWorkspaceRecipe(user.id, { ...input, intervals: [] }, database))
+        .started
+    ).toBe(false)
+    expect(await database.select().from(tradeBacktestGroups)).toHaveLength(0)
   })
 
   it("reads Grid as the flow's one strategy", () => {

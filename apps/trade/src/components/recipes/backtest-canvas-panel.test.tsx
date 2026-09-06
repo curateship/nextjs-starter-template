@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { tradeDcaNode } from "@/lib/recipes/trade-dca"
+import { tradeMarketsNode } from "@/lib/recipes/trade-markets"
+import { tradeWalletNode } from "@/lib/recipes/trade-wallet"
 
 import { act } from "react"
 import { createRoot } from "react-dom/client"
@@ -37,6 +40,73 @@ vi.mock("@/lib/api/trade/recipes", () => ({
 }))
 
 describe("the backtest canvas panel", () => {
+  it("defaults to the recipe size and submits three checked sizes", async () => {
+    runRecipe.mockClear()
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        <BacktestCanvasPanel
+          automationId="batch"
+          runId={null}
+          onClose={() => {}}
+          compiledConfig={{
+            v: 1,
+            kind: "automation",
+            edges: [],
+            nodes: {
+              wallet: {
+                kind: tradeWalletNode.kind,
+                settings: tradeWalletNode.createSettings(),
+              },
+              markets: {
+                kind: tradeMarketsNode.kind,
+                settings: {
+                  ...tradeMarketsNode.createSettings(),
+                  marketKeys: ["binance:mainnet:BTC"],
+                },
+              },
+              strategy: {
+                kind: tradeDcaNode.kind,
+                settings: tradeDcaNode.createSettings(),
+              },
+            },
+          }}
+        />
+      )
+    )
+    expect(
+      host.querySelector("#backtest-batch-4h")?.getAttribute("aria-checked")
+    ).toBe("true")
+    expect(
+      host.querySelector("#backtest-batch-1h")?.getAttribute("aria-checked")
+    ).toBe("false")
+    await act(async () => {
+      ;(host.querySelector("#backtest-batch-1h") as HTMLElement).click()
+    })
+    await act(async () => {
+      ;(host.querySelector("#backtest-batch-1d") as HTMLElement).click()
+    })
+    expect(host.textContent).toContain("3 backtests, one per size")
+    expect(host.textContent).toContain("candles")
+    const button = [...host.querySelectorAll("button")].find(
+      (one) => one.textContent?.trim() === "Backtest"
+    )!
+    await act(async () => {
+      button.click()
+      button.click()
+    })
+    expect(runRecipe).toHaveBeenCalledTimes(1)
+    expect(runRecipe).toHaveBeenCalledWith("batch", expect.any(String), [
+      "1h",
+      "4h",
+      "1d",
+    ])
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("shows the Backtest button for a pretend-money flow", async () => {
     const host = document.createElement("div")
     document.body.append(host)
@@ -104,7 +174,8 @@ describe("the backtest canvas panel", () => {
       "grid-flow",
       expect.stringMatching(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-      )
+      ),
+      undefined
     )
 
     await act(async () => root.unmount())

@@ -362,6 +362,28 @@ export function RecipeEditor({
     />
   )
 
+  const backtestPanel = backtestShut ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="absolute top-3 right-3 z-10 shadow-sm"
+      onClick={() => setBacktestShut(false)}
+    >
+      Backtest
+    </Button>
+  ) : (
+    <div className="absolute top-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)]">
+      <BacktestCanvasPanel
+        automationId={initial.id}
+        runId={null}
+        onClose={() => setBacktestShut(true)}
+        beforeRun={saveNow}
+        compiledConfig={compiled.config}
+      />
+    </div>
+  )
+
   const workspace = desktop ? (
     <ResizablePanelGroup
       key={horizontalLayout.layoutKey}
@@ -398,26 +420,7 @@ export function RecipeEditor({
           {canvasHeader}
           <div className="relative flex min-h-0 flex-1">
             {canvas}
-            {backtestShut ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="absolute top-3 right-3 z-10 shadow-sm"
-                onClick={() => setBacktestShut(false)}
-              >
-                Backtest
-              </Button>
-            ) : (
-              <div className="absolute top-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)]">
-                <BacktestCanvasPanel
-                  automationId={initial.id}
-                  runId={null}
-                  onClose={() => setBacktestShut(true)}
-                  beforeRun={saveNow}
-                />
-              </div>
-            )}
+            {backtestPanel}
             {paletteCollapsed ? (
               <PanelReopenTab
                 side="left"
@@ -457,7 +460,10 @@ export function RecipeEditor({
   ) : (
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       {canvasHeader}
-      {canvas}
+      <div className="relative flex min-h-0 flex-1">
+        {canvas}
+        {backtestPanel}
+      </div>
     </WorkspacePanel>
   )
 

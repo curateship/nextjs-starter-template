@@ -88,3 +88,16 @@ prices come from.
   "Stocks: no funding in this run" and names them, instead of warning about a
   missing stretch. A Hyperliquid or Lighter stock perpetual does charge funding
   in real life; the run simply did not count it.
+
+## Several candle sizes
+
+The Backtest panel can request several sizes for the same saved recipe.
+The server checks the existing candle budget separately for every requested
+size before creating a run. One size over budget refuses the whole press,
+with that size in the explanation. The server resolves a folder once for the
+set and keeps the same coin list across its runs. Choosing a smaller candle
+never trims the folder to make that run fit.
+
+Every group then uses its ordinary engine and history-loading path. The
+memory check applies per run, not to the sum of all queued runs. The worker's
+existing scheduling is unchanged.
