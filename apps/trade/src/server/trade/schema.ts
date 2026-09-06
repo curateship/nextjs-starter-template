@@ -213,6 +213,7 @@ export const tradePrefs = pgTable("trade_prefs", {
    */
   dashboardWidgets:
     jsonb("dashboard_widgets").$type<TradingDashboardWidgetLayout>(),
+  pinnedMarkets: jsonb("pinned_markets").$type<string[]>().notNull().default([]),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
   smartDca: jsonb("smart_dca").$type<DcaParams>(),

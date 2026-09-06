@@ -1,0 +1,190 @@
+// @vitest-environment jsdom
+import { act } from "react"
+import { createRoot } from "react-dom/client"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const api = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), userId: "" }))
+vi.mock("@/lib/api/trade/pinned-markets", () => ({
+  loadHeaderPinnedMarkets: api.load,
+  saveHeaderPinnedMarket: api.save,
+}))
+vi.mock("@tanstack/react-router", () => ({
+  getRouteApi: () => ({ useLoaderData: () => ({ user: { id: api.userId } }) }),
+  Link: ({
+    to,
+    children,
+    ...props
+  }: React.PropsWithChildren<{ to: string }>) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+}))
+vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
+import PinnedMarketsHeader from "@/components/trade/pinned-markets-header"
+import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+const key = (symbol: string) => `hyperliquid:mainnet:${symbol}`
+let host: HTMLDivElement
+let root: ReturnType<typeof createRoot>
+let pins: string[]
+let serial = 0
+const snapshot = () => ({
+  pins,
+  quotes: pins.map((key) => ({
+    key,
+    symbol: key.split(":")[2],
+    price: 61240,
+    change24h: 0.012,
+  })),
+})
+async function mount(symbol = "BTC") {
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <PinnedMarketsHeader role="admin" fallback={<a href="/home">Home</a>} />
+        <PinnedMarketButton marketKey={key(symbol)} />
+      </TooltipProvider>
+    )
+  })
+}
+async function click(label: string) {
+  const button = host.querySelector<HTMLButtonElement>(
+    `button[aria-label="${label}"]`
+  )
+  expect(button).not.toBeNull()
+  await act(async () => {
+    button!.click()
+  })
+}
+beforeEach(() => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.useFakeTimers()
+  vi.clearAllMocks()
+  api.userId = `pins-test-${++serial}`
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: "visible",
+  })
+  pins = []
+  api.load.mockImplementation(async () => snapshot())
+  api.save.mockImplementation(async (marketKey: string, pinned: boolean) => {
+    pins = pinned
+      ? [...pins, marketKey]
+      : pins.filter((pin) => pin !== marketKey)
+    return { pins, error: null }
+  })
+  host = document.createElement("div")
+  document.body.append(host)
+  root = createRoot(host)
+})
+afterEach(async () => {
+  await act(async () => root.unmount())
+  host.remove()
+  vi.useRealTimers()
+})
+
+describe("header market pins", () => {
+  it("loads a saved list once and waits for the next scheduled refresh", async () => {
+    pins = [key("BTC")]
+    await mount()
+    expect(api.load).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(api.load).toHaveBeenCalledTimes(2)
+  })
+  it("does not restore a removed pin when an older read finishes", async () => {
+    pins = [key("BTC")]
+    await mount()
+    const old = snapshot()
+    let finish!: (value: ReturnType<typeof snapshot>) => void
+    api.load.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    await click("Unpin BTC, hyperliquid, mainnet from header")
+    await act(async () => { finish(old) })
+    expect(host.querySelector('a[aria-label^="Open BTC"]')).toBeNull()
+    expect(host.textContent).toContain("Home")
+  })
+  it("shows Home with no pins, pins from the chart and unpins from the header", async () => {
+    await mount()
+    expect(host.textContent).toContain("Home")
+    await click("Pin to header")
+    expect(host.textContent).not.toContain("Home")
+    expect(host.textContent).toContain("$61,240")
+    expect(
+      host.querySelector('a[aria-label^="Open BTC"]')?.getAttribute("href")
+    ).toBe("/admin/hyper-liquid?market=hyperliquid%3Amainnet%3ABTC")
+    expect(
+      host
+        .querySelector('[aria-label="Unpin from header"]')
+        ?.getAttribute("aria-pressed")
+    ).toBe("true")
+    await click("Unpin BTC, hyperliquid, mainnet from header")
+    expect(host.textContent).toContain("Home")
+  })
+  it("names five existing pins when a sixth is attempted without saving", async () => {
+    pins = ["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key)
+    await mount("XRP")
+    await click("Pin to header")
+    expect(api.save).not.toHaveBeenCalled()
+    expect(showErrorToast).toHaveBeenCalledWith(
+      expect.stringContaining("BTC, ETH, SOL, DOGE, AVAX")
+    )
+  })
+  it("replaces failed prices with dashes and stops polling while hidden", async () => {
+    pins = [key("BTC")]
+    await mount()
+    api.load.mockRejectedValue(new Error("offline"))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000)
+    })
+    expect(host.textContent).not.toContain("$61,240")
+    expect(host.textContent).toContain("—")
+    const reads = api.load.mock.calls.length
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    })
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+      await vi.advanceTimersByTimeAsync(45000)
+    })
+    expect(api.load).toHaveBeenCalledTimes(reads)
+    api.load.mockImplementation(async () => snapshot())
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    })
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    expect(host.textContent).toContain("$61,240")
+  })
+  it("picks up pins changed by another browser on the next refresh", async () => {
+    pins = [key("BTC")]
+    await mount()
+    pins = [key("ETH")]
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000)
+    })
+    expect(host.querySelector('a[aria-label^="Open BTC"]')).toBeNull()
+    expect(host.querySelector('a[aria-label^="Open ETH"]')).not.toBeNull()
+  })
+  it("rolls a refused save back and leaves a retry for an initial read failure", async () => {
+    api.load.mockRejectedValueOnce(new Error("offline"))
+    await mount()
+    expect(host.textContent).toContain("Retry header pins")
+    await act(async () => {
+      ;[...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Retry header pins")!
+        .click()
+    })
+    api.save.mockRejectedValueOnce(new Error("offline"))
+    await click("Pin to header")
+    expect(host.textContent).toContain("Home")
+    expect(showErrorToast).toHaveBeenCalledWith(
+      "The header pin could not be saved. Try again."
+    )
+  })
+})
