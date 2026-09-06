@@ -210,15 +210,15 @@ describe("the session behind the range", () => {
     })
     // 09:30 to 16:00 New York on this day is 13:30 to 20:00 UTC. The last
     // candle inside it opens at 19:45, so the tint ends where that one does.
-    expect(tintsIn(orbIndicator.compute(candles, settings(), NEW_YORK))).toEqual(
-      [
-        {
-          fromTime: SESSION_ONE,
-          toTime: DAY_ONE + 20 * 60 * MINUTE,
-          price: null,
-        },
-      ]
-    )
+    expect(
+      tintsIn(orbIndicator.compute(candles, settings(), NEW_YORK))
+    ).toEqual([
+      {
+        fromTime: SESSION_ONE,
+        toTime: DAY_ONE + 20 * 60 * MINUTE,
+        price: null,
+      },
+    ])
   })
 
   it("shades a day whose opening range cannot honestly be drawn", () => {
@@ -246,7 +246,9 @@ describe("the session behind the range", () => {
       low: 104,
       close: 125,
     })
-    expect(orbIndicator.compute(candles, settings(), NEW_YORK).marks).toEqual([])
+    expect(orbIndicator.compute(candles, settings(), NEW_YORK).marks).toEqual(
+      []
+    )
 
     // The same candles with the session running all day do mark it.
     expect(
@@ -352,7 +354,9 @@ describe("an opening range that cannot honestly be drawn", () => {
       interval: "4h",
     })
     expect(paint).toEqual({ lines: [], dashes: [], marks: [], boxes: [] })
-    expect(orbIndicator.note?.(settings(), { zone: "UTC", interval: "4h" })).toBe(
+    expect(
+      orbIndicator.note?.(settings(), { zone: "UTC", interval: "4h" })
+    ).toBe(
       "A 15-minute range cannot be made out of 4h candles, so nothing is drawn. Put the chart on a shorter timeframe."
     )
   })
@@ -391,9 +395,7 @@ describe("an opening range that cannot honestly be drawn", () => {
     let candles = flat(DAY_ONE, 96)
     candles = poke(candles, SESSION_ONE, { high: 110, low: 100, close: 105 })
     // The second candle of a half-hour range never arrived.
-    candles = candles.filter(
-      (bar) => bar.openTime !== SESSION_ONE + QUARTER
-    )
+    candles = candles.filter((bar) => bar.openTime !== SESSION_ONE + QUARTER)
     expect(
       rangesIn(
         orbIndicator.compute(candles, settings({ rangeMinutes: 30 }), NEW_YORK)
@@ -521,9 +523,9 @@ describe("what the opening range shows and what it watches", () => {
 
     // Watching both, the close above at 09:45 is the break and the fall is
     // never reached.
-    expect(
-      orbIndicator.compute(candles, settings(), NEW_YORK).marks
-    ).toEqual([{ time: SESSION_ONE + QUARTER, price: 111, side: "up" }])
+    expect(orbIndicator.compute(candles, settings(), NEW_YORK).marks).toEqual([
+      { time: SESSION_ONE + QUARTER, price: 111, side: "up" },
+    ])
 
     // Watching only the down side, the close above is not a break at all, so
     // the fall an hour later is the one that gets the arrow.
@@ -537,6 +539,123 @@ describe("what the opening range shows and what it watches", () => {
   })
 })
 
+describe("volume on an opening range break", () => {
+  it("drops old volume from the comparison and never reads future volume", () => {
+    const candles = breaking(101)
+    const at = candles.findIndex(
+      (bar) => bar.openTime === SESSION_ONE + QUARTER
+    )
+    candles[at - 3].volume = 100_000
+    candles[at + 1].volume = 100_000
+    const filtered = orbIndicator.compute(
+      candles,
+      settings({ volumeFilter: true, volumePeriod: 2 }),
+      NEW_YORK
+    )
+    expect(filtered.marks).toHaveLength(1)
+    expect(filtered.boxes).toEqual(
+      orbIndicator.compute(candles, settings(), NEW_YORK).boxes
+    )
+  })
+
+  it("rejects a breaking candle with no volume", () => {
+    const candles: IndicatorCandle[] = breaking(101)
+    delete candles.find((bar) => bar.openTime === SESSION_ONE + QUARTER)!.volume
+    expect(
+      orbIndicator.compute(candles, settings({ volumeFilter: true }), NEW_YORK)
+        .marks
+    ).toEqual([])
+    expect(
+      orbIndicator.compute(candles, settings(), NEW_YORK).marks
+    ).toHaveLength(1)
+  })
+
+  function breaking(volume: number, side = "up") {
+    const candles = flat(DAY_ONE, 96).map((bar) => ({ ...bar, volume: 100 }))
+    const at = candles.findIndex(
+      (bar) => bar.openTime === SESSION_ONE + QUARTER
+    )
+    candles[at] = { ...candles[at], close: side === "up" ? 101 : 98, volume }
+    return candles
+  }
+
+  it.each([50, 100])(
+    "rejects volume %s against an average of 100",
+    (volume) => {
+      expect(
+        orbIndicator.compute(
+          breaking(volume),
+          settings({ volumeFilter: true }),
+          NEW_YORK
+        ).marks
+      ).toEqual([])
+    }
+  )
+
+  it.each(["up", "down"])("accepts above-average volume for %s", (side) => {
+    expect(
+      orbIndicator.compute(
+        breaking(101, side),
+        settings({ volumeFilter: true }),
+        NEW_YORK
+      ).marks
+    ).toEqual([
+      { time: SESSION_ONE + QUARTER, price: side === "up" ? 101 : 98, side },
+    ])
+  })
+
+  it("leaves a rejected break available for a later candle", () => {
+    const candles = breaking(50)
+    const later = candles.findIndex(
+      (bar) => bar.openTime === SESSION_ONE + 2 * QUARTER
+    )
+    candles[later] = { ...candles[later], close: 101, volume: 100 }
+    expect(
+      orbIndicator.compute(
+        candles,
+        settings({ volumeFilter: true, volumePeriod: 1 }),
+        NEW_YORK
+      ).marks
+    ).toEqual([{ time: SESSION_ONE + 2 * QUARTER, price: 101, side: "up" }])
+  })
+
+  it("keeps the original arrows when the filter is off", () => {
+    expect(
+      orbIndicator.compute(breaking(0), settings(), NEW_YORK).marks
+    ).toHaveLength(1)
+  })
+
+  it("requires a complete volume history and excludes the breaking candle", () => {
+    const candles = breaking(150).filter((bar) => bar.openTime >= SESSION_ONE)
+    expect(
+      orbIndicator.compute(candles, settings({ volumeFilter: true }), NEW_YORK)
+        .marks
+    ).toEqual([])
+    expect(
+      orbIndicator.compute(
+        candles,
+        settings({ volumeFilter: true, volumePeriod: 1 }),
+        NEW_YORK
+      ).marks
+    ).toHaveLength(1)
+  })
+
+  it.each([undefined, Number.NaN, -1])(
+    "rejects missing or invalid volume %s",
+    (volume) => {
+      const candles: IndicatorCandle[] = breaking(150)
+      candles.find((bar) => bar.openTime === SESSION_ONE)!.volume = volume
+      expect(
+        orbIndicator.compute(
+          candles,
+          settings({ volumeFilter: true }),
+          NEW_YORK
+        ).marks
+      ).toEqual([])
+    }
+  )
+})
+
 describe("what the opening range says about its own settings", () => {
   it("names the clock it is on, because that is not on this card", () => {
     expect(orbIndicator.note?.(settings(), NEW_YORK)).toBe(
@@ -545,9 +664,7 @@ describe("what the opening range says about its own settings", () => {
   })
 
   it("says why nothing is drawn when the range does not fit the candles", () => {
-    expect(
-      orbIndicator.note?.(settings({ rangeMinutes: 20 }), NEW_YORK)
-    ).toBe(
+    expect(orbIndicator.note?.(settings({ rangeMinutes: 20 }), NEW_YORK)).toBe(
       "20 minutes is not a whole number of 15m candles, so nothing is drawn. Pick a length these candles divide into."
     )
   })

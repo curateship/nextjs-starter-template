@@ -31,16 +31,18 @@ is called **Opening range**.
 
 ## Its settings
 
-| Setting | What it does |
-| --- | --- |
-| When the session starts | New York 09:30–16:00, London 08:00–16:30, Tokyo 09:00–15:00, Sydney 10:00–16:00, the whole day, or hours you choose. |
-| The session opens / shuts | Only read when the setting above says hours you choose. |
-| How long the opening range lasts | Minutes. 15 to begin with. |
-| Shade the session | The tint. |
-| Show the range box | The violet rectangle. |
-| Show the arrows | The arrows. |
-| Watch for breakouts | The up side. |
-| Watch for breakdowns | The down side. |
+| Setting                          | What it does                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| When the session starts          | New York 09:30–16:00, London 08:00–16:30, Tokyo 09:00–15:00, Sydney 10:00–16:00, the whole day, or hours you choose. |
+| The session opens / shuts        | Only read when the setting above says hours you choose.                                                              |
+| How long the opening range lasts | Minutes. 15 to begin with.                                                                                           |
+| Shade the session                | The tint.                                                                                                            |
+| Show the range box               | The violet rectangle.                                                                                                |
+| Show the arrows                  | The arrows.                                                                                                          |
+| Watch for breakouts              | The up side.                                                                                                         |
+| Watch for breakdowns             | The down side.                                                                                                       |
+| Volume filter                    | Off by default. A break needs more volume than the previous N candles' average.                                      |
+| Compared to the last N candles   | 20 by default, from 1 to 1,000 whole candles. Used only when the filter is on.                                       |
 
 **A session that shuts before it opens runs past midnight** — 22:00 to 05:00 is
 seven hours, not a negative number — and **one that shuts at the moment it opens
@@ -96,6 +98,28 @@ between its two kinds of switch, for the same reason.
 - **The forming candle is never counted.** The chart hands the indicator its
   closed candles only. A range that keeps changing shape is not a range.
 
+## Volume on the break
+
+With Volume filter on, the breaking candle must have strictly more volume than
+the plain average of the previous N candles. Equal volume does not pass. The
+breaking candle is excluded from its own average. The comparison includes
+candles before the session and uses the candles available in the chart history.
+
+The filter requires all N previous candles to have finite, non-negative volume.
+Missing or invalid volume on the breaking candle also prevents an arrow. Zero
+is valid volume. A rejected break leaves the session open for a later qualifying
+break in either enabled direction. The session tint and range box stay visible.
+
+On coarse charts, the comparison uses the same 15m candles that find the range.
+The shared indicator module applies the rule to market, backtest and run charts.
+The filter does not add trading signals. Any future ORB signals function must
+reuse the filtered breaks from this same calculation.
+
+To check the setting, open Chart menu, Indicators, then Opening range settings.
+Turn Volume filter on and save. A close outside the range with volume at or below
+the previous 20 candles' average loses its arrow. A later qualifying close may
+gain the session's arrow. Turn the filter off to restore the original arrows.
+
 ## The range on a coarse chart
 
 Hourly, four-hour and daily charts keep their own candles on screen but find the
@@ -115,4 +139,3 @@ put and the failure is reported with a retry.
   rule, which is how the Base indicator once ended up with the ladder following
   1,622 levels while the chart drew 1,387.
 - No stop and no targets off the range.
-- No volume filter on the break.

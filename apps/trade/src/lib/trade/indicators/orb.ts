@@ -62,6 +62,22 @@ const SESSION_OPTIONS: readonly IndicatorChoice[] = [
 
 export const ORB_FIELDS: IndicatorField[] = [
   {
+    key: "volumeFilter",
+    label: "Volume filter",
+    kind: "switch",
+    fallback: false,
+    hint: "Only mark a break when its candle has more volume than the average of the previous candles. A rejected break leaves the session open for a later qualifying break.",
+  },
+  {
+    key: "volumePeriod",
+    label: "Compared to the last N candles",
+    kind: "number",
+    min: 1,
+    max: 1_000,
+    fallback: 20,
+    hint: "Used when Volume filter is on. Excludes the breaking candle and includes candles before the session. All N candles must have volume data before an arrow can appear.",
+  },
+  {
     key: "session",
     label: "When the session starts",
     kind: "choice",
@@ -131,6 +147,8 @@ export const ORB_FIELDS: IndicatorField[] = [
 
 /** This indicator's settings, once read through the list above. */
 type OrbSettings = {
+  volumeFilter: boolean
+  volumePeriod: number
   session: string
   startTime: string
   endTime: string
@@ -147,6 +165,8 @@ function orbSettings(params: IndicatorParams): OrbSettings {
   // Safe by construction: the reader answers one value of the right shape for
   // every field in that list, whatever it was handed.
   return {
+    volumeFilter: read.volumeFilter as boolean,
+    volumePeriod: read.volumePeriod as number,
     session: read.session as string,
     startTime: read.startTime as string,
     endTime: read.endTime as string,
@@ -264,6 +284,35 @@ function orbPaint(
   const boxes: IndicatorBox[] = []
   const marks: IndicatorMark[] = []
 
+  // Use only the previous N candles, including history before the session.
+  // Missing volume invalidates its window rather than counting as zero.
+  const volumePass = new Array<boolean>(
+    settings.volumeFilter ? candles.length : 0
+  )
+  if (settings.volumeFilter) {
+    let total = 0
+    let valid = 0
+    const usable = (volume: number | undefined): volume is number =>
+      volume !== undefined && Number.isFinite(volume) && volume >= 0
+    for (let i = 0; i < candles.length; i += 1) {
+      const volume = candles[i].volume
+      volumePass[i] =
+        i >= settings.volumePeriod &&
+        valid === settings.volumePeriod &&
+        usable(volume) &&
+        volume > total / settings.volumePeriod
+      if (usable(volume)) {
+        total += volume
+        valid += 1
+      }
+      const old = candles[i - settings.volumePeriod]?.volume
+      if (usable(old)) {
+        total -= old
+        valid -= 1
+      }
+    }
+  }
+
   for (const [which, first] of starts.entries()) {
     // The next session is a hard stop whatever the hours say. A session cannot
     // run past the next one starting, and this is also what keeps a 24-hour
@@ -308,7 +357,10 @@ function orbPaint(
     // rather than a range invented out of whatever arrived.
     let whole = true
     for (let k = first + 1; k <= reach; k += 1) {
-      if (candles[k].openTime === candles[first].openTime + (k - first) * barMs) {
+      if (
+        candles[k].openTime ===
+        candles[first].openTime + (k - first) * barMs
+      ) {
         continue
       }
       whole = false
@@ -336,6 +388,7 @@ function orbPaint(
     // Only while the session is open. A close outside the range at three in
     // the morning is not this session breaking out of anything.
     for (let k = wanted + 1; k <= shuts; k += 1) {
+      if (settings.volumeFilter && !volumePass[k]) continue
       const closed = candles[k].close
       // A side switched off is a side that is not looked for, so it cannot use
       // up the session's one break either. The arrow switch above is the one
@@ -360,14 +413,14 @@ export const orbIndicator: IndicatorModule = {
   description:
     "Shades a trading session, boxes the high and the low of its first stretch, and arrows the first candle to close outside that box.",
   fields: ORB_FIELDS,
-  // Two cards, split the way the Base indicator's are: the first decides where
-  // the range IS, the second only decides what you are shown of it — with the
-  // one exception the hints call out, that switching a side off stops that side
-  // being looked for at all.
   groups: [
     {
       title: "The session",
       keys: ["session", "startTime", "endTime", "rangeMinutes"],
+    },
+    {
+      title: "Volume",
+      keys: ["volumeFilter", "volumePeriod"],
     },
     {
       title: "Visibility",
