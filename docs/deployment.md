@@ -143,6 +143,18 @@ they never contain a readable copy of the server source. Each app's Dockerfile
 decides whether the map itself belongs in its running image. Trade copies only
 the three `.mjs` programs and leaves every map in the build stage.
 
+The worker uses esbuild instead of Vite. `scripts/worker-page-registry.mjs`
+expands the page registry's eager `import.meta.glob` into static imports during
+`npm run build:worker`. The original registry still validates the declarations.
+A changed discovery expression fails the build so an unsupported Vite call
+cannot silently reach Node. Run `node --test scripts/worker-page-registry.test.mjs`
+from the app to check the real registry without starting background jobs.
+
+If a worker logs `glob is not a function`, its bundle missed that transform.
+Keep the heartbeat healthcheck enabled and rebuild with the corrected worker
+build script. A successful build alone does not prove container health; check
+that background passes resume and Coolify accepts the replacement container.
+
 ## Rolling back
 
 1. Redeploy the previous commit's web resource.

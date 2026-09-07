@@ -240,7 +240,7 @@ screen: anything not written there has not been agreed yet.
   the starting.
   Also the rule that in production only the engine trades, and why a
   saved plan a build does not understand is left alone.
-- `worker-image.md` — why local worker builds keep source maps, why those maps
+- `worker-image.md` — page-registry build checks, why local worker builds keep source maps, why those maps
   contain no server source, and which files enter the running image.
 - `data-retention.md` — which trading rows are permanent records and which
   exchange caches the capped ten-year sweep may rebuild.

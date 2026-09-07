@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url"
 import { copyFile } from "node:fs/promises"
 
 import { build } from "esbuild"
+import { workerPageRegistry } from "./worker-page-registry.mjs"
 
 /**
  * Builds the background worker and its health check into files Node can run.
@@ -47,6 +48,7 @@ const buildStamp = {
 }
 
 await build({
+  plugins: [workerPageRegistry(root)],
   entryPoints: {
     worker: path.join(root, "worker/src/worker.ts"),
     health: path.join(root, "worker/src/health.ts"),

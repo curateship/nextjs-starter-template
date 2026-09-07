@@ -24,3 +24,14 @@ after Docker compression. The three programs copied into that image totalled
 3,732,442 bytes, and an inspection inside the image found no `.map` file. Local
 maps remain in the build folder and total 2,341,824 bytes, but all three omit
 `sourcesContent` and Docker does not copy them into the running image.
+
+The Trade build also applies the shared page-registry transform to its worker
+bundles. The failed September 7 worker rollout reached a Vite-only discovery
+call in Node and stopped completing background passes. The corrected build
+imports the page declarations directly. The heartbeat check remains enabled.
+See the repository's `docs/deployment.md` for the shared build contract.
+
+Verify locally with `node --test scripts/worker-page-registry.test.mjs` and
+`npm run build:worker`. These checks do not start trading jobs. After deployment,
+confirm the worker completes background passes and its healthcheck succeeds.
+No database migration is needed for this build correction.
