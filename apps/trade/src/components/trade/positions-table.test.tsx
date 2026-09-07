@@ -546,6 +546,57 @@ describe("the bottom panel's tables say what they know", () => {
     await act(async () => root.unmount())
   })
 
+  it("shows Adding only on the matching wallet position and allows adding again after the answer", async () => {
+    const held = position("BTC", 1)
+    const other = { ...held, id: "other", walletId: "other-wallet" }
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const clicked: string[] = []
+    const render = (pending: boolean) => (
+      <TooltipProvider>
+        <PositionsTable
+          {...positionsShared}
+          positions={[held, other]}
+          pendingAdditions={
+            pending
+              ? [{ walletId: held.walletId, marketKey: held.marketKey }]
+              : []
+          }
+          settled={true}
+          failed={false}
+          onAdd={(one) => clicked.push(one.walletId)}
+          onEdit={() => {}}
+          onFlip={() => {}}
+          onClose={() => {}}
+          onClosePart={() => {}}
+          onMargin={null}
+        />
+      </TooltipProvider>
+    )
+    await act(async () => root.render(render(true)))
+    const buttons = host.querySelectorAll<HTMLButtonElement>(
+      '[aria-label="Add to the BTC position"]'
+    )
+    expect(buttons).toHaveLength(2)
+    expect(buttons[0].disabled).toBe(true)
+    expect(buttons[1].disabled).toBe(false)
+    expect(host.querySelector('[role="status"]')?.textContent).toBe("Adding...")
+    await act(async () => {
+      buttons[0].click()
+      buttons[1].click()
+    })
+    expect(clicked).toEqual(["other-wallet"])
+    await act(async () => root.render(render(false)))
+    expect(host.querySelector('[role="status"]')).toBeNull()
+    const ready = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Add to the BTC position"]'
+    )!
+    expect(ready.disabled).toBe(false)
+    await act(async () => ready.click())
+    expect(clicked).toEqual(["other-wallet", held.walletId])
+    await act(async () => root.unmount())
+  })
+
   it("opens positions with the largest unrealized profit first", () => {
     const markets = [market("BTC", 150), market("ETH", 110), market("SOL", 80)]
     const html = draw(

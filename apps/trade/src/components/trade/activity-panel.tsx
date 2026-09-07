@@ -443,6 +443,7 @@ export function ActivityPanel({
         <ScrollArea className="h-full">
           <PositionsTable
             positions={visible}
+            pendingAdditions={trading.pendingAdditions}
             markets={markets}
             // What a real position's fee total is added up from.
             fills={trading.fills}

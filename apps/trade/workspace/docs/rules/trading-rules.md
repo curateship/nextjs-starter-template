@@ -56,6 +56,10 @@ add up to.
 
 ## Orders
 
+- **Adding to a current position is market-only.** Tyler asked, "make add to
+  position market order only", and approved the change. The form names the
+  market action, and the position shows pending submission progress.
+
 - **Aster margin comes from the wallet setting when the order is sent.** A
   watched order does not keep an older margin choice. Isolated changes Aster
   to Single-Asset Mode. Cross changes Aster to Multi-Assets Mode.

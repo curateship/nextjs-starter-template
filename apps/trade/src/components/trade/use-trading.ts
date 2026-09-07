@@ -315,6 +315,7 @@ export type Trading = {
   walletNames: ReadonlyMap<string, string>
   /** An action is in flight; the buttons that started it stay disabled. */
   busy: boolean
+  pendingAdditions: readonly { walletId: string; marketKey: string }[]
   /**
    * True only before the first answer — never during a background refresh.
    * While this is true the tables have not looked yet, so nothing may claim
@@ -356,12 +357,8 @@ export type Trading = {
     reduceOnly: boolean
     /** Fill at the venue's current price instead of waiting at `px`. */
     market?: boolean
-    /**
-     * Work the order from today's price instead of waiting for `px` to be
-     * reached. Adding to a position uses it: no level was chosen, so there is
-     * nothing to wait for. It is not a market order — the post-only chase
-     * still rests just off the price and follows it.
-     */
+    /** An addition from a position row, always sent at market. */
+    addingToPosition?: boolean
     startNow?: boolean
     tpPx: number | null
     slPx: number | null
@@ -725,6 +722,10 @@ export function useTrading(
   // Counted, not a flag: two actions can overlap, and the first to finish
   // must not re-enable the buttons while the second is still running.
   const [pending, setPending] = React.useState(0)
+  const additionRequests = React.useRef(new Set<string>())
+  const [pendingAdditions, setPendingAdditions] = React.useState<
+    { walletId: string; marketKey: string }[]
+  >([])
   /** When the last read landed. The clock every hold is measured against. */
   const [readAt, setReadAt] = React.useState(() => Date.now())
   const refusalToastsRef = React.useRef<{
@@ -1493,6 +1494,16 @@ export function useTrading(
     holdExpired,
   ])
 
+  // Once a real row replaces a placeholder, retire the placeholder. Keeping
+  // it hidden by price alone lets a later drag bring the old sending line back.
+  // Confirmed resting orders must remain available if a cancellation fails.
+  const retainedPlacements = placing.filter(
+    (order) => !order.placing || placingShown.includes(order)
+  )
+  if (retainedPlacements.length < placing.length) {
+    setPlacing(retainedPlacements)
+  }
+
   const orders = React.useMemo(() => {
     const shown =
       cancelling.size === 0
@@ -1636,8 +1647,19 @@ export function useTrading(
   )
 
   const place: Trading["place"] = React.useCallback(
-    ({ overrode, ...input }) => {
+    ({ overrode, addingToPosition, ...input }) => {
       if (!walletId || !wallet) return
+      const additionKey = JSON.stringify([walletId, input.marketKey])
+      if (addingToPosition) {
+        if (additionRequests.current.has(additionKey)) return
+        additionRequests.current.add(additionKey)
+        setPendingAdditions((held) => [
+          ...held,
+          { walletId, marketKey: input.marketKey },
+        ])
+        input.market = true
+        input.startNow = false
+      }
       const kind = wallet.kind
       // Drawn at once, before anything is sent. Its own id, never the
       // server's: this order does not exist anywhere else yet.
@@ -1702,8 +1724,14 @@ export function useTrading(
             // from that answer now — the exchange's own row replaces it on
             // the next read (`filledShown`), and the "sending" line hands
             // over in the same render. A reduce-only fill shrank a position
-            // instead of opening one, so it paints nothing.
-            if (outcome.status === "filled" && !input.reduceOnly) {
+            // instead of opening one, so it paints nothing. An addition also
+            // waits for the refreshed position rather than drawing its added
+            // size as a second position.
+            if (
+              outcome.status === "filled" &&
+              !input.reduceOnly &&
+              !addingToPosition
+            ) {
               const sz = outcome.filledSz ?? input.sz
               const entryPx = outcome.avgPx ?? input.px
               const standIn: TradePosition = {
@@ -1746,6 +1774,16 @@ export function useTrading(
               : getLiveErrorMessage(error)
           )
         } finally {
+          if (addingToPosition) {
+            additionRequests.current.delete(additionKey)
+            setPendingAdditions((held) =>
+              held.filter(
+                (one) =>
+                  one.walletId !== walletId || one.marketKey !== input.marketKey
+              )
+            )
+            setPlacing((held) => held.filter((order) => order.id !== ghost.id))
+          }
           // A successful ghost stays until the real order is actually on
           // screen. Removing it when the answer came back left a gap where
           // the row vanished and then reappeared as the watch a moment later.
@@ -2880,6 +2918,7 @@ export function useTrading(
     ladders,
     grids,
     busy: pending > 0,
+    pendingAdditions,
     // Never both: an answered half is something to show, a failure with rows
     // still up stays quiet, and only a screen with nothing yet says either.
     loading:

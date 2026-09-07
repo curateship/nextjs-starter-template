@@ -149,8 +149,8 @@ export function ChartQuickOrder({
     leverage: number
     reduceOnly: boolean
     market: boolean
-    /** Start working the order at today's price instead of waiting at `px`. */
-    startNow?: boolean
+    /** Opened from an existing position. Always sent at market. */
+    addingToPosition?: boolean
     tpPx: number | null
     slPx: number | null
   }) => void
@@ -169,20 +169,10 @@ export function ChartQuickOrder({
   // venue's fresh quote.
   const live = useLiveFigures(market.key)
   const mark = live?.price ?? market.price
-  const [marketOrder, setMarketOrder] = React.useState(false)
-  /**
-   * The price this order works from.
-   *
-   * **Adding to a position uses the live price, not the one the window opened
-   * at.** Long and Short are placed at a level somebody chose on the chart, and
-   * waiting at that level is the whole point of them. Adding to a position
-   * chooses no level: the window opens wherever the chart happened to be, and
-   * pinning the order there means waiting for the market to come back to a
-   * price it may have left while the size was being typed. That is what made
-   * adding take minutes — see `startNow` in `smart-orders.ts`.
-   */
+  const [marketChecked, setMarketOrder] = React.useState(false)
   const addingNow = addingTo !== null
-  const entryPx = marketOrder || addingNow ? mark : quick.px
+  const marketOrder = addingNow || marketChecked
+  const entryPx = marketOrder ? mark : quick.px
 
   // How this window was left the last time it placed something. Every field
   // below opens on that answer, so a way of sizing trades is chosen once
@@ -427,10 +417,7 @@ export function ChartQuickOrder({
     onPlace({
       side: quick.side,
       px: entryPx,
-      // Adding starts chasing the market straight away rather than waiting for
-      // a level. Nothing here becomes a market order: the chase still rests a
-      // post-only order just off the price and follows it.
-      startNow: addingNow,
+      addingToPosition: addingNow,
       sz: sizeCoin,
       leverage,
       reduceOnly,
@@ -460,11 +447,13 @@ export function ChartQuickOrder({
   return (
     <FloatingOrderWindow
       label={
-        marketOrder
-          ? swaps
-            ? `${sideWord} ${market.symbol} now at the current price`
-            : `Market ${buy ? "long" : "short"} ${market.symbol} at the current price`
-          : `${sideWord} ${market.symbol} at ${formatPrice(quick.px)}`
+        addingNow
+          ? `Add to ${market.symbol} at market`
+          : marketOrder
+            ? swaps
+              ? `${sideWord} ${market.symbol} now at the current price`
+              : `Market ${buy ? "long" : "short"} ${market.symbol} at the current price`
+            : `${sideWord} ${market.symbol} at ${formatPrice(quick.px)}`
       }
       wide={wide}
       openedAt={quick}
@@ -505,16 +494,22 @@ export function ChartQuickOrder({
               )}
             </p>
           ) : null}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="quick-market"
-              checked={marketOrder}
-              onCheckedChange={(next) => setMarketOrder(next === true)}
-            />
-            <Label htmlFor="quick-market">
-              {swaps ? "Swap now at the current price" : "Market"}
-            </Label>
-          </div>
+          {addingNow ? (
+            <p className="text-xs text-muted-foreground">
+              Adds at the current market price. The final fill price can move.
+            </p>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="quick-market"
+                checked={marketOrder}
+                onCheckedChange={(next) => setMarketOrder(next === true)}
+              />
+              <Label htmlFor="quick-market">
+                {swaps ? "Swap now at the current price" : "Market"}
+              </Label>
+            </div>
+          )}
           <div className="grid gap-2">
             <Label htmlFor="quick-size">Size</Label>
             <div className="flex items-start gap-2">
@@ -819,11 +814,13 @@ export function ChartQuickOrder({
           }
           className={cn("w-full", buy ? BUY_BUTTON : SELL_BUTTON)}
         >
-          {marketOrder
-            ? swaps
-              ? `${sideWord} ${market.symbol} now`
-              : `Market ${buy ? "long" : "short"} ${market.symbol}`
-            : `${sideWord} ${market.symbol}`}
+          {addingNow
+            ? "Add at market"
+            : marketOrder
+              ? swaps
+                ? `${sideWord} ${market.symbol} now`
+                : `Market ${buy ? "long" : "short"} ${market.symbol}`
+              : `${sideWord} ${market.symbol}`}
         </Button>
       </div>
     </FloatingOrderWindow>

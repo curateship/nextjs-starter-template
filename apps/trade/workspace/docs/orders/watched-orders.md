@@ -14,6 +14,19 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
 `src/server/trade/live-orders.ts` / `src/server/protocols/hyperliquid/orders.ts`
 (the real-money doors).
 
+## Moving a watched price
+
+Dragging a waiting watch saves its new price in the app. The drag does not
+place or move an exchange order. The engine can place the order separately
+when the watched condition is met.
+
+The chart's temporary "sending" line disappears permanently when the saved
+watch first appears. Moving or removing that watch cannot bring the old line
+back. The placeholder previously stayed in memory and was hidden by matching
+its original price, which let a drag make the old line visible again.
+A confirmed exchange order stays available while cancellation is pending, so
+an exchange refusal restores its line.
+
 ## The two styles
 
 - **Watch** (the default): the level stays inside this app as a row in the
@@ -91,22 +104,20 @@ When the market reaches a watched buy:
    to the position the moment it opens. Either line can travel without the
    other.
 
-### Adding to a position starts at once
+### Adding to a position uses market orders
 
-Adding to a position picks no level. The window opens at whatever price the
-chart happened to be showing, so waiting there means waiting for the market to
-come back to a price it may have left while a size was being typed. Buy more
-therefore skips the wait entirely: the order goes straight into the post-only
-chase at today's price.
+The position row's + button opens an addition at the current market price.
+The window has no Market checkbox. Its button says "Add at market" and explains
+that the final fill price can move. An addition creates no watched order.
 
-- Nothing about it is a market order and it pays no spread. The chase still
-  rests just off the price and follows it, which is the rule for everything
-  this app sends.
-- Before this, adding to a position on a market that had moved sat waiting for
-  a price behind it. Tyler, 3 Sep 2026: "Hyperliquid takes about 2 minutes to
-  execute when adding more to position."
-- A Long or a Short is unchanged. Those are placed at a level somebody chose on
-  the chart, and waiting at that level is the whole point of them.
+The position row shows "Adding..." while the placement request is pending.
+The + button is disabled for that wallet and market, and repeated submissions
+are ignored until the request finishes. A refusal clears the indicator and
+shows the existing error toast. A confirmed addition refreshes the position.
+The progress indicator describes the submission, not a guarantee of a full fill.
+
+Existing watched orders remain active until filled or cancelled. Ordinary Long
+and Short windows keep their Market checkbox and chosen-price behavior.
 
 ### The chase follows a market that walks away
 

@@ -167,11 +167,13 @@ is the only thing left to fill in, and it starts empty and focused.
 - **It refuses out loud rather than doing nothing.** A wallet that is switched
   off, a live wallet with no trading key, and a market the exchange has stopped
   listing each say so and nothing moves.
-- **Nothing about the order path changes.** It is placed exactly as the
-  right-click window places one: a watched trigger by default, resting only if
-  Settings say so, chasing as a maker when price reaches it. There is
-  deliberately no "double it" press that skips the window — the window is where
-  the size is chosen and where the real-money check happens.
+- **Adding uses a market order.** The button says "Add at market" and the
+  Market checkbox is hidden. The final fill price can move. Ordinary chart
+  orders keep their existing price choices.
+- **The position shows "Adding..." during submission.** Its + button stays
+  disabled until the request finishes. Repeated submissions for that wallet
+  and market are ignored during the wait. A refusal clears the indicator and
+  shows the reason. The portfolio refresh brings the confirmed position size.
 
 ### Selling part of a position
 

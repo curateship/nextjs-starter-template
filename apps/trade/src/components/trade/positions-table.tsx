@@ -3,6 +3,7 @@ import {
   ArrowLeftRightIcon,
   GaugeIcon,
   InfoIcon,
+  Loader2Icon,
   PlayIcon,
   PlusIcon,
   SettingsIcon,
@@ -351,6 +352,7 @@ function PositionRow({
   wallet,
   busy,
   stopPx,
+  adding,
   onSelectMarket,
   onAdd,
   onMargin,
@@ -367,6 +369,7 @@ function PositionRow({
   wallet: string
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
+  adding: boolean
   /**
    * Where the stop sits, from the position or its running grid, or null when
    * there is none. Undefined until a settled read has actually looked.
@@ -560,12 +563,21 @@ function PositionRow({
             type="button"
             size="icon-sm"
             variant="ghost"
-            disabled={busy}
+            disabled={busy || adding}
             aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
             onClick={() => onAdd(position)}
           >
-            <PlusIcon className="size-4" />
+            {adding ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <PlusIcon className="size-4" />
+            )}
           </Button>
+          {adding ? (
+            <span role="status" className="text-xs text-muted-foreground">
+              Adding...
+            </span>
+          ) : null}
           {/* Leverage and the cash behind the position. Only where the
               exchange really allows one of the two, so a button is never
               offered and then refused. */}
@@ -614,6 +626,7 @@ function PositionRow({
 
 export function PositionsTable({
   positions,
+  pendingAdditions = [],
   markets,
   fills,
   smartOrders,
@@ -630,6 +643,7 @@ export function PositionsTable({
   onClose,
   onClosePart,
 }: {
+  pendingAdditions?: readonly { walletId: string; marketKey: string }[]
   positions: readonly TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
   /**
@@ -784,6 +798,11 @@ export function PositionsTable({
           <PositionRow
             key={position.id}
             position={position}
+            adding={pendingAdditions.some(
+              (one) =>
+                one.walletId === position.walletId &&
+                one.marketKey === position.marketKey
+            )}
             market={markets.get(position.marketKey) ?? null}
             mark={markOf(position)}
             fees={feesOf(position)}

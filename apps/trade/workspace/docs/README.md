@@ -116,8 +116,9 @@ screen: anything not written there has not been agreed yet.
 - `grid-above-ladder.md` — the one allowed pairing of two smart orders on a
   coin: a grid working a range above a DCA ladder, the grid's own fixed-size
   stop, and every reason the pairing is refused.
-- `watched-orders.md` — how a plain order works now, what dragging does, why
-  adding to a position starts working at once instead of waiting at a level,
+- `watched-orders.md` — how a plain order works now, why dragging cannot revive
+  a confirmed order's temporary sending line, why
+  adding to a position uses a market order with visible submission progress,
   and how the chase follows a market that walks away.
 - `orders-you-cannot-afford.md` — why an order placed by hand is refused when
   the wallet does not hold the margin, which orders that applies to, and how a

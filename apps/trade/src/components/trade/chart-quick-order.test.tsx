@@ -158,11 +158,14 @@ describe("the chart's Long, Short and Market window", () => {
     )
   })
 
-  it("adds to a position at today's price and starts working at once", async () => {
+  it("adds to a position at market without offering a watched order", async () => {
     // The window opens wherever the chart was — 110 here — while the market is
     // at 100. Pinning the order to 110 is what made adding wait for a price
     // the market had already left, sometimes for minutes.
     const { onPlace } = await draw({ addingTo: heldLong })
+    expect(host.querySelector("#quick-market")).toBeNull()
+    expect(host.textContent).toContain("Add at market")
+    expect(host.textContent).toContain("The final fill price can move.")
 
     // The size box opens empty when adding: how much MORE to buy has nothing
     // to do with what the last order was for.
@@ -173,9 +176,28 @@ describe("the chart's Long, Short and Market window", () => {
       expect.objectContaining({
         side: "buy",
         px: 100,
-        startNow: true,
-        // Still not a market order: the post-only chase does the work.
-        market: false,
+        market: true,
+        addingToPosition: true,
+      })
+    )
+  })
+
+  it("adds to a short at market and refuses an empty size", async () => {
+    const { onPlace } = await draw({
+      side: "sell",
+      addingTo: { ...heldLong, szi: -5 },
+    })
+    await place()
+    expect(onPlace).not.toHaveBeenCalled()
+    expect(host.querySelector("#quick-market")).toBeNull()
+    await type("#quick-size", "100")
+    await place()
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        side: "sell",
+        market: true,
+        addingToPosition: true,
+        px: 100,
       })
     )
   })
@@ -186,7 +208,7 @@ describe("the chart's Long, Short and Market window", () => {
     await place()
 
     expect(onPlace).toHaveBeenCalledWith(
-      expect.objectContaining({ px: 110, startNow: false })
+      expect.objectContaining({ px: 110, market: false })
     )
   })
 
