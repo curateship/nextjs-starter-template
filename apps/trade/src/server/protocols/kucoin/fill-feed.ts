@@ -9,10 +9,9 @@ import { scrubbedMessage } from "@/server/protocols/scrub"
 const pending = new Set<string>()
 
 /**
- * KuCoin's socket names an execution but omits its fee and closed money. Read
- * that one execution from the venue's low-latency recent history before
- * handing it to the permanent Journal, so the pushed and recovered copies are
- * the same fill rather than two versions of one trade.
+ * KuCoin's socket names an execution but omits its fee. Read that execution
+ * from recent history before storing it. The complete recovery sweep assigns
+ * the position's money once, after all closing pieces can be read together.
  */
 export function watchKucoinFills(
   network: NetworkId,

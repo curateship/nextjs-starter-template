@@ -405,60 +405,79 @@ describe("live fill storage", () => {
     expect(saved).toHaveLength(2)
   })
 
-  it("adds KuCoin's settled close money later without another notice", async () => {
-    const user = await insertUser(database)
-    const wallet: TradeWallet = {
-      id: crypto.randomUUID(),
-      label: "KuCoin",
-      kind: "live",
-      status: "active",
-      protocol: "kucoin",
-      network: "mainnet",
-      startingBalance: 0,
-      address: "kucoin-account",
-      hasKey: true,
-      keyValidUntil: null,
-    }
-    await database.insert(tradeWallets).values({
-      userId: user.id,
-      id: wallet.id,
-      label: wallet.label,
-      kind: wallet.kind,
-      status: wallet.status,
-      protocol: wallet.protocol,
-      network: wallet.network,
-      startingBalance: 0,
-      address: wallet.address,
-    })
-    const fill = {
-      fillId: "kucoin-close",
-      orderId: "kucoin-order",
-      marketId: "XBTUSDTM",
-      side: "sell" as const,
-      px: 70_000,
-      sz: 0.01,
-      at: Date.now(),
-      closedPnl: 0,
-      fee: 0.4,
-      dir: "Close Long",
-      liquidation: false,
-    }
+  it.each([1, 14])(
+    "adds KuCoin close money once across %i pieces without another notice",
+    async (pieces) => {
+      const user = await insertUser(database)
+      const wallet: TradeWallet = {
+        id: crypto.randomUUID(),
+        label: "KuCoin",
+        kind: "live",
+        status: "active",
+        protocol: "kucoin",
+        network: "mainnet",
+        startingBalance: 0,
+        address: "kucoin-account",
+        hasKey: true,
+        keyValidUntil: null,
+      }
+      await database.insert(tradeWallets).values({
+        userId: user.id,
+        id: wallet.id,
+        label: wallet.label,
+        kind: wallet.kind,
+        status: wallet.status,
+        protocol: wallet.protocol,
+        network: wallet.network,
+        startingBalance: 0,
+        address: wallet.address,
+      })
+      const fill = {
+        fillId: "kucoin-close",
+        orderId: "kucoin-order",
+        marketId: "XBTUSDTM",
+        side: "sell" as const,
+        px: 70_000,
+        sz: 0.01,
+        at: Date.now(),
+        closedPnl: 0,
+        fee: 0.4,
+        dir: "Close Long",
+        liquidation: false,
+      }
 
-    await recordLiveFills(user.id, wallet, [fill])
-    const beforeRecovery = await liveHistoryStamp(user.id, [wallet.id])
-    await recordLiveFills(user.id, wallet, [{ ...fill, closedPnl: 10 }])
-    const afterRecovery = await liveHistoryStamp(user.id, [wallet.id])
-    await recordLiveFills(user.id, wallet, [{ ...fill, closedPnl: 10 }])
+      const pushed = Array.from({ length: pieces }, (_, i) => ({
+        ...fill,
+        fillId: `${fill.fillId}-${i}`,
+        fee: 0.11926794 / pieces,
+      }))
+      await recordLiveFills(user.id, wallet, pushed)
+      const beforeRecovery = await liveHistoryStamp(user.id, [wallet.id])
+      const recovered = pushed.map((one, i) => ({
+        ...one,
+        closedPnl: i === pieces - 1 ? -2.74687686 : 0,
+      }))
+      await recordLiveFills(user.id, wallet, recovered)
+      const afterRecovery = await liveHistoryStamp(user.id, [wallet.id])
+      await recordLiveFills(user.id, wallet, recovered)
+      // A late notification with zero money must not undo the settled amount.
+      await recordLiveFills(user.id, wallet, pushed)
 
-    const [saved] = await database
-      .select()
-      .from(tradeLiveFills)
-      .where(eq(tradeLiveFills.userId, user.id))
-    expect(saved.closedPnl).toBe(10)
-    expect(afterRecovery).not.toBe(beforeRecovery)
-    expect(await liveHistoryStamp(user.id, [wallet.id])).toBe(afterRecovery)
-    expect(writeTradeNotice).toHaveBeenCalledOnce()
-  })
+      const saved = await database
+        .select()
+        .from(tradeLiveFills)
+        .where(eq(tradeLiveFills.userId, user.id))
+      expect(saved).toHaveLength(pieces)
+      expect(saved.filter((one) => one.closedPnl !== 0)).toHaveLength(1)
+      expect(
+        saved.reduce((sum, one) => sum + one.closedPnl - one.fee, 0) -
+          0.11753328
+      ).toBeCloseTo(-2.98367808, 10)
+      expect(afterRecovery).not.toBe(beforeRecovery)
+      expect(await liveHistoryStamp(user.id, [wallet.id])).toBe(afterRecovery)
+      expect(writeTradeNotice).toHaveBeenCalledOnce()
+    }
+  )
 
   it("names the average entry only where the exchange prices every sale", async () => {
     // Working an entry back from a closing fill only holds when the money on

@@ -75,3 +75,33 @@ out of an open-order answer. Trade releases the number only after the whole
 requested piece has left the position. A partial fill does not prove the
 unfilled remainder has gone. Replacing that remainder while the first order
 can still fill would sell too much.
+
+## Closed-trade money
+
+KuCoin reports profit or loss for a closed position, while one order can fill
+in many pieces. Trade records each pushed execution and its fee immediately.
+Only the complete history sweep assigns the position's result to one fill.
+The saved zero receives the settled amount without another fill notice.
+Repeated recovery and late pushed copies do not change the settled total.
+
+Before this fix, each pushed closing piece could receive the whole position's
+result. On 6 September 2026, USELESS stored a $2.74687686 loss eleven times.
+KuCoin confirmed the trade lost $2.98367808 after fees and funding. The same
+fault duplicated a $1.93248160 gain on an SKR close. Repair uses KuCoin's
+closed-position record, keeps the result on the final fill, and preserves all
+executions and fees. A repair alone does not fix a running older engine.
+
+The two confirmed records were repaired against KuCoin's live history in the
+same work session. USELESS now has one settled loss and SKR one settled gain.
+Their net results are minus $2.98367808 and plus $1.85379004. The repair changed
+only duplicated money and the wallet history version, so readers reload the
+corrected totals. No exchange order or fee changed. The prevention code needs
+deployment before the live engine uses it.
+
+Focused verification covers single fills, fourteen-piece closes, repeated
+recovery, and late zero-money notifications. All 52 tests in the KuCoin
+orders, fill feed, and live-fill storage files passed. The local P&L page
+showed USELESS at minus $2.98 and the affected SKR trade at plus $1.85 before
+and after reload, with no browser exceptions or failed HTTP responses.
+Lint and formatting passed. The app type check still reports unrelated test
+fixture errors in market picker, workspace layout, use-trading, and smart grids.

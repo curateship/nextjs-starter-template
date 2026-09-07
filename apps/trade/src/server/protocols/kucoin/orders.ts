@@ -1384,9 +1384,9 @@ async function readKucoinFills(
 
 /**
  * Read the one execution a socket just named from KuCoin's low-latency recent
- * history. The socket does not carry fees or the money banked by a close, so
- * storing its raw match row would make the permanent Journal disagree with
- * the exchange. This request happens only after a match, never on a timer.
+ * history. The socket does not carry fees, so read the execution before storing it.
+ * The complete history sweep supplies closed money separately. This request
+ * happens only after a match, never on a timer.
  */
 export async function fetchKucoinPushedFill(
   network: NetworkId,
@@ -1412,31 +1412,11 @@ export async function fetchKucoinPushedFill(
   )
   if (raw.length === 0) return null
 
-  const first = await kucoinFillsFromRows(network, raw, [])
-  const fill = first.find((one) => one.fillId === match.tradeId)
-  if (!fill || !fill.dir.startsWith("Close")) return fill ?? null
-
-  const closed = await closedPositionMoney(
-    network,
-    parsed,
-    Math.max(0, fill.at - 60_000),
-    Date.now()
-  )
-  const closest = closed
-    .filter(
-      (one) =>
-        one.symbol === fill.marketId &&
-        Math.abs(one.closeTime - fill.at) <= 60_000
-    )
-    .sort(
-      (left, right) =>
-        Math.abs(left.closeTime - fill.at) - Math.abs(right.closeTime - fill.at)
-    )[0]
-  return (
-    (await kucoinFillsFromRows(network, raw, closest ? [closest] : [])).find(
-      (one) => one.fillId === match.tradeId
-    ) ?? null
-  )
+  // A pushed match contains only one piece of an order. Assigning the whole
+  // position's result here repeats it on every piece. Only the complete
+  // history sweep assigns money; recordLiveFills enriches the saved zero.
+  const fills = await kucoinFillsFromRows(network, raw, [])
+  return fills.find((one) => one.fillId === match.tradeId) ?? null
 }
 
 /** One translator for the polled history and the event-driven recent read. */

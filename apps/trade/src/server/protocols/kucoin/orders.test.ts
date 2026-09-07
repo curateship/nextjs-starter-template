@@ -1283,7 +1283,8 @@ describe("what a finished trade made", () => {
     expect(sent.map((one) => one.url.pathname)).not.toContain("/api/v1/fills")
   })
 
-  it("uses the nearest matching close when a pushed fill reads closed money", async () => {
+  it("leaves pushed close money for the complete history sweep", async () => {
+    const sent: Sent[] = []
     stubExchange(
       [
         { path: "/api/v1/contracts/active", answer: CONTRACTS },
@@ -1328,7 +1329,7 @@ describe("what a finished trade made", () => {
           }),
         },
       ],
-      []
+      sent
     )
 
     const fill = await fetchKucoinPushedFill(
@@ -1340,8 +1341,67 @@ describe("what a finished trade made", () => {
     expect(fill).toMatchObject({
       fillId: "pushed-close",
       dir: "Close Long",
-      closedPnl: 10,
+      closedPnl: 0,
     })
+    expect(sent.map((one) => one.url.pathname)).not.toContain(
+      "/api/v1/history-positions"
+    )
+  })
+
+  it("counts a split close once across pushed fills and repeated recovery", async () => {
+    const raw = Array.from({ length: 14 }, (_, i) => ({
+      tradeId: `close-${String(i).padStart(2, "0")}`,
+      orderId: "split-close",
+      symbol: "XBTUSDTM",
+      side: "buy",
+      price: 70_000,
+      size: 10,
+      fee: 0.11926794 / 14,
+      closeFeePay: 0.11926794 / 14,
+      tradeTime: 2_000_000,
+    }))
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/recentFills", answer: ok(raw) },
+        { path: "/api/v1/fills", answer: ok({ items: raw }) },
+        {
+          path: "/api/v1/history-positions",
+          answer: ok({
+            items: [
+              {
+                symbol: "XBTUSDTM",
+                closeTime: 2_000_002,
+                pnl: -2.98367808,
+                tradeFee: 0.23680122,
+              },
+            ],
+          }),
+        },
+      ],
+      []
+    )
+    for (const row of [...raw].reverse()) {
+      const fill = await fetchKucoinPushedFill(
+        "mainnet",
+        { tradeId: row.tradeId, symbol: row.symbol, ts: row.tradeTime },
+        () => AUTH.agentKey
+      )
+      expect(fill?.closedPnl).toBe(0)
+    }
+    for (let pass = 0; pass < 2; pass++) {
+      clearKucoinOrderCaches()
+      const fills = await fetchKucoinOrderFills(
+        "mainnet",
+        "key-id",
+        0,
+        () => AUTH.agentKey
+      )
+      expect(fills.filter((fill) => fill.closedPnl !== 0)).toHaveLength(1)
+      expect(
+        fills.reduce((sum, fill) => sum + fill.closedPnl, 0) - 0.23680122
+      ).toBeCloseTo(-2.98367808, 10)
+    }
   })
 
   it("puts the closed position's money on the fill that closed it", async () => {
