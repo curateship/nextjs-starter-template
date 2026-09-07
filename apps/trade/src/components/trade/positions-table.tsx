@@ -144,7 +144,7 @@ function InfoMark({
 
 type PositionColumn =
   | "market"
-  | "wallet"
+  | "type"
   | "value"
   | "margin"
   | "liquidation"
@@ -155,7 +155,7 @@ type PositionColumn =
 
 const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
   { key: "market", label: "Market" },
-  { key: "wallet", label: "Wallet" },
+  { key: "type", label: "Type" },
   { key: "value", label: "Value" },
   { key: "margin", label: "Margin" },
   { key: "liquidation", label: "Liquidation" },
@@ -349,7 +349,6 @@ function PositionRow({
   market,
   mark,
   fees,
-  wallet,
   busy,
   stopPx,
   adding,
@@ -366,7 +365,6 @@ function PositionRow({
   mark: number
   /** What it has cost in fees, or null on a real one with nothing swept. */
   fees: PositionFees | null
-  wallet: string
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
   adding: boolean
@@ -426,7 +424,9 @@ function PositionRow({
         }
         onSelect={() => onSelectMarket(position.marketKey)}
       />
-      <WalletCell wallet={wallet} />
+      <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
+        {position.szi > 0 ? "Long" : "Short"}
+      </td>
       <Cell>
         {unpriced ? (
           <span className="text-muted-foreground">Unpriced</span>
@@ -690,7 +690,7 @@ export function PositionsTable({
     "unrealized",
     "desc",
     (column) =>
-      column === "market" || column === "wallet" || column === "ifStopped"
+      column === "market" || column === "type" || column === "ifStopped"
         ? "asc"
         : "desc"
   )
@@ -738,8 +738,8 @@ export function PositionsTable({
         switch (sort) {
           case "market":
             return marketSymbol(position.marketKey)
-          case "wallet":
-            return walletName(position.walletId)
+          case "type":
+            return position.szi > 0 ? "Long" : "Short"
           case "value":
             return positionValue(position, mark)
           case "margin":
@@ -767,7 +767,7 @@ export function PositionsTable({
             return positionProfit(position, mark)
         }
       }),
-    [positions, direction, sort, markOf, walletName, feesOf, stopPxOf]
+    [positions, direction, sort, markOf, feesOf, stopPxOf]
   )
 
   return (
@@ -806,7 +806,6 @@ export function PositionsTable({
             market={markets.get(position.marketKey) ?? null}
             mark={markOf(position)}
             fees={feesOf(position)}
-            wallet={walletName(position.walletId)}
             busy={busy}
             stopPx={stopPxOf(position)}
             onSelectMarket={onSelectMarket}

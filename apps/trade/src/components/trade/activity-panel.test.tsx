@@ -234,6 +234,8 @@ describe("the Positions tab glance", () => {
       '[data-slot="popover-content"]'
     )
     expect(popover?.textContent).toContain("Ticker")
+    expect(popover?.textContent).toContain("Type")
+    expect(popover?.textContent).toContain("Long")
     expect(popover?.textContent).toContain("Value")
     expect(popover?.textContent).toContain("Current P&L")
     expect(popover?.textContent).toContain("BTC")
@@ -299,6 +301,26 @@ describe("the Positions tab glance", () => {
     expect(tickers()).toEqual(["ETH", "BTC", "SOL"])
     await act(async () => heading("Current P&L")?.click())
     expect(tickers()).toEqual(["SOL", "BTC", "ETH"])
+  })
+
+  it("shows and sorts Long and Short in the Type column", async () => {
+    const short = { ...position, id: "short", marketKey: "hyperliquid:mainnet:ETH", szi: -1 }
+    await drawActivity([short, position])
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
+    await act(async () => {
+      if (trigger) enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    const popover = document.body.querySelector('[data-slot="popover-content"]')!
+    const rows = () => Array.from(popover.querySelectorAll('button[aria-label^="Open "]'))
+    const typeHeading = Array.from(popover.querySelectorAll("button")).find(
+      (button) => button.textContent === "Type"
+    )!
+    await act(async () => typeHeading.click())
+    expect(rows().map((row) => row.children[1].textContent)).toEqual(["Long", "Short"])
+    expect(rows()[0].getAttribute("aria-label")).toContain("Long")
+    await act(async () => typeHeading.click())
+    expect(rows().map((row) => row.children[1].textContent)).toEqual(["Short", "Long"])
   })
 
   it("does not open an empty position summary", async () => {

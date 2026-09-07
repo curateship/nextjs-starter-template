@@ -4,6 +4,11 @@ Positions, Open orders and the Journal use one table frame. Each tab supplies
 its own columns, rows, words and row actions. The frame owns the pinned heading
 row and the loading, failed and empty row beneath it.
 
+Positions shows Type after Market, with Long for a positive position size and
+Short for a negative size. Type replaces the Wallet column and sorts alphabetically.
+The market badge still carries leverage or the amount owned. Wallet names remain
+in action confirmations, Open orders and the Journal.
+
 Active Trades, Running bots and the Trades dashboard card use the same frame
 in their own card wrapper. Their columns and row contents stay different, but
 sorting, scrolling and the state row come from `trade-table.tsx`. The pinned

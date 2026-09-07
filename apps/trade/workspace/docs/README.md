@@ -42,7 +42,7 @@ screen: anything not written there has not been agreed yet.
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
-  all, and where the navigation lives.
+  all, Long/Short columns, and where the navigation lives.
 - `trading-overview.md`: the signed-in home page and its Active trades menu,
   including content height, screen limits, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,

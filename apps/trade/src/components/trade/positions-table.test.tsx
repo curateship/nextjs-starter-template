@@ -889,6 +889,50 @@ describe("the bottom panel's tables say what they know", () => {
     await act(async () => root.unmount())
   })
 
+  it("replaces Wallet with Type and sorts Long and Short", async () => {
+    const markets = [market("BTC", 100), market("ETH", 100), market("SOL", 100)]
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <PositionsTable
+            {...positionsShared}
+            markets={new Map(markets.map((one) => [one.key, one]))}
+            positions={[
+              { ...position("SOL", 1), slPx: null },
+              { ...position("ETH", -1), slPx: 95 },
+              { ...position("BTC", 1), slPx: 80 },
+            ]}
+            settled={true}
+            failed={false}
+            onAdd={() => {}}
+            onEdit={() => {}}
+            onFlip={() => {}}
+            onClose={() => {}}
+            onClosePart={() => {}}
+            onMargin={null}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const heading = Array.from(host.querySelectorAll("th button")).find(
+      (one) => one.textContent?.trim() === "Type"
+    ) as HTMLButtonElement | undefined
+    expect(heading).toBeDefined()
+    await act(async () => heading?.click())
+
+    expect(host.querySelector("thead")?.textContent).not.toContain("Wallet")
+    const types = () => Array.from(host.querySelectorAll("tbody tr"))
+      .map((row) => row.children[1]?.textContent)
+    expect(types()).toEqual(["Long", "Long", "Short"])
+    await act(async () => heading?.click())
+    expect(types()).toEqual(["Short", "Long", "Long"])
+    await act(async () => root.unmount())
+  })
+
   it("does not mark a position until both halves of the first read have landed", () => {
     const html = draw(
       <PositionsTable

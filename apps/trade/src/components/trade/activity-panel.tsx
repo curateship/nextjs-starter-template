@@ -80,12 +80,12 @@ function clearHighlight(): void {
   if (selection && !selection.isCollapsed) selection.removeAllRanges()
 }
 
-type PositionGlanceColumn = "market" | "value" | "profit"
+type PositionGlanceColumn = "market" | "type" | "value" | "profit"
 
 function positionGlanceDefaultDirection(
   column: PositionGlanceColumn
 ): "asc" | "desc" {
-  return column === "market" ? "asc" : "desc"
+  return column === "market" || column === "type" ? "asc" : "desc"
 }
 
 /**
@@ -645,6 +645,7 @@ function PositionsGlance({
       return {
         position,
         symbol: marketSymbol(position.marketKey),
+        type: position.szi > 0 ? "Long" : "Short",
         value,
         valueLabel: formatUsd(value),
         profit,
@@ -655,9 +656,11 @@ function PositionsGlance({
       const compared =
         sort === "market"
           ? a.symbol.localeCompare(b.symbol)
-          : sort === "value"
-            ? a.value - b.value
-            : a.profit - b.profit
+          : sort === "type"
+            ? a.type.localeCompare(b.type)
+            : sort === "value"
+              ? a.value - b.value
+              : a.profit - b.profit
       return direction === "asc" ? compared : -compared
     })
   const positionIds = positions.map((position) => position.id).join("\u0000")
@@ -715,12 +718,12 @@ function PositionsGlance({
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-80 gap-0 p-0"
+        className="w-96 max-w-[calc(100vw-1rem)] gap-0 p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onPointerEnter={clearHover}
         onPointerLeave={closeSoon}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_6rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
+        <div className="grid grid-cols-[minmax(0,1fr)_3rem_5rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
           <TableSortButton
             active={sort === "market"}
             direction={direction}
@@ -728,6 +731,14 @@ function PositionsGlance({
             onClick={() => toggleSort("market")}
           >
             Ticker
+          </TableSortButton>
+          <TableSortButton
+            active={sort === "type"}
+            direction={direction}
+            className="gap-1 text-[11px] sm:text-[11px]"
+            onClick={() => toggleSort("type")}
+          >
+            Type
           </TableSortButton>
           <TableSortButton
             active={sort === "value"}
@@ -747,13 +758,13 @@ function PositionsGlance({
           </TableSortButton>
         </div>
         <ScrollArea className="max-h-72" viewportClassName="max-h-72">
-          {rows.map(({ position, symbol, valueLabel, profit, profitLabel }) => {
+          {rows.map(({ position, symbol, type, valueLabel, profit, profitLabel }) => {
             return (
               <button
                 key={position.id}
                 type="button"
-                aria-label={`Open ${symbol} market, ${valueLabel} value, ${profitLabel} current profit and loss`}
-                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_6rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                aria-label={`Open ${symbol} market, ${type}, ${valueLabel} value, ${profitLabel} current profit and loss`}
+                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_3rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 onClick={() => {
                   clearHover()
                   setOpenFor(null)
@@ -761,6 +772,7 @@ function PositionsGlance({
                 }}
               >
                 <span className="min-w-0 truncate font-medium">{symbol}</span>
+                <span>{type}</span>
                 <span className="text-right">{valueLabel}</span>
                 <span
                   className={cn("text-right font-medium", moneyTone(profit))}
