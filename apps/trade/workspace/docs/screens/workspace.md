@@ -235,7 +235,7 @@ the tab reads 4, and the list names how many of the five are in the panel on the
 right rather than in this tab.
 
 Hovering over the Positions tab opens a small popover with the ticker, Type
-(Long or Short), current value and current profit or loss for every position in
+(the same Long/Short and leverage badge as the table), current value and current profit or loss for every position in
 this list. The figures
 use the same live prices as the table. Each row is a button that changes the
 chart to that market and closes the popover. No popover opens when this list has
@@ -243,6 +243,8 @@ no positions. Ticker, Type, Value and Current P&L are sort buttons. Ticker and
 Type start alphabetically, while the two money columns start with the largest
 figure;
 pressing the same heading again reverses its order.
+The popover grows with its position rows. It only scrolls when the rows exceed
+the space available on screen, leaving room for the column headings.
 
 ### Close all, and the list it opens
 

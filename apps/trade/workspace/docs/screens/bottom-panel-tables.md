@@ -6,7 +6,9 @@ row and the loading, failed and empty row beneath it.
 
 Positions shows Type after Market, with Long for a positive position size and
 Short for a negative size. Type replaces the Wallet column and sorts alphabetically.
-The market badge still carries leverage or the amount owned. Wallet names remain
+Type uses the green Long or red Short badge with leverage, such as Long 1×.
+The badge appears only in Type, not beside Market. Owned coins keep their
+Owned amount badge in Type. Wallet names remain
 in action confirmations, Open orders and the Journal.
 
 Active Trades, Running bots and the Trades dashboard card use the same frame

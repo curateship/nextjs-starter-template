@@ -927,9 +927,12 @@ describe("the bottom panel's tables say what they know", () => {
     expect(host.querySelector("thead")?.textContent).not.toContain("Wallet")
     const types = () => Array.from(host.querySelectorAll("tbody tr"))
       .map((row) => row.children[1]?.textContent)
-    expect(types()).toEqual(["Long", "Long", "Short"])
+    expect(types()).toEqual(["Long 1×", "Long 1×", "Short 1×"])
+    for (const row of host.querySelectorAll("tbody tr")) {
+      expect(row.children[0]?.textContent).not.toMatch(/Long|Short/)
+    }
     await act(async () => heading?.click())
-    expect(types()).toEqual(["Short", "Long", "Long"])
+    expect(types()).toEqual(["Short 1×", "Long 1×", "Long 1×"])
     await act(async () => root.unmount())
   })
 

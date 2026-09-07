@@ -1,3 +1,4 @@
+import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
 import {
   ArrowLeftRightIcon,
@@ -292,23 +293,6 @@ function WalletCell({ wallet }: { wallet: string }) {
   )
 }
 
-/**
- * "Long 5×" — direction and leverage, the two things that set the risk. A
- * coin that is simply owned has neither, so its badge says how many are
- * held instead: "Owned 1,125.37".
- */
-function SideBadge({ position }: { position: TradePosition }) {
-  if (position.owned) {
-    return <TradeBadge tone="made">Owned {formatSize(position.szi)}</TradeBadge>
-  }
-  const long = position.szi > 0
-  return (
-    <TradeBadge tone={long ? "made" : "lost"}>
-      {long ? "Long" : "Short"} {position.leverage}×
-    </TradeBadge>
-  )
-}
-
 /** A visible warning with the same sentence available on hover and focus. */
 function MissingStopBadge({
   marketKey,
@@ -413,7 +397,6 @@ function PositionRow({
         market={market}
         badge={
           <>
-            <SideBadge position={position} />
             {position.live ? (
               <TestnetBadge marketKey={position.marketKey} />
             ) : null}
@@ -425,7 +408,7 @@ function PositionRow({
         onSelect={() => onSelectMarket(position.marketKey)}
       />
       <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
-        {position.szi > 0 ? "Long" : "Short"}
+        <PositionSideBadge position={position} />
       </td>
       <Cell>
         {unpriced ? (

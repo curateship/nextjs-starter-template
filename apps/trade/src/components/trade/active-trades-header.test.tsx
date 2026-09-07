@@ -105,7 +105,7 @@ describe("the Active Trades header", () => {
       '[data-testid="active-trades-popover"]'
     )
     expect(popover?.className).toContain(
-      "max-h-[min(calc(50vh-4rem),var(--radix-popover-content-available-height))]"
+      "max-h-[var(--radix-popover-content-available-height)]"
     )
     expect(
       popover?.className.split(" ").some((name) => name.startsWith("h-["))

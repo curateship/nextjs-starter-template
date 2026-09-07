@@ -317,10 +317,10 @@ describe("the Positions tab glance", () => {
       (button) => button.textContent === "Type"
     )!
     await act(async () => typeHeading.click())
-    expect(rows().map((row) => row.children[1].textContent)).toEqual(["Long", "Short"])
+    expect(rows().map((row) => row.children[1].textContent)).toEqual(["Long 1×", "Short 1×"])
     expect(rows()[0].getAttribute("aria-label")).toContain("Long")
     await act(async () => typeHeading.click())
-    expect(rows().map((row) => row.children[1].textContent)).toEqual(["Short", "Long"])
+    expect(rows().map((row) => row.children[1].textContent)).toEqual(["Short 1×", "Long 1×"])
   })
 
   it("does not open an empty position summary", async () => {

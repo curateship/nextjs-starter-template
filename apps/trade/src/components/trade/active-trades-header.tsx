@@ -258,7 +258,7 @@ function AdminActiveTradesHeader() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="flex max-h-[min(calc(50vh-4rem),var(--radix-popover-content-available-height))] w-max max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-max max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onMouseEnter={cancelClose}
         onMouseLeave={closeSoon}

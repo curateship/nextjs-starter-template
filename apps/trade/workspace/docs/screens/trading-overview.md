@@ -123,7 +123,7 @@ market on its protocol's chart. The two tabs keep separate exchange and wallet
 filters, so narrowing one list does not silently narrow the other.
 
 Clicking the summary opens the menu for touch and keyboard use. The menu grows
-with its rows and stops just above the middle of the screen. Longer lists scroll
+with its rows up to the available screen height. Longer lists scroll
 under their sticky headings. The menu also respects the space Radix reports
 around the header button, so it cannot exceed the available popover height.
 Loading and failed reads use a padded line that fits its content. A failed

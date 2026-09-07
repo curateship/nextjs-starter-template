@@ -1,3 +1,4 @@
+import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
@@ -718,12 +719,12 @@ function PositionsGlance({
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-96 max-w-[calc(100vw-1rem)] gap-0 p-0"
+        className="w-104 max-w-[calc(100vw-1rem)] gap-0 p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onPointerEnter={clearHover}
         onPointerLeave={closeSoon}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_3rem_5rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
+        <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
           <TableSortButton
             active={sort === "market"}
             direction={direction}
@@ -757,14 +758,14 @@ function PositionsGlance({
             Current P&amp;L
           </TableSortButton>
         </div>
-        <ScrollArea className="max-h-72" viewportClassName="max-h-72">
+        <ScrollArea viewportClassName="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)]">
           {rows.map(({ position, symbol, type, valueLabel, profit, profitLabel }) => {
             return (
               <button
                 key={position.id}
                 type="button"
                 aria-label={`Open ${symbol} market, ${type}, ${valueLabel} value, ${profitLabel} current profit and loss`}
-                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_3rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 onClick={() => {
                   clearHover()
                   setOpenFor(null)
@@ -772,7 +773,9 @@ function PositionsGlance({
                 }}
               >
                 <span className="min-w-0 truncate font-medium">{symbol}</span>
-                <span>{type}</span>
+                <span className="whitespace-nowrap">
+                  <PositionSideBadge position={position} />
+                </span>
                 <span className="text-right">{valueLabel}</span>
                 <span
                   className={cn("text-right font-medium", moneyTone(profit))}
