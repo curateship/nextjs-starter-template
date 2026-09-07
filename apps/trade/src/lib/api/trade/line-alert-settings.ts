@@ -1,3 +1,5 @@
+import { rethrowGridLineStopError } from "@/server/trade/grid-line-stops"
+import { GRID_LINE_STOP_ERRORS, withLinkedGridStopMessage } from "@/lib/trade/grid-line-stop"
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
@@ -23,7 +25,7 @@ const saveLineAlertsPausedFn = createServerFn({ method: "POST" })
   .inputValidator(pausedSchema)
   .handler(async ({ data, context }) =>
     pausedSchema.parse({
-      paused: await saveLineAlertsPaused(context.user.id, data.paused),
+      paused: await saveLineAlertsPaused(context.user.id, data.paused).catch(rethrowGridLineStopError),
     })
   )
 
@@ -42,7 +44,7 @@ export const getLineAlertsPausedLoadErrorMessage = createErrorMessage(
   "The line alerts setting could not be loaded. Try again."
 )
 
-export const getLineAlertsPausedSaveErrorMessage = createErrorMessage(
-  {},
+export const getLineAlertsPausedSaveErrorMessage = withLinkedGridStopMessage(createErrorMessage(
+  GRID_LINE_STOP_ERRORS,
   "The line alerts setting could not be saved. Try again."
-)
+))

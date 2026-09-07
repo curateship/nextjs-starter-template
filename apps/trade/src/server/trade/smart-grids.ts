@@ -89,6 +89,7 @@ const NEXT_LEVEL_OFF_TICK =
  * with none, so that case falls back to the percent the setting names.
  */
 function gridWantedStopPx(plan: GridPlan): number | null {
+  if (plan.lineStop) return null
   const wanted = gridStopPx(plan)
   if (wanted !== null || !plan.stopLoss) return wanted
   return gridStopBeyond(plan.direction, plan, plan.stopLoss.underPct)
@@ -136,6 +137,7 @@ export type GridRow = {
    * pairing at placement.
    */
   paired?: boolean
+  lineStopState?: "watching" | "pending"
 }
 
 /**
@@ -174,6 +176,21 @@ export async function advanceGrid(
 ): Promise<void> {
   const { book, now } = input
   const plan = row.plan
+  if (plan.lineStop) {
+    if (!row.lineStopState) throw new Error("SMART_GRID_LINE_STOP_UNAVAILABLE")
+    if (row.lineStopState === "pending") {
+      const mark = input.marks.get(row.marketKey)
+      const held = book.positions.get(row.marketKey) ?? null
+      if (held && mark === undefined) return
+      closeEverything(plan, book, deps, row.marketKey, held, mark ?? 0, now)
+      for (const level of plan.levels) {
+        if (level.status === "waiting") level.status = "cancelled"
+      }
+      plan.closedReason = "stop"
+      await deps.saveLadder(row, "done", now)
+      return
+    }
+  }
   if (plan.paused) return
   const protocol = getProtocol(book.wallet.protocol)
   const roundPx = (px: number) =>
@@ -185,7 +202,7 @@ export async function advanceGrid(
 
   // ----- 1. The 4h base the stop rides ------------------------------------
 
-  if (plan.stopLoss?.base) {
+  if (!plan.lineStop && plan.stopLoss?.base) {
     const read = readBaseWatch(
       input.ladderBars.get(ladderBarsKey("base", row.marketKey)),
       plan.baseDetection,
@@ -624,7 +641,7 @@ export async function advanceGrid(
   // reason.
 
   const after = book.positions.get(row.marketKey) ?? null
-  if (protocol.capabilities.gridStop === "watched") {
+  if (plan.lineStop || protocol.capabilities.gridStop === "watched") {
     // The watched price is the plan's `stopLoss`. `aimedSlPx` means a stop was
     // sent to the exchange, so Lighter must always leave it empty. Comparing
     // Lighter's null `slPx` with this field used to rewrite the saved stop to

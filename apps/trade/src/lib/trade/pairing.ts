@@ -73,10 +73,11 @@ export function gridLadderPairingRefusal(input: {
   protocol: string
   grid: Pick<
     GridPlan,
-    "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch" | "leverage"
+    "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch" | "leverage" | "lineStop"
   > | null
   ladder: Pick<LadderPlan, "rungs" | "leverage"> | null
 }): string | null {
+  if (input.grid?.lineStop) return "SMART_GRID_LINE_STOP_PAIRED"
   // A selling grid and a ladder can never share a coin, and this is checked
   // before anything else. The ladder is a buying plan and the grid a selling
   // one, and one exchange position cannot be both — the ladder's rungs would

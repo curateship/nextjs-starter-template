@@ -1,3 +1,6 @@
+import { GridLineStopField, type GridLineStopChoice } from "./grid-line-stop-field"
+import type { GridLineStop } from "@/lib/trade/grid-line-stop"
+import type { Drawing } from "@/lib/trade/drawings"
 import * as React from "react"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
@@ -97,7 +100,11 @@ function currentLevelPcts(plan: GridPlan): number[] {
  * The grid keeps its own small window because its slices, range and follow
  * rules do not belong in the DCA ladder form.
  */
+const NO_DRAWINGS: readonly Drawing[] = []
+
 export function GridSettingsWindow({
+  drawings = NO_DRAWINGS,
+  lineAlertsPaused = false,
   grid,
   anchor = null,
   wide = true,
@@ -112,6 +119,8 @@ export function GridSettingsWindow({
   onSetFollow,
   onClose,
 }: {
+  drawings?: readonly Drawing[]
+  lineAlertsPaused?: boolean
   grid: SmartGrid | null
   /** The chart cog this floating dropdown sits beside. */
   anchor?: HTMLElement | null
@@ -127,7 +136,8 @@ export function GridSettingsWindow({
   onSave: (
     grid: SmartGrid,
     stopLoss: GridStop,
-    reverseWhenStopped?: boolean
+    reverseWhenStopped?: boolean,
+    lineStop?: GridLineStop | null
   ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
@@ -163,6 +173,8 @@ export function GridSettingsWindow({
       }}
     >
       <StopForm
+        drawings={drawings}
+        lineAlertsPaused={lineAlertsPaused}
         key={grid.id}
         grid={grid}
         mark={mark}
@@ -180,6 +192,8 @@ export function GridSettingsWindow({
 }
 
 function StopForm({
+  drawings,
+  lineAlertsPaused,
   grid,
   mark,
   busy,
@@ -191,6 +205,8 @@ function StopForm({
   onSetFollow,
   onClose,
 }: {
+  drawings: readonly Drawing[]
+  lineAlertsPaused: boolean
   grid: SmartGrid
   mark: number | null
   busy: boolean
@@ -199,7 +215,8 @@ function StopForm({
   onSave: (
     grid: SmartGrid,
     stopLoss: GridStop,
-    reverseWhenStopped?: boolean
+    reverseWhenStopped?: boolean,
+    lineStop?: GridLineStop | null
   ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
@@ -219,6 +236,8 @@ function StopForm({
   onClose: () => void
 }) {
   const plan = grid.plan
+  const [lineChoice, setLineChoice] = React.useState<GridLineStopChoice>({ enabled: !!plan.lineStop, stop: plan.lineStop ?? null })
+  const lineChanged = JSON.stringify(lineChoice.enabled ? lineChoice.stop : null) !== JSON.stringify(plan.lineStop ?? null)
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
   const [manualOn, setManualOn] = React.useState(plan.manualSizing)
@@ -417,6 +436,7 @@ function StopForm({
 
   const save = async () => {
     if (busy) return
+    if (lineChoice.enabled && !lineChoice.stop) { showErrorToast("Choose a drawing alert for the stop loss."); return }
     if (
       badUnder ||
       badBase ||
@@ -466,7 +486,9 @@ function StopForm({
         ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
         : null,
     }
-    const saved = stopChanged
+    const saved = lineChanged
+      ? await onSave(grid, nextStop, reverseOn, lineChoice.enabled ? lineChoice.stop : null)
+      : stopChanged
       ? reverseChanged
         ? await onSave(grid, nextStop, reverseOn)
         : await onSave(grid, nextStop)
@@ -855,9 +877,11 @@ function StopForm({
             id="grid-edit-stop"
             title="Stop loss"
             hint="The stop stays beyond the losing end of the range and ends the grid if price reaches it."
-            summary={`${plan.direction === "long" ? "−" : "+"}${underPct}%`}
+            summary={lineChoice.enabled ? "Line alert" : `${plan.direction === "long" ? "−" : "+"}${underPct}%`}
           >
             <div className="grid gap-4">
+              <GridLineStopField marketKey={grid.marketKey} drawings={drawings} paused={lineAlertsPaused} busy={busy}
+                paired={pairedLeverage !== null} linkedStop={plan.lineStop} value={lineChoice} onChange={setLineChoice} />
               <div className="grid gap-2">
                 <Label htmlFor="grid-stop-pct">{stopFieldLabel}</Label>
                 <Input
@@ -865,7 +889,7 @@ function StopForm({
                   inputMode="decimal"
                   value={underPct}
                   aria-invalid={showValidation && badUnder}
-                  disabled={busy}
+                  disabled={busy || lineChoice.enabled}
                   onChange={(event) => {
                     setShowValidation(false)
                     setUnderPct(event.target.value)
@@ -900,7 +924,7 @@ function StopForm({
                 on={baseOn}
                 underPct={baseUnderPct}
                 reclaimDays={baseReclaimDays}
-                disabled={busy}
+                disabled={busy || lineChoice.enabled}
                 showErrors={showValidation}
                 direction={plan.direction}
                 onOn={(next) => {

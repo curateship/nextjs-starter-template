@@ -71,6 +71,8 @@ export type DrawingAlert = {
    * there. Left out on rows fired before the dot existed.
    */
   firedPrice?: number
+  /** The actual buffered threshold used by the firing pass. */
+  firedThreshold?: number
   /**
    * How far past the line the price has to go before this fires, as a
    * percentage of where the line is. Left out for none, which is the line
@@ -187,6 +189,7 @@ export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
   armedAt: z.number().int().min(0).max(MAX_TIME_MS),
   firedAt: z.number().int().min(0).max(MAX_TIME_MS).nullable(),
   firedPrice: z.number().finite().optional(),
+  firedThreshold: z.number().finite().optional(),
   buffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).optional(),
 })
 

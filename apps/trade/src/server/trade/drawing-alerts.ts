@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm"
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm"
 
 import {
   MAX_RECENT_FIRED_LINE_ALERTS,
@@ -143,18 +143,7 @@ export async function checkDrawingAlerts({
   if (armed.length === 0) return 0
 
   const marketKeys = [...new Set(armed.map((row) => row.marketKey))]
-  const userIds = [...new Set(armed.map((row) => row.userId))]
   const { marks } = pushedMarks(marketKeys)
-  const pausedRows = await database
-    .select({ userId: tradePrefs.userId })
-    .from(tradePrefs)
-    .where(
-      and(
-        inArray(tradePrefs.userId, userIds),
-        eq(tradePrefs.lineAlertsPaused, true)
-      )
-    )
-  const paused = new Set(pausedRows.map((row) => row.userId))
   const now = checkedAt.getTime()
   let fired = 0
   for (const row of armed) {
@@ -182,23 +171,20 @@ export async function checkDrawingAlerts({
       eq(tradeChartDrawings.alert, row.alert)
     )
 
-    if (paused.has(row.userId)) {
-      // Turned to face the price again, the same rule a dragged line follows.
-      // That is what makes this cross stay silent after the switch goes back
-      // on: the line now waits for the price to come back across it.
-      const direction = priceAlertDirection(linePrice, mark)
-      if (direction === row.alert.direction) continue
-      await database
-        .update(tradeChartDrawings)
-        .set({ alert: { ...row.alert, direction } })
-        .where(claim)
-      continue
-    }
-
     await database.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'grid-line-stop:' + row.userId}, 0))`)
+      const [prefs] = await tx.select({ paused: tradePrefs.lineAlertsPaused }).from(tradePrefs).where(eq(tradePrefs.userId, row.userId))
+      if (prefs?.paused) {
+        const direction = priceAlertDirection(linePrice, mark)
+        if (direction !== row.alert.direction) {
+          await tx.update(tradeChartDrawings).set({ alert: { ...row.alert, direction } }).where(claim)
+        }
+        return
+      }
+
       const claimed = await tx
         .update(tradeChartDrawings)
-        .set({ alert: { ...row.alert, firedAt: now, firedPrice: linePrice } })
+        .set({ alert: { ...row.alert, firedAt: now, firedPrice: linePrice, firedThreshold: firePrice } })
         .where(claim)
         .returning({ id: tradeChartDrawings.id })
       if (claimed.length === 0) return

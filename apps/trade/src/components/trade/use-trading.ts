@@ -1,3 +1,4 @@
+import type { GridLineStop } from "@/lib/trade/grid-line-stop"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -476,6 +477,7 @@ export type Trading = {
   grids: SmartGrid[]
   /** Places a whole grid at once. */
   placeGrid: (input: {
+    lineStop?: GridLineStop | null
     marketKey: string
     topPx: number
     bottomPx: number
@@ -533,7 +535,8 @@ export type Trading = {
     walletId: string,
     gridId: string,
     stopLoss: GridStop,
-    reverseWhenStopped?: boolean
+    reverseWhenStopped?: boolean,
+    lineStop?: GridLineStop | null
   ) => Promise<boolean>
   /**
    * Turn a running grid around: close what it holds at market, end it, and
@@ -2361,11 +2364,11 @@ export function useTrading(
   )
 
   const setGridStop: Trading["setGridStop"] = React.useCallback(
-    async (walletId, gridId, stopLoss, reverseWhenStopped) => {
+    async (walletId, gridId, stopLoss, reverseWhenStopped, lineStop) => {
       return await runWith(
         getTradingSmartOrderError,
         () =>
-          updateGridStop({ walletId, gridId, stopLoss, reverseWhenStopped }),
+          updateGridStop({ walletId, gridId, stopLoss, reverseWhenStopped, lineStop }),
         "Stop changed."
       )
     },

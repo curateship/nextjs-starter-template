@@ -1,3 +1,5 @@
+import { rethrowGridLineStopError } from "@/server/trade/grid-line-stops"
+import { GRID_LINE_STOP_ERRORS, withLinkedGridStopMessage } from "@/lib/trade/grid-line-stop"
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
@@ -106,7 +108,7 @@ const saveChartDrawingFn = createServerFn({ method: "POST" })
       data.marketKey,
       { id: data.id, shape: data.shape },
       data.currentPrice ?? null
-    )
+    ).catch(rethrowGridLineStopError)
     return { saved: true }
   })
 
@@ -120,7 +122,7 @@ const setChartDrawingAlertFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(setAlertSchema)
   .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
-    return { drawing: await setChartDrawingAlert(context.user.id, data) }
+    return { drawing: await setChartDrawingAlert(context.user.id, data).catch(rethrowGridLineStopError) }
   })
 
 const setChartDrawingAlertBufferFn = createServerFn({ method: "POST" })
@@ -128,7 +130,7 @@ const setChartDrawingAlertBufferFn = createServerFn({ method: "POST" })
   .inputValidator(setBufferSchema)
   .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
     return {
-      drawing: await setChartDrawingAlertBuffer(context.user.id, data),
+      drawing: await setChartDrawingAlertBuffer(context.user.id, data).catch(rethrowGridLineStopError),
     }
   })
 
@@ -136,7 +138,7 @@ const deleteChartDrawingFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(deleteDrawingSchema)
   .handler(async ({ data, context }): Promise<{ deleted: boolean }> => {
-    return { deleted: await deleteChartDrawing(context.user.id, data.id) }
+    return { deleted: await deleteChartDrawing(context.user.id, data.id).catch(rethrowGridLineStopError) }
   })
 
 const clearChartDrawingsFn = createServerFn({ method: "POST" })
@@ -144,7 +146,7 @@ const clearChartDrawingsFn = createServerFn({ method: "POST" })
   .inputValidator(marketSchema)
   .handler(async ({ data, context }): Promise<{ deleted: number }> => {
     return {
-      deleted: await clearChartDrawings(context.user.id, data.marketKey),
+      deleted: await clearChartDrawings(context.user.id, data.marketKey).catch(rethrowGridLineStopError),
     }
   })
 
@@ -205,27 +207,29 @@ export async function clearDrawings(marketKey: string) {
   return answer
 }
 
-export const getDrawingsErrorMessage = createErrorMessage(
+export const getDrawingsErrorMessage = withLinkedGridStopMessage(createErrorMessage(
   {
+    ...GRID_LINE_STOP_ERRORS,
     [DRAWINGS_FULL]: `This market already has ${MAX_DRAWINGS_PER_MARKET} drawings. Delete one to make room.`,
   },
   "That drawing did not save. Try it again."
-)
+))
 
 export const getLineAlertsLoadErrorMessage = createErrorMessage(
   {},
   "Your line alerts could not be loaded. Try again."
 )
 
-export const getDrawingAlertErrorMessage = createErrorMessage(
+export const getDrawingAlertErrorMessage = withLinkedGridStopMessage(createErrorMessage(
   {
+    ...GRID_LINE_STOP_ERRORS,
     [DRAWING_ALERT_NO_PRICE]:
       "There is no live price to set the alert from yet. Try again in a moment.",
     [DRAWING_ALERT_NOT_ARMED]:
       "That line's alert is no longer on, so there is nothing to set a buffer on. Switch it on again.",
   },
   "The alert did not save. Try it again."
-)
+))
 
 export const getDrawingsLoadErrorMessage = createErrorMessage(
   {},

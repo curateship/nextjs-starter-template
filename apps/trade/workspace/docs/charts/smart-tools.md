@@ -302,3 +302,17 @@ Waiting for a candle to close past the line, repeat firing, a full history of
 every fire on one line, extending a trendline to the left, and orders from a
 line. Each is its
 own task in `workspace/tasks/Smart tools/`.
+
+
+## Lines protecting Smart Grids
+
+A manually placed Smart Grid can use one enabled drawing alert as its stop.
+The chart labels that drawing Grid stop loss. A selected line keeps its own
+alert direction and Break buffer. Moving the line changes its alert through
+the same rules used by an ordinary drawing.
+
+A linked alert cannot be disabled, deleted, turned into a fib or paused through
+Settings. Clear drawings and the Alerts menu's Clear all follow the same rule.
+Replace the grid's stop or close the grid first. Once the alert fires, its
+closing instruction survives changes to the saved grid and engine restarts.
+See `orders/grid-orders.md` for closure, reversal and rollout requirements.

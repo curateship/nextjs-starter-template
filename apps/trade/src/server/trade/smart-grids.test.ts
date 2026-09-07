@@ -2621,3 +2621,77 @@ describe("a read with no position", () => {
     expect(row.plan.closedReason).toBe("stop")
   })
 })
+
+
+describe("grids stopped by drawing alerts", () => {
+  async function linkedGrid() {
+    const { insertWorkspace } = await import("@/server/test-support")
+    await insertWorkspace(database, { userId })
+    const { tradeWorkerHeartbeats } = await import("./schema")
+    const { saveChartDrawing, setChartDrawingAlert } = await import("./drawings")
+    const { uuid } = await import("@/server/auth/security")
+    await database.insert(tradeWorkerHeartbeats).values({ id: uuid(), kind: "ladders", role: "leader", startedAt: new Date(), lastSeenAt: new Date(), meta: { gridLineStop: true } })
+    const placed = await place()
+    const drawingId = uuid()
+    await saveChartDrawing(userId, BTC, { id: drawingId, shape: { kind: "level", price: 90 } })
+    const drawing = await setChartDrawingAlert(userId, { id: drawingId, on: true, currentPrice: 200, buffer: 2 })
+    await updateGridStop(userId, wallet, { gridId: placed.grid.id, stopLoss: { underPct: 5, base: null }, lineStop: { drawingId, armedAt: drawing.alert!.armedAt } })
+    return placed.grid.id
+  }
+
+  async function fireLine() {
+    const { checkDrawingAlerts } = await import("./drawing-alerts")
+    expect(await checkDrawingAlerts({ database, pushedMarks: () => ({ marks: new Map([[BTC, 88]]), missing: [] }) })).toBe(1)
+  }
+
+  it("closes held coins after firing even if price recovers and the grid is paused", async () => {
+    const id = await linkedGrid()
+    await priceTo(100)
+    expect(await positions()).toHaveLength(1)
+    const grid = await onlyGrid()
+    await saveGridPlan(userId, id, { ...grid.plan, paused: true }, "active")
+    await fireLine()
+    await priceTo(130)
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyGrid()).status).toBe("done")
+    expect((await onlyGrid()).plan.closedReason).toBe("stop")
+    const count = (await orders()).length
+    await priceTo(80)
+    expect((await orders()).length).toBe(count)
+  })
+
+  it("attaches a line during short grid placement and closes while ordinary settling is paused", async () => {
+    const { insertWorkspace } = await import("@/server/test-support")
+    const { uuid } = await import("@/server/auth/security")
+    const { saveChartDrawing, setChartDrawingAlert } = await import("./drawings")
+    const { tradeWorkerHeartbeats } = await import("./schema")
+    const { checkDrawingAlerts } = await import("./drawing-alerts")
+    const { settleWallet } = await import("./paper")
+    await insertWorkspace(database, { userId })
+    await database.insert(tradeWorkerHeartbeats).values({ id: uuid(), kind: "ladders", role: "leader", startedAt: new Date(), lastSeenAt: new Date(), meta: { gridLineStop: true } })
+    await priceTo(70)
+    const drawingId = uuid()
+    await saveChartDrawing(userId, BTC, { id: drawingId, shape: { kind: "level", price: 130 } })
+    const drawing = await setChartDrawingAlert(userId, { id: drawingId, on: true, currentPrice: 70, buffer: 2 })
+    await placeGridOrder(userId, wallet, {
+      marketKey: BTC, topPx: 120, bottomPx: 80, params: params({ direction: "short" }),
+      lineStop: { drawingId, armedAt: drawing.alert!.armedAt },
+    })
+    await priceTo(100)
+    expect((await positions())[0].szi).toBeLessThan(0)
+    expect(await checkDrawingAlerts({ database, pushedMarks: () => ({ marks: new Map([[BTC, 133]]), missing: [] }) })).toBe(1)
+    marks.set("BTC", 100)
+    await settleWallet(userId, wallet, { lineStopsOnly: true })
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyGrid()).status).toBe("done")
+  })
+
+  it("ends an empty grid without a closing trade", async () => {
+    await linkedGrid()
+    await fireLine()
+    await priceTo(200)
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+    expect((await onlyGrid()).status).toBe("done")
+  })
+})

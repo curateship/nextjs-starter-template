@@ -616,7 +616,8 @@ export async function settleWallet(
   userId: string,
   wallet: TradeWallet,
   shared?: {
-    marks: ReadonlyMap<string, number>
+    marks?: ReadonlyMap<string, number>
+    lineStopsOnly?: boolean
     /** This wallet's exposed markets, when the caller already looked. */
     markets?: readonly string[]
   }
@@ -653,7 +654,7 @@ export async function settleWallet(
         )
       )
       .limit(1),
-    shared ? shared.marks : marksFor(wallet.protocol, wallet.network, markets),
+    shared?.marks ?? marksFor(wallet.protocol, wallet.network, markets),
   ])
   // One feed per settle, for the same reason the live pass paces itself: a
   // wallet with a hundred ladders asking for a hundred 4h histories at once
@@ -700,7 +701,7 @@ export async function settleWallet(
       ...book.positions.keys(),
       ...book.orders.map((order) => order.marketKey),
     ])) {
-      settleMarket(book, key, {
+      if (!shared?.lineStopsOnly) settleMarket(book, key, {
         bars: bars.get(key) ?? [],
         barMs: step.ms,
         mark: marks.get(key) ?? null,
@@ -711,7 +712,7 @@ export async function settleWallet(
     // bought gets its sell, a stop that fired ends its ladder — before the
     // book is saved, so their changes ride the same write.
     await advanceLadders(
-      { tx, userId, book, marks, ladderBars: ladderBars as LadderBars, now },
+      { tx, userId, book, marks, ladderBars: ladderBars as LadderBars, now, lineStopsOnly: shared?.lineStopsOnly },
       { fill, dropOrder, freeCash }
     )
     const moved = book.fills.length > 0 || book.goneOrderIds.size > 0

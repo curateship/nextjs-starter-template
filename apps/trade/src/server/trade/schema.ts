@@ -1598,3 +1598,24 @@ export const tradeMarketFirstSeen = pgTable("trade_market_first_seen", {
   marketKey: text("market_key").primaryKey(),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
 })
+
+/** The alert link and its durable closing instruction outlive plan edits. */
+export const tradeGridLineStops = pgTable("trade_grid_line_stops", {
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  gridId: varchar("grid_id", { length: 36 }).notNull(),
+  drawingId: varchar("drawing_id", { length: 36 }).notNull(),
+  armedAt: doublePrecision("armed_at").notNull(),
+  state: varchar("state", { length: 12 }).$type<"watching" | "pending" | "done" | "released">().notNull().default("watching"),
+  firedAt: doublePrecision("fired_at"),
+  linePrice: doublePrecision("line_price"),
+  threshold: doublePrecision("threshold"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  expectedCloseSz: doublePrecision("expected_close_sz"),
+  closeConfirmed: boolean("close_confirmed").notNull().default(false),
+  closeStartedAt: timestamp("close_started_at", { withTimezone: true }),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.gridId, table.drawingId, table.armedAt] }),
+  foreignKey({ columns: [table.userId, table.gridId], foreignColumns: [tradeSmartLadders.userId, tradeSmartLadders.id] }).onDelete("cascade"),
+  check("trade_grid_line_stops_state_check", sql`${table.state} IN ('watching', 'pending', 'done', 'released')`),
+  index("trade_grid_line_stops_drawing_idx").on(table.userId, table.drawingId).where(sql`${table.state} IN ('watching', 'pending')`),
+])

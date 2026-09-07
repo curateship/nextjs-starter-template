@@ -94,6 +94,7 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
       wallets: lastPass.wallets,
       dcaMarketFirst: true,
       dcaMarketFirstExit: true,
+      gridLineStop: true,
     },
   }).catch((error) => {
     // A beat that cannot be written is not a reason to stop trading. It makes

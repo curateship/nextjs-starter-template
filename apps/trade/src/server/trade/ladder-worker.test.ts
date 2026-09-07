@@ -8,6 +8,8 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
 const walletRows = vi.hoisted(() => ({
   value: [] as Array<{ userId: string; walletId: string }>,
 }))
+const lineWalletRows = vi.hoisted(() => ({ value: [] as Array<{ userId: string; walletId: string }> }))
+const closeOnlyWork = vi.hoisted(() => ({ wallets: [] as string[], alerts: 0 }))
 const flowRows = vi.hoisted(() => ({
   value: [] as Array<{
     userId: string
@@ -42,16 +44,19 @@ const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0, removals: 0 }))
 const alertWork = vi.hoisted(() => ({ checks: 0 }))
 const walletReads = vi.hoisted(() => ({ calls: 0, keys: 0 }))
 
-vi.mock("@/server/db", () => ({
+vi.mock("@/server/db", async () => {
+  const { PgDialect } = await import("drizzle-orm/pg-core")
+  const dialect = new PgDialect()
+  return ({
   db: {
     selectDistinct: () => ({
-      from: () => ({ where: async () => walletRows.value }),
+      from: () => ({ where: async (where: Parameters<typeof dialect.sqlToQuery>[0]) => dialect.sqlToQuery(where).sql.includes("lineStop") ? lineWalletRows.value : walletRows.value }),
     }),
     select: () => ({
       from: () => ({ where: async () => flowRows.value }),
     }),
   },
-}))
+})})
 
 vi.mock("@/server/trade/wallets", () => ({
   walletMapKey: (userId: string, id: string) => `${userId}\0${id}`,
@@ -109,7 +114,8 @@ vi.mock("@/server/trade/live-marks", () => ({
 
 vi.mock("@/server/trade/paper", () => ({
   exposedMarketKeys: async () => [],
-  settleWallet: async (_userId: string, wallet: { id: string }) => {
+  settleWallet: async (_userId: string, wallet: { id: string }, options?: { lineStopsOnly?: boolean }) => {
+    if (options?.lineStopsOnly) { closeOnlyWork.wallets.push(wallet.id); return }
     if (settled.hang.has(wallet.id)) {
       await new Promise<void>((done) => settled.finish.set(wallet.id, done))
     }
@@ -150,6 +156,8 @@ vi.mock("@/server/trade/price-alerts", () => ({
     alertWork.checks += 1
   },
 }))
+
+vi.mock("@/server/trade/drawing-alerts", () => ({ checkDrawingAlerts: async () => { closeOnlyWork.alerts += 1 } }))
 
 const leader = vi.hoisted(() => ({ asked: 0 }))
 vi.mock("@/server/trade/leadership", () => ({
@@ -206,6 +214,9 @@ describe("standing in for the engine", () => {
 describe("the server's ladder job", () => {
   beforeEach(() => {
     resetLadderPassState()
+    lineWalletRows.value = []
+    closeOnlyWork.wallets = []
+    closeOnlyWork.alerts = 0
     settled.count = 0
     settled.done = []
     settled.delays = new Map()
@@ -324,6 +335,16 @@ describe("the server's ladder job", () => {
     expect(flowWork.stops).toBe(2)
     expect(flowWork.removals).toBe(2)
     expect(flowWork.scans).toBe(1)
+  })
+
+  it.each([true, false])("consumes drawing stops while ordinary trading is paused or off, enabled=%s", async (enabled) => {
+    walletRows.value = [{ userId: "u1", walletId: "w1" }, { userId: "u1", walletId: "w2" }]
+    lineWalletRows.value = [{ userId: "u1", walletId: "w1" }]
+    control.value = { enabled, paused: enabled }
+    await advanceWorkingLadders()
+    expect(closeOnlyWork.wallets).toEqual(["w1"])
+    expect(closeOnlyWork.alerts).toBe(enabled ? 1 : 0)
+    expect(settled.count).toBe(0)
   })
 
   it("honours a restart request between passes, and clears it", async () => {

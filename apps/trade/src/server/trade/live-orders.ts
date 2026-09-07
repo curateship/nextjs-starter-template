@@ -683,7 +683,12 @@ export async function rollbackLiveOrder(
 
 export async function closeLivePosition(
   userId: string,
-  input: { walletId: string; marketKey: string }
+  input: { walletId: string; marketKey: string },
+  closeProgress?: {
+    expectedSide: TradeSide
+    beforeSubmit: (requestedSz: number) => Promise<void>
+    afterSubmit: (filledSz: number, requestedSz: number) => Promise<void>
+  }
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
@@ -716,6 +721,11 @@ export async function closeLivePosition(
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "sell" : "buy"
 
+    // A pending grid stop must not close an opposite position opened elsewhere.
+    if (closeProgress && side !== closeProgress.expectedSide) {
+      throw new Error("SMART_GRID_LINE_STOP_CLOSE_UNCONFIRMED")
+    }
+    await closeProgress?.beforeSubmit(Math.abs(held.szi))
     const closed = await ordersOf(protocol).close(row.network, authFor(row), {
       marketId: ref.marketId,
       szi: held.szi,
@@ -723,6 +733,7 @@ export async function closeLivePosition(
       priceMultiplierUp: rules?.priceMultiplierUp ?? null,
       priceMultiplierDown: rules?.priceMultiplierDown ?? null,
     })
+    await closeProgress?.afterSubmit(closed.filledSz ?? 0, Math.abs(held.szi))
     dropEngineExchangeReads(row)
     // The Journal row for this trade is built from the fill this close just
     // made, so the next read must not sit behind the idle wait.

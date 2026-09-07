@@ -1,3 +1,5 @@
+import type { GridLineStop } from "@/lib/trade/grid-line-stop"
+import { requireGridLineStopEngine, validateGridLineStop } from "./grid-line-stops"
 import { randomUUID } from "node:crypto"
 
 import { and, eq } from "drizzle-orm"
@@ -184,6 +186,12 @@ async function placeLiveGridOrderOnce(
     startedAt: now,
     held: held ? { szi: held.szi, leverage: held.leverage } : null,
   })
+
+  if (input.lineStop) {
+    await requireGridLineStopEngine()
+    await validateGridLineStop(userId, input.marketKey, input.lineStop)
+    plan.lineStop = input.lineStop
+  }
 
   const accepted: string[] = []
   try {
@@ -414,7 +422,7 @@ async function movePairedGridStop(
 export async function updateLiveGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean }
+  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean; lineStop?: GridLineStop | null }
 ): Promise<void> {
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
@@ -424,6 +432,11 @@ export async function updateLiveGridStop(
 
     // The follow that walks INTO the loss freezes the stop where it stands:
     // following down on a buying grid, following up on a selling one.
+    if (input.lineStop) {
+      await requireGridLineStopEngine()
+      await validateGridLineStop(userId, grid.marketKey, input.lineStop)
+    }
+    if (input.lineStop !== undefined) plan.lineStop = input.lineStop
     updateGridStopPlan(plan, input.stopLoss, input.reverseWhenStopped)
 
     // While a ladder shares the coin, the stop is the handoff line: it must
@@ -657,6 +670,7 @@ export async function moveLiveGridExit(
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
     const plan = grid.plan
+    if (plan.lineStop && input.which === "stopLoss") throw new Error("SMART_GRID_LINE_STOP_UNAVAILABLE")
     const protocol = getProtocol(wallet.protocol)
     // Today's price decides whether a dragged stop may sit inside the range
     // or would fire at once — see `moveGridExitPlan`. Best-effort: a venue

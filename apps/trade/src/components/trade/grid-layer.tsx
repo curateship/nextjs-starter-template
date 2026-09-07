@@ -1028,7 +1028,7 @@ function GridLines({
   // Both exits hang off the range, so both follow it while it moves — the same
   // arithmetic the server does when it saves. A stop dragged to a price is
   // carried by a whole-grid move too, by the same dollars the two edges moved.
-  const movedStop = !rangeMoved
+  const movedStop = plan.lineStop || !rangeMoved
     ? null
     : plan.stopLoss?.mode === "percent" && !plan.stopLoss.base
       ? gridStopBeyond(direction, shownRange, plan.stopLoss.underPct)
@@ -1041,7 +1041,7 @@ function GridLines({
 
   const shownTarget =
     movedTarget ?? showing("takeProfit", gridTakeProfitPx(plan))
-  const shownStop = movedStop ?? showing("stopLoss", gridStopPx(plan))
+  const shownStop = plan.lineStop ? null : movedStop ?? showing("stopLoss", gridStopPx(plan))
   const stop = gridStopPx(plan)
   const stopY =
     shownStop !== null ? yFor(shownStop) : stop === null ? null : yFor(stop)

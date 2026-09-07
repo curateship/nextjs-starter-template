@@ -1,6 +1,7 @@
+import { readGridLineStop, completeGridLineStop, recordGridLineStopClose, gridLineStopClosedSize } from "./grid-line-stops"
 import { randomUUID } from "node:crypto"
 
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 import {
   marketChartHref,
@@ -109,7 +110,7 @@ import {
 import { assertSmartOrderPlacable } from "@/server/trade/smart-pairing"
 import { pairedGridPlan } from "@/server/trade/smart-pairing"
 import { autoReverseStoppedGrid } from "@/server/trade/grid-reversal"
-import { advanceGrid } from "./smart-grids"
+import { advanceGrid, type GridRow } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
 import { advanceWatch } from "./smart-watch"
 import {
@@ -1071,14 +1072,15 @@ export async function noteRowFailure(
 export async function reconcileLiveLadders(
   userId: string,
   wallet: TradeWallet,
-  currentPortfolio?: WalletPortfolio
+  currentPortfolio?: WalletPortfolio,
+  lineStopsOnly = false
 ): Promise<void> {
   const key = `${userId}:${wallet.id}`
   if (reconciling.has(key)) return
   reconciling.add(key)
   try {
     await serializeLiveWallet(userId, wallet, () =>
-      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio)
+      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio, false, lineStopsOnly)
     )
   } finally {
     reconciling.delete(key)
@@ -1089,11 +1091,12 @@ export async function reconcileLiveLaddersOnce(
   userId: string,
   wallet: TradeWallet,
   currentPortfolio?: WalletPortfolio,
-  force = false
+  force = false,
+  lineStopsOnly = false
 ): Promise<void> {
   if (!hasWalletPlanWrite(userId, wallet.id)) {
     return await withWalletPlanWrite(userId, wallet.id, () =>
-      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio, force)
+      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio, force, lineStopsOnly)
     )
   }
 
@@ -1105,7 +1108,8 @@ export async function reconcileLiveLaddersOnce(
       and(
         eq(tradeSmartLadders.userId, userId),
         eq(tradeSmartLadders.walletId, wallet.id),
-        eq(tradeSmartLadders.status, "active")
+        eq(tradeSmartLadders.status, "active"),
+        lineStopsOnly ? sql`${tradeSmartLadders.plan}->'lineStop' IS NOT NULL AND ${tradeSmartLadders.plan}->'lineStop' <> 'null'::jsonb` : undefined
       )
     )
   if (rows.length === 0) return
@@ -2243,7 +2247,54 @@ export async function reconcileLiveLaddersOnce(
         continue
       const entry = parsed.get(raw.id)
       if (!entry) continue
-      if (entry.plan.paused) continue
+      let lineStopState: "watching" | undefined
+      if (entry.kind === "grid" && (entry.plan as GridPlan).lineStop) {
+        const plan = entry.plan as GridPlan
+        const line = await readGridLineStop(userId, raw.id, raw.marketKey, plan.lineStop!)
+        if (line.state === "pending") {
+          for (const level of plan.levels) {
+            if (level.status === "waiting") level.status = "cancelled"
+          }
+          await saveLadderPlan(userId, raw.id, plan, "active")
+          const marketId = parseMarketKey(raw.marketKey)?.marketId
+          const held = folio.positions.find((position) => position.marketId === marketId)
+          const expected = line.expectedCloseSz ?? gridHeldSz(plan)
+          const closedFills = await gridLineStopClosedSize({
+            userId, walletId: wallet.id, marketKey: raw.marketKey,
+            firedAt: line.closeStartedAt?.getTime() ?? line.firedAt ?? now,
+            side: plan.direction === "long" ? "sell" : "buy", fills,
+          })
+          let confirmed = line.closeConfirmed || (expected > 0 && closedFills >= expected) || (!held && expected === 0)
+          if (!confirmed && held) {
+            await closeLivePosition(userId, { walletId: wallet.id, marketKey: raw.marketKey },
+              {
+                expectedSide: plan.direction === "long" ? "sell" : "buy",
+                beforeSubmit: (requested) => recordGridLineStopClose(userId, raw.id, requested, false),
+                afterSubmit: async (filled, requested) => {
+                  confirmed = filled >= requested && requested > 0
+                  if (confirmed) await recordGridLineStopClose(userId, raw.id, requested, true)
+                },
+              })
+          }
+          if (!confirmed) throw new Error("SMART_GRID_LINE_STOP_CLOSE_UNCONFIRMED")
+          await completeGridLineStop(userId, raw.id)
+          plan.closedReason = "stop"
+          for (const level of [...plan.levels, ...plan.carriedLevels]) level.heldSz = 0
+          await saveLadderPlan(userId, raw.id, plan, "done")
+          if (plan.reverseWhenStopped && line.threshold !== null && account && account.equity > 0) {
+            await autoReverseStoppedGrid({
+              tx: db, userId, wallet, oldId: raw.id, marketKey: raw.marketKey,
+              plan,
+              firedStopPx: line.threshold,
+              positionChanged: !!held && (held.szi > 0) !== (plan.direction === "long"),
+              mark: marks.get(raw.marketKey) ?? null, equity: account.equity, takerFeeRate: book.costs.takerFeeRate, now,
+            })
+          }
+          continue
+        }
+        lineStopState = "watching"
+      }
+      if (lineStopsOnly || entry.plan.paused) continue
 
       if (entry.kind === "grid") {
         const plan = entry.plan as GridPlan
@@ -2278,7 +2329,7 @@ export async function reconcileLiveLaddersOnce(
         }
         // A grid has no orders on the exchange to match fills against: its
         // levels are watched prices and it buys when one is reached.
-        await advanceRow(raw, entry, advanceGrid)
+        await advanceRow(raw, entry, (input, deps, row) => advanceGrid(input, deps, { ...(row as GridRow), lineStopState }))
         // A grid that closed on this pass with its stop fired and the reverse
         // switch on is turned around here. The engine wrote the row as done
         // already, so there is never a moment with two active smart orders on

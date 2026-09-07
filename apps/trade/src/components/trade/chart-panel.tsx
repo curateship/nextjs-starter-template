@@ -1705,6 +1705,7 @@ export function ChartPanel({
             candles={current?.candles ?? []}
             watchLiveBars={liveBars}
             drawings={paint.drawings}
+            gridStopDrawingIds={new Set(trading.grids.filter((grid) => grid.status === "active" && grid.marketKey === selectedKey).flatMap((grid) => grid.plan.lineStop ? [grid.plan.lineStop.drawingId] : []))}
             tool={paintTool}
             selectedId={paint.selectedId}
             onSelect={paint.setSelectedId}
@@ -1851,6 +1852,7 @@ export function ChartPanel({
       </>
     ),
     [
+      trading.grids,
       indicatorPainted,
       current?.candles,
       liveBars,
@@ -2236,6 +2238,8 @@ export function ChartPanel({
           }
         >
           <GridOrderDialog
+            drawings={paint.drawings}
+            lineAlertsPaused={lineAlertsPaused}
             state={grid}
             wide={wide}
             market={market}
@@ -2363,6 +2367,8 @@ export function ChartPanel({
         }}
       />
       <GridSettingsWindow
+        drawings={settingsFor?.marketKey === market?.key ? paint.drawings : undefined}
+        lineAlertsPaused={lineAlertsPaused}
         grid={settingsFor}
         anchor={settingsAnchor}
         wide={wide}
@@ -2398,12 +2404,13 @@ export function ChartPanel({
               )?.leverage ?? null)
             : null
         }
-        onSave={(one, stopLoss, reverseWhenStopped) =>
+        onSave={(one, stopLoss, reverseWhenStopped, lineStop) =>
           trading.setGridStop(
             one.walletId,
             one.id,
             stopLoss,
-            reverseWhenStopped
+            reverseWhenStopped,
+            lineStop
           )
         }
         onReshape={(one, shape) =>

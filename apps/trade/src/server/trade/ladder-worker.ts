@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 
 import type { TradePosition } from "@/lib/trade/paper"
 import type { TradeFlowRunStatus } from "@/lib/trade/flow-run"
@@ -581,6 +581,23 @@ export async function advanceWorkingLadders(): Promise<void> {
       )
     }
     if (!control.enabled || control.paused) {
+      const lineWallets = await db.selectDistinct({ userId: tradeSmartLadders.userId, walletId: tradeSmartLadders.walletId })
+        .from(tradeSmartLadders).where(and(eq(tradeSmartLadders.status, "active"), sql`${tradeSmartLadders.plan}->'lineStop' IS NOT NULL AND ${tradeSmartLadders.plan}->'lineStop' <> 'null'::jsonb`))
+      if (lineWallets.length) {
+        const [{ settleWallet }, { reconcileLiveLadders }, { checkDrawingAlerts }, { pushedMarks }] = await Promise.all([
+          import("./paper"), import("./live-smart-orders"), import("./drawing-alerts"), import("./live-marks"),
+        ])
+        if (control.enabled) await checkDrawingAlerts({ pushedMarks })
+        for (const { userId, wallet } of work) {
+          if (!lineWallets.some((key) => key.userId === userId && key.walletId === wallet.id) || busyWallets.has(wallet.id)) continue
+          busyWallets.add(wallet.id)
+          started.push((wallet.kind === "paper"
+            ? settleWallet(userId, wallet, { lineStopsOnly: true })
+            : reconcileLiveLadders(userId, wallet, undefined, true))
+            .catch((error) => recordEngineError("ladder-worker", "Drawing stop close failed", error))
+            .finally(() => busyWallets.delete(wallet.id)))
+        }
+      }
       reportStuckWallets(checkedAt)
       lastPass.activity = control.enabled ? "Paused" : "Switched off"
       await Promise.all(started)

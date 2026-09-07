@@ -1,3 +1,4 @@
+import { readGridLineStop, completeGridLineStop } from "./grid-line-stops"
 import { randomUUID } from "node:crypto"
 
 import { and, eq } from "drizzle-orm"
@@ -223,7 +224,7 @@ export async function ladderCandleNeeds(
  * the database.
  */
 export async function advanceLadders(
-  input: LadderAdvanceInput & { tx: CustomShellDb; userId: string },
+  input: LadderAdvanceInput & { tx: CustomShellDb; userId: string; lineStopsOnly?: boolean },
   deps: Omit<LadderEngineDeps, "insertOrder" | "saveLadder">
 ): Promise<void> {
   const rows = await input.tx
@@ -277,6 +278,7 @@ export async function advanceLadders(
 
   for (const raw of rows) {
     const kind = readSmartOrderKind(raw.kind)
+    if (input.lineStopsOnly && kind !== "grid") continue
     if (!kind) continue
     if (leftForANewerBuild(raw.id, kind, raw.plan)) continue
     const plan = readSmartPlan(kind, raw.plan)
@@ -299,6 +301,11 @@ export async function advanceLadders(
         marketKey: raw.marketKey,
         plan: plan as GridPlan,
       }
+      const lineStop = row.plan.lineStop
+        ? await readGridLineStop(input.userId, raw.id, raw.marketKey, row.plan.lineStop, input.tx)
+        : null
+      if (input.lineStopsOnly && lineStop?.state !== "pending") continue
+      if (lineStop) row.lineStopState = lineStop.state as "watching" | "pending"
       // The engine is pure and cannot reverse a grid itself. Watch what it
       // writes: a grid that closes on this pass with its stop fired and the
       // reverse switch on is turned around HERE, inside the same settle
@@ -309,7 +316,10 @@ export async function advanceLadders(
         input,
         {
           ...withDatabase,
-          saveLadder: (savedRow, status, at) => {
+          saveLadder: async (savedRow, status, at) => {
+            if (status === "done" && lineStop?.state === "pending") {
+              await completeGridLineStop(input.userId, raw.id, input.tx)
+            }
             closedAs.status = status
             return withDatabase.saveLadder(savedRow, status, at)
           },
@@ -332,6 +342,7 @@ export async function advanceLadders(
           marketKey: raw.marketKey,
           plan: row.plan,
           mark: marks.get(raw.marketKey) ?? null,
+          firedStopPx: lineStop?.threshold ?? undefined,
           equity: figures.equity,
           takerFeeRate: input.book.costs.takerFeeRate,
           now: input.now,

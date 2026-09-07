@@ -86,6 +86,7 @@ describe("alerts on drawn lines", () => {
       armedAt: 2_000,
       firedAt: 2_000,
       firedPrice: 120,
+      firedThreshold: 120,
     })
     const notices = await database.select().from(customShellAnnouncements)
     expect(notices.map((notice) => notice.title)).toEqual([

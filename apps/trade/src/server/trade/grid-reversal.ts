@@ -349,23 +349,34 @@ export async function autoReverseStoppedGrid(input: {
   equity: number
   takerFeeRate: number
   now: number
+  /** The drawing engine already confirmed this stop, even if price recovered. */
+  firedStopPx?: number
+  /** An externally opened opposite position cannot belong to the stopped grid. */
+  positionChanged?: boolean
 }): Promise<void> {
   const { plan, mark } = input
   if (plan.closedReason !== "stop") return
   if (!plan.reverseWhenStopped) return
-  const stopPx = gridStopPx(plan)
+  const calculationPlan = input.firedStopPx === undefined ? plan : {
+    ...plan, lineStop: null,
+    stopLoss: { underPct: plan.stopLoss?.underPct ?? 0, base: null, mode: "fixed" as const, px: input.firedStopPx },
+  }
+  const stopPx = gridStopPx(calculationPlan)
   if (
     mark === null ||
     stopPx === null ||
-    !reachedEntry(plan.direction, mark, stopPx)
+    (input.firedStopPx === undefined && !reachedEntry(plan.direction, mark, stopPx))
   ) {
     return
   }
 
   try {
+    if (input.positionChanged) {
+      throw new Error(REVERSE_REFUSAL_PREFIX + "An opposite position is already open. No reversed grid was placed.")
+    }
     const reversed = buildReversedPlan({
       oldId: input.oldId,
-      plan,
+      plan: calculationPlan,
       marketKey: input.marketKey,
       mark,
       equity: input.equity,

@@ -470,3 +470,17 @@ a waiting order does not count as a stop protecting coins already held.
 
 The open position takes priority when the chart's Stop loss shortcut could
 add a stop to either the position or a waiting order.
+
+
+## A drawn line as a Smart Grid stop
+
+Tyler asked: "Add an option in smart grid order to checkbox a stoploss will
+trigger based on the trigger of the alert set by the line draw tool. If no
+line has be drawn the the checkbox will give an error saying that I need to
+draw a line with an alert first".
+
+The selected line alert replaces the normal grid stop. Several eligible lines
+require a choice. Removing or pausing a linked alert requires another stop or
+closing the grid first. Reverse on stop loss also applies when the selected
+line alert fires. A line stop uses the trading engine and is not an
+exchange-held stop.

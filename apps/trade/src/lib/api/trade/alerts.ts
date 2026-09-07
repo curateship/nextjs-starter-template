@@ -1,3 +1,5 @@
+import { rethrowGridLineStopError } from "@/server/trade/grid-line-stops"
+import { GRID_LINE_STOP_ERRORS, withLinkedGridStopMessage } from "@/lib/trade/grid-line-stop"
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
@@ -14,7 +16,7 @@ const clearAlertsFn = createServerFn({ method: "POST" })
   .inputValidator(alertListKindSchema)
   .handler(async ({ data, context }) =>
     clearAlertsResultSchema.parse({
-      cleared: await clearOwnedAlerts(context.user.id, data),
+      cleared: await clearOwnedAlerts(context.user.id, data).catch(rethrowGridLineStopError),
     })
   )
 
@@ -24,7 +26,7 @@ export async function clearAlerts(kind: z.infer<typeof alertListKindSchema>) {
   return answer
 }
 
-export const getClearAlertsErrorMessage = createErrorMessage(
-  {},
+export const getClearAlertsErrorMessage = withLinkedGridStopMessage(createErrorMessage(
+  GRID_LINE_STOP_ERRORS,
   "Those alerts could not be cleared. Try again."
-)
+))

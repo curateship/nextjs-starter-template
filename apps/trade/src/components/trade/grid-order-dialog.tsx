@@ -1,3 +1,6 @@
+import { GridLineStopField, type GridLineStopChoice } from "./grid-line-stop-field"
+import type { GridLineStop } from "@/lib/trade/grid-line-stop"
+import type { Drawing } from "@/lib/trade/drawings"
 import * as React from "react"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
@@ -193,7 +196,11 @@ function rememberedRungRows(params: GridParams | null): number[] {
   return gridEvenRungPcts(count)
 }
 
+const NO_DRAWINGS: readonly Drawing[] = []
+
 export function GridOrderDialog({
+  drawings = NO_DRAWINGS,
+  lineAlertsPaused = false,
   state,
   wide = true,
   market,
@@ -209,6 +216,8 @@ export function GridOrderDialog({
   onClose,
 }: {
   state: GridOrderState
+  drawings?: readonly Drawing[]
+  lineAlertsPaused?: boolean
   wide?: boolean
   market: MarketRow
   /** What the account is worth — the pot the share is cut from. */
@@ -230,6 +239,7 @@ export function GridOrderDialog({
   /** The levels as edited, live — the chart draws them as faint lines. */
   onPreview: (preview: GridPreview | null) => void
   onPlace: (input: {
+    lineStop?: GridLineStop | null
     topPx: number
     bottomPx: number
     params: PlaceGridParams
@@ -240,6 +250,7 @@ export function GridOrderDialog({
   }) => Promise<boolean>
   onClose: () => void
 }) {
+  const [lineChoice, setLineChoice] = React.useState<GridLineStopChoice>({ enabled: false, stop: null })
   // ----- The settings, remembered server-side ----------------------------
 
   // The window opens ON the last-known settings — the copy the browser kept
@@ -816,7 +827,7 @@ export function GridOrderDialog({
     // gives it its own distance — see `onMoveLine`.
     if (takeProfitPx !== null)
       lines.push({ px: takeProfitPx, kind: "takeProfit", grip: !busy })
-    if (stopPx !== null) {
+    if (stopPx !== null && !lineChoice.enabled) {
       lines.push({
         px: stopPx,
         kind: "stopLoss",
@@ -845,6 +856,7 @@ export function GridOrderDialog({
       onMoveGrid,
     })
   }, [
+    lineChoice.enabled,
     plan,
     direction,
     onPreview,
@@ -915,7 +927,9 @@ export function GridOrderDialog({
       if (refusal) showErrorToast(refusal)
       return
     }
+    if (lineChoice.enabled && !lineChoice.stop) { showErrorToast("Choose a drawing alert for the stop loss."); return }
     const placed = await onPlace({
+      lineStop: lineChoice.enabled ? lineChoice.stop : null,
       topPx: top,
       bottomPx: bottom,
       params,
@@ -1341,7 +1355,7 @@ export function GridOrderDialog({
             id="grid-sl-on"
             title="Stop loss"
             summary={
-              stopUnderPct === null
+              lineChoice.enabled ? "Line alert" : stopUnderPct === null
                 ? "—"
                 : `${direction === "long" ? "−" : "+"}${pctText(stopUnderPct)}%`
             }
@@ -1352,6 +1366,8 @@ export function GridOrderDialog({
             }
           >
             <>
+              <GridLineStopField marketKey={market.key} drawings={drawings} paused={lineAlertsPaused} busy={busy}
+                paired={pairedWithLadder} value={lineChoice} onChange={setLineChoice} />
               {/* No percent of its own: the stop sits one gap under the
                   bottom rung, the same gap the rungs keep — Tyler, 3 Sep
                   2026. The line under says where that lands. */}
@@ -1383,7 +1399,7 @@ export function GridOrderDialog({
                 on={baseOn}
                 underPct={baseUnderPct}
                 reclaimDays={baseReclaimDays}
-                disabled={busy}
+                disabled={busy || lineChoice.enabled}
                 showErrors={showValidation}
                 direction={direction}
                 onOn={touched(setBaseOn)}

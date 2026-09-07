@@ -3366,3 +3366,145 @@ describe("post-only watch recovery", () => {
     )
   })
 })
+
+
+describe.runIf(!!process.env.TRADE_TEST_POSTGRES_URL)("live grids linked to drawing alerts", () => {
+  async function firedGrid(reverseWhenStopped = false, fire = true) {
+    await insertWorkspace(database, { userId })
+    const { uuid } = await import("@/server/auth/security")
+    const { saveChartDrawing, setChartDrawingAlert } = await import("./drawings")
+    const { checkDrawingAlerts } = await import("./drawing-alerts")
+    const drawingId = uuid()
+    await saveChartDrawing(userId, MARKET, { id: drawingId, shape: { kind: "level", price: 70 } })
+    const drawing = await setChartDrawingAlert(userId, { id: drawingId, on: true, currentPrice: 110, buffer: 2 })
+    const plan = gridState({ takeProfitPx: reverseWhenStopped ? 110 : null, reverseWhenStopped })
+    plan.lineStop = { drawingId, armedAt: drawing.alert!.armedAt }
+    plan.paused = true
+    plan.levels[0] = { ...plan.levels[0], status: "holding", heldSz: 1 }
+    await database.insert(tradeSmartLadders).values({ userId, walletId: wallet.id, id: "line-grid", kind: "grid", marketKey: MARKET, status: "active", plan, updatedAt: new Date(Date.now() - 60_000) })
+    if (fire) await checkDrawingAlerts({ database, pushedMarks: () => ({ marks: new Map([[MARKET, 68]]), missing: [] }) })
+  }
+  function held(szi = 1): WalletPosition {
+    return { marketId: "BTC", szi, entryPx: 85, leverage: 1, marginUsed: 85, liquidationPx: null, targets: [], tpPx: null, tpSz: null, tpOrderId: null, slPx: null, slOrderId: null, protectionOrderIds: [] }
+  }
+  async function status() {
+    const [row] = await database.select().from(tradeSmartLadders).where(eq(tradeSmartLadders.id, "line-grid"))
+    return row.status
+  }
+  async function pass() {
+    const { reconcileLiveLaddersOnce } = await import("./live-smart-orders")
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+  }
+  it("retains the drawing link when the exchange refuses its replacement stop", async () => {
+    await firedGrid(false, false)
+    const { updateLiveGridStop } = await import("./live-grid-orders")
+    const { tradeGridLineStops } = await import("./schema")
+    portfolio.mockResolvedValue({ positions: [held()], orders: [] })
+    setBrackets.mockRejectedValueOnce(new Error("exchange refused replacement"))
+    await expect(updateLiveGridStop(userId, wallet, { gridId: "line-grid", stopLoss: { underPct: 5, base: null }, lineStop: null })).rejects.toThrow()
+    const [row] = await database.select().from(tradeSmartLadders).where(eq(tradeSmartLadders.id, "line-grid"))
+    expect((row.plan as GridPlan).lineStop).toBeTruthy()
+    expect((await database.select().from(tradeGridLineStops))[0].state).toBe("watching")
+    setBrackets.mockResolvedValue({ slOrderId: "replacement-stop" })
+    await updateLiveGridStop(userId, wallet, { gridId: "line-grid", stopLoss: { underPct: 5, base: null }, lineStop: null })
+    expect((await database.select().from(tradeGridLineStops))[0].state).toBe("released")
+  })
+
+  it("closes a paused grid once after the line fires, even at a recovered price", async () => {
+    await firedGrid()
+    portfolio.mockResolvedValue({ positions: [held()], orders: [] })
+    close.mockResolvedValue({ avgPx: 105, filledSz: 1 })
+    prices.mockResolvedValue(new Map([["BTC", 105]]))
+    await pass()
+    expect(await status()).toBe("done")
+    expect(close).toHaveBeenCalledTimes(1)
+    await pass()
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(place).not.toHaveBeenCalled()
+  })
+  it.each([false, true])("does not close an opposite position, changed during the fresh read=%s", async (changedDuringRead) => {
+    await firedGrid()
+    portfolio.mockResolvedValue({ positions: [held(-1)], orders: [] })
+    if (changedDuringRead) portfolio.mockResolvedValueOnce({ positions: [held()], orders: [] })
+    close.mockResolvedValue({ avgPx: 105, filledSz: 1 })
+    await pass()
+    expect(close).not.toHaveBeenCalled()
+    expect(await status()).toBe("active")
+    expect(place).not.toHaveBeenCalled()
+  })
+
+  it("keeps closing after a refusal and a partial fill", async () => {
+    await firedGrid()
+    portfolio.mockResolvedValue({ positions: [held()], orders: [] })
+    close.mockRejectedValueOnce(new Error("exchange unavailable"))
+    await pass()
+    expect(await status()).toBe("active")
+    close.mockResolvedValueOnce({ avgPx: 105, filledSz: 0.4 })
+    await pass()
+    expect(await status()).toBe("active")
+    dropEngineExchangeReads(wallet)
+    portfolio.mockResolvedValue({ positions: [held(0.6)], orders: [] })
+    close.mockResolvedValueOnce({ avgPx: 105, filledSz: 0.6 })
+    await pass()
+    expect(await status()).toBe("done")
+    expect(place).not.toHaveBeenCalled()
+  })
+  it("does not treat a missing position read as confirmed closure", async () => {
+    await firedGrid()
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+    await pass()
+    expect(await status()).toBe("active")
+    expect(close).not.toHaveBeenCalled()
+    expect(place).not.toHaveBeenCalled()
+  })
+  it("does not reverse into an opposite position opened outside the grid", async () => {
+    await firedGrid(true)
+    const { recordGridLineStopClose } = await import("./grid-line-stops")
+    await recordGridLineStopClose(userId, "line-grid", 1, true)
+    portfolio.mockResolvedValue({ positions: [held(-1)], orders: [] })
+    await pass()
+    const rows = await database.select().from(tradeSmartLadders)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].status).toBe("done")
+    expect((rows[0].plan as GridPlan).reverseFailReason).toContain("opposite position")
+    expect(close).not.toHaveBeenCalled()
+    expect(place).not.toHaveBeenCalled()
+  })
+
+  it("recovers a confirmed close after restart and reverses only once", async () => {
+    await firedGrid(true)
+    const { recordGridLineStopClose } = await import("./grid-line-stops")
+    await expect(database.transaction(async () => {
+      await recordGridLineStopClose(userId, "line-grid", 1, true)
+      throw new Error("process lost its plan transaction")
+    })).rejects.toThrow("process lost")
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+    await pass()
+    expect(await status()).toBe("done")
+    const rows = await database.select().from(tradeSmartLadders)
+    expect(rows).toHaveLength(2)
+    const reversed = rows.find((row) => row.id !== "line-grid")!.plan as GridPlan
+    expect(reversed.direction).toBe("short")
+    expect(reversed.lineStop).toBeUndefined()
+    expect(reversed.reverseWhenStopped).toBe(false)
+    await pass()
+    expect(await database.select().from(tradeSmartLadders)).toHaveLength(2)
+    expect(close).not.toHaveBeenCalled()
+  })
+  it("recovers saved close fills without counting a repeated feed fill twice", async () => {
+    await firedGrid()
+    const { recordGridLineStopClose } = await import("./grid-line-stops")
+    await recordGridLineStopClose(userId, "line-grid", 2, false)
+    const at = Date.now() + 1
+    await database.insert(tradeLiveFills).values({ userId, walletId: wallet.id, marketKey: MARKET, fillId: "close-fill", orderId: "close-order", side: "sell", px: 100, sz: 1, at, dir: "Close Long" })
+    fills.mockResolvedValue([{ marketId: "BTC", fillId: "close-fill", orderId: "close-order", side: "sell", px: 100, sz: 1, at, dir: "Close Long", fee: 0, closedPnl: 15, liquidation: false }])
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+    await pass()
+    expect(await status()).toBe("active")
+    await database.insert(tradeLiveFills).values({ userId, walletId: wallet.id, marketKey: MARKET, fillId: "remaining-close", orderId: "close-order", side: "sell", px: 100, sz: 1, at: at + 1, dir: "Close Long" })
+    await pass()
+    expect(await status()).toBe("done")
+    expect(close).not.toHaveBeenCalled()
+  })
+
+})

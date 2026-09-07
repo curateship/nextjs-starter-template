@@ -63,7 +63,7 @@ export function setGridFollowPlan(
       ? input.followDown === true && !plan.followDown
       : input.follow && !plan.follow
   if (turnsIntoLossOn && plan.stopLoss?.mode === "percent") {
-    plan.stopLoss = { ...plan.stopLoss, mode: "fixed", px: gridStopPx(plan) }
+    plan.stopLoss = { ...plan.stopLoss, mode: "fixed", px: gridStopPx({ ...plan, lineStop: null }) }
   }
   plan.follow = input.follow
   if (input.followDown !== undefined) plan.followDown = input.followDown

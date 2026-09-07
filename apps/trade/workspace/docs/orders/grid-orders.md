@@ -943,3 +943,70 @@ levels, how the money is split, the chosen borrowing, where the range sits,
 and whether it follows up or down. A percentage means the same thing on the next coin you open and a
 price does not, so nothing about one coin's range is carried onto another
 chart.
+
+
+## A drawing alert as the stop loss
+
+Use line alert as stop loss replaces the grid's ordinary price and base stops.
+The grid remembers those settings, so switching line mode off restores the
+normal stop through the existing protection update. The alert belongs to a
+saved horizontal drawing line or trendline on the same account, exchange and
+market. Purple price alerts and fib drawings cannot protect a grid.
+
+One eligible line is selected automatically. Several lines require a choice.
+The selector shows each description and the alert's direction and percentage
+buffer. No eligible line leaves the checkbox off and says "Draw a line with
+an alert first." A failed drawing load offers Try again. An unavailable
+selection is never silently replaced with another line.
+
+The selected drawing is labelled Grid stop loss on the chart. The inactive
+flat grid stop is hidden and cannot be dragged. Moving the selected drawing
+or changing its buffer changes the existing alert, using the drawing engine's
+normal rules. Line selections are not remembered for future grids.
+
+A firing creates a durable closing instruction in the same transaction as the
+alert notice. The instruction names the grid, drawing and enabled alert
+instance, and records the firing time, line price and buffered threshold.
+Price recovering does not cancel the instruction. Pending stops cancel waiting
+grid levels and close held coins. Empty grids end without a closing trade.
+Grid pauses do not prevent pending stops from being processed. While ordinary
+engine trading is paused, the engine still checks drawing alerts and consumes
+pending stops. Switching ordinary engine trading off still consumes already
+pending stops, but does not check for new drawing crossings. Other grid and
+ladder entries do not advance during these close-only passes.
+
+A close receipt records the requested size before the exchange request and
+confirmed completion afterward. These receipts commit separately from plan
+edits, so losing a plan transaction cannot erase a confirmed close. Saved fill
+identities prevent a repeated feed entry from being counted twice. A missing
+position without closure evidence leaves the grid pending and blocks new
+entries. Partial fills retry against the exchange's remaining position.
+
+Before submitting a pending close, the engine checks the direction of the
+exchange's freshly read position. An opposite position opened outside the grid
+is left untouched while the engine waits for evidence of the original close.
+If the original close is confirmed, the old grid ends, but automatic reversal
+is refused when an opposite position is already open. The refusal is recorded
+on the grid and in its notice.
+
+When a selected alert has fired, settings retain its description and explain
+that the grid is closing. An unavailable selection is never replaced silently.
+Long descriptions wrap in the selector menu on narrow screens.
+
+The close must be confirmed before reversal. Reverse on stop loss uses the
+fired threshold to calculate the opposite grid and checks the current price
+through the existing reversal rules. The new grid inherits neither the line
+selection nor automatic reversal.
+
+Removing a linked alert is refused until the grid has another stop or has
+closed. The database covers deletion, Clear drawings, alert disabling, bulk
+alert clearing, invalid drawing shapes and the account's Line alerts pause.
+Valid moves and buffer changes remain available. A fired closing instruction
+cannot be erased by a plan edit. A grid sharing a position with a DCA ladder
+cannot use a drawing stop, regardless of which strategy was placed first.
+
+The engine watches the drawing. The exchange does not hold this stop, so the
+engine and its price feed must remain available. Placement requires a current
+compatible engine heartbeat and migration 0171. Apply the migration, then
+release compatible engine code before enabling the web workflow. These local
+changes do not authorize applying the migration or deploying production.

@@ -593,6 +593,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   onAlertOpen,
   wide = true,
   lineAlertsPaused = false,
+  gridStopDrawingIds,
   extendNewLines = true,
   onExtendPreference,
 }: {
@@ -620,6 +621,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   /** The shell's 1280-pixel layout answer. Narrow puts the window in a sheet. */
   wide?: boolean
   /** The master switch in Settings is off, which the window says. */
+  gridStopDrawingIds?: ReadonlySet<string>
   lineAlertsPaused?: boolean
   /** A newly drawn trendline carries on to the right edge. */
   extendNewLines?: boolean
@@ -1240,7 +1242,7 @@ export const PaintLayer = React.memo(function PaintLayer({
             {/* The name, at the line's start, in the line's own colour. It
                 takes no pointer, and a screen reader already hears it in the
                 line's own label. */}
-            {shape.name ? (
+            {shape.name || gridStopDrawingIds?.has(drawing.id) ? (
               <g clipPath={`url(#${plotClipId})`}>
                 <text
                   data-line-description
@@ -1258,7 +1260,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                   strokeWidth={3}
                   style={{ pointerEvents: "none", userSelect: "none" }}
                 >
-                  {shape.name}
+                  {shape.name}{gridStopDrawingIds?.has(drawing.id) ? `${shape.name ? " · " : ""}Grid stop loss` : ""}
                 </text>
               </g>
             ) : null}

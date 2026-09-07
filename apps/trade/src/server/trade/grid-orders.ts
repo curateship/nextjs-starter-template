@@ -1,3 +1,5 @@
+import type { GridLineStop } from "@/lib/trade/grid-line-stop"
+import { requireGridLineStopEngine, validateGridLineStop } from "./grid-line-stops"
 import { randomUUID } from "node:crypto"
 
 import { and, eq } from "drizzle-orm"
@@ -76,6 +78,7 @@ import { assertFlowRunAcceptingPlacements } from "@/server/trade/flow-run-orders
  */
 
 export type PlaceGridInput = {
+  lineStop?: GridLineStop | null
   marketKey: string
   /** The top of the range, and the bottom. Both come from the window. */
   topPx: number
@@ -454,6 +457,12 @@ export async function placeGridOrder(
     held: book.positions.get(input.marketKey) ?? null,
   })
 
+  if (input.lineStop) {
+    await requireGridLineStopEngine()
+    await validateGridLineStop(userId, input.marketKey, input.lineStop)
+    plan.lineStop = input.lineStop
+  }
+
   await db.transaction(async (tx) => {
     // The same lock every settle takes, so a poll mid-placement waits its turn.
     await tx
@@ -689,7 +698,7 @@ export async function cancelGridRest(
 export async function updateGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean }
+  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean; lineStop?: GridLineStop | null }
 ): Promise<void> {
   if (!hasWalletPlanWrite(userId, wallet.id)) {
     return await withWalletPlanWrite(userId, wallet.id, () =>
@@ -705,6 +714,11 @@ export async function updateGridStop(
   const roundPx = (px: number) =>
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
+  if (input.lineStop) {
+    await requireGridLineStopEngine()
+    await validateGridLineStop(userId, grid.marketKey, input.lineStop)
+  }
+  if (input.lineStop !== undefined) plan.lineStop = input.lineStop
   updateGridStopPlan(plan, input.stopLoss, input.reverseWhenStopped)
 
   // Write the new stop onto the position right now, and remember exactly what
@@ -1197,6 +1211,7 @@ export async function moveGridExit(
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
+  if (plan.lineStop && input.which === "stopLoss") throw new Error("SMART_GRID_LINE_STOP_UNAVAILABLE")
   const protocol = getProtocol(wallet.protocol)
   // Today's price decides whether a dragged stop may sit inside the range or
   // would fire at once — see `moveGridExitPlan`. Null lets only the

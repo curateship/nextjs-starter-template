@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
+import { gridLineStopSchema } from "@/lib/trade/grid-line-stop"
 
 import {
   baseStopDetection,
@@ -1269,6 +1270,7 @@ const gridPlanStopSchema = z.object({
  * put the line the same distance above the higher of the range or market.
  */
 const gridPlanSchema = z.object({
+  lineStop: gridLineStopSchema.nullable().optional(),
   ...smartOrderPauseFields,
   /**
    * Which way this grid runs, frozen at placement and never editable after it.
@@ -1648,9 +1650,10 @@ export function gridTakeProfitPx(
 export function gridStopPx(
   plan: Pick<
     GridPlan,
-    "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch"
+    "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch" | "lineStop"
   >
 ): number | null {
+  if (plan.lineStop) return null
   const sl = plan.stopLoss
   if (!sl) return null
   if (sl.mode === "fixed") return sl.px

@@ -1,3 +1,6 @@
+import { rethrowGridLineStopError } from "@/server/trade/grid-line-stops"
+import { GRID_LINE_STOP_ERRORS, withLinkedGridStopMessage } from "@/lib/trade/grid-line-stop"
+import { gridLineStopSchema } from "@/lib/trade/grid-line-stop"
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
@@ -191,8 +194,8 @@ async function runWalletOrderAction<T>(
   action: () => Promise<T>
 ): Promise<T> {
   return wallet.kind === "live"
-    ? await runLiveOrderAction(userId, direction, action)
-    : await action()
+    ? await runLiveOrderAction(userId, direction, action).catch(rethrowGridLineStopError)
+    : await action().catch(rethrowGridLineStopError)
 }
 
 /**
@@ -623,6 +626,7 @@ export function reconcileLiveSmartOrders() {
 // ----- The grid ------------------------------------------------------------
 
 const placeGridSchema = z.object({
+  lineStop: gridLineStopSchema.nullable().optional(),
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
   topPx: z.number().positive().finite(),
@@ -648,6 +652,7 @@ const gridSchema = z.object({
 })
 
 const gridStopUpdateSchema = z.object({
+  lineStop: gridLineStopSchema.nullable().optional(),
   walletId: z.string().max(36),
   gridId: z.string().max(36),
   stopLoss: placeGridParamsSchema.shape.stopLoss,
@@ -670,6 +675,7 @@ const placeGridOrderFn = createServerFn({ method: "POST" })
           topPx: data.topPx,
           bottomPx: data.bottomPx,
           params: data.params,
+          lineStop: data.lineStop,
           overrode: data.overrode,
         }
         const placed =
@@ -936,8 +942,9 @@ export function loadSmartGridParams() {
   return loadSmartGridFn()
 }
 
-const baseSmartOrderErrorMessage = createErrorMessage(
+const baseSmartOrderErrorMessage = withLinkedGridStopMessage(createErrorMessage(
   {
+    ...GRID_LINE_STOP_ERRORS,
     TRADE_ORDER_RATE_LIMITED:
       "The app is sending orders too fast. Try again in a moment.",
     PAPER_WALLET_NOT_FOUND:
@@ -1068,7 +1075,7 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "The whole grid can move once it is holding no coin. An entry that already opened has to stay at the price it actually paid.",
   },
   "That did not go through. Try it again."
-)
+))
 
 export function reverseGridOrder(input: z.infer<typeof gridSchema>) {
   return reverseGridFn({ data: input })
