@@ -154,8 +154,12 @@ levels without leaving the position uncovered.
 An untouched saved ladder keeps the same handles after the window closes. The
 DCA ladder summary sits below its deepest visible rung. The anchor still sets
 the rung prices, and Sell back up the ladder uses it as Exit 1. The summary is
-not a priced level of its own. The summary follows the rungs on every drag
-frame; it does not wait for the server save after the pointer is released.
+not a priced level of its own. The summary text and grip also drag the whole ladder. The settings gear and
+cancel button keep their own actions. Grabbing the summary preserves the
+pointer offset so the ladder does not jump to the summary price. Entries,
+mirrored exits and the summary redraw together on every drag frame and while
+the save is pending. Moving keeps the same price ratios across entries and
+exits. A refused save returns the complete shape to its saved prices.
 Pressing the summary's × calls off an empty ladder at once, without another
 question or a success toast. Once a rung has bought, the × moves into the
 position's entry bar and asks before it calls off the remaining buys. The

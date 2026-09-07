@@ -286,10 +286,21 @@ function PreviewLines({
       activeDragCleanup.current()
       let frame = 0
       const fromY = event.clientY
+      const pointerStartPx = priceFrom(fromY, top)
+      const grabbedPx = kind === "move" ? preview.rungs[rungIndex]?.px : null
+      const readPx = (clientY: number) => {
+        const px = priceFrom(clientY, top)
+        return kind === "move" &&
+          px !== null &&
+          pointerStartPx !== null &&
+          grabbedPx != null
+          ? grabbedPx + px - pointerStartPx
+          : px
+      }
       let lastY = event.clientY
       const update = () => {
         frame = 0
-        const px = priceFrom(lastY, top)
+        const px = readPx(lastY)
         if (px !== null && px > 0) {
           setDragging({ kind, rungIndex, pointerPx: px })
         }
@@ -316,7 +327,7 @@ function PreviewLines({
           setDragging(null)
           return
         }
-        const px = priceFrom(up.clientY, top)
+        const px = readPx(up.clientY)
         if (px === null || !(px > 0)) {
           setDragging(null)
           return
@@ -483,6 +494,14 @@ function PreviewLines({
           data-dca-ladder-summary
           className="absolute inset-x-0"
           style={{ top: summaryY }}
+          onPointerDown={(event) => {
+            if (
+              event.target instanceof Element &&
+              event.target.closest("[data-dca-ladder-move]")
+            ) {
+              startDrag("move", 0)(event)
+            }
+          }}
         >
           {summary}
         </div>
@@ -559,7 +578,20 @@ function LadderLines({
       }}
       title={`${walletName(ladder.walletId)} — the ladder hangs from ${formatPrice(plan.anchorPx)}.${shapeMoves ? " Drag any rung to move it, or use the deepest rung's resize handle." : " Rung prices are frozen after the ladder starts buying."}`}
     >
-      DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}
+      {shapeMoves ? (
+        <button
+          type="button"
+          className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
+          aria-label="Move the whole DCA ladder from summary"
+          title="Drag to move the whole DCA ladder"
+          data-dca-ladder-move
+        >
+          <GripVerticalIcon className="size-3" />
+          DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}
+        </button>
+      ) : (
+        <>DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}</>
+      )}
       {readOnly ? null : (
         <button
           type="button"
@@ -593,6 +625,12 @@ function LadderLines({
               px: rung.px,
               dollars: rung.px * rung.sz,
             })),
+            exitGapPct:
+              plan.takeProfit?.mode === "exitLadder"
+                ? (plan.takeProfit.exitGapPct ?? 0)
+                : null,
+            onMoveExit: (exitIndex, exitPx) =>
+              onReshapeLadder?.(ladder, { exitIndex, exitPx }) ?? false,
             onMove: (anchorPx) =>
               onReshapeLadder?.(ladder, { anchorPx }) ?? false,
             onResize: (deepestPx) =>
@@ -681,7 +719,7 @@ function LadderLines({
         })
       )}
 
-      {!shapeMoves && summary && settledSummaryY !== null ? (
+      {!shapeMoves && !bought && settledSummaryY !== null ? (
         <div
           data-dca-ladder-summary
           className="absolute inset-x-0"
@@ -721,19 +759,21 @@ function LadderLines({
         )
       })}
 
-      <ExitLadderLines
-        ladder={ladder}
-        levels={mirroredExits}
-        colors={colors}
-        yFor={yFor}
-        controls={controls}
-        movable={!readOnly && onReshapeLadder !== undefined && !tool}
-        measureTop={measureTop}
-        priceFrom={priceFrom}
-        onMove={(exitIndex, exitPx) =>
-          onReshapeLadder?.(ladder, { exitIndex, exitPx }) ?? false
-        }
-      />
+      {!shapeMoves && (
+        <ExitLadderLines
+          ladder={ladder}
+          levels={mirroredExits}
+          colors={colors}
+          yFor={yFor}
+          controls={controls}
+          movable={!readOnly && onReshapeLadder !== undefined && !tool}
+          measureTop={measureTop}
+          priceFrom={priceFrom}
+          onMove={(exitIndex, exitPx) =>
+            onReshapeLadder?.(ladder, { exitIndex, exitPx }) ?? false
+          }
+        />
+      )}
     </>
   )
 }

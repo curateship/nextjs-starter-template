@@ -12,6 +12,15 @@ mechanism docs — `orders/watched-orders.md`, `backtests/minute-zoom.md` and
 `wallets/wallet-reads.md` — say how the machinery works; this file says what it must
 add up to.
 
+## DCA chart dragging
+
+- Tyler, 7 Sep 2026: **"It should be a 1 to 1 parity with the entries."**
+  When the whole untouched ladder moves, its exits redraw with its entries on
+  every frame using the same price scale.
+- Tyler, 7 Sep 2026: **"This settings bar has to be draggable too."**
+  Dragging the DCA ladder summary moves the whole untouched ladder. The gear
+  still opens settings and the cancel button still cancels.
+
 ## Dashboard
 
 - Tyler, 31 Aug 2026: **"Whatever I adjust in the dashboard should

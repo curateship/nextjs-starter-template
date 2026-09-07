@@ -323,111 +323,140 @@ describe("DCA chart ladders", () => {
     await act(async () => finish(true))
   })
 
-  it("offers the same controls on a placed ladder until its first buy", async () => {
-    const reshape = vi.fn(async () => true)
-    const ladder = {
-      id: "ladder",
-      walletId: "wallet",
-      marketKey: "market",
-      kind: "dca",
-      status: "active",
-      flowRunId: null,
-      createdAt: 1,
-      updatedAt: 1,
-      plan: {
-        anchorPx: 110,
-        steppedDown: 0,
-        reclaim: null,
-        rungs: [
-          {
-            px: 100,
-            sz: 2.5,
-            budget: 250,
-            status: "waiting",
-            orderId: null,
-            sellOrderId: null,
-            dead: false,
-            touched: false,
-          },
-          {
-            px: 90,
-            sz: 5,
-            budget: 450,
-            status: "waiting",
-            orderId: null,
-            sellOrderId: null,
-            dead: false,
-            touched: false,
-          },
-        ],
-        takeProfit: null,
-        stopLoss: null,
-      },
-    } as unknown as SmartLadder
+  it.each(["rung", "summary"])(
+    "moves placed entries and exits together from the %s",
+    async (handle) => {
+      const reshape = vi.fn(async () => true)
+      const ladder = {
+        id: "ladder",
+        walletId: "wallet",
+        marketKey: "market",
+        kind: "dca",
+        status: "active",
+        flowRunId: null,
+        createdAt: 1,
+        updatedAt: 1,
+        plan: {
+          anchorPx: 110,
+          steppedDown: 0,
+          reclaim: null,
+          rungs: [
+            {
+              px: 100,
+              sz: 2.5,
+              budget: 250,
+              status: "waiting",
+              orderId: null,
+              sellOrderId: null,
+              dead: false,
+              touched: false,
+            },
+            {
+              px: 90,
+              sz: 5,
+              budget: 450,
+              status: "waiting",
+              orderId: null,
+              sellOrderId: null,
+              dead: false,
+              touched: false,
+            },
+          ],
+          exitRungs: [],
+          takeProfit: { mode: "exitLadder", pct: null, exitGapPct: 0 },
+          stopLoss: null,
+        },
+      } as unknown as SmartLadder
 
-    await act(async () => {
-      root.render(
-        <SmartLadderLayer
-          surface={surface}
-          colors={colors}
-          marketKey="market"
-          ladders={[ladder]}
-          preview={null}
-          tool={null}
-          walletName={() => "Wallet"}
-          onReshapeLadder={reshape}
-        />
-      )
-    })
+      await act(async () => {
+        root.render(
+          <SmartLadderLayer
+            surface={surface}
+            colors={colors}
+            marketKey="market"
+            ladders={[ladder]}
+            preview={null}
+            tool={null}
+            walletName={() => "Wallet"}
+            onReshapeLadder={reshape}
+          />
+        )
+      })
 
-    const move = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Move the whole DCA ladder from rung 1"]'
-    )
-    const ladderBar = host.querySelector<HTMLElement>(
-      "[data-dca-ladder-summary]"
-    )
-    const rungTops = () =>
-      [
-        ...host.querySelectorAll<HTMLButtonElement>(
-          'button[aria-label^="Move the whole DCA ladder from rung"]'
-        ),
-      ].map((button) => button.closest("span")?.parentElement?.style.top)
-    // The ladder-wide controls are a footer below the lowest rung. The summary
-    // must not cover a priced rung or exit.
-    expect(ladderBar?.style.top).toBe("138px")
-    expect(rungTops()).toEqual(["100px", "110px"])
-    expect(ladderBar?.querySelector(".border-t")).toBeNull()
+      const move = host.querySelector<HTMLButtonElement>(
+        handle === "rung"
+          ? 'button[aria-label="Move the whole DCA ladder from rung 1"]'
+          : 'button[aria-label="Move the whole DCA ladder from summary"]'
+      )
+      expect(move).not.toBeNull()
+      const exitTops = () =>
+        [
+          ...host.querySelectorAll<HTMLButtonElement>(
+            'button[aria-label^="Move the whole exit ladder"]'
+          ),
+        ].map((button) =>
+          Number.parseFloat(button.closest("span")!.parentElement!.style.top)
+        )
+      const originalExits = exitTops()
+      expect(originalExits).toHaveLength(2)
+      const ladderBar = host.querySelector<HTMLElement>(
+        "[data-dca-ladder-summary]"
+      )
+      const rungTops = () =>
+        [
+          ...host.querySelectorAll<HTMLButtonElement>(
+            'button[aria-label^="Move the whole DCA ladder from rung"]'
+          ),
+        ].map((button) => button.closest("span")?.parentElement?.style.top)
+      // The ladder-wide controls are a footer below the lowest rung. The summary
+      // must not cover a priced rung or exit.
+      expect(ladderBar?.style.top).toBe("138px")
+      expect(rungTops()).toEqual(["100px", "110px"])
+      expect(ladderBar?.querySelector(".border-t")).toBeNull()
 
-    await act(async () => {
-      move?.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, clientY: 100 })
+      await act(async () => {
+        move?.dispatchEvent(
+          new MouseEvent("pointerdown", {
+            bubbles: true,
+            clientY: handle === "rung" ? 100 : 138,
+          })
+        )
+        window.dispatchEvent(
+          new MouseEvent("pointermove", {
+            bubbles: true,
+            clientY: handle === "rung" ? 80 : 118,
+          })
+        )
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        )
+      })
+      // Rung 1 moved from $100 to $120 and rung 2 moved to $108. The footer
+      // follows the lowest rung in the same frame, before the server sees the
+      // drop.
+      expect(exitTops()).toEqual(
+        originalExits.map((y) => 200 - (200 - y) * 1.2)
       )
-      window.dispatchEvent(
-        new MouseEvent("pointermove", { bubbles: true, clientY: 80 })
-      )
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve())
-      )
-    })
-    // Rung 1 moved from $100 to $120 and rung 2 moved to $108. The footer
-    // follows the lowest rung in the same frame, before the server sees the
-    // drop.
-    expect(ladderBar?.style.top).toBe("120px")
-    expect(rungTops()).toEqual(["80px", "92px"])
+      expect(ladderBar?.style.top).toBe("120px")
+      expect(rungTops()).toEqual(["80px", "92px"])
 
-    await act(async () => {
-      window.dispatchEvent(
-        new MouseEvent("pointerup", { bubbles: true, clientY: 80 })
-      )
-    })
+      await act(async () => {
+        window.dispatchEvent(
+          new MouseEvent("pointerup", {
+            bubbles: true,
+            clientY: handle === "rung" ? 80 : 118,
+          })
+        )
+      })
 
-    expect(reshape).toHaveBeenCalledWith(ladder, { anchorPx: 132 })
-    expect(
-      host.querySelector(
-        'button[aria-label="Expand or contract the DCA ladder"]'
-      )
-    ).not.toBeNull()
-  })
+      expect(reshape).toHaveBeenCalledWith(ladder, { anchorPx: 132 })
+      expect(
+        host.querySelector(
+          'button[aria-label="Expand or contract the DCA ladder"]'
+        )
+      ).not.toBeNull()
+    }
+  )
 
   it("draws waiting, armed, and sold exit-ladder levels distinctly", async () => {
     const ladder = {
