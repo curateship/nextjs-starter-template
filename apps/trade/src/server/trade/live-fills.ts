@@ -39,7 +39,7 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { OVERRODE_PREFIX, overrodeNames } from "@/lib/trade/trading-rules"
-import { db } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/db"
 import {
   getProtocol,
   ordersOf,
@@ -54,6 +54,7 @@ import {
   tradeLiveFills,
   tradeLiveJournal,
   tradeLiveTriggers,
+  tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
 
@@ -415,9 +416,8 @@ async function announceFills(
   // brand-new rows, and every one of them would pass the "was it inserted"
   // test — a bell with three hundred notices about last spring. Only a fill
   // made just now is worth a notice.
-  const recent = groupFillNoticePieces(
-    fresh.filter((fill) => fill.at >= cutoff)
-  )
+  const recent = fresh.filter((fill) => fill.at >= cutoff)
+  if (recent.length === 0) return
   const knownByOrder = await triggerRowsByOrder(
     userId,
     wallet.id,
@@ -426,97 +426,161 @@ async function announceFills(
     )
   )
 
-  for (const fill of recent) {
-    const key = marketKey({
-      protocol: wallet.protocol,
-      network: wallet.network,
-      marketId: fill.marketId,
-    })
-    const practice = wallet.network !== "mainnet"
-    try {
-      await writeTradeNotice({
-        userId,
-        href: marketChartHref(key),
-        soundKind: "fill",
-        ...fillNoticeWords({
-          marketKey: key,
-          side: fill.side,
-          px: fill.px,
-          sz: fill.sz,
-          closedPnl: fill.closedPnl,
-          dir: fill.dir,
-          entryPx: averageEntryOf(wallet.protocol, fill),
-          liquidation: fill.liquidation,
-          walletLabel: wallet.label,
-          practice,
-        }),
-      })
-      if (fill.closedPnl === 0 || fill.liquidation) continue
-      const known = knownByOrder.get(fill.orderId)
-      if (!known || (known.kind !== "stop" && known.kind !== "target")) continue
-      await writeTradeNotice({
-        userId,
-        href: marketChartHref(key),
-        soundKind: "stop",
-        ...triggerNoticeWords({
-          kind: known.kind,
-          marketKey: key,
-          side: fill.side,
-          px: fill.px,
-          closedPnl: fill.closedPnl,
-          walletLabel: wallet.label,
-          practice,
-        }),
-      })
-    } catch (error) {
-      recordEngineError("live-fills", "trade fill notice failed", error)
+  await db.transaction(async (tx) => {
+    // Both the engine and web process can discover pieces. Serialize the
+    // totals read and notice update so an older total cannot win a later write.
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
+      .for("update")
+    const orders = await loadFillNoticeOrders(tx, userId, wallet, recent)
+    for (const fill of orders) {
+      try {
+        await tx.transaction(async (noticeTx) => {
+          const key = marketKey({
+            protocol: wallet.protocol,
+            network: wallet.network,
+            marketId: fill.marketId,
+          })
+          const practice = wallet.network !== "mainnet"
+          await writeTradeNotice({
+            userId,
+            href: marketChartHref(key),
+            soundKind: "fill",
+            database: noticeTx,
+            noticeKey: JSON.stringify([
+              "fill",
+              wallet.id,
+              key,
+              fill.orderId,
+              fill.orderId ? null : fill.fillId,
+              fill.side,
+              fill.dir,
+              fill.liquidation,
+            ]),
+            ...fillNoticeWords({
+              marketKey: key,
+              side: fill.side,
+              px: fill.px,
+              sz: fill.sz,
+              closedPnl: fill.closedPnl,
+              dir: fill.dir,
+              entryPx: averageEntryOf(wallet.protocol, fill),
+              liquidation: fill.liquidation,
+              walletLabel: wallet.label,
+              practice,
+            }),
+          })
+          if (fill.closedPnl === 0 || fill.liquidation) return
+          const known = knownByOrder.get(fill.orderId)
+          if (!known || (known.kind !== "stop" && known.kind !== "target"))
+            return
+          await writeTradeNotice({
+            userId,
+            href: marketChartHref(key),
+            soundKind: "stop",
+            database: noticeTx,
+            ...triggerNoticeWords({
+              kind: known.kind,
+              marketKey: key,
+              side: fill.side,
+              px: fill.px,
+              closedPnl: fill.closedPnl,
+              walletLabel: wallet.label,
+              practice,
+            }),
+          })
+        })
+      } catch (error) {
+        recordEngineError("live-fills", "trade fill notice failed", error)
+      }
     }
-  }
+  })
 }
 
-/**
- * Add the pieces of one immediate order execution before the bell speaks.
- *
- * Exchanges record one trade for every price level an order meets. KuCoin in
- * particular can return several rows for one click, a few milliseconds apart.
- * Those rows stay separate in the Journal, but the bell describes the order
- * once at its size-weighted average price. A resting order that fills again
- * later still gets another notice, because that is new money moving later.
- */
-function groupFillNoticePieces(
-  fills: readonly WalletOrderFill[]
-): WalletOrderFill[] {
-  const grouped: WalletOrderFill[] = []
-  const openByOrder = new Map<string, number>()
-
-  for (const fill of [...fills].sort(
-    (left, right) =>
-      left.at - right.at || left.fillId.localeCompare(right.fillId)
-  )) {
-    const key = fill.orderId
-      ? `${fill.marketId}\u0000${fill.side}\u0000${fill.orderId}`
-      : null
-    const index = key === null ? undefined : openByOrder.get(key)
-    const open = index === undefined ? undefined : grouped[index]
-
-    if (open && index !== undefined && fill.at - open.at <= 1_000) {
-      const sz = open.sz + fill.sz
-      grouped[index] = {
-        ...open,
-        px: sz > 0 ? (open.px * open.sz + fill.px * fill.sz) / sz : open.px,
-        sz,
-        closedPnl: open.closedPnl + fill.closedPnl,
-        fee: open.fee + fill.fee,
-        liquidation: open.liquidation || fill.liquidation,
-      }
-      continue
+/** Read totals from stored fills, including pieces delivered by earlier calls. */
+async function loadFillNoticeOrders(
+  database: CustomShellDb,
+  userId: string,
+  wallet: TradeWallet,
+  fresh: readonly WalletOrderFill[]
+): Promise<WalletOrderFill[]> {
+  const wanted = [
+    ...new Map(
+      fresh.map((fill) => [
+        JSON.stringify([
+          fill.marketId,
+          fill.orderId,
+          fill.orderId ? null : fill.fillId,
+        ]),
+        fill,
+      ])
+    ).values(),
+  ]
+  const result: WalletOrderFill[] = []
+  // An unnamed order must never combine unrelated fills.
+  const unnamedFill = sql`case when ${tradeLiveFills.orderId} = '' then ${tradeLiveFills.fillId} else '' end`
+  for (let offset = 0; offset < wanted.length; offset += NOTICE_LOOKUP_CHUNK) {
+    const rows = await database
+      .select({
+        fillId: sql<string>`min(${tradeLiveFills.fillId})`,
+        orderId: tradeLiveFills.orderId,
+        marketKey: tradeLiveFills.marketKey,
+        side: tradeLiveFills.side,
+        dir: tradeLiveFills.dir,
+        liquidation: tradeLiveFills.liquidation,
+        px: sql<number>`sum(${tradeLiveFills.px} * ${tradeLiveFills.sz}) / nullif(sum(${tradeLiveFills.sz}), 0)`,
+        sz: sql<number>`sum(${tradeLiveFills.sz})`,
+        at: sql<number>`max(${tradeLiveFills.at})`.mapWith(Number),
+        closedPnl: sql<number>`sum(${tradeLiveFills.closedPnl})`,
+        fee: sql<number>`sum(${tradeLiveFills.fee})`,
+      })
+      .from(tradeLiveFills)
+      .where(
+        and(
+          eq(tradeLiveFills.userId, userId),
+          eq(tradeLiveFills.walletId, wallet.id),
+          or(
+            ...wanted.slice(offset, offset + NOTICE_LOOKUP_CHUNK).map((fill) =>
+              and(
+                eq(
+                  tradeLiveFills.marketKey,
+                  marketKey({
+                    protocol: wallet.protocol,
+                    network: wallet.network,
+                    marketId: fill.marketId,
+                  })
+                ),
+                fill.orderId
+                  ? eq(tradeLiveFills.orderId, fill.orderId)
+                  : eq(tradeLiveFills.fillId, fill.fillId)
+              )
+            )
+          )
+        )
+      )
+      .groupBy(
+        tradeLiveFills.orderId,
+        tradeLiveFills.marketKey,
+        tradeLiveFills.side,
+        tradeLiveFills.dir,
+        tradeLiveFills.liquidation,
+        unnamedFill
+      )
+      .orderBy(
+        sql`min(${tradeLiveFills.at})`,
+        sql`min(${tradeLiveFills.fillId})`
+      )
+    for (const row of rows) {
+      const market = parseMarketKey(row.marketKey)
+      if (!market) throw new Error("TRADE_FILL_MARKET_KEY")
+      result.push({ ...row, marketId: market.marketId })
     }
-
-    grouped.push({ ...fill })
-    if (key !== null) openByOrder.set(key, grouped.length - 1)
   }
-
-  return grouped
+  return result
 }
 
 /**

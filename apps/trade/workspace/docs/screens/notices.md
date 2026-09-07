@@ -67,16 +67,24 @@ A stale or missing price writes nothing and leaves the alert waiting.
 
 ## When an order fills
 
-One immediate order execution makes one notice. An exchange may split that
-execution into several fill rows as the order meets several prices. Pieces
-with the same order, coin and side within one second are added together before
-the bell speaks. The notice carries the total dollars and the average price,
-weighted by how many coins filled at each price. The separate rows stay in the
-Journal.
+One order makes one entry or exit notice. An exchange may split that order
+into several fill rows as the order meets several prices. The first piece
+creates the notice. Later pieces update its total dollars and average price,
+even when separate socket messages deliver them or they arrive seconds apart.
+Larger pieces count more toward the average price. One coin at $100 and three
+coins at $200 produce one notice for $700 at an average price of $175.
 
-A resting order that fills again more than a second later makes another
-notice, because more money moved at a different time. Different order ids are
-never combined. The words come from `src/lib/trade/trade-notice-words.ts` and
+The dollars are added, not averaged. Closing pieces also add their realized
+profit or loss. The separate fill rows stay in the Journal.
+
+The grouping stays within one owner, wallet, order, coin, side and exchange
+direction. Liquidations stay separate from ordinary fills. A fill without an
+order id stays on its own. Different orders are never combined, including
+separate orders for the same coin at the same moment.
+
+The notice keeps its original time and read status. Updating the words does
+not increase the unread count or replay the fill sound. The bell refreshes
+after the update commits. The words come from `src/lib/trade/trade-notice-words.ts` and
 always carry the dollars, the price and the wallet's own label:
 
 - **A fill:** "Entered a trade: $500 of ETH at $90 (Hyperliquid main)".
@@ -107,7 +115,7 @@ KuCoin's match message omits the fee and the money made or lost, so Trade reads
 that named execution from KuCoin's low-latency recent-fill history before it
 writes the fill. All three paths call the same `recordLiveFills` function as the
 REST recovery sweep. The `trade_live_fills` primary key decides which process
-inserted the fill, and only that process sends the notice and sound.
+inserted the fill, and only that process creates or updates its order notice.
 If KuCoin publishes a close before its final profit or loss is ready, the later
 recovery fills in that money on the existing row without sending another
 notice.
@@ -139,8 +147,19 @@ is holding: it asks whether that exchange prices every sale, which is written
 once beside the exchange itself in the registry.
 
 A ladder with twenty rungs filling in a cascade is still twenty notices. Each
-rung is its own order. Only the pieces of one rung's immediate execution share
-a notice.
+rung is its own order. The pieces of one rung share a notice.
+
+The order total comes from saved fills, so replaying a socket event or recovery
+read cannot add the same money twice. Notice writers lock that wallet's row
+while reading totals and updating the notice. A web process and an engine
+process cannot overwrite a newer total with an older one. A failed notice
+rolls back only that order's notice writes. Other orders keep their notices.
+A notice failure never removes the recorded fills.
+
+The announcement id is derived from the owner and order grouping. Updating
+that announcement preserves its inbox row and chart link. No new database
+table is needed. Older notices have random ids and no saved order association,
+so the app does not guess which historical alerts to merge.
 
 ## When a stop or a target fires
 

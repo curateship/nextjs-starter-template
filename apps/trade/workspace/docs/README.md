@@ -59,8 +59,8 @@ screen: anything not written there has not been agreed yet.
   on a position with no stop.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
-- `notices.md` — the bell notices: one per fill, how pushed fills and recovery
-  avoid repeats, what a flow says when it stops or goes quiet on its own, and
+- `notices.md` — the bell notices: one per order with total dollars and weighted
+  average price, how pushed fills and recovery avoid repeats, what a flow says when it stops or goes quiet on its own, and
   where clicking one takes you.
 - `sounds.md` — the separate optional sounds for fills and stops, and for price
   alerts, what collapses a burst, when a browser stays silent, and the one

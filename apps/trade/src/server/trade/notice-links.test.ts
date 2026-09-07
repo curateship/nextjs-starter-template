@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
-import { customShellNotifications, customShellUsers } from "@/server/schema"
+import {
+  customShellAnnouncements,
+  customShellNotifications,
+  customShellUsers,
+} from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -50,6 +54,134 @@ beforeEach(async () => {
 afterEach(async () => client.close())
 
 describe("where a trade notice leads", () => {
+  it.each(["Open Long", "Close Long"])(
+    "keeps separately delivered %s chunks in one alert with total dollars and weighted price",
+    async (dir) => {
+      const userId = await makePerson()
+      const wallet: TradeWallet = {
+        id: crypto.randomUUID(),
+        label: "Ku1",
+        kind: "live",
+        status: "active",
+        protocol: "kucoin",
+        network: "mainnet",
+        startingBalance: 0,
+        address: "kucoin-account",
+        hasKey: true,
+        keyValidUntil: null,
+      }
+      await database.insert(tradeWallets).values({
+        userId,
+        id: wallet.id,
+        label: wallet.label,
+        kind: wallet.kind,
+        status: wallet.status,
+        protocol: wallet.protocol,
+        network: wallet.network,
+        startingBalance: 0,
+        address: wallet.address,
+      })
+      const fill = {
+        fillId: "piece-1",
+        orderId: "one-order",
+        marketId: "SUSHIUSDTM",
+        side: dir === "Open Long" ? ("buy" as const) : ("sell" as const),
+        px: 100,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: dir === "Open Long" ? 0 : 10,
+        fee: 0.1,
+        dir,
+        liquidation: false,
+      }
+      await recordLiveFills(userId, wallet, [fill])
+      const [noticeId] = await noticeIdsOf(userId)
+      const sounds = await tradeSoundEventsAfter(userId, {
+        afterAt: 0,
+        afterId: "",
+      })
+      const readAt = new Date()
+      await database
+        .update(customShellNotifications)
+        .set({ readAt })
+        .where(eq(customShellNotifications.id, noticeId))
+      const second = {
+        ...fill,
+        fillId: "piece-2",
+        px: 200,
+        sz: 3,
+        at: fill.at + 2_000,
+      }
+      await recordLiveFills(userId, wallet, [second])
+      await recordLiveFills(userId, wallet, [fill, second])
+
+      expect(await noticeIdsOf(userId)).toEqual([noticeId])
+      const [notice] = await database
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.id, noticeId))
+      expect(notice.readAt).toEqual(readAt)
+      const [words] = await database
+        .select()
+        .from(customShellAnnouncements)
+        .where(eq(customShellAnnouncements.id, notice.announcementId!))
+      expect(words.title).toBe(
+        `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $700 of SUSHIUSDTM at $175 (Ku1)`
+      )
+      if (dir === "Close Long") expect(words.body).toContain("$20.00")
+      expect(
+        (await tradeSoundEventsAfter(userId, sounds.cursor)).events
+      ).toEqual([])
+      expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({
+        [noticeId]: "/admin/kucoin?market=kucoin%3Amainnet%3ASUSHIUSDTM",
+      })
+
+      await Promise.all([
+        recordLiveFills(userId, wallet, [
+          { ...fill, fillId: "piece-3", px: 300, sz: 2, at: fill.at + 3_000 },
+        ]),
+        recordLiveFills(userId, wallet, [
+          { ...fill, fillId: "piece-4", px: 100, sz: 4, at: fill.at + 1_000 },
+        ]),
+      ])
+      expect(await noticeIdsOf(userId)).toEqual([noticeId])
+      const [combined] = await database
+        .select()
+        .from(customShellAnnouncements)
+        .where(eq(customShellAnnouncements.id, notice.announcementId!))
+      expect(combined.title).toBe(
+        `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $1,700 of SUSHIUSDTM at $170 (Ku1)`
+      )
+      if (dir === "Close Long") expect(combined.body).toContain("$40.00")
+
+      await recordLiveFills(userId, wallet, [
+        { ...fill, fillId: "other-fill", orderId: "other-order" },
+      ])
+      expect(await noticeIdsOf(userId)).toHaveLength(2)
+      for (const owner of [userId, await makePerson()]) {
+        const otherWallet = { ...wallet, id: crypto.randomUUID() }
+        await database.insert(tradeWallets).values({
+          userId: owner,
+          id: otherWallet.id,
+          label: otherWallet.label,
+          kind: otherWallet.kind,
+          status: otherWallet.status,
+          protocol: otherWallet.protocol,
+          network: otherWallet.network,
+          startingBalance: 0,
+          address: otherWallet.address,
+        })
+        await recordLiveFills(owner, otherWallet, [fill])
+        expect(await noticeIdsOf(owner)).toHaveLength(owner === userId ? 3 : 1)
+      }
+      const [unchanged] = await database
+        .select()
+        .from(customShellAnnouncements)
+        .where(eq(customShellAnnouncements.id, notice.announcementId!))
+      expect(unchanged.title).toBe(combined.title)
+    }
+  )
+
   it("gives back the page a notice was written with", async () => {
     const userId = await makePerson()
     await writeTradeNotice({

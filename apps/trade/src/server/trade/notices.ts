@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 
 import { eq } from "drizzle-orm"
 
@@ -21,6 +21,7 @@ export async function writeTradeNotice({
   level,
   href,
   soundKind,
+  noticeKey,
   createdAt = new Date(),
   database = db,
 }: {
@@ -38,6 +39,8 @@ export async function writeTradeNotice({
   href?: string | null
   /** The sound an open trading screen may play, or none for a quiet notice. */
   soundKind?: TradeSoundKind | null
+  /** Stable within this recipient. Later pieces update the same inbox row. */
+  noticeKey?: string
   createdAt?: Date
   database?: CustomShellDb
 }): Promise<void> {
@@ -56,37 +59,54 @@ export async function writeTradeNotice({
   const workspaceId = user?.currentWorkspaceId ?? ownedWorkspace?.id
   if (!workspaceId) throw new Error("TRADE_NOTICE_WORKSPACE")
 
-  const announcementId = randomUUID()
-  await database.insert(customShellAnnouncements).values({
-    id: announcementId,
-    workspaceId,
-    title,
-    body,
-    level,
-    audience: "app",
-    showBanner: false,
-    notify: true,
-    startsAt: createdAt,
-    endsAt: createdAt,
-    createdAt,
-    updatedAt: createdAt,
-  })
-  await database.insert(customShellNotifications).values({
-    id: randomUUID(),
-    recipientUserId: userId,
-    type: "announcement",
-    announcementId,
-    createdAt,
-  })
+  const announcementId = noticeKey
+    ? createHash("sha256")
+        .update(JSON.stringify([userId, noticeKey]))
+        .digest("hex")
+        .slice(0, 36)
+    : randomUUID()
+  await database
+    .insert(customShellAnnouncements)
+    .values({
+      id: announcementId,
+      workspaceId,
+      title,
+      body,
+      level,
+      audience: "app",
+      showBanner: false,
+      notify: true,
+      startsAt: createdAt,
+      endsAt: createdAt,
+      createdAt,
+      updatedAt: createdAt,
+    })
+    .onConflictDoUpdate({
+      target: customShellAnnouncements.id,
+      set: { title, body, level, updatedAt: createdAt },
+    })
+  await database
+    .insert(customShellNotifications)
+    .values({
+      id: announcementId,
+      recipientUserId: userId,
+      type: "announcement",
+      announcementId,
+      createdAt,
+    })
+    .onConflictDoNothing()
   // Written after the notice itself when it has a page or a sound. A notice
   // that arrives without this metadata is still true; one that never arrives
   // because metadata would not save is a lost notice.
   if (href || soundKind) {
-    await database.insert(tradeNoticeLinks).values({
-      announcementId,
-      href: href ?? null,
-      soundKind: soundKind ?? null,
-    })
+    await database
+      .insert(tradeNoticeLinks)
+      .values({
+        announcementId,
+        href: href ?? null,
+        soundKind: soundKind ?? null,
+      })
+      .onConflictDoNothing()
   }
   await publishNotificationCreated(userId, database)
 }

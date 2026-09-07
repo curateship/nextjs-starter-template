@@ -28,6 +28,7 @@ const protocolMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/server/trade/notices", () => ({ writeTradeNotice: vi.fn() }))
+vi.mock("@/server/trade/engine-errors", () => ({ recordEngineError: vi.fn() }))
 // Only the two order-facing doors are replaced. The rest of the registry
 // comes through as itself, because `pricesEverySale` is asked here for what
 // each exchange says about its own closed money, and a mock listing just
@@ -274,6 +275,65 @@ describe("how often a wallet's history is read", () => {
 })
 
 describe("live fill storage", () => {
+  it("continues announcing other orders when one notice fails", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "test-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    vi.mocked(writeTradeNotice).mockRejectedValueOnce(
+      new Error("Notice unavailable")
+    )
+    await recordLiveFills(
+      user.id,
+      wallet,
+      [1, 2].map((number) => ({
+        fillId: `fill-${number}`,
+        orderId: `order-${number}`,
+        marketId: "ETH",
+        side: "buy" as const,
+        px: 100,
+        sz: number,
+        at: Date.now(),
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      }))
+    )
+    expect(writeTradeNotice).toHaveBeenCalledTimes(2)
+    expect(writeTradeNotice).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        title: "Entered a trade: $200 of ETH at $100 (Main)",
+      })
+    )
+    expect(
+      await database
+        .select()
+        .from(tradeLiveFills)
+        .where(eq(tradeLiveFills.userId, user.id))
+    ).toHaveLength(2)
+  })
+
   it("announces one order once when the exchange splits it into fill pieces", async () => {
     const user = await insertUser(database)
     const wallet: TradeWallet = {
