@@ -104,10 +104,37 @@ describe("the Active Trades header", () => {
     const popover = host.querySelector<HTMLElement>(
       '[data-testid="active-trades-popover"]'
     )
-    expect(popover?.className).toContain("max-h-[calc(50vh-4rem)]")
+    expect(popover?.className).toContain(
+      "max-h-[min(calc(50vh-4rem),var(--radix-popover-content-available-height))]"
+    )
     expect(
       popover?.className.split(" ").some((name) => name.startsWith("h-["))
     ).toBe(false)
+  })
+
+  it("shows loading until the header read finishes", async () => {
+    loadActiveTradesHeader.mockReturnValueOnce(new Promise(() => {}))
+
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+
+    expect(host.textContent).toContain("Reading active trades")
+    expect(host.textContent).not.toContain("Try again")
+  })
+
+  it("retries a failed read and replaces the error with trades", async () => {
+    loadActiveTradesHeader.mockRejectedValueOnce(new Error("Unavailable"))
+
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+
+    expect(host.textContent).toContain("Active trades could not be read.")
+    const retry = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent === "Try again"
+    )
+    expect(retry).toBeDefined()
+    await act(async () => retry?.click())
+
+    expect(host.textContent).not.toContain("Active trades could not be read.")
+    expect(host.textContent).toContain("$1,250")
   })
 
   it("hides and restores the header profit from the eye button", async () => {

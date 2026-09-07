@@ -258,7 +258,7 @@ function AdminActiveTradesHeader() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="flex max-h-[calc(50vh-4rem)] w-max max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
+        className="flex max-h-[min(calc(50vh-4rem),var(--radix-popover-content-available-height))] w-max max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onMouseEnter={cancelClose}
         onMouseLeave={closeSoon}
@@ -299,7 +299,7 @@ function AdminActiveTradesHeader() {
             }
           />
         ) : failed ? (
-          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+          <div className="flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
             Active trades could not be read.{" "}
             <button
               type="button"
@@ -310,7 +310,7 @@ function AdminActiveTradesHeader() {
             </button>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
             <Loader2Icon className="size-4 animate-spin" />
             Reading active trades
           </div>

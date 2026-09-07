@@ -124,7 +124,11 @@ filters, so narrowing one list does not silently narrow the other.
 
 Clicking the summary opens the menu for touch and keyboard use. The menu grows
 with its rows and stops just above the middle of the screen. Longer lists scroll
-under their sticky headings. The menu fits the width its table needs, up to the
+under their sticky headings. The menu also respects the space Radix reports
+around the header button, so it cannot exceed the available popover height.
+Loading and failed reads use a padded line that fits its content. A failed
+read offers Try again in that same compact menu.
+The menu fits the width its table needs, up to the
 available browser width. Moving away closes it. The header asks for a fresh
 answer every 15 seconds while the browser tab is visible. The Active trades item can be
 moved or hidden under Settings → Top right menu. It appears only in the admin
