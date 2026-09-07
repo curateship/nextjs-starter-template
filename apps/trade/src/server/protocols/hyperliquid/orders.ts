@@ -436,6 +436,11 @@ export async function placeHyperliquidOrder(
     statuses = response.response.data.statuses as OrderStatus[]
   } catch (error) {
     throw exchangeError(error)
+  } finally {
+    // A poll can refill the cache while placement is in flight. The next
+    // protection check must not mistake that pre-fill answer for a missing
+    // position. An uncertain response can also have changed the account.
+    forgetHyperliquidPortfolios()
   }
 
   const entry = statuses[0]

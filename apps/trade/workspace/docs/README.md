@@ -125,7 +125,8 @@ screen: anything not written there has not been agreed yet.
 - `position-protection.md` — the stop and target riding on an open position:
   how a position ends up carrying spares, why replacing one takes every leg
   off, how a stop you move by hand is written onto the smart order working that
-  coin, and how replacement prices stay on the market's legal steps.
+  coin, how replacement prices stay on the market's legal steps, and how a fast
+  entry avoids a stale missing-position answer.
 - `take-profit-levels.md` — how one position banks profit at up to three fixed
   prices, and how the app replaces, reads and fills those targets safely.
 - `part-close.md` — selling some of a position instead of all of it: why a part

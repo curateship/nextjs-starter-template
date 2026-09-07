@@ -136,3 +136,15 @@ covered the first, words and × and all.
 Setting two separate take profits, each selling part of the position, is not
 built. The task is `workspace/tasks/Trading/several-take-profit-levels.md`.
 Right-clicking a position that already has a target does not offer another one.
+
+## A position check after a fast entry
+
+Hyperliquid portfolio reads share a four-second cache. Trade clears that cache
+before sending an entry and again when the exchange request finishes. A poll
+that runs during placement can otherwise save an empty position list just before
+the entry fills. The protection check would then report `LIVE_POSITION_GONE`
+even though the exchange holds the coins.
+
+The next protection check reads the exchange again. Actual placement and
+protection failures still report errors. A successful entry alone does not prove
+that its requested stop or target was accepted.

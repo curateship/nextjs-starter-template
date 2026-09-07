@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   cappedMarketPx,
+  placeHyperliquidOrder,
   decimalString,
   fetchHyperliquidOrderFills,
   fetchHyperliquidPortfolio,
@@ -966,6 +967,55 @@ describe("the protection on a real position", () => {
     ).rejects.toThrow(
       "LIVE_BRACKET_REPLACE_DOUBLED:The new stop at 90000 is on, but the old protection could not be cancelled"
     )
+  })
+
+  it("reads the filled position when a poll cached an empty account during placement", async () => {
+    clearinghouseState.mockResolvedValue({ assetPositions: [] })
+    frontendOpenOrders.mockResolvedValue([])
+    exchangeOrder.mockImplementationOnce(async () => {
+      // A dashboard poll lands while the exchange is processing the entry.
+      expect(
+        (await fetchHyperliquidPortfolio("testnet", TEST_ADDRESS)).positions
+      ).toEqual([])
+      clearinghouseState.mockResolvedValue({
+        assetPositions: [
+          {
+            position: {
+              coin: "BTC",
+              szi: "1",
+              entryPx: "100000",
+              leverage: { value: 1 },
+              liquidationPx: null,
+              marginUsed: "100000",
+            },
+          },
+        ],
+      })
+      return {
+        response: {
+          data: {
+            statuses: [{ filled: { oid: 31, avgPx: "100000", totalSz: "1" } }],
+          },
+        },
+      }
+    })
+
+    const outcome = await placeHyperliquidOrder("testnet", AUTH, {
+      marketId: "BTC",
+      side: "buy",
+      kind: "market",
+      px: 100_000,
+      sz: 1,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+    expect(outcome.status).toBe("filled")
+    const portfolio = await fetchHyperliquidPortfolio("testnet", TEST_ADDRESS)
+    expect(portfolio.positions).toEqual([
+      expect.objectContaining({ marketId: "BTC", szi: 1 }),
+    ])
   })
 
   it("drops the cached order ids after replacing protection", async () => {

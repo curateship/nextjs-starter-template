@@ -443,3 +443,10 @@ Check the rule against the exchange or the data first — rules go stale too
 test at the rule's own level. If the rule is stale, change THIS FILE in the
 same commit that changes the code, so the two are never both claiming to be
 the truth.
+
+## Error toasts after successful trades
+
+Tyler's rule: "we dont need these if the trade goes through".
+
+A stale position read after an accepted entry must not produce an error toast.
+Trade must still report a requested stop or target that failed to go on.
