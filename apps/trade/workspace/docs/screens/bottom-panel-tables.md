@@ -121,3 +121,27 @@ stop below the market is not assumed reached merely because its side is sell.
 Watched lists only the nearest level for each coin. Open orders lists every
 order, so their row counts can differ. No new alerts or trading actions are
 introduced.
+
+## Totals under positions and open orders
+
+Positions totals Value, Margin, Unrealized P&L and If stopped. Open orders
+totals Value using each waiting price times its order size. The footer uses
+the existing shared table footer slot and opaque sticky-row background. It
+stays visible at the bottom while the table scrolls, with each sum under its
+own column. A short table keeps its total immediately below the last row.
+
+Totals use only the rows passed to the table, so narrowing the wallet filter
+narrows the sums. Positions use the same price snapshot and stop lookup as
+their rows. Profit and stop totals keep the sign of each contribution.
+
+A missing value makes that column's complete total unavailable, shown as a
+dash. This includes an unpriced owned coin, unknown entry cost for profit,
+or a position without a stop for If stopped. Owned coins do not use margin;
+they contribute no margin to a mixed table, and an owned-only table shows a
+dash for margin. Fees and projected profit are not totaled.
+
+No totals row appears for empty, loading or failed reads, even when earlier
+rows are still visible. When visible rows mix practice and live wallets, the
+label says "Total · practice included". Wallet membership supplies that label,
+because a live watched order does not carry the exchange-order `live` flag.
+The Journal and wallet cards keep their existing behavior.

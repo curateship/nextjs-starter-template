@@ -450,6 +450,7 @@ export function ActivityPanel({
             fills={trading.fills}
             smartOrders={trading.smartOrders}
             walletName={walletName}
+            realWallets={realWallets}
             busy={trading.busy}
             settled={trading.settled}
             failed={trading.failed}
@@ -476,6 +477,7 @@ export function ActivityPanel({
             orders={[...trading.orders, ...trading.watchOrders]}
             markets={markets}
             walletName={walletName}
+            realWallets={realWallets}
             busy={trading.busy}
             settled={trading.settled}
             failed={trading.failed}

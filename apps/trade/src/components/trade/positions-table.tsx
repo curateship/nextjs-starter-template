@@ -70,7 +70,7 @@ import {
 } from "@/lib/trade/paper"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import { cn } from "@/lib/utils"
-import { panelSectionBarClassName } from "@/lib/layout/panel-section-bar"
+import { panelSectionBarClassName, stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 
 /**
  * The three tables the bottom panel shows: what is held, what is waiting, and
@@ -241,6 +241,49 @@ function Cell({
       {children}
     </td>
   )
+}
+
+/** An unavailable row makes a complete money total unavailable too. */
+function sumMoney(values: readonly (number | null)[]): number | null {
+  if (values.some((value) => value === null || !Number.isFinite(value))) return null
+  return values.reduce<number>((total, value) => total + (value ?? 0), 0)
+}
+
+function TotalsFooter<Key extends string>({
+  columns, totals, signed = [], practiceIncluded,
+}: {
+  columns: readonly ColumnSpec<Key>[]
+  totals: Partial<Record<Key, number | null>>
+  signed?: readonly Key[]
+  practiceIncluded: boolean
+}) {
+  return (
+    <tfoot className="sticky bottom-0 z-10">
+      <tr className={stickyPanelSectionBarClassName}>
+        {columns.map(({ key }, index) => {
+          if (index === 0) return (
+            <th key={key} scope="row" className="px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground">
+              Total{practiceIncluded ? " · practice included" : ""}
+            </th>
+          )
+          const value = totals[key]
+          return (
+            <Cell key={key} className={cn("font-medium", value != null && signed.includes(key) ? moneyTone(value) : undefined)}>
+              {value === undefined ? null : value === null ? (
+                <span title="A complete total is unavailable because a row has no value.">—</span>
+              ) : signed.includes(key) ? formatSignedUsd(value) : formatUsd(value)}
+            </Cell>
+          )
+        })}
+        <td aria-hidden />
+      </tr>
+    </tfoot>
+  )
+}
+
+function includesPractice(rows: readonly { walletId: string }[], realWallets: ReadonlySet<string>): boolean {
+  return rows.some((row) => realWallets.has(row.walletId)) &&
+    rows.some((row) => !realWallets.has(row.walletId))
 }
 
 /**
@@ -617,6 +660,7 @@ export function PositionsTable({
   fills,
   smartOrders,
   walletName,
+  realWallets,
   busy,
   settled,
   failed,
@@ -640,6 +684,7 @@ export function PositionsTable({
   /** The same settled plans the poll carries, for grid-owned stops. */
   smartOrders: readonly SmartOrder[]
   walletName: (walletId: string) => string
+  realWallets: ReadonlySet<string>
   busy: boolean
   /**
    * Both halves of the read have landed — see `settled` on `Trading`.
@@ -761,6 +806,21 @@ export function PositionsTable({
       <TradeTable
         columns={POSITION_COLUMNS}
         rows={rows}
+        footer={settled && !failed && rows.length > 0 ? (
+          <TotalsFooter columns={POSITION_COLUMNS}
+            practiceIncluded={includesPractice(rows, realWallets)}
+            signed={["unrealized", "ifStopped"]}
+            totals={{
+              value: sumMoney(rows.map((position) => position.owned?.priced === false ? null : positionValue(position, markOf(position)))),
+              margin: rows.every((position) => position.owned) ? null : sumMoney(rows.map((position) => position.owned ? 0 : marginOf(position))),
+              unrealized: sumMoney(rows.map((position) => position.owned?.priced === false || position.owned?.entryKnown === false ? null : positionProfit(position, markOf(position)))),
+              ifStopped: sumMoney(rows.map((position) => {
+                const stopPx = stopPxOf(position)
+                return stopPx == null || position.owned?.priced === false ? null : ifStoppedChange({ szi: position.szi, mark: markOf(position), stopPx })
+              })),
+            }}
+          />
+        ) : null}
         loading={!settled}
         failed={failed}
         loadingLabel="Reading what you are holding"
@@ -823,6 +883,7 @@ export function OpenOrdersTable({
   orders,
   markets,
   walletName,
+  realWallets,
   busy,
   settled,
   failed,
@@ -834,6 +895,7 @@ export function OpenOrdersTable({
   orders: readonly TradeOrder[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
+  realWallets: ReadonlySet<string>
   busy: boolean
   /**
    * Both halves of the read have landed — see `settled` on `Trading`.
@@ -899,6 +961,12 @@ export function OpenOrdersTable({
     <TradeTable
       columns={ORDER_COLUMNS}
       rows={rows}
+      footer={settled && !failed && rows.length > 0 ? (
+        <TotalsFooter columns={ORDER_COLUMNS}
+          practiceIncluded={includesPractice(rows, realWallets)}
+          totals={{ value: sumMoney(rows.map((order) => order.px * order.sz)) }}
+        />
+      ) : null}
       loading={!settled}
       failed={failed}
       loadingLabel="Reading your open orders"

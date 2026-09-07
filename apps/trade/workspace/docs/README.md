@@ -54,7 +54,8 @@ screen: anything not written there has not been agreed yet.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
   every number, the text scale, the small badge every table shares, and what an
   open position has cost in fees.
-- `bottom-panel-tables.md` — the one frame shared by Positions, Open orders and
+- `bottom-panel-tables.md` — pinned totals for visible Positions and Open orders,
+  and the one frame shared by Positions, Open orders and
   the Journal, the safety rules its empty and failed rows keep, and the separate warnings
   for missing position stops and watched stops.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,

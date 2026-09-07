@@ -48,6 +48,7 @@ Object.assign(globalThis, {
 const shared = {
   markets: new Map(),
   walletName: () => "Practice",
+  realWallets: new Set<string>(["live-wallet"]),
   busy: false,
   onSelectMarket: () => {},
   onRetry: () => {},
@@ -1057,6 +1058,66 @@ describe("the bottom panel's tables say what they know", () => {
       expect(html).toContain("<thead ")
       expect(html).not.toContain("No open")
       expect(html).not.toContain("No finished")
+    }
+  })
+})
+
+
+describe("position and order totals", () => {
+  function renderPositions(rows: TradePosition[], settled = true, failed = false, price = 100) {
+    const host = document.createElement("div")
+    host.innerHTML = draw(<PositionsTable {...positionsShared}
+      markets={new Map(rows.map((row) => [row.marketKey, market(row.id, price)]))}
+      positions={rows} settled={settled} failed={failed}
+      onAdd={() => {}} onEdit={() => {}} onFlip={() => {}} onClose={() => {}}
+      onClosePart={() => {}} onMargin={null}
+    />)
+    return host
+  }
+  function renderOrders(rows: TradeOrder[], settled = true, failed = false) {
+    const host = document.createElement("div")
+    host.innerHTML = draw(<OpenOrdersTable {...shared} orders={rows}
+      settled={settled} failed={failed} onCancel={() => {}} onResume={async () => true}
+    />)
+    return host
+  }
+  const cells = (host: HTMLElement) => Array.from(host.querySelectorAll("tfoot tr > *")).map((cell) => cell.textContent)
+
+  it("adds displayed position value, margin, profit and stop changes", () => {
+    const rows = [1, 2, 3].map((size, i) => ({ ...position("P" + i, size), entryPx: 90, slPx: 80 }))
+    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "", "-$120.00", "", "+$60.00", ""])
+    expect(cells(renderPositions(rows.slice(0, 1)))[2]).toBe("$100.00")
+    expect(cells(renderPositions(rows, true, false, 110))[2]).toBe("$660.00")
+    expect(cells(renderPositions(rows, true, false, 110))[8]).toBe("+$120.00")
+  })
+
+  it("does not label incomplete sums as complete totals", () => {
+    const rows = [position("BTC", 1), { ...position("SOL", 1), owned: { priced: false, entryKnown: false } }]
+    const totals = cells(renderPositions(rows))
+    expect(totals[2]).toBe("—")
+    expect(totals[8]).toBe("—")
+    expect(totals[6]).toBe("—")
+  })
+
+  it("totals waiting value and recognizes live watches by wallet", () => {
+    const rows: TradeOrder[] = [
+      { ...liveOrder("mainnet"), live: undefined, watched: true, px: 100, sz: 2 },
+      { ...liveOrder("mainnet"), id: "practice", walletId: "practice", live: undefined, px: 50, sz: 3 },
+    ]
+    const totals = cells(renderOrders(rows))
+    expect(totals[0]).toBe("Total · practice included")
+    expect(totals[6]).toBe("$350.00")
+    expect(cells(renderOrders(rows.slice(0, 1)))[0]).toBe("Total")
+    expect(cells(renderOrders(rows.slice(0, 1)))[6]).toBe("$200.00")
+    const positions = [position("BTC", 1), { ...position("SOL", -1), walletId: "live-wallet" }]
+    expect(cells(renderPositions(positions))[0]).toContain("practice included")
+  })
+
+  it("hides totals for empty, loading, and failed tables even with old rows", () => {
+    for (const host of [renderPositions([]), renderOrders([]),
+      renderPositions([position("BTC", 1)], false), renderOrders([liveOrder("mainnet")], false),
+      renderPositions([position("BTC", 1)], true, true), renderOrders([liveOrder("mainnet")], true, true)]) {
+      expect(host.querySelector("tfoot")).toBeNull()
     }
   })
 })
