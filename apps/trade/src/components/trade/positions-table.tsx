@@ -249,11 +249,18 @@ function sumMoney(values: readonly (number | null)[]): number | null {
   return values.reduce<number>((total, value) => total + (value ?? 0), 0)
 }
 
+/** Targets and stops are optional. Add the projections that exist. */
+function sumProjections(values: readonly (number | null)[]): number | null {
+  const available = values.filter((value): value is number => value !== null && Number.isFinite(value))
+  return available.length ? sumMoney(available) : null
+}
+
 function TotalsFooter<Key extends string>({
-  columns, totals, signed = [], practiceIncluded,
+  columns, totals, signed = [], practiceIncluded, customCells = {},
 }: {
   columns: readonly ColumnSpec<Key>[]
   totals: Partial<Record<Key, number | null>>
+  customCells?: Partial<Record<Key, React.ReactNode>>
   signed?: readonly Key[]
   practiceIncluded: boolean
 }) {
@@ -269,15 +276,25 @@ function TotalsFooter<Key extends string>({
           const value = totals[key]
           return (
             <Cell key={key} className={cn("font-medium", value != null && signed.includes(key) ? moneyTone(value) : undefined)}>
-              {value === undefined ? null : value === null ? (
+              {customCells[key] ?? (value === undefined ? null : value === null ? (
                 <span title="A complete total is unavailable because a row has no value.">—</span>
-              ) : signed.includes(key) ? formatSignedUsd(value) : formatUsd(value)}
+              ) : signed.includes(key) ? formatSignedUsd(value) : formatUsd(value))}
             </Cell>
           )
         })}
         <td aria-hidden />
       </tr>
     </tfoot>
+  )
+}
+
+function TotalMoney({ value, fee = false }: { value: number | null; fee?: boolean }) {
+  return value === null ? (
+    <span title="A complete total is unavailable because a row is missing data or has incomplete fees.">—</span>
+  ) : (
+    <span className={fee ? "text-muted-foreground" : moneyTone(value)}>
+      {fee ? formatFeeUsd(value) : formatSignedUsd(value)}
+    </span>
   )
 }
 
@@ -810,11 +827,23 @@ export function PositionsTable({
           <TotalsFooter columns={POSITION_COLUMNS}
             practiceIncluded={includesPractice(rows, realWallets)}
             signed={["unrealized", "ifStopped"]}
+            customCells={{
+              projected: <span className="flex items-center gap-1" title="Sum of available target and stop projections. Positions without a projection are excluded.">
+                <TotalMoney value={sumProjections(rows.map((position) => position.owned?.entryKnown === false ? null : targetsProfit(position)))} />
+                <span className="text-muted-foreground">/</span>
+                <TotalMoney value={sumProjections(rows.map((position) => position.slPx === null || position.owned?.entryKnown === false ? null : projectedProfit(position, position.slPx)))} />
+              </span>,
+              fees: <TotalMoney fee value={sumMoney(rows.map((position) => {
+                if (!position.live) return position.feesPaid
+                const fees = feesOf(position)
+                return fees?.whole ? fees.paid : null
+              }))} />,
+            }}
             totals={{
               value: sumMoney(rows.map((position) => position.owned?.priced === false ? null : positionValue(position, markOf(position)))),
               margin: rows.every((position) => position.owned) ? null : sumMoney(rows.map((position) => position.owned ? 0 : marginOf(position))),
               unrealized: sumMoney(rows.map((position) => position.owned?.priced === false || position.owned?.entryKnown === false ? null : positionProfit(position, markOf(position)))),
-              ifStopped: sumMoney(rows.map((position) => {
+              ifStopped: sumProjections(rows.map((position) => {
                 const stopPx = stopPxOf(position)
                 return stopPx == null || position.owned?.priced === false ? null : ifStoppedChange({ szi: position.szi, mark: markOf(position), stopPx })
               })),

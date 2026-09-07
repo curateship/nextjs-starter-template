@@ -124,7 +124,7 @@ introduced.
 
 ## Totals under positions and open orders
 
-Positions totals Value, Margin, Unrealized P&L and If stopped. Open orders
+Positions totals Value, Margin, Projected P&L, If stopped, Fees and Unrealized P&L. Open orders
 totals Value using each waiting price times its order size. The footer uses
 the existing shared table footer slot and opaque sticky-row background. It
 stays visible at the bottom while the table scrolls, with each sum under its
@@ -136,9 +136,15 @@ their rows. Profit and stop totals keep the sign of each contribution.
 
 A missing value makes that column's complete total unavailable, shown as a
 dash. This includes an unpriced owned coin, unknown entry cost for profit,
-or a position without a stop for If stopped. Owned coins do not use margin;
+while optional targets and stops are summed only where available. Owned coins do not use margin;
 they contribute no margin to a mixed table, and an owned-only table shows a
-dash for margin. Fees and projected profit are not totaled.
+dash for margin. Projected P&L keeps two separate sums, target profit / stop
+profit, measured from entry. If stopped measures the change from the current
+price. Positions without a target or stop are excluded from the corresponding projection
+and If stopped total. These totals show a dash only when no rows have a value.
+Fees use the same precision as the rows and include negative maker rebates.
+Missing or incomplete live fill history makes the fee total unavailable;
+practice fees come from the engine.
 
 No totals row appears for empty, loading or failed reads, even when earlier
 rows are still visible. When visible rows mix practice and live wallets, the

@@ -14,7 +14,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
-import type { LiveTrade, UnmatchedTradeHistory } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade, UnmatchedTradeHistory } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 
@@ -1064,11 +1064,11 @@ describe("the bottom panel's tables say what they know", () => {
 
 
 describe("position and order totals", () => {
-  function renderPositions(rows: TradePosition[], settled = true, failed = false, price = 100) {
+  function renderPositions(rows: TradePosition[], settled = true, failed = false, price = 100, fills: LiveFill[] = []) {
     const host = document.createElement("div")
     host.innerHTML = draw(<PositionsTable {...positionsShared}
       markets={new Map(rows.map((row) => [row.marketKey, market(row.id, price)]))}
-      positions={rows} settled={settled} failed={failed}
+      positions={rows} fills={fills} settled={settled} failed={failed}
       onAdd={() => {}} onEdit={() => {}} onFlip={() => {}} onClose={() => {}}
       onClosePart={() => {}} onMargin={null}
     />)
@@ -1085,10 +1085,36 @@ describe("position and order totals", () => {
 
   it("adds displayed position value, margin, profit and stop changes", () => {
     const rows = [1, 2, 3].map((size, i) => ({ ...position("P" + i, size), entryPx: 90, slPx: 80 }))
-    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "", "-$120.00", "", "+$60.00", ""])
+    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "—/-$60.00", "-$120.00", "$0.00", "+$60.00", ""])
     expect(cells(renderPositions(rows.slice(0, 1)))[2]).toBe("$100.00")
     expect(cells(renderPositions(rows, true, false, 110))[2]).toBe("$660.00")
     expect(cells(renderPositions(rows, true, false, 110))[8]).toBe("+$120.00")
+  })
+
+  it("totals target and stop projections separately, with fees and rebates", () => {
+    const rows = [
+      { ...position("BTC", 2), targets: [{ px: 120, sz: 1, orderId: null }, { px: 130, sz: 1, orderId: null }], slPx: 90, feesPaid: 0.125 },
+      { ...position("SOL", -1), targets: [{ px: 80, sz: 1, orderId: null }], slPx: 110, feesPaid: -0.025 },
+    ]
+    const totals = cells(renderPositions(rows))
+    expect(totals[5]).toBe("+$70.00/-$30.00")
+    expect(totals[6]).toBe("-$30.00")
+    expect(cells(renderPositions([{ ...rows[0], slPx: null }, rows[1]]))[6]).toBe("-$10.00")
+    expect(totals[7]).toBe("-$0.10")
+    expect(cells(renderPositions(rows.slice(0, 1)))[5]).toBe("+$50.00/-$20.00")
+    expect(cells(renderPositions([{ ...rows[0], targets: [] }, rows[1]]))[5]).toBe("+$20.00/-$30.00")
+    expect(cells(renderPositions([{ ...rows[0], slPx: null }, rows[1]]))[5]).toBe("+$70.00/-$10.00")
+  })
+
+  it("does not substitute stored fees when live fill history is missing", () => {
+    const row = { ...position("BTC", 1), feesPaid: 42,
+      live: { marginUsed: 100, liquidationPx: null, tpOrderId: null, slOrderId: null } }
+    expect(cells(renderPositions([row]))[7]).toBe("—")
+    const fill: LiveFill = { fillId: "fill", orderId: "order", walletId: row.walletId,
+      marketKey: row.marketKey, side: "buy", px: 100, sz: 1, at: 1,
+      closedPnl: 0, fee: 0.25, dir: "Open Long", liquidation: false }
+    expect(cells(renderPositions([row], true, false, 100, [fill]))[7]).toBe("-$0.25")
+    expect(cells(renderPositions([row], true, false, 100, [{ ...fill, sz: 0.5 }]))[7]).toBe("—")
   })
 
   it("does not label incomplete sums as complete totals", () => {
