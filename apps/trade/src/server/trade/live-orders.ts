@@ -1100,10 +1100,9 @@ export async function setLiveBrackets(
     const long = held.szi > 0
     if (targets.length > 3) throw new Error("LIVE_TAKE_PROFIT_COUNT")
     for (const target of targets) {
-      const winning =
-        target.px > 0 &&
-        (long ? target.px > held.entryPx : target.px < held.entryPx)
-      if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
+      if (!Number.isFinite(target.px) || !(target.px > 0)) {
+        throw new Error("LIVE_PRICE")
+      }
     }
     if (targets.length > 1 && targets.some((target) => target.sz === null)) {
       throw new Error("LIVE_TAKE_PROFIT_LIST_SIZE")

@@ -1401,12 +1401,10 @@ export async function setPaperBrackets(
   if (
     targets.some(
       (target) =>
-        target.px === null ||
-        !(target.px > 0) ||
-        (long ? target.px <= held.entryPx : target.px >= held.entryPx)
+        target.px === null || !Number.isFinite(target.px) || !(target.px > 0)
     )
   ) {
-    throw new Error("PAPER_TAKE_PROFIT_SIDE")
+    throw new Error("PAPER_PRICE")
   }
   if (targets.length > 1 && targets.some((target) => target.sz === null)) {
     throw new Error("PAPER_TAKE_PROFIT_LIST_SIZE")

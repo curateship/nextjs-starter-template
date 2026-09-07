@@ -235,7 +235,7 @@ function SettingsForm({
           {full ? null : (
             <p className="text-xs text-muted-foreground">
               This ladder has started. Its rungs and position size are frozen,
-              but take profit and stop loss can still change.
+              but exit and stop loss can still change.
             </p>
           )}
           <DcaSettingsFields

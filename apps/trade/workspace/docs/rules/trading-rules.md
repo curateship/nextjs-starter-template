@@ -56,6 +56,10 @@ add up to.
 
 ## Orders
 
+- **An existing position can exit at a loss.** Tyler asked to allow targets
+  below entry and rename "Take profit" to "Exit". Entry price must not block
+  an Exit target. Keep the loss visible without preventing the save.
+
 - **Adding to a current position is market-only.** Tyler asked, "make add to
   position market order only", and approved the change. The form names the
   market action, and the position shows pending submission progress.

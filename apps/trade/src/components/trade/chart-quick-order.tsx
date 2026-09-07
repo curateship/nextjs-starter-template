@@ -395,8 +395,8 @@ export function ChartQuickOrder({
             : "Stop loss % has to be a number above zero. A short's stop loss sits above the entry."
         : badTarget
           ? buy
-            ? "Take profit % has to be a number above zero. A long's take profit sits above the entry."
-            : "Take profit % has to be above zero and under 100. A price cannot fall below zero."
+            ? "Exit % has to be a number above zero. A long's exit sits above the entry."
+            : "Exit % has to be above zero and under 100. A price cannot fall below zero."
           : sizeCoin <= 0
             ? byRisk
               ? `There is nothing in ${wallet} to risk a share of — it is worth ${formatUsd(equity)}.`
@@ -668,7 +668,7 @@ export function ChartQuickOrder({
                         `Jupiter: ${shownQuote.quote.sz.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${market.symbol} for ${formatUsd(shownQuote.quote.usd)} at ${formatPrice(shownQuote.quote.price)}, price impact ${(shownQuote.quote.priceImpact * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })}%, via ${shownQuote.quote.route}.`)}
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
-                The chain holds no stop or take profit. To get out at a price,
+                The chain holds no stop or exit. To get out at a price,
                 place a Sell at that level; it waits here and swaps when the
                 price reaches it.
               </p>
@@ -751,12 +751,12 @@ export function ChartQuickOrder({
                       setTargetOn(next === true)
                     }}
                   />
-                  <Label htmlFor="quick-target-on">Take profit</Label>
+                  <Label htmlFor="quick-target-on">Exit</Label>
                 </div>
                 {wantsTarget ? (
                   <div className="grid gap-2">
                     <Label htmlFor="quick-target" className="text-xs">
-                      Take profit %
+                      Exit %
                     </Label>
                     <Input
                       id="quick-target"

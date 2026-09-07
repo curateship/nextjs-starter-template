@@ -157,10 +157,7 @@ function BracketsForm({
   const parsedTargets = targets.map((target) => {
     const px = Number(target.price.trim())
     const dollars = Number(target.dollars.trim())
-    const validPx =
-      Number.isFinite(px) &&
-      px > 0 &&
-      (long ? px > position.entryPx : px < position.entryPx)
+    const validPx = Number.isFinite(px) && px > 0
     const validDollars = Number.isFinite(dollars) && dollars > 0
     return {
       ...target,
@@ -177,15 +174,8 @@ function BracketsForm({
     (target) => !target.validPx || !target.validDollars
   )
 
-  // Every reason this window would refuse, said above the button so nobody
-  // presses Save to find out. Same order as the boxes on screen.
-  //
-  // Which way a box may not go depends on the trade: a long's target is above
-  // the entry and its stop below, and on a short they swap. A percentage that
-  // takes the price through zero is the one thing the "down" box has to say
-  // extra, because 100% below the entry is a price of nothing.
   const refusal = badTarget
-    ? `Each target needs a price ${long ? "above" : "below"} the ${formatPrice(position.entryPx)} entry and a dollar size above zero.`
+    ? "Each target needs a price and a dollar size above zero."
     : tooMuch
       ? `The targets add up to ${formatUsd(parsedTargets.reduce((sum, target) => sum + target.dollars, 0))} at their prices, but the position holds ${formatUsd(heldSz * position.entryPx)} bought at the entry. Lower one or more target sizes.`
       : badStop
@@ -321,6 +311,15 @@ function BracketsForm({
                         )} banked`
                       : "Enter a valid price and dollar size."}
                   </p>
+                  {target.validPx &&
+                  target.validDollars &&
+                  (long
+                    ? target.px < position.entryPx
+                    : target.px > position.entryPx) ? (
+                    <p className="text-xs text-muted-foreground">
+                      This exit will be at a loss.
+                    </p>
+                  ) : null}
                 </div>
               ))}
               {targets.length < 3 ? (

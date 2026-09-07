@@ -706,7 +706,7 @@ export function ChartPanel({
   // order window one of its rows opens at the same spot.
   const [menu, setMenu] = React.useState<ChartMenuState | null>(null)
   const [quick, setQuick] = React.useState<QuickOrderState | null>(null)
-  // Take profit from the same menu opens a small chart window because that
+  // Exit from the same menu opens a small chart window because that
   // exit may sell only part of a position. Stop loss saves at once.
   const [takeProfit, setTakeProfit] =
     React.useState<ChartTakeProfitState | null>(null)
@@ -952,7 +952,7 @@ export function ChartPanel({
   // line must not draw a second one at the same price — that is a red pill
   // behind a red pill, and it reads as some other thing at the same level.
   //
-  // Only the stop. A grid never writes a take profit onto the position, so one
+  // Only the stop. A grid never writes an exit onto the position, so one
   // that is there was put there by hand and still belongs to the plain lines.
   const gridStops = React.useMemo(
     () =>
@@ -974,7 +974,7 @@ export function ChartPanel({
       ),
     [trading.positions, gridStops]
   )
-  // The position the menu's "Take profit" row would add a target to. Keep the
+  // The position the menu's "Exit" row would add a target to. Keep the
   // shortcut until all three places are used. The active wallet's comes first,
   // so when two wallets both hold the coin the row acts on the one being traded.
   const targetablePosition = React.useMemo(() => {
@@ -2059,14 +2059,8 @@ export function ChartPanel({
             }
             setMenu(null)
           }}
-          // Only when the click is on the winning side of the entry — a
-          // "target" on the losing side is a stop, and the row would set one
-          // at the mirrored price instead, which is worse than not offering.
           onPickTakeProfit={
-            targetablePosition &&
-            (targetablePosition.szi > 0
-              ? menu.price > targetablePosition.entryPx
-              : menu.price < targetablePosition.entryPx)
+            targetablePosition && menu.price > 0
               ? () => {
                   setTakeProfit({
                     positionId: targetablePosition.id,

@@ -436,7 +436,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         kind: "take_profit",
         price: target.px,
         label: (at) =>
-          `Take Profit ${formatUsdRounded(targetSz * at)} ${formatSignedUsd(
+          `Exit ${formatUsdRounded(targetSz * at)} ${formatSignedUsd(
             projectedProfit(
               {
                 szi: Math.sign(position.szi) * targetSz,
@@ -575,7 +575,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       onRemove: settled ? () => onCancelOrder(order) : undefined,
       onSettings: edit,
       hint: edit
-        ? "Change this order's size, leverage, stop loss, and take profit."
+        ? "Change this order's size, leverage, stop loss, and exit."
         : undefined,
     })
 
@@ -593,7 +593,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         kind: "order_take_profit",
         price: order.tpPx,
         label: (at) =>
-          `Take Profit ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+          `Exit ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
         onMove: move,
         hint: move
           ? "Drag to move where this order takes its profit."

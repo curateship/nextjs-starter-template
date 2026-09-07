@@ -193,7 +193,7 @@ describe("chart bracket lines", () => {
     })
 
     const settings = host.querySelector<SVGGElement>(
-      `[aria-label="Change this order's size, leverage, stop loss, and take profit."]`
+      `[aria-label="Change this order's size, leverage, stop loss, and exit."]`
     )
     expect(settings).not.toBeNull()
     const cog = settings?.parentElement?.querySelector(
@@ -381,7 +381,7 @@ describe("chart bracket lines", () => {
   )
 
   it.each([
-    ["target", "Take Profit"],
+    ["target", "Exit"],
     ["stop", "Stop Loss"],
   ] as const)("draws a live %s order as one bracket bar", (kind, label) => {
     const html = render(kind)
@@ -447,7 +447,7 @@ describe("chart bracket lines", () => {
     // waiting order. It is not one: it fires by itself and sells the position.
     const html = render("target", "another-order")
 
-    expect(html).toContain("Take Profit")
+    expect(html).toContain("Exit")
     expect(html).toContain("Extra Target $110")
     expect(html).not.toContain("Sell $110")
     expect(html).not.toContain("theme-neutral")

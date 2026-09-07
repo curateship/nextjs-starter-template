@@ -569,9 +569,9 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_UNLISTED: "The exchange does not list that market for orders.",
   LIVE_NO_QUOTE: "This exchange does not quote an order before it is placed.",
   LIVE_TAKE_PROFIT_SIDE:
-    "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
+    "This exit will be at a loss.",
   LIVE_TAKE_PROFIT_SIZE:
-    "The take profit cannot sell more than the position holds.",
+    "The exit cannot sell more than the position holds.",
   LIVE_TAKE_PROFIT_COUNT: "A position can have no more than three targets.",
   LIVE_TAKE_PROFIT_LIST_SIZE:
     "Each target needs its own size when a position has more than one target.",
@@ -693,7 +693,7 @@ export function getLiveErrorMessage(error: unknown): string {
   // that is standing there with its stop.
   const targetGone = message.match(/LIVE_TARGET_GONE:(.*)$/s)
   if (targetGone) {
-    return `The stop is on, but the new take profit was refused (${humanizeExchangeReason(targetGone[1].trim())}). The position has no target — set it again.`
+    return `The stop is on, but the new exit was refused (${humanizeExchangeReason(targetGone[1].trim())}). The position has no target — set it again.`
   }
   const gone = message.match(/LIVE_BRACKETS_GONE:(.*)$/s)
   if (gone) {

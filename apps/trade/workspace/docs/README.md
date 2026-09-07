@@ -129,8 +129,8 @@ screen: anything not written there has not been agreed yet.
   off, how a stop you move by hand is written onto the smart order working that
   coin, how replacement prices stay on the market's legal steps, and how a fast
   entry avoids a stale missing-position answer.
-- `take-profit-levels.md` — how one position banks profit at up to three fixed
-  prices, and how the app replaces, reads and fills those targets safely.
+- `take-profit-levels.md` — up to three Exit targets per position, including
+  exits at a loss, their messages, and safe replacement, readback and fills.
 - `part-close.md` — selling some of a position instead of all of it: why a part
   is chased as a maker where all of it is not, safe retries after a refused
   waiting price, progress notices, and what happens to the stop on the rest.

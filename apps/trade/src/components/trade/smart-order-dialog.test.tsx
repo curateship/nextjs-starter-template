@@ -125,7 +125,7 @@ describe("the DCA ladder window", () => {
 
     const takeProfit = host.querySelector<HTMLButtonElement>("#smart-tp-on")
     await act(async () => takeProfit?.click())
-    expect(host.querySelector('[aria-label="Show Take profit"]')).toBeNull()
+    expect(host.querySelector('[aria-label="Show Exit"]')).toBeNull()
 
     const position =
       host.querySelector("#smart-pot")?.parentElement?.parentElement

@@ -92,11 +92,13 @@ describe("the stop-and-target window says why it will not save", () => {
       (button) => button.textContent?.trim() === "Add target"
     )
     await act(async () => add?.click())
-    await type('[id^="brackets-target-price-"]', "90")
+    await type('[id^="brackets-target-price-"]', "0")
     await type('[id^="brackets-target-size-"]', "50")
     await act(async () => saveButton()?.click())
     const refusal = document.getElementById("brackets-refusal")
-    expect(refusal?.textContent).toContain("Each target needs a price above")
+    expect(refusal?.textContent).toContain(
+      "Each target needs a price and a dollar size above zero."
+    )
     expect(
       document
         .querySelector('[id^="brackets-target-price-"]')
@@ -120,6 +122,43 @@ describe("the stop-and-target window says why it will not save", () => {
     expect(document.getElementById("brackets-refusal")).toBeNull()
     expect(saveButton()?.disabled).toBe(false)
   })
+})
+
+describe("loss-taking exit targets", () => {
+  it.each([1, -1])(
+    "saves a target on the loss side of entry, direction=%s",
+    async (direction) => {
+      const onSave = vi.fn().mockResolvedValue(true)
+      await act(async () =>
+        root.render(
+          <TooltipProvider>
+            <BracketsDialog
+              position={{ ...position, szi: direction }}
+              fills={[]}
+              busy={false}
+              onSave={onSave}
+              onClose={() => {}}
+            />
+          </TooltipProvider>
+        )
+      )
+      const add = [...document.querySelectorAll("button")].find(
+        (button) => button.textContent?.trim() === "Add target"
+      )
+      await act(async () => add?.click())
+      const target = direction > 0 ? 95 : 105
+      await type('[id^="brackets-target-price-"]', String(target))
+      await type('[id^="brackets-target-size-"]', String(target))
+      expect(document.body.textContent).toContain(
+        "This exit will be at a loss."
+      )
+      await act(async () => saveButton()?.click())
+      expect(onSave).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ targets: [{ px: target, sz: null }] })
+      )
+    }
+  )
 })
 
 describe("the stop-and-target window's clicked price", () => {

@@ -52,10 +52,10 @@ async function setAmount(value: string) {
   const input = host.querySelector<HTMLInputElement>("#chart-target-size")
   if (!input) throw new Error("Missing target amount input")
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-      input,
-      value
-    )
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set?.call(input, value)
     input.dispatchEvent(new Event("input", { bubbles: true }))
   })
 }
@@ -76,9 +76,7 @@ describe("the chart take-profit window", () => {
       )
     )
 
-    expect(host.querySelector('[role="dialog"]')?.textContent).toContain(
-      "Take profit"
-    )
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain("Exit")
     expect(host.textContent).toContain("Projected: +$40.00")
     expect(host.textContent).not.toContain("At $120")
     const projected = Array.from(host.querySelectorAll("p")).find((one) =>
@@ -96,6 +94,34 @@ describe("the chart take-profit window", () => {
     })
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it.each([1, -1])(
+    "saves a loss-taking Exit and shows the loss, direction=%s",
+    async (direction) => {
+      const onSave = vi.fn()
+      const px = direction > 0 ? 95 : 105
+      await act(async () =>
+        root.render(
+          <ChartTakeProfit
+            state={{ positionId: position.id, px, x: 40, y: 60 }}
+            position={{ ...position, szi: direction }}
+            wallet="Practice"
+            onSave={onSave}
+            onClose={() => {}}
+          />
+        )
+      )
+      expect(host.textContent).toContain("This exit will be at a loss.")
+      expect(host.textContent).toContain("-$5.00")
+      expect(host.querySelector("span.text-destructive")?.textContent).toBe(
+        "-$5.00"
+      )
+      await act(async () => button("Set target").click())
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ targets: [{ px, sz: null }] })
+      )
+    }
+  )
 
   it("can take only part of the position", async () => {
     const onSave = vi.fn()
@@ -208,8 +234,6 @@ describe("the chart take-profit window", () => {
     expect(
       host.querySelector("#chart-target-size")?.getAttribute("aria-invalid")
     ).toBe("true")
-    expect(host.textContent).toContain(
-      "0.25 is available for another target."
-    )
+    expect(host.textContent).toContain("0.25 is available for another target.")
   })
 })

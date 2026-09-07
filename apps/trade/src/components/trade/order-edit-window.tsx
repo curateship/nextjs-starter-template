@@ -139,7 +139,7 @@ function OrderEditForm({
     }
     if (badTarget) {
       showErrorToast(
-        "Take profit is how far the price moves your way, in percent. Leave the box empty for no take profit."
+        "Exit is how far the price moves your way, in percent. Leave the box empty for no exit."
       )
       return
     }
@@ -219,9 +219,9 @@ function OrderEditForm({
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="order-target"
-                hint="How far price has to move your way after the order fills. Leave it empty for no take profit."
+                hint="How far price has to move your way after the order fills. Leave it empty for no exit."
               >
-                Take profit %
+                Exit %
               </FieldLabel>
               <Input
                 id="order-target"

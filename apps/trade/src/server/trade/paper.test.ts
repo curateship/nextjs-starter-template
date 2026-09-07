@@ -413,6 +413,30 @@ describe("settling against the price right now", () => {
     expect(account.positions[0].entryPx).toBe(90)
   })
 
+  it.each([true, false])(
+    "allows an existing position to exit at a loss, long=%s",
+    async (long) => {
+      if (long) await openLong()
+      else await openShort()
+      marks.set("BTC", long ? 90 : 110)
+      const target = long ? 95 : 105
+      await setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        targets: [{ px: target, sz: null }],
+        slPx: null,
+      })
+      let account = await loadPaperPortfolio(userId, [wallet])
+      expect(account.positions).toHaveLength(1)
+      expect(account.positions[0].tpPx).toBe(target)
+      marks.set("BTC", target)
+      account = await loadPaperPortfolio(userId, [wallet])
+      expect(account.positions).toHaveLength(0)
+      const exit = (await journal()).find((row) => row.reason === "take_profit")
+      expect(exit?.px).toBe(target)
+      expect(exit?.closedPnl).toBeCloseTo(-5, 10)
+    }
+  )
+
   it("takes a profit at the target price even when price has run past it", async () => {
     await openLong()
     await setPaperBrackets(userId, wallet, {
@@ -903,7 +927,7 @@ describe("managing what is open", () => {
     expect(await orders()).toHaveLength(0)
   })
 
-  it("refuses a stop on the wrong side of the trade", async () => {
+  it("refuses a stop on the wrong side and a nonpositive target", async () => {
     await openLong()
     await expect(
       setPaperBrackets(userId, wallet, {
@@ -915,10 +939,10 @@ describe("managing what is open", () => {
     await expect(
       setPaperBrackets(userId, wallet, {
         marketKey: BTC,
-        targets: [{ px: 80, sz: null }],
+        targets: [{ px: 0, sz: null }],
         slPx: null,
       })
-    ).rejects.toThrow("PAPER_TAKE_PROFIT_SIDE")
+    ).rejects.toThrow("PAPER_PRICE")
   })
 
   it("lets a long trail its stop above entry but not beyond the current price", async () => {

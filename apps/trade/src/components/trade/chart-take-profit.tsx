@@ -18,6 +18,7 @@ import {
   formatSize,
   formatUsd,
 } from "@/lib/trade/format"
+import { moneyTone } from "@/lib/trade/money-tone"
 import { projectedProfit, type TradePosition } from "@/lib/trade/paper"
 
 export type ChartTakeProfitState = {
@@ -110,12 +111,9 @@ export function ChartTakeProfit({
   )
   // A lone whole-position target can be split. Fixed targets can only use the
   // coins the existing rows have not already claimed.
-  const available = wholePositionTarget
-    ? held
-    : Math.max(0, held - covered)
+  const available = wholePositionTarget ? held : Math.max(0, held - covered)
   const typed = Number(amount.trim())
-  const coins =
-    unit === "pct" ? available * (typed / 100) : typed / state.px
+  const coins = unit === "pct" ? available * (typed / 100) : typed / state.px
   const validAmount = Number.isFinite(coins) && coins > 0
   const valid =
     position.targets.length < 3 &&
@@ -156,6 +154,11 @@ export function ChartTakeProfit({
     onClose()
   }
 
+  const profit = projectedProfit(
+    { szi: Math.sign(position.szi) * coins, entryPx: position.entryPx },
+    state.px
+  )
+
   return (
     <>
       <div
@@ -168,7 +171,7 @@ export function ChartTakeProfit({
       />
       <div
         role="dialog"
-        aria-label={`Take profit on ${marketSymbol(position.marketKey)} at ${formatPrice(state.px)}`}
+        aria-label={`Exit on ${marketSymbol(position.marketKey)} at ${formatPrice(state.px)}`}
         className="fixed z-50 w-72 rounded-xl border bg-card shadow-lg"
         style={{ left: at.x, top: at.y }}
         onPointerDown={(event) => event.stopPropagation()}
@@ -185,7 +188,7 @@ export function ChartTakeProfit({
         >
           <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-            Take profit
+            Exit
           </span>
           <span className="ml-auto min-w-0 truncate text-xs font-medium text-muted-foreground">
             {wallet}
@@ -196,17 +199,14 @@ export function ChartTakeProfit({
           {valid ? (
             <p className="text-sm font-medium tabular-nums">
               Projected:{" "}
-              <span className="text-emerald-600 dark:text-emerald-400">
-                {formatSignedUsd(
-                  projectedProfit(
-                    {
-                      szi: Math.sign(position.szi) * coins,
-                      entryPx: position.entryPx,
-                    },
-                    state.px
-                  )
-                )}
+              <span className={moneyTone(profit)}>
+                {formatSignedUsd(profit)}
               </span>
+            </p>
+          ) : null}
+          {valid && profit < 0 ? (
+            <p className="text-xs text-muted-foreground">
+              This exit will be at a loss.
             </p>
           ) : null}
           <div className="grid gap-2">
@@ -231,16 +231,11 @@ export function ChartTakeProfit({
                 value={unit}
                 onValueChange={(next) => {
                   const nextUnit = next as "pct" | "usd"
-                  if (
-                    validAmount &&
-                    (nextUnit === "usd" || available > 0)
-                  ) {
+                  if (validAmount && (nextUnit === "usd" || available > 0)) {
                     setAmount(
                       nextUnit === "usd"
                         ? String(Number((coins * state.px).toFixed(2)))
-                        : String(
-                            Number(((coins / available) * 100).toFixed(2))
-                          )
+                        : String(Number(((coins / available) * 100).toFixed(2)))
                     )
                   }
                   setUnit(nextUnit)
@@ -306,11 +301,7 @@ export function ChartTakeProfit({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              className="flex-1"
-              onClick={submit}
-            >
+            <Button type="button" className="flex-1" onClick={submit}>
               {position.targets.length === 0 ? "Set target" : "Add target"}
             </Button>
           </div>

@@ -626,6 +626,8 @@ export async function modifyLighterOrder(
   })
 }
 
+type LighterOpenOrder = WalletOpenOrder & { orderType?: string | number }
+
 /** What the wallet holds, read publicly — see `account.ts`. */
 export async function fetchLighterOrderPortfolio(
   network: NetworkId,
@@ -644,7 +646,7 @@ export async function fetchLighterOrderPortfolio(
    * screen. An empty order list beside a real position is a smaller lie than
    * no position at all, and the wallet card still shows the money.
    */
-  let orders: WalletOpenOrder[] = []
+  let orders: LighterOpenOrder[] = []
   try {
     const facts = await lighterAccountFacts(network, address, credential)
     orders = await fetchLighterOpenOrders(network, facts)
@@ -669,9 +671,8 @@ export async function fetchLighterOrderPortfolio(
    * other venue's read does. While only the ids were pinned, `slPx` and the
    * targets stayed null forever, so the chart's draggable stop and target
    * lines vanished on the first real read after a placement — with both legs
-   * standing on the exchange the whole time (seen live, 1 Sep 2026). Which
-   * side a leg is comes from its price against the entry, the same rule the
-   * chart uses: an exit that wins is a target, one that loses is a stop.
+   * standing on the exchange the whole time. The exchange's order type
+   * identifies targets even when they exit below break-even.
    */
   const pinned = new Set<string>()
   const positions = portfolio.positions.map((position) => {
@@ -684,16 +685,25 @@ export async function fetchLighterOrderPortfolio(
       // read instead of flipping between them.
       .sort((left, right) => Number(left.orderId) - Number(right.orderId))
     const long = position.szi > 0
-    const winning = (leg: WalletOpenOrder) =>
-      long ? leg.px > position.entryPx : leg.px < position.entryPx
-    const stop = legs.find((leg) => !winning(leg)) ?? null
+    const isTarget = (leg: LighterOpenOrder) => {
+      if (leg.orderType !== undefined) {
+        return (
+          leg.orderType === "take-profit" ||
+          leg.orderType === "take-profit-limit" ||
+          leg.orderType === LIGHTER_ORDER_TYPE.takeProfit ||
+          leg.orderType === LIGHTER_ORDER_TYPE.takeProfitLimit
+        )
+      }
+      return long ? leg.px > position.entryPx : leg.px < position.entryPx
+    }
+    const stop = legs.find((leg) => !isTarget(leg)) ?? null
     // A leg for everything held is the whole-position kind, and it is
     // reported as such (null size) so a later replace keeps sending the kind
     // that grows with the position instead of freezing it at today's size.
     const wholeSz = (sz: number) =>
       sz >= Math.abs(position.szi) * (1 - 1e-6) ? null : sz
     const targets = legs
-      .filter(winning)
+      .filter(isTarget)
       .map((leg) => ({ px: leg.px, sz: wholeSz(leg.sz), orderId: leg.orderId }))
       .sort((left, right) => left.px - right.px)
     for (const target of targets) pinned.add(target.orderId)
@@ -764,7 +774,7 @@ async function fetchLighterOpenOrders(
 async function readLighterOpenOrders(
   network: NetworkId,
   facts: { accountIndex: number; apiKeyIndex: number }
-): Promise<WalletOpenOrder[]> {
+): Promise<LighterOpenOrder[]> {
   const token = await lighterAuthToken(facts)
   const answer = await lighterPrivate(
     network,
@@ -783,7 +793,7 @@ async function toLighterOpenOrders(
   network: NetworkId,
   raw: readonly unknown[]
 ) {
-  const rows: WalletOpenOrder[] = []
+  const rows: LighterOpenOrder[] = []
   for (const one of raw) {
     const row = orderRowSchema.safeParse(one)
     if (!row.success) continue
@@ -821,6 +831,7 @@ async function toLighterOpenOrders(
       px,
       sz,
       reduceOnly: isTrue(row.data.reduce_only),
+      ...(row.data.type === undefined ? {} : { orderType: row.data.type }),
       trigger,
     })
   }

@@ -56,20 +56,20 @@ describe("the chart order menu's position exits", () => {
     const html = draw({ stop: true })
 
     expect(html).toContain("Stop loss")
-    expect(html).not.toContain("Take profit")
+    expect(html).not.toContain("Exit")
   })
 
-  it("offers take profit when the clicked level can set one", () => {
+  it("offers exit when the clicked level can set one", () => {
     const html = draw({ target: true })
 
-    expect(html).toContain("Take profit")
+    expect(html).toContain("Exit")
     expect(html).not.toContain("Stop loss")
   })
 
   it("keeps both position exits in one group when both apply", () => {
     const html = draw({ target: true, stop: true })
 
-    expect(html).toContain("Take profit")
+    expect(html).toContain("Exit")
     expect(html).toContain("Stop loss")
     // One divider closes the exit group; the other keeps alerts separate from
     // actions that place or change an order.

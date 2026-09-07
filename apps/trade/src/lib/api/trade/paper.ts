@@ -413,9 +413,9 @@ const paperErrorMessage = createErrorMessage(
     PAPER_REDUCE_ONLY:
       "A reduce-only order needs a position to reduce, and there is not one.",
     PAPER_TAKE_PROFIT_SIDE:
-      "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
+      "This exit will be at a loss.",
     PAPER_TAKE_PROFIT_SIZE:
-      "The take profit has to sell at least the market's smallest step and no more than the position holds.",
+      "The exit has to sell at least the market's smallest step and no more than the position holds.",
     PAPER_TAKE_PROFIT_COUNT: "A position can have no more than three targets.",
     PAPER_TAKE_PROFIT_LIST_SIZE:
       "Each target needs its own size when a position has more than one target.",

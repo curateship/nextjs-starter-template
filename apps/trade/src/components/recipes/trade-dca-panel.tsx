@@ -461,7 +461,7 @@ export default function TradeDcaFields({
         </div>
       </InspectorCard>
 
-      <InspectorCard title="Take profit">
+      <InspectorCard title="Exit">
         <div className="flex items-center gap-2">
           <Checkbox
             id={`dca-${node.id}-tp-on`}
@@ -480,7 +480,7 @@ export default function TradeDcaFields({
             className="text-xs"
             hint="Off means the ladder only ever leaves through its stop."
           >
-            Take profit
+            Exit
           </FieldLabel>
         </div>
 
@@ -535,7 +535,7 @@ export default function TradeDcaFields({
         ) : null}
       </InspectorCard>
 
-      {/* Directly under Take profit because that is the only thing it changes:
+      {/* Directly under Exit because that is the only thing it changes:
           it pauses the "sell at previous rung" exits and nothing else. */}
       <InspectorCard title="Market crash">
         <div className="flex items-center gap-2">

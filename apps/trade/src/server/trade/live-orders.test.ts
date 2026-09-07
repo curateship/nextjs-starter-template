@@ -769,6 +769,46 @@ describe("protecting a position", () => {
     })
   })
 
+  it.each([true, false])(
+    "sends a loss-taking target for an existing position, long=%s",
+    async (long) => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      portfolio.mockResolvedValue({
+        positions: [
+          {
+            marketId: "BTC",
+            szi: long ? 1 : -1,
+            entryPx: 100,
+            leverage: 1,
+            marginUsed: 100,
+            liquidationPx: null,
+            targets: [],
+            tpPx: null,
+            tpSz: null,
+            slPx: null,
+            tpOrderId: null,
+            slOrderId: null,
+            protectionOrderIds: [],
+          },
+        ],
+        orders: [],
+      })
+      prices.mockResolvedValue(new Map([["BTC", long ? 90 : 110]]))
+      const target = long ? 95 : 105
+      await setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        targets: [{ px: target, sz: null }],
+        slPx: null,
+      })
+      expect(setBrackets).toHaveBeenCalledTimes(1)
+      expect(setBrackets.mock.calls[0][2]).toMatchObject({
+        targets: [{ px: target, sz: null }],
+      })
+    }
+  )
+
   it("passes a part-sized target through, and refuses one bigger than the position", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)

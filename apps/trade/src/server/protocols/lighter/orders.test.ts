@@ -829,6 +829,82 @@ describe("pinning protective orders to their position", () => {
     expect(folio.orders).toEqual([])
   }, 60_000)
 
+  it("keeps a loss-taking short target as a target on readback", async () => {
+    /**
+     * **The disappearing bar.** Only the leg ids were pinned; the stop and
+     * target prices stayed null on every read, so the chart's draggable
+     * lines vanished on the first real answer after a placement — while
+     * both legs stood on the exchange as "pending" the whole time. Seen on
+     * a live short on 1 Sep 2026; these rows are that account's real ones.
+     */
+    facts.mockResolvedValue({ accountIndex: 5, apiKeyIndex: 2 })
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        // The stop: buys the short back above the entry.
+        {
+          order_index: 1125898789999244,
+          market_index: 1,
+          is_ask: false,
+          price: "108.626",
+          remaining_base_amount: "4.949",
+          reduce_only: true,
+          trigger_price: "105.462",
+          type: "stop-loss-limit",
+        },
+        // The target below it, for part of the position.
+        {
+          order_index: 1125898789999219,
+          market_index: 1,
+          is_ask: false,
+          price: "92.581",
+          remaining_base_amount: "2.000",
+          reduce_only: true,
+          trigger_price: "102",
+          type: "take-profit-limit",
+        },
+      ],
+    })
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: -4.949,
+          entryPx: 101.025,
+          leverage: 10,
+          marginUsed: 50,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    const folio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    const held = folio.positions[0]
+    // At the trigger prices, which is where each leg actually fires.
+    expect(held.slPx).toBeCloseTo(105.462, 6)
+    expect(held.slOrderId).toBe("1125898789999244")
+    expect(held.tpPx).toBeCloseTo(102, 6)
+    expect(held.targets).toHaveLength(1)
+    // A sized target keeps its size; only a whole-position leg reads null.
+    expect(held.targets[0].sz).toBeCloseTo(2, 6)
+    expect(held.protectionOrderIds).toHaveLength(2)
+    // Pinned legs leave the plain list, or each would be drawn twice.
+    expect(folio.orders).toEqual([])
+  }, 60_000)
+
   it("reads a whole-position leg as the kind that grows with it", async () => {
     // A leg for everything held reports a null size, so a later replace
     // sends the whole-position kind again instead of freezing today's size.

@@ -289,7 +289,7 @@ export function DcaSettingsFields({
 
       <OptionCard
         id={id("tp-on")}
-        title="Take profit"
+        title="Exit"
         hint={DCA_TP_MODE_HINTS[form.tpMode]}
         foldWhenOff={false}
         toggle={{

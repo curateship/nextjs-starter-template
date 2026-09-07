@@ -1,6 +1,6 @@
-# Several take-profit levels
+# Exit targets
 
-A live or practice position can hold up to three take-profit targets. Each row
+A live or practice position can hold up to three Exit targets. Each row
 sets the exact price and dollar amount sold there. The sizes together may cover
 all or part of the position, but never more than the position holds.
 
@@ -67,3 +67,32 @@ For a small real Hyperliquid position, add three targets and a stop. Compare
 the app with Hyperliquid's open orders. Both should show three fixed-size
 reduce-only take-profit orders and one whole-position stop. Remove or move one
 target from its chart line, then check that the other two stay unchanged.
+
+## Exits at a loss
+
+An open position can have an Exit target below its entry on a long, or above
+its entry on a short. Break-even exits are also accepted. Targets still need
+positive prices and valid sizes, and cannot sell more coins than the position
+holds. Stop validation is unchanged.
+
+The chart menu offers Exit on either side of entry. The chart window and
+stop-and-target form show "This exit will be at a loss." without blocking Save.
+The chart window displays a projected loss in red. Chart lines, menus, forms,
+and recipe controls use "Exit" instead of "Take profit".
+
+An Exit keeps the same execution direction. A long target fills when price
+reaches or exceeds the target; a short target fills when price reaches or
+falls below it. A target already crossed can execute immediately. The entry
+price does not determine whether the target can be set on an open position.
+
+For example, one coin bought at $100 can wait at $95 while the market is at
+$90. A recovery to $95 closes the coin and records a $5 loss before fees.
+The reverse applies to a short entered at $100 with an Exit at $105.
+
+Lighter uses its reported order type to keep loss-taking targets in the Exit
+list after a wallet refresh. Its [official order model](https://github.com/elliottech/lighter-python/blob/main/lighter/models/order.py)
+names take-profit and stop-loss order types separately.
+
+Focused tests cover the form, the chart menu, long and short practice fills,
+the live request sent to the mocked exchange, and Lighter target readback.
+Live exchange execution still needs verification against a real order.

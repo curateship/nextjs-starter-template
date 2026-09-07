@@ -263,7 +263,7 @@ describe("the chart's Long, Short and Market window", () => {
     )
   })
 
-  it("places a take profit without inventing a stop loss", async () => {
+  it("places a exit without inventing a stop loss", async () => {
     const { onPlace } = await draw({})
 
     await act(async () => {
@@ -298,7 +298,7 @@ describe("the chart's Long, Short and Market window", () => {
     )
   })
 
-  it("requires a stop loss for Risk size without requiring a take profit", async () => {
+  it("requires a stop loss for Risk size without requiring a exit", async () => {
     const { onPlace } = await draw({
       initialPrefs: { ...prefs, sizeUnit: "risk", size: "1" },
     })

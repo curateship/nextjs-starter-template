@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils"
  * panel works.
  *
  * With a position open on this market and room for another exit, a
- * "Take profit" or "Stop loss" row sits above everything: the fastest way to
+ * "Exit" or "Stop loss" row sits above everything: the fastest way to
  * put that exit where the pointer is. The target appears on the winning side
  * of the entry and the stop appears on the losing side.
  *
@@ -156,7 +156,7 @@ export function ChartOrderMenu({
     >
       {orders && onPickTakeProfit ? (
         <IconRow
-          label="Take profit"
+          label="Exit"
           icon={<TargetIcon className={cn("size-4", MADE_MONEY)} />}
           onPick={onPickTakeProfit}
         />
@@ -315,7 +315,7 @@ function FoldRow({
   )
 }
 
-/** One row that is just an icon and a name — the presets, and Take profit. */
+/** One row that is just an icon and a name — the presets, and Exit. */
 function IconRow({
   label,
   icon,
