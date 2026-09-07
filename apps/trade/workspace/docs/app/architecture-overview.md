@@ -21,6 +21,19 @@ a time. Two rules from that model shape everything here:
 
 ## The map
 
+Trade consumes the shell's public theme, front-page rows, sharing metadata,
+generated favicons and uploaded-font support. The Vite configuration registers
+the shell's public-font endpoint alongside Trade's existing build stamp.
+Shell migrations `0075` and `0076` convert public brand colours and navigation
+settings before Trade's migrations. Apply them through `db:migrate` when
+releasing this shell update. Trade's worker entries and exchange integrations
+remain app-owned.
+
+Trade's chart, alert and recipe panels report failures through the shell's
+`useErrorToast` hook, including their retry actions. The retired `ErrorBanner`
+component is no longer used. The retired `/admin/billing` redirect is removed;
+the dashboard remains the destination for the revenue summary.
+
 What Trade has added to the shell, and what each piece is for:
 
 | Where                                            | What                                                                                                                                                                                                                                                                          |

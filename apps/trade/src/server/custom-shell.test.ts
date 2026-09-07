@@ -73,7 +73,6 @@ import {
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
-  resolveMaintenanceMessage,
   type ShellChildItem,
   type ShellItem,
   type ShellSection,
@@ -87,6 +86,7 @@ import { setSessionPolicy } from "@/server/auth/session-policy"
 import {
   parseShellGlobals,
   pickShellGlobals,
+  readBranding,
   readShellGlobals,
   readShellSettings,
 } from "@/server/shell-settings"
@@ -1108,6 +1108,166 @@ describe("self-serve email change", () => {
 })
 
 describe("custom shell workspaces", () => {
+  it("carries one-site public links through an app-wide settings save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      publicNavigation: [
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
+      publicFooter: [{ label: "Privacy", href: "/privacy" }],
+      publicFooterCopyright: "Copyright",
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      publicNavigation: [
+        { type: "search", visible: true },
+        { label: "About", href: "/about" },
+        {
+          type: "group",
+          label: "Resources",
+          links: [{ label: "Guides", href: "/guides" }],
+        },
+      ],
+      publicFooter: [{ label: "Privacy", href: "/privacy" }],
+      publicFooterCopyright: "Copyright",
+    })
+  })
+
+  it("uses one app colour unless public domains give each site its own", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const testDb = database as unknown as CustomShellDb
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "public-theme-owner@internal.dev",
+      name: "Public Theme Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    const workspace = await startWorkspaceFor(userId, testDb)
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...parseWorkspaceSettings(workspace.settings),
+          publicNavigation: [{ label: "Workspace menu", href: "/workspace" }],
+          publicFooter: [{ label: "Workspace footer", href: "/workspace" }],
+          publicFooterCopyright: "Workspace copyright",
+          publicTheme: {
+            brandColor: "#3b82f6",
+            brandOverrides: { hoverColor: "#1d4ed8" },
+          },
+        },
+      })
+      .where(eq(customShellWorkspaces.id, workspace.id))
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicNavigation: [{ label: "App menu", href: "/app" }],
+        publicFooter: [{ label: "App footer", href: "/app" }],
+        publicFooterCopyright: "App copyright",
+        publicTheme: {
+          brandColor: "#dc2626",
+          brandOverrides: { darkColor: "#f87171" },
+          canvasColor: "#f1f5f9",
+          pageWidth: 960,
+          mainSpacing: 24,
+          contentAlignment: "right",
+          headerBorder: false,
+          footerBorder: true,
+          colorScheme: "dark",
+          font: "serif",
+          radius: 4,
+        },
+      },
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const savedBaseDomain = process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+    try {
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+      const singleSiteConfig = await readShellSettings(
+        { id: userId, role: "admin" },
+        testDb
+      )
+      expect(singleSiteConfig.publicNavigation).toEqual([
+        { type: "search", visible: true },
+        { label: "App menu", href: "/app" },
+      ])
+      expect(singleSiteConfig.publicFooter).toEqual([
+        { label: "App footer", href: "/app" },
+      ])
+      expect(singleSiteConfig.publicFooterCopyright).toBe("App copyright")
+      expect(singleSiteConfig.publicTheme).toEqual({
+        brandColor: "#dc2626",
+        brandOverrides: { darkColor: "#f87171" },
+        canvasColor: "#f1f5f9",
+        pageWidth: 960,
+        mainSpacing: 24,
+        contentAlignment: "right",
+        backgroundPattern: "none",
+        backgroundPatternSize: "medium",
+        backgroundPatternOpacity: 8,
+        buttonStyle: "solid",
+        buttonCasing: "as-written",
+        headerBorder: false,
+        footerBorder: true,
+        colorScheme: "dark",
+        useCustomFont: false,
+        font: "serif",
+        radius: 4,
+      })
+
+      process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = "localhost"
+      const multiSiteConfig = await readShellSettings(
+        { id: userId, role: "admin" },
+        testDb
+      )
+      expect(multiSiteConfig.publicNavigation).toEqual([
+        { type: "search", visible: true },
+        { label: "Workspace menu", href: "/workspace" },
+      ])
+      expect(multiSiteConfig.publicFooter).toEqual([
+        { label: "Workspace footer", href: "/workspace" },
+      ])
+      expect(multiSiteConfig.publicFooterCopyright).toBe("Workspace copyright")
+      expect(multiSiteConfig.publicTheme).toEqual({
+        brandColor: "#3b82f6",
+        brandOverrides: { hoverColor: "#1d4ed8" },
+        canvasColor: "#f1f5f9",
+        pageWidth: 960,
+        mainSpacing: 24,
+        contentAlignment: "right",
+        backgroundPattern: "none",
+        backgroundPatternSize: "medium",
+        backgroundPatternOpacity: 8,
+        buttonStyle: "solid",
+        buttonCasing: "as-written",
+        headerBorder: false,
+        footerBorder: true,
+        colorScheme: "dark",
+        useCustomFont: false,
+        font: "serif",
+        radius: 4,
+      })
+    } finally {
+      if (savedBaseDomain === undefined) {
+        delete process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN
+      } else {
+        process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = savedBaseDomain
+      }
+    }
+  })
+
   it("creates a default workspace and switches the active workspace", async () => {
     const createdAt = now()
     const userId = uuid()
@@ -1515,7 +1675,7 @@ describe("custom shell workspaces", () => {
     ])
   })
 
-  it("normalizes public links and broken public settings safely", () => {
+  it("normalizes public links safely", () => {
     const saved = parseWorkspaceSettings({
       publicNavigation: [
         { label: "About", href: "/about" },
@@ -1526,10 +1686,63 @@ describe("custom shell workspaces", () => {
     })
 
     expect(saved.publicNavigation).toEqual([
+      { type: "search", visible: true },
       { label: "About", href: "/about" },
     ])
     expect(saved.publicFooter).toEqual([])
     expect(saved.publicFooterCopyright).toBe("")
+  })
+
+  it("uses the app-wide public theme and ignores removed colors", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: {
+        publicTheme: {
+          brandColor: { light: "#ffffff", dark: "#000000" },
+          backgroundColor: { light: "#ffffff", dark: "#000000" },
+          textColor: { light: "#000000", dark: "#ffffff" },
+          font: "system",
+          radius: 0,
+        },
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    expect(branding.publicTheme).toEqual({
+      brandColor: "",
+      brandOverrides: {},
+      canvasColor: "",
+      pageWidth: 1152,
+      mainSpacing: 40,
+      contentAlignment: "center",
+      backgroundPattern: "none",
+      backgroundPatternSize: "medium",
+      backgroundPatternOpacity: 8,
+      buttonStyle: "solid",
+      buttonCasing: "as-written",
+      headerBorder: true,
+      footerBorder: true,
+      colorScheme: "system",
+      useCustomFont: false,
+      font: "system",
+      radius: 0,
+    })
+  })
+
+  it("reads CMS's old accent only until a public brand choice exists", () => {
+    expect(
+      parseWorkspaceSettings({ accentColor: " #3B82F6 " }).publicTheme
+    ).toEqual({ brandColor: "#3b82f6", brandOverrides: {} })
+    expect(
+      parseWorkspaceSettings({
+        accentColor: "#3b82f6",
+        publicTheme: { brandColor: "" },
+      }).publicTheme
+    ).toEqual({ brandColor: "", brandOverrides: {} })
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {
@@ -4456,6 +4669,97 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ logoDark: 42 }).logoDark).toBe("")
   })
 
+  it("carries the app-wide favicon set through a save and back", () => {
+    const light = {
+      source: "https://media.example.test/owner/favicon.png",
+      icon16: "https://media.example.test/owner/favicons/v1/light-16.png",
+      icon32: "https://media.example.test/owner/favicons/v1/light-32.png",
+      appleTouchIcon:
+        "https://media.example.test/owner/favicons/v1/light-180.png",
+      icon512: "https://media.example.test/owner/favicons/v1/light-512.png",
+    }
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      favicon: light.source,
+      faviconDark: "https://media.example.test/owner/favicon-dark.png",
+      faviconSet: { light },
+    })
+    expect(parseShellGlobals({ favicon: 42, faviconDark: 42 })).toMatchObject({
+      favicon: "",
+      faviconDark: "",
+      faviconSet: null,
+    })
+  })
+
+  it("carries app-wide SEO, social cards, and public system copy through a save", () => {
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
+        siteDescription: "The public site default.",
+      },
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals(saved)).toMatchObject({
+      shareImage: "https://media.example.test/owner/share.png",
+      shareImageVersion: "2026-09-02T12:00:00.000Z",
+      socialCardType: "summary_large_image",
+      socialHandle: "custom_shell",
+      publicSeo: {
+        homeTitle: "Public home",
+        homeDescription: "The public front page.",
+        writtenTitleTemplate: "{{page_title}} | {{site_title}}",
+        writtenDescriptionTemplate: "Read {{page_title}}.",
+        siteDescription: "The public site default.",
+      },
+      publicSystemCopy: {
+        notFoundHeading: "Lost?",
+        notFoundBody: "Try the front page.",
+        maintenanceHeading: "Taking a short break",
+        maintenanceBody: "Back at noon.",
+      },
+    })
+
+    expect(parseShellGlobals({ appName: "x" })).toMatchObject({
+      shareImage: "",
+      shareImageVersion: "",
+      socialCardType: "summary",
+      socialHandle: "",
+      publicSeo: {
+        homeTitle: "",
+        homeDescription: "",
+        writtenTitleTemplate: "",
+        writtenDescriptionTemplate: "",
+        siteDescription: "",
+      },
+      publicSystemCopy: {
+        notFoundHeading: "",
+        notFoundBody: "",
+        maintenanceHeading: "",
+        maintenanceBody: "",
+      },
+    })
+  })
+
   it("carries the top-bar link limit through a save and back", () => {
     // Same trap as the three above: miss it in `pickShellGlobals` and every
     // save drops the limit, so the top bar quietly goes back to a long row.
@@ -6399,29 +6703,17 @@ describe("custom shell maintenance mode", () => {
   it("reads as off when the settings row has never been written", async () => {
     const db = database as unknown as CustomShellDb
 
-    expect(await readMaintenance(db)).toEqual({ enabled: false, message: "" })
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
-  it("turns the app off and back on, keeping the message either way", async () => {
+  it("turns the app off and back on", async () => {
     const db = database as unknown as CustomShellDb
 
-    await setMaintenance(
-      { enabled: true, message: "  Upgrading the database.  " },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: true,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: true }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: true })
 
-    await setMaintenance(
-      { enabled: false, message: "Upgrading the database." },
-      db
-    )
-    expect(await readMaintenance(db)).toEqual({
-      enabled: false,
-      message: "Upgrading the database.",
-    })
+    await setMaintenance({ enabled: false }, db)
+    expect(await readMaintenance(db)).toEqual({ enabled: false })
   })
 
   it("leaves the other app-wide settings alone", async () => {
@@ -6430,37 +6722,35 @@ describe("custom shell maintenance mode", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf", adminRoute: "/admin/media" },
+      settings: {
+        appName: "Bookshelf",
+        adminRoute: "/admin/media",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
 
-    await setMaintenance({ enabled: true, message: "" }, db)
+    await setMaintenance({ enabled: true }, db)
 
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.adminRoute).toBe("/admin/media")
     expect(globals.maintenance.enabled).toBe(true)
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("treats a missing or hand-edited value as off", () => {
-    expect(normalizeMaintenance(undefined)).toEqual({
-      enabled: false,
-      message: "",
-    })
+    expect(normalizeMaintenance(undefined)).toEqual({ enabled: false })
     expect(normalizeMaintenance({ enabled: "yes", message: 7 })).toEqual({
       enabled: false,
-      message: "",
     })
     expect(normalizeMaintenance({ enabled: true, message: "Back soon" })).toEqual({
       enabled: true,
-      message: "Back soon",
     })
-  })
-
-  it("falls back to the default wording when no message was written", () => {
-    expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
-    expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
   })
 })
 
@@ -6561,7 +6851,10 @@ describe("custom shell session policy", () => {
 
     await database.insert(customShellSettings).values({
       key: "default",
-      settings: { appName: "Bookshelf" },
+      settings: {
+        appName: "Bookshelf",
+        publicTheme: { font: "mono" },
+      },
       createdAt,
       updatedAt: createdAt,
     })
@@ -6571,6 +6864,10 @@ describe("custom shell session policy", () => {
     const globals = await readShellGlobals(db)
     expect(globals.appName).toBe("Bookshelf")
     expect(globals.sessionPolicy).toEqual({ maxAgeDays: 30, idleMinutes: 60 })
+    const [saved] = await database.select().from(customShellSettings)
+    expect(
+      (saved.settings as { publicTheme?: unknown }).publicTheme
+    ).toEqual({ font: "mono" })
   })
 
   it("creates the settings row when the policy is saved on a fresh install", async () => {

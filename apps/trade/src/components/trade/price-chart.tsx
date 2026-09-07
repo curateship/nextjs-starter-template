@@ -12,7 +12,7 @@ import type {
 } from "lightweight-charts"
 
 import { loadChartEngine } from "@/components/trade/chart-engine"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { LoadingRow } from "@/components/ui/loading-row"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { ChartOptions, ChartType } from "@/lib/trade/chart-options"
@@ -845,6 +845,11 @@ export function PriceChart({
     })
   }, [liveBars])
 
+  useErrorToast(
+    engineState === "failed" ? "The chart could not be loaded." : null,
+    () => setEngineAttempt((attempt) => attempt + 1),
+  )
+
   return (
     <div className="relative h-full min-h-0 w-full">
       {/* Double-click puts the chart back to its whole history. On this box
@@ -859,12 +864,7 @@ export function PriceChart({
       {engineState === "loading" ? (
         <LoadingRow label="Drawing the chart" className="absolute inset-0" />
       ) : engineState === "failed" ? (
-        <div className="absolute inset-0 grid place-items-center p-3">
-          <ErrorBanner
-            message="The chart could not be loaded."
-            onRetry={() => setEngineAttempt((attempt) => attempt + 1)}
-          />
-        </div>
+        <div className="absolute inset-0 grid place-items-center p-3" />
       ) : null}
       {overlay && surface && colors ? (
         // As tall as the plot and as wide as the plot plus the price axis. The

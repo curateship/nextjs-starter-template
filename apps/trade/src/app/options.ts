@@ -20,9 +20,6 @@ import type { AppOptions } from "@/lib/app-options"
 export const appOptions: AppOptions = {
   header: {
     leftContent: {
-      id: "pinned-markets",
-      label: "Pinned markets",
-      icon: CandlestickChartIcon,
       roles: ["member", "admin"],
       component: () => import("@/components/trade/pinned-markets-header"),
     },

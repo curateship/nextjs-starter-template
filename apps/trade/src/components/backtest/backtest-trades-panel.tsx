@@ -9,7 +9,7 @@ import {
 } from "@/components/backtest/backtest-kpi"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -133,6 +133,8 @@ export function BacktestTradesPanel({
     </TableHead>
   )
 
+  useErrorToast(symbol ? error : null, onRetry)
+
   return (
     <>
       <DashboardCardTitleHeader
@@ -152,9 +154,7 @@ export function BacktestTradesPanel({
             Pick a market in Results to see its trades.
           </p>
         ) : error ? (
-          <div className="p-4 sm:p-5">
-            <ErrorBanner message={error} onRetry={onRetry} />
-          </div>
+          <div className="p-4 sm:p-5" />
         ) : loading ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
             Loading…

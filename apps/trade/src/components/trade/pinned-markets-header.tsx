@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { XIcon } from "lucide-react"
 
-import type { AppHeaderActionProps } from "@/lib/app-options"
+import type { AppHeaderLeftContentProps } from "@/lib/app-options"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +21,7 @@ import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 
 export default function PinnedMarketsHeader({
   fallback,
-}: AppHeaderActionProps) {
+}: AppHeaderLeftContentProps) {
   const { pins, quotes, busy, failed, store } = usePinnedMarkets()
   React.useEffect(() => {
     let running = false

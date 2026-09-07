@@ -22,6 +22,8 @@ type ImageUploadProps = {
   showLabel?: boolean
   /** Locks the field while the form around it is submitting. */
   disabled?: boolean
+  /** Marks a required image that is missing when the surrounding form submits. */
+  invalid?: boolean
   className?: string
 }
 
@@ -43,6 +45,7 @@ export function ImageUpload({
   inlinePicker = false,
   showLabel = true,
   disabled = false,
+  invalid = false,
   className,
 }: ImageUploadProps) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
@@ -56,7 +59,13 @@ export function ImageUpload({
   const isVideo = showVideos && getMediaType(value) === "video"
 
   return (
-    <div className={cn("w-full space-y-2", className)}>
+    <div
+      className={cn(
+        "w-full space-y-2",
+        className,
+        inlinePicker && pickerOpen && "max-w-none"
+      )}
+    >
       {showLabel ? (
         <FieldLabel id={labelId} htmlFor={buttonId} hint={hint}>
           {label}
@@ -69,7 +78,8 @@ export function ImageUpload({
           type="button"
           onClick={() => setPickerOpen(true)}
           disabled={disabled}
-          className="block w-full cursor-pointer overflow-hidden rounded-lg border-2 border-dashed outline-none transition-colors focus-visible:border-ring disabled:cursor-default disabled:opacity-50"
+          className="block w-full cursor-pointer overflow-hidden rounded-lg border-2 border-dashed outline-none transition-colors focus-visible:border-ring aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 disabled:cursor-default disabled:opacity-50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
+          aria-invalid={invalid || undefined}
           aria-labelledby={showLabel ? labelId : undefined}
           aria-label={showLabel ? undefined : buttonLabel}
         >

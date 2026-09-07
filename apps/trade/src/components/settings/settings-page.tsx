@@ -4,16 +4,24 @@ import { Link } from "@tanstack/react-router"
 import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
+import { FrontPageRowsSettings } from "@/components/settings/front-page-rows-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import {
+  PublicSeoSettings,
+  PublicSocialSettings,
+  PublicSystemPagesSettings,
+} from "@/components/settings/public-metadata-settings"
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
+import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
+import { CardGroup } from "@/components/ui/card"
 import {
   appHeaderRightActionForRole,
   appSettingsTabs,
@@ -55,6 +63,10 @@ const memberSettingsTabs = [
 /** Settings for the pages a site's visitors see before signing in. */
 const publicSettingsTabs = [
   { id: "public-navigation", label: "Navigation" },
+  { id: "public-styling", label: "Styling" },
+  { id: "public-pages", label: "Pages" },
+  { id: "public-seo", label: "SEO" },
+  { id: "public-social", label: "Social" },
 ] as const
 
 export type SettingsTabId =
@@ -171,6 +183,7 @@ export function SettingsPage({
             navigation={config.publicNavigation}
             footer={config.publicFooter}
             footerCopyright={config.publicFooterCopyright}
+            publicHeader={config.publicHeader}
             onNavigationChange={(publicNavigation) =>
               onConfigChange({ ...config, publicNavigation })
             }
@@ -180,7 +193,49 @@ export function SettingsPage({
             onFooterCopyrightChange={(publicFooterCopyright) =>
               onConfigChange({ ...config, publicFooterCopyright })
             }
+            onPublicHeaderChange={(publicHeader) =>
+              onConfigChange({ ...config, publicHeader })
+            }
             onSaveConfig={onSaveConfig}
+          />
+        ) : null}
+        {activeTab === "public-styling" ? (
+          <PublicThemeSettings
+            theme={config.publicTheme}
+            publicFont={config.publicFont}
+            onThemeChange={(publicTheme) =>
+              onConfigChange({ ...config, publicTheme })
+            }
+            onFontStateChange={(publicTheme, publicFont) =>
+              onConfigChange({ ...config, publicTheme, publicFont })
+            }
+            onSaveConfig={onSaveConfig}
+          />
+        ) : null}
+        {activeTab === "public-pages" ? (
+          <CardGroup>
+            <FrontPageRowsSettings
+              rows={config.frontPageRows}
+              onRowsChange={(frontPageRows) =>
+                onConfigChange({ ...config, frontPageRows })
+              }
+            />
+            <PublicSystemPagesSettings
+              config={config}
+              onConfigChange={onConfigChange}
+            />
+          </CardGroup>
+        ) : null}
+        {activeTab === "public-seo" ? (
+          <PublicSeoSettings
+            config={config}
+            onConfigChange={onConfigChange}
+          />
+        ) : null}
+        {activeTab === "public-social" ? (
+          <PublicSocialSettings
+            config={config}
+            onConfigChange={onConfigChange}
           />
         ) : null}
         {activeTab === "sidebar" ? (
@@ -201,7 +256,7 @@ export function SettingsPage({
             reset={{
               label: "Reset all to defaults",
               description:
-                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
+                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
               onReset: () => onConfigChange(createDefaultShellConfig()),
             }}
           />

@@ -2241,6 +2241,9 @@ importers:
       shadcn:
         specifier: ^4.1.1
         version: 4.13.1(supports-color@7.2.0)(typescript@5.9.3)
+      sharp:
+        specifier: ^0.35.4
+        version: 0.35.4(@types/node@24.13.3)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

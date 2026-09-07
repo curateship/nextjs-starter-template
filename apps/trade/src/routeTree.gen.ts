@@ -43,7 +43,6 @@ import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminAsterRouteImport } from './routes/_authenticated/admin/aster'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
-import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
@@ -262,12 +261,6 @@ const AuthenticatedAdminAutomationsRoute =
   AuthenticatedAdminAutomationsRouteImport.update({
     id: '/automations',
     path: '/automations',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminBillingRoute =
-  AuthenticatedAdminBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminContactsRoute =
@@ -576,7 +569,6 @@ export interface FileRoutesByFullPath {
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -657,7 +649,6 @@ export interface FileRoutesByTo {
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -742,7 +733,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -827,7 +817,6 @@ export interface FileRouteTypes {
     | '/admin/announcements'
     | '/admin/aster'
     | '/admin/automations'
-    | '/admin/billing'
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
@@ -908,7 +897,6 @@ export interface FileRouteTypes {
     | '/admin/announcements'
     | '/admin/aster'
     | '/admin/automations'
-    | '/admin/billing'
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
@@ -992,7 +980,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/aster'
     | '/_authenticated/admin/automations'
-    | '/_authenticated/admin/billing'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
@@ -1310,13 +1297,6 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/admin/automations'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/billing': {
-      id: '/_authenticated/admin/billing'
-      path: '/billing'
-      fullPath: '/admin/billing'
-      preLoaderRoute: typeof AuthenticatedAdminBillingRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/contacts': {
@@ -1683,7 +1663,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAsterRoute: typeof AuthenticatedAdminAsterRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
-  AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
@@ -1727,7 +1706,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAsterRoute: AuthenticatedAdminAsterRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
-  AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,

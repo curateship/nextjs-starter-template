@@ -18,8 +18,6 @@ import {
 import { DEFAULT_APP_NAME } from "@/lib/branding"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  DEFAULT_MAINTENANCE_MESSAGE,
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
   type ShellMaintenance,
@@ -54,7 +52,7 @@ export function GeneralSettings({
       <CollapsibleSettingsCard
         storageId="general"
         title="General settings"
-        description="Set the app and workspace names, the favicon, and the logo on the signed-out pages."
+        description="Set the app and workspace names, browser-tab icons, and the logo on the signed-out pages."
         contentClassName="space-y-6"
       >
         <div className="grid gap-2">
@@ -217,7 +215,7 @@ export function GeneralSettings({
 
         {/* The app's pictures sit together: they are all small, so a row of
             them is shorter than a stack and reads as one decision. */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
           <ImageUpload
             label="Favicon"
             value={config.favicon}
@@ -225,6 +223,18 @@ export function GeneralSettings({
             aspect="square"
             fit="contain"
             emptyLabel="Select favicon"
+            hint="Shown in browser tabs across the signed-in app and public pages. The app makes the common browser sizes from this one square image."
+            className="max-w-24"
+          />
+
+          <ImageUpload
+            label="Dark favicon"
+            value={config.faviconDark}
+            onChange={(url) => onConfigChange({ ...config, faviconDark: url })}
+            aspect="square"
+            fit="contain"
+            emptyLabel="Select favicon"
+            hint="Optional. Browsers that use dark tabs get this image instead. Leave it empty to use the favicon above everywhere."
             className="max-w-24"
           />
 
@@ -286,14 +296,11 @@ export function GeneralSettings({
  * The app-wide "back soon" switch. Turning it on asks first, because it shuts
  * the app for everybody who is not an admin the moment it is saved.
  *
- * The switch saves on its own (confirmed and written to the activity trail);
- * the message rides along with the page's normal auto-save like every other
- * field here. Keeping the switch out of that save is deliberate — see
- * lib/api/shell-settings.ts.
+ * The switch saves on its own rather than riding in the page's auto-save.
+ * Keeping the two writes apart is deliberate. See lib/api/shell-settings.ts.
  */
 function MaintenanceSettingsCard({
   config,
-  onConfigChange,
   onMaintenanceChange,
   maintenanceBusy,
 }: GeneralSettingsProps & MaintenanceProps) {
@@ -323,27 +330,6 @@ function MaintenanceSettingsCard({
         <Label htmlFor="maintenance-enabled" className="font-normal">
           Close the app to members
         </Label>
-      </div>
-
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="maintenance-message"
-          hint={`What members read while the app is closed. Leave it empty to show "${DEFAULT_MAINTENANCE_MESSAGE}".`}
-        >
-          Message
-        </FieldLabel>
-        <Input
-          id="maintenance-message"
-          value={maintenance.message}
-          maxLength={MAX_MAINTENANCE_MESSAGE_LENGTH}
-          onChange={(event) =>
-            onConfigChange({
-              ...config,
-              maintenance: { ...maintenance, message: event.target.value },
-            })
-          }
-          placeholder={DEFAULT_MAINTENANCE_MESSAGE}
-        />
       </div>
 
       <ConfirmDialog

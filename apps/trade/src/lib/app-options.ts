@@ -9,6 +9,10 @@ import type {
   AutomationCanvasPanel,
   AutomationCanvasStatus,
 } from "@/lib/automations/canvas-panel"
+import {
+  normalizePublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
 /**
@@ -28,13 +32,20 @@ import type { AppSettingsTab } from "@/lib/settings-tab"
  * *here*, in custom-shell, with its default equal to today's behaviour; only
  * then can an app use it.
  *
- * Not everything belongs here. If an admin could plausibly change it on a
- * Settings screen it is `ShellConfig` instead, and if it differs between
- * staging and production of one app it is an environment variable. An app
- * option is decided once by whoever builds the app, is the same on every
- * install of it, and changing it means a deploy.
+ * Not everything belongs here. A value an admin changes while the app runs is
+ * `ShellConfig`; an app option may only supply its starting value when the
+ * shell offers that choice explicitly. A value that differs between staging
+ * and production of one app is an environment variable. An app option is
+ * decided once by whoever builds the app, is the same on every install of it,
+ * and changing it means a deploy.
  */
 export type AppOptions = {
+  /**
+   * The public look a fresh install starts with before an admin saves changes.
+   * An app names only the fields it wants to change. Saved app-wide values
+   * override matching fields, and omitted fields keep the shell's built-in look.
+   */
+  publicTheme?: Partial<PublicTheme>
   header?: HeaderOptions
   landing?: LandingOptions
   pages?: PagesOptions
@@ -44,8 +55,22 @@ export type AppOptions = {
   notifications?: NotificationOptions
 }
 
-/** What the shell hands the app-owned piece of the signed-in header. */
-export type AppHeaderActionProps = { role: string; fallback?: ReactNode }
+/** What the shell hands an app-owned control in the signed-in header. */
+export type AppHeaderActionProps = { role: string }
+
+/** What the shell hands app-owned navigation on the header's left side. */
+export type AppHeaderLeftContentProps = {
+  role: string
+  fallback: ReactNode
+}
+
+export type AppHeaderLeftContent = {
+  /** Unset means admins and members may both see it. */
+  roles?: readonly string[]
+  component: () => Promise<{
+    default: ComponentType<AppHeaderLeftContentProps>
+  }>
+}
 
 /**
  * One app-owned item in the signed-in header's right side.
@@ -68,7 +93,7 @@ export type AppHeaderAction = {
 
 type HeaderOptions = {
   /** App-owned left navigation. Render the supplied fallback when empty. */
-  leftContent?: AppHeaderAction
+  leftContent?: AppHeaderLeftContent
   /**
    * A single app-owned control in the draggable top-right menu. Unset leaves
    * the signed-in header and its settings exactly as they were.
@@ -139,6 +164,8 @@ export type WorkspaceWord = { one: string; many: string }
 export type WhoMayHaveWorkspaces = "off" | "admins" | "everyone"
 
 type WorkspaceOptions = {
+  /** Allow each public site to override app-wide icons, logos and share images. */
+  siteBranding?: boolean
   /**
    * What this app calls a workspace, where somebody can see it.
    *
@@ -435,11 +462,16 @@ export function landingPageOverride(
   return options.landing?.page ?? null
 }
 
-/** Left navigation for this role, or the shell's usual sidebar links. */
+/** The app's starting public look, or the shell's when the app says nothing. */
+export function appPublicTheme(options: AppOptions = appOptions): PublicTheme {
+  return normalizePublicTheme(options.publicTheme)
+}
+
+/** Left navigation for this role, or null to keep the shell's usual links. */
 export function appHeaderLeftContentForRole(
   role: string,
   options: AppOptions = appOptions
-): AppHeaderAction | null {
+): AppHeaderLeftContent | null {
   const action = options.header?.leftContent
   if (!action || (action.roles && !action.roles.includes(role))) return null
   return action
@@ -664,4 +696,9 @@ export async function appNotificationLinks(
   const ask = options.notifications?.linksFor
   if (!ask || notices.length === 0) return {}
   return await ask(notices)
+}
+
+/** App-wide branding stays the default unless the app builds distinct sites. */
+export function appUsesSiteBranding(options: AppOptions = appOptions) {
+  return options.workspaces?.siteBranding ?? false
 }

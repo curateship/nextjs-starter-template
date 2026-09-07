@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { appPublicTheme, appUsesSiteBranding } from "@/lib/app-options"
 import {
   createDefaultMemberSections,
   createDefaultShellConfig,
@@ -12,10 +13,52 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import {
+  normalizePublicSeo,
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+  versionedShareImage,
+  type PublicSeo,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
+import { pageForPath } from "@/lib/pages/page-registry"
+import { pageVisibility } from "@/lib/pages/page-visibility"
+import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
+  cleanPublicNavigationLinks,
+} from "@/lib/pages/public-navigation"
+import {
+  normalizePublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
+import {
+  normalizePublicFaviconSet,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
+import {
+  hasCustomPublicTheme,
+  normalizePublicTheme,
+  publicThemeForSite,
+  publicThemeOverrides,
+  type PublicTheme,
+} from "@/lib/public-theme"
+import {
+  normalizePublicFontAsset,
+  type PublicFontAsset,
+} from "@/lib/public-font"
+import {
+  normalizeFrontPageRows,
+  type FrontPageRow,
+} from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSettings,
+  customShellWorkspaces,
   DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
@@ -24,7 +67,12 @@ import {
   currentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
-import { answerForRequest } from "@/server/workspaces/host"
+import {
+  answerForRequest,
+  currentPublicOrigin,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
+import { visitorWorkspaceId } from "@/server/workspaces/for-request"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb = db) {
@@ -57,9 +105,9 @@ export async function readDashboardRowsPerPage(
  *
  * They can have one now: the domain they typed. A visitor on a workspace's own
  * address sees that workspace's name, not the deployment's — which is the whole
- * point of one deployment serving many. On the deployment's own address, and on
- * an app with no base domain configured, nothing resolves and the app-wide
- * values answer exactly as before.
+ * point of one deployment serving many. A one-site app has no base domain, so
+ * its public menu and footer stay app-wide. Its page choices still come from
+ * the same workspace as the rest of its public content.
  *
  * The root route loads this on the server, which is what puts the theme in the
  * first paint instead of applying it after the page has already been drawn.
@@ -68,13 +116,27 @@ export async function readBranding(
   database: CustomShellDb = db
 ): Promise<{
   appName: string
+  favicon: string
+  faviconDark: string
+  faviconSet: PublicFaviconSet | null
   logo: string
   logoDark: string
+  shareImage: string
+  socialCardType: SocialCardType
+  socialHandle: string
+  publicOrigin: string
+  publicSeo: PublicSeo
+  publicSystemCopy: PublicSystemCopy
+  frontPageRows: FrontPageRow[]
+  publicHeader: PublicHeader
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
   publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
   publicFooterCopyright: string
+  publicSearchEnabled: boolean
+  publicFont: PublicFontAsset | null
+  publicTheme?: PublicTheme
   /**
    * True when the domain belongs to no workspace at all — a subdomain nobody
    * has taken, or one whose workspace is switched off. The root route turns
@@ -85,33 +147,102 @@ export async function readBranding(
 }> {
   const globals = await readShellGlobals(database)
   const answer = await answerForRequest(database)
+  const appWidePublicTheme = globals.publicTheme
 
   if (answer.kind !== "workspace") {
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
+    const workspaceSettings =
+      answer.kind === "platform" && !workspaceDomainsEnabled
+        ? await readSingleSitePageSettings(database)
+        : parseWorkspaceSettings(undefined)
+    const searchPage = pageForPath("/search")
+
     return {
       appName: globals.appName,
+      favicon: globals.favicon,
+      faviconDark: globals.faviconDark,
+      faviconSet: globals.faviconSet,
       logo: globals.logo,
       logoDark: globals.logoDark,
-      publicNavigation: [],
-      publicFooter: [],
-      publicFooterCopyright: "",
+      shareImage: versionedShareImage(
+        globals.shareImage,
+        globals.shareImageVersion
+      ),
+      socialCardType: globals.socialCardType,
+      socialHandle: globals.socialHandle,
+      publicOrigin: currentPublicOrigin(),
+      publicSeo: globals.publicSeo,
+      publicSystemCopy: globals.publicSystemCopy,
+      frontPageRows: globals.frontPageRows,
+      publicHeader: globals.publicHeader,
+      publicNavigation: workspaceDomainsEnabled
+        ? []
+        : globals.publicNavigation,
+      publicFooter: workspaceDomainsEnabled ? [] : globals.publicFooter,
+      publicFooterCopyright: workspaceDomainsEnabled
+        ? ""
+        : globals.publicFooterCopyright,
+      publicSearchEnabled:
+        searchPage !== null &&
+        pageVisibility(workspaceSettings.pages, searchPage) !== "off",
+      publicFont: globals.publicFont,
+      ...(hasCustomPublicTheme(appWidePublicTheme)
+        ? { publicTheme: appWidePublicTheme }
+        : {}),
       hostIsUnknown: answer.kind === "unknown",
     }
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  const siteBranding = appUsesSiteBranding()
+  const publicTheme = publicThemeForSite(
+    appWidePublicTheme,
+    workspaceSettings.publicTheme
+  )
+  const searchPage = pageForPath("/search")
 
   return {
     appName: answer.workspace.name || globals.appName,
-    // A workspace has a favicon of its own but no logo yet — that arrives with
-    // the rest of its look, in a later task. Until then the deployment's logo
-    // is shown, which beats a site with no mark at all.
-    logo: globals.logo,
-    logoDark: globals.logoDark,
+    favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
+    faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
+    faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    logo: (siteBranding && workspaceSettings.logo) || globals.logo,
+    logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
+    shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
+      globals.shareImage,
+      globals.shareImageVersion
+    ),
+    socialCardType: globals.socialCardType,
+    socialHandle: globals.socialHandle,
+    publicOrigin: currentPublicOrigin(),
+    publicSeo: globals.publicSeo,
+    publicSystemCopy: globals.publicSystemCopy,
+    frontPageRows: globals.frontPageRows,
+    publicHeader: globals.publicHeader,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicSearchEnabled:
+      searchPage !== null &&
+      pageVisibility(workspaceSettings.pages, searchPage) !== "off",
+    publicFont: globals.publicFont,
+    ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
   }
+}
+
+/** Page visibility for the only site in an app without workspace domains. */
+async function readSingleSitePageSettings(database: CustomShellDb) {
+  const workspaceId = await visitorWorkspaceId(database)
+  if (!workspaceId) return parseWorkspaceSettings(undefined)
+
+  const [workspace] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+
+  return parseWorkspaceSettings(workspace?.settings)
 }
 
 /**
@@ -134,17 +265,31 @@ export async function readShellSettings(
   // workspace yet simply gets the app-wide defaults.
   const workspace = await currentWorkspace(user.id, database)
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
+  const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
+  const publicTheme = workspaceDomainsEnabled
+    ? publicThemeForSite(globals.publicTheme, workspaceSettings.publicTheme)
+    : globals.publicTheme
 
   return {
     ...globals,
     // The site's own name, not the app-wide value — that is only the fallback
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
+    workspaceFavicon: workspaceSettings.favicon,
+    workspaceLogo: workspaceSettings.logo,
+    workspaceLogoDark: workspaceSettings.logoDark,
+    workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: workspaceSettings.sidebarWidth,
-    favicon: workspaceSettings.favicon,
-    publicNavigation: workspaceSettings.publicNavigation,
-    publicFooter: workspaceSettings.publicFooter,
-    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicNavigation: workspaceDomainsEnabled
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: workspaceDomainsEnabled
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
+    publicFooterCopyright: workspaceDomainsEnabled
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
+    publicTheme,
     // Same rule as the sidebar below: an admin sees and edits their own row,
     // everybody else gets the one an admin built for them.
     topRightNavigation: isAdmin(user)
@@ -160,7 +305,10 @@ export async function readShellSettings(
 }
 
 export function parseShellGlobals(value: unknown) {
-  const fallback = createDefaultShellConfig()
+  const fallback = {
+    ...createDefaultShellConfig(),
+    publicTheme: appPublicTheme(),
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return pickShellGlobals(fallback)
   }
@@ -175,6 +323,15 @@ export function parseShellGlobals(value: unknown) {
         ? settings.appName
         : fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    favicon:
+      typeof settings.favicon === "string"
+        ? settings.favicon
+        : fallback.favicon,
+    faviconDark:
+      typeof settings.faviconDark === "string"
+        ? settings.faviconDark
+        : fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -185,6 +342,30 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion.slice(0, 64)
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
+    publicNavigation:
+      settings.publicNavigation === undefined
+        ? fallback.publicNavigation
+        : cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicFont: normalizePublicFontAsset(settings.publicFont),
+    publicTheme: normalizePublicTheme(
+      settings.publicTheme,
+      fallback.publicTheme
+    ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -232,6 +413,15 @@ export function parseShellGlobals(value: unknown) {
   }
 }
 
+/** Resolves globals for a write without turning app theme defaults into saves. */
+export function shellGlobalsForWrite(value: unknown) {
+  const settings = parseShellGlobals(value)
+  return {
+    ...settings,
+    publicTheme: publicThemeOverrides(settings.publicTheme, appPublicTheme()),
+  }
+}
+
 /**
  * Takes the fields it reads rather than a whole `ShellConfig`: the settings save
  * hands it a validated request, and the parts of that request which are not
@@ -243,8 +433,24 @@ export function pickShellGlobals(
     ShellConfig,
     | "appName"
     | "workspaceName"
+    | "favicon"
+    | "faviconDark"
+    | "faviconSet"
     | "logo"
     | "logoDark"
+    | "shareImage"
+    | "shareImageVersion"
+    | "socialCardType"
+    | "socialHandle"
+    | "publicSeo"
+    | "publicSystemCopy"
+    | "frontPageRows"
+    | "publicNavigation"
+    | "publicFooter"
+    | "publicFooterCopyright"
+    | "publicHeader"
+    | "publicFont"
+    | "publicTheme"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -262,8 +468,26 @@ export function pickShellGlobals(
   return {
     appName: settings.appName,
     workspaceName: settings.workspaceName,
+    favicon: settings.favicon,
+    faviconDark: settings.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: settings.logo,
     logoDark: settings.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion: settings.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
+    publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicFont: normalizePublicFontAsset(settings.publicFont),
+    publicTheme: normalizePublicTheme(settings.publicTheme),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,

@@ -5,12 +5,29 @@ import { loadEntitlements } from "@/server/billing/entitlements"
 import { countUnreadNotifications } from "@/server/notifications/inbox"
 import { findSessionContext } from "@/server/auth/security"
 import { readBranding, readShellSettings } from "@/server/shell-settings"
+import type { PublicFaviconSet } from "@/lib/favicon"
 import { readWorkspaceList } from "@/server/people/workspaces"
 
 import type { UserAnnouncement } from "@/lib/announcement"
 import { serializeUser, type AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
+import type { PublicFontAsset } from "@/lib/public-font"
+import type { FrontPageRow } from "@/lib/pages/front-page"
+import { createDefaultPublicNavigation } from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
+import type { PublicTheme } from "@/lib/public-theme"
+import {
+  createDefaultPublicSeo,
+  createDefaultPublicSystemCopy,
+  DEFAULT_SOCIAL_CARD_TYPE,
+  type PublicSeo,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
 import {
   seesEveryWorkspace,
   type WorkspaceListResponse,
@@ -151,11 +168,25 @@ export function loadShellBootstrap() {
 const loadBrandingFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{
     appName: string
+    favicon: string
+    faviconDark: string
+    faviconSet: PublicFaviconSet | null
     logo: string
     logoDark: string
+    shareImage: string
+    socialCardType: SocialCardType
+    socialHandle: string
+    publicOrigin: string
+    publicSeo: PublicSeo
+    publicSystemCopy: PublicSystemCopy
+    frontPageRows: FrontPageRow[]
+    publicHeader: PublicHeader
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
+    publicSearchEnabled: boolean
+    publicFont: PublicFontAsset | null
+    publicTheme?: PublicTheme
     hostIsUnknown: boolean
   }> => {
     try {
@@ -168,11 +199,24 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
       // must not turn every address into a 404.
       return {
         appName: "",
+        favicon: "",
+        faviconDark: "",
+        faviconSet: null,
         logo: "",
         logoDark: "",
-        publicNavigation: [],
+        shareImage: "",
+        socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
+        socialHandle: "",
+        publicOrigin: "",
+        publicSeo: createDefaultPublicSeo(),
+        publicSystemCopy: createDefaultPublicSystemCopy(),
+        frontPageRows: [],
+        publicHeader: createDefaultPublicHeader(),
+        publicNavigation: createDefaultPublicNavigation(),
         publicFooter: [],
         publicFooterCopyright: "",
+        publicSearchEnabled: true,
+        publicFont: null,
         hostIsUnknown: false,
       }
     }

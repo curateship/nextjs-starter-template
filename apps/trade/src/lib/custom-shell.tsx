@@ -11,7 +11,27 @@ import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
-import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicNavigation,
+  type PublicNavigationItem,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
+import {
+  createDefaultPublicSeo,
+  createDefaultPublicSystemCopy,
+  DEFAULT_SOCIAL_CARD_TYPE,
+  type PublicSeo,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
+import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
+import type { PublicFontAsset } from "@/lib/public-font"
+import type { FrontPageRow } from "@/lib/pages/front-page"
+import type { PublicFaviconSet } from "@/lib/favicon"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -412,12 +432,22 @@ export type ShellConfig = {
    * link in the sidebar an admin built for them.
    */
   memberHomeRoute: string
+  /** App-wide browser-tab image selected from the media library. */
   favicon: string
+  /** Image overrides for the current site. Empty uses app-wide branding. */
+  workspaceFavicon: string
+  workspaceLogo: string
+  workspaceLogoDark: string
+  workspaceShareImage: string
+  /** Optional app-wide browser-tab image for dark browser chrome. */
+  faviconDark: string
+  /** Server-generated PNG sizes for the selected favicon images. */
+  faviconSet: PublicFaviconSet | null
   /**
    * App-wide brand image drawn above the signed-out pages (sign in, register,
-   * reset, pricing). A media-library URL, empty for no logo. Unlike the favicon
-   * it is a global rather than a per-workspace setting, because the pages that
-   * show it are read before anybody has signed in or picked a workspace.
+   * reset, pricing). A media-library URL, empty for no logo. It is app-wide for
+   * the same reason as the favicon: these pages load before anybody has signed
+   * in or picked a workspace.
    */
   logo: string
   /**
@@ -427,12 +457,32 @@ export type ShellConfig = {
    * existed. A global for the same reason as `logo`.
    */
   logoDark: string
-  /** Links shown across the public site's header, saved per workspace. */
-  publicNavigation: PublicNavigationLink[]
-  /** Links shown in the public site's footer, saved per workspace. */
+  /** App-wide image used by link previews for every public page. */
+  shareImage: string
+  /** Server-written version added to the share image URL after replacement. */
+  shareImageVersion: string
+  /** The compact or large-image X card used by every public page. */
+  socialCardType: SocialCardType
+  /** App-wide X account name, stored without the leading @. */
+  socialHandle: string
+  /** Home-page metadata and the fallback description for public pages. */
+  publicSeo: PublicSeo
+  /** Editable headings and bodies for the public 404 and maintenance pages. */
+  publicSystemCopy: PublicSystemCopy
+  /** Ordered app-wide rows that replace the built-in public front page. */
+  frontPageRows: FrontPageRow[]
+  /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
+  publicNavigation: PublicNavigationItem[]
+  /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
   publicFooter: PublicNavigationLink[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
+  /** App-wide layout choices for the signed-out header. */
+  publicHeader: PublicHeader
+  /** Public font and corners, plus the active public site's brand colour. */
+  publicTheme: PublicTheme
+  /** One app-wide uploaded WOFF2 font, or null when none has been added. */
+  publicFont: PublicFontAsset | null
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -507,18 +557,10 @@ export function normalizeTopLeftNavLimit(value: unknown): number {
 
 export type ShellMaintenance = {
   enabled: boolean
-  /** Shown on the maintenance page. Empty falls back to the default below. */
-  message: string
 }
 
-export const DEFAULT_MAINTENANCE_MESSAGE =
-  "We are making some improvements and will be back shortly."
-
-/** How long a message may be — it is one line on a card, not an essay. */
-export const MAX_MAINTENANCE_MESSAGE_LENGTH = 300
-
 export function createDefaultMaintenance(): ShellMaintenance {
-  return { enabled: false, message: "" }
+  return { enabled: false }
 }
 
 /**
@@ -531,19 +573,7 @@ export function normalizeMaintenance(value: unknown): ShellMaintenance {
     return createDefaultMaintenance()
   }
 
-  const maintenance = value as Partial<ShellMaintenance>
-  return {
-    enabled: maintenance.enabled === true,
-    message:
-      typeof maintenance.message === "string"
-        ? maintenance.message.slice(0, MAX_MAINTENANCE_MESSAGE_LENGTH)
-        : "",
-  }
-}
-
-/** The message to show, falling back to the default when none was written. */
-export function resolveMaintenanceMessage(message: string) {
-  return message.trim() || DEFAULT_MAINTENANCE_MESSAGE
+  return { enabled: (value as Partial<ShellMaintenance>).enabled === true }
 }
 
 
@@ -1014,11 +1044,27 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     memberHomeRoute: "",
     favicon: "",
+    workspaceFavicon: "",
+    workspaceLogo: "",
+    workspaceLogoDark: "",
+    workspaceShareImage: "",
+    faviconDark: "",
+    faviconSet: null,
     logo: "",
     logoDark: "",
-    publicNavigation: [],
+    shareImage: "",
+    shareImageVersion: "",
+    socialCardType: DEFAULT_SOCIAL_CARD_TYPE,
+    socialHandle: "",
+    publicSeo: createDefaultPublicSeo(),
+    publicSystemCopy: createDefaultPublicSystemCopy(),
+    frontPageRows: [],
+    publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
+    publicHeader: createDefaultPublicHeader(),
+    publicTheme: createDefaultPublicTheme(),
+    publicFont: null,
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.

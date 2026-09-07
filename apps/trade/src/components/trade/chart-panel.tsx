@@ -59,7 +59,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
@@ -1938,6 +1938,22 @@ export function ChartPanel({
     current.candles.length === 0 &&
     olderBars?.key !== current.key
 
+  useErrorToast(
+    selectedKey && current && !waitingForBorrowedBars ? current.error : null,
+    () => setAttempt((count) => count + 1),
+  )
+  useErrorToast(
+    selectedKey &&
+      current &&
+      !waitingForBorrowedBars &&
+      !current.error &&
+      current.candles.length > 0 &&
+      orbCurrent?.error
+      ? "The opening range could not load the 15m candles it needs. The chart is still working. Try again in a moment."
+      : null,
+    () => setOrbAttempt((count) => count + 1),
+  )
+
   if (!selectedKey) {
     return (
       <PanelPlaceholder
@@ -1970,12 +1986,7 @@ export function ChartPanel({
           className="h-full min-h-0 w-full bg-muted/30 motion-safe:animate-pulse motion-reduce:bg-muted/20"
         />
       ) : current.error ? (
-        <div className="p-3">
-          <ErrorBanner
-            message={current.error}
-            onRetry={() => setAttempt((count) => count + 1)}
-          />
-        </div>
+        <div className="p-3" />
       ) : current.candles.length === 0 ? (
         <PanelPlaceholder
           icon={<CandlestickChartIcon className="size-4" />}
@@ -1989,12 +2000,6 @@ export function ChartPanel({
           data-slot="chart-ready"
           className="relative h-full min-h-0 motion-safe:animate-in motion-safe:duration-300 motion-safe:fade-in-0"
         >
-          {orbCurrent?.error ? (
-            <ErrorBanner
-              message="The opening range could not load the 15m candles it needs. The chart is still working. Try again in a moment."
-              onRetry={() => setOrbAttempt((count) => count + 1)}
-            />
-          ) : null}
           {/* Dukascopy's volume is its own brokerage volume, not the stock
               market's. Said on the pane that draws it, for the bars it
               covers, rather than left for somebody to assume. */}

@@ -8,7 +8,7 @@ import { TradeNumberField } from "@/components/recipes/trade-number-field"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -554,6 +554,11 @@ export default function TradeMarketsFields({
     setKeys(changeVisibleMarketSelection(marketKeys, visibleKeys, on))
   }
 
+  useErrorToast(folderMode ? foldersError : null, () =>
+    setFolderAttempt((value) => value + 1),
+  )
+  useErrorToast(!folderMode ? error : null, () => setAttemptKey((n) => n + 1))
+
   return (
     <>
       {wallet ? (
@@ -740,12 +745,7 @@ export default function TradeMarketsFields({
         </div>
 
         {folderMode ? (
-          foldersError ? (
-            <ErrorBanner
-              message={foldersError}
-              onRetry={() => setFolderAttempt((value) => value + 1)}
-            />
-          ) : folders === null ? (
+          foldersError ? null : folders === null ? (
             <LoadingRow label="Loading folders…" />
           ) : (
             <div className="grid gap-1.5">
@@ -788,13 +788,6 @@ export default function TradeMarketsFields({
               </p>
             </div>
           )
-        ) : null}
-
-        {!folderMode && error ? (
-          <ErrorBanner
-            message={error}
-            onRetry={() => setAttemptKey((n) => n + 1)}
-          />
         ) : null}
 
         {!folderMode && markets === null && !error ? (

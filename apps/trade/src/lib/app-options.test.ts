@@ -14,6 +14,7 @@ import {
   appShowsRunButton,
   appOffersMemberTest,
   appPaletteGroups,
+  appPublicTheme,
   appSettingsTabs,
   catchAllOverride,
   landingPageOverride,
@@ -22,6 +23,7 @@ import {
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { workspaceAddress } from "@/lib/workspaces/addresses"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
@@ -64,6 +66,10 @@ function testNode(kind: string) {
 }
 
 describe("an option nobody set means what the shell always did", () => {
+  it("keeps the shell's public look", () => {
+    expect(appPublicTheme({})).toEqual(createDefaultPublicTheme())
+  })
+
   it("adds no app-owned control to the signed-in header", () => {
     expect(appHeaderRightAction({})).toBeNull()
   })
@@ -93,6 +99,19 @@ describe("an option nobody set means what the shell always did", () => {
 })
 
 describe("an app's answer wins", () => {
+  it("uses the app's default public look", () => {
+    const publicTheme = {
+      brandColor: "#123456",
+      colorScheme: "dark" as const,
+      font: "serif" as const,
+    }
+
+    expect(appPublicTheme({ publicTheme })).toEqual({
+      ...createDefaultPublicTheme(),
+      ...publicTheme,
+    })
+  })
+
   it("hands over the signed-in header's app-owned control", () => {
     const rightAction = {
       id: "app-status",
@@ -384,12 +403,15 @@ describe("a canvas panel that only suits some flows", () => {
   })
 })
 
-
 describe("header left content", () => {
   it("keeps sidebar navigation when unset or the role is excluded", () => {
     expect(appHeaderLeftContentForRole("member", {})).toBeNull()
-    const action = { id: "pins", label: "Pins", icon: () => null, roles: ["member"], component: async () => ({ default: () => null }) }
-    expect(appHeaderLeftContentForRole("admin", { header: { leftContent: action } })).toBeNull()
-    expect(appHeaderLeftContentForRole("member", { header: { leftContent: action } })).toBe(action)
+    const content = {
+      roles: ["member"],
+      component: async () => ({ default: () => null }),
+    }
+    const options = { header: { leftContent: content } }
+    expect(appHeaderLeftContentForRole("admin", options)).toBeNull()
+    expect(appHeaderLeftContentForRole("member", options)).toBe(content)
   })
 })

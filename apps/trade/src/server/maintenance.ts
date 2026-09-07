@@ -1,15 +1,14 @@
 import { eq } from "drizzle-orm"
 
 import {
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
 import { now } from "@/server/auth/security"
 import {
-  parseShellGlobals,
   readShellGlobals,
+  shellGlobalsForWrite,
 } from "@/server/shell-settings"
 
 /**
@@ -33,10 +32,7 @@ export async function setMaintenance(
   input: ShellMaintenance,
   database: CustomShellDb = db
 ): Promise<ShellMaintenance> {
-  const maintenance: ShellMaintenance = {
-    enabled: input.enabled,
-    message: input.message.trim().slice(0, MAX_MAINTENANCE_MESSAGE_LENGTH),
-  }
+  const maintenance: ShellMaintenance = { enabled: input.enabled }
 
   await database.transaction(async (tx) => {
     // Read, merge and write in one transaction, with the row locked first. This
@@ -50,7 +46,10 @@ export async function setMaintenance(
       .limit(1)
       .for("update")
 
-    const settings = { ...parseShellGlobals(existing?.settings), maintenance }
+    const settings = {
+      ...shellGlobalsForWrite(existing?.settings),
+      maintenance,
+    }
     const timestamp = now()
 
     if (existing) {

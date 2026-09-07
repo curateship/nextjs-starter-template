@@ -5,7 +5,7 @@ import { EyeOffIcon } from "lucide-react"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 import { CautionBadge } from "@/components/trade/caution-badge"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -151,16 +151,14 @@ export function AllMarketsList({
 
   // Checked before the error and the empty copy: while the opening answer
   // is still streaming in, neither claim would be true yet.
+  useErrorToast(!marketsPending ? marketsError : null, onRetry)
+
   if (marketsPending) {
     return <LoadingRow label="Loading markets" className="py-4" />
   }
 
   if (marketsError) {
-    return (
-      <div className="p-3">
-        <ErrorBanner message={marketsError} onRetry={onRetry} />
-      </div>
-    )
+    return <div className="p-3" />
   }
 
   if (visible.length === 0) {

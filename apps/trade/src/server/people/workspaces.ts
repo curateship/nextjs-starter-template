@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
+import { normalizeShareImage } from "@/lib/pages/public-metadata"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
@@ -43,9 +44,16 @@ import {
 } from "@/lib/pages/page-visibility"
 import {
   cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
+  createDefaultPublicNavigation,
+  type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import {
+  normalizePublicBrandTheme,
+  type PublicBrandTheme,
+} from "@/lib/public-theme"
 import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
@@ -434,9 +442,14 @@ export const NAVIGATION_VERSION = 19
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
-  publicNavigation: PublicNavigationLink[]
+  logo: string
+  logoDark: string
+  shareImage: string
+  publicNavigation: PublicNavigationItem[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
+  /** The brand colour used by this site's signed-out pages. */
+  publicTheme: PublicBrandTheme
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   /** How far this workspace's saved sidebar has been brought forward. */
@@ -2480,17 +2493,29 @@ export function serializeWorkspace(
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   const fallback = defaultWorkspaceSettings()
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    const settings = value as Partial<WorkspaceSettings>
+    const settings = value as Partial<WorkspaceSettings> & {
+      accentColor?: unknown
+    }
     return {
       icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
       favicon:
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
-      publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+      logo: normalizeShareImage(settings.logo),
+      logoDark: normalizeShareImage(settings.logoDark),
+      shareImage: normalizeShareImage(settings.shareImage),
+      publicNavigation:
+        settings.publicNavigation === undefined
+          ? fallback.publicNavigation
+          : cleanPublicNavigationItems(settings.publicNavigation),
       publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
       publicFooterCopyright: cleanPublicFooterCopyright(
         settings.publicFooterCopyright
+      ),
+      publicTheme: normalizePublicBrandTheme(
+        settings.publicTheme,
+        settings.accentColor
       ),
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
@@ -2539,11 +2564,18 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+    logo: normalizeShareImage(settings.logo),
+    logoDark: normalizeShareImage(settings.logoDark),
+    shareImage: normalizeShareImage(settings.shareImage),
+    publicNavigation:
+      settings.publicNavigation === undefined
+        ? fallback.publicNavigation
+        : cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
+    publicTheme: normalizePublicBrandTheme(settings.publicTheme),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -2631,9 +2663,13 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
-    publicNavigation: [],
+    logo: "",
+    logoDark: "",
+    shareImage: "",
+    publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
+    publicTheme: normalizePublicBrandTheme(undefined),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     // The defaults above are already the current shape, so a new workspace has

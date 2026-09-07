@@ -2,12 +2,10 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import type { AppHeaderAction } from "@/lib/app-options"
+import type {
+  AppHeaderLeftContent as AppHeaderLeftContentOption,
+} from "@/lib/app-options"
 
-const state = vi.hoisted(() => ({ action: null as AppHeaderAction | null }))
-vi.mock("@/lib/app-options", () => ({
-  appHeaderLeftContentForRole: () => state.action,
-}))
 vi.mock("@/components/shell/sticky-header/sticky-header-left-nav", () => ({
   StickyHeaderLeftNav: () => <a>Home</a>,
 }))
@@ -19,43 +17,57 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   host = document.createElement("div")
   root = createRoot(host)
-  state.action = null
 })
 afterEach(async () => {
   await act(async () => root.unmount())
 })
 
-it("keeps the sidebar navigation when there is no app content", async () => {
-  await act(async () =>
-    root.render(<AppHeaderLeftContent role="member" navLinks={[]} />)
-  )
-  expect(host.textContent).toBe("Home")
-})
-
 it("hands empty app content the original sidebar navigation", async () => {
-  state.action = {
-    id: "test",
-    label: "Test",
-    icon: () => null,
+  const action: AppHeaderLeftContentOption = {
     component: async () => ({ default: ({ fallback }) => <>{fallback}</> }),
   }
   await act(async () =>
-    root.render(<AppHeaderLeftContent role="member" navLinks={[]} />)
+    root.render(
+      <AppHeaderLeftContent action={action} role="member" navLinks={[]} />
+    )
   )
   expect(host.textContent).toBe("Home")
 })
 
+it("keeps the sidebar navigation visible while app content loads", async () => {
+  let finishLoading!: (
+    value: Awaited<ReturnType<AppHeaderLeftContentOption["component"]>>
+  ) => void
+  const action: AppHeaderLeftContentOption = {
+    component: () =>
+      new Promise((resolve) => {
+        finishLoading = resolve
+      }),
+  }
+
+  await act(async () =>
+    root.render(
+      <AppHeaderLeftContent action={action} role="member" navLinks={[]} />
+    )
+  )
+  expect(host.textContent).toBe("Home")
+
+  await act(async () => {
+    finishLoading({ default: () => <span>Loaded pins</span> })
+  })
+  expect(host.textContent).toBe("Loaded pins")
+})
+
 it("replaces the links with loaded app content", async () => {
-  state.action = {
-    id: "test",
-    label: "Test",
-    icon: () => null,
+  const action: AppHeaderLeftContentOption = {
     component: async () => ({
       default: ({ role }) => <span>{role} pins</span>,
     }),
   }
   await act(async () =>
-    root.render(<AppHeaderLeftContent role="member" navLinks={[]} />)
+    root.render(
+      <AppHeaderLeftContent action={action} role="member" navLinks={[]} />
+    )
   )
   expect(host.textContent).toBe("member pins")
 })

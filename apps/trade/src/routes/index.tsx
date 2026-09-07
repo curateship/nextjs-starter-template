@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { pricingLandingPage } from "@/components/marketing/pricing-landing-page"
+import {
+  loadPricingLandingData,
+  pricingLandingPage,
+} from "@/components/marketing/pricing-landing-page"
 import {
   getVisitorPageErrorMessage,
   visitorRouteErrorComponent,
 } from "@/components/shell/route-error"
 import { catchAllOverride, landingPageOverride } from "@/lib/app-options"
+import { loadFrontPageRoute } from "@/lib/pages/front-page-route"
 
 /**
  * `/` is the one public page an app cannot route around, so it is the one the
@@ -25,18 +29,17 @@ import { catchAllOverride, landingPageOverride } from "@/lib/app-options"
  * know which one it is answering until somebody asks. Saying "not mine" leaves
  * everything below exactly as it was.
  */
-const page = landingPageOverride() ?? pricingLandingPage
+const appLandingPage = landingPageOverride()
+const page = appLandingPage ?? pricingLandingPage
 const appPage = catchAllOverride()
 
 export const Route = createFileRoute("/")({
-  loader: async () => {
-    const appData = appPage ? ((await appPage.loader({ path: "/" })) ?? null) : null
-    if (appData !== null) {
-      return { source: "app" as const, data: appData }
-    }
-
-    return { source: "landing" as const, data: (await page.loader?.()) ?? null }
-  },
+  loader: ({ parentMatchPromise }) =>
+    loadFrontPageRoute(appPage, async () => {
+      if (appLandingPage) return appLandingPage.loader?.()
+      const branding = (await parentMatchPromise).loaderData
+      return loadPricingLandingData(branding?.frontPageRows ?? [])
+    }),
   errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   // `head` is handed what the loader returned, so a page whose title depends on
   // what it just fetched does not have to fetch it a second time. A head that

@@ -18,7 +18,9 @@ vi.mock("@/lib/api/trade/price-alerts", () => ({
   loadFiredPriceAlerts: api.loadFired,
   removeFiredPriceAlert: api.removeFired,
 }))
-vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: errors.show }))
+vi.mock("sonner", () => ({
+  toast: { error: errors.show, dismiss: vi.fn() },
+}))
 
 import {
   PriceAlertsPanelContent,
@@ -382,7 +384,8 @@ describe("the Alerts panel", () => {
 
     expect(host.textContent).toContain("DOGE")
     expect(errors.show).toHaveBeenCalledWith(
-      "That fired alert could not be deleted. Try again."
+      "That fired alert could not be deleted. Try again.",
+      expect.objectContaining({ duration: Infinity })
     )
     await act(async () => root.unmount())
     host.remove()
@@ -446,7 +449,9 @@ describe("the Alerts panel", () => {
       expect(host.textContent).toContain("XRP")
       expect(errors.show).toHaveBeenCalledWith(
         "Your fired alerts could not be loaded. Try again.",
-        expect.objectContaining({ label: "Try again" })
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Try again" }),
+        })
       )
     })
     await act(async () => root.unmount())

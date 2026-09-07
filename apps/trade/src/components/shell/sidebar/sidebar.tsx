@@ -178,7 +178,6 @@ export function AppSidebar({
             workspaces={workspaces}
             baseDomain={baseDomain}
             copyChoices={copyChoices}
-            favicon={config.favicon}
           />
         )}
       </SidebarHeader>

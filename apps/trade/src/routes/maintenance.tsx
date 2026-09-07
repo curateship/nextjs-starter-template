@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button"
 import { getAuthErrorMessage, logout } from "@/lib/api/auth/auth"
 import { loadMaintenance } from "@/lib/api/maintenance"
 import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/people/view-as"
-import { resolveMaintenanceMessage } from "@/lib/custom-shell"
+import { usePublicSystemCopy } from "@/lib/branding"
+import { resolveMaintenanceCopy } from "@/lib/pages/public-metadata"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -35,7 +36,6 @@ export const Route = createFileRoute("/maintenance")({
     }
 
     return {
-      message: resolveMaintenanceMessage(maintenance.message),
       signedIn,
       viewingAs,
     }
@@ -45,7 +45,8 @@ export const Route = createFileRoute("/maintenance")({
 })
 
 function MaintenanceRoute() {
-  const { message, signedIn, viewingAs } = Route.useLoaderData()
+  const { signedIn, viewingAs } = Route.useLoaderData()
+  const copy = resolveMaintenanceCopy(usePublicSystemCopy())
   // One flag for both actions: they are never on screen together, because an
   // admin mid view-as gets the way out and everybody else gets the way in.
   const [busy, setBusy] = React.useState(false)
@@ -90,8 +91,8 @@ function MaintenanceRoute() {
   ) : null
 
   return (
-    <AuthShell title="We will be back soon" footer={footer}>
-      <p className="text-sm text-muted-foreground">{message}</p>
+    <AuthShell title={copy.heading} footer={footer}>
+      <p className="text-sm text-muted-foreground">{copy.body}</p>
       {viewingAs ? (
         <>
           <p className="text-sm text-muted-foreground">

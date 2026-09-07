@@ -6,7 +6,7 @@ import {
   InspectorNote,
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/recipes/trade-number-field"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
@@ -273,6 +273,8 @@ export default function TradeWalletFields({
     )
   }
 
+  useErrorToast(loadError, () => setAttemptKey((n) => n + 1))
+
   return (
     <>
       <InspectorCard title="Which wallet">
@@ -357,13 +359,6 @@ export default function TradeWalletFields({
             </SelectContent>
           </Select>
         </div>
-
-        {loadError ? (
-          <ErrorBanner
-            message={loadError}
-            onRetry={() => setAttemptKey((n) => n + 1)}
-          />
-        ) : null}
 
         {walletProblem ? (
           <p className="text-xs text-destructive">{walletProblem}</p>

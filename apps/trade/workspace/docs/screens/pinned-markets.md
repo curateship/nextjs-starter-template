@@ -59,6 +59,11 @@ When a phone has too little room for all five, the shared horizontal scroll area
 keeps the pins inside the header. With no pins, the original sidebar navigation
 returns. The same links remain visible while the header component loads.
 
+Trade supplies pinned markets through the shell's `header.leftContent` option.
+The component receives `AppHeaderLeftContentProps`, including the normal links
+as `fallback`. The left option needs only the component and allowed roles;
+the separate active-trades action retains its label and icon on the right.
+
 ## Member access is unresolved
 
 The header option currently allows member and admin roles, as requested in the

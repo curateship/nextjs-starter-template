@@ -17,7 +17,7 @@ import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
 import type {
@@ -236,6 +236,8 @@ export function BacktestChartPanel({
     }
   }, [focusTrade, focusTrades, bars, barMs])
 
+  useErrorToast(!showGraph || !graphSeries ? error : null, onRetry)
+
   return (
     <>
       <DashboardCardTitleHeader
@@ -336,9 +338,7 @@ export function BacktestChartPanel({
             onWindow={onWindow}
           />
         ) : error ? (
-          <div className="p-4 sm:p-5">
-            <ErrorBanner message={error} onRetry={onRetry} />
-          </div>
+          <div className="p-4 sm:p-5" />
         ) : !openCoin ? (
           <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {chartable.length === 0

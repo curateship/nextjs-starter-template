@@ -1,9 +1,8 @@
 import * as React from "react"
 
 import {
-  appHeaderLeftContentForRole,
-  type AppHeaderAction,
-  type AppHeaderActionProps,
+  type AppHeaderLeftContent as AppHeaderLeftContentOption,
+  type AppHeaderLeftContentProps,
 } from "@/lib/app-options"
 import {
   StickyHeaderLeftNav,
@@ -11,22 +10,22 @@ import {
 } from "@/components/shell/sticky-header/sticky-header-left-nav"
 
 const components = new Map<
-  AppHeaderAction["component"],
-  React.LazyExoticComponent<React.ComponentType<AppHeaderActionProps>>
+  AppHeaderLeftContentOption["component"],
+  React.LazyExoticComponent<React.ComponentType<AppHeaderLeftContentProps>>
 >()
 
 export function AppHeaderLeftContent({
+  action,
   role,
   navLinks,
   limit,
 }: {
+  action: AppHeaderLeftContentOption
   role: string
   navLinks: StickyHeaderLeftNavLink[]
   limit?: number
 }) {
-  const action = appHeaderLeftContentForRole(role)
   const fallback = <StickyHeaderLeftNav navLinks={navLinks} limit={limit} />
-  if (!action) return fallback
   let Component = components.get(action.component)
   if (!Component) {
     Component = React.lazy(action.component)

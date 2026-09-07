@@ -6,7 +6,7 @@ import {
   DashboardCardTabsHeader,
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -281,20 +281,16 @@ function ActiveAlertsView({
   onDelete: (id: string) => void
   lines: LineAlertsForPanel
 }) {
+  useErrorToast(error, onRetry)
+  useErrorToast(!error ? lines.error : null, lines.onRetry)
+
   if (error) {
-    return (
-      <div className="p-2">
-        <ErrorBanner message={error} onRetry={onRetry} />
-      </div>
-    )
+    return <div className="p-2" />
   }
   const rows = activeRows(alerts, lines.armed)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {lines.error ? (
-        <ErrorBanner message={lines.error} onRetry={lines.onRetry} />
-      ) : null}
       <ScrollArea className="min-h-0 flex-1">
         {rows.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
@@ -387,22 +383,19 @@ function FiredAlertsView({
   onDelete: (id: string) => void
   lines: LineAlertsForPanel
 }) {
+  useErrorToast(busy && !known ? null : error, onRetry)
+
   if (busy && !known) {
     return <LoadingRow label="Loading fired alerts..." className="min-h-32" />
   }
   if (error && !known) {
-    return (
-      <div className="p-2">
-        <ErrorBanner message={error} onRetry={onRetry} />
-      </div>
-    )
+    return <div className="p-2" />
   }
 
   const rows = firedRows(alerts, lines.fired)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {error ? <ErrorBanner message={error} onRetry={onRetry} /> : null}
       <ScrollArea className="min-h-0 flex-1">
         {rows.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
