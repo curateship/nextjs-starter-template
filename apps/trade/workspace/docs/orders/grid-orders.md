@@ -959,7 +959,8 @@ buffer. No eligible line leaves the checkbox off and says "Draw a line with
 an alert first." A failed drawing load offers Try again. An unavailable
 selection is never silently replaced with another line.
 
-The selected drawing is labelled Grid stop loss on the chart. The inactive
+The selected drawing is labelled Grid stop loss on the chart. The line and its
+label use the red stop-loss color, including while selected. The inactive
 flat grid stop is hidden and cannot be dragged. Moving the selected drawing
 or changing its buffer changes the existing alert, using the drawing engine's
 normal rules. Line selections are not remembered for future grids.

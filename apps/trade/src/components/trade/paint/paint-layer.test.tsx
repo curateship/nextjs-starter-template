@@ -88,6 +88,7 @@ async function draw({
   drawings = [],
   selectedId = null,
   watchLiveBars,
+  gridStopDrawingIds,
   wide = true,
   lineAlertsPaused = false,
   onCreate = vi.fn<(shape: DrawingShape) => void>(),
@@ -101,6 +102,7 @@ async function draw({
 }: {
   tool: DrawingShape["kind"] | null
   drawings?: Drawing[]
+  gridStopDrawingIds?: ReadonlySet<string>
   selectedId?: string | null
   watchLiveBars?: (onBar: (bar: (typeof candles)[number]) => void) => () => void
   wide?: boolean
@@ -123,6 +125,7 @@ async function draw({
         candles={candles}
         watchLiveBars={watchLiveBars}
         drawings={drawings}
+        gridStopDrawingIds={gridStopDrawingIds}
         tool={tool}
         selectedId={selectedId}
         onSelect={() => undefined}
@@ -899,6 +902,21 @@ describe("a line with a description", () => {
     },
     alert: null,
   }
+
+  it("keeps a grid stop line and its label red, including when selected", async () => {
+    for (const selectedId of [null, named.id]) {
+      await draw({ tool: null, drawings: [named], selectedId, gridStopDrawingIds: new Set([named.id]) })
+      const label = host.querySelector("[data-line-description]")!
+      const group = lineBody().parentElement!
+      expect(label.textContent).toBe("4h base · Grid stop loss")
+      expect(group.classList.contains("text-destructive")).toBe(true)
+      expect(label.getAttribute("fill")).toBe("currentColor")
+      expect(group.querySelector("line")?.getAttribute("stroke")).toBe("currentColor")
+    }
+    await draw({ tool: null, drawings: [named], selectedId: null })
+    expect(lineBody().parentElement!.classList.contains("text-destructive")).toBe(false)
+    expect(host.querySelector("[data-line-description]")?.textContent).toBe("4h base")
+  })
 
   it("draws the name at the line's start and tells a screen reader the same", async () => {
     await draw({ tool: null, drawings: [named], selectedId: null })

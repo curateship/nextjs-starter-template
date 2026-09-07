@@ -1140,7 +1140,7 @@ export const PaintLayer = React.memo(function PaintLayer({
         return (
           <g
             key={drawing.id}
-            className={`group/fib ${selected ? "text-foreground" : "text-foreground/55"}`}
+            className={`group/fib ${gridStopDrawingIds?.has(drawing.id) ? "text-destructive" : selected ? "text-foreground" : "text-foreground/55"}`}
           >
             {/* The picked line is drawn darker and thicker than the rest, and
                 that is the whole mark. It used to carry a grey halo as well —
