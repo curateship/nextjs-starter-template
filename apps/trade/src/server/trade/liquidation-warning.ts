@@ -12,7 +12,7 @@ import {
 } from "@/lib/trade/liquidation-warning"
 import { liquidationDistance, type TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { loadLiquidationWarning } from "@/server/trade/prefs"
 import { tradeLiquidationWarnings } from "@/server/trade/schema"
 import { writeTradeNotice } from "@/server/trade/notices"

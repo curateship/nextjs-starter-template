@@ -550,6 +550,8 @@ const LIVE_SENTENCES: Record<string, string> = {
     "The app is sending orders too fast. Try again in a moment.",
   LIVE_WALLET_NOT_FOUND:
     "That wallet is not there any more — it may have been deleted in another tab.",
+  SMART_ORDER_WRITE_BUSY:
+    "Another action is still updating this wallet. Your change was not made. Try again in a moment.",
   LIVE_WALLET_KIND: "Only a live wallet trades this way.",
   LIVE_WALLET_KEY:
     "This wallet has no trading key saved. Open its settings and add one.",

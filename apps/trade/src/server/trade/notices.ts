@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 
 import { eq } from "drizzle-orm"
 
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { publishNotificationCreated } from "@/server/notifications/events"
 import {
   customShellAnnouncements,

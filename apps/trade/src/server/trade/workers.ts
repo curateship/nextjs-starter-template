@@ -11,7 +11,7 @@ import {
   type WorkerStatus,
 } from "@/lib/trade/workers"
 import { describeBuild, type BuildStamp } from "@/lib/build-stamp"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { forgetRealMoneySwitch } from "@/server/protocols/real-money-memory"
 import {
   tradeSmartLadders,

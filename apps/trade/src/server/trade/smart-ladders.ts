@@ -35,7 +35,7 @@ import {
   lastClosedIndex,
 } from "@/lib/trade/candle-window"
 import { slippedPx } from "@/lib/trade/paper"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { recordFlowRunOrders } from "@/server/trade/flow-run-orders"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"

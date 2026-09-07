@@ -12,7 +12,7 @@ import {
 import type { TradeSide } from "@/lib/trade/paper"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db } from "@/server/db"
+import { db, hasWalletPlanWrite, withWalletPlanWrite } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { liveHeldPosition, setLiveBrackets } from "@/server/trade/live-orders"
 import { marketRules } from "@/server/trade/market-rules"
@@ -106,6 +106,12 @@ export async function openPartClose(
     held?: HeldPosition
   }
 ): Promise<PartCloseOutcome> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      openPartClose(userId, wallet, input)
+    )
+  }
+
   const ref = parseMarketKey(input.marketKey)
   if (
     !ref ||

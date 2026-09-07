@@ -282,7 +282,7 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
   .inputValidator(ladderSchema)
   .handler(async ({ data, context }) => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    return await runWalletOrderAction(
+    const result = await runWalletOrderAction(
       context.user.id,
       wallet,
       "cancel",
@@ -291,6 +291,8 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
           ? await cancelLiveLadderRest(context.user.id, wallet, data)
           : await cancelRestRows(context.user.id, wallet, data)
     )
+    if (result.cancelled === 0) throw new Error("SMART_LADDER_ALREADY_STOPPED")
+    return result
   })
 
 const reshapeLadderFn = createServerFn({ method: "POST" })
@@ -706,7 +708,7 @@ const cancelGridRestFn = createServerFn({ method: "POST" })
   .inputValidator(gridSchema)
   .handler(async ({ data, context }): Promise<{ cancelled: number }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    return await runWalletOrderAction(
+    const result = await runWalletOrderAction(
       context.user.id,
       wallet,
       "cancel",
@@ -715,6 +717,8 @@ const cancelGridRestFn = createServerFn({ method: "POST" })
           ? await cancelLiveGridRest(context.user.id, wallet, data)
           : await cancelGridRestRows(context.user.id, wallet, data)
     )
+    if (result.cancelled === 0) throw new Error("SMART_GRID_ALREADY_STOPPED")
+    return result
   })
 
 const reverseGridFn = createServerFn({ method: "POST" })
@@ -1029,6 +1033,12 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "That level already bought or was already called off.",
     SMART_GRID_ADJUST_BUSY:
       "The exchange is asking Trade to slow down, so your grid changes were not saved. The existing grid is still running. Try again in a minute.",
+    SMART_ORDER_WRITE_BUSY:
+      "Another action is still updating this wallet. Your change was not made. Try again in a moment.",
+    SMART_LADDER_ALREADY_STOPPED:
+      "This ladder has no waiting buys left to stop. Its held coins and exits are unchanged.",
+    SMART_GRID_ALREADY_STOPPED:
+      "This grid has no new trades left to stop. Its open position and exits are unchanged.",
     SMART_GRID_ADJUST_NO_PRICE:
       "The exchange would not give a current price, so your grid changes were not saved. The existing grid is still running.",
     SMART_GRID_TARGET_IN_RANGE:

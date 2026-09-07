@@ -220,6 +220,9 @@ screen: anything not written there has not been agreed yet.
 
 ## engine/ — the server side
 
+- `one-writer-at-a-time.md` — the shared wallet lock for plan edits, bounded
+  waits, nested actions, exchange refusals, and PostgreSQL concurrency tests.
+
 - `dashboard-speed.md` — what one database trip costs, what the opening answer
   carries, how market lists are shared for a minute, and what the four-second
   poll still asks for.

@@ -20,7 +20,7 @@ import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { gridLadderPairingRefusal } from "@/lib/trade/pairing"
 import { defaultPaperCosts } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db } from "@/server/db"
+import { db } from "@/server/trade/db"
 import { accountOf, getProtocol, ordersOf } from "@/server/protocols/registry"
 import {
   draftGridOrder,

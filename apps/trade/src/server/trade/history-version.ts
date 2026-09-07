@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm"
 
 import type { CustomShellDb } from "@/server/db"
-import { db } from "@/server/db"
+import { db } from "@/server/trade/db"
 import { tradeWallets } from "@/server/trade/schema"
 
 /** Atomically records that one or more wallets' visible history changed. */

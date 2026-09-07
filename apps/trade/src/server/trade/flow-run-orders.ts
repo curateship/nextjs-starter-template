@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm"
 
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { tradeFlowRunOrders, tradeFlowRuns } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
 

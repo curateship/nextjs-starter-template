@@ -1,3 +1,4 @@
+import { hasWalletPlanWrite, withWalletPlanWrite } from "@/server/trade/db"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { liveHeldPositions } from "@/server/trade/live-orders"
 import { settleWallet } from "@/server/trade/paper"
@@ -64,6 +65,12 @@ export async function flattenWallet(
   wallet: TradeWallet,
   describeError: (error: unknown) => string
 ): Promise<FlattenOutcome> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      flattenWallet(userId, wallet, describeError)
+    )
+  }
+
   const { stood, refused } = await standDownWallet(
     userId,
     wallet,

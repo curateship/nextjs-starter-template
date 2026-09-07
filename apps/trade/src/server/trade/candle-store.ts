@@ -7,7 +7,7 @@ import {
   type MarketKey,
   type MarketRef,
 } from "@/lib/protocols/contracts"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import {
   tradeCandleCoverage,

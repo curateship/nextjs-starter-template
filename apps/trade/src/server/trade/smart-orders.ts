@@ -35,7 +35,12 @@ import {
 import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
 import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import {
+  db,
+  type CustomShellDb,
+  hasWalletPlanWrite,
+  withWalletPlanWrite,
+} from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
@@ -374,6 +379,12 @@ export async function placeDcaLadder(
   wallet: TradeWallet,
   input: PlaceLadderInput
 ): Promise<PlacedLadder> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      placeDcaLadder(userId, wallet, input)
+    )
+  }
+
   const ref = parseMarketKey(input.marketKey)
   if (
     !ref ||
@@ -648,6 +659,12 @@ export async function reshapeLadder(
     | { settings: DcaLadderSettings; greenInterval: CandleInterval }
   )
 ): Promise<MovedLadder> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      reshapeLadder(userId, wallet, input)
+    )
+  }
+
   let firstRead: Awaited<ReturnType<typeof ladderById>>
   let settingsContext:
     | {
@@ -776,6 +793,12 @@ export async function resumeSmartOrder(
   walletId: string,
   smartOrderId: string
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, walletId)) {
+    return await withWalletPlanWrite(userId, walletId, () =>
+      resumeSmartOrder(userId, walletId, smartOrderId)
+    )
+  }
+
   const rows = await db
     .select({
       kind: tradeSmartLadders.kind,
@@ -818,6 +841,12 @@ export async function cancelLadderRung(
   wallet: TradeWallet,
   input: { ladderId: string; rungIndex: number }
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      cancelLadderRung(userId, wallet, input)
+    )
+  }
+
   await settleWallet(userId, wallet)
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
   const orderId = cancelLadderRungPlan(ladder.plan, input.rungIndex)
@@ -835,6 +864,12 @@ export async function cancelLadderRest(
   wallet: TradeWallet,
   input: { ladderId: string }
 ): Promise<{ cancelled: number; hasPosition: boolean }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      cancelLadderRest(userId, wallet, input)
+    )
+  }
+
   const book = await settleWallet(userId, wallet)
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
   const hasPosition = (book.positions.get(ladder.marketKey)?.szi ?? 0) > 0
@@ -874,6 +909,12 @@ async function cancelFlowLadderWaiting(
   input: { ladderId: string },
   cancelAfterFill: boolean
 ): Promise<{ complete: boolean; done: boolean }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      cancelFlowLadderWaiting(userId, wallet, input, cancelAfterFill)
+    )
+  }
+
   let done = true
   await db.transaction(async (tx) => {
     await tx
@@ -960,6 +1001,12 @@ export async function cancelSignalRest(
   wallet: TradeWallet,
   input: { signalId: string }
 ): Promise<{ complete: boolean; done: boolean }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      cancelSignalRest(userId, wallet, input)
+    )
+  }
+
   let done = true
   await db.transaction(async (tx) => {
     // The normal practice settle takes this same lock. Whichever arrives
@@ -1052,6 +1099,12 @@ export async function updateLadderExits(
     stopLoss: DcaParams["stopLoss"]
   }
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      updateLadderExits(userId, wallet, input)
+    )
+  }
+
   const book = await settleWallet(userId, wallet)
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
   const plan = ladder.plan
@@ -1355,6 +1408,12 @@ export async function placeWatchOrder(
     startNow?: boolean
   }
 ): Promise<{ watching: true }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      placeWatchOrder(userId, wallet, input)
+    )
+  }
+
   const ref = parseMarketKey(input.marketKey)
   if (
     !ref ||
@@ -1477,6 +1536,12 @@ export async function cancelWatchOrder(
   walletId: string,
   watchId: string
 ): Promise<{ cancelled: true }> {
+  if (!hasWalletPlanWrite(userId, walletId)) {
+    return await withWalletPlanWrite(userId, walletId, () =>
+      cancelWatchOrder(userId, walletId, watchId)
+    )
+  }
+
   const [row] = await db
     .select()
     .from(tradeSmartLadders)
@@ -1554,6 +1619,12 @@ export async function editWatchOrder(
     slPx: number | null
   }
 ): Promise<{ saved: true }> {
+  if (!hasWalletPlanWrite(userId, walletId)) {
+    return await withWalletPlanWrite(userId, walletId, () =>
+      editWatchOrder(userId, walletId, watchId, changes)
+    )
+  }
+
   if (!(changes.sz > 0)) throw new Error("SMART_ORDER_PRICE")
   const [row] = await db
     .select()
@@ -1610,6 +1681,12 @@ export async function moveWatchOrder(
   watchId: string,
   px: number
 ): Promise<{ moved: true }> {
+  if (!hasWalletPlanWrite(userId, walletId)) {
+    return await withWalletPlanWrite(userId, walletId, () =>
+      moveWatchOrder(userId, walletId, watchId, px)
+    )
+  }
+
   if (!(px > 0)) throw new Error("SMART_ORDER_PRICE")
   const [row] = await db
     .select()

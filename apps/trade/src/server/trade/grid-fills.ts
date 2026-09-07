@@ -6,7 +6,7 @@ import {
   type GridPlan,
 } from "@/lib/trade/grid"
 import type { LiveFill } from "@/lib/trade/live-trades"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import {
   tradeGridOrderRungs,
   tradeSmartLadders,

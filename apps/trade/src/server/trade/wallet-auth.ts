@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm"
 
 import { decryptSecret } from "@/server/auth/encryption"
-import { db } from "@/server/db"
+import { db } from "@/server/trade/db"
 import { tradeWallets } from "@/server/trade/schema"
 
 /**

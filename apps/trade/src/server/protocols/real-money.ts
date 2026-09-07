@@ -1,5 +1,5 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
-import { type CustomShellDb, db } from "@/server/db"
+import { type CustomShellDb, db } from "@/server/trade/db"
 import {
   forgetRealMoneySwitch,
   realMoneyYesRemembered,

@@ -9,7 +9,7 @@ import { indicatorSignals } from "@/lib/trade/indicators/registry"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { SignalRow } from "@/server/trade/smart-signals"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, withWalletPlanWrite, type CustomShellDb } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { assertFlowRunAcceptingPlacements } from "@/server/trade/flow-run-orders"
 import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
@@ -192,19 +192,37 @@ export async function advanceSignalFlow(
     // Holding it, and the arrow says get out. Nothing is sent from here: the
     // phase change is what tells the engine to start asking for a price.
     if (newest.side !== "sell") return { did: "nothing", marketKey }
-    await database
-      .update(tradeSmartLadders)
-      .set({
-        plan: { ...working.plan, phase: "selling", signalAt: newest.time },
-        updatedAt: new Date(now),
-      })
-      .where(
-        and(
-          eq(tradeSmartLadders.userId, input.userId),
-          eq(tradeSmartLadders.id, working.id)
-        )
-      )
-    return { did: "closing", marketKey, at: newest.time }
+    return await withWalletPlanWrite(
+      input.userId,
+      input.wallet.id,
+      async () => {
+        const current = (
+          await workingSignals(input.userId, input.wallet.id, [marketKey])
+        ).get(marketKey)
+        if (
+          !current ||
+          current.id !== working.id ||
+          current.plan.phase !== "holding" ||
+          current.plan.signalAt >= newest.time
+        ) {
+          return { did: "nothing", marketKey } as const
+        }
+        await db
+          .update(tradeSmartLadders)
+          .set({
+            plan: { ...current.plan, phase: "selling", signalAt: newest.time },
+            updatedAt: new Date(now),
+          })
+          .where(
+            and(
+              eq(tradeSmartLadders.userId, input.userId),
+              eq(tradeSmartLadders.id, working.id)
+            )
+          )
+        return { did: "closing", marketKey, at: newest.time } as const
+      },
+      database
+    )
   }
 
   // Nothing held, so only a buy arrow means anything. A sell arrow on a coin

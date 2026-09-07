@@ -1,4 +1,3 @@
-import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -17,6 +16,7 @@ import { customShellAnnouncements } from "@/server/schema"
 import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
+  cancelLiveGridRest,
   moveLiveGridExit,
   moveLiveGridRange,
   placeLiveGridOrder,
@@ -24,6 +24,11 @@ import {
   setLiveGridFollow,
   updateLiveGridEnd,
 } from "@/server/trade/live-grid-orders"
+import {
+  createPlanPostgresDatabase,
+  deferred,
+} from "@/server/trade/test-postgres"
+import { withWalletPlanWrite } from "@/server/trade/db"
 import {
   cancelLiveFlowLadderRemainder,
   nothingStood,
@@ -127,7 +132,7 @@ const LIGHTER_MARKET = "lighter:mainnet:BTC"
 const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
 const KEY = "ab".repeat(32)
 
-let client: PGlite
+let client: { close: () => Promise<void>; waitForLock?: () => Promise<void> }
 let database: CustomShellDb
 let userId: string
 let wallet: TradeWallet
@@ -340,7 +345,9 @@ async function ladder(): Promise<LadderPlan> {
 }
 
 beforeEach(async () => {
-  const testDb = await createTestDatabase()
+  const testDb = process.env.TRADE_TEST_POSTGRES_URL
+    ? await createPlanPostgresDatabase()
+    : await createTestDatabase()
   client = testDb.client
   database = testDb.db
   clearMarketRulesCache()
@@ -420,6 +427,93 @@ afterEach(async () => {
 })
 
 describe("live Smart orders", () => {
+  describe("wallet plan concurrency", () => {
+    async function seedGrid() {
+      await database.insert(tradeSmartLadders).values({
+        id: "concurrent-grid",
+        userId,
+        walletId: wallet.id,
+        marketKey: MARKET,
+        kind: "grid",
+        status: "active",
+        plan: gridState(),
+      })
+    }
+
+    async function expectStopped() {
+      const [row] = await database
+        .select()
+        .from(tradeSmartLadders)
+        .where(eq(tradeSmartLadders.id, "concurrent-grid"))
+      expect(
+        (row.plan as GridPlan).levels.every(
+          (level) => level.status === "cancelled"
+        )
+      ).toBe(true)
+      expect(place).not.toHaveBeenCalled()
+    }
+
+    it("keeps Stop after a worker pass already reading the plan", async () => {
+      await seedGrid()
+      const entered = deferred()
+      const release = deferred()
+      portfolio.mockImplementationOnce(async () => {
+        entered.resolve()
+        await release.promise
+        return { positions: [], orders: [] }
+      })
+      const pass = reconcileLiveLadders(userId, wallet)
+      await entered.promise
+      const stop = cancelLiveGridRest(userId, wallet, {
+        gridId: "concurrent-grid",
+      })
+      try {
+        await client.waitForLock?.()
+        expect(portfolio).toHaveBeenCalledTimes(1)
+      } finally {
+        release.resolve()
+        await pass
+      }
+      expect(await stop).toEqual({ cancelled: 2 })
+      await reconcileLiveLadders(userId, wallet)
+      await expectStopped()
+    })
+
+    it("reads Stop when the worker arrives after the cancellation", async () => {
+      await seedGrid()
+      const entered = deferred()
+      const release = deferred()
+      const stop = withWalletPlanWrite(userId, wallet.id, async () => {
+        const result = await cancelLiveGridRest(userId, wallet, {
+          gridId: "concurrent-grid",
+        })
+        entered.resolve()
+        await release.promise
+        return result
+      })
+      await entered.promise
+      const pass = reconcileLiveLadders(userId, wallet)
+      try {
+        await client.waitForLock?.()
+      } finally {
+        release.resolve()
+        await stop
+      }
+      await pass
+      await expectStopped()
+    })
+
+    it("reports no waiting buys to a second Stop", async () => {
+      await seedGrid()
+      const results = await Promise.all([
+        cancelLiveGridRest(userId, wallet, { gridId: "concurrent-grid" }),
+        cancelLiveGridRest(userId, wallet, { gridId: "concurrent-grid" }),
+      ])
+      expect(results.map((result) => result.cancelled).sort()).toEqual([0, 2])
+      await expectStopped()
+    })
+  })
+
   it("shares one account and portfolio read across nearby passes and wallets", async () => {
     const placed = await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,

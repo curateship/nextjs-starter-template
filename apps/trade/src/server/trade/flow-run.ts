@@ -31,7 +31,7 @@ import { advanceEmaGridFlow } from "@/server/trade/ema-grid-run"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import { gridHeldSz, readGridPlan } from "@/lib/trade/grid"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb, withWalletPlanWrite } from "@/server/trade/db"
 import {
   assertRealMoneySwitchOn,
   assertRealOrdersAllowed,
@@ -677,52 +677,72 @@ async function advanceStoppingFlow(
       continue
     }
     try {
-      let complete = true
-      let done = true
-      if (kind === "signal") {
-        const outcome =
-          wallet.kind === "live"
-            ? await cancelLiveSignalRest(run.userId, wallet, {
-                signalId: row.id,
-                now,
-              })
-            : await cancelSignalRest(run.userId, wallet, { signalId: row.id })
-        complete = outcome.complete
-        done = outcome.done
-      } else if (kind === "grid") {
-        if (wallet.kind === "live") {
-          await cancelLiveGridRest(run.userId, wallet, { gridId: row.id })
-        } else {
-          await cancelPaperGridRest(run.userId, wallet, { gridId: row.id })
-        }
-        const plan = readGridPlan(row.plan)
-        done = plan !== null && gridHeldSz(plan) === 0
-      } else if (wallet.kind === "live") {
-        const outcome = await cancelLiveFlowLadderRest(run.userId, wallet, {
-          ladderId: row.id,
-        })
-        complete = outcome.complete
-        done = outcome.done
-      } else {
-        const outcome = await cancelFlowLadderRest(run.userId, wallet, {
-          ladderId: row.id,
-        })
-        complete = outcome.complete
-        done = outcome.done
-      }
+      const complete = await withWalletPlanWrite(
+        run.userId,
+        wallet.id,
+        async () => {
+          let complete = true
+          let done = true
+          if (kind === "signal") {
+            const outcome =
+              wallet.kind === "live"
+                ? await cancelLiveSignalRest(run.userId, wallet, {
+                    signalId: row.id,
+                    now,
+                  })
+                : await cancelSignalRest(run.userId, wallet, {
+                    signalId: row.id,
+                  })
+            complete = outcome.complete
+            done = outcome.done
+          } else if (kind === "grid") {
+            if (wallet.kind === "live") {
+              await cancelLiveGridRest(run.userId, wallet, { gridId: row.id })
+            } else {
+              await cancelPaperGridRest(run.userId, wallet, { gridId: row.id })
+            }
+            const [current] = await db
+              .select({ plan: tradeSmartLadders.plan })
+              .from(tradeSmartLadders)
+              .where(
+                and(
+                  eq(tradeSmartLadders.userId, run.userId),
+                  eq(tradeSmartLadders.id, row.id)
+                )
+              )
+            const plan = current ? readGridPlan(current.plan) : null
+            done = plan !== null && gridHeldSz(plan) === 0
+          } else if (wallet.kind === "live") {
+            const outcome = await cancelLiveFlowLadderRest(run.userId, wallet, {
+              ladderId: row.id,
+            })
+            complete = outcome.complete
+            done = outcome.done
+          } else {
+            const outcome = await cancelFlowLadderRest(run.userId, wallet, {
+              ladderId: row.id,
+            })
+            complete = outcome.complete
+            done = outcome.done
+          }
+          if (!complete) return false
+          if (done) {
+            await db
+              .update(tradeSmartLadders)
+              .set({ status: "done", updatedAt: new Date(now) })
+              .where(
+                and(
+                  eq(tradeSmartLadders.userId, run.userId),
+                  eq(tradeSmartLadders.id, row.id),
+                  eq(tradeSmartLadders.status, "active")
+                )
+              )
+          }
+          return true
+        },
+        database
+      )
       if (!complete) continue
-      if (done) {
-        await database
-          .update(tradeSmartLadders)
-          .set({ status: "done", updatedAt: new Date(now) })
-          .where(
-            and(
-              eq(tradeSmartLadders.userId, run.userId),
-              eq(tradeSmartLadders.id, row.id),
-              eq(tradeSmartLadders.status, "active")
-            )
-          )
-      }
       if (waiting[row.marketKey]) {
         delete waiting[row.marketKey]
         waitingChanged = true

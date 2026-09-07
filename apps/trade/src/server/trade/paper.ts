@@ -31,7 +31,7 @@ import {
   type LiveTriggerKind,
 } from "@/lib/trade/live-trades"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
 import {

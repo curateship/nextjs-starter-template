@@ -39,7 +39,7 @@ import {
 import { paperAccountFigures } from "@/lib/trade/paper"
 import { readSmartPlan, type SmartGrid } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db } from "@/server/db"
+import { db, hasWalletPlanWrite, withWalletPlanWrite } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
 import {
@@ -395,6 +395,12 @@ export async function placeGridOrder(
   wallet: TradeWallet,
   input: PlaceGridInput
 ): Promise<PlacedGrid> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      placeGridOrder(userId, wallet, input)
+    )
+  }
+
   const ref = parseMarketKey(input.marketKey)
   if (
     !ref ||
@@ -637,6 +643,12 @@ export async function cancelGridLevel(
   wallet: TradeWallet,
   input: { gridId: string; levelIndex: number }
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      cancelGridLevel(userId, wallet, input)
+    )
+  }
+
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   cancelGridLevelPlan(grid.plan, input.levelIndex)
@@ -650,6 +662,12 @@ export async function cancelGridRest(
   wallet: TradeWallet,
   input: { gridId: string }
 ): Promise<{ cancelled: number }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      cancelGridRest(userId, wallet, input)
+    )
+  }
+
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
 
@@ -673,6 +691,12 @@ export async function updateGridStop(
   wallet: TradeWallet,
   input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean }
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      updateGridStop(userId, wallet, input)
+    )
+  }
+
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
@@ -726,6 +750,12 @@ export async function setGridFollow(
   wallet: TradeWallet,
   input: { gridId: string; follow: boolean; followDown?: boolean }
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      setGridFollow(userId, wallet, input)
+    )
+  }
+
   // Settled first, like every other action here. A pass already running holds
   // the wallet lock and writes the whole plan when it finishes, so reading
   // around one means writing this flag onto a plan that is about to be
@@ -748,6 +778,12 @@ export async function updateGridEnd(
   wallet: TradeWallet,
   input: { gridId: string; abovePct: number | null }
 ): Promise<MovedGrid> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      updateGridEnd(userId, wallet, input)
+    )
+  }
+
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
@@ -973,6 +1009,12 @@ export async function reshapeGrid(
     rangeMove?: Omit<MoveGridRangeInput, "gridId">
   }
 ): Promise<MovedGrid> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      reshapeGrid(userId, wallet, input)
+    )
+  }
+
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
@@ -1146,6 +1188,12 @@ export async function moveGridExit(
   wallet: TradeWallet,
   input: { gridId: string; which: "takeProfit" | "stopLoss"; px: number }
 ): Promise<MovedGrid> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      moveGridExit(userId, wallet, input)
+    )
+  }
+
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan

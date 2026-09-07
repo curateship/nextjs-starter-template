@@ -8,7 +8,7 @@ import {
   type PairedStopRef,
 } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradeSmartLadders } from "@/server/trade/schema"
 

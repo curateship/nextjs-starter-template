@@ -39,7 +39,12 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { OVERRODE_PREFIX, overrodeNames } from "@/lib/trade/trading-rules"
-import { db, type CustomShellDb } from "@/server/db"
+import {
+  db,
+  lockWalletForPlan,
+  outsideWalletPlanWrite,
+  type CustomShellDb,
+} from "@/server/trade/db"
 import {
   getProtocol,
   ordersOf,
@@ -230,7 +235,9 @@ export async function sweepLiveFills(
       `${userId}:${wallet.id}`,
       credential,
       (fill) => {
-        void recordLiveFills(userId, wallet, [fill])
+        void outsideWalletPlanWrite(() =>
+          recordLiveFills(userId, wallet, [fill])
+        )
       }
     )
 
@@ -295,6 +302,7 @@ export async function recordLiveFills(
   if (fills.length === 0) return
   try {
     const inserted = await db.transaction(async (tx) => {
+      await lockWalletForPlan(tx, userId, wallet.id)
       const rows = await tx
         .insert(tradeLiveFills)
         .values(
@@ -730,6 +738,7 @@ async function resolveClosingOrders(
   }
 
   const learnt = await db.transaction(async (tx) => {
+    await lockWalletForPlan(tx, userId, wallet.id)
     const inserted = await tx
       .insert(tradeLiveTriggers)
       .values(rows)
@@ -878,9 +887,6 @@ async function recordTriggers(
       if (!orderId || px === null) continue
       const memo = `${userId}:${wallet.id}:${orderId}`
       if (writtenTriggers.has(memo)) continue
-      if (writtenTriggers.size >= MAX_REMEMBERED_TRIGGERS)
-        writtenTriggers.clear()
-      writtenTriggers.add(memo)
       rows.push({
         userId,
         walletId: wallet.id,
@@ -894,6 +900,7 @@ async function recordTriggers(
 
   if (rows.length === 0) return
   await db.transaction(async (tx) => {
+    await lockWalletForPlan(tx, userId, wallet.id)
     const inserted = await tx
       .insert(tradeLiveTriggers)
       .values(rows)
@@ -903,6 +910,11 @@ async function recordTriggers(
       await bumpTradeHistory(tx, userId, [wallet.id])
     }
   })
+  // A lock timeout must leave these eligible for the next portfolio read.
+  for (const row of rows) {
+    if (writtenTriggers.size >= MAX_REMEMBERED_TRIGGERS) writtenTriggers.clear()
+    writtenTriggers.add(`${userId}:${wallet.id}:${row.orderId}`)
+  }
 }
 
 /**
@@ -1234,6 +1246,7 @@ export async function hideLiveTrade(
 ): Promise<void> {
   if (fillIds.length === 0) return
   await db.transaction(async (tx) => {
+    await lockWalletForPlan(tx, userId, walletId)
     const hidden = await tx
       .update(tradeLiveFills)
       .set({ hidden: true })

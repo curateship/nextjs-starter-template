@@ -10,7 +10,7 @@ import {
   readAsterAccountMarginMode,
 } from "@/server/protocols/aster/orders"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
-import { db } from "@/server/db"
+import { db } from "@/server/trade/db"
 import { credentialFor } from "@/server/trade/wallet-auth"
 import { tradeWallets } from "@/server/trade/schema"
 

@@ -22,7 +22,12 @@ import { flowRunNoticeHref } from "@/lib/trade/notice-links"
 import { readSmartPlan, type SmartGrid } from "@/lib/trade/smart-plan"
 import { flowWaitCode, flowWaitWords } from "@/lib/trade/flow-waiting"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import {
+  db,
+  hasWalletPlanWrite,
+  withWalletPlanWrite,
+  type CustomShellDb,
+} from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { gridById, placeGridOrder } from "@/server/trade/grid-orders"
 import { placeLiveGridOrder } from "@/server/trade/live-grid-orders"
@@ -219,6 +224,14 @@ async function closeGridForFlip(
   grid: SmartGrid,
   database: CustomShellDb
 ): Promise<void> {
+  if (!hasWalletPlanWrite(input.userId, input.wallet.id)) {
+    return await withWalletPlanWrite(
+      input.userId,
+      input.wallet.id,
+      () => closeGridForFlip(input, grid, db),
+      database
+    )
+  }
   if (input.wallet.kind === "live") {
     await serializeLiveWallet(input.userId, input.wallet, async () => {
       const current = await gridById(input.userId, input.wallet.id, grid.id)

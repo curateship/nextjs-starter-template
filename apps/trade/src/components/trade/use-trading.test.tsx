@@ -25,6 +25,7 @@ const api = vi.hoisted(() => ({
   hidePaperTrade: vi.fn(),
   flattenWalletApi: vi.fn(),
   cancelLadderRest: vi.fn(),
+  cancelGridRest: vi.fn(),
   editWatch: vi.fn(),
   moveGridRange: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
@@ -77,7 +78,7 @@ vi.mock("@/lib/api/trade/paper", () => ({
 vi.mock("@/lib/api/trade/smart-orders", () => ({
   cancelAllSmartOrders: vi.fn(),
   cancelGridLevel: vi.fn(),
-  cancelGridRest: vi.fn(),
+  cancelGridRest: api.cancelGridRest,
   cancelLadderRest: api.cancelLadderRest,
   cancelLadderRung: vi.fn(),
   cancelWatch: vi.fn(),
@@ -197,6 +198,7 @@ beforeEach(() => {
     sellRefused: [],
   })
   api.cancelLadderRest.mockReset()
+  api.cancelGridRest.mockReset()
   api.editWatch.mockReset().mockResolvedValue({ saved: true })
   api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
@@ -904,6 +906,25 @@ describe("removing a DCA ladder", () => {
 })
 
 describe("a grid edit that finishes before it saves", () => {
+  it("restores the grid and clears busy state when Stop is refused by another writer", async () => {
+    const refusal =
+      "Another action is still updating this wallet. Your change was not made. Try again in a moment."
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [gridOn("hyperliquid:mainnet:ENA", false)],
+    })
+    api.cancelGridRest.mockRejectedValue(new Error(refusal))
+    await finishFirstRead()
+    const grid = latest!.grids[0]
+    await act(async () => {
+      await latest!.cancelGrid(wallet.id, grid.id)
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith(refusal)
+    expect(api.toastSuccess).not.toHaveBeenCalled()
+    expect(latest!.grids.map((row) => row.id)).toContain(grid.id)
+    expect(latest!.busy).toBe(false)
+  })
+
   it("shows why the range did not move", async () => {
     api.moveGridRange.mockRejectedValue(new Error("SMART_GRID_FINISHED"))
     await finishFirstRead()

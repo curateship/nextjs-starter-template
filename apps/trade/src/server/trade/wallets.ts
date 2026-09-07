@@ -22,7 +22,7 @@ import {
   type LiquidationWarning,
 } from "@/lib/trade/liquidation-warning"
 import { loadLiquidationWarning } from "@/server/trade/prefs"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import {
   agentOf,

@@ -1,3 +1,4 @@
+import { hasWalletPlanWrite, withWalletPlanWrite } from "@/server/trade/db"
 import { laddersAndGridsYouPlaced } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { cancelLiveGridRest } from "@/server/trade/live-grid-orders"
@@ -52,6 +53,12 @@ export async function standDownWallet(
   wallet: TradeWallet,
   describeError: (error: unknown) => string
 ): Promise<{ stood: StoodDownSmartOrder[]; refused: RefusedSmartOrder[] }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      standDownWallet(userId, wallet, describeError)
+    )
+  }
+
   const live = wallet.kind === "live"
   const cancelRest = live
     ? {
@@ -72,7 +79,11 @@ export async function standDownWallet(
   const stood: StoodDownSmartOrder[] = []
   const refused: RefusedSmartOrder[] = []
   for (const order of working) {
-    const named = { id: order.id, marketKey: order.marketKey, kind: order.kind }
+    const named = {
+      id: order.id,
+      marketKey: order.marketKey,
+      kind: order.kind,
+    }
     try {
       await cancelRest[order.kind](order.id)
       stood.push(named)

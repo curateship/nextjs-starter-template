@@ -6,7 +6,7 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { historySourceFor } from "@/lib/protocols/history-source"
-import { db } from "@/server/db"
+import { db } from "@/server/trade/db"
 import { tradeCandles } from "@/server/trade/schema"
 
 /**

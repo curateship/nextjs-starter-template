@@ -51,7 +51,7 @@ import {
   type TradeOrder,
   type TradePosition,
 } from "@/lib/trade/paper"
-import { db } from "@/server/db"
+import { db, hasWalletPlanWrite, withWalletPlanWrite } from "@/server/trade/db"
 import { POST_ONLY_RETRY_NOTE, POST_ONLY_PAUSED_NOTE } from "@/lib/trade/live"
 import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
 import {
@@ -1091,6 +1091,12 @@ export async function reconcileLiveLaddersOnce(
   currentPortfolio?: WalletPortfolio,
   force = false
 ): Promise<void> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio, force)
+    )
+  }
+
   if (wallet.kind !== "live" || !wallet.address || !wallet.hasKey) return
   const rows = await db
     .select()

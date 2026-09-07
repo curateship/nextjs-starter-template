@@ -22,7 +22,12 @@ import {
 import { paperAccountFigures } from "@/lib/trade/paper"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import {
+  db,
+  type CustomShellDb,
+  hasWalletPlanWrite,
+  withWalletPlanWrite,
+} from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { draftGridOrder, gridById } from "@/server/trade/grid-orders"
 import { writeTradeNotice } from "@/server/trade/notices"
@@ -407,6 +412,12 @@ export async function reverseGridOrder(
   wallet: TradeWallet,
   input: { gridId: string }
 ): Promise<{ reversed: true; grid: SmartGrid }> {
+  if (!hasWalletPlanWrite(userId, wallet.id)) {
+    return await withWalletPlanWrite(userId, wallet.id, () =>
+      reverseGridOrder(userId, wallet, input)
+    )
+  }
+
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan

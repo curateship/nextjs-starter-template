@@ -55,7 +55,7 @@ import {
   readLiquidationWarning,
   type LiquidationWarning,
 } from "@/lib/trade/liquidation-warning"
-import { db, type CustomShellDb } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/trade/db"
 import { tradePrefs } from "@/server/trade/schema"
 
 /** Everything a dashboard needs from the preference row, read in one query. */

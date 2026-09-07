@@ -4,6 +4,27 @@ import { getCandlesErrorMessage } from "@/lib/api/trade/candles"
 import { getLiveErrorMessage } from "@/lib/api/trade/live"
 import { getSmartOrderErrorMessage } from "@/lib/api/trade/smart-orders"
 
+it("explains a wallet writer timeout and an already-stopped grid", () => {
+  for (const describeError of [
+    getSmartOrderErrorMessage,
+    getLiveErrorMessage,
+  ]) {
+    expect(describeError(new Error("SMART_ORDER_WRITE_BUSY"))).toBe(
+      "Another action is still updating this wallet. Your change was not made. Try again in a moment."
+    )
+  }
+  expect(
+    getSmartOrderErrorMessage(new Error("SMART_GRID_ALREADY_STOPPED"))
+  ).toBe(
+    "This grid has no new trades left to stop. Its open position and exits are unchanged."
+  )
+  expect(
+    getSmartOrderErrorMessage(new Error("SMART_LADDER_ALREADY_STOPPED"))
+  ).toBe(
+    "This ladder has no waiting buys left to stop. Its held coins and exits are unchanged."
+  )
+})
+
 /**
  * The refusals that carry their own sentence, and reach the screen intact.
  *
