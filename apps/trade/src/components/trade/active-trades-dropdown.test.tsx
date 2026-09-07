@@ -49,6 +49,8 @@ const snapshot: ActiveTradesSnapshot = {
       marketKey: "hyperliquid:mainnet:BTC",
       market: "BTC",
       orderKind: "manual",
+      waitingPrices: [{ px: 95, side: "buy", watched: true }],
+      mark: 100,
       createdAt: 2,
     },
     {
@@ -60,6 +62,8 @@ const snapshot: ActiveTradesSnapshot = {
       marketKey: "aster:mainnet:SOLUSDT",
       market: "SOLUSDT",
       orderKind: "dca",
+      waitingPrices: [{ px: 99, side: "buy" }],
+      mark: 100,
       createdAt: 1,
     },
   ],
@@ -124,10 +128,20 @@ describe("the active-trades dropdown", () => {
 
     await chooseTab("Watching2")
 
-    expect(headings()).toEqual(["Ticker", "Order", "Wallet"])
+    expect(headings()).toEqual(["Ticker", "Order", "Wallet", "Distance"])
     expect(host.querySelector("tbody")?.textContent).toContain("Manual")
     expect(host.querySelector("tbody")?.textContent).toContain("DCA ladder")
     expect(host.querySelector("tbody")?.textContent).toContain("Practice")
+  })
+
+  it("shows percentage distances and sorts the nearest waiting order first", async () => {
+    await chooseTab("Watching2")
+    expect(host.querySelector("tbody")?.textContent).toContain("5.26% away")
+    expect(host.querySelector("tbody")?.textContent).toContain("1.01% away")
+    await click("Distance")
+    expect(host.querySelector("tbody tr")?.textContent).toContain("SOLUSDT")
+    await click("Distance")
+    expect(host.querySelector("tbody tr")?.textContent).toContain("BTC")
   })
 
   it("uses checked choices to include more than one exchange", async () => {

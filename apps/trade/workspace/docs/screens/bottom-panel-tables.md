@@ -100,3 +100,24 @@ A saved watched stop never clears the open position's warning.
 
 The heading draws the single one-pixel line above the rows. The first row does
 not add a second edge beneath it, while every later row keeps its normal divider.
+
+## Distance to a waiting price
+
+Open orders shows Distance after Price for real, practice and watched orders.
+The green pill is shared with the Watched panel. It shows the absolute gap
+divided by the waiting price, formatted to two decimal places. With the market
+at $100 and an order at $95, both show `5.26% away`. Tyler chose the existing
+percentage wording instead of dollars or an out-of-100 sentence.
+
+Click Distance for nearest first; click again for farthest first. Missing or
+invalid prices leave the cell blank and sort after priced orders both ways.
+The table subscribes to the existing live-mark store and falls back to the
+market catalogue price. Rendering and sorting use the same snapshot.
+
+Watched levels already touched in their saved direction say `reached`, just as
+they do in Watched. Exchange-held orders use the gap to their own price; a sell
+stop below the market is not assumed reached merely because its side is sell.
+
+Watched lists only the nearest level for each coin. Open orders lists every
+order, so their row counts can differ. No new alerts or trading actions are
+introduced.

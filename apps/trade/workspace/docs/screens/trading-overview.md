@@ -118,7 +118,12 @@ the header so the answer stays readable beside the shell controls. Hovering the
 summary opens a two-tab menu. Active trades has the same rows, filters, sorting,
 totals, and chart links as the dashboard widget. Watching lists every active
 manual watched price, DCA ladder, grid, and signal order across the account.
-Its columns name the ticker, order kind, and wallet. A watched row opens that
+Its columns name the ticker, order kind, wallet, and Distance.
+Distance uses the same percentage-away pill as Open orders. A manual watch
+uses its waiting price; a grid or ladder uses its nearest waiting entry level.
+Signals and plans with no waiting entries leave Distance blank. The snapshot
+includes waiting prices and a market mark; live marks override that mark when
+available. Clicking Distance sorts nearest first, with unavailable distances last. A watched row opens that
 market on its protocol's chart. The two tabs keep separate exchange and wallet
 filters, so narrowing one list does not silently narrow the other.
 
@@ -128,8 +133,9 @@ under their sticky headings. The menu also respects the space Radix reports
 around the header button, so it cannot exceed the available popover height.
 Loading and failed reads use a padded line that fits its content. A failed
 read offers Try again in that same compact menu.
-The menu fits the width its table needs, up to the
-available browser width. Moving away closes it. The header asks for a fresh
+Both tabs use the same 640px menu width, capped by the available browser
+width. Each table fills that width, including its headings and dividers.
+Narrow screens keep overflowing columns reachable through horizontal scrolling. Moving away closes it. The header asks for a fresh
 answer every 15 seconds while the browser tab is visible. The Active trades item can be
 moved or hidden under Settings → Top right menu. It appears only in the admin
 menu. The eye beside Filter hides the profit or loss from the header button and

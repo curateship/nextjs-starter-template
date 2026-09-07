@@ -242,11 +242,21 @@ describe("trading overview money", () => {
         marketKey: `kucoin:mainnet:${kind.toUpperCase()}USDTM`,
         kind,
         createdAt: index,
+        plan: {
+          phase: "waiting", triggerPx: 95, side: "buy" as const,
+          direction: "long" as const,
+          rungs: [{ px: 90, status: "waiting" }, { px: 80, status: "filled" }],
+          levels: [{ buyPx: 95, status: "waiting" }, { buyPx: 85, status: "holding" }],
+        },
       })
     )
 
+    const watching = buildTradingOverviewWatchingOrders(orders, [wallet], new Map([[orders[0].marketKey, 100]]))
+    expect(watching.map((order) => order.waitingPrices.map((price) => price.px))).toEqual([[95], [90], [95], []])
+    expect(watching[0].mark).toBe(100)
+    expect(watching[1].mark).toBeNull()
     expect(
-      buildTradingOverviewWatchingOrders(orders, [wallet]).map((order) => ({
+      buildTradingOverviewWatchingOrders(orders, [wallet], new Map()).map((order) => ({
         market: order.market,
         orderKind: order.orderKind,
         accountType: order.accountType,

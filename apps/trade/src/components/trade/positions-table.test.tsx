@@ -889,6 +889,34 @@ describe("the bottom panel's tables say what they know", () => {
     await act(async () => root.unmount())
   })
 
+  it("shows Distance for all waiting orders and sorts nearest first", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const orders: TradeOrder[] = [
+      { ...liveOrder("mainnet"), id: "far", px: 95 },
+      { ...liveOrder("mainnet"), id: "near", px: 99, live: undefined, watched: true },
+      { ...liveOrder("mainnet"), id: "missing", marketKey: "hyperliquid:mainnet:UNKNOWN" },
+    ]
+    const render = async (price: number) => act(async () => root.render(
+      <TooltipProvider><OpenOrdersTable {...shared}
+        markets={new Map([[orders[0].marketKey, market("BTC", price)]])}
+        orders={orders} settled failed={false} onCancel={() => {}} onResume={async () => true}
+      /></TooltipProvider>
+    ))
+    await render(100)
+    expect(host.textContent).toContain("5.26% away")
+    expect(host.textContent).toContain("1.01% away")
+    const heading = Array.from(host.querySelectorAll("th button")).find((one) => one.textContent === "Distance") as HTMLButtonElement
+    await act(async () => heading.click())
+    const distances = () => Array.from(host.querySelectorAll("tbody tr")).map((row) => row.children[4].textContent)
+    expect(distances()).toEqual(["1.01% away", "5.26% away", ""])
+    await render(98)
+    expect(distances()).toEqual(["reached", "3.16% away", ""])
+    await act(async () => heading.click())
+    expect(distances()).toEqual(["3.16% away", "reached", ""])
+    await act(async () => root.unmount())
+  })
+
   it("replaces Wallet with Type and sorts Long and Short", async () => {
     const markets = [market("BTC", 100), market("ETH", 100), market("SOL", 100)]
     const host = document.createElement("div")

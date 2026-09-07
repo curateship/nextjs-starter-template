@@ -1,3 +1,5 @@
+import type { WaitingPrice } from "@/lib/trade/order-distance"
+import { entrySide } from "@/lib/trade/grid"
 import type { NetworkId } from "@/lib/protocols/contracts"
 import type { SmartOrderKind } from "@/lib/trade/smart-plan"
 import {
@@ -69,6 +71,8 @@ export type TradingOverviewWatchingOrder = {
   marketKey: string
   market: string
   orderKind: TradingOverviewOrderKind
+  waitingPrices: WaitingPrice[]
+  mark: number | null
   createdAt: number
 }
 
@@ -284,10 +288,36 @@ type TradingOverviewOrderSource = {
   createdAt: number
 }
 
+type WatchingOrderSource = TradingOverviewOrderSource & (
+  | { kind: "watch"; plan: { phase: string; triggerPx: number; side: "buy" | "sell"; triggerDirection?: "up" | "down" } }
+  | { kind: "dca"; plan: { rungs: readonly { status: string; px: number }[] } }
+  | { kind: "grid"; plan: { direction: "long" | "short"; levels: readonly { status: string; buyPx: number }[] } }
+  | { kind: "signal" }
+)
+
+function waitingPrices(order: WatchingOrderSource): WaitingPrice[] {
+  switch (order.kind) {
+    case "watch":
+      return order.plan.phase === "waiting" ? [{
+        px: order.plan.triggerPx, side: order.plan.side,
+        triggerDirection: order.plan.triggerDirection, watched: true,
+      }] : []
+    case "dca":
+      return order.plan.rungs.filter((rung) => rung.status === "waiting")
+        .map((rung) => ({ px: rung.px, side: "buy" }))
+    case "grid":
+      return order.plan.levels.filter((level) => level.status === "waiting")
+        .map((level) => ({ px: level.buyPx, side: entrySide(order.plan.direction) }))
+    case "signal":
+      return []
+  }
+}
+
 /** Turns active smart orders into the account-wide Watching list. */
 export function buildTradingOverviewWatchingOrders(
-  orders: readonly TradingOverviewOrderSource[],
-  wallets: readonly TradeWallet[]
+  orders: readonly WatchingOrderSource[],
+  wallets: readonly TradeWallet[],
+  marks: ReadonlyMap<string, number>
 ): TradingOverviewWatchingOrder[] {
   const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
   return orders.flatMap((order) => {
@@ -303,6 +333,8 @@ export function buildTradingOverviewWatchingOrders(
         marketKey: order.marketKey,
         market: order.marketKey.split(":").slice(2).join(":"),
         orderKind: overviewOrderKind(order.kind),
+        waitingPrices: waitingPrices(order),
+        mark: marks.get(order.marketKey) ?? null,
         createdAt: order.createdAt,
       },
     ]

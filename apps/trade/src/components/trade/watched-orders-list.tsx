@@ -1,16 +1,18 @@
 import * as React from "react"
 
+import { OrderDistanceBadge } from "@/components/trade/order-distance-badge"
+import { orderDistance, orderDistanceLabel } from "@/lib/trade/order-distance"
+
 import { InfoIcon, TriangleAlertIcon } from "lucide-react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
-import { formatAway, formatPrice, formatWholeUsd } from "@/lib/trade/format"
+import { formatPrice, formatWholeUsd } from "@/lib/trade/format"
 import { refusalForWatchedOrder, type LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import type { TradeOrder } from "@/lib/trade/paper"
-import { watchReached } from "@/lib/trade/watch-order"
 import {
   readWatchedCache,
   toWatchedLevel,
@@ -264,18 +266,7 @@ function nearestWatchedLevels(
 }
 
 function distanceFromMark(level: WatchedLevel, mark: number): number {
-  if (
-    watchReached(
-      {
-        side: level.side,
-        triggerPx: level.px,
-        triggerDirection: level.triggerDirection,
-      },
-      mark
-    )
-  )
-    return 0
-  return level.px > 0 ? Math.abs(mark - level.px) / level.px : Infinity
+  return orderDistance({ ...level, watched: true }, mark) ?? Infinity
 }
 
 /**
@@ -374,9 +365,7 @@ function WatchedRow({
           </span>
         </span>
         {line.away ? (
-          <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 tabular-nums dark:bg-emerald-500/15 dark:text-emerald-400">
-            {line.away}
-          </span>
+          <OrderDistanceBadge distance={orderDistance({ ...level, watched: true }, mark)} />
         ) : null}
       </span>
       {refusal ? <RefusalNote refusal={refusal} /> : null}
@@ -438,21 +427,8 @@ export function watchedLevelLine(
   mark: number | null
 ): { at: string; away: string } {
   const at = `at ${formatPrice(level.px)}`
-  if (mark === null || level.px <= 0) return { at, away: "" }
-  if (
-    watchReached(
-      {
-        side: level.side,
-        triggerPx: level.px,
-        triggerDirection: level.triggerDirection,
-      },
-      mark
-    )
-  ) {
-    return { at, away: "reached" }
-  }
   return {
     at,
-    away: `${formatAway(Math.abs(mark - level.px) / level.px)} away`,
+    away: orderDistanceLabel(orderDistance({ ...level, watched: true }, mark)),
   }
 }

@@ -258,7 +258,7 @@ function AdminActiveTradesHeader() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-max max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-160 max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onMouseEnter={cancelClose}
         onMouseLeave={closeSoon}
@@ -266,7 +266,7 @@ function AdminActiveTradesHeader() {
         {snapshot ? (
           <ActiveTradesDropdown
             snapshot={snapshot}
-            className="[&_[data-slot=table-container]]:w-max [&_table]:w-max"
+            className="[&_[data-slot=table-container]]:w-full [&_table]:w-full"
             onTradeOpen={() => setOpen(false)}
             headerAction={
               <Tooltip>

@@ -1,5 +1,7 @@
 import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
+import { OrderDistanceBadge } from "@/components/trade/order-distance-badge"
+import { orderDistance } from "@/lib/trade/order-distance"
 import {
   ArrowLeftRightIcon,
   GaugeIcon,
@@ -167,13 +169,14 @@ const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
 ]
 
 type OrderColumn =
-  "market" | "wallet" | "side" | "price" | "size" | "value" | "leverage"
+  "market" | "wallet" | "side" | "price" | "distance" | "size" | "value" | "leverage"
 
 const ORDER_COLUMNS: ColumnSpec<OrderColumn>[] = [
   { key: "market", label: "Market" },
   { key: "wallet", label: "Wallet" },
   { key: "side", label: "Side" },
   { key: "price", label: "Price" },
+  { key: "distance", label: "Distance" },
   { key: "size", label: "Size" },
   { key: "value", label: "Value" },
   { key: "leverage", label: "Leverage" },
@@ -856,10 +859,16 @@ export function OpenOrdersTable({
     "price",
     "desc",
     (column) =>
-      column === "market" || column === "wallet" || column === "side"
+      column === "market" || column === "wallet" || column === "side" || column === "distance"
         ? "asc"
         : "desc"
   )
+
+  const marks = useLiveMarks(orders.map((order) => order.marketKey))
+  const distances = React.useMemo(() => new Map(orders.map((order) => [
+    order.id,
+    orderDistance(order, marks.get(order.marketKey) ?? markets.get(order.marketKey)?.price ?? null),
+  ])), [orders, marks, markets])
 
   const rows = React.useMemo(
     () =>
@@ -871,6 +880,8 @@ export function OpenOrdersTable({
             return walletName(order.walletId)
           case "side":
             return order.side
+          case "distance":
+            return distances.get(order.id) ?? (direction === "asc" ? Infinity : -Infinity)
           case "size":
             return order.sz
           case "value":
@@ -881,7 +892,7 @@ export function OpenOrdersTable({
             return order.px
         }
       }),
-    [orders, direction, sort, walletName]
+    [orders, direction, sort, walletName, distances]
   )
 
   return (
@@ -932,6 +943,7 @@ export function OpenOrdersTable({
             {order.side === "buy" ? "Buy" : "Sell"}
           </Cell>
           <Cell>{formatPrice(order.px)}</Cell>
+          <Cell><OrderDistanceBadge distance={distances.get(order.id) ?? null} /></Cell>
           <Cell>{formatSize(order.sz)}</Cell>
           <Cell>{formatUsd(order.px * order.sz)}</Cell>
           <Cell className="text-muted-foreground">

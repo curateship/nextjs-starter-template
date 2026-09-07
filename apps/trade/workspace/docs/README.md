@@ -44,7 +44,7 @@ screen: anything not written there has not been agreed yet.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, Long/Short badge columns, and where the navigation lives.
 - `trading-overview.md`: the signed-in home page and its Active trades menu,
-  including content height, screen limits, scrolling, loading and failed reads.
+  including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — the market list and the Watched row.

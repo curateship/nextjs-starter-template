@@ -1,3 +1,6 @@
+import { OrderDistanceBadge } from "@/components/trade/order-distance-badge"
+import { orderDistance } from "@/lib/trade/order-distance"
+import { useLiveMarks } from "@/lib/trade/live-market"
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { ListChecksIcon, RadarIcon } from "lucide-react"
@@ -26,7 +29,7 @@ import { orderKindLabel } from "@/lib/trade/dashboard/order-kind"
 import { cn } from "@/lib/utils"
 
 type DropdownTab = "active" | "watching"
-type WatchingColumn = "market" | "order" | "wallet"
+type WatchingColumn = "market" | "order" | "wallet" | "distance"
 type FilterableOrder = {
   protocol: string
   walletId: string
@@ -37,6 +40,7 @@ const WATCHING_COLUMNS = [
   { key: "market", label: "Ticker" },
   { key: "order", label: "Order" },
   { key: "wallet", label: "Wallet" },
+  { key: "distance", label: "Distance" },
 ] as const satisfies readonly ColumnSpec<WatchingColumn>[]
 
 function defaultWatchingDirection(): "asc" {
@@ -85,7 +89,7 @@ export function ActiveTradesDropdown({
   return (
     <TableSurface
       className={cn(
-        "flex max-h-full min-h-0 w-max max-w-full flex-col rounded-[inherit] bg-popover shadow-none ring-0",
+        "flex max-h-full min-h-0 w-full max-w-full flex-col rounded-[inherit] bg-popover shadow-none ring-0",
         className
       )}
     >
@@ -207,9 +211,18 @@ function WatchingOrdersTable({
     "asc",
     defaultWatchingDirection
   )
+  const marks = useLiveMarks(unsorted.map((order) => order.marketKey))
+  const distances = React.useMemo(() => new Map(unsorted.map((order) => {
+    const mark = marks.get(order.marketKey) ?? order.mark
+    const values = order.waitingPrices.map((price) => orderDistance(price, mark))
+      .filter((value): value is number => value !== null)
+    return [order.id, values.length ? Math.min(...values) : null]
+  })), [unsorted, marks])
   const orders = React.useMemo(() => {
-    const valueOf = (order: TradingOverviewWatchingOrder): string => {
+    const valueOf = (order: TradingOverviewWatchingOrder): string | number => {
       switch (sort) {
+        case "distance":
+          return distances.get(order.id) ?? (direction === "asc" ? Infinity : -Infinity)
         case "market":
           return order.market
         case "order":
@@ -219,11 +232,13 @@ function WatchingOrdersTable({
       }
     }
     return [...unsorted].sort((left, right) => {
-      const compared = valueOf(left).localeCompare(valueOf(right))
+      const a = valueOf(left)
+      const b = valueOf(right)
+      const compared = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b))
       if (compared !== 0) return direction === "asc" ? compared : -compared
       return right.createdAt - left.createdAt
     })
-  }, [direction, sort, unsorted])
+  }, [direction, sort, unsorted, distances])
 
   return (
     <TradeTableContent
@@ -287,6 +302,9 @@ function WatchingOrdersTable({
               className="py-2.5 text-xs text-muted-foreground"
             >
               {order.walletLabel}
+            </TableCell>
+            <TableCell column="meta" className="py-2.5 text-xs whitespace-nowrap">
+              <OrderDistanceBadge distance={distances.get(order.id) ?? null} />
             </TableCell>
           </TableRow>
         )

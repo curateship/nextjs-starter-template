@@ -242,7 +242,7 @@ async function loadActiveTrades(
     ...(livePortfolio?.positions ?? []),
   ]
   const marks = await marksForKeys(
-    positions.map((position) => position.marketKey)
+    [...new Set([...positions.map((position) => position.marketKey), ...smartOrders.map((order) => order.marketKey)])]
   )
   const activeTrades = buildTradingOverviewActiveTrades(
     positions,
@@ -263,7 +263,7 @@ async function loadActiveTrades(
   }
   return {
     activeTrades,
-    watchingOrders: buildTradingOverviewWatchingOrders(smartOrders, wallets),
+    watchingOrders: buildTradingOverviewWatchingOrders(smartOrders, wallets, marks),
     activeTradesUnavailable: wallets
       .filter((wallet) => unavailableWalletIds.has(wallet.id))
       .map((wallet) => wallet.id),
