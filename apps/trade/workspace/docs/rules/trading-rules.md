@@ -450,3 +450,15 @@ Tyler's rule: "we dont need these if the trade goes through".
 
 A stale position read after an accepted entry must not produce an error toast.
 Trade must still report a requested stop or target that failed to go on.
+
+## Missing-stop wording
+
+Tyler's rule:
+
+> If its a position stop then say say "No position stop" or "No watched stop"
+
+The warning names the position or watched order it belongs to. A stop saved on
+a waiting order does not count as a stop protecting coins already held.
+
+The open position takes priority when the chart's Stop loss shortcut could
+add a stop to either the position or a waiting order.

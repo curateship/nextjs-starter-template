@@ -1042,10 +1042,9 @@ export function ChartPanel({
           setMenu(null)
         }
       : null
-  // The newly placed waiting order is the chart action this shortcut belongs
-  // to, so it wins when a position also shares this losing-side price. Its own
-  // line still identifies the exact watch when more than one is waiting.
-  const stopLossShortcut = watchedStopShortcut ?? positionStopShortcut
+  // Protect coins already held before adding a stop to a waiting entry.
+  // The watched order's own line still opens its exact edit window.
+  const stopLossShortcut = positionStopShortcut ?? watchedStopShortcut
 
   const looseOrders = React.useMemo(
     () => [

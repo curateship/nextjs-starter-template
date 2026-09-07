@@ -61,8 +61,8 @@ open risk across every trade is too much. A stop that has been moved past the
 price, above it on a long or below it on a short, shows a gain with a plus
 sign in the same column, because that is what the stop would bank.
 
-The stop comes from the same place the "No stop" badge reads: the position's
-own stop, or the stop held by its running grid plan. The whole size held is
+The stop comes from the same place the "No position stop" badge reads: the
+position's own stop, or the stop held by its running grid plan. The whole size held is
 used even when a grid's stop is part-size. A position with no stop shows a
 dash, never a zero, and the column stays blank until both halves of the read
 have landed.
@@ -73,8 +73,8 @@ the end, the way a missing liquidation price already does.
 ## Positions without a stop
 
 Once the practice and real-wallet reads have both finished, a position with no
-stop has a red "No stop" badge beside its market. Hovering the badge or reaching
-it with the keyboard says, "This position has no stop." The words remain visible
+stop has a red "No position stop" badge beside its market. Hovering the badge
+or reaching it with the keyboard says, "This position has no stop." The words remain visible
 without relying on the badge's color.
 
 The Positions tab does not mention missing stops. The tab keeps its ordinary
@@ -84,6 +84,12 @@ An ordinary position gets its stop from the latest position read. A running
 grid also counts as protected when its matching grid plan holds the stop. That
 exception covers a Lighter stop watched inside Trade and a paired grid's own
 part-size stop. The warning reports the missing stop; it never places one.
+
+Open orders names a missing stop on a watched entry "No watched stop". The
+warning appears once the reads finish and only when that entry has no saved
+stop. Reduce-only exits and ordinary exchange orders do not get the watched
+warning. Its tooltip says the stop is missing for when the watched order fills.
+A saved watched stop never clears the open position's warning.
 
 The heading draws the single one-pixel line above the rows. The first row does
 not add a second edge beneath it, while every later row keeps its normal divider.

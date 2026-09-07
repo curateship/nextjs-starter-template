@@ -150,10 +150,12 @@ still mean what they meant then: the old combined switch turns both lines on.
 A stop can also be added after a manual watched order is placed. Right-click a
 price on the losing side of a stopless waiting order and choose **Stop loss**;
 the clicked price is saved on that watch without adding a target. The shortcut
-prefers the active wallet's waiting order over a position on the same market.
+prefers an open position that needs a stop over a waiting order on the same
+market. Once the position has its stop, the shortcut can target the waiting
+order. The waiting order's own line always opens its exact edit window.
 When more than one stopless manual order is waiting on that market in the active
-wallet, the shortcut stays hidden because the intended order would be
-ambiguous. Press the exact waiting order line instead to open its edit window.
+wallet, the watched-order shortcut stays hidden because the intended order
+would be ambiguous. A position stop remains available. Press the exact waiting order line instead to open its edit window.
 
 The DCA ladder's rungs work the same way on real and practice wallets, and the
 grid always has. In a backtest a rung is modelled as a resting order the

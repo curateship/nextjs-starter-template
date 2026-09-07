@@ -819,7 +819,7 @@ describe("the chart stop-loss shortcut", () => {
     expect(host.textContent).not.toContain("Stop loss")
   })
 
-  it("offers the clicked stop for a manual order that is still waiting", async () => {
+  it.each([null, 85])("prioritizes the position before the waiting order when its stop is %s", async (positionStop) => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockResolvedValue({
       candles: [
@@ -859,7 +859,7 @@ describe("the chart stop-loss shortcut", () => {
           targets: [],
           tpPx: null,
           tpSz: null,
-          slPx: null,
+          slPx: positionStop,
           feesPaid: 0,
           updatedAt: 1,
         },
@@ -911,13 +911,21 @@ describe("the chart stop-loss shortcut", () => {
     expect(stop).toBeDefined()
     await act(async () => stop?.click())
 
-    expect(editOrder).toHaveBeenCalledWith("wallet-1", "watch-1", {
-      sz: 2,
-      leverage: 1,
-      tpPx: 120,
-      slPx: 90,
-    })
-    expect(dragBrackets).not.toHaveBeenCalled()
+    if (positionStop === null) {
+      expect(dragBrackets).toHaveBeenCalledWith(oneTrading.positions[0], {
+        targets: [],
+        slPx: 90,
+      })
+      expect(editOrder).not.toHaveBeenCalled()
+    } else {
+      expect(editOrder).toHaveBeenCalledWith("wallet-1", "watch-1", {
+        sz: 2,
+        leverage: 1,
+        tpPx: 120,
+        slPx: 90,
+      })
+      expect(dragBrackets).not.toHaveBeenCalled()
+    }
   })
 })
 

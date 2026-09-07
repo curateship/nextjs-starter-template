@@ -309,21 +309,31 @@ function SideBadge({ position }: { position: TradePosition }) {
 }
 
 /** A visible warning with the same sentence available on hover and focus. */
-function MissingStopBadge({ marketKey }: { marketKey: string }) {
+function MissingStopBadge({
+  marketKey,
+  kind = "position",
+}: {
+  marketKey: string
+  kind?: "position" | "watched"
+}) {
   const symbol = marketSymbol(marketKey)
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={`${symbol} has no stop`}
+          aria-label={`${symbol} has no ${kind} stop`}
           className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           onClick={(event) => event.stopPropagation()}
         >
-          <TradeBadge tone="lost">No stop</TradeBadge>
+          <TradeBadge tone="lost">No {kind} stop</TradeBadge>
         </button>
       </TooltipTrigger>
-      <TooltipContent>This position has no stop.</TooltipContent>
+      <TooltipContent>
+        {kind === "position"
+          ? "This position has no stop."
+          : "This watched order has no stop set for when it fills."}
+      </TooltipContent>
     </Tooltip>
   )
 }
@@ -901,6 +911,12 @@ export function OpenOrdersTable({
             badge={
               <>
                 {order.reduceOnly ? <TradeBadge>Reduce only</TradeBadge> : null}
+                {settled &&
+                order.watched &&
+                !order.reduceOnly &&
+                order.slPx === null ? (
+                  <MissingStopBadge marketKey={order.marketKey} kind="watched" />
+                ) : null}
                 {order.live ? (
                   <TestnetBadge marketKey={order.marketKey} />
                 ) : null}

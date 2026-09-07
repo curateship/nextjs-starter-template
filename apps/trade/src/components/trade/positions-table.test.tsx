@@ -405,14 +405,16 @@ describe("the bottom panel's tables say what they know", () => {
 
     await act(async () => {
       root.render(
-        <OpenOrdersTable
-          {...shared}
-          orders={[watched]}
-          settled={true}
-          failed={false}
-          onCancel={(order) => cancelKinds.push(orderCancelKind(order))}
-          onResume={async () => true}
-        />
+        <TooltipProvider>
+          <OpenOrdersTable
+            {...shared}
+            orders={[watched]}
+            settled={true}
+            failed={false}
+            onCancel={(order) => cancelKinds.push(orderCancelKind(order))}
+            onResume={async () => true}
+          />
+        </TooltipProvider>
       )
     })
     const cancel = host.querySelector<HTMLButtonElement>(
@@ -574,6 +576,27 @@ describe("the bottom panel's tables say what they know", () => {
     )
   })
 
+  it.each([
+    { watched: true, reduceOnly: false, slPx: null, settled: true, warns: true },
+    { watched: true, reduceOnly: false, slPx: 90, settled: true, warns: false },
+    { watched: true, reduceOnly: true, slPx: null, settled: true, warns: false },
+    { watched: false, reduceOnly: false, slPx: null, settled: true, warns: false },
+    { watched: true, reduceOnly: false, slPx: null, settled: false, warns: false },
+  ])("names a missing watched stop only on a settled entry: %j", ({ warns, settled, ...state }) => {
+    const html = draw(
+      <OpenOrdersTable
+        {...shared}
+        orders={[{ ...liveOrder("mainnet"), ...state }]}
+        settled={settled}
+        failed={false}
+        onCancel={() => {}}
+        onResume={async () => true}
+      />
+    )
+    expect(html.includes("No watched stop")).toBe(warns)
+    expect(html).not.toContain("No position stop")
+  })
+
   it("marks a settled position that has no stop", () => {
     const html = draw(
       <PositionsTable
@@ -590,7 +613,7 @@ describe("the bottom panel's tables say what they know", () => {
       />
     )
 
-    expect(html).toContain("No stop")
+    expect(html).toContain("No position stop")
   })
 
   it("draws a coin that is simply owned as held, not levered, and never warns it has no stop", () => {
@@ -632,7 +655,7 @@ describe("the bottom panel's tables say what they know", () => {
     expect(html).toContain(">JUP<")
     expect(html).toContain("Owned 1,125.365")
     expect(html).not.toContain("Long 1×")
-    expect(html).not.toContain("No stop")
+    expect(html).not.toContain("No position stop")
     // A price but no entry: worth shows, profit does not.
     expect(html).toContain("$225.07")
     // No price at all: says so rather than $0.00.
@@ -672,9 +695,9 @@ describe("the bottom panel's tables say what they know", () => {
     })
 
     const warning = host.querySelector<HTMLButtonElement>(
-      '[aria-label="BTC has no stop"]'
+      '[aria-label="BTC has no position stop"]'
     )
-    expect(warning?.textContent).toBe("No stop")
+    expect(warning?.textContent).toBe("No position stop")
     await act(async () => {
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
@@ -703,7 +726,7 @@ describe("the bottom panel's tables say what they know", () => {
       />
     )
 
-    expect(html).not.toContain("No stop")
+    expect(html).not.toContain("No position stop")
   })
 
   it("says what a position loses, or banks, if its stop fires now", () => {
@@ -770,7 +793,7 @@ describe("the bottom panel's tables say what they know", () => {
     )
 
     expect(html).toContain(">-$50.00<")
-    expect(html).not.toContain("No stop")
+    expect(html).not.toContain("No position stop")
   })
 
   it("sorts If stopped with the biggest loss first and no stop last", async () => {
@@ -831,7 +854,7 @@ describe("the bottom panel's tables say what they know", () => {
       />
     )
 
-    expect(html).not.toContain("No stop")
+    expect(html).not.toContain("No position stop")
   })
 
   it("claims empty only after a read has landed, and keeps its headings", () => {
