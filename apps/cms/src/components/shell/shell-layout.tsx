@@ -13,6 +13,7 @@ import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AppHeaderLeftContent } from "@/components/shell/sticky-header/app-header-left-content"
 import { AppSidebar } from "@/components/shell/sidebar/sidebar"
 import {
   StickyHeader,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/custom-shell"
 import {
   appHeaderRightActionForRole,
+  appHeaderLeftContentForRole,
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
@@ -557,6 +559,12 @@ export function ShellLayout({
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
   } as React.CSSProperties
+  const stickyHeaderNavLinks = getStickyHeaderNavLinks(
+    config,
+    currentPath,
+    user.role
+  )
+  const headerLeftContent = appHeaderLeftContentForRole(user.role)
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
@@ -593,7 +601,15 @@ export function ShellLayout({
           />
           <SidebarInset>
             <StickyHeader
-              navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
+              navLinks={stickyHeaderNavLinks}
+              navContent={headerLeftContent ? (
+                <AppHeaderLeftContent
+                  action={headerLeftContent}
+                  role={user.role}
+                  navLinks={stickyHeaderNavLinks}
+                  limit={config.topLeftNavLimit}
+                />
+              ) : undefined}
               navLinkLimit={config.topLeftNavLimit}
               rightNavItems={config.topRightNavigation}
               role={user.role}

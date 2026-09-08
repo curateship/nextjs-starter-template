@@ -7,6 +7,7 @@ import {
   appAutomationNodes,
   appCanvasHeaderStatus,
   appCanvasPanel,
+  appHeaderLeftContentForRole,
   appHeaderRightAction,
   appHeaderRightActionForRole,
   appNotificationLinks,
@@ -399,5 +400,18 @@ describe("a canvas panel that only suits some flows", () => {
   it("is not offered to a flow without it", () => {
     const asked = appCanvasPanel({ automations: { canvasPanel } })
     expect(asked?.appliesTo?.(["sendEmail"])).toBe(false)
+  })
+})
+
+describe("header left content", () => {
+  it("keeps sidebar navigation when unset or the role is excluded", () => {
+    expect(appHeaderLeftContentForRole("member", {})).toBeNull()
+    const content = {
+      roles: ["member"],
+      component: async () => ({ default: () => null }),
+    }
+    const options = { header: { leftContent: content } }
+    expect(appHeaderLeftContentForRole("admin", options)).toBeNull()
+    expect(appHeaderLeftContentForRole("member", options)).toBe(content)
   })
 })
