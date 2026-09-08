@@ -9,6 +9,7 @@ import {
   type SignalPlan,
 } from "@/lib/trade/signal-order"
 import { getProtocol } from "@/server/protocols/registry"
+import { rememberEngineTimestamp } from "./engine-memory"
 import type {
   LadderAdvanceInput,
   LadderEngineDeps,
@@ -275,7 +276,7 @@ async function moveOrder(
     if (now - walletLast < CHASE_EVERY_MS) return false
     deps.dropOrder(book, plan.orderId)
     plan.chases += 1
-    walletChasedAt.set(book.wallet.id, now)
+    rememberEngineTimestamp(walletChasedAt, book.wallet.id, now)
   }
 
   // Read BEFORE the order goes out, because the whole point of the number is

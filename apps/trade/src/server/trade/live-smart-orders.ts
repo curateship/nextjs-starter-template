@@ -134,6 +134,7 @@ import {
   tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
+import { rememberEngineTimestamp } from "./engine-memory"
 
 /**
  * How often the ENGINE asks a wallet's venue for its fills. See the sweep
@@ -1171,7 +1172,7 @@ export async function reconcileLiveLaddersOnce(
   // happening, which is what the 3am case needs.
   const lastSweepAt = engineSweptAt.get(wallet.id) ?? 0
   if (Date.now() - lastSweepAt >= ENGINE_SWEEP_EVERY_MS) {
-    engineSweptAt.set(wallet.id, Date.now())
+    rememberEngineTimestamp(engineSweptAt, wallet.id, Date.now())
     void sweepLiveFills(userId, wallet, portfolio, credential)
   }
 

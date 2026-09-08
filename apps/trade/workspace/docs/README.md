@@ -222,6 +222,9 @@ screen: anything not written there has not been agreed yet.
 
 ## engine/ — the server side
 
+- `in-memory-retention.md` — expiry of account and portfolio reads, the shared
+  5,000-entry timestamp cap, replacement safety and the heap-check road map.
+
 - `one-writer-at-a-time.md` — the shared wallet lock for plan edits, bounded
   waits, nested actions, exchange refusals, and PostgreSQL concurrency tests.
 

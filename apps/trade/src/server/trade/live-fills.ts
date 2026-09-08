@@ -11,6 +11,7 @@ import {
   notExists,
 } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
+import { rememberEngineTimestamp } from "./engine-memory"
 
 import {
   marketChartHref,
@@ -262,7 +263,7 @@ export async function sweepLiveFills(
     // engine's one-second pass into a one-second history poll, precisely when
     // the exchange is already unhealthy.
     if (!force && now - last < every) return
-    sweptAt.set(walletKey, now)
+    rememberEngineTimestamp(sweptAt, walletKey, now)
 
     await resolveClosingOrders(userId, wallet, credential)
 
