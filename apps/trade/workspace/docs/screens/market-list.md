@@ -31,12 +31,19 @@ line in the body, share the panel's one 12px gutter.
   pinned picker, or focus the grip and use arrow keys. Movement stops at the
   screen edges. Unpin returns the picker beneath the market name. Escape closes
   either mode. Pin and position last only while that picker remains mounted.
-  The toolbar has the grip, pin and search icons beside the market tabs.
+  The toolbar has grip, pin and search icons beside a checkbox filter dropdown.
+  Several checked groups combine, so Crypto and TradFi show markets from either.
+  All markets clears the choices; clearing the last choice also shows all markets.
+  TradFi reveals category checkboxes in the same menu. No category selected means
+  all TradFi categories. Trending adds the fifty highest-volume matching markets.
+  Search narrows the combined results. The filter menu stays open while checking
+  several choices, and the market dropdown stays open while its filter is used.
   On narrow screens, the chart header wraps its controls so the market selector stays clickable.
   Search opens a field below the toolbar. Closing search clears its filter.
-  The picker is 41rem wide, 656 pixels at the default text size, and capped to
-  the viewport. The table scrolls horizontally on narrow screens. Open interest
-  is not a picker column. The other columns keep sorting and live figures.
+  The picker is 28rem wide, 448 pixels at the default text size, and capped to
+  the viewport. The table scrolls horizontally on narrow screens. The columns are Market,
+  24h change and Volume. Last price, Funding and Open interest are omitted.
+  The remaining columns keep sorting and live figures.
   The list uses the themed ScrollArea and its heading stays visible while scrolling.
 - **A search that matches nothing can ask the venue itself**, on an exchange
   that says it can (Solana, where anyone can mint a coin and no list holds
@@ -194,3 +201,19 @@ at a time on the chart, or mixed in with everything else under Open orders.
   coins shows the same loading row rather than claiming its coins are not
   available. A list already on screen stays up while a fresh one loads for
   the same network; switching network shows loading, never the old floor.
+
+
+## Checking the compact market picker
+
+The picker has three columns, Market, 24h change and Volume. Open its filter
+menu and check Crypto and TradFi together. The rows include either group.
+Checking Stocks under TradFi narrows that group while keeping Crypto visible.
+All markets clears the filters. Escape first closes the filter menu and then
+the picker. The same controls work while the picker is pinned.
+
+The focused picker and options tests cover combined groups, category choices,
+reset, empty favorites, the three columns, search, lookup and pinned movement.
+Playwright checked the combined filters, reset, Escape and pinning on
+Hyperliquid with no page errors or failed requests. The desktop picker measured
+448 pixels wide. At a 375-pixel viewport, the picker measured 352.5 pixels and
+stayed within the screen. Other exchange pages were not repeated for this change.

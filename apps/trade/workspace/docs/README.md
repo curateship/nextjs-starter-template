@@ -47,7 +47,8 @@ screen: anything not written there has not been agreed yet.
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
-- `market-list.md` — the market list, pinned draggable picker, search toolbar and the Watched row.
+- `market-list.md` — the market list, compact three-column pinned picker,
+  checkbox filters, search toolbar and the Watched row.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.

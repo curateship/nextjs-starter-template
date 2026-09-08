@@ -6,8 +6,7 @@ import type {
 export type MarketPickerView =
   "favorites" | "all" | "crypto" | "tradfi" | "hip3" | "trending"
 
-export type MarketPickerSortKey =
-  "market" | "price" | "change" | "funding" | "volume"
+export type MarketPickerSortKey = "market" | "change" | "volume"
 
 const ALWAYS_VISIBLE: MarketPickerView[] = ["favorites", "all"]
 
@@ -25,13 +24,4 @@ export function marketPickerViews(
   if (capabilities.hip3) views.push("hip3")
   views.push("trending")
   return views
-}
-
-export function marketPickerSortKeys(
-  capabilities: MarketPickerCapabilities
-): MarketPickerSortKey[] {
-  const keys: MarketPickerSortKey[] = ["market", "price", "change"]
-  if (capabilities.funding) keys.push("funding")
-  keys.push("volume")
-  return keys
 }

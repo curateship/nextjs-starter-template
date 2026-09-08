@@ -186,11 +186,70 @@ describe("the Solana list", () => {
     expect(text).toContain("—")
   })
 
-  it("offers the category tabs, because tokenised stocks are in the list", async () => {
-    await openPicker()
-    expect(bodyText()).toContain("Crypto")
-    expect(bodyText()).toContain("TradFi")
-    expect(bodyText()).toContain("SOL-USDC")
+  it("combines checkbox filters and keeps only three market columns", async () => {
+    const shown: MarketRow[] = [
+      {
+        ...rows[0],
+        key: "solana:mainnet:crypto",
+        symbol: "COIN",
+        category: "crypto",
+        volume24hUsd: 300,
+      },
+      {
+        ...rows[0],
+        key: "solana:mainnet:stock",
+        symbol: "STOCK",
+        category: "stocks",
+        volume24hUsd: 200,
+      },
+      {
+        ...rows[0],
+        key: "solana:mainnet:gold",
+        symbol: "GOLD",
+        category: "commodities",
+        volume24hUsd: 100,
+      },
+    ]
+    await openPicker(undefined, shown)
+    expect(
+      [...document.querySelectorAll("th")].map((cell) => cell.textContent)
+    ).toEqual(["Market", "24h change", "Volume"])
+    expect(document.querySelector('[role="tablist"]')).toBeNull()
+    await act(async () =>
+      document
+        .querySelector('[aria-label="Filter markets"]')!
+        .dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+    )
+    const check = async (label: string) => {
+      const item = [
+        ...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]'),
+      ].find((item) => item.textContent === label)!
+      expect(item).toBeDefined()
+      await act(async () => item.click())
+    }
+    const table = () => document.querySelector("tbody")!.textContent!
+    await check("Crypto")
+    expect(table()).toContain("COIN")
+    expect(table()).not.toContain("STOCK")
+    await check("TradFi")
+    expect(table()).toContain("COIN")
+    expect(table()).toContain("STOCK")
+    expect(table()).toContain("GOLD")
+    await check("Stocks")
+    expect(table()).toContain("STOCK")
+    expect(table()).not.toContain("GOLD")
+    await check("Commodities")
+    expect(table()).toContain("GOLD")
+    await check("Crypto")
+    expect(table()).not.toContain("COIN")
+    await check("All markets")
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(3)
+    await check("Favorites")
+    expect(bodyText()).toContain("No matching markets.")
+    await check("Favorites")
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(3)
   })
 
   it("offers to look a coin up on Solana when nothing loaded matches", async () => {
