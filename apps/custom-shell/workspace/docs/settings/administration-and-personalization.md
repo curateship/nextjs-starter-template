@@ -9,11 +9,16 @@ The built-in settings groups contain:
 
 - Platform tabs for general details, admin navigation, dashboard widgets,
   styling, security, notifications, email, payments, and AI.
-- Member tabs for the member sidebar and top-right links.
+- Members Navigation for the member sidebar and top-right links.
 - Public Navigation for the signed-out header layout and links, Public Styling
   for the site's colours and frame, Public Pages for system-page wording,
   Public SEO for site-wide search defaults, and Public Social for X card
   choices.
+
+Sidebar section cards have 16px between them, matching the containing card's
+16px content inset. Add section and Reset all to defaults sit inside that
+card beneath the sections and collapse with the editor. Each top right menu's
+reset button also sits inside its card, beneath the menu items.
 
 ## Saving
 
@@ -35,6 +40,21 @@ settings record with this page. Both writers lock and merge the record so one
 change cannot erase another.
 
 ## Navigation and style choices
+
+Platform → Navigation combines Your sidebar and Your top right menu on one
+page. Members → Navigation combines the member sidebar and member top right
+menu separately, so editing one role's links does not change the other role's
+links. The former Sidebar and Top right menu tabs are no longer listed.
+
+Top left max items lives inside Your sidebar on Platform → Navigation. It controls how
+many links from the current sidebar section appear in the standard signed-in
+header before the remaining links move into the vertical three-dot menu.
+Choices are Show all, 3, 4, 5, 6, 7, and 8. Existing saved values are preserved;
+Show all remains the default for an installation with no saved limit.
+The limit is app-wide for standard admin and member headers. Phones keep their
+compact navigation menu, and an app-owned replacement header controls its own
+contents. Changes use the existing automatic save and survive a reload.
+
 
 Navigation and widget settings can:
 
