@@ -1364,6 +1364,11 @@ export function TradesTable({
                   ? ` at ${formatPrice(row.trade.stopPx)}`
                   : ""}
               </TradeBadge>
+              {row.trade.fills.some(fill => fill.executionNote) ? (
+                <InfoMark label="Swap receipts and network fees">
+                  {row.trade.fills.map(fill => fill.executionNote).filter(Boolean).join(" ")}
+                </InfoMark>
+              ) : null}
               {/* The entry went out against the person's own rules, and they
                   said "anyway". Kept on the row so a run of these can be read
                   against how the trades ended. */}
@@ -1475,6 +1480,11 @@ export function TradesTable({
                   {row.history.fills.length.toLocaleString()} saved{" "}
                   {row.history.fills.length === 1 ? "fill" : "fills"}
                 </span>
+                {row.history.fills.some(fill => fill.executionNote) ? (
+                  <InfoMark label="Swap receipts and network fees">
+                    {row.history.fills.map(fill => fill.executionNote).filter(Boolean).join(" ")}
+                  </InfoMark>
+                ) : null}
                 <InfoMark label="About incomplete trade history">
                   Trade has {row.history.fills.length.toLocaleString()} saved{" "}
                   {row.history.fills.length === 1 ? "fill" : "fills"}, but its

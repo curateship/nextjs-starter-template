@@ -41,6 +41,7 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
     homes: [
       join("server", "protocols", "hyperliquid"),
       join("server", "protocols", "aster"),
+      join("server", "protocols", "bnb"),
     ],
   },
   {
@@ -65,7 +66,8 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
  * door is exactly how a paid node or a key ends up in the wrong file.
  */
 const SOLANA_HOME = join("server", "protocols", "solana")
-const SOLANA_ADDRESSES = /api\.jup\.ag|mainnet-beta\.solana\.com|devnet\.solana\.com/
+const SOLANA_ADDRESSES =
+  /api\.jup\.ag|mainnet-beta\.solana\.com|devnet\.solana\.com/
 
 /**
  * Lighter ships a compiled signer rather than a package, so the fence around
@@ -97,6 +99,19 @@ const sources = walk(SRC).map((file) => ({
 }))
 
 describe("the protocol fence", () => {
+  it("keeps BNB node and service addresses inside its folder", () => {
+    const addresses =
+      /bsc-dataseed|publicnode\.com|kyberswap\.com|dexscreener\.com|geckoterminal\.com|gopluslabs\.io|tokens\.pancakeswap\.finance/
+    const offenders = sources
+      .filter(
+        ({ path }) => !path.startsWith(join("server", "protocols", "bnb") + sep)
+      )
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => addresses.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
   it("finds the source tree", () => {
     // A walker that quietly matched nothing would pass everything below.
     expect(sources.length).toBeGreaterThan(100)
@@ -138,7 +153,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))

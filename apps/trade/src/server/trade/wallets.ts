@@ -605,10 +605,14 @@ export async function loadWalletSummaries(
       }
       let refusal: string | null = null
       const figures = await entry.account
-        .fetch(wallet.network, wallet.address ?? "", () =>
-          credentialFor({
-            agentKeyEncrypted: cipherById.get(wallet.id) ?? null,
-          })
+        .fetch(
+          wallet.network,
+          wallet.address ?? "",
+          () =>
+            credentialFor({
+              agentKeyEncrypted: cipherById.get(wallet.id) ?? null,
+            }),
+          { userId, walletId: wallet.id }
         )
         .catch((error: unknown) => {
           const message = scrubbedMessage(error)

@@ -317,6 +317,25 @@ function chart(key: string) {
 }
 
 describe("the chart candle request", () => {
+  it("waits for BNB older history before showing the empty sentence", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({ candles: [] })
+    let finish!: (
+      answer: Awaited<ReturnType<typeof loadOlderCandlesFor>>
+    ) => void
+    vi.mocked(loadOlderCandlesFor).mockReturnValue(
+      new Promise((resolve) => { finish = resolve })
+    )
+    await act(async () =>
+      root.render(chart("bnb:mainnet:0x1111111111111111111111111111111111111111"))
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(1000))
+    expect(loadOlderCandlesFor).toHaveBeenCalledOnce()
+    expect(host.textContent).not.toContain("No candles here yet")
+    await act(async () => finish({ candles: [], source: null, partial: false }))
+    expect(host.textContent).toContain("No candles here yet")
+  })
+
   it("draws the opening candles and asks only for the store's older rows", async () => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))

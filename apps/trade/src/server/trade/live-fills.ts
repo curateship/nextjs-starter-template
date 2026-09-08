@@ -285,7 +285,8 @@ export async function sweepLiveFills(
       wallet.address,
       since > 0 ? Math.max(0, since - OVERLAP_MS) : 0,
       credential,
-      force ? "order" : "background"
+      force ? "order" : "background",
+      { userId, walletId: wallet.id }
     )
     await recordLiveFills(userId, wallet, fills)
   } catch (error) {
@@ -1116,6 +1117,22 @@ export async function loadLiveHistory(
     liquidation: row.liquidation,
     live: true,
   }))
+  for (const protocol of new Set(
+    raw.map((fill) => parseMarketKey(fill.marketKey)?.protocol)
+  )) {
+    if (!protocol) continue
+    const loadNotes = getProtocol(protocol).orders?.executionNotes
+    if (!loadNotes) continue
+    const matching = raw.filter(
+      (fill) => parseMarketKey(fill.marketKey)?.protocol === protocol
+    )
+    const notes = await loadNotes(
+      userId,
+      [...walletIds],
+      matching.map((fill) => fill.orderId)
+    )
+    for (const fill of matching) fill.executionNote = notes.get(fill.orderId)
+  }
   // Which of these a grid level made, before anything reads them. The arrows
   // and the Journal both ask, and a fill that arrived unstamped is read as a
   // ladder's. See `stampGridFills`.

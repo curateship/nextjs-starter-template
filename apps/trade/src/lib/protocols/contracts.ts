@@ -28,6 +28,7 @@ export type ProtocolId =
   | "lighter"
   | "dukascopy"
   | "solana"
+  | "bnb"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -156,6 +157,7 @@ export const KNOWN_PROTOCOLS = [
   "lighter",
   "dukascopy",
   "solana",
+  "bnb",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -173,6 +175,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   lighter: "Lighter",
   dukascopy: "Dukascopy",
   solana: "Solana",
+  bnb: "BNB Chain",
 }
 
 export function protocolLabel(id: ProtocolId): string {
@@ -227,7 +230,10 @@ export function marketSymbol(key: string): string {
   // the address shortened the way every other address here is shown. Every
   // caller that HAS the row — the list, the picker, the market header —
   // prints `row.symbol` and shows the real ticker.
-  if (ref.protocol === "solana" && ref.marketId.length > 12) {
+  if (
+    (ref.protocol === "solana" && ref.marketId.length > 12) ||
+    /^0x[0-9a-fA-F]{40}$/.test(ref.marketId)
+  ) {
     return `${ref.marketId.slice(0, 6)}…${ref.marketId.slice(-4)}`
   }
   return ref.marketId
@@ -240,6 +246,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   aster: "/admin/aster",
   lighter: "/admin/lighter",
   solana: "/admin/solana",
+  bnb: "/admin/bnb",
 }
 
 /** The chart address for a market whose protocol has a trading dashboard. */
@@ -328,6 +335,10 @@ export type MarketRow = {
   fundingHourly: number | null
   /** Open interest in dollars, or null where the exchange does not say. */
   openInterestUsd: number | null
+  /** Dollars available in the selected pool, when the provider reports it. */
+  liquidityUsd?: number | null
+  /** Selected pool contract, for chain candle reads. */
+  poolAddress?: string | null
   /**
    * A coin the venue itself warns about. Absent on an exchange that vets
    * every listing; set on an open network where anyone can mint a coin
@@ -545,6 +556,7 @@ export type WalletPortfolio = {
  * in `closedPnl` and nowhere else.
  */
 export type WalletOrderFill = {
+  executionNote?: string
   fillId: string
   orderId: string
   marketId: string
@@ -594,6 +606,8 @@ export type WalletOrderInfo = {
  * between the decrypt and the connector may look inside it.
  */
 export type OrderAuth = {
+  /** Server-verified owner for durable chain transaction records. */
+  owner?: { userId: string; walletId: string }
   agentKey: string
   /** The account this credential is allowed to trade for. */
   accountAddress?: string
@@ -635,6 +649,7 @@ export type PlaceOrderParams = {
  * short of the send.
  */
 export type SwapQuote = {
+  provider?: string
   /** Coins the swap would hand over, or take, at this moment. */
   sz: number
   /** Dollars the swap would take, or hand over. */
@@ -656,6 +671,7 @@ export type SwapQuote = {
  * into a success.
  */
 export type PlaceOrderOutcome = {
+  executionNote?: string
   status: "resting" | "filled"
   orderId: string | null
   avgPx: number | null

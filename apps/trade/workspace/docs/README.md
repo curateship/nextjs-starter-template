@@ -160,6 +160,15 @@ screen: anything not written there has not been agreed yet.
 
 ## exchanges/ — the venues
 
+- `bnb-chain.md` explains BNB Chain wallets, pool-based markets, search, risk
+  labels, ten-second screen prices, pool and borrowed charts, request limits
+  provider-refusal handling, wallet holdings, fee reserves and balance checks.
+  KyberSwap quotes, approvals, receipt recovery and transaction-storage migration
+  requirements are covered with the testing roadmap.
+  BNB refusal wording covers provider codes, fee certainty, pending and replaced
+  transactions, secret-text removal and controlled failure checks.
+  Recovery includes saved approval fees and keeps wallet validation errors separate.
+
 - `protocol-layer.md` — where the exchange lives in the code, one door per
   venue, and which venues push fills.
 - `connector-helpers.md` — the shared order, cache, public socket and private

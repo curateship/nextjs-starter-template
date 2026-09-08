@@ -99,8 +99,10 @@ const refreshPricesSchema = z.object({
   marketIds: z.array(z.string().trim().min(1).max(64)).min(1).max(500),
 })
 
-const refreshMarketPricesFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+// Hundreds of contract addresses exceed URL limits. The body also carries the
+// origin check required for writing recorded candle snapshots.
+const refreshMarketPricesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(refreshPricesSchema)
   .handler(
     async ({ data }): Promise<{ prices: Array<[string, number]> }> => {
@@ -125,7 +127,7 @@ const refreshMarketPricesFn = createServerFn({ method: "GET" })
         data.marketIds.slice(0, most)
       )
       const answer: Array<[string, number]> = [...prices]
-      // A venue with no candles of its own grows them here, from the prices
+      // A venue needing fallback bars grows them here, from the prices
       // the screen was already asking for. Only markets the venue really
       // lists are written, so a market id invented by a caller cannot leave
       // a row behind. A failed write must not blank the page: the chart is a

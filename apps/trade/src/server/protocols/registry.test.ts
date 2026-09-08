@@ -28,6 +28,7 @@ describe("the protocol registry", () => {
     ).toEqual([...KNOWN_PROTOCOLS].sort())
     expect(listProtocols().map((one) => one.label)).toContain("Aster")
     expect(listProtocols().map((one) => one.label)).toContain("Solana")
+    expect(listProtocols().map((one) => one.label)).toContain("BNB Chain")
   })
 
   it("carries the trading blocks exactly where the flags say they are", () => {
@@ -56,6 +57,36 @@ describe("the protocol registry", () => {
         )
       }
     }
+  })
+
+  it("offers BNB holdings and KyberSwap orders", async () => {
+    const entry = getProtocol("bnb")
+    expect(entry.livePrices).toBeUndefined()
+    expect(entry.networks).toEqual(["mainnet"])
+    expect(entry.capabilities).toMatchObject({
+      markets: true,
+      accounts: true,
+      orders: true,
+      ordersAreSwaps: true,
+      gridStop: "watched",
+    })
+    expect(entry.account?.profitPerSale).toBe(false)
+    expect(entry.orders?.quote).toBeTypeOf("function")
+    expect(entry.credentials?.form).toMatchObject({
+      secretIsAgentKey: false,
+      canMakeWallet: true,
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+    })
+    const made = entry.credentials!.make!()
+    await expect(
+      entry.agent!.verify(
+        "mainnet",
+        made.address,
+        entry.credentials!.pack(made)
+      )
+    ).resolves.toEqual({ validUntil: null })
+    expect(entry.markets.search).toBeTypeOf("function")
+    expect(entry.markets.recordsOwnBars).toBe(true)
   })
 
   it("reads a Solana wallet's holdings by address and swaps through Jupiter", () => {

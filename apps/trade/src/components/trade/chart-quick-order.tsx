@@ -659,18 +659,17 @@ export function ChartQuickOrder({
                 aria-live="polite"
               >
                 {shownQuote.state === "idle"
-                  ? "Type a size to see Jupiter's quote and route."
+                  ? "Type a size to see the swap quote and route."
                   : shownQuote.state === "asking"
-                    ? "Asking Jupiter…"
+                    ? "Getting a swap quote…"
                     : shownQuote.state === "failed"
                       ? shownQuote.message
-                      : (shownQuote.quote.refusal ??
-                        `Jupiter: ${shownQuote.quote.sz.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${market.symbol} for ${formatUsd(shownQuote.quote.usd)} at ${formatPrice(shownQuote.quote.price)}, price impact ${(shownQuote.quote.priceImpact * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })}%, via ${shownQuote.quote.route}.`)}
+                      : `${shownQuote.quote.provider ?? "Jupiter"}: ${shownQuote.quote.sz.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${market.symbol} for ${formatUsd(shownQuote.quote.usd)} at ${formatPrice(shownQuote.quote.price)}, price impact ${(shownQuote.quote.priceImpact * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })}%, via ${shownQuote.quote.route}.${shownQuote.quote.refusal ? ` ${shownQuote.quote.refusal}` : ""}`}
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
-                The chain holds no stop or exit. To get out at a price,
-                place a Sell at that level; it waits here and swaps when the
-                price reaches it.
+                The chain holds no stop or exit. To get out at a price, place a
+                Sell at that level; it waits here and swaps when the price
+                reaches it.
               </p>
             </div>
           ) : (

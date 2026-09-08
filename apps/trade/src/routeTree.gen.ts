@@ -43,6 +43,7 @@ import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminAsterRouteImport } from './routes/_authenticated/admin/aster'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
+import { Route as AuthenticatedAdminBnbRouteImport } from './routes/_authenticated/admin/bnb'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
@@ -263,6 +264,11 @@ const AuthenticatedAdminAutomationsRoute =
     path: '/automations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBnbRoute = AuthenticatedAdminBnbRouteImport.update({
+  id: '/bnb',
+  path: '/bnb',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminContactsRoute =
   AuthenticatedAdminContactsRouteImport.update({
     id: '/contacts',
@@ -569,6 +575,7 @@ export interface FileRoutesByFullPath {
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -649,6 +656,7 @@ export interface FileRoutesByTo {
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -733,6 +741,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/_authenticated/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -817,6 +826,7 @@ export interface FileRouteTypes {
     | '/admin/announcements'
     | '/admin/aster'
     | '/admin/automations'
+    | '/admin/bnb'
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
@@ -897,6 +907,7 @@ export interface FileRouteTypes {
     | '/admin/announcements'
     | '/admin/aster'
     | '/admin/automations'
+    | '/admin/bnb'
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
@@ -980,6 +991,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/aster'
     | '/_authenticated/admin/automations'
+    | '/_authenticated/admin/bnb'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
@@ -1297,6 +1309,13 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/admin/automations'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/bnb': {
+      id: '/_authenticated/admin/bnb'
+      path: '/bnb'
+      fullPath: '/admin/bnb'
+      preLoaderRoute: typeof AuthenticatedAdminBnbRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/contacts': {
@@ -1663,6 +1682,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAsterRoute: typeof AuthenticatedAdminAsterRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
+  AuthenticatedAdminBnbRoute: typeof AuthenticatedAdminBnbRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
@@ -1706,6 +1726,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAsterRoute: AuthenticatedAdminAsterRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
+  AuthenticatedAdminBnbRoute: AuthenticatedAdminBnbRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,

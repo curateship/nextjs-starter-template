@@ -5,6 +5,7 @@ import {
   type MarketKey,
 } from "@/lib/protocols/contracts"
 import { dukascopyInstrumentFor } from "@/lib/protocols/dukascopy/instruments"
+import { bnbBorrowedCoin } from "@/lib/protocols/bnb/history"
 import { solanaBorrowedCoin } from "@/lib/protocols/solana/history"
 
 /**
@@ -61,6 +62,11 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
       )
     case "phemex":
       return coinSource(ref.marketId.replace(/USDT$/, ""))
+    case "bnb": {
+      if (ref.network !== "mainnet") return null
+      const coin = bnbBorrowedCoin(ref.marketId)
+      return coin === null ? null : coinSource(coin)
+    }
     case "solana":
       // **By mint address, never by name.** Anyone can mint a coin on Solana
       // and call it BTC, so the naming rule every other venue uses would

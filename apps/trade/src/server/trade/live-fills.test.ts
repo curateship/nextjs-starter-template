@@ -138,7 +138,8 @@ describe("how often a wallet's history is read", () => {
       wallet.address,
       0,
       expect.any(Function),
-      "order"
+      "order",
+      { userId: user.id, walletId: wallet.id }
     )
     const saved = await database
       .select()

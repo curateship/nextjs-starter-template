@@ -36,7 +36,7 @@ is how they are carried out.
 ## A venue with no candles at all
 
 Solana publishes none, and neither does Jupiter nor the chain. Its registry
-entry says so once, with `recordsOwnBars`, and three things follow from that
+entry enables recorded fallback bars with `recordsOwnBars`, and three things follow from that
 one statement.
 
 - **Borrowed by mint address, never by name.** Every other venue matches by
@@ -198,3 +198,23 @@ one statement.
 - The run maps every key to its source before it reads, so a backtest saved
   with venue keys before 2 Sep 2026 reruns untouched.
 - Stocks have no funding on Dukascopy, and the result says so.
+
+
+## Pool candles with recorded fallback
+
+BNB enables both `storesVenueCandles` and `recordsOwnBars`. Its recent chart
+slice fills missing coverage from the pool API and reads the store. A market
+without a borrowed source also fills older pool history through the same
+shared fill used by borrowed charts. Solana has no `storesVenueCandles`
+capability and retains its existing read-only first paint from stored bars.
+
+For a venue storing pool candles, completed provider bars replace recorded
+snapshots at the same timestamp. Other sources keep the existing first-write
+behavior. Empty pool answers leave recorded minutes available. Failed older
+fills return stored rows with `partial: true`, so the chart can offer a retry.
+A provider retention floor limits new requests without discarding older rows
+already stored. Only closed bars are fetched; screen recording still writes
+the minute currently forming and supplies no volume.
+
+`exchanges/bnb-chain.md` describes pool selection, borrowing checks, timeframe
+costs and the testing road map. The BNB backtest exclusion remains in place.

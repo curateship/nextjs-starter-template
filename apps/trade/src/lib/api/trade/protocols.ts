@@ -284,6 +284,40 @@ export const PROTOCOL_DESCRIPTIONS = [
         "USDC and a little SOL to it.",
     },
   },
+  {
+    id: "bnb",
+    label: "BNB Chain",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      ordersAreSwaps: true,
+      gridStop: "watched",
+      changeLeverage: {
+        can: false,
+        because:
+          "BNB Chain is spot only: a coin is bought and owned outright, so there is no leverage to change.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "BNB Chain is spot only: a coin is bought and owned outright, so there is no margin behind it.",
+      },
+    },
+    credentialForm: {
+      addressLabel: "Wallet address",
+      addressHint: "0x followed by 40 hexadecimal characters",
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+      secretLabel: "Private key",
+      needsPassphrase: false,
+      secretIsAgentKey: false,
+      canMakeWallet: true,
+      keyHelp:
+        "This private key holds the coins in your BNB Chain wallet. Keep in this wallet only what you mean to trade. Paste your wallet's private key, or make a new wallet below. BNB Chain uses USDT for purchases and BNB for network fees.",
+    },
+  },
 ] as const satisfies readonly ProtocolDescription[]
 
 const byId = new Map(

@@ -18,6 +18,13 @@ import { tradeCandles } from "@/server/trade/schema"
 const venue = vi.hoisted(() => ({
   candles: vi.fn(),
   source: vi.fn(),
+  history: vi.fn(),
+  storesVenueCandles: false,
+}))
+
+// Keep asynchronous diagnostic writes outside the candle database lifecycle.
+vi.mock("@/server/trade/engine-errors", () => ({
+  recordEngineWarning: vi.fn(),
 }))
 
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
@@ -28,6 +35,10 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
       // The venue publishes none, which is the whole premise.
       recordsOwnBars: true,
       candles: venue.candles,
+      history: venue.history,
+      storesVenueCandles: venue.storesVenueCandles,
+      intervalMs: () => 60_000,
+      historyFloor: () => Date.now() - 2 * 60_000,
     },
   }),
 }))
@@ -37,7 +48,8 @@ vi.mock("@/server/trade/history-source", async (importOriginal) => ({
   resolveHistorySource: (key: string) => venue.source(key),
 }))
 
-const { loadProtocolCandles } = await import("@/server/trade/candles")
+const { loadProtocolCandles, loadOlderCandles } =
+  await import("@/server/trade/candles")
 
 const MARKET = "solana:mainnet:CateMint1111111111111111111111111111111111"
 const BORROWED = "binance:mainnet:JUP"
@@ -51,6 +63,8 @@ beforeEach(async () => {
   client = test.client
   database = test.db
   setDbForTests(database)
+  venue.storesVenueCandles = false
+  venue.history.mockReset().mockResolvedValue([])
   venue.candles.mockReset()
   venue.candles.mockRejectedValue(new Error("the venue must never be asked"))
   venue.source.mockReset()
@@ -114,5 +128,81 @@ describe("the first paint on a venue with no candles of its own", () => {
     const bars = await loadProtocolCandles(MARKET, "1m")
     expect(bars).toEqual([])
     expect(venue.candles).not.toHaveBeenCalled()
+  })
+})
+
+describe("a recording venue with a candle API", () => {
+  const bnb = "bnb:mainnet:0x1111111111111111111111111111111111111111"
+  it("prefers pool candles over recorded prices and reuses stored coverage", async () => {
+    venue.storesVenueCandles = true
+    await seed(bnb, 3)
+    const openTime = Math.floor(Date.now() / MINUTE) * MINUTE - MINUTE
+    const real = { openTime, open: 2, high: 4, low: 1, close: 3, volume: 100 }
+    venue.history.mockResolvedValue([real])
+    const first = await loadProtocolCandles(bnb, "1m")
+    expect(first.find((bar) => bar.openTime === openTime)).toEqual(real)
+    expect(venue.history).toHaveBeenCalledTimes(1)
+    expect(await loadProtocolCandles(bnb, "1m")).toEqual(first)
+    expect(venue.history).toHaveBeenCalledTimes(1)
+  })
+  it("falls back to recorded rows when a pool has no history", async () => {
+    venue.storesVenueCandles = true
+    await seed(bnb, 3)
+    expect(await loadProtocolCandles(bnb, "1m")).toHaveLength(2)
+    const older = await loadOlderCandles(bnb, "1m")
+    expect(older.candles).toHaveLength(2)
+    expect(older.source).toBeNull()
+    expect(older.partial).toBe(false)
+  })
+  it("keeps stored rows and reports incomplete older history after a provider failure", async () => {
+    venue.storesVenueCandles = true
+    await seed(bnb, 3)
+    venue.history.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+    const older = await loadOlderCandles(bnb, "1m")
+    expect(older.candles).toHaveLength(2)
+    expect(older.partial).toBe(true)
+    expect(older.source).toBeNull()
+  })
+  it("returns an empty completed answer when neither pool nor recorded bars exist", async () => {
+    venue.storesVenueCandles = true
+    expect(await loadProtocolCandles(bnb, "1m")).toEqual([])
+    expect((await loadOlderCandles(bnb, "1m")).candles).toEqual([])
+  })
+  it("paints stored pool rows even when refreshing their coverage is refused", async () => {
+    venue.storesVenueCandles = true
+    await seed(bnb, 3)
+    venue.history.mockRejectedValue(
+      new Error(
+        "EXCHANGE_BUSY:GeckoTerminal refused the retry. Try again shortly."
+      )
+    )
+    expect(await loadProtocolCandles(bnb, "1m")).toHaveLength(2)
+  })
+  it("lets borrowed history load when GeckoTerminal refuses an empty first paint", async () => {
+    venue.storesVenueCandles = true
+    venue.source.mockResolvedValue(BORROWED)
+    venue.history.mockRejectedValue(new Error("EXCHANGE_BUSY:GeckoTerminal"))
+    expect(await loadProtocolCandles(bnb, "1m")).toEqual([])
+    await seed(BORROWED, 3)
+    expect(await loadProtocolCandles(bnb, "1m")).toHaveLength(2)
+  })
+  it("keeps a cold unborrowed failure explicit and formats its service detail separately", async () => {
+    venue.storesVenueCandles = true
+    venue.history.mockRejectedValue(
+      new Error(
+        "EXCHANGE_BUSY:GeckoTerminal refused the retry. Try again shortly."
+      )
+    )
+    await expect(loadProtocolCandles(bnb, "1m")).rejects.toThrow(
+      "EXCHANGE_BUSY:Mock — GeckoTerminal refused the retry."
+    )
+  })
+  it("shares concurrent pool-history fills", async () => {
+    venue.storesVenueCandles = true
+    await Promise.all([
+      loadOlderCandles(bnb, "1m"),
+      loadOlderCandles(bnb, "1m"),
+    ])
+    expect(venue.history).toHaveBeenCalledTimes(1)
   })
 })

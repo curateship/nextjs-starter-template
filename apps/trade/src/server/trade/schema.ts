@@ -497,9 +497,9 @@ export const tradeLiveFills = pgTable(
   {
     ...paperOwner(),
     /** The exchange's trade id — unique per wallet, and never ours to make up. */
-    fillId: varchar("fill_id", { length: 40 }).notNull(),
+    fillId: varchar("fill_id", { length: 128 }).notNull(),
     /** The order it came from, which is how a stop is told from a close. */
-    orderId: varchar("order_id", { length: 40 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
     side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
     px: doublePrecision("px").notNull(),
@@ -552,7 +552,7 @@ export const tradeGridOrderRungs = pgTable(
   "trade_grid_order_rungs",
   {
     ...paperOwner(),
-    orderId: varchar("order_id", { length: 40 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
     ladderId: varchar("ladder_id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
     direction: varchar("direction", { length: 5 })
@@ -600,7 +600,7 @@ export const tradeLiveTriggers = pgTable(
   {
     ...paperOwner(),
     /** The exchange's order id for the waiting stop or target. */
-    orderId: varchar("order_id", { length: 40 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
     /**
      * stop | target | none — the last of those meaning "asked, and it was an
@@ -833,7 +833,7 @@ export const tradePaperJournal = pgTable(
      * made it, through `tradeFlowRunOrders`, exactly as a real fill's exchange
      * order id does.
      */
-    orderId: varchar("order_id", { length: 40 }),
+    orderId: varchar("order_id", { length: 128 }),
     /** Binned from the list. The row still counts towards the wallet's cash. */
     hidden: boolean("hidden").notNull().default(false),
     reason: varchar("reason", { length: 16 })
@@ -1547,7 +1547,7 @@ export const tradeFlowRunOrders = pgTable(
   {
     ...paperOwner(),
     /** The exchange's id, or the practice engine's own. */
-    orderId: varchar("order_id", { length: 40 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
     flowRunId: varchar("flow_run_id", { length: 36 }).notNull(),
     /** The ladder or signal trade it came from, for reading the record back. */
     ladderId: varchar("ladder_id", { length: 36 }).notNull(),
@@ -1619,3 +1619,47 @@ export const tradeGridLineStops = pgTable("trade_grid_line_stops", {
   check("trade_grid_line_stops_state_check", sql`${table.state} IN ('watching', 'pending', 'done', 'released')`),
   index("trade_grid_line_stops_drawing_idx").on(table.userId, table.drawingId).where(sql`${table.state} IN ('watching', 'pending')`),
 ])
+
+/** Hashes commit before broadcast, outside the caller's wallet transaction.
+ * Reference the user only: a wallet FK would wait on that caller's FOR UPDATE lock.
+ */
+export const tradeBnbTransactions = pgTable(
+  "trade_bnb_transactions",
+  {
+    hash: varchar("hash", { length: 66 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    address: varchar("address", { length: 42 }).notNull(),
+    marketId: varchar("market_id", { length: 42 }).notNull(),
+    kind: varchar("kind", { length: 8 }).$type<"approval" | "swap">().notNull(),
+    state: varchar("state", { length: 10 })
+      .$type<"pending" | "confirmed" | "failed">()
+      .notNull(),
+    note: text("note"),
+    approvals: jsonb("approvals")
+      .$type<{ hash: string; feeBnb: number }[]>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "trade_bnb_transactions_kind_check",
+      sql`${table.kind} IN ('approval', 'swap')`
+    ),
+    check(
+      "trade_bnb_transactions_state_check",
+      sql`${table.state} IN ('pending', 'confirmed', 'failed')`
+    ),
+    index("trade_bnb_transactions_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.state
+    ),
+    index("trade_bnb_transactions_address_idx").on(table.address, table.state),
+  ]
+)

@@ -31,6 +31,7 @@ describe("market keys", () => {
     // Dukascopy's lowercase ids carry the quote currency and are translated.
     expect(marketSymbol("dukascopy:mainnet:tslaususd")).toBe("TSLA")
     // A key that cannot be read still says something rather than nothing.
+    expect(marketSymbol(`bnb:mainnet:0x${"a".repeat(40)}`)).toBe("0xaaaa…aaaa")
     expect(marketSymbol("not-a-market")).toBe("not-a-market")
   })
 
