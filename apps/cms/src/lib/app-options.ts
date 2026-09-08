@@ -1,4 +1,4 @@
-import type { ComponentType } from "react"
+import type { ComponentType, ReactNode } from "react"
 
 import { appOptions } from "@/app/options"
 import type {
@@ -55,8 +55,22 @@ export type AppOptions = {
   notifications?: NotificationOptions
 }
 
-/** What the shell hands the app-owned piece of the signed-in header. */
+/** What the shell hands an app-owned control in the signed-in header. */
 export type AppHeaderActionProps = { role: string }
+
+/** What the shell hands app-owned navigation on the header's left side. */
+export type AppHeaderLeftContentProps = {
+  role: string
+  fallback: ReactNode
+}
+
+export type AppHeaderLeftContent = {
+  /** Unset means admins and members may both see it. */
+  roles?: readonly string[]
+  component: () => Promise<{
+    default: ComponentType<AppHeaderLeftContentProps>
+  }>
+}
 
 /**
  * One app-owned item in the signed-in header's right side.
@@ -78,6 +92,8 @@ export type AppHeaderAction = {
 }
 
 type HeaderOptions = {
+  /** App-owned left navigation. Render the supplied fallback when empty. */
+  leftContent?: AppHeaderLeftContent
   /**
    * A single app-owned control in the draggable top-right menu. Unset leaves
    * the signed-in header and its settings exactly as they were.
@@ -449,6 +465,16 @@ export function landingPageOverride(
 /** The app's starting public look, or the shell's when the app says nothing. */
 export function appPublicTheme(options: AppOptions = appOptions): PublicTheme {
   return normalizePublicTheme(options.publicTheme)
+}
+
+/** Left navigation for this role, or null to keep the shell's usual links. */
+export function appHeaderLeftContentForRole(
+  role: string,
+  options: AppOptions = appOptions
+): AppHeaderLeftContent | null {
+  const action = options.header?.leftContent
+  if (!action || (action.roles && !action.roles.includes(role))) return null
+  return action
 }
 
 /** The app's one control on the signed-in header, or none. */

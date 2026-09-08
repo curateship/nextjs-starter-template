@@ -12,6 +12,7 @@ import {
 import {
   activateFeaturedSession,
   activeFeaturedForListings,
+  featuredPurchaseState,
   createFeaturedCheckout,
   deleteFeaturedPlan,
   featuredImpactForListings,
@@ -19,6 +20,7 @@ import {
   prepareFeaturedListingsForDeletion,
   saveFeaturedPlan,
 } from "@/server/directory/featured"
+import { listingsOwnedBy } from "@/server/directory/claims"
 import { readPublicBrowse } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
@@ -141,6 +143,36 @@ function checkoutStripe() {
 }
 
 describe("featured placement", () => {
+  it("loads owner card status and end dates consistently with the purchase popover", async () => {
+    const { site, user, listing, claim, plan } = await ownedListing()
+    const timestamp = now()
+    const endsAt = new Date(timestamp.getTime() + 86_400_000)
+    const id = uuid()
+    expect((await listingsOwnedBy(user.id, database))[0].featured).toEqual({ active: false, endsAt: null })
+    await database.insert(directoryFeaturedEntitlements).values({
+      id, workspaceId: site.id, listingId: listing.id, claimId: claim.id,
+      buyerUserId: user.id, planId: plan.id, stripeSessionId: "cs_owner_card",
+      amountTotal: 2500, currency: "usd", status: "active",
+      startsAt: new Date(timestamp.getTime() - 1000), endsAt,
+      createdAt: timestamp, updatedAt: timestamp,
+    })
+    const [card] = await listingsOwnedBy(user.id, database)
+    expect(card.featured.active).toBe(true)
+    expect(new Date(card.featured.endsAt!).getTime()).toBe(endsAt.getTime())
+    expect((await featuredPurchaseState(user.id, listing.id, database)).active).toBe(true)
+    const stranger = await insertUser(database)
+    expect(await listingsOwnedBy(stranger.id, database)).toEqual([])
+    for (const changes of [
+      { startsAt: new Date(endsAt.getTime() - 1000) },
+      { startsAt: timestamp, status: "revoked" as const },
+      { status: "active" as const, startsAt: new Date(timestamp.getTime() - 2000), endsAt: new Date(timestamp.getTime() - 1000) },
+    ]) {
+      await database.update(directoryFeaturedEntitlements).set(changes).where(eq(directoryFeaturedEntitlements.id, id))
+      expect((await listingsOwnedBy(user.id, database))[0].featured).toEqual({ active: false, endsAt: null })
+      expect((await featuredPurchaseState(user.id, listing.id, database)).active).toBe(false)
+    }
+  })
+
   it("reuses one Stripe session when checkout starts overlap", async () => {
     const { user, listing, plan } = await ownedListing()
     const fakeStripe = checkoutStripe()

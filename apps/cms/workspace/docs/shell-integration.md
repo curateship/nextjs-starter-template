@@ -19,6 +19,16 @@ existing colours converted by migration `0075_custom_shell_public_brand_color`.
 The shell's site-branding contract is documented once in the repo's
 `docs/shell/shell-and-apps.md`.
 
+Platform Navigation combines the sidebar and top right menu editors. Top left
+max items sits inside the sidebar card and keeps the existing saved limit.
+Member Navigation groups the member editors separately. Sidebar sections use
+16px gaps to match their card inset, and menu actions stay inside their cards.
+CMS-specific settings remain under This app.
+
+The shell's optional app-owned left header content keeps the standard sidebar
+links as its fallback. CMS leaves this option unset. Worker builds expand the
+page registry so CMS's page declarations remain available outside Vite.
+
 ## Applying updates
 
 Copy shell-owned files from Custom Shell. Keep CMS's `src/app/`, directory

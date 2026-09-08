@@ -14,6 +14,41 @@
 - Navigation uses in-app routing, so moving between pages does not reload the
   whole document.
 
+## Featured status on My listings
+
+My listings loads each owner's featured status with the card data. The existing
+placement button says "Featured now" immediately for an active placement and
+"Feature this listing" otherwise. Opening the popover is still how owners see
+purchase options.
+
+The loader includes the active placement's end date. A placement counts only
+within its start and end dates, with active status and an approved claim that
+matches its buyer and listing. The lookup stays within the listing's site.
+Expired, future and revoked placements do not count. Multiple qualifying
+placements use the latest end date without duplicating the card.
+
+When the popover finishes loading, the button and popover both use the returned
+status. A failed load keeps the known card status and offers Try again. New
+route data resets the popover when the loader's featured status changes.
+
+To check the owner card:
+
+1. Sign in as an owner with one currently featured published listing and one
+   without a placement. Open My listings and check both button labels before
+   opening either popover.
+2. Open each popover. Its message should agree with its button. Close and reopen
+   the popover, then reload the page and check the labels again.
+3. Repeat at 390px in dark theme. Check that the controls fit and keyboard focus
+   reaches the placement button. Escape should close the popover.
+4. Check future, expired and revoked placements. None should say "Featured now".
+5. Block the purchase-state request in browser developer tools. The button should
+   retain its known status while the popover offers Try again. Unblock the
+   request and retry.
+
+Database regression tests compare the owner loader with the purchase-state
+query. Component tests cover immediate labels, refreshed status in both
+directions, and load failure with retry.
+
 ## Featured checkout deletion safety
 
 - An unresolved Stripe checkout protects its listing from deletion.

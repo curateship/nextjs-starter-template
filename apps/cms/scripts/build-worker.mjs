@@ -2,6 +2,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { build } from "esbuild"
+import { workerPageRegistry } from "./worker-page-registry.mjs"
 
 /**
  * Builds the background worker and its health check into files Node can run.
@@ -31,6 +32,7 @@ import { build } from "esbuild"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 await build({
+  plugins: [workerPageRegistry(root)],
   entryPoints: [
     path.join(root, "worker/src/worker.ts"),
     path.join(root, "worker/src/health.ts"),
