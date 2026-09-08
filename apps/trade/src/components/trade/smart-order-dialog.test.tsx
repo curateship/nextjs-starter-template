@@ -74,9 +74,57 @@ afterEach(async () => {
   await act(async () => root.unmount())
   host.remove()
   vi.clearAllMocks()
+  rememberDcaPrefs(defaultDcaParams())
 })
 
 describe("the DCA ladder window", () => {
+  it("places the last-rung percentage changed by the chart", async () => {
+    rememberDcaPrefs({
+      ...defaultDcaParams(),
+      anchor: "click",
+      stopLoss: { pct: 2, reference: "lastRung", base: null },
+    })
+    let preview: DcaPreview | null = null
+    const onPlace = vi.fn(async (_input: unknown) => false)
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 100, x: 20, y: 20 }}
+            market={market}
+            equity={10000}
+            free={10000}
+            interval="15m"
+            busy={false}
+            onPreview={(next) => {
+              preview = next
+            }}
+            onPlace={onPlace}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+    )
+    expect(host.textContent).toContain("Below last rung")
+    expect(host.querySelector("#smart-sl-pct")).not.toBeNull()
+    const last = (preview as DcaPreview | null)!.rungs.at(-1)!.px
+    await act(async () =>
+      (preview as DcaPreview | null)?.onMoveStop?.(last * 0.95)
+    )
+    expect(host.querySelector<HTMLInputElement>("#smart-sl-pct")?.value).toBe(
+      "5"
+    )
+    await act(async () =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.startsWith("Place"))
+        ?.click()
+    )
+    expect(onPlace.mock.calls[0]?.[0]).toMatchObject({
+      params: { stopLoss: { reference: "lastRung", pct: 5, base: null } },
+    })
+    expect((preview as DcaPreview | null)?.stopPct).toBe(5)
+  })
+
   it("keeps every rung's share of a resized compounded drop", () => {
     const resized = resizedDcaDeviations([5, 8, 11], 100, 77.786, 60)
     expect(resized).not.toBeNull()
@@ -137,7 +185,9 @@ describe("the DCA ladder window", () => {
     await act(async () => (preview as DcaPreview | null)?.onMove(115))
     expect((preview as DcaPreview | null)?.anchorPx).toBe(115)
 
-    const place = host.querySelector<HTMLButtonElement>("button.w-full")
+    const place = Array.from(
+      host.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent?.startsWith("Place"))
     expect(place?.textContent).toContain("Place")
     await act(async () => place?.click())
     expect(onPlace).toHaveBeenCalledWith(

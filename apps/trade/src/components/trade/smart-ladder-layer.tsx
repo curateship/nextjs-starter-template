@@ -14,6 +14,8 @@ import {
   exitLadderPlannedSz,
   ladderExitLevels,
   ladderShapeMovable,
+  lastRungStopPx,
+  lastRungStopPct,
 } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { TradeOrder } from "@/lib/trade/paper"
@@ -117,6 +119,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   onReshapeLadder?: (
     ladder: SmartLadder,
     shape:
+      | { stopPx: number }
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }
@@ -177,7 +180,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
 })
 
 type PreviewDrag = {
-  kind: "move" | "resize" | "exit"
+  kind: "move" | "resize" | "exit" | "stop"
   rungIndex: number
   pointerPx: number
 }
@@ -216,7 +219,8 @@ function PreviewLines({
 
   const shownRungs = React.useMemo(() => {
     if (!dragging) return preview.rungs
-    if (dragging.kind === "exit") return preview.rungs
+    if (dragging.kind === "exit" || dragging.kind === "stop")
+      return preview.rungs
     if (dragging.kind === "move") {
       const grabbed = preview.rungs[dragging.rungIndex]
       if (!grabbed || !(grabbed.px > 0) || !(dragging.pointerPx > 0)) {
@@ -334,7 +338,16 @@ function PreviewLines({
         }
         setDragging({ kind, rungIndex, pointerPx: px })
         let result: void | Promise<boolean>
-        if (kind === "exit") {
+        if (kind === "stop") {
+          if (
+            !preview.onMoveStop ||
+            lastRungStopPct(preview.rungs, px) === null
+          ) {
+            setDragging(null)
+            return
+          }
+          result = preview.onMoveStop(px)
+        } else if (kind === "exit") {
           if (
             !preview.onMoveExit ||
             exitLadderGapPctForPrice(
@@ -374,10 +387,28 @@ function PreviewLines({
     }
 
   const controls = tool ? "none" : "auto"
+  const stopPx =
+    dragging?.kind === "stop" &&
+    lastRungStopPct(shownRungs, dragging.pointerPx) !== null
+      ? dragging.pointerPx
+      : lastRungStopPx(shownRungs, preview.stopPct ?? 0)
+  const stopPnl =
+    stopPx === null
+      ? 0
+      : shownRungs.reduce(
+          (total, rung) =>
+            total + (stopPx - rung.px) * (rung.dollars / rung.px),
+          0
+        )
+  const stopY = stopPx === null ? null : yFor(stopPx)
   const deepestIndex = shownRungs.length - 1
   const summaryY =
     summary && chartHeight !== undefined
-      ? ladderSummaryY(shownRungs, yFor, chartHeight)
+      ? ladderSummaryY(
+          stopPx === null ? shownRungs : [...shownRungs, { px: stopPx }],
+          yFor,
+          chartHeight
+        )
       : null
 
   return (
@@ -446,6 +477,40 @@ function PreviewLines({
           </div>
         )
       })}
+
+      {stopY !== null ? (
+        <div
+          data-dca-stop
+          className="absolute inset-x-0"
+          style={{ top: stopY }}
+        >
+          <div
+            className="border-t border-dashed"
+            style={{ borderColor: colors.down }}
+          />
+          <span
+            className={TAG_CLASS}
+            style={{
+              borderColor: colors.down,
+              color: colors.down,
+              pointerEvents: controls,
+            }}
+            data-order-frame-control
+          >
+            <button
+              type="button"
+              disabled={!preview.onMoveStop}
+              className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              aria-label="Move DCA stop loss"
+              title={`Combined loss if every rung fills, before fees. Stop at ${formatPrice(stopPx!)}. Drag to move the stop.`}
+              onPointerDown={startDrag("stop", deepestIndex)}
+            >
+              <GripVerticalIcon className="size-3" />
+              Stop loss · {formatSignedUsd(stopPnl)}
+            </button>
+          </span>
+        </div>
+      ) : null}
 
       {shownExitLevels.map((px, index) => {
         const y = yFor(px)
@@ -540,6 +605,7 @@ function LadderLines({
   onReshapeLadder?: (
     ladder: SmartLadder,
     shape:
+      | { stopPx: number }
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }
@@ -621,6 +687,10 @@ function LadderLines({
         <PreviewLines
           preview={{
             anchorPx: plan.anchorPx,
+            stopPct:
+              plan.stopLoss?.mode === "lastRung" ? plan.stopLoss.pct : null,
+            onMoveStop: (stopPx) =>
+              onReshapeLadder?.(ladder, { stopPx }) ?? false,
             rungs: plan.rungs.map((rung) => ({
               px: rung.px,
               dollars: rung.px * rung.sz,

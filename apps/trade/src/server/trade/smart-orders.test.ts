@@ -1688,6 +1688,44 @@ describe("the ladder at work", () => {
     expect(held.tpPx).toBeCloseTo(held.entryPx * 1.02, 9)
   })
 
+  it("keeps a last-rung stop below every buy and closes the ladder when hit", async () => {
+    await place({ stopLoss: { pct: 2, reference: "lastRung", base: null } })
+    await backdate()
+    const last = (await onlyLadder()).plan.rungs.at(-1)!.px
+    await dipTo(95)
+    expect((await positions())[0].slPx).toBeCloseTo(last * 0.98, 9)
+    expect((await onlyLadder()).plan.rungs.every((rung) => !rung.dead)).toBe(
+      true
+    )
+    await dipTo(87.4)
+    expect((await positions())[0].slPx).toBeCloseTo(last * 0.98, 9)
+    await dipTo(last * 0.97)
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyLadder()).status).toBe("done")
+    expect((await journal()).map((row) => row.reason)).toContain("stop_loss")
+  })
+
+  it("saves a last-rung stop drag before buying and honors a position stop drag after buying", async () => {
+    await place({ stopLoss: { pct: 2, reference: "lastRung", base: null } })
+    const ladder = await onlyLadder()
+    const moved = await reshapeLadder(userId, wallet, {
+      ladderId: ladder.id,
+      stopPx: 80,
+    })
+    expect(moved.ladder.plan.stopLoss?.mode).toBe("lastRung")
+    await backdate()
+    await dipTo(95)
+    expect((await positions())[0].slPx).toBeCloseTo(80, 9)
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [],
+      slPx: 82,
+    })
+    await dipTo(87.4)
+    expect((await positions())[0].slPx).toBe(82)
+    expect((await onlyLadder()).plan.stopLoss?.mode).toBe("fixed")
+  })
+
   it("keeps the stop under the average, kills rungs beneath it, and ends the ladder when it fires", async () => {
     await place({ stopLoss: { pct: 1, base: null } })
     await backdate()

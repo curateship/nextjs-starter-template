@@ -369,6 +369,7 @@ export const dcaParamsSchema = z.object({
        * base arrives" while `base` below is switched on.
        */
       pct: z.number().positive().max(100),
+      reference: z.enum(["average", "lastRung"]).optional(),
       /**
        * Rest the stop under the confirmed 4h base instead, once one has
        * confirmed below the first buy. The percent above stands until then, so
@@ -376,6 +377,14 @@ export const dcaParamsSchema = z.object({
        */
       base: dcaBaseStopSchema.nullable().default(null),
     })
+    .refine(
+      (stop) =>
+        stop.reference !== "lastRung" || (stop.pct < 100 && stop.base === null),
+      {
+        message:
+          "A last-rung stop needs a percentage below 100 and no base rule.",
+      }
+    )
     .nullable(),
 })
 
@@ -690,8 +699,8 @@ const ladderBaseStopSchema = z.object({
 type LadderBaseStop = z.infer<typeof ladderBaseStopSchema>
 
 const ladderStopLossSchema = z.object({
-  /** "percent" follows the average; "fixed" is wherever it was put by hand. */
-  mode: z.enum(["percent", "fixed"]),
+  /** Follow the average or last rung, or keep a price moved by hand. */
+  mode: z.enum(["percent", "lastRung", "fixed"]),
   pct: z.number().positive().max(100).nullable(),
   /**
    * The base rule, or null for a plain percent stop. A ladder placed before
@@ -960,6 +969,9 @@ export function dcaLadderSettingsFromPlan(
       ? null
       : {
           pct: plan.stopLoss.pct ?? DEFAULT_DCA_STOP_LOSS_PCT,
+          ...(plan.stopLoss.mode === "lastRung"
+            ? { reference: "lastRung" as const }
+            : {}),
           base: plan.stopLoss.base ? { ...plan.stopLoss.base } : null,
         }
 
@@ -982,6 +994,7 @@ export function dcaLadderSettingsFromPlan(
 }
 
 export type LadderShapeChange =
+  | { stopPx: number }
   | { anchorPx: number; deepestPx?: never }
   | { anchorPx?: never; deepestPx: number }
   | {
@@ -1046,6 +1059,13 @@ export function reshapeLadderPlan(
 ): LadderPlan {
   if ("exitPx" in change) throw new Error("SMART_EXIT_GAP")
   if (!ladderShapeMovable(plan)) throw new Error("SMART_LADDER_STARTED")
+  if ("stopPx" in change) {
+    const pct = lastRungStopPct(plan.rungs, roundPx(change.stopPx))
+    if (plan.stopLoss?.mode !== "lastRung" || pct === null) {
+      throw new Error("SMART_LADDER_RANGE")
+    }
+    return { ...plan, stopLoss: { ...plan.stopLoss, pct }, aimedSlPx: null }
+  }
 
   const deepest = plan.rungs.at(-1)
   if (!deepest) throw new Error("SMART_LADDER_RANGE")
@@ -1177,7 +1197,8 @@ export function reshapeLadderSettingsPlan(
       : null,
     stopLoss: checked.stopLoss
       ? {
-          mode: "percent",
+          mode:
+            checked.stopLoss.reference === "lastRung" ? "lastRung" : "percent",
           pct: checked.stopLoss.pct,
           base: ladderBaseStopOf(checked.stopLoss.base),
         }
@@ -1411,4 +1432,24 @@ export function rungBudget(
   rung: Pick<LadderRungState, "px" | "sz" | "budget">
 ): number {
   return rung.budget > 0 ? rung.budget : rung.px * rung.sz
+}
+
+/** A last-rung stop keeps the same price as earlier rungs fill. */
+export function lastRungStopPx(
+  rungs: readonly { px: number }[],
+  pct: number
+): number | null {
+  const last = rungs.at(-1)?.px
+  return last && Number.isFinite(pct) && pct > 0 && pct < 100
+    ? last * (1 - pct / 100)
+    : null
+}
+
+export function lastRungStopPct(
+  rungs: readonly { px: number }[],
+  px: number
+): number | null {
+  const last = rungs.at(-1)?.px
+  if (!last || !Number.isFinite(px) || px <= 0 || px >= last) return null
+  return (1 - px / last) * 100
 }

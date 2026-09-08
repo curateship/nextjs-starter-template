@@ -212,7 +212,7 @@ export async function updateLadderExitsPlan(
     : null
   plan.stopLoss = input.stopLoss
     ? {
-        mode: "percent",
+        mode: input.stopLoss.reference === "lastRung" ? "lastRung" : "percent",
         pct: input.stopLoss.pct,
         base: ladderBaseStopOf(input.stopLoss.base),
       }

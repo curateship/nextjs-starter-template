@@ -196,6 +196,35 @@ Placing a ladder sends no order to a live exchange. The venue receives the
 chosen borrowing when the first rung reaches its price, so no exchange has a
 placement-time borrowing setting to change or undo.
 
+## A stop below the last rung
+
+The DCA Stop loss card has a **Measure from** choice. **Average buy** keeps
+the existing behavior. **Below last rung** measures the percentage below the
+deepest buy rung, including while only the first rung holds coins. A last rung
+at $100 with a 2% stop puts the stop at $98. The percentage must be above zero
+and below 100. This choice does not use the confirmed-base rule.
+
+- **Stop label:** The red label shows the combined dollar loss if every rung
+  fills and all those coins sell at the stop, before fees. Each rung contributes
+  its coin size times the difference between its buy price and the stop.
+  Dragging the stop or reshaping the ladder updates the total immediately.
+  The tooltip keeps the stop's coin price.
+- **Before placing:** A red Stop loss line appears on the chart. Dragging the
+  line changes the percentage in the window. Moving or resizing the whole
+  ladder keeps the percentage and moves the stop with the last rung.
+- **While every rung waits:** The saved ladder keeps its stop handle. A drop must stay
+  below the last rung and above zero. A refused save returns the line to its
+  saved price. The server rechecks that the ladder has not started buying.
+- **After a buy:** The position's existing stop handle moves the actual stop.
+  A manual move keeps the chosen price as more rungs buy. The ladder settings
+  can put the stop back under the last-rung rule.
+- **When reached:** The stop sells the held position and cancels waiting buys,
+  using the existing ladder stop behavior.
+- **Live wallets:** Every running engine, including standbys, must report
+  support before a last-rung stop can be placed or selected. The web app and
+  engine need the same update. The plan uses existing JSON storage and needs
+  no database migration.
+
 ## A stop that rests under the base
 
 A DCA ladder can put its stop on the confirmed base instead of a fixed distance

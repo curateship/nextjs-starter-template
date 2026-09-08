@@ -14,6 +14,7 @@ import {
   MIN_ORDER_USD,
   floorSize,
   ladderExitLevels,
+  lastRungStopPx,
   ladderHeldSz,
   ladderWatchInterval,
   rungBudget,
@@ -982,7 +983,7 @@ function aimBrackets(
   }
 
   const sl = plan.stopLoss
-  if (sl && sl.mode === "percent") {
+  if (sl && (sl.mode === "percent" || sl.mode === "lastRung")) {
     // The same rule the grid uses, from the one place it lives: follow the
     // stop until a hand moves it, then never touch it again.
     if (
@@ -1019,6 +1020,10 @@ export function wantedStopPx(
 ): number | null {
   const sl = plan.stopLoss
   if (!sl) return null
+  if (sl.mode === "lastRung") {
+    const px = lastRungStopPx(plan.rungs, sl.pct ?? 0)
+    return px === null ? null : roundPx(px)
+  }
   const level = baseStopPx(plan, plan.baseWatch?.levelPx ?? null)
   if (level !== null) return roundPx(level)
   const pct = sl.pct ?? 0

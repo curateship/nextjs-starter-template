@@ -405,7 +405,11 @@ beforeEach(async () => {
     startedAt: new Date(),
     lastSeenAt: new Date(),
     role: "leader",
-    meta: { dcaMarketFirst: true, dcaMarketFirstExit: true },
+    meta: {
+      dcaMarketFirst: true,
+      dcaMarketFirstExit: true,
+      dcaLastRungStop: true,
+    },
   })
   wallet = {
     id: "live-1",
@@ -953,6 +957,78 @@ describe("live Smart orders", () => {
       "waiting",
     ])
     expect((await ladder()).rungs[0].status).toBe("waiting")
+  })
+
+  it("saves and moves a last-rung stop on a live ladder without placing exchange orders", async () => {
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({
+        stopLoss: { reference: "lastRung", pct: 2, base: null },
+      }),
+    })
+    expect(result.ladder.plan.stopLoss).toMatchObject({
+      mode: "lastRung",
+      pct: 2,
+    })
+    const moved = await reshapeLiveLadder(userId, wallet, {
+      ladderId: result.ladder.id,
+      stopPx: 80,
+    })
+    const last = moved.ladder.plan.rungs.at(-1)!.px
+    expect(last * (1 - moved.ladder.plan.stopLoss!.pct! / 100)).toBeCloseTo(
+      80,
+      9
+    )
+    expect(place).not.toHaveBeenCalled()
+  })
+
+  it("sends the last-rung stop to the exchange after the first buy", async () => {
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ stopLoss: { reference: "lastRung", pct: 2, base: null } }),
+    })
+    const plan = result.ladder.plan
+    plan.rungs[0].status = "filled"
+    await database.update(tradeSmartLadders).set({
+      plan,
+      updatedAt: new Date(Date.now() - 3_000),
+    }).where(eq(tradeSmartLadders.id, result.ladder.id))
+    portfolio.mockResolvedValue({
+      positions: [{
+        marketId: "BTC", szi: plan.rungs[0].sz, entryPx: 95, leverage: 1,
+        marginUsed: plan.rungs[0].budget, liquidationPx: null, targets: [],
+        tpPx: null, tpSz: null, tpOrderId: null, slPx: null, slOrderId: null,
+        protectionOrderIds: [],
+      }],
+      orders: [],
+    })
+    dropEngineExchangeReads(wallet)
+    await reconcileLiveLadders(userId, wallet)
+    expect(setBrackets).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ slPx: plan.rungs.at(-1)!.px * 0.98 })
+    )
+  })
+
+  it("refuses last-rung stops until the live engine supports them", async () => {
+    await database.delete(tradeWorkerHeartbeats)
+    await expect(
+      placeLiveDcaLadder(userId, wallet, {
+        marketKey: MARKET,
+        clickPx: 100,
+        interval: "1m",
+        params: params({
+          stopLoss: { reference: "lastRung", pct: 2, base: null },
+        }),
+      })
+    ).rejects.toThrow("LIVE_ENGINE_DCA_LAST_RUNG_STOP_OLD")
+    expect(place).not.toHaveBeenCalled()
+    expect(await database.select().from(tradeSmartLadders)).toHaveLength(0)
   })
 
   it("refuses market-first placement until the live engine supports it", async () => {

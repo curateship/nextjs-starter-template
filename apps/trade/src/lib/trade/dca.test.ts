@@ -9,6 +9,8 @@ import {
   dcaParamsSchema,
   defaultDcaParams,
   ladderPlanSchema,
+  lastRungStopPx,
+  lastRungStopPct,
   ladderBaseStopOf,
   ladderExitLevels,
   exitLadderLevels,
@@ -320,6 +322,43 @@ describe("ladder plans", () => {
     expect(moved.rungs[1].px).toBeCloseTo(104.88, 10)
     expect(moved.rungs.map((rung) => rung.budget)).toEqual([95, 174.8])
     expect(moved.rungs[0].sz).toBeCloseTo(0.833, 10)
+  })
+
+  it("preserves last-rung stops when settings or the ladder shape change", () => {
+    const settings = {
+      ...dcaLadderSettingsFromPlan(plan, 1000),
+      stopLoss: { reference: "lastRung" as const, pct: 2, base: null },
+    }
+    const changed = reshapeLadderSettingsPlan(plan, settings, {
+      anchorPx: 100,
+      equity: 1000,
+      volume24hUsd: null,
+      greenInterval: "1m",
+      roundPx: (px) => px,
+    })
+    expect(changed.stopLoss).toMatchObject({ mode: "lastRung", pct: 2 })
+    expect(dcaLadderSettingsFromPlan(changed, 1000).stopLoss?.reference).toBe(
+      "lastRung"
+    )
+    const moved = reshapeLadderPlan(changed, { stopPx: 80 }, (px) => px)
+    expect(lastRungStopPx(moved.rungs, moved.stopLoss!.pct!)).toBeCloseTo(80, 9)
+    const resized = reshapeLadderPlan(moved, { deepestPx: 70 }, (px) => px)
+    expect(resized.stopLoss?.pct).toBe(moved.stopLoss?.pct)
+    expect(lastRungStopPx(resized.rungs, resized.stopLoss!.pct!)).toBeLessThan(
+      70
+    )
+    expect(() =>
+      reshapeLadderPlan(changed, { stopPx: 100 }, (px) => px)
+    ).toThrow("SMART_LADDER_RANGE")
+    expect(lastRungStopPct(changed.rungs, 0)).toBeNull()
+    expect(lastRungStopPct(changed.rungs, NaN)).toBeNull()
+    expect(lastRungStopPx(changed.rungs, 100)).toBeNull()
+    expect(
+      dcaParamsSchema.safeParse({
+        ...defaultDcaParams(),
+        stopLoss: { reference: "lastRung", pct: 100 },
+      }).success
+    ).toBe(false)
   })
 
   it("re-spreads every rung to the requested deepest price", () => {

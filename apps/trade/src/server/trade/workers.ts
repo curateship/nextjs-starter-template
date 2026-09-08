@@ -48,6 +48,25 @@ export async function engineCanMarketBuyFirstDca(
   database: CustomShellDb = db,
   checkedAt = new Date()
 ): Promise<boolean> {
+  return engineSupportsDca(
+    ["dcaMarketFirst", "dcaMarketFirstExit"],
+    database,
+    checkedAt
+  )
+}
+
+export async function engineCanLastRungStopDca(
+  database: CustomShellDb = db,
+  checkedAt = new Date()
+): Promise<boolean> {
+  return engineSupportsDca(["dcaLastRungStop"], database, checkedAt)
+}
+
+async function engineSupportsDca(
+  capabilities: string[],
+  database: CustomShellDb,
+  checkedAt: Date
+): Promise<boolean> {
   const online = await database
     .select({
       role: tradeWorkerHeartbeats.role,
@@ -66,10 +85,8 @@ export async function engineCanMarketBuyFirstDca(
 
   return (
     online.some((beat) => beat.role === "leader") &&
-    online.every(
-      (beat) =>
-        beat.meta?.dcaMarketFirst === true &&
-        beat.meta?.dcaMarketFirstExit === true
+    online.every((beat) =>
+      capabilities.every((key) => beat.meta?.[key] === true)
     )
   )
 }

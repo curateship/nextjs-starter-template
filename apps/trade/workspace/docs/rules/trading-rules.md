@@ -1,5 +1,7 @@
 # The trading rules
 
+- Tyler, 8 Sep 2026: **"for dca ladder order. Add an option to place a stop loss under the last rung by percentage. I need to be able to move this stop on the chart as well."** The stop is available through the placement preview, saved ladder, and position chart controls.
+
 The rules of this app, stated once, in plain words. **This file outranks the
 code.** Code is what happens; these rules are what is supposed to happen — and
 when the two disagree, the code is the thing that is wrong. Every rule here

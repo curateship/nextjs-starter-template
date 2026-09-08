@@ -97,7 +97,10 @@ import {
 } from "@/server/trade/smart-order-actions"
 import { walletCredential } from "@/server/trade/wallet-auth"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
-import { engineCanMarketBuyFirstDca } from "@/server/trade/workers"
+import {
+  engineCanMarketBuyFirstDca,
+  engineCanLastRungStopDca,
+} from "@/server/trade/workers"
 import {
   assertLadderRungsTradable,
   ladderById,
@@ -180,6 +183,12 @@ async function placeLiveDcaLadderOnce(
   })
 
   const protocol = getProtocol(wallet.protocol)
+  if (
+    input.params.stopLoss?.reference === "lastRung" &&
+    !(await engineCanLastRungStopDca())
+  ) {
+    throw new Error("LIVE_ENGINE_DCA_LAST_RUNG_STOP_OLD")
+  }
   const marketBuyFirst = input.flowRunId == null && input.params.marketBuyFirst
   if (marketBuyFirst && !(await engineCanMarketBuyFirstDca())) {
     throw new Error("LIVE_ENGINE_DCA_MARKET_FIRST_OLD")
@@ -424,7 +433,10 @@ function ladderPlan(
       : null,
     stopLoss: input.params.stopLoss
       ? {
-          mode: "percent",
+          mode:
+            input.params.stopLoss.reference === "lastRung"
+              ? "lastRung"
+              : "percent",
           pct: input.params.stopLoss.pct,
           base: ladderBaseStopOf(input.params.stopLoss.base),
         }
@@ -718,6 +730,12 @@ export async function updateLiveLadderExits(
     stopLoss: DcaParams["stopLoss"]
   }
 ): Promise<void> {
+  if (
+    input.stopLoss?.reference === "lastRung" &&
+    !(await engineCanLastRungStopDca())
+  ) {
+    throw new Error("LIVE_ENGINE_DCA_LAST_RUNG_STOP_OLD")
+  }
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     await updateLiveLadderExitsOnce(userId, wallet, input)
@@ -768,6 +786,14 @@ export async function reshapeLiveLadder(
     | { settings: DcaLadderSettings; greenInterval: CandleInterval }
   )
 ): Promise<MovedLadder> {
+  if (
+    ("stopPx" in input ||
+      ("settings" in input &&
+        input.settings.stopLoss?.reference === "lastRung")) &&
+    !(await engineCanLastRungStopDca())
+  ) {
+    throw new Error("LIVE_ENGINE_DCA_LAST_RUNG_STOP_OLD")
+  }
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const ladder = await ladderById(userId, wallet.id, input.ladderId)

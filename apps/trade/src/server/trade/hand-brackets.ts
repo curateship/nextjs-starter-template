@@ -166,7 +166,11 @@ function aimLadderByHand(
   }
 
   const sl = plan.stopLoss
-  if (sl && sl.mode === "percent" && !nearNullable(plan.aimedSlPx, slPx)) {
+  if (
+    sl &&
+    (sl.mode === "percent" || sl.mode === "lastRung") &&
+    !nearNullable(plan.aimedSlPx, slPx)
+  ) {
     // A ladder's stop is optional, so clearing it by hand is a choice it keeps
     // — the same answer `aimStop` gives a ladder, which passes `"honour"`.
     if (slPx !== null) {

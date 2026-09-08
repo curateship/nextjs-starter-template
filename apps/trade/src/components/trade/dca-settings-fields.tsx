@@ -367,7 +367,7 @@ export function DcaSettingsFields({
       <OptionCard
         id={id("sl-on")}
         title="Stop loss"
-        hint="Percent below the average buy. If the stop hits, everything sells and the waiting rungs are cancelled. A confirmed-base stop can step the ladder down first."
+        hint="Place the stop below the average buy or below the last rung. If the stop hits, everything sells and waiting rungs are cancelled."
         foldWhenOff={false}
         toggle={{
           checked: form.slOn,
@@ -376,7 +376,13 @@ export function DcaSettingsFields({
             onChange({
               ...form,
               slOn: value,
-              ...(value ? { slPct: String(suggestedSlPct) } : {}),
+              ...(value
+                ? {
+                    slPct: String(
+                      form.slReference === "lastRung" ? 2 : suggestedSlPct
+                    ),
+                  }
+                : {}),
             }),
         }}
       >
@@ -389,9 +395,39 @@ export function DcaSettingsFields({
         {form.slOn ? (
           <>
             <div className="grid gap-2">
+              <FieldLabel htmlFor={id("sl-reference")}>Measure from</FieldLabel>
+              <Select
+                value={form.slReference}
+                disabled={busy}
+                onValueChange={(value) =>
+                  onChange({
+                    ...form,
+                    slReference: value as "average" | "lastRung",
+                    slPct: String(value === "lastRung" ? 2 : suggestedSlPct),
+                    baseOn: false,
+                  })
+                }
+              >
+                <SelectTrigger
+                  id={id("sl-reference")}
+                  className="w-full bg-background"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="average">Average buy</SelectItem>
+                  <SelectItem value="lastRung">Below last rung</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
               <FieldLabel
                 htmlFor={id("sl-pct")}
-                hint="Where the stop rests until a base takes over. 100 means price would have to reach zero, which leaves the base as the practical stop."
+                hint={
+                  form.slReference === "lastRung"
+                    ? "Distance below the deepest buy rung. Drag the red stop line on the chart to change the distance."
+                    : "Where the stop rests until a base takes over. 100 means price would have to reach zero."
+                }
               >
                 Stop
               </FieldLabel>
@@ -404,17 +440,19 @@ export function DcaSettingsFields({
                 onBlur={onBlur}
               />
             </div>
-            <BaseStopFields
-              on={form.baseOn}
-              underPct={form.baseUnderPct}
-              reclaimDays={form.baseReclaimDays}
-              disabled={busy}
-              showErrors={showValidation}
-              onOn={(value) => change("baseOn", value)}
-              onUnderPct={(value) => change("baseUnderPct", value)}
-              onReclaimDays={(value) => change("baseReclaimDays", value)}
-              onBlur={onBlur}
-            />
+            {form.slReference === "average" ? (
+              <BaseStopFields
+                on={form.baseOn}
+                underPct={form.baseUnderPct}
+                reclaimDays={form.baseReclaimDays}
+                disabled={busy}
+                showErrors={showValidation}
+                onOn={(value) => change("baseOn", value)}
+                onUnderPct={(value) => change("baseUnderPct", value)}
+                onReclaimDays={(value) => change("baseReclaimDays", value)}
+                onBlur={onBlur}
+              />
+            ) : null}
           </>
         ) : null}
       </OptionCard>

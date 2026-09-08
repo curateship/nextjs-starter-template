@@ -29,6 +29,7 @@ import {
   dcaLadderPlan,
   dcaLadderSettingsSchema,
   exitLadderGapPctForPrice,
+  lastRungStopPct,
   resizedDcaDeviations,
   DEFAULT_DCA_STOP_LOSS_PCT,
   dcaParamsSchema,
@@ -60,6 +61,8 @@ export type SmartOrderState = { px: number; x: number; y: number }
 /** The DCA shape drawn on the chart while the placement window is open. */
 export type DcaPreview = {
   anchorPx: number
+  stopPct?: number | null
+  onMoveStop?: (px: number) => void | Promise<boolean>
   rungs: readonly { px: number; dollars: number }[]
   /** Null unless the mirrored exit mode is on. */
   exitGapPct?: number | null
@@ -282,12 +285,27 @@ export function SmartOrderDialog({
     [changeForm, editedRef, form, hangsFrom, plan, setShowValidation]
   )
 
+  const moveStopPreview = React.useCallback(
+    (px: number) => {
+      if (!plan || busy) return
+      const pct = lastRungStopPct(plan.rungs, px)
+      if (pct === null) return
+      changeForm({ ...form, slPct: String(Number(pct.toFixed(6))) })
+    },
+    [busy, changeForm, form, plan]
+  )
+
   const previewPlan = React.useMemo<DcaPreview | null>(
     () =>
       plan && hangsFrom !== null
         ? {
             anchorPx: hangsFrom,
             rungs: plan.rungs,
+            stopPct:
+              params?.stopLoss?.reference === "lastRung"
+                ? params.stopLoss.pct
+                : null,
+            onMoveStop: busy ? undefined : moveStopPreview,
             exitGapPct:
               params?.takeProfit?.mode === "exitLadder"
                 ? (params.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
@@ -297,7 +315,16 @@ export function SmartOrderDialog({
             onMoveExit: moveExitPreview,
           }
         : null,
-    [hangsFrom, moveExitPreview, movePreview, params, plan, resizePreview]
+    [
+      busy,
+      hangsFrom,
+      moveExitPreview,
+      movePreview,
+      moveStopPreview,
+      params,
+      plan,
+      resizePreview,
+    ]
   )
 
   React.useEffect(() => {

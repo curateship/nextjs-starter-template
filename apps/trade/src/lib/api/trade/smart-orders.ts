@@ -138,6 +138,7 @@ const reshapeLadderSchema = ladderSchema
   .extend({
     anchorPx: z.number().positive().finite().optional(),
     deepestPx: z.number().positive().finite().optional(),
+    stopPx: z.number().positive().finite().optional(),
     exitIndex: z.number().int().min(0).max(19).optional(),
     exitPx: z.number().positive().finite().optional(),
     settings: dcaLadderSettingsSchema.optional(),
@@ -155,10 +156,18 @@ const reshapeLadderSchema = ladderSchema
         input.settings !== undefined && input.greenInterval !== undefined
       const anySettingsField =
         input.settings !== undefined || input.greenInterval !== undefined
+      const stopMove = input.stopPx !== undefined
+      const anyEntryField =
+        input.anchorPx !== undefined || input.deepestPx !== undefined
       return (
-        Number(entryMove && !anyExitField && !anySettingsField) +
-          Number(exitMove && !entryMove && !anySettingsField) +
-          Number(settingsChange && !entryMove && !anyExitField) ===
+        Number(entryMove && !anyExitField && !anySettingsField && !stopMove) +
+          Number(exitMove && !anyEntryField && !anySettingsField && !stopMove) +
+          Number(
+            settingsChange && !anyEntryField && !anyExitField && !stopMove
+          ) +
+          Number(
+            stopMove && !anyEntryField && !anyExitField && !anySettingsField
+          ) ===
         1
       )
     },
@@ -310,15 +319,17 @@ const reshapeLadderFn = createServerFn({ method: "POST" })
             settings: data.settings,
             greenInterval: data.greenInterval,
           }
-        : data.anchorPx !== undefined
-          ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
-          : data.deepestPx !== undefined
-            ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
-            : {
-                ladderId: data.ladderId,
-                exitIndex: data.exitIndex as number,
-                exitPx: data.exitPx as number,
-              }
+        : data.stopPx !== undefined
+          ? { ladderId: data.ladderId, stopPx: data.stopPx }
+          : data.anchorPx !== undefined
+            ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
+            : data.deepestPx !== undefined
+              ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
+              : {
+                  ladderId: data.ladderId,
+                  exitIndex: data.exitIndex as number,
+                  exitPx: data.exitPx as number,
+                }
     return wallet.kind === "live"
       ? await reshapeLiveLadder(context.user.id, wallet, input)
       : await reshapeLadderRows(context.user.id, wallet, input)
@@ -956,6 +967,8 @@ const baseSmartOrderErrorMessage = withLinkedGridStopMessage(createErrorMessage(
     LIVE_MARKET: "That market is not one this live wallet can trade.",
     LIVE_NO_PRICE:
       "The exchange would not give a price for that market, so nothing was placed.",
+    LIVE_ENGINE_DCA_LAST_RUNG_STOP_OLD:
+      "The trading engine needs the last-rung stop update before this change can be saved. Deploy the web app and engine together, then try again.",
     LIVE_ENGINE_DCA_MARKET_FIRST_OLD:
       "The trading engine has not been updated for an immediate DCA buy, so nothing was placed. Deploy the web app and trading engine together, then try again.",
     EXCHANGE_BUSY:

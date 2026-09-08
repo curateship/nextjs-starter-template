@@ -55,6 +55,148 @@ afterEach(async () => {
 })
 
 describe("DCA chart ladders", () => {
+  it("draws and drags the last-rung stop, rejecting a drop above the last buy", async () => {
+    const onMoveStop = vi.fn()
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[]}
+          preview={{
+            anchorPx: 110,
+            rungs: [
+              { px: 100, dollars: 250 },
+              { px: 90, dollars: 500 },
+            ],
+            stopPct: 10,
+            onMoveStop,
+            onMove: vi.fn(),
+            onResize: vi.fn(),
+          }}
+          tool={null}
+          walletName={() => "Wallet"}
+        />
+      )
+    )
+    const line = host.querySelector<HTMLElement>("[data-dca-stop]")!
+    expect(line.style.top).toBe("119px")
+    expect(line.textContent).toContain("Stop loss · -$97.50")
+    const button = host.querySelector(
+      'button[aria-label="Move DCA stop loss"]'
+    )!
+    await act(async () => {
+      button.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientY: 119,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 125 })
+      )
+    })
+    expect(onMoveStop).toHaveBeenCalledWith(75)
+    onMoveStop.mockClear()
+    await act(async () => {
+      button.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientY: 119,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 100 })
+      )
+    })
+    expect(onMoveStop).not.toHaveBeenCalled()
+    expect(line.style.top).toBe("119px")
+  })
+
+  it("holds a saved stop at the dropped price while saving and restores it after refusal", async () => {
+    let finish!: (saved: boolean) => void
+    const onReshape = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve
+        })
+    )
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      plan: {
+        anchorPx: 110,
+        steppedDown: 0,
+        reclaim: null,
+        rungs: [100, 90].map((px) => ({
+          px,
+          sz: 1,
+          status: "waiting",
+          orderId: null,
+          sellOrderId: null,
+        })),
+        exitRungs: [],
+        takeProfit: null,
+        stopLoss: { mode: "lastRung", pct: 10, base: null },
+      },
+    } as unknown as SmartLadder
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          preview={null}
+          tool={null}
+          walletName={() => "Wallet"}
+          onReshapeLadder={onReshape}
+        />
+      )
+    )
+    const button = host.querySelector(
+      'button[aria-label="Move DCA stop loss"]'
+    )!
+    await act(async () => {
+      button.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientY: 119,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 125 })
+      )
+    })
+    expect(onReshape).toHaveBeenCalledWith(ladder, { stopPx: 75 })
+    expect(host.querySelector("[data-dca-stop]")?.textContent).toContain(
+      "Stop loss · -$40.00"
+    )
+    expect(host.querySelector<HTMLElement>("[data-dca-stop]")?.style.top).toBe(
+      "125px"
+    )
+    expect(
+      Number.parseFloat(
+        host.querySelector<HTMLElement>("[data-dca-ladder-summary]")!.style.top
+      )
+    ).toBeGreaterThan(125)
+    await act(async () => finish(false))
+    expect(host.querySelector("[data-dca-stop]")?.textContent).toContain(
+      "Stop loss · -$28.00"
+    )
+    expect(host.querySelector<HTMLElement>("[data-dca-stop]")?.style.top).toBe(
+      "119px"
+    )
+  })
+
   it("shows order dollars instead of coin prices", async () => {
     await act(async () => {
       root.render(

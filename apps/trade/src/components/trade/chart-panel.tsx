@@ -1135,7 +1135,9 @@ export function ChartPanel({
           ladder.plan.takeProfit !== null &&
           ladder.plan.takeProfit.mode !== "fixed" &&
           ladder.plan.takeProfit.mode !== "prevRung"
-        const slFollowed = ladder.plan.stopLoss?.mode === "percent"
+        const slFollowed =
+          ladder.plan.stopLoss?.mode === "percent" ||
+          ladder.plan.stopLoss?.mode === "lastRung"
         if (
           (tpFollowed &&
             !same(brackets.targets[0]?.px ?? null, ladder.plan.aimedTpPx)) ||
@@ -1275,6 +1277,7 @@ export function ChartPanel({
     (
       ladder: SmartLadder,
       shape:
+        | { stopPx: number }
         | { anchorPx: number }
         | { deepestPx: number }
         | { exitIndex: number; exitPx: number }

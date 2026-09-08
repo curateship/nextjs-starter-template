@@ -330,7 +330,8 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
       : null,
     stopLoss: params.stopLoss
       ? {
-          mode: "percent",
+          mode:
+            params.stopLoss.reference === "lastRung" ? "lastRung" : "percent",
           pct: params.stopLoss.pct,
           base: ladderBaseStopOf(params.stopLoss.base),
         }

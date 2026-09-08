@@ -7,6 +7,7 @@ import { createTestDatabase } from "@/server/test-support"
 import {
   clearFlowScanRequest,
   engineCanMarketBuyFirstDca,
+  engineCanLastRungStopDca,
   realMoneySwitch,
   requestFlowScan,
   setRealMoneySwitch,
@@ -94,6 +95,33 @@ describe("the ladders switch", () => {
       errorAt
     )
   })
+  it("requires every engine to understand last-rung stops", async () => {
+    const now = new Date()
+    expect(await engineCanLastRungStopDca(db, now)).toBe(false)
+    await db
+      .insert(tradeWorkerHeartbeats)
+      .values({
+        id: "stop-leader",
+        kind: "ladders",
+        startedAt: now,
+        lastSeenAt: now,
+        role: "leader",
+        meta: { dcaLastRungStop: true },
+      })
+    expect(await engineCanLastRungStopDca(db, now)).toBe(true)
+    await db
+      .insert(tradeWorkerHeartbeats)
+      .values({
+        id: "stop-standby",
+        kind: "ladders",
+        startedAt: now,
+        lastSeenAt: now,
+        role: "standby",
+        meta: {},
+      })
+    expect(await engineCanLastRungStopDca(db, now)).toBe(false)
+  })
+
   it("allows market-first ladders only when every live engine supports them", async () => {
     const now = new Date("2026-09-03T14:00:00.000Z")
     expect(await engineCanMarketBuyFirstDca(db, now)).toBe(false)

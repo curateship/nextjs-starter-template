@@ -456,6 +456,7 @@ export type Trading = {
     walletId: string,
     ladderId: string,
     shape:
+      | { stopPx: number }
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }

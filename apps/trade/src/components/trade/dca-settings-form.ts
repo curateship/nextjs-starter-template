@@ -35,6 +35,7 @@ export type DcaSettingsFormState = {
   tpPct: string
   exitGapPct: string
   slOn: boolean
+  slReference: "average" | "lastRung"
   slPct: string
   baseOn: boolean
   baseUnderPct: string
@@ -72,6 +73,7 @@ export function dcaSettingsFormState(
       settings.takeProfit?.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT
     ),
     slOn: settings.stopLoss !== null,
+    slReference: settings.stopLoss?.reference ?? "average",
     slPct: String(settings.stopLoss?.pct ?? DEFAULT_DCA_STOP_LOSS_PCT),
     baseOn: settings.stopLoss?.base != null,
     baseUnderPct: String(
@@ -154,7 +156,12 @@ export function inspectDcaSettingsForm(
     form.tpMode === "exitLadder" &&
     (exitGapPct === null || exitGapPct < 0 || exitGapPct > MAX_DCA_EXIT_GAP_PCT)
   const slPct = parseOrderNumber(form.slPct)
-  const badStopLoss = form.slOn && (slPct === null || slPct <= 0 || slPct > 100)
+  const badStopLoss =
+    form.slOn &&
+    (slPct === null ||
+      slPct <= 0 ||
+      slPct > 100 ||
+      (form.slReference === "lastRung" && slPct >= 100))
   const badBaseUnder =
     form.slOn && form.baseOn && badBaseUnderPct(form.baseUnderPct)
   const badBaseDays =
@@ -196,12 +203,16 @@ export function inspectDcaSettingsForm(
           stopLoss: form.slOn
             ? {
                 pct: slPct as number,
-                base: form.baseOn
-                  ? {
-                      underPct: baseUnderPct as number,
-                      reclaimDays: baseReclaimDays as number,
-                    }
-                  : null,
+                ...(form.slReference === "lastRung"
+                  ? { reference: "lastRung" as const }
+                  : {}),
+                base:
+                  form.baseOn && form.slReference !== "lastRung"
+                    ? {
+                        underPct: baseUnderPct as number,
+                        reclaimDays: baseReclaimDays as number,
+                      }
+                    : null,
               }
             : null,
         }
@@ -250,7 +261,9 @@ export function inspectDcaSettingsForm(
               : badExitGap
                 ? `Extra exit gap has to be from 0 to ${MAX_DCA_EXIT_GAP_PCT}%.`
                 : badStopLoss
-                  ? "Stop loss has to be a number above zero and no more than 100%."
+                  ? form.slReference === "lastRung"
+                    ? "Stop loss below the last rung has to be above zero and below 100%."
+                    : "Stop loss has to be a number above zero and no more than 100%."
                   : badBaseUnder
                     ? BASE_STOP_UNDER_REFUSAL
                     : badBaseDays

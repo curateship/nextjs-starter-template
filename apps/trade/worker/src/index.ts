@@ -94,6 +94,7 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
       wallets: lastPass.wallets,
       dcaMarketFirst: true,
       dcaMarketFirstExit: true,
+      dcaLastRungStop: true,
       gridLineStop: true,
     },
   }).catch((error) => {
