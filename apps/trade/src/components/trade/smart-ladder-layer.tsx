@@ -462,13 +462,13 @@ function PreviewLines({
           >
             <div
               className="border-t border-dashed"
-              style={{ borderColor: colors.up }}
+              style={{ borderColor: colors.down }}
             />
             <span
               className={cn(TAG_CLASS, "tabular-nums opacity-80")}
               style={{
-                borderColor: colors.up,
-                color: colors.up,
+                borderColor: colors.down,
+                color: colors.down,
                 pointerEvents: controls,
               }}
               data-order-frame-control
@@ -742,13 +742,13 @@ function LadderLines({
           >
             <div
               className="border-t border-dashed"
-              style={{ borderColor: colors.up }}
+              style={{ borderColor: colors.down }}
             />
             <span
               className={TAG_CLASS}
               style={{
-                borderColor: colors.up,
-                color: colors.up,
+                borderColor: colors.down,
+                color: colors.down,
                 pointerEvents: controls,
               }}
               title="Rung sell — managed by the ladder, so it cannot be dragged. Change the exit rules to move it."
@@ -895,13 +895,13 @@ function ExitLadderLines({
       >
         <div
           className={cn("border-t", !armed && "border-dashed")}
-          style={{ borderColor: colors.up }}
+          style={{ borderColor: colors.down }}
         />
         <span
           className={TAG_CLASS}
           style={{
-            borderColor: colors.up,
-            color: colors.up,
+            borderColor: colors.down,
+            color: colors.down,
             pointerEvents: controls,
           }}
           title={

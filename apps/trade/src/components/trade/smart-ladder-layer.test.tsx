@@ -130,6 +130,11 @@ describe("DCA chart ladders", () => {
       (element) => element.textContent === "Rung 1 sell · $420"
     )
     expect(sellTag?.parentElement?.style.top).toBe("95px")
+    expect(sellTag?.style.color).toBe("rgb(170, 0, 0)")
+    expect(sellTag?.style.borderColor).toBe("rgb(170, 0, 0)")
+    expect(
+      (sellTag?.previousElementSibling as HTMLElement).style.borderColor
+    ).toBe("rgb(170, 0, 0)")
   })
 
   it("shows and drags the mirrored exits before placement", async () => {
@@ -160,6 +165,18 @@ describe("DCA chart ladders", () => {
 
     expect(host.textContent).toContain("Exit rung 2 for profit at +$111.11")
     expect(host.textContent).toContain("Exit rung 1 for profit at +$52.50")
+    for (const tag of host.querySelectorAll("span")) {
+      if (!tag.textContent?.startsWith("Exit rung")) continue
+      expect(tag.style.color).toBe("rgb(170, 0, 0)")
+      expect(tag.style.borderColor).toBe("rgb(170, 0, 0)")
+      expect(
+        (tag.previousElementSibling as HTMLElement).style.borderColor
+      ).toBe("rgb(170, 0, 0)")
+    }
+    const entry = [...host.querySelectorAll("span")].find((tag) =>
+      tag.textContent?.startsWith("Rung 1 ·")
+    )
+    expect(entry?.style.color).toBe("rgb(0, 170, 0)")
 
     const move = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Move the whole exit ladder from rung 2\'s exit"]'
@@ -511,6 +528,12 @@ describe("DCA chart ladders", () => {
     )?.previousElementSibling
     expect(armed?.className).not.toContain("border-dashed")
     expect(waiting?.className).toContain("border-dashed")
+    for (const line of [armed, waiting]) {
+      expect((line as HTMLElement).style.borderColor).toBe("rgb(170, 0, 0)")
+      const tag = line?.nextElementSibling as HTMLElement
+      expect(tag.style.color).toBe("rgb(170, 0, 0)")
+      expect(tag.style.borderColor).toBe("rgb(170, 0, 0)")
+    }
   })
 
   it("drags every placed exit from any exit label", async () => {

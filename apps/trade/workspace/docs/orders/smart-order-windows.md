@@ -54,6 +54,11 @@ Changing the frame does not change the order sent to the server.
 
 ## The DCA window and chart shape
 
+DCA exit orders are red. Exit text, label borders and price lines use the
+chart's sell color in previews and placed ladders, including individual rung
+sells. Waiting exits retain their faded dashed appearance. Buy rungs and the
+ladder summary keep the buy color.
+
 The Ladder card shows the dollars each rung will order. It leaves out the coin
 price because the preview line already marks that price on the chart. A buy
 rung's chart tag also shows its order dollars. An exit tag instead says **Exit
