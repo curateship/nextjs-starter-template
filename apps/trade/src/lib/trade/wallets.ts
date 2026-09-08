@@ -42,6 +42,8 @@ export type TradeWallet = {
    * at save time. Null on paper wallets and on approvals with no expiry.
    */
   keyValidUntil: number | null
+  /** Saved exchange mode. Missing or null means the mode has not been read. */
+  positionMode?: "one-way" | "two-sided" | null
   /** Each blank distance inherits the account setting. */
   liquidationWarning?: LiquidationWarning
   /** Included by the account panel read only when distances differ from the account. */

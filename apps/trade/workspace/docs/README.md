@@ -145,7 +145,7 @@ screen: anything not written there has not been agreed yet.
 ## wallets/ — money and margin
 
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what
-  a failed answer does to the details window.
+  a failed answer does to the details window, plus the saved position mode in wallet details.
 - `flatten-wallet.md` — Empty wallet: why the waiting orders come off before
   anything is sold, what a refused cancel stops, and how it differs from Close
   all.

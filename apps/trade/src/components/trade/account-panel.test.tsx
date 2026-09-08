@@ -417,3 +417,52 @@ it.each([
     expect(host.textContent).not.toContain("Liquidation warning:")
   }
 )
+
+describe("wallet position mode", () => {
+  it.each([
+    ["one-way", "One-way: a short closes your long"],
+    ["two-sided", "Hedge: a short opens beside your long"],
+    [null, "Mode not read yet"],
+    [undefined, "Mode not read yet"],
+  ] as const)(
+    "keeps %s out of wallet lists and shows it in details",
+    async (positionMode, sentence) => {
+      const wallet = { ...wallets[0], positionMode }
+      for (const View of [ActiveWalletsView, AllWalletsView]) {
+        await act(async () =>
+          root.render(
+            <TooltipProvider>
+              <View
+                wallets={[wallet]}
+                summaryOf={() => null}
+                activeWalletId={wallet.id}
+                onUseWallet={() => {}}
+                onOpenWalletDetails={() => {}}
+              />
+            </TooltipProvider>
+          )
+        )
+        expect(host.textContent).not.toContain(sentence)
+      }
+      await act(async () =>
+        root.render(
+          <TooltipProvider>
+            <WalletDetailsDialog
+              wallet={{ ...wallet, status: "inactive" }}
+              summary={{ walletId: wallet.id, state: "inactive" }}
+              positions={[]}
+              fallbackMarks={new Map()}
+              onClose={() => {}}
+              onOpenWallet={() => {}}
+              onFlattenWallet={() => {}}
+              onRetry={() => {}}
+            />
+          </TooltipProvider>
+        )
+      )
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+        sentence
+      )
+    }
+  )
+})

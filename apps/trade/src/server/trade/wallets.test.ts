@@ -11,6 +11,7 @@ import {
   createWallet,
   deleteWallet,
   findWallets,
+  findWallet,
   findTradingWallet,
   listWallets,
   loadWalletSummaries,
@@ -686,3 +687,24 @@ it("shows the complete effective distances only when a wallet differs from the a
     (await loadWalletSummaries(user.id)).wallets[0].liquidationWarningInUse
   ).toBeUndefined()
 })
+
+it.each(["one-way", "two-sided", null] as const)(
+  "returns the stored position mode %s through wallet reads",
+  async (positionMode) => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+    await database
+      .update(tradeWallets)
+      .set({ positionMode })
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
+    expect((await loadWalletSummaries(userId)).wallets[0].positionMode).toBe(
+      positionMode
+    )
+    expect((await findWallet(userId, wallet.id))?.positionMode).toBe(
+      positionMode
+    )
+    expect(await findWallet(await person(), wallet.id)).toBeNull()
+  }
+)

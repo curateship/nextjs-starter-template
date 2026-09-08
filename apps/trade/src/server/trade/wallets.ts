@@ -73,6 +73,7 @@ type WalletFields = Pick<
   | "address"
   | "agentKeyEncrypted"
   | "agentValidUntil"
+  | "positionMode"
   | "liquidationWarnUsd"
   | "liquidationWarnPct"
 >
@@ -89,6 +90,7 @@ function toWallet(row: WalletFields): TradeWallet {
     address: row.address,
     hasKey: row.agentKeyEncrypted !== null,
     keyValidUntil: row.agentValidUntil?.getTime() ?? null,
+    positionMode: row.positionMode,
     liquidationWarning: {
       usd: row.liquidationWarnUsd,
       pct: row.liquidationWarnPct,
@@ -108,6 +110,7 @@ const publicWalletSelection = {
   address: tradeWallets.address,
   hasKey: sql<boolean>`${tradeWallets.agentKeyEncrypted} is not null`,
   keyValidUntil: tradeWallets.agentValidUntil,
+  positionMode: tradeWallets.positionMode,
   liquidationWarnUsd: tradeWallets.liquidationWarnUsd,
   liquidationWarnPct: tradeWallets.liquidationWarnPct,
 }
@@ -123,6 +126,7 @@ function selectedWallet(row: {
   address: string | null
   hasKey: boolean
   keyValidUntil: Date | null
+  positionMode: WalletRow["positionMode"]
   liquidationWarnUsd: number | null
   liquidationWarnPct: number | null
 }): TradeWallet {
@@ -137,6 +141,7 @@ function selectedWallet(row: {
     address: row.address,
     hasKey: row.hasKey,
     keyValidUntil: row.keyValidUntil?.getTime() ?? null,
+    positionMode: row.positionMode,
     liquidationWarning: {
       usd: row.liquidationWarnUsd,
       pct: row.liquidationWarnPct,
