@@ -316,7 +316,11 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
           </Button>
         </div>
 
-        <FeaturedPurchase listingId={listing.listingId} />
+        <FeaturedPurchase
+          key={`${listing.featured.active}:${listing.featured.endsAt}`}
+          listingId={listing.listingId}
+          featured={listing.featured}
+        />
         <ListingBadgeBuilder listing={listing} />
       </CardContent>
     </Card>
@@ -433,7 +437,13 @@ function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
   )
 }
 
-function FeaturedPurchase({ listingId }: { listingId: string }) {
+export function FeaturedPurchase({
+  listingId,
+  featured,
+}: {
+  listingId: string
+  featured: OwnedListing["featured"]
+}) {
   const [open, setOpen] = React.useState(false)
   const [state, setState] = React.useState<{ plans: FeaturedPlan[]; active: boolean } | null>(null)
   const [loading, setLoading] = React.useState(false)
@@ -463,7 +473,7 @@ function FeaturedPurchase({ listingId }: { listingId: string }) {
       <Popover open={open} onOpenChange={changeOpen}>
         <PopoverTrigger asChild>
           <Button type="button" variant="outline">
-            <SparklesIcon /> {state?.active ? "Featured now" : "Feature this listing"}
+            <SparklesIcon /> {(state?.active ?? featured.active) ? "Featured now" : "Feature this listing"}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start">

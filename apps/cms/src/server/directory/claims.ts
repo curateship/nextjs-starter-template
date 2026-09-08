@@ -553,6 +553,7 @@ export type OwnedListing = {
   metaDescription: string
   featuredImage: string
   status: string
+  featured: { active: boolean; endsAt: string | null }
   /**
    * The checked shapes, not `unknown`. A server function refuses to hand
    * `unknown` to a page — it cannot promise it will survive the trip — and a
@@ -581,6 +582,20 @@ export async function listingsOwnedBy(
 ): Promise<OwnedListing[]> {
   const rows = await database
     .select({
+      featuredEndsAt: sql<string | null>`(
+        select max(fe.ends_at)::text
+        from directory_featured_entitlements fe
+        inner join directory_claims fc
+          on fc.id = fe.claim_id
+          and fc.status = 'approved'
+          and fc.user_id = fe.buyer_user_id
+          and fc.listing_id = fe.listing_id
+        where fe.workspace_id = ${directoryListings.workspaceId}
+          and fe.listing_id = ${directoryListings.id}
+          and fe.status = 'active'
+          and fe.starts_at <= now()
+          and fe.ends_at > now()
+      )`,
       claimId: directoryClaims.id,
       listing: directoryListings,
       siteName: customShellWorkspaces.name,
@@ -636,6 +651,7 @@ export async function listingsOwnedBy(
     metaDescription: row.listing.metaDescription,
     featuredImage: row.listing.featuredImage,
     status: row.listing.status,
+    featured: { active: row.featuredEndsAt !== null, endsAt: row.featuredEndsAt },
     contactLinks: cleanContactLinks(row.listing.contactLinks),
     body: cleanWrittenPageBody(row.listing.body),
     siteName: row.siteName,
