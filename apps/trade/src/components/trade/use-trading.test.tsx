@@ -26,6 +26,7 @@ const api = vi.hoisted(() => ({
   flattenWalletApi: vi.fn(),
   cancelLadderRest: vi.fn(),
   cancelGridRest: vi.fn(),
+  placeGridOrder: vi.fn(),
   editWatch: vi.fn(),
   moveGridRange: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
@@ -95,7 +96,7 @@ vi.mock("@/lib/api/trade/smart-orders", () => ({
   moveGridRange: api.moveGridRange,
   moveWatch: api.moveWatch,
   placeDcaLadder: vi.fn(),
-  placeGridOrder: vi.fn(),
+  placeGridOrder: api.placeGridOrder,
   reconcileLiveSmartOrders: api.reconcileLiveSmartOrders,
   reshapeGrid: vi.fn(),
   resumeSmartOrder: vi.fn(),
@@ -109,6 +110,7 @@ vi.mock("@/lib/toast/error-toast", () => ({
 }))
 
 import { useTrading, type Trading } from "@/components/trade/use-trading"
+import { defaultGridParams } from "@/lib/trade/grid"
 import { baseStopDetection } from "@/lib/trade/dca"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { readWatchPlan } from "@/lib/trade/watch-order"
@@ -199,6 +201,7 @@ beforeEach(() => {
   })
   api.cancelLadderRest.mockReset()
   api.cancelGridRest.mockReset()
+  api.placeGridOrder.mockReset()
   api.editWatch.mockReset().mockResolvedValue({ saved: true })
   api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
@@ -1161,4 +1164,53 @@ describe("post-only retry notices", () => {
     expect(api.toastDismiss).toHaveBeenCalledWith("retry-toast")
     expect(api.showErrorToast).toHaveBeenCalledWith("The order is paused.")
   })
+})
+
+describe("placing a grid during cancellation", () => {
+  it.each([
+    [
+      "hyperliquid:mainnet:BTC",
+      "SMART_LADDER_EXISTS",
+      "Another grid is being cancelled. Please wait.",
+    ],
+    ["hyperliquid:mainnet:ETH", "SMART_LADDER_EXISTS", "SMART_LADDER_EXISTS"],
+    ["hyperliquid:mainnet:BTC", "EXCHANGE_BUSY", "EXCHANGE_BUSY"],
+  ])(
+    "reports the right refusal for %s and %s",
+    async (marketKey, code, message) => {
+      const grid = gridOn("hyperliquid:mainnet:BTC", false)
+      api.loadLiveTrading.mockResolvedValue({
+        ...emptyLiveAnswer,
+        smartOrders: [grid],
+      })
+      let finishCancel!: () => void
+      api.cancelGridRest.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishCancel = resolve
+          })
+      )
+      api.placeGridOrder.mockRejectedValue(new Error(code))
+      await finishFirstRead()
+      let cancellation!: Promise<void>
+      await act(async () => {
+        cancellation = latest!.cancelGrid(wallet.id, grid.id)
+      })
+      await act(async () => {
+        expect(
+          await latest!.placeGrid({
+            marketKey,
+            topPx: 110,
+            bottomPx: 90,
+            params: defaultGridParams(),
+          })
+        ).toBe(false)
+      })
+      expect(api.showErrorToast).toHaveBeenLastCalledWith(message)
+      await act(async () => {
+        finishCancel()
+        await cancellation
+      })
+    }
+  )
 })

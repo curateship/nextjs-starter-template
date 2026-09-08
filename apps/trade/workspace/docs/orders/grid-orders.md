@@ -1011,3 +1011,11 @@ engine and its price feed must remain available. Placement requires a current
 compatible engine heartbeat and migration 0171. Apply the migration, then
 release compatible engine code before enabling the web workflow. These local
 changes do not authorize applying the migration or deploying production.
+
+## Placing another grid during cancellation
+
+Removing a grid hides its chart lines while cancellation finishes. If another
+placement on the same market and wallet receives the existing-order refusal
+during that wait, the toast says "Another grid is being cancelled. Please wait."
+The message uses the grid cancellation tracked by the current browser tab.
+Other placement failures keep their own messages.

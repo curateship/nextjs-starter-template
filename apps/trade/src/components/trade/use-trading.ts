@@ -2258,14 +2258,28 @@ export function useTrading(
         )
         return true
       } catch (error) {
-        showErrorToast(getTradingSmartOrderError(error))
+        const cancellingGrid =
+          error instanceof Error &&
+          error.message === "SMART_LADDER_EXISTS" &&
+          withJustPlaced.some(
+            (order) =>
+              order.kind === "grid" &&
+              order.walletId === walletId &&
+              order.marketKey === input.marketKey &&
+              cancelling.has(order.id)
+          )
+        showErrorToast(
+          cancellingGrid
+            ? "Another grid is being cancelled. Please wait."
+            : getTradingSmartOrderError(error)
+        )
         return false
       } finally {
         setPending((count) => count - 1)
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh, holdSmart]
+    [walletId, wallet, nameOf, refresh, holdSmart, withJustPlaced, cancelling]
   )
 
   const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
