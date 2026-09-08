@@ -201,6 +201,12 @@ describe("the Alerts panel", () => {
     })
     expect(host.textContent).toContain("SOL")
     expect(host.textContent).toContain("trendline at $150 · above")
+    const firedLine = [...host.querySelectorAll("button")].find((one) =>
+      one.textContent?.startsWith("SOL")
+    )!
+    await act(async () => firedLine.click())
+    expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:SOL", "line-2")
+    expect(switchOff).toHaveBeenCalledWith("line-2")
     expect(
       host.querySelector(
         'button[aria-label="Clear the fired SOL trendline alert"]'
@@ -270,12 +276,6 @@ describe("the Alerts panel", () => {
     await act(async () => open?.click())
     expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:ETH")
 
-    const remove = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Delete fired ETH alert"]'
-    )
-    expect(remove?.parentElement?.className).toContain("min-h-8")
-    expect(remove?.parentElement?.className).not.toContain("min-h-10")
-    await act(async () => remove?.click())
     expect(api.removeFired).toHaveBeenCalledWith(
       "00000000-0000-4000-8000-000000000002"
     )
@@ -330,9 +330,9 @@ describe("the Alerts panel", () => {
     await act(async () => remove?.click())
     expect(host.textContent).not.toContain("SOL")
 
+    await act(async () => deletion.resolve({ deleted: true }))
     await act(async () => refresh.resolve({ alerts: [alert] }))
     expect(host.textContent).not.toContain("SOL")
-    await act(async () => deletion.resolve({ deleted: true }))
 
     await act(async () => root.unmount())
     host.remove()

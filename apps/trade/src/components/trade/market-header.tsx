@@ -125,7 +125,7 @@ export function MarketHeader({
     ) : undefined
 
   return (
-    <DashboardCardHeader>
+    <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
       <MarketFolderStar
         symbol={selection.row.symbol}
         marketKey={selection.row.key}

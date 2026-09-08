@@ -47,7 +47,7 @@ screen: anything not written there has not been agreed yet.
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
-- `market-list.md` — the market list and the Watched row.
+- `market-list.md` — the market list, pinned draggable picker, search toolbar and the Watched row.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
@@ -58,7 +58,7 @@ screen: anything not written there has not been agreed yet.
   and the one frame shared by Positions, Open orders and
   the Journal, the safety rules its empty and failed rows keep, and the separate warnings
   for missing position stops and watched stops.
-- `market-folders.md` — how Fav and named coin folders work on each exchange,
+- `market-folders.md` — the folder dropdown visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
 - `notices.md` — the bell notices: one per order with total dollars and weighted
   average price, how pushed fills and recovery avoid repeats, what a flow says when it stops or goes quiet on its own, and
@@ -66,7 +66,7 @@ screen: anything not written there has not been agreed yet.
 - `sounds.md` — the separate optional sounds for fills and stops, and for price
   alerts, what collapses a burst, when a browser stays silent, and the one
   non-sound switch that shares their Settings tab.
-- `price-alerts.md` — one-use chart price lines, the Alerts panel, engine
+- `price-alerts.md` — one-use chart price lines, click-to-clear fired alerts, the Alerts panel, engine
   firing, notices, sounds, deletion, and the account cap.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.

@@ -62,107 +62,138 @@ afterEach(async () => {
 })
 
 describe("the folders menu", () => {
-  it("opens on hover and selects a market from a folder", async () => {
-    const select = vi.fn()
-    const manage = vi.fn()
-    const foldersChange = vi.fn()
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <MarketFoldersMenu
-            folders={[
-              {
-                id: "folder-1",
-                name: "Majors",
-                isFav: false,
-                position: 0,
-                hidden: false,
-                marketKeys: ["hyperliquid:mainnet:BTC"],
-              },
-            ]}
-            protocol="hyperliquid"
-            network="mainnet"
-            catalogs={[
-              {
-                rows: [
-                  {
-                    key: "hyperliquid:mainnet:BTC",
-                    symbol: "BTC",
-                    change24h: 1,
-                    volume24hUsd: 1,
-                  },
-                ],
-                hiddenByVolumeRows: [],
-              } as never,
-            ]}
-            selectedMarketKey={null}
-            onFoldersChange={foldersChange}
-            onManage={manage}
-            onSelectMarket={select}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    expect(button("Open folders").dataset.slot).toBe("popover-trigger")
-    await act(async () => {
-      button("Open folders").dispatchEvent(
-        new MouseEvent("mouseover", { bubbles: true })
-      )
-    })
-    expect(document.body.textContent).toContain("Folders")
-    expect(document.body.textContent).toContain("Majors")
-    expect(button("Add folder")).not.toBeNull()
-    expect(button("Manage folders")).not.toBeNull()
-    const popover = document.body.querySelector<HTMLElement>(
-      '[data-slot="popover-content"]'
-    )
-    expect(popover?.className).not.toContain("h-[28rem]")
-
-    await act(async () => button("Add folder").click())
-    expect(
-      document.body.querySelector("#new-market-folder-menu-name")
-    ).not.toBeNull()
-    const input = document.body.querySelector<HTMLInputElement>(
-      "#new-market-folder-menu-name"
-    )!
-    const setValue = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value"
-    )!.set!
-    await act(async () => {
-      setValue.call(input, "Momentum")
-      input.dispatchEvent(new Event("input", { bubbles: true }))
-    })
-    await act(async () => {
-      input
-        .closest("form")
-        ?.dispatchEvent(
-          new SubmitEvent("submit", { bubbles: true, cancelable: true })
+  it.each([false, true])(
+    "respects visibility and selects markets, hidden=%s",
+    async (hidden) => {
+      const select = vi.fn()
+      const manage = vi.fn()
+      const foldersChange = vi.fn()
+      await act(async () => {
+        root.render(
+          <TooltipProvider>
+            <MarketFoldersMenu
+              watchedOrders={{
+                rows: [],
+                cacheScope: "test",
+                settled: true,
+                failed: false,
+                refusals: new Map(),
+                onRetry: vi.fn(),
+              }}
+              walletName={() => "Wallet"}
+              panelRows={{
+                watched: { position: -1, hidden },
+                all: { position: 2, hidden },
+                hiddenMarketKeys: [],
+              }}
+              marketsError={null}
+              marketsPending={false}
+              onRetryMarkets={vi.fn()}
+              folders={[
+                {
+                  id: "fav",
+                  name: "Favorites",
+                  isFav: true,
+                  position: -1,
+                  hidden,
+                  marketKeys: [],
+                },
+                {
+                  id: "folder-1",
+                  name: "Majors",
+                  isFav: false,
+                  position: 0,
+                  hidden: false,
+                  marketKeys: ["hyperliquid:mainnet:BTC"],
+                },
+              ]}
+              protocol="hyperliquid"
+              network="mainnet"
+              catalogs={[
+                {
+                  rows: [
+                    {
+                      key: "hyperliquid:mainnet:BTC",
+                      symbol: "BTC",
+                      change24h: 1,
+                      volume24hUsd: 1,
+                    },
+                  ],
+                  hiddenByVolumeRows: [],
+                } as never,
+              ]}
+              selectedMarketKey={null}
+              onFoldersChange={foldersChange}
+              onManage={manage}
+              onSelectMarket={select}
+            />
+          </TooltipProvider>
         )
-      await Promise.resolve()
-    })
-    expect(api.create).toHaveBeenCalledWith({
-      protocol: "hyperliquid",
-      network: "mainnet",
-      name: "Momentum",
-    })
-    expect(foldersChange).toHaveBeenCalledWith([])
+      })
 
-    await act(async () => buttonWithText("Majors1").click())
-    expect(document.body.textContent).toContain("BTC")
-    await act(async () => buttonWithText("BTC").click())
-    expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:BTC")
-    // The pick puts that coin on the chart and leaves the menu up, so the
-    // next coin in the folder is one press away. Manage folders below is
-    // pressed without reopening anything, which is the proof it stayed.
-    expect(
-      document.body.querySelector('[data-slot="popover-content"]')
-    ).not.toBeNull()
+      expect(button("Open folders").dataset.slot).toBe("popover-trigger")
+      await act(async () => {
+        button("Open folders").dispatchEvent(
+          new MouseEvent("mouseover", { bubbles: true })
+        )
+      })
+      expect(document.body.textContent).toContain("Folders")
+      expect(document.body.textContent).toContain("Majors")
+      expect(document.body.textContent?.includes("Watched")).toBe(!hidden)
+      expect(document.body.textContent?.includes("All markets")).toBe(!hidden)
+      expect(document.body.textContent?.includes("Favorites")).toBe(!hidden)
+      expect(button("Add folder")).not.toBeNull()
+      expect(button("Manage folders")).not.toBeNull()
+      const popover = document.body.querySelector<HTMLElement>(
+        '[data-slot="popover-content"]'
+      )
+      expect(popover?.className).not.toContain("h-[28rem]")
 
-    await act(async () => button("Manage folders").click())
-    expect(manage).toHaveBeenCalledTimes(1)
-  })
+      await act(async () => button("Add folder").click())
+      expect(
+        document.body.querySelector("#new-market-folder-menu-name")
+      ).not.toBeNull()
+      const input = document.body.querySelector<HTMLInputElement>(
+        "#new-market-folder-menu-name"
+      )!
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!
+      await act(async () => {
+        setValue.call(input, "Momentum")
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      await act(async () => {
+        input
+          .closest("form")
+          ?.dispatchEvent(
+            new SubmitEvent("submit", { bubbles: true, cancelable: true })
+          )
+        await Promise.resolve()
+      })
+      expect(api.create).toHaveBeenCalledWith({
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Momentum",
+      })
+      expect(foldersChange).toHaveBeenCalledWith([])
+
+      await act(async () => buttonWithText("Majors1").click())
+      expect(document.body.textContent).toContain("BTC")
+      await act(async () => buttonWithText("BTC").click())
+      expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:BTC")
+      // The pick puts that coin on the chart and leaves the menu up, so the
+      // next coin in the folder is one press away. Manage folders below is
+      // pressed without reopening anything, which is the proof it stayed.
+      expect(
+        document.body.querySelector('[data-slot="popover-content"]')
+      ).not.toBeNull()
+
+      await act(async () => button("Manage folders").click())
+      expect(manage).toHaveBeenCalledTimes(1)
+    }
+  )
 })
 
 function button(name: string) {

@@ -26,14 +26,18 @@ line in the body, share the panel's one 12px gutter.
   search box of its own. **Picking a market leaves the list open.** The chart
   behind it changes and the window stays where it is, so a run down the rows
   puts one market after another on screen without reopening the list each
-  time. It closes when the pointer leaves it, or on Escape. The picker window
-  is 51.25rem wide (about 10% narrower than its former rendered width), capped
-  by the screen. Its table keeps a matching minimum so a narrow viewport
-  scrolls the columns instead of crushing them. The list scrolls in a
-  `ScrollArea` with the thin themed thumb — never the browser's own scrollbar
-  — while the heading row stays put.
-  The five number columns use compact fixed widths; Market takes the room they
-  leave instead of spacing every column evenly.
+  time. Unpinned, the picker closes when the pointer leaves or Escape is pressed.
+  Pin keeps the picker open while the chart is used. Drag the grip to move the
+  pinned picker, or focus the grip and use arrow keys. Movement stops at the
+  screen edges. Unpin returns the picker beneath the market name. Escape closes
+  either mode. Pin and position last only while that picker remains mounted.
+  The toolbar has the grip, pin and search icons beside the market tabs.
+  On narrow screens, the chart header wraps its controls so the market selector stays clickable.
+  Search opens a field below the toolbar. Closing search clears its filter.
+  The picker is 41rem wide, 656 pixels at the default text size, and capped to
+  the viewport. The table scrolls horizontally on narrow screens. Open interest
+  is not a picker column. The other columns keep sorting and live figures.
+  The list uses the themed ScrollArea and its heading stays visible while scrolling.
 - **A search that matches nothing can ask the venue itself**, on an exchange
   that says it can (Solana, where anyone can mint a coin and no list holds
   them all). Under "No matching markets." the picker offers one button, "Find

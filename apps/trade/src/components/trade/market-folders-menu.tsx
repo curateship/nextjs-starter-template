@@ -6,6 +6,9 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
+import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
+import type { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { MarketRowLine } from "@/components/trade/market-list-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,7 +40,21 @@ export function MarketFoldersMenu({
   onFoldersChange,
   onManage,
   onSelectMarket,
+  watchedOrders,
+  walletName,
+  panelRows,
+  marketsError,
+  marketsPending,
+  onRetryMarkets,
 }: {
+  watchedOrders: React.ComponentProps<
+    typeof MarketFoldersPanel
+  >["watchedOrders"]
+  walletName: React.ComponentProps<typeof MarketFoldersPanel>["walletName"]
+  panelRows: React.ComponentProps<typeof MarketFoldersPanel>["panelRows"]
+  marketsError: string | null
+  marketsPending: boolean
+  onRetryMarkets: () => void
   folders: readonly MarketFolder[]
   protocol: ProtocolId
   network: NetworkId
@@ -67,6 +84,12 @@ export function MarketFoldersMenu({
         .sort((left, right) => left.position - right.position),
     [folders]
   )
+  const allMarkets = React.useMemo(() => {
+    const hidden = new Set(panelRows.hiddenMarketKeys)
+    return [...markets.values()]
+      .filter((market) => !hidden.has(market.key))
+      .sort(compareMarketChange24h)
+  }, [markets, panelRows.hiddenMarketKeys])
 
   const cancelClose = React.useCallback(() => {
     if (closeTimer.current === null) return
@@ -83,14 +106,6 @@ export function MarketFoldersMenu({
   }, [cancelClose])
 
   React.useEffect(() => cancelClose, [cancelClose])
-  React.useEffect(() => {
-    if (
-      expandedId !== null &&
-      !shownFolders.some((folder) => folder.id === expandedId)
-    ) {
-      setExpandedId(null)
-    }
-  }, [expandedId, shownFolders])
 
   function submitNewFolder(event: React.FormEvent) {
     event.preventDefault()
@@ -125,7 +140,7 @@ export function MarketFoldersMenu({
         align="start"
         collisionPadding={12}
         sideOffset={8}
-        className="flex w-[calc(100vw-2rem)] max-w-96 flex-col gap-0 overflow-hidden p-0"
+        className="flex w-[calc(100vw-2rem)] max-w-[16.8rem] flex-col gap-0 overflow-hidden p-0"
         style={{
           maxHeight: "var(--radix-popover-content-available-height)",
         }}
@@ -159,36 +174,66 @@ export function MarketFoldersMenu({
             <SettingsIcon className="size-4" />
           </Button>
         </div>
-        {creating ? (
-          <form
-            className="grid shrink-0 gap-2 border-b p-2"
-            onSubmit={submitNewFolder}
-          >
-            <Label htmlFor="new-market-folder-menu-name">Folder name</Label>
-            <div className="flex gap-2">
-              <Input
-                id="new-market-folder-menu-name"
-                autoFocus
-                placeholder="Folder name"
-                value={newName}
-                maxLength={80}
-                disabled={busy}
-                onChange={(event) => setNewName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    setCreating(false)
-                    setNewName("")
-                  }
-                }}
-              />
-              <Button type="submit" disabled={busy || !newName.trim()}>
-                Add
-              </Button>
-            </div>
-          </form>
-        ) : null}
-        <ScrollArea className="max-h-[calc(var(--radix-popover-content-available-height)-2.75rem)]">
+        <ScrollArea
+          className="min-h-0"
+          viewportClassName="max-h-[calc(var(--radix-popover-content-available-height)-2.75rem)]"
+        >
+          {creating ? (
+            <form
+              className="grid shrink-0 gap-2 border-b p-2"
+              onSubmit={submitNewFolder}
+            >
+              <Label htmlFor="new-market-folder-menu-name">Folder name</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="new-market-folder-menu-name"
+                  autoFocus
+                  placeholder="Folder name"
+                  value={newName}
+                  maxLength={80}
+                  disabled={busy}
+                  onChange={(event) => setNewName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setCreating(false)
+                      setNewName("")
+                    }
+                  }}
+                />
+                <Button type="submit" disabled={busy || !newName.trim()}>
+                  Add
+                </Button>
+              </div>
+            </form>
+          ) : null}
           <div className="grid">
+            {!panelRows.watched.hidden ? (
+              <MenuSection
+                name="Watched"
+                expanded={expandedId === "watched"}
+                count={
+                  watchedOrders.settled && !watchedOrders.failed
+                    ? `${new Set(watchedOrders.rows.map((row) => row.marketKey)).size} waiting`
+                    : ""
+                }
+                onToggle={() =>
+                  setExpandedId(expandedId === "watched" ? null : "watched")
+                }
+              >
+                <WatchedOrdersList
+                  orders={watchedOrders.rows}
+                  markets={[...markets.values()]}
+                  cacheScope={watchedOrders.cacheScope}
+                  refusals={watchedOrders.refusals}
+                  walletName={walletName}
+                  settled={watchedOrders.settled}
+                  failed={watchedOrders.failed}
+                  onRetry={watchedOrders.onRetry}
+                  onSelectMarket={onSelectMarket}
+                  selectedKey={selectedMarketKey}
+                />
+              </MenuSection>
+            ) : null}
             {shownFolders.map((folder) => {
               const expanded = expandedId === folder.id
               const folderMarkets = folder.marketKeys
@@ -222,7 +267,7 @@ export function MarketFoldersMenu({
                     />
                   </button>
                   {expanded ? (
-                    <div className="border-b bg-muted/30">
+                    <div className="flex flex-col border-b bg-muted/30">
                       {folderMarkets.length > 0 ? (
                         folderMarkets.map((market) => (
                           <MarketRowLine
@@ -235,6 +280,8 @@ export function MarketFoldersMenu({
                             onSelect={onSelectMarket}
                           />
                         ))
+                      ) : marketsPending && folder.marketKeys.length > 0 ? (
+                        <LoadingRow label="Loading markets" />
                       ) : (
                         <p className="px-3 py-4 text-center text-xs text-muted-foreground">
                           {folder.marketKeys.length > 0
@@ -247,14 +294,91 @@ export function MarketFoldersMenu({
                 </div>
               )
             })}
-            {shownFolders.length === 0 ? (
-              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                No folders yet. Add one from the Folders panel.
+            {!panelRows.all.hidden ? (
+              <MenuSection
+                name="All markets"
+                expanded={expandedId === "all"}
+                count={
+                  marketsPending || marketsError
+                    ? ""
+                    : String(allMarkets.length)
+                }
+                onToggle={() =>
+                  setExpandedId(expandedId === "all" ? null : "all")
+                }
+              >
+                {marketsPending ? (
+                  <LoadingRow label="Loading markets" />
+                ) : marketsError ? (
+                  <div className="grid gap-2 p-3">
+                    <p>{marketsError}</p>
+                    <Button variant="outline" onClick={onRetryMarkets}>
+                      Try again
+                    </Button>
+                  </div>
+                ) : allMarkets.length === 0 ? (
+                  <p className="p-3 text-xs text-muted-foreground">
+                    No markets match your market visibility settings.
+                  </p>
+                ) : (
+                  allMarkets.map((market) => (
+                    <MarketRowLine
+                      key={market.key}
+                      row={market}
+                      selected={market.key === selectedMarketKey}
+                      onSelect={onSelectMarket}
+                    />
+                  ))
+                )}
+              </MenuSection>
+            ) : null}
+            {shownFolders.length === 0 &&
+            panelRows.watched.hidden &&
+            panelRows.all.hidden ? (
+              <p className="p-3 text-xs text-muted-foreground">
+                Every row is hidden. Open Manage folders to show a row.
               </p>
             ) : null}
           </div>
         </ScrollArea>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function MenuSection({
+  name,
+  count,
+  expanded,
+  onToggle,
+  children,
+}: {
+  name: string
+  count: string
+  expanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={onToggle}
+        className={cn(
+          "flex h-9 w-full items-center gap-2 border-b px-3 text-left text-sm font-medium",
+          expanded ? "bg-muted" : "hover:bg-muted"
+        )}
+      >
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className="text-xs font-normal text-muted-foreground tabular-nums">
+          {count}
+        </span>
+        <ChevronRightIcon className={cn("size-4", expanded && "rotate-90")} />
+      </button>
+      {expanded ? (
+        <div className="flex flex-col border-b bg-muted/30">{children}</div>
+      ) : null}
+    </div>
   )
 }

@@ -1,5 +1,19 @@
 import * as React from "react"
-import { ChevronDownIcon, Loader2Icon, SearchIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  GripVerticalIcon,
+  PinIcon,
+  PinOffIcon,
+  Loader2Icon,
+  SearchIcon,
+} from "lucide-react"
+
+import { Popover as PopoverPrimitive } from "radix-ui"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 import { CautionBadge } from "@/components/trade/caution-badge"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
@@ -113,6 +127,36 @@ export function MarketPicker({
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState(false)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [pinnedAt, setPinnedAt] = React.useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const [searchShown, setSearchShown] = React.useState(false)
+  const drag = React.useRef<{ x: number; y: number } | null>(null)
+  const anchor = React.useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () =>
+          new DOMRect(pinnedAt?.x ?? 0, pinnedAt?.y ?? 0, 0, 0),
+      },
+    }),
+    [pinnedAt]
+  )
+  const moveTo = React.useCallback((x: number, y: number) => {
+    const bounds = contentRef.current?.getBoundingClientRect()
+    if (!bounds) return
+    setPinnedAt({
+      x: Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8)),
+    })
+  }, [])
+  React.useEffect(() => {
+    if (!pinnedAt) return
+    const resize = () => moveTo(pinnedAt.x, pinnedAt.y)
+    window.addEventListener("resize", resize)
+    return () => window.removeEventListener("resize", resize)
+  }, [pinnedAt, moveTo])
   /**
    * Opening by hovering, with a pause at each end.
    *
@@ -138,7 +182,7 @@ export function MarketPicker({
     }, 120)
   }
   const hoverClose = (event: React.PointerEvent) => {
-    if (event.pointerType !== "mouse") return
+    if (event.pointerType !== "mouse" || pinnedAt) return
     clearHover()
     hoverTimer.current = setTimeout(() => setOpen(false), 220)
   }
@@ -177,9 +221,7 @@ export function MarketPicker({
         for (const row of found) next.add(row.key)
         return next
       })
-      setLookup(
-        found.length === 0 ? { query: asked, state: "nothing" } : null
-      )
+      setLookup(found.length === 0 ? { query: asked, state: "nothing" } : null)
     } catch (error) {
       setLookup({
         query: asked,
@@ -281,6 +323,8 @@ export function MarketPicker({
       onOpenChange={(next) => {
         setOpen(next)
         if (!next) {
+          clearHover()
+          setPinnedAt(null)
           setQuery("")
           openedByHover.current = false
         }
@@ -301,6 +345,7 @@ export function MarketPicker({
             if (!open || !openedByHover.current) return
             event.preventDefault()
             openedByHover.current = false
+            setSearchShown(true)
             searchRef.current?.focus()
           }}
           className="flex h-full max-w-full min-w-0 items-center gap-1.5 rounded-l-lg px-2.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -317,38 +362,147 @@ export function MarketPicker({
           <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
+      {pinnedAt ? <PopoverPrimitive.Anchor virtualRef={anchor} /> : null}
       <PopoverContent
+        ref={contentRef}
+        aria-label="Markets"
         align="start"
-        sideOffset={8}
+        side="bottom"
+        avoidCollisions={!pinnedAt}
+        sideOffset={pinnedAt ? 0 : 8}
+        onInteractOutside={(event) => {
+          if (pinnedAt) event.preventDefault()
+        }}
         onPointerEnter={clearHover}
         onPointerLeave={hoverClose}
-        // Hovering must not take the keyboard. Opened by hand it still lands
-        // in the search box, which is where somebody who pressed the button
-        // wants to be; opened by a passing pointer, focus stays where it was.
+        // A hover leaves keyboard focus alone; a click focuses the panel.
         onOpenAutoFocus={(event) => {
           event.preventDefault()
-          // Pressed the button: land in the search box, which is what it is
-          // for. Drifted over it: leave the keyboard where it was.
-          if (!openedByHover.current) searchRef.current?.focus()
+          if (!openedByHover.current) contentRef.current?.focus()
         }}
         // Keep the catalogue compact on a desktop while still capping it to
         // the viewport on a narrow screen.
-        className="flex h-[min(72vh,640px)] w-[51.25rem] max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
+        className="flex h-[min(72vh,640px)] w-[41rem] max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
       >
-        <div className="flex flex-col gap-3 border-b p-3">
-          <div className="relative">
-            <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              type="search"
-              value={query}
-              placeholder="Search markets"
-              aria-label="Search markets"
-              className="rounded-lg bg-muted pl-9 shadow-none"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-2 border-b p-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Drag markets"
+                aria-disabled={!pinnedAt}
+                className={cn(
+                  "touch-none",
+                  pinnedAt
+                    ? "cursor-grab active:cursor-grabbing"
+                    : "cursor-default text-muted-foreground"
+                )}
+                onPointerDown={(event) => {
+                  if (!pinnedAt || event.button !== 0) return
+                  clearHover()
+                  drag.current = {
+                    x: event.clientX - pinnedAt.x,
+                    y: event.clientY - pinnedAt.y,
+                  }
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                }}
+                onPointerMove={(event) => {
+                  if (drag.current)
+                    moveTo(
+                      event.clientX - drag.current.x,
+                      event.clientY - drag.current.y
+                    )
+                }}
+                onPointerUp={(event) => {
+                  drag.current = null
+                  if (event.currentTarget.hasPointerCapture(event.pointerId))
+                    event.currentTarget.releasePointerCapture(event.pointerId)
+                }}
+                onLostPointerCapture={() => {
+                  drag.current = null
+                }}
+                onPointerCancel={() => {
+                  drag.current = null
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    !pinnedAt ||
+                    ![
+                      "ArrowLeft",
+                      "ArrowRight",
+                      "ArrowUp",
+                      "ArrowDown",
+                    ].includes(event.key)
+                  )
+                    return
+                  event.preventDefault()
+                  moveTo(
+                    pinnedAt.x +
+                      (event.key === "ArrowLeft"
+                        ? -20
+                        : event.key === "ArrowRight"
+                          ? 20
+                          : 0),
+                    pinnedAt.y +
+                      (event.key === "ArrowUp"
+                        ? -20
+                        : event.key === "ArrowDown"
+                          ? 20
+                          : 0)
+                  )
+                }}
+              >
+                <GripVerticalIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {pinnedAt
+                ? "Drag or use arrow keys to move"
+                : "Pin markets to enable dragging"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={pinnedAt ? "Unpin markets" : "Pin markets"}
+                aria-pressed={!!pinnedAt}
+                onClick={() => {
+                  clearHover()
+                  const bounds = contentRef.current?.getBoundingClientRect()
+                  setPinnedAt(
+                    pinnedAt || !bounds ? null : { x: bounds.x, y: bounds.y }
+                  )
+                }}
+              >
+                {pinnedAt ? <PinOffIcon /> : <PinIcon />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {pinnedAt ? "Unpin markets" : "Pin markets"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Search markets"
+                aria-expanded={searchShown}
+                onClick={() => {
+                  if (searchShown) setQuery("")
+                  setSearchShown((shown) => !shown)
+                }}
+              >
+                <SearchIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Search markets</TooltipContent>
+          </Tooltip>
           <Tabs
+            className="ml-auto"
             value={activeView}
             onValueChange={(next) => {
               setView(next as MarketPickerView)
@@ -365,6 +519,19 @@ export function MarketPicker({
           </Tabs>
         </div>
 
+        {searchShown ? (
+          <div className="border-b p-3">
+            <Input
+              ref={searchRef}
+              autoFocus
+              type="search"
+              value={query}
+              placeholder="Search markets"
+              aria-label="Search markets"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        ) : null}
         {activeView === "tradfi" ? (
           <Tabs
             value={category}
@@ -395,15 +562,15 @@ export function MarketPicker({
           className="min-h-0"
           viewportClassName="h-full"
         >
-        <Table
-          containerClassName="overflow-visible"
-          className="min-w-[51.25rem] table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
-        >
-          {/* Opaque, because rows now slide underneath it: the muted tint is
+          <Table
+            containerClassName="overflow-visible"
+            className="min-w-[41rem] table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
+          >
+            {/* Opaque, because rows now slide underneath it: the muted tint is
               half-transparent and only read correctly while nothing was behind
               it. Mixed with the window's own surface so it holds in dark mode. */}
-          <TableHeader className="sticky top-0 z-10 [&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))]">
-            <TableRow>
+            <TableHeader className="sticky top-0 z-10 [&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))]">
+              <TableRow>
                 <PickerTableHead
                   label="Market"
                   sortKey="market"
@@ -436,14 +603,6 @@ export function MarketPicker({
                   sort={activeSort}
                   onSort={toggleSort}
                 />
-                {capabilities.openInterest ? (
-                  <PickerTableHead
-                    label="Open interest"
-                    sortKey="openInterest"
-                    sort={activeSort}
-                    onSort={toggleSort}
-                  />
-                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -463,8 +622,8 @@ export function MarketPicker({
                 />
               ))}
             </TableBody>
-        </Table>
-        <ScrollBar orientation="horizontal" />
+          </Table>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
         {visible.length === 0 ? (
           <div className="flex flex-col items-center gap-3 p-8 text-center text-xs text-muted-foreground">
@@ -473,7 +632,9 @@ export function MarketPicker({
                 miss here is an offer to ask the venue itself, by name or
                 address. Offered, not automatic: each lookup spends one of
                 the minute's requests. */}
-            {capabilities.search && onSearchBeyond && query.trim().length >= 2 ? (
+            {capabilities.search &&
+            onSearchBeyond &&
+            query.trim().length >= 2 ? (
               <>
                 <Button
                   type="button"
@@ -490,8 +651,8 @@ export function MarketPicker({
                 </Button>
                 {lookupFor?.state === "nothing" ? (
                   <span>
-                    Nothing on {venueLabel} is called that. A coin with no
-                    price is left out too.
+                    Nothing on {venueLabel} is called that. A coin with no price
+                    is left out too.
                   </span>
                 ) : lookupFor?.state === "failed" ? (
                   <span>{lookupFor.note}</span>
@@ -527,8 +688,7 @@ function PickerTableHead({
         sortKey === "price" && "w-[6.75rem]",
         sortKey === "change" && "w-28",
         sortKey === "funding" && "w-26",
-        sortKey === "volume" && "w-24",
-        sortKey === "openInterest" && "w-28"
+        sortKey === "volume" && "w-24"
       )}
     >
       <TableSortButton
@@ -563,7 +723,6 @@ function MarketPickerRow({
   const change = live?.change24h ?? row.change24h
   const funding = live?.fundingHourly ?? row.fundingHourly
   const volume = live?.volume24hUsd ?? row.volume24hUsd
-  const openInterest = live?.openInterestUsd ?? row.openInterestUsd
 
   return (
     <TableRow
@@ -625,11 +784,6 @@ function MarketPickerRow({
       <TableCell className="font-mono tabular-nums">
         {formatCompactUsd(volume)}
       </TableCell>
-      {capabilities.openInterest ? (
-        <TableCell className="font-mono tabular-nums">
-          {openInterest === null ? "—" : formatCompactUsd(openInterest)}
-        </TableCell>
-      ) : null}
     </TableRow>
   )
 }
@@ -651,7 +805,5 @@ function sortValue(
       return row.fundingHourly ?? 0
     case "volume":
       return row.volume24hUsd
-    case "openInterest":
-      return row.openInterestUsd ?? 0
   }
 }

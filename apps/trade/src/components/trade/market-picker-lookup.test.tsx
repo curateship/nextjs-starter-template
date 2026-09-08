@@ -84,13 +84,20 @@ async function openPicker(
     )
   )
   await act(async () => {
-    host.querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!.click()
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
+      .click()
   })
+  await act(async () =>
+    document
+      .querySelector<HTMLButtonElement>('button[aria-label="Search markets"]')!
+      .click()
+  )
 }
 
 function type(text: string) {
   const input = document.querySelector<HTMLInputElement>(
-    '[aria-label="Search markets"]'
+    'input[aria-label="Search markets"]'
   )!
   const setter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
@@ -103,11 +110,59 @@ function type(text: string) {
 const bodyText = () => document.body.textContent ?? ""
 
 describe("the Solana list", () => {
+  it("keeps a pinned picker open outside the pointer and moves it with arrow keys", async () => {
+    await openPicker()
+    const panel = document.querySelector<HTMLElement>('[aria-label="Markets"]')!
+    const bounds = vi
+      .spyOn(panel, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(20, 30, 400, 400))
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Pin markets"]')!
+        .click()
+    )
+    expect(
+      document.querySelector('button[aria-label="Unpin markets"]')
+    ).not.toBeNull()
+    const leave = new MouseEvent("pointerout", {
+      bubbles: true,
+      relatedTarget: document.body,
+    })
+    Object.defineProperty(leave, "pointerType", { value: "mouse" })
+    await act(async () => {
+      panel.dispatchEvent(leave)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    })
+    expect(document.querySelector('[aria-label="Markets"]')).toBe(panel)
+    const drag = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Drag markets"]'
+    )!
+    await act(async () =>
+      drag.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      )
+    )
+    expect(bounds).toHaveBeenCalled()
+    expect(panel.textContent).not.toContain("Open interest")
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Unpin markets"]')!
+        .click()
+    )
+    await act(async () => {
+      panel.dispatchEvent(leave)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    })
+    expect(document.querySelector('[aria-label="Markets"]')).toBeNull()
+    bounds.mockRestore()
+  })
   it("prints the venue's warning beside a flagged coin and nowhere else", async () => {
     await act(async () =>
       root.render(
         <AllMarketsList
           catalogs={[{ ...catalog, hiddenByVolumeRows: [] }]}
+          hiddenKeys={new Set()}
+          onHide={() => {}}
           marketsError={null}
           marketsPending={false}
           selectedKey={null}
@@ -230,8 +285,17 @@ describe("the Solana list", () => {
       )
     )
     await act(async () => {
-      host.querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!.click()
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
+        .click()
     })
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Search markets"]'
+        )!
+        .click()
+    )
     await act(async () => type("WIF"))
     expect(bodyText()).toContain("No matching markets.")
     expect(bodyText()).not.toContain("Find ")
