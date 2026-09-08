@@ -12,6 +12,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   placement, owner card status, and the outreach that goes with them.
 - `embeddable-listing-badge.md` — the badge a listing owner can put on another
   website, and the setting that allows it.
+- `directory-radius.md` — when the directory distance picker becomes usable
+  and how to check location-dependent filtering.
 - `listing-view-counts.md` — where a listing's view figures come from and what
   each column counts.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old

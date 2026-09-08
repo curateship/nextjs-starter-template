@@ -4,6 +4,7 @@ import { LayoutGridIcon, Loader2Icon, MapIcon } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Select,
   SelectContent,
@@ -213,21 +214,24 @@ export function DirectoryToolbar({
           <label htmlFor="directory-radius" className="text-sm font-medium">
             Within
           </label>
-          <Select
-            value={String(radius)}
-            onValueChange={(value) => onRadiusChange(Number(value))}
-          >
-            <SelectTrigger id="directory-radius">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DIRECTORY_NEAR_RADII_KM.map((option) => (
-                <SelectItem key={option} value={String(option)}>
-                  {option} km
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DisabledReason disabled={!nearActive} reason="Pick a location first.">
+            <Select
+              disabled={!nearActive}
+              value={String(radius)}
+              onValueChange={(value) => onRadiusChange(Number(value))}
+            >
+              <SelectTrigger id="directory-radius">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIRECTORY_NEAR_RADII_KM.map((option) => (
+                  <SelectItem key={option} value={String(option)}>
+                    {option} km
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </DisabledReason>
         </div>
         {nearActive ? (
           <Button type="button" variant="ghost" onClick={onNearClear}>
