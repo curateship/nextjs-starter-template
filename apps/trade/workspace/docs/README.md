@@ -122,7 +122,8 @@ screen: anything not written there has not been agreed yet.
 - `watched-orders.md` — how a plain order works now, why dragging cannot revive
   a confirmed order's temporary sending line, why
   adding to a position uses a market order with visible submission progress,
-  and how the chase follows a market that walks away.
+  and how watched limits allow immediate fills without exceeding the chosen
+  price, including moving paused watches that have not submitted an order.
 - `orders-you-cannot-afford.md` — why an order placed by hand is refused when
   the wallet does not hold the margin, which orders that applies to, and how a
   fill smaller than the ask says so.

@@ -296,6 +296,8 @@ export async function placeLiveOrder(
     slPx: number | null
     /** Stay passive; refuse instead of turning into an instant fill. */
     restingOnly?: boolean
+    /** Keep the requested limit even when it can fill immediately. */
+    limitOnly?: boolean
     /** The watched-order engine owns safe retries and their progress notice. */
     retryPostOnly?: boolean
     /** Fill at the fresh venue price and keep out of the resting-order path. */
@@ -338,7 +340,10 @@ export async function placeLiveOrder(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    if (input.restingOnly && input.marketOnly)
+    if (
+      (input.restingOnly && input.marketOnly) ||
+      (input.limitOnly && (input.restingOnly || input.marketOnly))
+    )
       throw new Error("LIVE_ORDER_KIND")
     // The price, the market's rules and the account are three independent
     // questions, so they go out together — fetched one after another they
@@ -436,8 +441,14 @@ export async function placeLiveOrder(
     const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
       marketId: ref.marketId,
       side: input.side,
-      kind: input.restingOnly ? "postOnly" : marketable ? "market" : "limit",
-      px: marketable ? mark : input.px,
+      kind: input.restingOnly
+        ? "postOnly"
+        : input.limitOnly
+          ? "limit"
+          : marketable
+            ? "market"
+            : "limit",
+      px: input.limitOnly ? input.px : marketable ? mark : input.px,
       priceTick: rules?.priceTick ?? null,
       priceMultiplierUp: rules?.priceMultiplierUp ?? null,
       priceMultiplierDown: rules?.priceMultiplierDown ?? null,

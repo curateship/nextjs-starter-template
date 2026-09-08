@@ -467,6 +467,22 @@ describe("the rails around placing", () => {
     expect(place).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { side: "buy" as const, px: 110_000 },
+    { side: "sell" as const, px: 90_000 },
+  ])("preserves an immediately fillable $side limit", async ({ side, px }) => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    await placeLiveOrder(userId, {
+      ...orderInput(walletId),
+      side,
+      px,
+      limitOnly: true,
+    })
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place.mock.calls[0][2]).toMatchObject({ kind: "limit", side, px })
+  })
+
   it("uses a post-only order when a Smart rung must stay resting", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)

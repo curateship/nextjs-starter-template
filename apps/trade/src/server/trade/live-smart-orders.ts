@@ -1068,7 +1068,9 @@ export async function noteRowFailure(
       heldUntil: now + ROW_FAILURE_HOLD_MS,
       lastSeenAt: now,
     })
-    note = `The engine could not work this order: ${message}`
+    note =
+      smartOrderRefusalReason(error) ??
+      `The engine could not work this order: ${message}`
   } else {
     held.failures += 1
     held.lastSeenAt = now
@@ -1817,11 +1819,12 @@ export async function reconcileLiveLaddersOnce(
                 reduceOnly: pending.input.reduceOnly,
                 tpPx: null,
                 slPx: null,
-                restingOnly: true,
-                retryPostOnly: entry.kind === "watch",
+                restingOnly: entry.kind !== "watch" || entry.plan.maker,
+                limitOnly: entry.kind === "watch" && !entry.plan.maker,
+                retryPostOnly: entry.kind === "watch" && entry.plan.maker,
               })
               recordSmartOrderSendSuccess(entry.plan)
-              // A resting-only order that the venue reports FILLED anyway is
+              // An immediate limit fill, or a venue-reported post-only fill, is
               // not a failure to unwind — the money moved, and unwinding the
               // plan is how the next pass buys it a second time. The watch is
               // told its order is gone (it is: it became a fill) and waits for
@@ -1836,6 +1839,8 @@ export async function reconcileLiveLaddersOnce(
               // waiting for: the fills sweep carries the trade into the Journal
               // either way.
               if (entry.kind === "watch" && outcome.status === "filled") {
+                // A later persistence error cannot undo an exchange fill.
+                marketActionStarted = true
                 forEachPlanOrderId(entry.kind, row.plan, (orderId, set) => {
                   if (orderId === pending.tempId) set(null)
                 })
