@@ -96,14 +96,49 @@ function gridWantedStopPx(plan: GridPlan): number | null {
 }
 
 /**
- * Whether two prices are the same level: equal, or one exchange tick apart on
- * a market that states its tick. A market with no stated tick keeps the exact
- * rule, because there is no step to measure a gap against.
+ * Whether two prices are the same level. Markets with numeric ticks allow one
+ * tick of historical rounding. Markets that use a rounding rule instead allow
+ * the small drift a complete range can accumulate under that rule.
  */
-function withinOneTick(a: number, b: number, tick: number | null): boolean {
+function roundedPriceStep(
+  px: number,
+  roundPx: (px: number) => number
+): number {
+  const rounded = roundPx(px)
+  // A venue that leaves prices unchanged answers a step close to floating-point
+  // noise. Hyperliquid's five-significant-figure rule answers its real smallest
+  // accepted price change at this price instead.
+  for (
+    let probe = Math.max(Math.abs(px) * 1e-12, Number.EPSILON);
+    probe <= Math.abs(px);
+    probe *= 10
+  ) {
+    const next = roundPx(px + probe)
+    if (!near(rounded, next)) return Math.abs(next - rounded)
+  }
+  return 0
+}
+
+function sameGridLevel(
+  a: number,
+  b: number,
+  tick: number | null,
+  roundPx: (px: number) => number,
+  roundingSteps: number
+): boolean {
   if (near(a, b)) return true
-  if (tick === null || !(tick > 0)) return false
-  return Math.abs(a - b) <= tick * (1 + 1e-6)
+  if (tick !== null && tick > 0) {
+    return Math.abs(a - b) <= tick * (1 + 1e-6)
+  }
+  // Hyperliquid has no numeric tick. Rounding its two range edges can move an
+  // overlapping level by one accepted price per rung, even though the old
+  // level stays untouched below. Keep that harmless accumulated rounding from
+  // pausing the move, while a larger gap still protects an old traded level.
+  const step = Math.max(roundedPriceStep(a, roundPx), roundedPriceStep(b, roundPx))
+  return (
+    Math.abs(roundPx(a) - roundPx(b)) <=
+    step * roundingSteps * (1 + 1e-6)
+  )
 }
 
 /**
@@ -908,8 +943,20 @@ function followTheRangeInto(
     const old = plan.levels[index]
     const next = prices[index + shift]
     if (
-      !withinOneTick(old.buyPx, next.buyPx, plan.priceTick) ||
-      !withinOneTick(old.sellPx, next.sellPx, plan.priceTick)
+      !sameGridLevel(
+        old.buyPx,
+        next.buyPx,
+        plan.priceTick,
+        roundPx,
+        count
+      ) ||
+      !sameGridLevel(
+        old.sellPx,
+        next.sellPx,
+        plan.priceTick,
+        roundPx,
+        count
+      )
     ) {
       return { moved: false, reason: NEXT_LEVEL_OFF_TICK }
     }

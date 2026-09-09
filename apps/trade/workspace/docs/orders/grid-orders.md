@@ -569,6 +569,12 @@ KuCoin was the case). A saved level one step away from the redrawn one is now
 the same level, and it keeps the price it traded at. A gap of two steps or more
 still pauses before an existing level can be changed.
 
+Hyperliquid does not publish a numeric price step. It accepts prices rounded to
+five significant figures instead. When a Hyperliquid grid follows price, two
+overlapping levels may differ by the small rounding accumulated across its
+range. The grid keeps the old traded price and carries on. A larger difference
+still pauses the grid before it changes a level that has already traded.
+
 The position on the wallet is still the final count of what exists. If coins
 from a carried level were already closed by hand, the grid removes that carried
 level when price next crosses its sale instead of leaving a sale behind for

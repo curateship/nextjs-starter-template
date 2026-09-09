@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
+import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
 import { snapToTick } from "@/lib/protocols/tick"
 import {
   defaultGridParams,
@@ -61,6 +62,9 @@ const marks = new Map<string, number>([["BTC", 200]])
 let candles: CandleBar[] = []
 /** The market's price step. Null leaves every price exactly as drawn. */
 let tick: number | null = null
+let sizeDecimals = 3
+let roundPrice = (px: number, _decimals: number | null) =>
+  snapToTick(px, tick)
 
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -79,7 +83,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             symbol: "BTC",
             subExchange: null,
             category: "crypto",
-            sizeDecimals: 3,
+            sizeDecimals,
             priceTick: tick,
             maxLeverage: 50,
             isolatedOnly: false,
@@ -99,7 +103,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             .map((id) => [id, marks.get(id) as number])
         ),
       candles: async () => candles,
-      roundPx: (px: number) => snapToTick(px, tick),
+      roundPx: roundPrice,
     },
     account: { fetch: async () => null },
   }),
@@ -187,6 +191,8 @@ beforeEach(async () => {
   marks.set("BTC", 200)
   candles = []
   tick = null
+  sizeDecimals = 3
+  roundPrice = (px, _decimals) => snapToTick(px, tick)
 
   userId = (await insertUser(database)).id
   await database.insert(tradeWallets).values({
@@ -2019,6 +2025,27 @@ describe("following price down", () => {
     expect(grid.plan.levels.slice(1).map((one) => one.buyPx)).toEqual(
       nudged.slice(0, -1).map((one) => one.buyPx)
     )
+  })
+
+  it("keeps following down when Hyperliquid rounds equivalent prices", async () => {
+    // XPL paused here on 9 Sep 2026. Hyperliquid does not publish a numeric
+    // tick. Rounding the two range edges can move an overlapping level by a
+    // few accepted prices, although the old level keeps its traded price.
+    sizeDecimals = 0
+    roundPrice = roundOrderPx
+    await priceTo(0.105)
+    await placeGridOrder(userId, wallet, {
+      marketKey: BTC,
+      topPx: 0.105,
+      bottomPx: 0.086706,
+      params: params({ levels: 5, followDown: true, spacing: "compounding" }),
+    })
+
+    await priceTo(0.086706)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.paused).not.toBe(true)
+    expect(grid.plan.downShifts).toBe(1)
   })
 
   it("pauses when the exchange's new minimum makes the lower buys too small", async () => {
