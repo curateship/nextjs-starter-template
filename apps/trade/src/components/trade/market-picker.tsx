@@ -1,5 +1,19 @@
 import * as React from "react"
-import { ChevronDownIcon, Loader2Icon, SearchIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  GripVerticalIcon,
+  PinIcon,
+  PinOffIcon,
+  Loader2Icon,
+  SearchIcon,
+} from "lucide-react"
+
+import { Popover as PopoverPrimitive } from "radix-ui"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 import { CautionBadge } from "@/components/trade/caution-badge"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
@@ -13,7 +27,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import {
   Table,
   TableBody,
@@ -29,17 +50,11 @@ import type {
   MarketRow,
 } from "@/lib/protocols/contracts"
 import {
-  marketPickerSortKeys,
   marketPickerViews,
   type MarketPickerSortKey,
   type MarketPickerView,
 } from "@/lib/trade/market-picker-options"
-import {
-  formatChange,
-  formatCompactUsd,
-  formatFunding,
-  formatPrice,
-} from "@/lib/trade/format"
+import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { getMarketsErrorMessage } from "@/lib/api/trade/markets"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
@@ -82,9 +97,8 @@ const TRADFI_CATEGORY_SET = new Set<MarketCategory>([
 ])
 
 /**
- * The full-width market picker used by the old Trading app, adapted to the
- * protocol-neutral rows Trade already loads. It owns display state only;
- * selection and saved stars stay with the workspace.
+ * The market picker owns display filters and sorting. Market selection and
+ * saved stars stay with the workspace.
  */
 export function MarketPicker({
   rows,
@@ -113,6 +127,37 @@ export function MarketPicker({
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState(false)
+  const [filtersOpen, setFiltersOpen] = React.useState(false)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [pinnedAt, setPinnedAt] = React.useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const [searchShown, setSearchShown] = React.useState(false)
+  const drag = React.useRef<{ x: number; y: number } | null>(null)
+  const anchor = React.useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () =>
+          new DOMRect(pinnedAt?.x ?? 0, pinnedAt?.y ?? 0, 0, 0),
+      },
+    }),
+    [pinnedAt]
+  )
+  const moveTo = React.useCallback((x: number, y: number) => {
+    const bounds = contentRef.current?.getBoundingClientRect()
+    if (!bounds) return
+    setPinnedAt({
+      x: Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8)),
+    })
+  }, [])
+  React.useEffect(() => {
+    if (!pinnedAt) return
+    const resize = () => moveTo(pinnedAt.x, pinnedAt.y)
+    window.addEventListener("resize", resize)
+    return () => window.removeEventListener("resize", resize)
+  }, [pinnedAt, moveTo])
   /**
    * Opening by hovering, with a pause at each end.
    *
@@ -138,7 +183,7 @@ export function MarketPicker({
     }, 120)
   }
   const hoverClose = (event: React.PointerEvent) => {
-    if (event.pointerType !== "mouse") return
+    if (event.pointerType !== "mouse" || pinnedAt || filtersOpen) return
     clearHover()
     hoverTimer.current = setTimeout(() => setOpen(false), 220)
   }
@@ -177,9 +222,7 @@ export function MarketPicker({
         for (const row of found) next.add(row.key)
         return next
       })
-      setLookup(
-        found.length === 0 ? { query: asked, state: "nothing" } : null
-      )
+      setLookup(found.length === 0 ? { query: asked, state: "nothing" } : null)
     } catch (error) {
       setLookup({
         query: asked,
@@ -188,8 +231,10 @@ export function MarketPicker({
       })
     }
   }
-  const [view, setView] = React.useState<MarketPickerView>("all")
-  const [category, setCategory] = React.useState<TradFiCategory>("all")
+  const [views, setViews] = React.useState<Exclude<MarketPickerView, "all">[]>(
+    []
+  )
+  const [categories, setCategories] = React.useState<TradFiCategory[]>([])
   const [sort, setSort] = React.useState<{
     key: MarketPickerSortKey
     dir: "asc" | "desc"
@@ -198,17 +243,9 @@ export function MarketPicker({
     () => marketPickerViews(capabilities, rows),
     [capabilities, rows]
   )
-  const sortKeys = React.useMemo(
-    () => marketPickerSortKeys(capabilities),
-    [capabilities]
-  )
-  const activeView = pickerViews.includes(view) ? view : "all"
-  const activeSort = React.useMemo(
-    () =>
-      sortKeys.includes(sort.key)
-        ? sort
-        : ({ key: "volume", dir: "desc" } as const),
-    [sort, sortKeys]
+  const activeViews = React.useMemo(
+    () => views.filter((view) => pickerViews.includes(view)),
+    [views, pickerViews]
   )
 
   const visible = React.useMemo(() => {
@@ -227,40 +264,51 @@ export function MarketPicker({
           displaySymbol(row.symbol).toUpperCase().includes(trimmed))
     )
 
-    if (activeView === "favorites") {
-      list = list.filter((row) => favKeys.has(row.key))
-    } else if (activeView === "crypto") {
-      list = list.filter((row) => row.category === "crypto")
-    } else if (activeView === "tradfi") {
-      list = list.filter((row) => TRADFI_CATEGORY_SET.has(row.category))
-      if (category !== "all") {
-        list = list.filter((row) => row.category === category)
-      }
-    } else if (activeView === "hip3") {
-      list = list.filter((row) => row.subExchange !== null)
-    } else if (activeView === "trending") {
-      list = [...list]
-        .sort((a, b) => b.volume24hUsd - a.volume24hUsd)
-        .slice(0, 50)
+    if (activeViews.length > 0) {
+      const trendingKeys = activeViews.includes("trending")
+        ? new Set(
+            [...list]
+              .sort((a, b) => b.volume24hUsd - a.volume24hUsd)
+              .slice(0, 50)
+              .map((row) => row.key)
+          )
+        : new Set<string>()
+      list = list.filter((row) =>
+        activeViews.some((view) => {
+          switch (view) {
+            case "favorites":
+              return favKeys.has(row.key)
+            case "crypto":
+              return row.category === "crypto"
+            case "tradfi":
+              return (
+                TRADFI_CATEGORY_SET.has(row.category) &&
+                (categories.length === 0 ||
+                  categories.some((category) => category === row.category))
+              )
+            case "hip3":
+              return row.subExchange !== null
+            case "trending":
+              return trendingKeys.has(row.key)
+          }
+        })
+      )
     }
 
-    const direction = activeSort.dir === "asc" ? 1 : -1
+    const direction = sort.dir === "asc" ? 1 : -1
     return [...list].sort((a, b) => {
-      if (activeSort.key === "market") {
+      if (sort.key === "market") {
         return (
           displaySymbol(a.symbol).localeCompare(displaySymbol(b.symbol)) *
           direction
         )
       }
-      return (
-        (sortValue(a, activeSort.key) - sortValue(b, activeSort.key)) *
-        direction
-      )
+      return (sortValue(a, sort.key) - sortValue(b, sort.key)) * direction
     })
   }, [
-    activeSort,
-    activeView,
-    category,
+    sort,
+    activeViews,
+    categories,
     folders,
     foundKeys,
     query,
@@ -281,6 +329,8 @@ export function MarketPicker({
       onOpenChange={(next) => {
         setOpen(next)
         if (!next) {
+          clearHover()
+          setPinnedAt(null)
           setQuery("")
           openedByHover.current = false
         }
@@ -301,6 +351,7 @@ export function MarketPicker({
             if (!open || !openedByHover.current) return
             event.preventDefault()
             openedByHover.current = false
+            setSearchShown(true)
             searchRef.current?.focus()
           }}
           className="flex h-full max-w-full min-w-0 items-center gap-1.5 rounded-l-lg px-2.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -317,70 +368,245 @@ export function MarketPicker({
           <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
+      {pinnedAt ? <PopoverPrimitive.Anchor virtualRef={anchor} /> : null}
       <PopoverContent
+        ref={contentRef}
+        aria-label="Markets"
         align="start"
-        sideOffset={8}
+        side="bottom"
+        avoidCollisions={!pinnedAt}
+        collisionPadding={8}
+        sideOffset={pinnedAt ? 0 : 8}
+        onInteractOutside={(event) => {
+          if (pinnedAt || filtersOpen) event.preventDefault()
+        }}
         onPointerEnter={clearHover}
         onPointerLeave={hoverClose}
-        // Hovering must not take the keyboard. Opened by hand it still lands
-        // in the search box, which is where somebody who pressed the button
-        // wants to be; opened by a passing pointer, focus stays where it was.
+        // A hover leaves keyboard focus alone; a click focuses the panel.
         onOpenAutoFocus={(event) => {
           event.preventDefault()
-          // Pressed the button: land in the search box, which is what it is
-          // for. Drifted over it: leave the keyboard where it was.
-          if (!openedByHover.current) searchRef.current?.focus()
+          if (!openedByHover.current) contentRef.current?.focus()
         }}
         // Keep the catalogue compact on a desktop while still capping it to
         // the viewport on a narrow screen.
-        className="flex h-[min(72vh,640px)] w-[51.25rem] max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
+        className="flex h-[min(72vh,640px)] w-[28rem] max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
       >
-        <div className="flex flex-col gap-3 border-b p-3">
-          <div className="relative">
-            <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2 border-b p-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Drag markets"
+                aria-disabled={!pinnedAt}
+                className={cn(
+                  "touch-none",
+                  pinnedAt
+                    ? "cursor-grab active:cursor-grabbing"
+                    : "cursor-default text-muted-foreground"
+                )}
+                onPointerDown={(event) => {
+                  if (!pinnedAt || event.button !== 0) return
+                  clearHover()
+                  drag.current = {
+                    x: event.clientX - pinnedAt.x,
+                    y: event.clientY - pinnedAt.y,
+                  }
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                }}
+                onPointerMove={(event) => {
+                  if (drag.current)
+                    moveTo(
+                      event.clientX - drag.current.x,
+                      event.clientY - drag.current.y
+                    )
+                }}
+                onPointerUp={(event) => {
+                  drag.current = null
+                  if (event.currentTarget.hasPointerCapture(event.pointerId))
+                    event.currentTarget.releasePointerCapture(event.pointerId)
+                }}
+                onLostPointerCapture={() => {
+                  drag.current = null
+                }}
+                onPointerCancel={() => {
+                  drag.current = null
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    !pinnedAt ||
+                    ![
+                      "ArrowLeft",
+                      "ArrowRight",
+                      "ArrowUp",
+                      "ArrowDown",
+                    ].includes(event.key)
+                  )
+                    return
+                  event.preventDefault()
+                  moveTo(
+                    pinnedAt.x +
+                      (event.key === "ArrowLeft"
+                        ? -20
+                        : event.key === "ArrowRight"
+                          ? 20
+                          : 0),
+                    pinnedAt.y +
+                      (event.key === "ArrowUp"
+                        ? -20
+                        : event.key === "ArrowDown"
+                          ? 20
+                          : 0)
+                  )
+                }}
+              >
+                <GripVerticalIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {pinnedAt
+                ? "Drag or use arrow keys to move"
+                : "Pin markets to enable dragging"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={pinnedAt ? "Unpin markets" : "Pin markets"}
+                aria-pressed={!!pinnedAt}
+                onClick={() => {
+                  clearHover()
+                  const bounds = contentRef.current?.getBoundingClientRect()
+                  setPinnedAt(
+                    pinnedAt || !bounds ? null : { x: bounds.x, y: bounds.y }
+                  )
+                }}
+              >
+                {pinnedAt ? <PinOffIcon /> : <PinIcon />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {pinnedAt ? "Unpin markets" : "Pin markets"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Search markets"
+                aria-expanded={searchShown}
+                onClick={() => {
+                  if (searchShown) setQuery("")
+                  setSearchShown((shown) => !shown)
+                }}
+              >
+                <SearchIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Search markets</TooltipContent>
+          </Tooltip>
+          <DropdownMenu
+            modal={false}
+            open={filtersOpen}
+            onOpenChange={(next) => {
+              clearHover()
+              setFiltersOpen(next)
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="ml-auto"
+                aria-label="Filter markets"
+              >
+                {activeViews.length
+                  ? `Filters (${activeViews.length})`
+                  : "All markets"}
+                <ChevronDownIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-44"
+              onPointerEnter={clearHover}
+            >
+              <DropdownMenuCheckboxItem
+                checked={activeViews.length === 0}
+                onSelect={(event) => event.preventDefault()}
+                onCheckedChange={() => {
+                  setViews([])
+                  setCategories([])
+                }}
+              >
+                All markets
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              {pickerViews
+                .filter((view) => view !== "all")
+                .map((view) => (
+                  <DropdownMenuCheckboxItem
+                    key={view}
+                    checked={activeViews.includes(view)}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) =>
+                      setViews((current) =>
+                        checked
+                          ? [...current, view]
+                          : current.filter((item) => item !== view)
+                      )
+                    }
+                  >
+                    {PICKER_VIEW_LABELS[view]}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              {activeViews.includes("tradfi") ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>TradFi categories</DropdownMenuLabel>
+                  {TRADFI_CATEGORIES.map(({ value, label }) => (
+                    <DropdownMenuCheckboxItem
+                      key={value}
+                      checked={
+                        value === "all"
+                          ? categories.length === 0
+                          : categories.includes(value)
+                      }
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={(checked) =>
+                        setCategories((current) =>
+                          value === "all"
+                            ? []
+                            : checked
+                              ? [...current, value]
+                              : current.filter((item) => item !== value)
+                        )
+                      }
+                    >
+                      {label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {searchShown ? (
+          <div className="border-b p-3">
             <Input
               ref={searchRef}
+              autoFocus
               type="search"
               value={query}
               placeholder="Search markets"
               aria-label="Search markets"
-              className="rounded-lg bg-muted pl-9 shadow-none"
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <Tabs
-            value={activeView}
-            onValueChange={(next) => {
-              setView(next as MarketPickerView)
-              setCategory("all")
-            }}
-          >
-            <TabsList className="h-auto max-w-full flex-wrap justify-start">
-              {pickerViews.map((item) => (
-                <TabsTrigger key={item} value={item}>
-                  {PICKER_VIEW_LABELS[item]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
-
-        {activeView === "tradfi" ? (
-          <Tabs
-            value={category}
-            onValueChange={(next) => setCategory(next as TradFiCategory)}
-            className="border-b px-3 py-2"
-          >
-            <TabsList aria-label="TradFi categories">
-              {TRADFI_CATEGORIES.map((item) => (
-                <TabsTrigger key={item.value} value={item.value}>
-                  {item.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
         ) : null}
-
         {/*
          * The `ScrollArea` viewport is the one box that scrolls both ways, so
          * the sticky heading sticks to it. `Table`'s own sideways-scrolling
@@ -395,55 +621,33 @@ export function MarketPicker({
           className="min-h-0"
           viewportClassName="h-full"
         >
-        <Table
-          containerClassName="overflow-visible"
-          className="min-w-[51.25rem] table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
-        >
-          {/* Opaque, because rows now slide underneath it: the muted tint is
+          <Table
+            containerClassName="overflow-visible"
+            className="min-w-[28rem] table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
+          >
+            {/* Opaque, because rows now slide underneath it: the muted tint is
               half-transparent and only read correctly while nothing was behind
               it. Mixed with the window's own surface so it holds in dark mode. */}
-          <TableHeader className="sticky top-0 z-10 [&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))]">
-            <TableRow>
+            <TableHeader className="sticky top-0 z-10 [&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))]">
+              <TableRow>
                 <PickerTableHead
                   label="Market"
                   sortKey="market"
-                  sort={activeSort}
-                  onSort={toggleSort}
-                />
-                <PickerTableHead
-                  label="Last price"
-                  sortKey="price"
-                  sort={activeSort}
+                  sort={sort}
                   onSort={toggleSort}
                 />
                 <PickerTableHead
                   label="24h change"
                   sortKey="change"
-                  sort={activeSort}
+                  sort={sort}
                   onSort={toggleSort}
                 />
-                {capabilities.funding ? (
-                  <PickerTableHead
-                    label="Funding"
-                    sortKey="funding"
-                    sort={activeSort}
-                    onSort={toggleSort}
-                  />
-                ) : null}
                 <PickerTableHead
                   label="Volume"
                   sortKey="volume"
-                  sort={activeSort}
+                  sort={sort}
                   onSort={toggleSort}
                 />
-                {capabilities.openInterest ? (
-                  <PickerTableHead
-                    label="Open interest"
-                    sortKey="openInterest"
-                    sort={activeSort}
-                    onSort={toggleSort}
-                  />
-                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -454,7 +658,6 @@ export function MarketPicker({
                   selected={row.key === selected.key}
                   folders={folders}
                   folderActions={folderActions}
-                  capabilities={capabilities}
                   // The list stays up after a pick. Putting one market
                   // after another on the chart is a single pass down the
                   // rows, not a reopen each time. Moving the pointer off the
@@ -463,8 +666,8 @@ export function MarketPicker({
                 />
               ))}
             </TableBody>
-        </Table>
-        <ScrollBar orientation="horizontal" />
+          </Table>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
         {visible.length === 0 ? (
           <div className="flex flex-col items-center gap-3 p-8 text-center text-xs text-muted-foreground">
@@ -473,7 +676,9 @@ export function MarketPicker({
                 miss here is an offer to ask the venue itself, by name or
                 address. Offered, not automatic: each lookup spends one of
                 the minute's requests. */}
-            {capabilities.search && onSearchBeyond && query.trim().length >= 2 ? (
+            {capabilities.search &&
+            onSearchBeyond &&
+            query.trim().length >= 2 ? (
               <>
                 <Button
                   type="button"
@@ -490,8 +695,8 @@ export function MarketPicker({
                 </Button>
                 {lookupFor?.state === "nothing" ? (
                   <span>
-                    Nothing on {venueLabel} is called that. A coin with no
-                    price is left out too.
+                    Nothing on {venueLabel} is called that. A coin with no price
+                    is left out too.
                   </span>
                 ) : lookupFor?.state === "failed" ? (
                   <span>{lookupFor.note}</span>
@@ -524,11 +729,8 @@ function PickerTableHead({
     <TableHead
       className={cn(
         "h-9 px-2 text-xs text-muted-foreground",
-        sortKey === "price" && "w-[6.75rem]",
         sortKey === "change" && "w-28",
-        sortKey === "funding" && "w-26",
-        sortKey === "volume" && "w-24",
-        sortKey === "openInterest" && "w-28"
+        sortKey === "volume" && "w-24"
       )}
     >
       <TableSortButton
@@ -548,22 +750,17 @@ function MarketPickerRow({
   selected,
   folders,
   folderActions,
-  capabilities,
   onSelect,
 }: {
   row: MarketRow
   selected: boolean
   folders: readonly MarketFolder[]
   folderActions: MarketFolderActions
-  capabilities: MarketPickerCapabilities
   onSelect: () => void
 }) {
   const live = useLiveFigures(row.key)
-  const price = live?.price ?? row.price
   const change = live?.change24h ?? row.change24h
-  const funding = live?.fundingHourly ?? row.fundingHourly
   const volume = live?.volume24hUsd ?? row.volume24hUsd
-  const openInterest = live?.openInterestUsd ?? row.openInterestUsd
 
   return (
     <TableRow
@@ -606,9 +803,6 @@ function MarketPickerRow({
           ) : null}
         </div>
       </TableCell>
-      <TableCell className="font-mono tabular-nums">
-        {formatPrice(price)}
-      </TableCell>
       <TableCell
         className={cn(
           "font-mono tabular-nums",
@@ -617,19 +811,9 @@ function MarketPickerRow({
       >
         {change === null ? "—" : formatChange(change)}
       </TableCell>
-      {capabilities.funding ? (
-        <TableCell className="font-mono tabular-nums">
-          {funding === null ? "—" : formatFunding(funding)}
-        </TableCell>
-      ) : null}
       <TableCell className="font-mono tabular-nums">
         {formatCompactUsd(volume)}
       </TableCell>
-      {capabilities.openInterest ? (
-        <TableCell className="font-mono tabular-nums">
-          {openInterest === null ? "—" : formatCompactUsd(openInterest)}
-        </TableCell>
-      ) : null}
     </TableRow>
   )
 }
@@ -643,15 +827,9 @@ function sortValue(
   key: Exclude<MarketPickerSortKey, "market">
 ): number {
   switch (key) {
-    case "price":
-      return row.price
     case "change":
       return row.change24h ?? 0
-    case "funding":
-      return row.fundingHourly ?? 0
     case "volume":
       return row.volume24hUsd
-    case "openInterest":
-      return row.openInterestUsd ?? 0
   }
 }

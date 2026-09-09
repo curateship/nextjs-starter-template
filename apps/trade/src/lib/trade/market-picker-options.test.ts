@@ -4,10 +4,7 @@ import type {
   MarketPickerCapabilities,
   MarketRow,
 } from "@/lib/protocols/contracts"
-import {
-  marketPickerSortKeys,
-  marketPickerViews,
-} from "@/lib/trade/market-picker-options"
+import { marketPickerViews } from "@/lib/trade/market-picker-options"
 
 const row = (category: MarketRow["category"]): MarketRow => ({
   key: `aster:mainnet:${category}`,
@@ -66,15 +63,5 @@ describe("market picker options", () => {
         row("crypto"),
       ])
     ).toEqual(["favorites", "all", "crypto", "tradfi", "hip3", "trending"])
-  })
-
-  it("removes columns the exchange cannot fill", () => {
-    expect(marketPickerSortKeys(capabilities())).toEqual([
-      "market",
-      "price",
-      "change",
-      "funding",
-      "volume",
-    ])
   })
 })

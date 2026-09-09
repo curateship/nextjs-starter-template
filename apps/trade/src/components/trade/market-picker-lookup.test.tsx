@@ -84,13 +84,20 @@ async function openPicker(
     )
   )
   await act(async () => {
-    host.querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!.click()
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
+      .click()
   })
+  await act(async () =>
+    document
+      .querySelector<HTMLButtonElement>('button[aria-label="Search markets"]')!
+      .click()
+  )
 }
 
 function type(text: string) {
   const input = document.querySelector<HTMLInputElement>(
-    '[aria-label="Search markets"]'
+    'input[aria-label="Search markets"]'
   )!
   const setter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
@@ -103,11 +110,59 @@ function type(text: string) {
 const bodyText = () => document.body.textContent ?? ""
 
 describe("the Solana list", () => {
+  it("keeps a pinned picker open outside the pointer and moves it with arrow keys", async () => {
+    await openPicker()
+    const panel = document.querySelector<HTMLElement>('[aria-label="Markets"]')!
+    const bounds = vi
+      .spyOn(panel, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(20, 30, 400, 400))
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Pin markets"]')!
+        .click()
+    )
+    expect(
+      document.querySelector('button[aria-label="Unpin markets"]')
+    ).not.toBeNull()
+    const leave = new MouseEvent("pointerout", {
+      bubbles: true,
+      relatedTarget: document.body,
+    })
+    Object.defineProperty(leave, "pointerType", { value: "mouse" })
+    await act(async () => {
+      panel.dispatchEvent(leave)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    })
+    expect(document.querySelector('[aria-label="Markets"]')).toBe(panel)
+    const drag = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Drag markets"]'
+    )!
+    await act(async () =>
+      drag.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      )
+    )
+    expect(bounds).toHaveBeenCalled()
+    expect(panel.textContent).not.toContain("Open interest")
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Unpin markets"]')!
+        .click()
+    )
+    await act(async () => {
+      panel.dispatchEvent(leave)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    })
+    expect(document.querySelector('[aria-label="Markets"]')).toBeNull()
+    bounds.mockRestore()
+  })
   it("prints the venue's warning beside a flagged coin and nowhere else", async () => {
     await act(async () =>
       root.render(
         <AllMarketsList
           catalogs={[{ ...catalog, hiddenByVolumeRows: [] }]}
+          hiddenKeys={new Set()}
+          onHide={() => {}}
           marketsError={null}
           marketsPending={false}
           selectedKey={null}
@@ -131,11 +186,70 @@ describe("the Solana list", () => {
     expect(text).toContain("—")
   })
 
-  it("offers the category tabs, because tokenised stocks are in the list", async () => {
-    await openPicker()
-    expect(bodyText()).toContain("Crypto")
-    expect(bodyText()).toContain("TradFi")
-    expect(bodyText()).toContain("SOL-USDC")
+  it("combines checkbox filters and keeps only three market columns", async () => {
+    const shown: MarketRow[] = [
+      {
+        ...rows[0],
+        key: "solana:mainnet:crypto",
+        symbol: "COIN",
+        category: "crypto",
+        volume24hUsd: 300,
+      },
+      {
+        ...rows[0],
+        key: "solana:mainnet:stock",
+        symbol: "STOCK",
+        category: "stocks",
+        volume24hUsd: 200,
+      },
+      {
+        ...rows[0],
+        key: "solana:mainnet:gold",
+        symbol: "GOLD",
+        category: "commodities",
+        volume24hUsd: 100,
+      },
+    ]
+    await openPicker(undefined, shown)
+    expect(
+      [...document.querySelectorAll("th")].map((cell) => cell.textContent)
+    ).toEqual(["Market", "24h change", "Volume"])
+    expect(document.querySelector('[role="tablist"]')).toBeNull()
+    await act(async () =>
+      document
+        .querySelector('[aria-label="Filter markets"]')!
+        .dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+    )
+    const check = async (label: string) => {
+      const item = [
+        ...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]'),
+      ].find((item) => item.textContent === label)!
+      expect(item).toBeDefined()
+      await act(async () => item.click())
+    }
+    const table = () => document.querySelector("tbody")!.textContent!
+    await check("Crypto")
+    expect(table()).toContain("COIN")
+    expect(table()).not.toContain("STOCK")
+    await check("TradFi")
+    expect(table()).toContain("COIN")
+    expect(table()).toContain("STOCK")
+    expect(table()).toContain("GOLD")
+    await check("Stocks")
+    expect(table()).toContain("STOCK")
+    expect(table()).not.toContain("GOLD")
+    await check("Commodities")
+    expect(table()).toContain("GOLD")
+    await check("Crypto")
+    expect(table()).not.toContain("COIN")
+    await check("All markets")
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(3)
+    await check("Favorites")
+    expect(bodyText()).toContain("No matching markets.")
+    await check("Favorites")
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(3)
   })
 
   it("offers to look a coin up on Solana when nothing loaded matches", async () => {
@@ -230,8 +344,17 @@ describe("the Solana list", () => {
       )
     )
     await act(async () => {
-      host.querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!.click()
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
+        .click()
     })
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Search markets"]'
+        )!
+        .click()
+    )
     await act(async () => type("WIF"))
     expect(bodyText()).toContain("No matching markets.")
     expect(bodyText()).not.toContain("Find ")

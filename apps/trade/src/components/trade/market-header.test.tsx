@@ -3,7 +3,7 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   MarketHeader,
@@ -21,6 +21,15 @@ import { minimumOrderLabel } from "@/lib/trade/market-info"
  * header's other three states may grow one, because there is no market there
  * to star. It leads the row, ahead of the market's own art.
  */
+
+vi.mock("@/lib/trade/use-pinned-markets", () => ({
+  usePinnedMarkets: () => ({
+    pins: [],
+    loaded: true,
+    busy: false,
+    store: { setPin: vi.fn() },
+  }),
+}))
 
 const key = "hyperliquid:mainnet:BTC" as MarketKey
 
@@ -155,6 +164,31 @@ describe("the market header's star", () => {
 
     expect(document.body.textContent).toContain("Daily volume: $1.00m")
 
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("shows the selected pool's liquidity in the keyboard-accessible tooltip", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        header(
+          { ...market, row: { ...market.row, liquidityUsd: 2_000_000 } },
+          []
+        )
+      )
+    )
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
+      )
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label^="About "]')!
+        .focus()
+    })
+    expect(document.body.textContent).toContain("Pool liquidity: $2.00m")
     await act(async () => root.unmount())
     host.remove()
   })

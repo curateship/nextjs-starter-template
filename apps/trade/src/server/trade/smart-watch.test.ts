@@ -4,10 +4,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { isMarketable } from "@/lib/trade/paper"
-import {
-  CHASE_EVERY_MS,
-  CHASE_PATIENCE_MS,
-} from "@/lib/trade/signal-order"
+import { CHASE_EVERY_MS, CHASE_PATIENCE_MS } from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
@@ -26,10 +23,8 @@ import {
  * A watched price, driven through real settles rather than by calling the
  * engine directly — the same way the ladder, grid and signal suites work.
  *
- * **Two claims these tests exist to defend.** Nothing is sent anywhere until
- * the level is actually touched, and nothing is ever taken at the market price
- * once it is. Both are the whole reason a watch is offered as an alternative
- * to an order resting on the exchange.
+ * Nothing is submitted before the level is reached. The submitted limit
+ * keeps the chosen price and permits an immediate fill within that limit.
  */
 
 const marks = new Map<string, number>([["BTC", 100]])
@@ -209,30 +204,27 @@ describe("a price being watched", () => {
     expect((await row()).plan.phase).toBe("waiting")
   })
 
-  it("rests an order once the level is touched, and never takes the market", async () => {
+  it("submits the chosen limit once the level is touched", async () => {
     await watchAt()
     await priceTo(95)
 
     const [order] = await orders()
     expect(order).toBeDefined()
-    // The whole claim: an order on the wrong side of the price cannot have
-    // been taken at it.
-    expect(isMarketable("buy", order.px, marks.get("BTC") as number)).toBe(
-      false
-    )
+    // The submitted limit allows an immediate fill at the chosen price.
+    expect(isMarketable("buy", order.px, marks.get("BTC") as number)).toBe(true)
     expect((await row()).plan.phase).toBe("taking")
     expect(await positions()).toHaveLength(0)
   })
 
-  it("keeps the old instant buy behavior for a stored watch with no direction", async () => {
+  it("fills a buy within its limit even without a stored direction", async () => {
     await watchAt({ triggerPx: 105 })
     await priceTo(100)
+    await settle()
 
     const [held] = await positions()
     expect(held).toBeDefined()
     expect(held.szi).toBeCloseTo(1)
-    // Bought at the market, not at the level that was drawn.
-    expect(held.entryPx).toBeCloseTo(100, 1)
+    expect(held.entryPx).toBeLessThanOrEqual(105)
     expect(await orders()).toHaveLength(0)
   })
 
@@ -246,9 +238,10 @@ describe("a price being watched", () => {
     expect(await positions()).toHaveLength(0)
   })
 
-  it("keeps the old instant sell behavior for a stored watch with no direction", async () => {
+  it("fills a sell within its limit even without a stored direction", async () => {
     await watchAt({ side: "sell", triggerPx: 95, reduceOnly: false })
     await priceTo(100)
+    await settle()
 
     const [held] = await positions()
     expect(held).toBeDefined()
@@ -268,7 +261,7 @@ describe("a price being watched", () => {
     await priceTo(105)
     const [order] = await orders()
     expect(order).toBeDefined()
-    expect(isMarketable("buy", order.px, 105)).toBe(false)
+    expect(order.px).toBe(105)
     expect(await positions()).toHaveLength(0)
     expect((await row()).plan.phase).toBe("taking")
   })
@@ -289,15 +282,13 @@ describe("a price being watched", () => {
     await priceTo(95)
     const [order] = await orders()
     expect(order).toBeDefined()
-    expect(isMarketable("sell", order.px, 95)).toBe(false)
+    expect(order.px).toBe(95)
     expect(await positions()).toHaveLength(0)
     expect((await row()).plan.phase).toBe("taking")
   })
 
-  it("rests rather than taking when price merely arrives at the level", async () => {
-    // The other half, so the market-take cannot swallow the ordinary case.
-    // Price coming DOWN to a buy level is what a watch is for, and paying the
-    // spread there is exactly what resting avoids.
+  it("queues a limit at the exact watched level for the next paper settle", async () => {
+    // Paper orders fill on the following settle, using the same limit.
     await watchAt()
     await priceTo(95)
 
@@ -305,26 +296,19 @@ describe("a price being watched", () => {
     expect(await positions()).toHaveLength(0)
   })
 
-  it("starts chasing at once when the order was told to start now", async () => {
-    // Adding to a position picks no level. Before this it was pinned to
-    // whatever the chart showed when the window opened, so a market that moved
-    // while a size was typed left the order waiting for a price it had already
-    // left — minutes, and sometimes forever.
+  it("submits the chosen limit when the order was told to start now", async () => {
     await watchAt({ phase: "taking", triggerPx: 100 })
-    // Price never reaches the level and never has to: the order rests just
-    // under the market on the very first pass.
+    // Starting now skips waiting but still respects the chosen limit.
     await priceTo(100)
 
     const resting = await orders()
     expect(resting).toHaveLength(1)
-    expect(resting[0].px).toBeLessThan(100)
+    expect(resting[0].px).toBe(100)
     expect((await row()).plan.orderId).not.toBeNull()
   })
 
-  it("follows a market walking away once the order has waited a whole minute", async () => {
-    // The drift rule holds an order still until the price it wants is 0.1%
-    // away, so a market creeping in one direction leaves it permanently just
-    // out of reach. After a minute it follows on any difference at all.
+  it("keeps the chosen limit when the market walks away", async () => {
+    // Neither the chase interval nor its patience timer can raise the limit.
     await watchAt()
     await priceTo(95)
     const first = (await orders())[0].px
@@ -336,7 +320,7 @@ describe("a price being watched", () => {
 
     vi.setSystemTime(new Date(Date.now() + CHASE_PATIENCE_MS + 1_000))
     await priceTo(95.03)
-    expect((await orders())[0].px).toBeGreaterThan(first)
+    expect((await orders())[0].px).toBe(first)
   })
 
   it("keeps waiting at the level when price ticks back away", async () => {

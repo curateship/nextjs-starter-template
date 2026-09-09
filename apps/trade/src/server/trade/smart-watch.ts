@@ -23,12 +23,9 @@ import type {
 /**
  * A watched price, pushed along one pass.
  *
- * **It sends nothing until the level is touched.** Every pass it asks one
- * question — has the market reached the price? — and only then does it start
- * asking for an order, which it rests just off the touch and follows, the same
- * chase a signal trade uses. New Long and Short watches record which side of
- * the level price started on, so a breakout or breakdown waits for the touch.
- * Rows saved before that direction existed keep their former behavior.
+ * Nothing is sent until the level is reached. Ordinary watches then submit
+ * a fixed limit at the chosen price, allowing immediate fills within that
+ * limit. The separate maker-close workflow follows the market post-only.
  *
  * The pass runs inside the engine that already works ladders and grids, so a
  * watch survives the browser being closed exactly as they do — and, like them,
@@ -65,12 +62,6 @@ export async function advanceWatch(
   if (mark === undefined || !(mark > 0)) return
 
   let changed = false
-  // The row as this pass found it. The market-take below hands these back to
-  // the live lane as its `undo`, for the one case where the exchange says
-  // plainly that it took nothing.
-  const enteredPhase = plan.phase
-  const enteredSent = plan.sent
-  const enteredHeld = plan.heldWhenPlaced
   const live = liveOrderIds(book)
   const position = book.positions.get(row.marketKey) ?? null
   const positionSize = Math.abs(position?.szi ?? 0)
@@ -166,7 +157,7 @@ export async function advanceWatch(
     changed = true
   }
 
-  // ----- Taking: rest just off the touch, and follow ---------------------
+  // ----- Taking: submit the limit, or follow for a maker close -----------
 
   const ceiling = watchCeilingPx(plan)
   const ranAway =
@@ -204,82 +195,6 @@ export async function advanceWatch(
     return
   }
 
-  // Rows written before directional watches keep their old market-take rule.
-  // New Long and Short rows always carry `triggerDirection`, so after their
-  // level is reached they continue into the post-only chase below. A part
-  // close has no direction either, but `maker` keeps it out of this branch.
-  const legacyThroughAlready =
-    plan.triggerDirection === undefined &&
-    !plan.maker &&
-    (plan.side === "buy" ? mark < plan.triggerPx : mark > plan.triggerPx)
-  if (legacyThroughAlready && plan.orderId === null && !plan.sent) {
-    const takeSz = floorSize(plan.sz, plan.sizeDecimals)
-    const smallestSize =
-      plan.minOrderSize ??
-      (plan.sizeDecimals === null ? null : 10 ** -plan.sizeDecimals)
-    const floor =
-      minimumOrderUsd(
-        {
-          minOrderValueUsd: plan.minOrderValueUsd,
-          minOrderSize: smallestSize,
-        },
-        mark
-      ) ?? 0
-    const tooSmall =
-      takeSz <= 0 ||
-      (smallestSize !== null && takeSz + 1e-12 < smallestSize) ||
-      mark * takeSz + 1e-9 < floor
-    // Live orders go through `placeLiveOrder`, which checks the current
-    // protocol rules and records the refusal for the browser. Ending the watch
-    // here bypassed that shared path and made the order disappear silently.
-    if (tooSmall && book.wallet.kind !== "live") {
-      await deps.saveLadder(row, "done", now)
-      return
-    }
-    if (
-      plan.side === "buy" &&
-      !plan.reduceOnly &&
-      (mark * takeSz) / Math.max(1, plan.leverage) > deps.freeCash(book) + 1e-9
-    ) {
-      if (changed) await deps.saveLadder(row, "active", now)
-      return
-    }
-    // Marked as sent BEFORE the fill, for the same reason the resting path
-    // does it: from here money may be on the exchange, and a watch that
-    // forgets that buys twice.
-    plan.sent = true
-    plan.heldWhenPlaced = book.positions.get(row.marketKey)?.szi ?? 0
-    deps.fill(book, {
-      marketKey: row.marketKey,
-      side: plan.side,
-      px: mark,
-      sz: takeSz,
-      feeRate: book.costs.takerFeeRate,
-      leverage: plan.leverage,
-      maxLeverage: plan.maxLeverage,
-      reduceOnly: plan.reduceOnly,
-      reason: "order",
-      at: now,
-      // **A refusal puts the level back to waiting.** `sent` is raised before
-      // the order goes out because from that moment money may be on the
-      // exchange — but when the exchange answers that it took nothing, none
-      // did, and a watch left holding `sent` with no order to point at waits
-      // for a fill that is never coming. Nothing clears it but that fill or a
-      // person, so the wait is forever: on 21 Aug 2026 a Phemex watch on
-      // NFLX was refused at 17:40 and stood still for seventy-seven minutes
-      // while the price sat a dollar under the level it was told to buy at.
-      // The live lane calls this only for the answers that promise nothing
-      // stood — see `nothingStood` there.
-      undo: () => {
-        plan.phase = enteredPhase
-        plan.sent = enteredSent
-        plan.heldWhenPlaced = enteredHeld
-      },
-    })
-    await deps.saveLadder(row, "active", now)
-    return
-  }
-
   /**
    * How much is still to be sold.
    *
@@ -307,7 +222,9 @@ export async function advanceWatch(
     return
   }
 
-  const wanted = restingChasePx(plan.side, mark, roundPx)
+  const wanted = plan.maker
+    ? restingChasePx(plan.side, mark, roundPx)
+    : roundPx(plan.triggerPx)
   if (wanted === null) {
     // This coin's prices are too coarse to sit just off the market. Saying
     // nothing beats sending an order the exchange refuses every pass.
@@ -367,6 +284,8 @@ async function moveOrder(
   sz: number
 ): Promise<boolean> {
   const { book, now } = input
+  if (!plan.maker && plan.orderId !== null) return false
+
   // An order that has been resting a whole minute follows the price on any
   // difference. The drift rule is there to stop two exchange calls being spent
   // on a fourth-decimal wobble, and it does that job — but on a market walking

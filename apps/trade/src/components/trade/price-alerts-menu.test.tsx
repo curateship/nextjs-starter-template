@@ -22,7 +22,10 @@ vi.mock("@/lib/api/trade/price-alerts", () => ({
   loadFiredPriceAlerts: api.loadFired,
   removeFiredPriceAlert: api.removeFired,
 }))
-vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: errors.show }))
+vi.mock("@/lib/toast/error-toast", () => ({
+  showErrorToast: errors.show,
+  useErrorToast: vi.fn(),
+}))
 
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -75,6 +78,55 @@ afterEach(async () => {
 })
 
 describe("the alerts menu", () => {
+  it.each([false, true])(
+    "clicking a fired alert clears its badge and restores it if saving fails, failure=%s",
+    async (fails) => {
+      const select = vi.fn()
+      if (fails) api.removeFired.mockRejectedValue(new Error("refused"))
+      await act(async () =>
+        root.render(
+          <TooltipProvider>
+            <PriceAlertsMenu
+              alerts={[]}
+              error={null}
+              onRetry={() => {}}
+              onSelectMarket={select}
+              onDelete={() => {}}
+              lines={{
+                armed: [],
+                fired: [],
+                error: null,
+                onRetry: () => {},
+                onSelect: () => {},
+                onSwitchOff: () => {},
+              }}
+              onCleared={async () => {}}
+            />
+          </TooltipProvider>
+        )
+      )
+      await act(async () => button("Open alerts, 1 fired").click())
+      const tab = [
+        ...document.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+      ].find((one) => one.textContent?.includes("Fired"))!
+      await act(async () =>
+        tab.dispatchEvent(
+          new MouseEvent("mousedown", { bubbles: true, button: 0 })
+        )
+      )
+      await act(async () => buttonStartingWith("ETH").click())
+      expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:ETH")
+      expect(api.removeFired).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000002"
+      )
+      expect(
+        button(fails ? "Open alerts, 1 fired" : "Open alerts")
+      ).not.toBeNull()
+      expect(document.body.textContent?.includes("ETH")).toBe(fails)
+      if (fails) expect(errors.show).toHaveBeenCalledWith("Delete failed.")
+    }
+  )
+
   it("shows the fired badge and clears only the visible tab", async () => {
     const onCleared = vi.fn().mockResolvedValue(undefined)
     const onSelectMarket = vi.fn()

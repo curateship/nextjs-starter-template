@@ -24,6 +24,7 @@ const walletSchema = z.object({
   address: z.string().nullable(),
   hasKey: z.boolean(),
   keyValidUntil: z.number().nullable(),
+  positionMode: z.enum(["one-way", "two-sided"]).nullable().optional(),
   liquidationWarning: liquidationWarningSchema.optional(),
   liquidationWarningInUse: liquidationWarningSchema.optional(),
 })

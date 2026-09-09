@@ -35,6 +35,7 @@ import {
   cancelSignalRest,
   cancelWatchOrder,
   editWatchOrder,
+  moveWatchOrder,
   listActiveSmartOrders,
   listActiveSmartOrdersIfChanged,
   placeDcaLadder,
@@ -801,6 +802,50 @@ describe("cancelling a watched order", () => {
 })
 
 describe("editing a watched order", () => {
+  it.each([false, true])(
+    "moves a paused watch only when no order was sent: sent=%s",
+    async (sent) => {
+      await placeWatchOrder(userId, wallet, {
+        marketKey: BTC,
+        side: "sell",
+        px: 105,
+        sz: 1,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+      if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+      await saveLadderPlan(
+        userId,
+        watch.id,
+        {
+          ...watch.plan,
+          phase: "taking",
+          paused: true,
+          sent,
+          orderId: null,
+        },
+        "active"
+      )
+      if (sent) {
+        await expect(
+          moveWatchOrder(userId, wallet.id, watch.id, 110)
+        ).rejects.toThrow("SMART_WATCH_TAKING")
+      } else {
+        await moveWatchOrder(userId, wallet.id, watch.id, 110)
+        const [moved] = await listActiveSmartOrders(userId, [wallet.id])
+        expect(moved.plan).toMatchObject({
+          triggerPx: 110,
+          phase: "waiting",
+          paused: true,
+          sent: false,
+        })
+      }
+    }
+  )
+
   it("changes a stop loss without adding a take profit", async () => {
     await placeWatchOrder(userId, wallet, {
       marketKey: BTC,

@@ -449,24 +449,41 @@ async function writeCandles(
 ): Promise<void> {
   for (let start = 0; start < bars.length; start += WRITE_BATCH) {
     const batch = bars.slice(start, start + WRITE_BATCH)
-    await database
-      .insert(tradeCandles)
-      .values(
-        batch.map((bar) => ({
-          marketKey,
-          interval,
-          openTime: bar.openTime,
-          open: bar.open,
-          high: bar.high,
-          low: bar.low,
-          close: bar.close,
-          volume: bar.volume,
-        }))
-      )
-      // A bar is finished and cannot change, so the copy already stored is as
-      // good as the one that just arrived. Doing nothing is also what makes a
-      // repeat run cost nothing.
-      .onConflictDoNothing()
+    const insert = database.insert(tradeCandles).values(
+      batch.map((bar) => ({
+        marketKey,
+        interval,
+        openTime: bar.openTime,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      }))
+    )
+
+    if (
+      getProtocol(parseMarketKey(marketKey)!.protocol).markets
+        .storesVenueCandles
+    ) {
+      // Pool candles replace the thinner minute snapshots recorded while watching.
+      await insert.onConflictDoUpdate({
+        target: [
+          tradeCandles.marketKey,
+          tradeCandles.interval,
+          tradeCandles.openTime,
+        ],
+        set: {
+          open: sql`excluded.open`,
+          high: sql`excluded.high`,
+          low: sql`excluded.low`,
+          close: sql`excluded.close`,
+          volume: sql`excluded.volume`,
+        },
+      })
+    } else {
+      await insert.onConflictDoNothing()
+    }
   }
 }
 

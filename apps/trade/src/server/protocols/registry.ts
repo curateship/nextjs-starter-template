@@ -1,3 +1,19 @@
+import {
+  placeBnbOrder,
+  quoteBnbSwap,
+  cancelBnbOrder,
+  modifyBnbOrder,
+  closeBnbPosition,
+  setBnbBrackets,
+  fetchBnbOrderInfo,
+} from "./bnb/orders"
+import { fetchBnbOrderFills } from "./bnb/fills"
+import { bnbExecutionNotes } from "./bnb/ledger"
+import {
+  fetchBnbCandles,
+  fetchBnbCandleHistory,
+  bnbHistoryFloor,
+} from "@/server/protocols/bnb/candles"
 import type {
   CandleBar,
   CandleInterval,
@@ -242,6 +258,18 @@ import {
   quoteSolanaSwap,
   setSolanaBrackets,
 } from "@/server/protocols/solana/orders"
+import { fetchBnbAccount, fetchBnbPortfolio } from "./bnb/account"
+import {
+  fetchBnbMarkets,
+  fetchBnbPrices,
+  searchBnbMarkets,
+  bnbPricesWereRationed,
+} from "@/server/protocols/bnb/markets"
+import {
+  makeBnbWallet,
+  packBnbCredential,
+  verifyBnbWallet,
+} from "@/server/protocols/bnb/wallet"
 import {
   makeSolanaWallet,
   packSolanaCredential,
@@ -320,19 +348,10 @@ export type ProtocolEntry = {
      * everything, and one full walk is eight of them.
      */
     chartChasesFullHistory?: false
-    /**
-     * True on a venue that publishes no candles at all.
-     *
-     * One statement with three consequences, because they all follow from
-     * it. A market here draws borrowed history and the chart says whose it
-     * is, since a borrowed chart on such a venue is never that market's own
-     * record. A market with nothing to borrow draws the one-minute bars the
-     * app recorded while watching it. And the prices the screen refreshes
-     * are what those bars are made of.
-     *
-     * Absent on every venue with a candle API, which is every other one.
-     */
+    /** Record screen prices as fallback bars and label borrowed history. */
     recordsOwnBars?: true
+    /** Cache the venue candle API in the store, preferring it over recorded bars. */
+    storesVenueCandles?: true
     /**
      * What this source's volume figure really is, when it is not the
      * market's own. The chart prints it on the volume pane for the bars
@@ -440,7 +459,9 @@ export type ProtocolEntry = {
     fetch(
       network: NetworkId,
       address: string,
-      credential: () => string | null
+      credential: () => string | null,
+      /** Server-verified wallet owner, for discovering tokens from saved fills. */
+      owner?: { userId: string; walletId: string }
     ): Promise<WalletAccountFigures>
     /**
      * True when this exchange states what each individual sale made, at the
@@ -463,7 +484,9 @@ export type ProtocolEntry = {
       address: string,
       credential: () => string | null,
       /** A read needed before money moves may use the room kept from polling. */
-      priority?: "background" | "order"
+      priority?: "background" | "order",
+      /** Server-verified wallet owner, for discovering tokens from saved fills. */
+      owner?: { userId: string; walletId: string }
     ): Promise<WalletPortfolio>
   }
   /**
@@ -573,7 +596,11 @@ export type ProtocolEntry = {
         priceMultiplierUp?: number | null
         priceMultiplierDown?: number | null
       }
-    ): Promise<{ avgPx: number | null; filledSz: number | null }>
+    ): Promise<{
+      avgPx: number | null
+      filledSz: number | null
+      executionNote?: string
+    }>
     /**
      * Changes the leverage on a position that is already open.
      *
@@ -633,7 +660,9 @@ export type ProtocolEntry = {
       address: string,
       credential: () => string | null,
       /** A read needed before money moves may use the room kept from polling. */
-      priority?: "background" | "order"
+      priority?: "background" | "order",
+      /** Server-verified wallet owner, for discovering tokens from saved fills. */
+      owner?: { userId: string; walletId: string }
     ): Promise<WalletPortfolio>
     fills(
       network: NetworkId,
@@ -641,8 +670,14 @@ export type ProtocolEntry = {
       since: number,
       credential: () => string | null,
       /** A read following a real fill may use the room kept from polling. */
-      priority?: "background" | "order"
+      priority?: "background" | "order",
+      owner?: { userId: string; walletId: string }
     ): Promise<WalletOrderFill[]>
+    executionNotes?(
+      userId: string,
+      walletIds: string[],
+      orderIds: string[]
+    ): Promise<Map<string, string>>
     /**
      * What one order was, asked after it is gone — the only way to tell a
      * stop firing from an ordinary sell once the order itself has been
@@ -1135,6 +1170,45 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchSolanaPortfolio,
       fills: fetchSolanaOrderFills,
       orderInfo: fetchSolanaOrderInfo,
+    },
+  },
+  bnb: {
+    ...protocolCore("bnb"),
+    markets: {
+      fetch: fetchBnbMarkets,
+      candles: fetchBnbCandles,
+      history: fetchBnbCandleHistory,
+      historyFloor: bnbHistoryFloor,
+      storesVenueCandles: true,
+      intervalMs: candleIntervalMs,
+      prices: fetchBnbPrices,
+      roundPx: (px) => px,
+      recordsOwnBars: true,
+      pricesWereRationed: bnbPricesWereRationed,
+      search: searchBnbMarkets,
+    },
+    account: {
+      fetch: fetchBnbAccount,
+      portfolio: fetchBnbPortfolio,
+      profitPerSale: false,
+    },
+    agent: { verify: verifyBnbWallet },
+    credentials: {
+      form: protocolDescription("bnb").credentialForm!,
+      pack: packBnbCredential,
+      make: makeBnbWallet,
+    },
+    orders: {
+      quote: quoteBnbSwap,
+      place: placeBnbOrder,
+      cancel: cancelBnbOrder,
+      modify: modifyBnbOrder,
+      close: closeBnbPosition,
+      setBrackets: setBnbBrackets,
+      portfolio: fetchBnbPortfolio,
+      fills: fetchBnbOrderFills,
+      orderInfo: fetchBnbOrderInfo,
+      executionNotes: bnbExecutionNotes,
     },
   },
 }

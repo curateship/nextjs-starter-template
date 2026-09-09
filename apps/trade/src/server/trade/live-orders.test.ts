@@ -20,6 +20,7 @@ import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
 import { setBracketsByHand } from "@/server/trade/hand-brackets"
 import { findWallet } from "@/server/trade/wallets"
 import { randomUUID } from "node:crypto"
+import { bnbRefusalError, bnbRefusalSentence, type BnbRefusal } from "@/server/protocols/bnb/refusals"
 import {
   tradeLiveFills,
   tradeLiveJournal,
@@ -349,6 +350,18 @@ describe("the rails around placing", () => {
     expect(place).not.toHaveBeenCalled()
   })
 
+  it("stores every BNB refusal sentence in the Journal without its transport prefix", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const codes: BnbRefusal[] = ["no-route", "unknown-token", "maximum", "malformed", "kyber-busy", "node-busy", "slippage", "approval", "gas", "unsellable", "pending", "replaced", "unknown"]
+    for (const code of codes) {
+      place.mockRejectedValueOnce(bnbRefusalError(code))
+      await expect(placeLiveOrder(userId, orderInput(walletId))).rejects.toThrow(bnbRefusalSentence(code))
+    }
+    const rows = await journalRows(userId)
+    expect(rows.filter((row) => row.action === "refused").map((row) => row.note).sort()).toEqual(codes.map((code) => bnbRefusalSentence(code)).sort())
+  })
+
   it("trades a sub-exchange market like any other — the venues are all read now", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
@@ -452,6 +465,22 @@ describe("the rails around placing", () => {
       })
     ).rejects.toThrow("smallest order here is $77.00, and this order is $0.00")
     expect(place).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { side: "buy" as const, px: 110_000 },
+    { side: "sell" as const, px: 90_000 },
+  ])("preserves an immediately fillable $side limit", async ({ side, px }) => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    await placeLiveOrder(userId, {
+      ...orderInput(walletId),
+      side,
+      px,
+      limitOnly: true,
+    })
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place.mock.calls[0][2]).toMatchObject({ kind: "limit", side, px })
   })
 
   it("uses a post-only order when a Smart rung must stay resting", async () => {
@@ -712,7 +741,8 @@ describe("closing", () => {
       ADDRESS,
       expect.any(Number),
       expect.any(Function),
-      "order"
+      "order",
+      { userId, walletId }
     )
     expect(answer.trades).toHaveLength(1)
     expect(answer.trades[0]).toMatchObject({

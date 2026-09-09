@@ -6,17 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { MarketCatalog, MarketRow } from "@/lib/protocols/contracts"
 
-/**
- * Prices on a venue with no socket, refreshed by asking.
- *
- * Solana is the venue: Jupiter publishes no websocket, and a Solana coin's
- * price is the best path across several pools rather than one pool's
- * numbers. `rules/trading-rules.md` forbids asking on a timer as the LIVE
- * path, so this drives the screen and never the engine. These tests pin the
- * three things that keep it honest and cheap: it asks only about the busiest
- * markets, a hidden tab asks nothing, and a failed turn changes nothing.
- */
-
+/** Screen refreshes never supply the engine's pushed price feed. */
 // No socket for this venue, which is the whole premise.
 vi.mock("@/lib/protocols/live-registry", () => ({
   getLiveAdapter: () => undefined,
@@ -35,52 +25,8 @@ vi.mock("@/lib/api/trade/markets", () => ({
   },
 }))
 
-const { startLiveMarketData, useLiveFigures } = await import(
-  "@/lib/trade/live-market"
-)
-
-function row(marketId: string, price: number, volume: number): MarketRow {
-  return {
-    key: `solana:mainnet:${marketId}`,
-    marketId,
-    symbol: marketId,
-    quoteAsset: "USDC",
-    subExchange: null,
-    category: "crypto",
-    sizeDecimals: 6,
-    priceTick: null,
-    minOrderValueUsd: null,
-    maxLeverage: null,
-    isolatedOnly: false,
-    iconUrl: null,
-    price,
-    change24h: 0.05,
-    volume24hUsd: volume,
-    fundingHourly: null,
-    openInterestUsd: null,
-  }
-}
-
-function catalogOf(
-  rows: MarketRow[],
-  priceRefresh: MarketCatalog["priceRefresh"]
-): MarketCatalog {
-  return {
-    protocol: "solana",
-    protocolLabel: "Solana",
-    network: "mainnet",
-    networkLabel: "Mainnet",
-    picker: {
-      categories: "catalog",
-      hip3: false,
-      funding: false,
-      openInterest: false,
-      search: true,
-    },
-    priceRefresh,
-    rows,
-  }
-}
+const { startLiveMarketData, useLiveFigures } =
+  await import("@/lib/trade/live-market")
 
 const REFRESH = { everyMs: 10_000, mostMarkets: 2 }
 
@@ -127,104 +73,150 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
-describe("refreshing prices where there is no socket", () => {
-  it("asks on the venue's own clock and moves the price on screen", async () => {
-    asked.answer.mockResolvedValue({ prices: [["TICKS", 120]] })
-    const stop = startLiveMarketData(
-      [catalogOf([row("TICKS", 100, 9_000)], REFRESH)],
-      () => {}
-    )
-    await act(async () =>
-      root.render(<Figures marketKey="solana:mainnet:TICKS" />)
-    )
-    // The list's own prices arrived with the page, so nothing is asked yet.
-    expect(asked.calls).toHaveLength(0)
-    expect(shown()).toBe("none")
+describe.each(["solana", "bnb"] as const)(
+  "%s screen price refresh",
+  (protocol) => {
+    function row(marketId: string, price: number, volume: number): MarketRow {
+      return {
+        key: `${protocol}:mainnet:${marketId}`,
+        marketId,
+        symbol: marketId,
+        quoteAsset: "USDC",
+        subExchange: null,
+        category: "crypto",
+        sizeDecimals: 6,
+        priceTick: null,
+        minOrderValueUsd: null,
+        maxLeverage: null,
+        isolatedOnly: false,
+        iconUrl: null,
+        price,
+        change24h: 0.05,
+        volume24hUsd: volume,
+        fundingHourly: null,
+        openInterestUsd: null,
+      }
+    }
 
-    await oneTurn()
-    expect(asked.calls).toEqual([["TICKS"]])
-    // The price moved; the day's move came from the list and was not blanked.
-    expect(shown()).toBe("120/0.05")
-    stop()
-  })
+    function catalogOf(
+      rows: MarketRow[],
+      priceRefresh: MarketCatalog["priceRefresh"]
+    ): MarketCatalog {
+      return {
+        protocol,
+        protocolLabel: protocol,
+        network: "mainnet",
+        networkLabel: "Mainnet",
+        picker: {
+          categories: "catalog",
+          hip3: false,
+          funding: false,
+          openInterest: false,
+          search: true,
+        },
+        priceRefresh,
+        rows,
+      }
+    }
 
-  it("asks only about the busiest markets, and never more than the cap", async () => {
-    const stop = startLiveMarketData(
-      [
-        catalogOf(
-          [
-            row("QUIET", 1, 10),
-            row("BUSY", 2, 900_000),
-            row("MIDDLING", 3, 5_000),
-          ],
-          REFRESH
-        ),
-      ],
-      () => {}
-    )
-    await oneTurn()
-    // Two markets is the cap here, so the quietest is left out.
-    expect(asked.calls[0]).toEqual(["BUSY", "MIDDLING"])
-    stop()
-  })
+    it("asks on the venue's own clock and moves the price on screen", async () => {
+      asked.answer.mockResolvedValue({ prices: [["TICKS", 120]] })
+      const stop = startLiveMarketData(
+        [catalogOf([row("TICKS", 100, 9_000)], REFRESH)],
+        () => {}
+      )
+      await act(async () =>
+        root.render(<Figures marketKey={`${protocol}:mainnet:TICKS`} />)
+      )
+      // The list's own prices arrived with the page, so nothing is asked yet.
+      expect(asked.calls).toHaveLength(0)
+      expect(shown()).toBe("none")
 
-  it("asks nothing at all while the tab is hidden", async () => {
-    const hidden = vi
-      .spyOn(document, "visibilityState", "get")
-      .mockReturnValue("hidden")
-    const stop = startLiveMarketData(
-      [catalogOf([row("SOL", 100, 9_000)], REFRESH)],
-      () => {}
-    )
-    await oneTurn(3)
-    expect(asked.calls).toHaveLength(0)
+      await oneTurn()
+      expect(asked.calls).toEqual([["TICKS"]])
+      // The price moved; the day's move came from the list and was not blanked.
+      expect(shown()).toBe("120/0.05")
+      stop()
+    })
 
-    // Looked at again, it picks straight back up.
-    hidden.mockReturnValue("visible")
-    await oneTurn()
-    expect(asked.calls).toHaveLength(1)
-    hidden.mockRestore()
-    stop()
-  })
+    it("asks only about the busiest markets, and never more than the cap", async () => {
+      const stop = startLiveMarketData(
+        [
+          catalogOf(
+            [
+              row("QUIET", 1, 10),
+              row("BUSY", 2, 900_000),
+              row("MIDDLING", 3, 5_000),
+            ],
+            REFRESH
+          ),
+        ],
+        () => {}
+      )
+      await oneTurn()
+      // Two markets is the cap here, so the quietest is left out.
+      expect(asked.calls[0]).toEqual(["BUSY", "MIDDLING"])
+      stop()
+    })
 
-  it("leaves the screen alone when a refresh fails, and asks again", async () => {
-    asked.answer.mockRejectedValueOnce(new Error("EXCHANGE_BUSY"))
-    asked.answer.mockResolvedValue({ prices: [["RETRIES", 130]] })
-    const stop = startLiveMarketData(
-      [catalogOf([row("RETRIES", 100, 9_000)], REFRESH)],
-      () => {}
-    )
-    await act(async () =>
-      root.render(<Figures marketKey="solana:mainnet:RETRIES" />)
-    )
-    await oneTurn()
-    // The failed turn published nothing rather than a blank or a zero.
-    expect(shown()).toBe("none")
+    it("asks nothing at all while the tab is hidden", async () => {
+      const hidden = vi
+        .spyOn(document, "visibilityState", "get")
+        .mockReturnValue("hidden")
+      const stop = startLiveMarketData(
+        [catalogOf([row("SOL", 100, 9_000)], REFRESH)],
+        () => {}
+      )
+      await oneTurn(3)
+      expect(asked.calls).toHaveLength(0)
 
-    await oneTurn()
-    expect(shown()).toBe("130/0.05")
-    stop()
-  })
+      // Looked at again, it picks straight back up.
+      hidden.mockReturnValue("visible")
+      await oneTurn()
+      expect(asked.calls).toHaveLength(1)
+      hidden.mockRestore()
+      stop()
+    })
 
-  it("asks nothing for a venue that never said it could be asked", async () => {
-    const stop = startLiveMarketData(
-      [catalogOf([row("SILENT", 100, 9_000)], undefined)],
-      () => {}
-    )
-    await oneTurn(6)
-    expect(asked.calls).toHaveLength(0)
-    stop()
-  })
+    it("leaves the screen alone when a refresh fails, and asks again", async () => {
+      asked.answer.mockRejectedValueOnce(new Error("EXCHANGE_BUSY"))
+      asked.answer.mockResolvedValue({ prices: [["RETRIES", 130]] })
+      const stop = startLiveMarketData(
+        [catalogOf([row("RETRIES", 100, 9_000)], REFRESH)],
+        () => {}
+      )
+      await act(async () =>
+        root.render(<Figures marketKey={`${protocol}:mainnet:RETRIES`} />)
+      )
+      await oneTurn()
+      // The failed turn published nothing rather than a blank or a zero.
+      expect(shown()).toBe("none")
 
-  it("stops asking once the page lets go", async () => {
-    const stop = startLiveMarketData(
-      [catalogOf([row("STOPS", 100, 9_000)], REFRESH)],
-      () => {}
-    )
-    await oneTurn()
-    expect(asked.calls).toHaveLength(1)
-    stop()
-    await oneTurn(5)
-    expect(asked.calls).toHaveLength(1)
-  })
-})
+      await oneTurn()
+      expect(shown()).toBe("130/0.05")
+      stop()
+    })
+
+    it("asks nothing for a venue that never said it could be asked", async () => {
+      const stop = startLiveMarketData(
+        [catalogOf([row("SILENT", 100, 9_000)], undefined)],
+        () => {}
+      )
+      await oneTurn(6)
+      expect(asked.calls).toHaveLength(0)
+      stop()
+    })
+
+    it("stops asking once the page lets go", async () => {
+      const stop = startLiveMarketData(
+        [catalogOf([row("STOPS", 100, 9_000)], REFRESH)],
+        () => {}
+      )
+      await oneTurn()
+      expect(asked.calls).toHaveLength(1)
+      stop()
+      await oneTurn(5)
+      expect(asked.calls).toHaveLength(1)
+    })
+  }
+)

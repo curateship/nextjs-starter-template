@@ -1019,6 +1019,19 @@ export function TradeWorkspace({
           marketAction={
             <div className="flex shrink-0 items-center gap-2">
               <MarketFoldersMenu
+                watchedOrders={{
+                  rows: trading.watchOrders,
+                  cacheScope: `${user.id}:${protocol}`,
+                  settled: trading.settled,
+                  failed: trading.failed,
+                  refusals: trading.refusals,
+                  onRetry: trading.retry,
+                }}
+                walletName={walletNameOf}
+                panelRows={panelRows}
+                marketsError={marketsError}
+                marketsPending={marketsPending}
+                onRetryMarkets={onRetryMarkets}
                 folders={folders}
                 protocol={protocol}
                 network={network}

@@ -1402,9 +1402,7 @@ export async function placeWatchOrder(
      * waiting for the market to come back to it — which is why adding to a
      * position took minutes, and sometimes never happened at all.
      *
-     * It is not a market order and it pays no spread. The order goes straight
-     * into the same post-only chase every watch uses once its level is
-     * reached: an order resting just off the price, following it.
+     * Ordinary watches submit their chosen limit immediately when this is set.
      */
     startNow?: boolean
   }
@@ -1672,9 +1670,9 @@ export async function editWatchOrder(
 /**
  * Drags a watched price to a new level.
  *
- * Only while it is still WATCHING. Once the level has been touched the chase
- * is working the exchange, and the thing on screen is an order in flight, not
- * a line to reposition — moving the trigger then would be rewriting history.
+ * Waiting watches and paused ordinary watches that never submitted an order
+ * can move. Moving does not resume a paused watch. Any submitted order keeps
+ * its price until its result is known.
  */
 export async function moveWatchOrder(
   userId: string,
@@ -1704,13 +1702,19 @@ export async function moveWatchOrder(
   if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
   const plan = readWatchPlan(row.plan)
   if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
-  if (plan.phase !== "waiting" || plan.orderId !== null) {
+  const pausedUnsent =
+    plan.paused && !plan.maker && plan.phase === "taking" && !plan.sent
+  if (
+    (!pausedUnsent && plan.phase !== "waiting") ||
+    plan.orderId !== null ||
+    plan.sent
+  ) {
     throw new Error("SMART_WATCH_TAKING")
   }
   await db
     .update(tradeSmartLadders)
     .set({
-      plan: { ...plan, triggerPx: px },
+      plan: { ...plan, triggerPx: px, phase: "waiting" },
       updatedAt: new Date(),
     })
     .where(

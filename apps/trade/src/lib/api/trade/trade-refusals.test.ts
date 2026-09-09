@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest"
 import { getCandlesErrorMessage } from "@/lib/api/trade/candles"
 import { getLiveErrorMessage } from "@/lib/api/trade/live"
 import { getSmartOrderErrorMessage } from "@/lib/api/trade/smart-orders"
+import { bnbRefusalError, bnbRefusalSentence, type BnbRefusal } from "@/server/protocols/bnb/refusals"
+
+it.each<BnbRefusal>(["no-route", "unknown-token", "maximum", "malformed", "kyber-busy", "node-busy", "slippage", "approval", "gas", "unsellable", "pending", "replaced", "unknown"])("passes the BNB %s sentence through the existing screen formatter", (code) => {
+  expect(getLiveErrorMessage(bnbRefusalError(code))).toBe(bnbRefusalSentence(code))
+})
 
 it("explains a wallet writer timeout and an already-stopped grid", () => {
   for (const describeError of [

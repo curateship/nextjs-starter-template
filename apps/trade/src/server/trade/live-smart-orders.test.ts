@@ -267,6 +267,12 @@ async function watchThroughTheLevel(
   prices.mockResolvedValue(new Map([["BTC", 94]]))
 }
 
+const chasePosition = {
+  marketId: "BTC", szi: -2, entryPx: 100, leverage: 1, marginUsed: 200,
+  liquidationPx: null, targets: [], tpPx: null, tpSz: null, tpOrderId: null,
+  slPx: null, slOrderId: null, protectionOrderIds: [],
+}
+
 /** A live watch mid-chase: its order is resting and the gates are long open. */
 async function chasingWatch(): Promise<void> {
   const plan: WatchPlan = {
@@ -281,9 +287,9 @@ async function chasingWatch(): Promise<void> {
     priceTick: null,
     tpPx: null,
     slPx: null,
-    reduceOnly: false,
-    maker: false,
-    heldAtStart: 0,
+    reduceOnly: true,
+    maker: true,
+    heldAtStart: 2,
     chaseGiveUp: 0,
     phase: "taking",
     sent: true,
@@ -308,7 +314,7 @@ async function chasingWatch(): Promise<void> {
   })
   // The order really is resting, exactly as the exchange would report it.
   portfolio.mockResolvedValue({
-    positions: [],
+    positions: [chasePosition],
     orders: [
       {
         orderId: "ord-old",
@@ -316,9 +322,9 @@ async function chasingWatch(): Promise<void> {
         side: "buy",
         px: 100,
         sz: 1,
-        reduceOnly: false,
-        maker: false,
-        heldAtStart: 0,
+        reduceOnly: true,
+        maker: true,
+        heldAtStart: 2,
       },
     ],
   })
@@ -1756,6 +1762,86 @@ describe("live Smart orders", () => {
     }
   })
 
+  it.each([
+    {
+      side: "buy" as const,
+      triggerPx: 100,
+      triggerDirection: "down" as const,
+      status: "filled" as const,
+    },
+    {
+      side: "buy" as const,
+      triggerPx: 90,
+      triggerDirection: "up" as const,
+      status: "resting" as const,
+    },
+    {
+      side: "sell" as const,
+      triggerPx: 90,
+      triggerDirection: "up" as const,
+      status: "filled" as const,
+    },
+    {
+      side: "sell" as const,
+      triggerPx: 100,
+      triggerDirection: "down" as const,
+      status: "resting" as const,
+    },
+  ])(
+    "sends a reached watched $side as a fixed limit",
+    async ({ status, ...watch }) => {
+      await watchThroughTheLevel(watch)
+      place.mockResolvedValue({
+        status,
+        orderId: "watch-limit",
+        avgPx: status === "filled" ? 94 : null,
+        filledSz: status === "filled" ? 1 : null,
+      })
+      await reconcileLiveLadders(userId, wallet)
+      expect(place).toHaveBeenCalledTimes(1)
+      expect(place.mock.calls[0][2]).toMatchObject({
+        kind: "limit",
+        px: watch.triggerPx,
+        side: watch.side,
+      })
+      expect(await watchPlanNow()).toMatchObject({ sent: true })
+      await database
+        .update(tradeSmartLadders)
+        .set({ updatedAt: new Date(Date.now() - 3_000) })
+        .where(eq(tradeSmartLadders.id, "watch-1"))
+      dropEngineExchangeReads(wallet)
+      await reconcileLiveLadders(userId, wallet)
+      expect(place).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it("does not resend an immediate limit fill after order bookkeeping fails", async () => {
+    await watchThroughTheLevel({ triggerDirection: "down" })
+    const flowOrders = await import("@/server/trade/flow-run-orders")
+    const remember = vi
+      .spyOn(flowOrders, "rememberFlowRunOrders")
+      .mockRejectedValueOnce(new Error("test bookkeeping failure"))
+    try {
+      place.mockResolvedValue({
+        status: "filled",
+        orderId: "filled-limit",
+        avgPx: 94,
+        filledSz: 1,
+      })
+      await reconcileLiveLadders(userId, wallet)
+      expect(await watchPlanNow()).toMatchObject({ sent: true, orderId: null })
+      await database
+        .update(tradeSmartLadders)
+        .set({ updatedAt: new Date(Date.now() - 3_000) })
+        .where(eq(tradeSmartLadders.id, "watch-1"))
+      dropEngineExchangeReads(wallet)
+      await reconcileLiveLadders(userId, wallet)
+      expect(place).toHaveBeenCalledTimes(1)
+    } finally {
+      remember.mockRestore()
+    }
+  })
+
   it("voids the chase's replacement when the cancel did not cancel", async () => {
     // **The other half of the 20 Aug 2026 money bug.** The chase re-prices by
     // cancelling and re-placing, and a cancel usually fails because the order
@@ -1830,7 +1916,7 @@ describe("live Smart orders", () => {
     // The same rule where money is involved, drawn the other way: without a
     // cash figure the wallet cannot know it can afford anything, so it must
     // not buy — but that is a reason to wait a pass, not to stop watching.
-    await chasingWatch()
+    await watchThroughTheLevel()
     account.mockRejectedValue(new Error("EXCHANGE_BUSY"))
     cancel.mockResolvedValue(undefined)
 
@@ -2162,7 +2248,7 @@ describe("live Smart orders", () => {
     })
   })
 
-  it("puts a watched level back when its market buy was refused", async () => {
+  it("puts a watched level back when its limit buy was refused", async () => {
     // **The 21 Aug 2026 freeze.** A Phemex watch on NFLX was drawn above the
     // price, so the engine went to take the market; the exchange refused it;
     // and the plan was saved carrying `sent` with no order to point at.
@@ -3410,7 +3496,7 @@ describe("post-only watch recovery", () => {
     expect(cancel).toHaveBeenCalledTimes(1)
     expect(place).toHaveBeenCalledTimes(1)
     expect(await watchPlanNow()).toMatchObject({ sent: false, orderId: null })
-    portfolio.mockResolvedValue({ positions: [], orders: [] })
+    portfolio.mockResolvedValue({ positions: [chasePosition], orders: [] })
     await nextPass()
     expect(place).toHaveBeenCalledTimes(2)
     expect(await watchPlanNow()).toMatchObject({

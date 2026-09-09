@@ -125,7 +125,7 @@ export function MarketHeader({
     ) : undefined
 
   return (
-    <DashboardCardHeader>
+    <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
       <MarketFolderStar
         symbol={selection.row.symbol}
         marketKey={selection.row.key}
@@ -193,6 +193,11 @@ function MarketInfo({
         <span>
           Daily volume: {formatCompactUsd(selection.row.volume24hUsd)}
         </span>
+        {selection.row.liquidityUsd != null ? (
+          <span>
+            Pool liquidity: {formatCompactUsd(selection.row.liquidityUsd)}
+          </span>
+        ) : null}
         {minimumOrderLabel(selection.row) ? (
           <span>{minimumOrderLabel(selection.row)}</span>
         ) : null}

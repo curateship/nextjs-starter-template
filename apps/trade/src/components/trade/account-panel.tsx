@@ -180,6 +180,12 @@ function walletRowState(summary: WalletAccountSummary | null) {
   return { figures, inactive, ok, refusal, stale, status, unread }
 }
 
+function walletPositionModeLabel(mode: TradeWallet["positionMode"]): string {
+  if (mode === "one-way") return "One-way: a short closes your long"
+  if (mode === "two-sided") return "Hedge: a short opens beside your long"
+  return "Mode not read yet"
+}
+
 /** The one name, state and money grid shared by every wallet tab. */
 function WalletRowCells({
   wallet,
@@ -489,6 +495,9 @@ export function WalletDetailsDialog({
         <DialogBody>
           <Card size="sm">
             <CardContent className="grid gap-4">
+              <p className="text-sm text-muted-foreground">
+                {walletPositionModeLabel(wallet.positionMode)}
+              </p>
               {wallet.status === "active" ? (
                 <KeyExpiryNotice wallet={wallet} />
               ) : null}

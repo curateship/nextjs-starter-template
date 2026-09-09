@@ -31,6 +31,7 @@ export type LiveTriggerRecord = LiveTriggerKind | "none"
 
 /** One fill, as this app keeps it. */
 export type LiveFill = {
+  executionNote?: string
   fillId: string
   /** The order it came from — how a stop is later told from an ordinary sell. */
   orderId: string

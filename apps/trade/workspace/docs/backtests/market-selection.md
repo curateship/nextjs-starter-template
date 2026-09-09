@@ -77,6 +77,9 @@ prices come from.
   what keeps it out: its registry entry says it records its own bars, and the
   picker reads that rather than naming Solana. `charts/candle-store.md`
   explains where its bars come from.
+- BNB Chain also stays excluded through `recordsOwnBars`. Its charts can mix
+  pool candles, borrowed Binance history and recorded screen prices. That
+  history is not offered as a basis for BNB backtests.
 
 ## History and missing coins
 

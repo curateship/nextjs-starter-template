@@ -27,6 +27,23 @@ its original price, which let a drag make the old line visible again.
 A confirmed exchange order stays available while cancellation is pending, so
 an exchange refusal restores its line.
 
+## Checking watched limits locally
+
+Use a practice wallet for an order check. Place a watched buy or sell and wait
+for the chosen level. A buy must not fill above its limit; a sell must not fill
+below its limit. If price moves beyond the limit before placement, the order
+waits at the chosen price rather than following the market.
+
+For a paused watch with no submitted order, drag its price and reload. The new
+price remains saved and the watch remains paused. Resume separately when ready.
+An order with an unknown exchange result must still reject a price change.
+
+The focused tests are `smart-watch.test.ts`, `live-orders.test.ts`,
+`live-smart-orders.test.ts`, and `smart-orders.test.ts` under `src/server/trade`.
+Exchange placement is mocked in these tests; they do not submit live trades.
+Production needs the web app and trading engine updated together. No database
+migration is needed for this behavior.
+
 ## The two styles
 
 - **Watch** (the default): the level stays inside this app as a row in the
@@ -91,18 +108,21 @@ its place, so success never flashes an empty chart between the two.
 
 ## What happens when the price hits the level
 
-When the market reaches a watched buy:
+When the market reaches a watched Long or Short, Trade submits a normal limit
+order at the chosen price. A buy may fill at that price or lower. A sell may
+fill at that price or higher. An immediate fill is allowed; the order does not
+become a market order. An unfilled remainder waits at the same limit instead
+of following the market beyond the chosen price.
 
-1. A **post-only limit** is rested just off the touch — post-only means the
-   exchange refuses it rather than let it fill as a taker, so it always pays
-   the cheaper maker fee.
-2. If the price walks away, the engine moves the order after it — the same
-   chase a signal trade uses — re-resting a little off the price each time.
-3. **"How far it may follow"** is on the order: zero waits at the level for as
-   long as it takes; a percent gives up once price has run that far past it.
-4. Any stop loss or take profit chosen on the order rides along and is handed
-   to the position the moment it opens. Either line can travel without the
-   other.
+An existing paused watch stays paused. A paused ordinary watch with no submitted
+order can be dragged to a new price. Moving returns it to waiting but does not
+resume it. Resume is a separate action. Watches with a submitted or uncertain
+order remain protected against moving their saved price.
+
+Stop loss and take profit travel with the watch and are applied when the
+position opens. A timeout is not proof of refusal: Trade keeps the order marked
+sent until its result is known, preventing a duplicate submission.
+
 
 ### Adding to a position uses market orders
 
@@ -119,30 +139,10 @@ The progress indicator describes the submission, not a guarantee of a full fill.
 Existing watched orders remain active until filled or cancelled. Ordinary Long
 and Short windows keep their Market checkbox and chosen-price behavior.
 
-### The chase follows a market that walks away
-
-The chase rests the order a fifth of a tenth of a percent behind the price and
-moves it only once the price it wants is a tenth of a percent away. Those two
-numbers together mean a market drifting slowly in one direction leaves the
-order permanently just out of reach: it never quite fills, and then fills all
-at once when price comes back. That is the "it got stuck and went a few minutes
-later" shape.
-
-An order that has rested a whole minute without filling now follows the price
-on any difference at all. The ten-second wait between moves still applies, so
-this costs at most one extra cancel-and-place a minute for a wallet — two of
-Hyperliquid's sixty order calls a minute.
-
-A watched Long or Short always enters through this post-only chase. The side of
-the level decides what the touch means: a Long or Short placed above the market
-waits for price to rise to it, and either one below waits for price to fall to
-it. Rows saved before this direction was recorded keep their old behavior, so
-an order already waiting does not change meaning during an upgrade.
-
 The Long and Short window has a **Market** checkbox for filling now. With the
 box clear, the account's Watch or Rest choice still decides where the level
 waits whenever the level can rest passively. A crossed Rest level becomes a
-local watch, because the unchecked box means it may not take the market. With
+local watch, because the unchecked box keeps the chosen price as a limit. With
 the box checked, the chosen side uses the venue's fresh current price, pays the
 taker fee and never creates a watched row. A checked Market box works the same
 whether the account setting is Watch or Rest.
@@ -180,9 +180,9 @@ the saving happens behind it. If the save is refused, the line goes back and a
 message says why.
 
 - **A watched level**: the drag rewrites the price the app is watching.
-  Nothing touches the exchange. Once the level has been hit and the chase is
-  working the exchange, the drag is refused — at that point it is an order in
-  flight, not a line to reposition.
+  Nothing touches the exchange. A paused watch with nothing submitted can also
+  move and stays paused. Once an order is submitted, moving is refused until
+  its result is known.
 - **A real resting order** (rest mode): the level never ends up with nothing
   on it. On Hyperliquid, Phemex and Aster the exchange's own _modify_ command moves
   the order in place — same order, same size, new price, one call. For years
@@ -284,13 +284,13 @@ The reason now sits under the level, on the Watched tab row.
   codes into a sentence, because that is the only place that knows what the
   number means — Phemex's are in `src/server/protocols/phemex/orders.ts`.
 
-### A refused chase clears itself and tries again
+### Maker-close retries
 
-The chase only ever sends post-only orders, and a market that moves into one
+The separate maker-close workflow sends post-only orders, and a market that moves into one
 between the price read and the send is refused by the exchange rather than
 filled as a taker. That refusal is normal; the next pass simply asks again.
 
-The watched-order placement path recognizes Hyperliquid's original rejection
+The maker-close placement path recognizes Hyperliquid's original rejection
 and its translated sentence. It also recognizes a stale waiting price refused
 locally before any request was sent. Those confirmed refusals clear the attempt
 and invalidate the cached Hyperliquid price. The next engine pass calculates a
@@ -313,7 +313,7 @@ replacement.
 After five order-specific refusals in a row the engine puts the watch down:
 nothing rests on the exchange, later passes skip it, and the fifth refusal
 sends one notice (`../screens/notices.md` has the counting rule). A paused
-watch does not move anywhere. It stays under Open orders, on the Watched tab
+watch does not resume itself. It stays under Open orders, on the Watched tab
 with the refusal under it, and on its chart, exactly where an unpaused one
 sits.
 

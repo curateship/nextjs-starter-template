@@ -47,7 +47,8 @@ screen: anything not written there has not been agreed yet.
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
-- `market-list.md` — the market list and the Watched row.
+- `market-list.md` — the market list, compact three-column pinned picker,
+  checkbox filters, search toolbar and the Watched row.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
@@ -58,7 +59,7 @@ screen: anything not written there has not been agreed yet.
   and the one frame shared by Positions, Open orders and
   the Journal, the safety rules its empty and failed rows keep, and the separate warnings
   for missing position stops and watched stops.
-- `market-folders.md` — how Fav and named coin folders work on each exchange,
+- `market-folders.md` — the folder dropdown visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
 - `notices.md` — the bell notices: one per order with total dollars and weighted
   average price, how pushed fills and recovery avoid repeats, what a flow says when it stops or goes quiet on its own, and
@@ -66,7 +67,7 @@ screen: anything not written there has not been agreed yet.
 - `sounds.md` — the separate optional sounds for fills and stops, and for price
   alerts, what collapses a burst, when a browser stays silent, and the one
   non-sound switch that shares their Settings tab.
-- `price-alerts.md` — one-use chart price lines, the Alerts panel, engine
+- `price-alerts.md` — one-use chart price lines, click-to-clear fired alerts, the Alerts panel, engine
   firing, notices, sounds, deletion, and the account cap.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
@@ -121,7 +122,8 @@ screen: anything not written there has not been agreed yet.
 - `watched-orders.md` — how a plain order works now, why dragging cannot revive
   a confirmed order's temporary sending line, why
   adding to a position uses a market order with visible submission progress,
-  and how the chase follows a market that walks away.
+  and how watched limits allow immediate fills without exceeding the chosen
+  price, including moving paused watches that have not submitted an order.
 - `orders-you-cannot-afford.md` — why an order placed by hand is refused when
   the wallet does not hold the margin, which orders that applies to, and how a
   fill smaller than the ask says so.
@@ -145,7 +147,7 @@ screen: anything not written there has not been agreed yet.
 ## wallets/ — money and margin
 
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what
-  a failed answer does to the details window.
+  a failed answer does to the details window, plus the saved position mode in wallet details.
 - `flatten-wallet.md` — Empty wallet: why the waiting orders come off before
   anything is sold, what a refused cancel stops, and how it differs from Close
   all.
@@ -159,6 +161,15 @@ screen: anything not written there has not been agreed yet.
   sends one notice.
 
 ## exchanges/ — the venues
+
+- `bnb-chain.md` explains BNB Chain wallets, pool-based markets, search, risk
+  labels, ten-second screen prices, pool and borrowed charts, request limits
+  provider-refusal handling, wallet holdings, fee reserves and balance checks.
+  KyberSwap quotes, approvals, receipt recovery and transaction-storage migration
+  requirements are covered with the testing roadmap.
+  BNB refusal wording covers provider codes, fee certainty, pending and replaced
+  transactions, secret-text removal and controlled failure checks.
+  Recovery includes saved approval fees and keeps wallet validation errors separate.
 
 - `protocol-layer.md` — where the exchange lives in the code, one door per
   venue, and which venues push fills.

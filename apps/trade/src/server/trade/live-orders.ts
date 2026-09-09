@@ -140,6 +140,7 @@ function authFor(row: LiveWalletRow): OrderAuth {
   if (!credential) throw new Error("LIVE_WALLET_KEY")
   return {
     agentKey: credential,
+    owner: { userId: row.userId, walletId: row.id },
     accountAddress: row.address ?? "",
     allocateNonce: (signerAddress) => allocateNonce(signerAddress, row.network),
   }
@@ -295,6 +296,8 @@ export async function placeLiveOrder(
     slPx: number | null
     /** Stay passive; refuse instead of turning into an instant fill. */
     restingOnly?: boolean
+    /** Keep the requested limit even when it can fill immediately. */
+    limitOnly?: boolean
     /** The watched-order engine owns safe retries and their progress notice. */
     retryPostOnly?: boolean
     /** Fill at the fresh venue price and keep out of the resting-order path. */
@@ -337,7 +340,10 @@ export async function placeLiveOrder(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    if (input.restingOnly && input.marketOnly)
+    if (
+      (input.restingOnly && input.marketOnly) ||
+      (input.limitOnly && (input.restingOnly || input.marketOnly))
+    )
       throw new Error("LIVE_ORDER_KIND")
     // The price, the market's rules and the account are three independent
     // questions, so they go out together — fetched one after another they
@@ -435,8 +441,14 @@ export async function placeLiveOrder(
     const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
       marketId: ref.marketId,
       side: input.side,
-      kind: input.restingOnly ? "postOnly" : marketable ? "market" : "limit",
-      px: marketable ? mark : input.px,
+      kind: input.restingOnly
+        ? "postOnly"
+        : input.limitOnly
+          ? "limit"
+          : marketable
+            ? "market"
+            : "limit",
+      px: input.limitOnly ? input.px : marketable ? mark : input.px,
       priceTick: rules?.priceTick ?? null,
       priceMultiplierUp: rules?.priceMultiplierUp ?? null,
       priceMultiplierDown: rules?.priceMultiplierDown ?? null,
@@ -460,7 +472,8 @@ export async function placeLiveOrder(
     // $10 behind it came back looking exactly like a $100 order that worked.
     // The Journal now says which it was, and says both amounts at the one
     // price the fill really got, so the two figures can be compared.
-    const filledPx = outcome.avgPx ?? entryPx
+    const awaitingReceipt = !!outcome.executionNote && outcome.filledSz === null
+    const filledPx = outcome.avgPx ?? (awaitingReceipt ? 0 : entryPx)
     const shortFill =
       outcome.status === "filled" &&
       outcome.filledSz !== null &&
@@ -474,17 +487,19 @@ export async function placeLiveOrder(
     // `refuse` below stays awaited, so no refusal is answered unrecorded.
     void (async () => {
       await journal(userId, row.id, input.marketKey, {
-        action: outcome.status === "filled" ? "fill" : "placed",
+        action:
+          outcome.status === "filled" && !awaitingReceipt ? "fill" : "placed",
         side: input.side,
         px: filledPx,
-        sz: outcome.filledSz ?? orderSize,
+        sz: outcome.filledSz ?? (awaitingReceipt ? 0 : orderSize),
         note: withOverride(
           input.overrode,
-          shortFill !== null
-            ? `Filled ${formatUsd(shortFill * filledPx)} of the ${formatUsd(orderSize * filledPx)} asked for.`
-            : outcome.status === "filled"
-              ? "Filled straight away."
-              : "Resting on the exchange."
+          outcome.executionNote ??
+            (shortFill !== null
+              ? `Filled ${formatUsd(shortFill * filledPx)} of the ${formatUsd(orderSize * filledPx)} asked for.`
+              : outcome.status === "filled"
+                ? "Filled straight away."
+                : "Resting on the exchange.")
         ),
       })
       if (outcome.protection === "partial") {
@@ -743,11 +758,12 @@ export async function closeLivePosition(
       action: "close",
       side,
       px: closed.avgPx ?? 0,
-      sz: closed.filledSz ?? Math.abs(held.szi),
+      sz: closed.filledSz ?? (closed.executionNote ? 0 : Math.abs(held.szi)),
       note:
-        closed.avgPx === null
+        closed.executionNote ??
+        (closed.avgPx === null
           ? "The exchange accepted the close but reported no fill yet — check the position."
-          : null,
+          : null),
     })
   } catch (error) {
     await refuse(userId, row.id, input.marketKey, side, error)
@@ -1354,7 +1370,9 @@ export async function loadLivePortfolio(
               await readPortfolio(
                 wallet.network,
                 wallet.address ?? "",
-                credential
+                credential,
+                "background",
+                { userId, walletId: wallet.id }
               ),
               pairedStops.get(wallet.id) ?? new Map()
             )

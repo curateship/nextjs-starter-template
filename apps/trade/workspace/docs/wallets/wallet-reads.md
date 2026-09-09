@@ -303,3 +303,25 @@ alike.
 - **The whole-list read failing is different from one wallet failing.** If the
   request itself throws, the panel keeps what is on screen and only announces
   a failure when there is nothing up yet; the next tick is the retry.
+
+## Position mode in wallet details
+
+The wallet details window shows the saved position mode, even when figures
+are unavailable. The Active, All and Inactive dropdown rows omit the mode
+sentence. Tyler's rule is "Dont need to see it in the drop down".
+The browser preserves the saved mode with the wallet list.
+
+- **One-way:** "One-way: a short closes your long" for stored `one-way`.
+- **Hedge:** "Hedge: a short opens beside your long" for stored `two-sided`.
+- **Unknown:** "Mode not read yet" for a missing or null mode.
+
+The sentence describes the saved setting. Trade does not refresh the setting
+when reading balances. Aster checks the setting when a key is saved and refuses
+hedge mode. Phemex and KuCoin key checks do not return a position mode, so
+those wallets show the unknown sentence. Practice wallets and other wallets
+without a saved mode show the unknown sentence too. Trade never infers a mode
+from the exchange name or an empty positions list.
+
+`src/server/trade/wallets.ts` includes `positionMode` in wallet responses.
+`src/components/trade/account-panel.tsx` draws the sentence in wallet details.
+The sentence adds no mode switch and changes no order behavior.

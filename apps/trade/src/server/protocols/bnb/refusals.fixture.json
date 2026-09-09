@@ -1,0 +1,17 @@
+{
+  "source": "KyberSwap bsc routes API, free GET requests on 2026-09-08. No 429 was deliberately induced.",
+  "live": [
+    { "name": "bad address", "status": 400, "body": { "code": 4000, "message": "bad request", "details": [{ "fieldViolations": [{ "field": "tokenOut", "description": "invalid" }] }], "requestId": "4f162016-1c60-4df1-97a8-9a6c40dca3f1" }, "expected": "malformed" },
+    { "name": "unknown token", "status": 400, "body": { "code": 4011, "message": "token not found", "details": null, "requestId": "9eeebc98-4773-4474-a9ca-9b5680cb7817" }, "expected": "unknown-token" },
+    { "name": "no eligible requested sources", "status": 400, "body": { "code": 40011, "message": "filtered liquidity sources", "details": null, "requestId": "4394222e-3f1e-4816-8d22-61d898d1725b" }, "expected": "no-route" }
+  ],
+  "documentedSource": "https://docs.kyberswap.com/developer-guide/aggregator-api/aggregator-api-specification/evm-swaps.md",
+  "documented": [
+    { "code": 4001, "message": "Query parameters are malformed" },
+    { "code": 4002, "message": "Request body is malformed" },
+    { "code": 4008, "message": "Route not found" },
+    { "code": 4009, "message": "amountIn is greater than max allowed" },
+    { "code": 4010, "message": "No pool is eligible to find route on" },
+    { "code": 4011, "message": "tokenIn / tokenOut can not be found" }
+  ]
+}

@@ -78,10 +78,11 @@ add up to.
 - **Aster margin comes from the wallet setting when the order is sent.** A
   watched order does not keep an older margin choice. Isolated changes Aster
   to Single-Asset Mode. Cross changes Aster to Multi-Assets Mode.
-- **A waiting plain order chases as a maker when price reaches it.** The engine
-  rests a post-only limit just off the current price and follows it. Long and
-  Short remember which side of the clicked level price started on, so a Long
-  above the market waits for a rise and a Short below it waits for a fall.
+- **A watched order submits a normal limit at the chosen price.** Tyler asked
+  why an immediate fill was refused and said a non-market order should accept
+  it. Once the watched level is reached, buys may fill at that price or lower
+  and sells at that price or higher. Do not force post-only or convert the
+  limit into a market order. Unfilled orders keep their chosen limit.
 - **Directional Long and Short orders ship with the trading engine.** The web
   app saves which way price must move, and the engine reads that field. An old
   engine does not know the field and applies the former rule, which turns a

@@ -24,21 +24,11 @@ The market picker uses the same control. Its Favorites view reads Fav only.
 
 ## The left column
 
-The Markets panel has Watched and All. Folders live in a separate panel below
-Markets, following the same stacked-panel pattern as the right column. The
-lower panel is independent of Markets. Its header reads Folders and has + and
-cog buttons. The + opens an inline name field for a new folder.
-The cog opens the folder management window.
-
-Each folder is a toggle inside the lower panel. Pressing Fav, Daily or another
-folder opens that folder's coins directly under its row. Pressing the same row
-again closes its coins. Each row shows how many markets the folder contains.
-Expanded market rows have no dividers between them. The next folder toggle has
-its own top edge, so it remains separate from the markets above it. Folder
-presses never change the Markets panel above. Named folder rows include no
-management controls. The cog window holds create, rename, drag-to-reorder,
-hide and delete instead. Its New folder card holds the folder-name input and
-Create folder button. The inline form uses the same Create folder wording.
+The left column is one Folders panel. Watched, saved folders and All markets
+share the panel. Its header has the create button and the folder management cog.
+Each row expands its contents in place, with one row open at a time.
+Expanded market rows have no dividers between them. The next folder row has
+its own border. The cog holds create, rename, reorder, hide and delete controls.
 The management window ends with a primary Done button.
 
 Markets inside an open folder run from the largest reported 24-hour gain to
@@ -147,3 +137,14 @@ message. A folder from another exchange cannot run against the wallet.
 A backtest also reads the folder once at the start. The backtest saves the
 exact market keys it read, so the result still records the coins that produced
 it after the folder changes.
+
+## The folder dropdown
+
+The folder button beside the market name opens the same market rows as the left panel.
+
+- **Visibility:** The dropdown respects each saved folder's visibility setting, including Favorites. Watched and All markets respect their own visibility settings.
+- **Contents:** Watched uses the same waiting-order list. All markets respects the daily volume cutoff and manually hidden markets.
+- **Rows:** Market rows fill the dropdown width. Symbols, daily volume, change badges and selected states use the left panel's MarketRowLine component.
+- **Size:** The dropdown is at most 16.8rem wide, about 269 pixels at the default text size. The width is 30 percent smaller than the previous 384 pixels.
+- **Scrolling:** Expanded lists use the themed ScrollArea. The folder heading stays visible; the create form and list scroll below it.
+- **Selection:** Choosing a market keeps the dropdown open. Moving the pointer away or pressing Escape closes the dropdown.

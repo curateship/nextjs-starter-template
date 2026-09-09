@@ -39,6 +39,42 @@ export async function loadProtocolCandles(
   const ref = parseMarketKey(marketKey)
   if (!ref) throw new Error("Not a market key.")
   const protocol = getProtocol(ref.protocol)
+  if (protocol.markets.storesVenueCandles) {
+    const now = Date.now()
+    const step = intervalMs(interval)
+    const from = Math.ceil(venueSliceFrom(interval, now) / step) * step
+    const to = Math.floor(now / step) * step
+    try {
+      await ensureCandleCoverage(marketKey, interval, from, to)
+    } catch (error) {
+      const stored = await loadStoredCandles(marketKey, interval, from, to)
+      const source = stored.length
+        ? null
+        : await resolveHistorySource(marketKey)
+      // A refusal must not stop the chart from painting cached bars or loading
+      // borrowed history. The older-history read reports incomplete pool fills.
+      if (stored.length || source) {
+        recordEngineWarning(
+          "candles",
+          `Recent pool candles unavailable for ${marketKey}`
+        )
+        return stored.length
+          ? stored
+          : loadStoredCandles(source!, interval, from, to)
+      }
+      const said = error instanceof Error ? error.message : String(error)
+      if (said.includes("EXCHANGE_BUSY:") && !said.includes(" — ")) {
+        const detail = said.slice(
+          said.indexOf("EXCHANGE_BUSY:") + "EXCHANGE_BUSY:".length
+        )
+        throw new Error(`EXCHANGE_BUSY:${protocol.label} — ${detail}`)
+      }
+      throw error
+    }
+    const own = await loadStoredCandles(marketKey, interval, from, to)
+    if (own.length) return own
+    // A missing pool may still have borrowed history ready for first paint.
+  }
   if (protocol.markets.recordsOwnBars) {
     // **There is no venue to ask, so the first paint comes from the store.**
     // Every other venue hands over its own recent slice at once and the
@@ -131,7 +167,7 @@ export async function loadOlderCandles(
 
   const venue = getProtocol(ref.protocol)
   const source = await resolveHistorySource(marketKey)
-  if (!source) {
+  if (!source && !venue.markets.storesVenueCandles) {
     // A venue that publishes no candles has one other place to look: the
     // bars the app recorded under this market's own key while watching it.
     // Nothing is fetched, because there is nowhere to fetch from.
@@ -150,7 +186,8 @@ export async function loadOlderCandles(
       }
     }
     const chases =
-      wantsFullHistory(interval) && venue.markets.chartChasesFullHistory !== false
+      wantsFullHistory(interval) &&
+      venue.markets.chartChasesFullHistory !== false
     if (!chases) return { candles: [], source: null, partial: false }
     return {
       candles: await venue.markets.candles(ref.network, ref.marketId, interval),
@@ -159,16 +196,18 @@ export async function loadOlderCandles(
     }
   }
 
-  const fillKey = `${source}@${interval}`
+  const fillSource = source ?? marketKey
+  const fillKey = `${fillSource}@${interval}`
   const inFlight = filling.get(fillKey)
   const fill =
     inFlight ??
-    fillStore(source, interval).finally(() => {
+    fillStore(fillSource, interval).finally(() => {
       if (filling.get(fillKey) === fill) filling.delete(fillKey)
     })
   if (!inFlight) filling.set(fillKey, fill)
 
   const answer = await fill
+  if (!source) return { ...answer, source: null }
   // The note belongs to the BORROWER, not the source, so it is added here
   // rather than inside the shared fill: two venues can borrow the same
   // Binance market and only one of them has to say so.
@@ -195,11 +234,12 @@ async function fillStore(
   // never be looked at again.
   const to = Math.floor(now / step) * step
   const floor = entry.markets.historyFloor?.(ref.marketId, interval) ?? null
+  const readFloor = entry.markets.storesVenueCandles ? null : floor
   const from = Math.max(
     storeKeepsFrom(now),
     wantsFullHistory(interval)
-      ? (floor ?? storeDepthFrom(interval, now))
-      : Math.max(storeDepthFrom(interval, now), floor ?? 0)
+      ? (readFloor ?? storeDepthFrom(interval, now))
+      : Math.max(storeDepthFrom(interval, now), readFloor ?? 0)
   )
 
   // A source that will not answer just now does not blank what the store
@@ -207,7 +247,7 @@ async function fillStore(
   // could not be loaded, with Try again.
   let partial = false
   try {
-    await ensureCandleCoverage(source, interval, from, to)
+    await ensureCandleCoverage(source, interval, Math.max(from, floor ?? 0), to)
   } catch (error) {
     recordEngineWarning(
       "candles",

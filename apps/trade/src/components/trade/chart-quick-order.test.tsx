@@ -4,6 +4,13 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { loadSwapQuote } from "@/lib/api/trade/live"
+import { bnbRefusalSentence, type BnbRefusal } from "@/server/protocols/bnb/refusals"
+vi.mock("@/lib/api/trade/live", () => ({
+  loadSwapQuote: vi.fn(),
+  getLiveErrorMessage: (e: Error) => e.message,
+}))
+
 import { ChartQuickOrder } from "@/components/trade/chart-quick-order"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
@@ -88,10 +95,12 @@ async function draw({
   side = "buy",
   initialPrefs = prefs,
   addingTo = null,
+  swaps = false,
 }: {
   side?: "buy" | "sell"
   initialPrefs?: typeof prefs
   addingTo?: TradePosition | null
+  swaps?: boolean
 }) {
   const onPlace = vi.fn()
   const onRemember = vi.fn()
@@ -106,6 +115,8 @@ async function draw({
             y: 100,
           }}
           market={market}
+          swaps={swaps}
+          walletId={swaps ? "bnb-wallet" : undefined}
           wallet="Practice"
           addingTo={addingTo}
           free={10_000}
@@ -355,4 +366,42 @@ describe("the chart's Long, Short and Market window", () => {
         ?.getAttribute("aria-invalid")
     ).toBe("true")
   })
+})
+
+it("shows the provider, route and impact for a swap without placing an order", async () => {
+  vi.mocked(loadSwapQuote).mockResolvedValue({
+    quote: {
+      provider: "KyberSwap",
+      sz: 4.3,
+      usd: 10,
+      price: 10 / 4.3,
+      priceImpact: 0.001,
+      route: "PancakeSwap",
+      refusal: null,
+    },
+  })
+  const { onPlace } = await draw({
+    swaps: true,
+    initialPrefs: { ...prefs, size: "10" },
+  })
+  expect(host.textContent).toContain("Getting a swap quote")
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 750))
+  })
+  expect(host.textContent).toContain("KyberSwap:")
+  expect(host.textContent).toContain("PancakeSwap")
+  expect(host.textContent).toContain("price impact 0.1%")
+  expect(host.textContent).toContain("Worst fill allowed")
+  expect(onPlace).not.toHaveBeenCalled()
+})
+
+it.each<BnbRefusal>(["no-route", "unknown-token", "maximum", "malformed", "kyber-busy", "node-busy", "slippage", "approval", "gas", "unsellable", "pending", "replaced", "unknown"])("shows the BNB %s refusal and preserves the order size", async (code) => {
+  const sentence = bnbRefusalSentence(code)
+  vi.mocked(loadSwapQuote).mockRejectedValue(new Error(sentence))
+  const { onPlace } = await draw({ swaps: true, initialPrefs: { ...prefs, size: "10" } })
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 700)) })
+  expect(host.textContent).toContain(sentence)
+  expect(host.querySelector<HTMLInputElement>("#quick-size")?.value).toBe("10")
+  expect(host.textContent).not.toContain("LIVE_ORDER_REFUSED:")
+  expect(onPlace).not.toHaveBeenCalled()
 })

@@ -74,16 +74,19 @@ export function useFiredPriceAlerts(): FiredPriceAlertsControl {
   const [firedKnown, setFiredKnown] = React.useState(false)
   const [firedBusy, setFiredBusy] = React.useState(false)
   const firedReading = React.useRef(false)
+  const firedRevision = React.useRef(0)
   const firedKnownRef = React.useRef(false)
   const pendingFiredDeletes = React.useRef(new Set<string>())
 
   const refreshFired = React.useCallback(async () => {
     if (firedReading.current) return
     firedReading.current = true
+    const revision = firedRevision.current
     const wasKnown = firedKnownRef.current
     if (!wasKnown) setFiredBusy(true)
     try {
       const answer = await loadFiredPriceAlerts()
+      if (revision !== firedRevision.current) return
       setFired(
         answer.alerts.filter(
           (alert) => !pendingFiredDeletes.current.has(alert.id)
@@ -119,12 +122,17 @@ export function useFiredPriceAlerts(): FiredPriceAlertsControl {
   const deleteFired = React.useCallback(
     (id: string) => {
       const removed = fired.find((alert) => alert.id === id)
-      if (!removed) return
+      if (!removed || pendingFiredDeletes.current.has(id)) return
+      firedRevision.current += 1
       pendingFiredDeletes.current.add(id)
       setFired((current) => current.filter((alert) => alert.id !== id))
       void removeFiredPriceAlert(id).then(
-        () => pendingFiredDeletes.current.delete(id),
+        () => {
+          firedRevision.current += 1
+          pendingFiredDeletes.current.delete(id)
+        },
         (caught) => {
+          firedRevision.current += 1
           pendingFiredDeletes.current.delete(id)
           setFired((current) =>
             current.some((alert) => alert.id === id)
@@ -418,7 +426,10 @@ function FiredAlertsView({
                       )}
                       rightTitle={formatDateTime(new Date(row.alert.firedAt))}
                       rightMuted
-                      onSelectMarket={onSelectMarket}
+                      onSelectMarket={(marketKey) => {
+                        onDelete(row.alert.id)
+                        onSelectMarket(marketKey)
+                      }}
                     />
                     <button
                       type="button"
@@ -438,7 +449,10 @@ function FiredAlertsView({
                         formatDateTime
                       )}
                       rightTitle={formatDateTime(new Date(row.at))}
-                      onSelect={lines.onSelect}
+                      onSelect={(marketKey, id) => {
+                        lines.onSwitchOff(id)
+                        lines.onSelect(marketKey, id)
+                      }}
                     />
                     <button
                       type="button"

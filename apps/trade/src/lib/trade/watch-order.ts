@@ -15,15 +15,15 @@ import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
  * watched level fills only while the engine is running. That is the trade, and
  * it is the same one every ladder rung already makes.
  *
- * When the level is reached it does NOT take the market. It rests a
- * post-only order just off the touch and follows the price with it, exactly
- * the way a signal trade does — see `signal-order.ts`, whose chase this shares.
+ * When the level is reached, a normal limit goes out at the chosen price.
+ * Immediate fills within that limit are allowed. Maker closes use their
+ * separate post-only chase.
  */
 
 const WATCH_PHASES = [
   /** Nothing sent. Waiting for price to reach the level. */
   "waiting",
-  /** The level was touched; a resting order is chasing the price. */
+  /** The level was touched; the order is being placed or filled. */
   "taking",
   /** Called off — the next pass takes back anything resting. */
   "stopping",
@@ -66,11 +66,8 @@ const watchPlanSchema = z.object({
   /**
    * Never take the market: rest just off it and follow, however far price goes.
    *
-   * **This is what a part close is made of.** New Long and Short watches also
-   * avoid the market, through `triggerDirection`. `maker` is the stronger
-   * close rule: the plan starts in its chase, sizes itself from what remains
-   * held and never pays the spread. It also keeps a close out of the legacy
-   * market-take path used only by older stored watches.
+   * Part closes size each replacement from what remains held and follow the
+   * price post-only. Ordinary watched Long and Short orders use fixed limits.
    *
    * It pairs with `chaseGiveUp` at zero, which means it never gives up. That
    * is deliberate and it is the app's existing rule: being half out of a
