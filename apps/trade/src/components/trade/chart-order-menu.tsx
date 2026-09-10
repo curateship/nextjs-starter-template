@@ -45,6 +45,7 @@ export type SmartOrderPreset = "dca" | "grid"
 
 /** How close to the window's edge the menu may sit. */
 const EDGE = 8
+const MAX_RECENT_ORDER_TYPES = 2
 
 /** Which fold-out row is open: plain Long and Short, or the smart presets. */
 type OrderFold = "manual" | "smart"
@@ -134,10 +135,12 @@ export function ChartOrderMenu({
   ])
 
   const recent = orders
-    ? recentOrderTypes.filter(
-        (orderType) =>
-          smartOrders || orderType === "buy" || orderType === "sell"
-      )
+    ? recentOrderTypes
+        .filter(
+          (orderType) =>
+            smartOrders || orderType === "buy" || orderType === "sell"
+        )
+        .slice(0, MAX_RECENT_ORDER_TYPES)
     : []
 
   return (

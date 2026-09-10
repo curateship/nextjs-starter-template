@@ -107,19 +107,31 @@ describe("the chart order menu's Manual and Smart fold-out rows", () => {
 describe("the chart order menu's recent orders", () => {
   it("lists the latest placed kind first, above the fold-out rows", () => {
     const html = draw({
-      recentOrderTypes: ["grid", "buy", "dca"],
+      recentOrderTypes: ["grid", "buy"],
       smartOrders: true,
     })
     const recentAt = html.indexOf("Recent")
     const gridAt = html.indexOf("Grid", recentAt)
     const buyAt = html.indexOf("Long", recentAt)
-    const dcaAt = html.indexOf("DCA ladder", recentAt)
     const switchAt = html.indexOf("Manual order")
 
     expect(recentAt).toBeGreaterThan(-1)
     expect(gridAt).toBeLessThan(buyAt)
-    expect(buyAt).toBeLessThan(dcaAt)
-    expect(dcaAt).toBeLessThan(switchAt)
+    expect(buyAt).toBeLessThan(switchAt)
+  })
+
+  it("shows only the two most recent kinds", () => {
+    const html = draw({
+      recentOrderTypes: ["grid", "buy", "dca"],
+      smartOrders: true,
+    })
+    const recentAt = html.indexOf("Recent")
+    const manualAt = html.indexOf("Manual order", recentAt)
+    const recent = html.slice(recentAt, manualAt)
+
+    expect(recent).toContain(">Grid<")
+    expect(recent).toContain(">Long<")
+    expect(recent).not.toContain("DCA ladder")
   })
 
   it("leaves saved smart kinds out when the wallet cannot place them", () => {

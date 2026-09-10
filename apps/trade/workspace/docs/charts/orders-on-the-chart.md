@@ -15,8 +15,8 @@ keyboard-focus backgrounds reach both menu edges. A wallet that cannot place
 smart orders gets no fold-out rows, just Long and Short.
 
 Once an order has been placed, the right-click menu starts with **Recent**.
-The latest kind is first, followed by the other unique kinds this account has
-placed. Long, Short, DCA ladder and Grid can all appear there. Picking one uses
+The two latest kinds are shown, newest first. Long, Short, DCA ladder and Grid
+can all appear there. Picking one uses
 the price that was just clicked and opens the same window as its row lower in
 the menu. The Long and Short window has a Market checkbox. Checking it fills
 the chosen side now, but does not add a separate Market kind to Recent. Closing
