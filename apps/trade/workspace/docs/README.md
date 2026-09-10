@@ -48,7 +48,7 @@ screen: anything not written there has not been agreed yet.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — the market list, compact three-column pinned picker,
-  checkbox filters, search toolbar and the Watched row.
+  checkbox filters, search toolbar and the Manual orders panel.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.

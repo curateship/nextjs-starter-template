@@ -133,7 +133,7 @@ export function laddersAndGridsYouPlaced(
  * resumes.
  *
  * A watched price is never here, paused or not. It is a plain order waiting
- * at a price, and it lives under Open orders, on the Watched tab and on its
+ * at a price, and it lives under Open orders, in Manual orders and on its
  * chart; a paused one gets its Resume on the Open orders row. Listing it here
  * used to take its coin off the Positions tab with it: on 2 Sep 2026 a half
  * close of SOL paused, jumped into this panel, and the SOL position vanished

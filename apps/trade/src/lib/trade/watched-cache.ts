@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { TradeOrder } from "@/lib/trade/paper"
 
 /**
- * The watched prices this browser saw last time, so the Watched tab has rows
+ * The watched prices this browser saw last time, so Manual orders has rows
  * to draw the moment it opens.
  *
  * **Why it exists.** The tab's rows come from the trading read, and that read
@@ -34,7 +34,7 @@ const KEY = "trade-watched-prices"
 const KEEP_AT_MOST = 60
 
 /**
- * A price being waited at, as the Watched tab draws it — and exactly what the
+ * A price being waited at, as Manual orders draws it — and exactly what the
  * cache stores, so the rows off a fresh read and the rows off the cache are
  * the same shape and there is one row component, not two.
  *

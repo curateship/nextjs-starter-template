@@ -9,11 +9,9 @@ describe("the stored market panel rows", () => {
   it("reads a row saved before hidden coins existed as nothing hidden", () => {
     expect(
       readMarketPanelRows({
-        watched: { position: 0, hidden: false },
         all: { position: 3, hidden: true },
       })
     ).toEqual({
-      watched: { position: 0, hidden: false },
       all: { position: 3, hidden: true },
       hiddenMarketKeys: [],
     })
@@ -22,7 +20,6 @@ describe("the stored market panel rows", () => {
   it("keeps the hidden coins and drops a repeated one", () => {
     expect(
       readMarketPanelRows({
-        watched: { position: -1, hidden: false },
         all: { position: 9, hidden: false },
         hiddenMarketKeys: [
           "hyperliquid:mainnet:DOGE",

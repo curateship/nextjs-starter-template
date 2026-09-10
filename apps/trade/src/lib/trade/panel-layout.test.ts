@@ -119,7 +119,7 @@ describe("remembered trade panel layouts", () => {
     expect(saved.headerProfitVisible).toBe(false)
     expect(saved.chartToolbarPosition).toEqual({ x: 0.25, y: 0.75 })
     expect(saved.activeNamedId).toBe("layout-1")
-    expect(saved.named[0]?.openMarketRows).toEqual({ [scope]: "watched" })
+    expect(saved.named[0]?.openMarketRows).toEqual({})
     expect(saved.named[0]).not.toHaveProperty("marketColumn")
     expect(saved.named[0]?.headerProfitVisible).toBe(false)
     expect(saved.named[0]?.chartToolbarPosition).toBeNull()

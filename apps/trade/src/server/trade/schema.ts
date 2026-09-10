@@ -434,7 +434,7 @@ export const tradeWalletNonces = pgTable(
  * **The refusals are read; the rest is the record.** The Journal tab is built
  * from fills, not from here, and most of what this table holds is never drawn.
  * The exception is the last refusal on each market, which `loadLiveRefusals`
- * reads and the Watched tab and Open orders show under the level that did not
+ * reads and Manual orders and Open orders show under the level that did not
  * fire — the background engine trades with nobody watching and no press to
  * throw an error back to, so without that a refused level and a patient one
  * look identical. For a long time nothing here was read at all, on the

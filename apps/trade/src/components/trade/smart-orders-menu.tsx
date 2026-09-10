@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-/** The right panel in a dropdown while its resizable column is collapsed. */
+/** The order panels in a dropdown while their resizable column is collapsed. */
 export function SmartOrdersMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = React.useState(false)
   const closeTimer = React.useRef<number | null>(null)
@@ -37,7 +37,7 @@ export function SmartOrdersMenu({ children }: { children: ReactNode }) {
           variant="outline"
           size="icon"
           className="bg-muted/60 dark:bg-muted/60"
-          aria-label="Open smart orders and bots"
+          aria-label="Open orders and bots"
           onMouseEnter={openFromHover}
           onMouseLeave={closeFromHover}
         >

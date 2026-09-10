@@ -4,7 +4,7 @@ import type { TradeOrder } from "@/lib/trade/paper"
 import { readWatchedCache, writeWatchedCache } from "@/lib/trade/watched-cache"
 
 /**
- * The levels the Watched tab draws before its own read has answered.
+ * The levels Manual orders draws before its own read has answered.
  *
  * The two things worth pinning down are that one account never reads another
  * account's levels off the same browser, and that a blob this build cannot

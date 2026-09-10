@@ -225,8 +225,8 @@ describe("market folders", () => {
       userId,
       {
         ...scope,
-        rowIds: ["all", watching.id, "watched", daily.id, fav.id],
-        hiddenRowIds: ["watched", daily.id],
+        rowIds: ["all", watching.id, daily.id, fav.id],
+        hiddenRowIds: [daily.id],
       },
       database
     )
@@ -243,7 +243,6 @@ describe("market folders", () => {
     ])
     expect(saved.panelRows).toEqual({
       all: { position: 0, hidden: false },
-      watched: { position: 2, hidden: true },
       hiddenMarketKeys: [],
     })
     expect(await savedPanelRows("hyperliquid", "mainnet")).toEqual(
@@ -251,7 +250,6 @@ describe("market folders", () => {
     )
     // Another exchange keeps its own arrangement rather than this one.
     expect(await savedPanelRows("phemex", "mainnet")).toEqual({
-      watched: { position: -1, hidden: false },
       all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
       hiddenMarketKeys: [],
     })
@@ -266,7 +264,7 @@ describe("market folders", () => {
     )
     expect(hidden.hiddenMarketKeys).toEqual(["hyperliquid:mainnet:DOGE"])
     // The row layout was never saved, so it reads as the original order.
-    expect(hidden.watched.position).toBe(-1)
+    expect(hidden.all.position).toBe(Number.MAX_SAFE_INTEGER)
 
     await setMarketHidden(
       userId,
@@ -281,16 +279,23 @@ describe("market folders", () => {
     )
 
     // A drag of the rows leaves the hidden coins alone, and the other way.
-    const folders = await loadMarketFolders(userId, "hyperliquid", "mainnet", database)
+    const folders = await loadMarketFolders(
+      userId,
+      "hyperliquid",
+      "mainnet",
+      database
+    )
     const dragged = await saveMarketPanelLayout(
       userId,
-      { ...scope, rowIds: ["all", "watched", folders[0]!.id], hiddenRowIds: [] },
+      { ...scope, rowIds: ["all", folders[0]!.id], hiddenRowIds: [] },
       database
     )
     expect(dragged.panelRows).toEqual({
       all: { position: 0, hidden: false },
-      watched: { position: 1, hidden: false },
-      hiddenMarketKeys: ["hyperliquid:mainnet:DOGE", "hyperliquid:mainnet:PEPE"],
+      hiddenMarketKeys: [
+        "hyperliquid:mainnet:DOGE",
+        "hyperliquid:mainnet:PEPE",
+      ],
     })
 
     const shown = await setMarketHidden(
@@ -300,11 +305,12 @@ describe("market folders", () => {
     )
     expect(shown).toEqual({
       all: { position: 0, hidden: false },
-      watched: { position: 1, hidden: false },
       hiddenMarketKeys: ["hyperliquid:mainnet:PEPE"],
     })
     // Another exchange's list is its own.
-    expect((await savedPanelRows("phemex", "mainnet")).hiddenMarketKeys).toEqual([])
+    expect(
+      (await savedPanelRows("phemex", "mainnet")).hiddenMarketKeys
+    ).toEqual([])
 
     await expect(
       setMarketHidden(
@@ -352,15 +358,9 @@ describe("market folders", () => {
 
     // A folder missing, one sent twice, and a row that is not on this panel.
     for (const rowIds of [
-      ["watched", "all", fav.id],
-      ["watched", "all", fav.id, daily.id, daily.id],
-      [
-        "watched",
-        "all",
-        fav.id,
-        daily.id,
-        "00000000-0000-4000-8000-000000009999",
-      ],
+      ["all", fav.id],
+      ["all", fav.id, daily.id, daily.id],
+      ["all", fav.id, daily.id, "00000000-0000-4000-8000-000000009999"],
     ]) {
       await expect(
         saveMarketPanelLayout(
@@ -375,7 +375,7 @@ describe("market folders", () => {
         userId,
         {
           ...scope,
-          rowIds: ["watched", "all", fav.id, daily.id],
+          rowIds: ["all", fav.id, daily.id],
           hiddenRowIds: ["nothing-like-a-row"],
         },
         database
@@ -383,7 +383,6 @@ describe("market folders", () => {
     ).rejects.toThrow("could not be saved")
     // Nothing was written by any of the refusals.
     expect(await savedPanelRows("hyperliquid", "mainnet")).toEqual({
-      watched: { position: -1, hidden: false },
       all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
       hiddenMarketKeys: [],
     })

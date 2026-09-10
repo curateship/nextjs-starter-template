@@ -10,10 +10,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketKey, MarketRow } from "@/lib/protocols/contracts"
 import {
   DEFAULT_MARKET_PANEL_ROWS,
-  WATCHED_ROW,
   type MarketFolder,
 } from "@/lib/trade/market-folders"
-import type { TradeOrder } from "@/lib/trade/paper"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -97,21 +95,12 @@ const catalogs = [
   },
 ]
 
-/** The props every render shares; the watched read has landed empty. */
+/** The props every render shares. */
 const shared = {
   protocol: "hyperliquid" as const,
   network: "mainnet" as const,
   marketsError: null,
   marketsPending: false,
-  watchedOrders: {
-    rows: [],
-    cacheScope: "test",
-    settled: true,
-    failed: false,
-    refusals: new Map(),
-    onRetry: () => {},
-  },
-  walletName: () => "Practice",
   selectedMarketKey: null,
   panelRows: DEFAULT_MARKET_PANEL_ROWS,
   onFoldersChange: () => {},
@@ -126,7 +115,7 @@ function TestMarketFoldersPanel(
     "expandedId" | "onExpandedIdChange"
   >
 ) {
-  const [expandedId, setExpandedId] = useState<string | null>(WATCHED_ROW)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   return (
     <MarketFoldersPanel
       {...props}
@@ -254,12 +243,11 @@ describe("the market folder controls", () => {
     })
 
     const folderPanel = host
-    // Watched leads the panel and opens expanded; All markets closes it out.
+    // Folders lead the panel and All markets closes it out.
     const toggles = Array.from(
       folderPanel.querySelectorAll("button[aria-expanded]")
     )
-    expect(toggles[0]!.textContent).toContain("Watched")
-    expect(toggles[0]!.getAttribute("aria-expanded")).toBe("true")
+    expect(toggles[0]!.textContent).toContain("Fav")
     expect(toggles.at(-1)!.textContent).toContain("All markets")
     expect(toggles.at(-1)!.getAttribute("aria-expanded")).toBe("false")
     const favToggle = toggles.find((one) => one.textContent?.includes("Fav"))!
@@ -282,7 +270,7 @@ describe("the market folder controls", () => {
     expect(document.body.textContent).toContain("Order")
     // Every row of the panel drags and hides, the two that are not folders
     // included, and only a named folder can be deleted.
-    for (const name of ["Watched", "Fav", "Test", "All markets"]) {
+    for (const name of ["Fav", "Test", "All markets"]) {
       expect(
         document.body.querySelector(`button[aria-label="Reorder ${name}"]`)
       ).not.toBeNull()
@@ -361,23 +349,7 @@ describe("the market folder controls", () => {
     expect(onExpandedIdChange).toHaveBeenCalledWith(null)
   })
 
-  it("counts and draws one watched row per market", async () => {
-    const watched: TradeOrder = {
-      id: "farther",
-      walletId: "wallet-1",
-      marketKey: btc.key,
-      side: "buy",
-      px: 80,
-      sz: 1,
-      leverage: 5,
-      maxLeverage: 40,
-      reduceOnly: false,
-      tpPx: null,
-      slPx: null,
-      createdAt: 2,
-      updatedAt: 2,
-      watched: true,
-    }
+  it("does not put watched orders among market folders", async () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
@@ -385,25 +357,12 @@ describe("the market folder controls", () => {
             {...shared}
             folders={[fav]}
             catalogs={catalogs}
-            watchedOrders={{
-              ...shared.watchedOrders,
-              rows: [
-                watched,
-                { ...watched, id: "nearest", px: 99, sz: 2, createdAt: 1 },
-              ],
-            }}
           />
         </TooltipProvider>
       )
     })
 
-    const watchedToggle = Array.from(
-      host.querySelectorAll("button[aria-expanded]")
-    ).find((button) => button.textContent?.includes("Watched"))!
-    expect(watchedToggle.textContent).toContain("1 waiting")
-    expect(host.textContent?.match(/BTC/g)).toHaveLength(1)
-    expect(host.textContent).toContain("$198")
-    expect(host.textContent).not.toContain("$80")
+    expect(host.textContent).not.toContain("Watched")
   })
 
   it("orders saved folders and All markets from 24h gain to loss", async () => {
@@ -513,10 +472,9 @@ describe("the market folder controls", () => {
             {...shared}
             folders={[fav, named]}
             catalogs={catalogs}
-            // All markets dragged above everything, Watched switched off.
+            // All markets dragged above every saved folder.
             panelRows={{
               all: { position: -2, hidden: false },
-              watched: { position: -1, hidden: true },
               hiddenMarketKeys: [],
             }}
           />
@@ -531,14 +489,13 @@ describe("the market folder controls", () => {
     expect(host.textContent).not.toContain("Watched")
     expect(host.textContent).not.toContain("Daily")
 
-    // Both switched-off rows are still in the cog window, saying so, with an
-    // eye that offers to bring them back.
+    // The switched-off folder remains in the cog window.
     await act(async () =>
       click(host.querySelector('button[aria-label="Manage folders"]')!)
     )
     expect(
       document.body.querySelector('button[aria-label="Show Watched"]')
-    ).not.toBeNull()
+    ).toBeNull()
     expect(
       document.body.querySelector('button[aria-label="Show Daily"]')
     ).not.toBeNull()
@@ -577,7 +534,7 @@ describe("the market folder controls", () => {
     expect(savePanelLayout).toHaveBeenCalledWith({
       protocol: "hyperliquid",
       network: "mainnet",
-      rowIds: ["watched", fav.id, named.id, "all"],
+      rowIds: [fav.id, named.id, "all"],
       hiddenRowIds: [named.id],
     })
   })
@@ -679,7 +636,8 @@ describe("the market folder controls", () => {
     expect(toggle("All markets").textContent).toContain("1 market")
 
     // Right-click BTC and pick Hide: the screen answers first, then the save.
-    const btcRow = host.querySelector<HTMLElement>('button span[title="BTC"]')!
+    const btcRow = host
+      .querySelector<HTMLElement>('button span[title="BTC"]')!
       .closest("button")!
     await act(async () =>
       btcRow.dispatchEvent(
@@ -718,6 +676,8 @@ describe("the market folder controls", () => {
       marketKey: eth.key,
       hidden: false,
     })
-    expect(onPanelRowsChange).toHaveBeenLastCalledWith(DEFAULT_MARKET_PANEL_ROWS)
+    expect(onPanelRowsChange).toHaveBeenLastCalledWith(
+      DEFAULT_MARKET_PANEL_ROWS
+    )
   })
 })

@@ -166,7 +166,7 @@ export function readWatchPlan(value: unknown): WatchPlan | null {
  */
 export function watchReached(
   // Only the side and the level decide it, so the screens can ask this of a
-  // row that is not a whole plan — the Watched tab holds its levels as orders.
+  // row that is not a whole plan. Manual orders holds its levels as orders.
   // One rule, so a list and the engine can never disagree about "reached".
   plan: Pick<WatchPlan, "side" | "triggerPx" | "triggerDirection">,
   mark: number

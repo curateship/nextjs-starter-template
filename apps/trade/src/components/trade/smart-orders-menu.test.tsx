@@ -45,7 +45,7 @@ describe("the collapsed smart-orders menu", () => {
     })
 
     const trigger = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open smart orders and bots"]'
+      'button[aria-label="Open orders and bots"]'
     )!
     expect(trigger.dataset.slot).toBe("popover-trigger")
     expect(document.body.textContent).not.toContain("Smart orders and Bots")

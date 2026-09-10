@@ -407,7 +407,7 @@ describe("the remembered trade panel layouts", () => {
         horizontal,
         vertical,
         scope,
-        openMarketRowId: "watched",
+        openMarketRowId: "all",
         headerProfitVisible: false,
         chartToolbarPosition: { x: 0.25, y: 0.6 },
       },
@@ -419,7 +419,7 @@ describe("the remembered trade panel layouts", () => {
     expect(named?.headerProfitVisible).toBe(false)
     expect(named?.chartToolbarPosition).toEqual({ x: 0.25, y: 0.6 })
     expect(named?.openMarketRows).toEqual({
-      "hyperliquid:mainnet": "watched",
+      "hyperliquid:mainnet": "all",
     })
 
     const overwrittenHorizontal = {
@@ -485,7 +485,7 @@ describe("the remembered trade panel layouts", () => {
         horizontal,
         vertical,
         scope,
-        openMarketRowId: "watched",
+        openMarketRowId: "all",
         headerProfitVisible: true,
         chartToolbarPosition: null,
       },
@@ -510,7 +510,7 @@ describe("the remembered trade panel layouts", () => {
         horizontal,
         vertical,
         scope,
-        openMarketRowId: "watched",
+        openMarketRowId: "all",
         headerProfitVisible: true,
         chartToolbarPosition: null,
       },
@@ -524,7 +524,7 @@ describe("the remembered trade panel layouts", () => {
           horizontal,
           vertical,
           scope,
-          openMarketRowId: "watched",
+          openMarketRowId: "all",
           headerProfitVisible: true,
           chartToolbarPosition: null,
         },
@@ -540,7 +540,7 @@ describe("the remembered trade panel layouts", () => {
           horizontal,
           vertical,
           scope,
-          openMarketRowId: "watched",
+          openMarketRowId: "all",
           headerProfitVisible: true,
           chartToolbarPosition: null,
         },
@@ -555,7 +555,7 @@ describe("the remembered trade panel layouts", () => {
           horizontal,
           vertical,
           scope,
-          openMarketRowId: "watched",
+          openMarketRowId: "all",
           headerProfitVisible: true,
           chartToolbarPosition: null,
         },

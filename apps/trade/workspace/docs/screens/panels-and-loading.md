@@ -130,9 +130,10 @@ Designed with the wide one, not bolted on.
 
 - The middle panel takes the whole width and stays the main thing.
 - Two labelled buttons in the market header slide the side panels in. The
-  Markets sheet holds the full market list. The Smart orders sheet holds Smart
-  orders and Bots. Wallet management stays in the chart header on every width.
-- A sheet closes toward the same edge it opened from. Closing Smart orders
+  Markets sheet holds the full market list. The right sheet holds the separate
+  Smart orders and Manual orders panels, plus Bots. Wallet management stays in
+  the chart header on every width.
+- A sheet closes toward the same edge it opened from. Closing the order panels
   keeps the sheet on the right until it is gone; it never turns into Markets on
   the left during the closing animation. The panel completes that exit in
   150ms instead of drifting a short distance and then disappearing. Reduced
@@ -240,7 +241,7 @@ written by an older build still uses the reading state below.
   arrive with the page rather than being fetched by the panel, so there is no
   moment where the list is on screen and its markets are not. A retry after a
   failed read keeps the rows it already had, which is a refresh rather than a
-  load. The Watched row above it does fetch its own contents, and it uses the
+  load. The Manual orders panel does fetch its own contents, and it uses the
   spinner like everything else.
 - **The chart is the one exception and it is deliberate.** While its candles
   load, the whole empty chart surface fades gently in and out instead of

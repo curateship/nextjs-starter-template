@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
-import { ALL_ROW, WATCHED_ROW } from "@/lib/trade/market-folders"
+import { ALL_ROW } from "@/lib/trade/market-folders"
 import { TRADE_PANEL_LAYOUT_KEYS } from "@/lib/trade/panel-keys"
 import type {
   ChartToolbarPosition,
@@ -27,7 +27,7 @@ const layoutSchema = z
   .record(z.string().min(1).max(40), z.number().finite().min(0).max(100))
   .refine((layout) => Object.keys(layout).length <= 3)
 const openMarketRowIdSchema = z
-  .union([z.literal(WATCHED_ROW), z.literal(ALL_ROW), z.string().uuid()])
+  .union([z.literal(ALL_ROW), z.string().uuid()])
   .nullable()
 const marketPanelScopeSchema = z.object({
   protocol: z.enum(KNOWN_PROTOCOLS),

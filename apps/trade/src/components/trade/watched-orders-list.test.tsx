@@ -7,7 +7,7 @@ import type { MarketRow } from "@/lib/protocols/contracts"
 import type { TradeOrder } from "@/lib/trade/paper"
 
 /**
- * The Watched tab's four answers, told apart.
+ * The Manual orders panel's four answers, told apart.
  *
  * "Nothing is waiting", "still reading" and "could not read" are different
  * answers and only the first is safe to act on. The fourth is the one that
@@ -68,7 +68,7 @@ function draw(state: {
   )
 }
 
-describe("the Watched tab", () => {
+describe("the Manual orders list", () => {
   it("says nothing is waiting only once both halves have answered", () => {
     expect(draw({ orders: [], settled: true, failed: false })).toContain(EMPTY)
   })

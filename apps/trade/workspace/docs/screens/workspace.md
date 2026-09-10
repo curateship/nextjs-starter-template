@@ -5,21 +5,18 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 
 ```
 ┌────────────┬─────────────────────┬────────────┐
-│ Folders    │ MARKET HEADER       │ Account    │
-│  Watched   │ ─────────────────── ├────────────┤
-│            │ Chart               │ Order      │
+│ Folders    │ MARKET HEADER       │ Smart/Bots │
+│            │ ─────────────────── ├────────────┤
+│            │ Chart               │ Manual     │
 │            │                     │            │
 ├────────────┴─────────────────────┴────────────┤
 │ Positions | Open orders | Fills                │
 └───────────────────────────────────────────────┘
 ```
 
-- **Left — one Folders panel** (decided 23 Aug 2026, replacing the market
-  list panel that sat above it). Every row wears a folder's shape and opens
-  in place: **Watched first** — it lists orders rather than markets, see "The
-  Watched row" below — then the saved folders, then **All markets** last with
-  its sort headers. Live exchange data. The panel opens on Watched and uses the
-  full height of the left column.
+- **Left, one Folders panel.** Every row is market navigation. Saved folders
+  come first and **All markets** comes last with its sort headers. Watched
+  orders no longer appear among folders.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, a Folders
@@ -148,11 +145,12 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   The rows use 12px inside gutters and 14px primary labels.
   Money is monospaced and tabular. Wallet and smart-order profit use the same
   12px type and end on the same right edge.
-- **Right, Smart orders and Bots.** The wallet block no longer takes the top of
-  this column. Smart orders and Bots use the full height. When the column is
-  collapsed, a bot icon appears at the far right of the market header and opens
-  those same two tabs in a dropdown. Dragging the right divider open returns
-  the tabs to their full-height panel. The dropdown is as wide as the side
+- **Right, two separate order panels.** Smart orders and Bots share the upper
+  tabbed panel. Manual orders is its own panel below and lists hand-placed
+  watched prices. A draggable divider changes their heights and the account
+  remembers the split. When the column is collapsed, a bot icon opens both
+  panels in one dropdown. Dragging the right divider open returns both panels.
+  The dropdown is as wide as the side
   panel and grows with its rows until it reaches the available screen height;
   longer tables scroll inside it. Hovering the bot icon opens the dropdown.
   The dropdown icon has no hover message.
@@ -168,7 +166,7 @@ shadow instead of a black underline. The component and its tabs live in
 `src/components/shared/dashboard-card-header.tsx`, changed in Custom Shell first
 and carried here unchanged.
 
-The right panel opens on **Smart orders**. The Smart orders tab keeps the
+The upper-right panel opens on **Smart orders**. The Smart orders tab keeps the
 hand-placed ladders and grids it already showed. The header has only the Smart
 orders and Bots tabs, with no working, holding or running summary beside them.
 The **Bots** tab lists every running bot for the exchange on the page. Each row

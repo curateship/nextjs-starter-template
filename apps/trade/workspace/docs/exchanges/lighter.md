@@ -750,7 +750,7 @@ never negative.
 Worth keeping even though it no longer bites Lighter, because it will bite the
 next venue added. A watched order sends nothing to the exchange until the price
 arrives — that is the whole point of it — so a venue with no order path has
-nothing to reject at the moment the level is saved. One sat in the Watched tab
+nothing to reject at the moment the level is saved. One sat in Manual orders
 looking like it was working, and the first sign of trouble would have been a
 refusal at the price, repeated on every engine pass. All three doors check the
 venue first: a plain watched level, a DCA ladder or grid, and an order that

@@ -72,17 +72,7 @@ describe("the folders menu", () => {
         root.render(
           <TooltipProvider>
             <MarketFoldersMenu
-              watchedOrders={{
-                rows: [],
-                cacheScope: "test",
-                settled: true,
-                failed: false,
-                refusals: new Map(),
-                onRetry: vi.fn(),
-              }}
-              walletName={() => "Wallet"}
               panelRows={{
-                watched: { position: -1, hidden },
                 all: { position: 2, hidden },
                 hiddenMarketKeys: [],
               }}
@@ -139,7 +129,7 @@ describe("the folders menu", () => {
       })
       expect(document.body.textContent).toContain("Folders")
       expect(document.body.textContent).toContain("Majors")
-      expect(document.body.textContent?.includes("Watched")).toBe(!hidden)
+      expect(document.body.textContent).not.toContain("Watched")
       expect(document.body.textContent?.includes("All markets")).toBe(!hidden)
       expect(document.body.textContent?.includes("Favorites")).toBe(!hidden)
       expect(button("Add folder")).not.toBeNull()

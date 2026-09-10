@@ -6,7 +6,6 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
-import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import type { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { MarketRowLine } from "@/components/trade/market-list-panel"
@@ -40,17 +39,11 @@ export function MarketFoldersMenu({
   onFoldersChange,
   onManage,
   onSelectMarket,
-  watchedOrders,
-  walletName,
   panelRows,
   marketsError,
   marketsPending,
   onRetryMarkets,
 }: {
-  watchedOrders: React.ComponentProps<
-    typeof MarketFoldersPanel
-  >["watchedOrders"]
-  walletName: React.ComponentProps<typeof MarketFoldersPanel>["walletName"]
   panelRows: React.ComponentProps<typeof MarketFoldersPanel>["panelRows"]
   marketsError: string | null
   marketsPending: boolean
@@ -207,33 +200,6 @@ export function MarketFoldersMenu({
             </form>
           ) : null}
           <div className="grid">
-            {!panelRows.watched.hidden ? (
-              <MenuSection
-                name="Watched"
-                expanded={expandedId === "watched"}
-                count={
-                  watchedOrders.settled && !watchedOrders.failed
-                    ? `${new Set(watchedOrders.rows.map((row) => row.marketKey)).size} waiting`
-                    : ""
-                }
-                onToggle={() =>
-                  setExpandedId(expandedId === "watched" ? null : "watched")
-                }
-              >
-                <WatchedOrdersList
-                  orders={watchedOrders.rows}
-                  markets={[...markets.values()]}
-                  cacheScope={watchedOrders.cacheScope}
-                  refusals={watchedOrders.refusals}
-                  walletName={walletName}
-                  settled={watchedOrders.settled}
-                  failed={watchedOrders.failed}
-                  onRetry={watchedOrders.onRetry}
-                  onSelectMarket={onSelectMarket}
-                  selectedKey={selectedMarketKey}
-                />
-              </MenuSection>
-            ) : null}
             {shownFolders.map((folder) => {
               const expanded = expandedId === folder.id
               const folderMarkets = folder.marketKeys
@@ -332,9 +298,7 @@ export function MarketFoldersMenu({
                 )}
               </MenuSection>
             ) : null}
-            {shownFolders.length === 0 &&
-            panelRows.watched.hidden &&
-            panelRows.all.hidden ? (
+            {shownFolders.length === 0 && panelRows.all.hidden ? (
               <p className="p-3 text-xs text-muted-foreground">
                 Every row is hidden. Open Manage folders to show a row.
               </p>

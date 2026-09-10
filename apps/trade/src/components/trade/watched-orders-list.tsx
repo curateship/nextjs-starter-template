@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Every price you are waiting on — the first row of the Folders panel.
+ * Every hand-placed price you are waiting on, shown in Manual orders.
  *
  * A plain order does not rest on the exchange any more — the app holds the
  * level and only sends anything once the market comes to it, which is what
@@ -34,10 +34,6 @@ import { cn } from "@/lib/utils"
  *
  * Only prices placed by hand reach here. A flow never creates one: a watch is
  * what a hand-placed order becomes, and a flow's orders belong to its own run.
- *
- * The panel OPENS on this row, so its empty state is the first thing on screen
- * on the days nothing is waiting. That is why the empty wording says where the
- * markets went as well as how a price gets here.
  *
  * **It opens on the levels this browser saw last time.** The trading read
  * takes about three and a half seconds, so waiting for it meant a spinner on
@@ -170,8 +166,7 @@ export function WatchedOrdersList({
   const severalWallets = new Set(shownRows.map((row) => row.walletId)).size > 1
 
   return (
-    // No scroll surface of its own: the list is one section of the folders
-    // panel now, and that panel's ScrollArea scrolls everything together.
+    // ManualOrdersPanel owns the scrollbar so the header stays fixed.
     <div>
       {failed && !standingIn ? (
         // "Nothing is waiting" and "I could not find out" are different
@@ -201,15 +196,10 @@ export function WatchedOrdersList({
             <StaleAfterFailureNote onRetry={onRetry} />
           ) : null}
           {shownRows.length === 0 ? (
-            // The panel opens on this tab, so an empty one is the first thing
-            // on screen most days. It has to point at the markets, which are
-            // now the click behind it, rather than leave the panel looking
-            // broken.
             <p className="px-3 py-8 text-center text-xs text-muted-foreground">
               Nothing is waiting at a price. Right-click the chart where you
-              want to buy or sell — the order you place there waits here until
-              the market reaches it. Saved coins are in Folders below, and the
-              full market list is under All.
+              want to buy or sell. The order waits here until the market reaches
+              it.
             </p>
           ) : (
             <div className="flex flex-col">
@@ -365,7 +355,9 @@ function WatchedRow({
           </span>
         </span>
         {line.away ? (
-          <OrderDistanceBadge distance={orderDistance({ ...level, watched: true }, mark)} />
+          <OrderDistanceBadge
+            distance={orderDistance({ ...level, watched: true }, mark)}
+          />
         ) : null}
       </span>
       {refusal ? <RefusalNote refusal={refusal} /> : null}

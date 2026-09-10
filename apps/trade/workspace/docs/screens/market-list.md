@@ -12,14 +12,9 @@ line in the body, share the panel's one 12px gutter.
   so the two cannot blur together. The open row has a border above and below.
   Those are plain theme borders, so the shell's Borders setting controls them.
   A closed row turns gray under the pointer, so which section is open never
-  depends on the chevron alone. **Watched is the first row** and the one the
-  panel opens on, because
-  a price you have money committed to beats a market you might look at — it
-  is not a folder, it lists orders, but it dresses as one so the column is
-  one panel. **All markets is the last row**: the whole catalogue under its
-  own 24h Vol / 24h Change sort headers. The saved folders sit between them.
-  Watched's count says "N waiting" only once the read has settled — before
-  that, and after a failed read, it says nothing rather than claiming zero.
+  depends on the chevron alone. **All markets is the last row**: the whole
+  catalogue under its own 24h Vol / 24h Change sort headers. Watched orders
+  moved to the separate Manual orders panel on the right on 9 Sep 2026.
   An empty folder points at the star in the market header.
 - **Searching lives in the market picker** — the market name at the top of
   the chart opens the whole catalogue with its own search. The panel has no
@@ -114,7 +109,7 @@ line in the body, share the panel's one 12px gutter.
 - **A market you will never trade can be hidden by hand.** Right-click a row in
   All markets and pick "Hide X from All markets". The row goes at once and the
   save runs behind it; a refused save puts the row back with a toast. The
-  hidden market still shows in Watched, in every named folder, in the market
+  hidden market still shows in Manual orders, in every named folder, in the market
   picker, in backtests and in recipes: only the All markets row leaves it
   out, and its count leaves it out too. This is a different thing from the
   volume cutoff. The cutoff is one number in Settings and a market comes back
@@ -127,13 +122,13 @@ line in the body, share the panel's one 12px gutter.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists. The selected row keeps its gray fill and adds
-  a right border in the theme's text color in Watched, saved folders and All
-  markets.
+  a right border in the theme's text color in saved folders and All markets.
 
-### The Watched row
+### The Manual orders panel
 
 Every price you are waiting at, across every coin and every wallet on this
-exchange. A plain order does not rest on the exchange any more — the app holds
+exchange. This is a separate draggable panel under Smart orders and Bots on
+the right. A plain order does not rest on the exchange any more. The app holds
 the level and sends nothing until the market comes to it, which
 `../orders/watched-orders.md` explains — and those levels were only ever visible one coin
 at a time on the chart, or mixed in with everything else under Open orders.
@@ -142,8 +137,7 @@ at a time on the chart, or mixed in with everything else under Open orders.
   shows the order nearest today's price. The market keeps the place given to
   its newest order, so a changing price can change the order shown without
   moving the row under the pointer. With no market price, or an equal distance,
-  the newest order wins. The count beside Watched is also the number of markets,
-  so the count and the rows agree. Watched rows show the coin name without its
+  the newest order wins. Manual order rows show the coin name without its
   favicon.
 - **One line per row, shaped like a market row.** The coin with what the
   order will spend beside it in the quiet grey the volume figure uses, and on
@@ -164,8 +158,6 @@ at a time on the chart, or mixed in with everything else under Open orders.
 - **The charted coin's row carries the same gray fill the All tab uses.** On
   both lists the fill runs edge to edge and the first row sits flush under the
   header line, the way the Folders panel already draws its rows.
-- **The sort headers belong to All markets, not to Watched.** There is no
-  volume and no day's move to sort a waiting price by.
 - **"Reached" is the engine's own rule**, so the list and the engine can never
   disagree about whether a price has arrived: a buy is reached when today's
   price has come down to it, a sell when it has come up. The price is the
@@ -201,7 +193,6 @@ at a time on the chart, or mixed in with everything else under Open orders.
   coins shows the same loading row rather than claiming its coins are not
   available. A list already on screen stays up while a fresh one loads for
   the same network; switching network shows loading, never the old floor.
-
 
 ## Checking the compact market picker
 

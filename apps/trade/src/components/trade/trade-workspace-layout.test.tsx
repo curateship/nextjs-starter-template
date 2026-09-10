@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { DEFAULT_TRADING_RULES } from "@/lib/trade/trading-rules"
 
 const {
   chartMounts,
@@ -49,10 +50,13 @@ vi.mock("@/components/trade/activity-panel", () => ({
 vi.mock("@/components/trade/smart-orders-panel", () => ({
   SmartOrdersPanel: () => <div data-testid="smart-orders-panel" />,
 }))
+vi.mock("@/components/trade/manual-orders-panel", () => ({
+  ManualOrdersPanel: () => <div data-testid="manual-orders-panel" />,
+}))
 vi.mock("@/components/trade/smart-orders-menu", () => ({
   SmartOrdersMenu: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="smart-orders-menu">
-      <button type="button" aria-label="Open smart orders and bots" />
+      <button type="button" aria-label="Open orders and bots" />
       {children}
     </div>
   ),
@@ -256,7 +260,7 @@ vi.mock("@/lib/remembered-choice", () => ({
     React.useState(initial),
 }))
 vi.mock("@/lib/trade/market-folders", () => ({
-  WATCHED_ROW: "watched",
+  ALL_ROW: "all",
   favFolder: () => null,
 }))
 vi.mock("@/lib/trade/market-volume", () => ({
@@ -280,9 +284,11 @@ function MockPanelGroup(props: {
   const groupName = props["data-panel-group"] ?? orientation
   const opening = React.useMemo<Record<string, number>>(
     (): Record<string, number> =>
-      orientation === "horizontal"
-        ? { markets: 20, chart: 58, "smart-orders": 22 }
-        : { workspace: 72, activity: 28 },
+      groupName === "orders"
+        ? { "managed-orders": 60, "manual-orders": 40 }
+        : orientation === "horizontal"
+          ? { markets: 20, chart: 58, "smart-orders": 22 }
+          : { workspace: 72, activity: 28 },
     [groupName, orientation]
   )
   const [layout, setLayout] = React.useState<Record<string, number>>(opening)
@@ -321,7 +327,9 @@ function MockPanelGroup(props: {
         aria-label={`Resize ${groupName} group`}
         onClick={() => {
           let next: Record<string, number>
-          if (orientation === "horizontal") {
+          if (groupName === "orders") {
+            next = { "managed-orders": 50, "manual-orders": 50 }
+          } else if (orientation === "horizontal") {
             next = { markets: 25, chart: 50, "smart-orders": 25 }
           } else {
             next = { workspace: 60, activity: 40 }
@@ -392,8 +400,8 @@ describe("the trade workspace chart full screen", () => {
             marketsPending={false}
             initialFolders={[]}
             initialPanelRows={{
-              watched: { position: -1, hidden: false },
               all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+              hiddenMarketKeys: [],
             }}
             initialChartView={null}
             initialChart={null}
@@ -402,6 +410,7 @@ describe("the trade workspace chart full screen", () => {
             initialIndicators={{} as never}
             initialCardFolds={{}}
             initialQuickOrder={{} as never}
+            initialTradingRules={DEFAULT_TRADING_RULES}
             initialPanelLayouts={{
               legacyImported: true,
               current: {
@@ -441,6 +450,23 @@ describe("the trade workspace chart full screen", () => {
       "smart-orders": 22,
     })
     expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
+    expect(layoutOf("orders")).toEqual({
+      "managed-orders": 60,
+      "manual-orders": 40,
+    })
+    expect(host.querySelector('[data-panel="manual-orders"]')).not.toBeNull()
+    expect(
+      host.querySelector('[data-testid="manual-orders-panel"]')
+    ).not.toBeNull()
+    expect(
+      host.querySelector('[data-panel-group="orders"]')?.parentElement
+        ?.className
+    ).toContain("h-full")
+    await act(async () => clickButton("Resize orders group"))
+    expect(rememberedLayouts).toHaveBeenCalledWith(
+      "trade-workspace-orders-vertical",
+      { "managed-orders": 50, "manual-orders": 50 }
+    )
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Open alerts"]'
@@ -460,7 +486,7 @@ describe("the trade workspace chart full screen", () => {
     await act(async () => clickButton("Collapse smart-orders panel"))
     expect(
       host.querySelector(
-        '[data-testid="market-header"] button[aria-label="Open smart orders and bots"]'
+        '[data-testid="market-header"] button[aria-label="Open orders and bots"]'
       )
     ).not.toBeNull()
     expect(
@@ -474,7 +500,7 @@ describe("the trade workspace chart full screen", () => {
           '[data-testid="market-header"] button'
         )
       ).at(-1)?.ariaLabel
-    ).toBe("Open smart orders and bots")
+    ).toBe("Open orders and bots")
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Show chart full screen"]'
@@ -542,7 +568,7 @@ describe("the trade workspace chart full screen", () => {
       { markets: 20, chart: 58, "smart-orders": 22 },
       { workspace: 72, activity: 28 },
       { protocol: "hyperliquid", network: "mainnet" },
-      "watched",
+      "all",
       false,
       null
     )
@@ -558,7 +584,7 @@ describe("the trade workspace chart full screen", () => {
   })
 })
 
-function layoutOf(group: "horizontal" | "vertical") {
+function layoutOf(group: "horizontal" | "vertical" | "orders") {
   const value = host
     .querySelector(`[data-panel-group="${group}"]`)
     ?.getAttribute("data-layout")

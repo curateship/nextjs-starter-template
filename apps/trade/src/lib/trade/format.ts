@@ -58,7 +58,7 @@ export function formatUsdRounded(value: number): string {
 
 /**
  * Whole dollars, always: "$98", "$1,014". For a row that only has to tell a
- * $20 stake from a $1,000 one; the Watched tab asked for its cents gone.
+ * $20 stake from a $1,000 one; Manual orders asked for its cents gone.
  */
 export function formatWholeUsd(value: number): string {
   const whole = Math.round(Math.abs(value))

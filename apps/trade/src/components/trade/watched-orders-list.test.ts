@@ -4,7 +4,7 @@ import { watchedLevelLine } from "@/components/trade/watched-orders-list"
 import type { TradeOrder } from "@/lib/trade/paper"
 
 /**
- * The line under a waiting price in the Watched tab.
+ * The line under a waiting price in Manual orders.
  *
  * The part worth pinning down is which way "reached" runs. A buy waits for the
  * price to come DOWN to it and a sell waits for it to come up, so the same

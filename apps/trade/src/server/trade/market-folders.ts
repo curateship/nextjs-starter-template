@@ -9,7 +9,6 @@ import {
 import {
   ALL_ROW,
   MAX_HIDDEN_MARKETS,
-  WATCHED_ROW,
   readMarketPanelRows,
   type MarketFolder,
   type MarketPanelRows,
@@ -532,7 +531,7 @@ export async function saveMarketPanelLayout(
           eq(tradeMarketFolders.network, input.network)
         )
       )
-    const rows = new Set([WATCHED_ROW, ALL_ROW, ...saved.map((one) => one.id)])
+    const rows = new Set([ALL_ROW, ...saved.map((one) => one.id)])
     if (
       input.rowIds.length !== rows.size ||
       new Set(input.rowIds).size !== input.rowIds.length ||
@@ -544,21 +543,16 @@ export async function saveMarketPanelLayout(
     // Every folder row in ONE statement. Written as a loop, a ten-folder
     // panel paid ten round trips for a single drag; the CASE hands each row
     // its own position and eye state in the same update.
-    const folderIds = input.rowIds.filter(
-      (id) => id !== WATCHED_ROW && id !== ALL_ROW
-    )
+    const folderIds = input.rowIds.filter((id) => id !== ALL_ROW)
     if (folderIds.length > 0) {
       const positionWhens = sql.join(
         folderIds.map(
-          (id) =>
-            sql`when ${id} then ${input.rowIds.indexOf(id)}::int`
+          (id) => sql`when ${id} then ${input.rowIds.indexOf(id)}::int`
         ),
         sql` `
       )
       const hiddenWhens = sql.join(
-        folderIds.map(
-          (id) => sql`when ${id} then ${hidden.has(id)}::boolean`
-        ),
+        folderIds.map((id) => sql`when ${id} then ${hidden.has(id)}::boolean`),
         sql` `
       )
       await tx
@@ -581,10 +575,6 @@ export async function saveMarketPanelLayout(
       userId,
       { protocol: input.protocol, network: input.network },
       {
-        watched: {
-          position: input.rowIds.indexOf(WATCHED_ROW),
-          hidden: hidden.has(WATCHED_ROW),
-        },
         all: {
           position: input.rowIds.indexOf(ALL_ROW),
           hidden: hidden.has(ALL_ROW),
@@ -624,7 +614,11 @@ export async function setMarketHidden(
   database: CustomShellDb = db
 ): Promise<MarketPanelRows> {
   const ref = parseMarketKey(input.marketKey)
-  if (!ref || ref.protocol !== input.protocol || ref.network !== input.network) {
+  if (
+    !ref ||
+    ref.protocol !== input.protocol ||
+    ref.network !== input.network
+  ) {
     throw new Error("That coin belongs to another exchange.")
   }
   const scope = { protocol: input.protocol, network: input.network }

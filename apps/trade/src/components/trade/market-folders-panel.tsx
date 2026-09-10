@@ -22,7 +22,6 @@ import {
   MarketRowLine,
   TestnetStrip,
 } from "@/components/trade/market-list-panel"
-import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import {
   DRAG_HANDLE_CLASS,
   useNavSensors,
@@ -64,11 +63,8 @@ import {
   savePanelLayout,
   setHiddenMarket,
 } from "@/lib/api/trade/market-folders"
-import type { LiveRefusal } from "@/lib/trade/live"
-import type { TradeOrder } from "@/lib/trade/paper"
 import {
   ALL_ROW,
-  WATCHED_ROW,
   type MarketFolder,
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
@@ -83,11 +79,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
- * One row of the panel: a folder, or one of the two rows that are not folders.
+ * One row of the panel: a folder, or the All markets row.
  *
- * Watched and All markets have no coins, no name to change and nothing to
- * delete, so `folder` is null on those two and the cog window leaves out the
- * controls that would have nothing to act on.
+ * All markets has no coins, no name to change and nothing to delete, so
+ * `folder` is null and the cog window omits those controls.
  */
 type PanelRow = {
   id: string
@@ -107,8 +102,6 @@ export function MarketFoldersPanel({
   catalogs,
   marketsError,
   marketsPending,
-  watchedOrders,
-  walletName,
   expandedId,
   selectedMarketKey,
   onFoldersChange,
@@ -120,7 +113,7 @@ export function MarketFoldersPanel({
   onManageOpenChange,
 }: {
   folders: readonly MarketFolder[]
-  /** Where Watched and All markets sit, and whether either is switched off. */
+  /** Where All markets sits and whether it is switched off. */
   panelRows: MarketPanelRows
   protocol: ProtocolId
   network: NetworkId
@@ -129,21 +122,6 @@ export function MarketFoldersPanel({
   marketsError: string | null
   /** The list is still streaming in; rows show loading, not empty claims. */
   marketsPending: boolean
-  /** The prices being waited at, listed under the Watched row. */
-  watchedOrders: {
-    rows: readonly TradeOrder[]
-    /** Which account and exchange the cached list belongs to. */
-    cacheScope: string
-    /** Both halves of the trading read have landed — see `Trading`. */
-    settled: boolean
-    /** That read failed and there is nothing to fall back on. */
-    failed: boolean
-    /** The last refusal on each market, so a stuck level can say why. */
-    refusals: ReadonlyMap<string, LiveRefusal>
-    onRetry: () => void
-  }
-  /** Each wallet's name, so a waiting price says which wallet it is in. */
-  walletName: (walletId: string) => string
   /** The one row this account left open on this exchange, or null for none. */
   expandedId: string | null
   selectedMarketKey: string | null
@@ -197,43 +175,14 @@ export function MarketFoldersPanel({
   const sensors = useNavSensors()
   const hideRequest = React.useRef(0)
 
-  // Every row of the panel, drawn one way: Watched, the saved folders, then
-  // the whole catalogue. Watched and All are not folders, but they wear a
-  // folder's row (decided 23 Aug 2026) so the left column is one panel
-  // instead of two — and since 24 Aug 2026 they drag and hide like one too.
+  // Every row of the panel, drawn one way: saved folders, then the catalogue.
+  // All markets is not a folder, but it uses the same row and can be moved or
+  // hidden with the folders.
   //
   // Built in the old fixed order and then sorted by saved place. The sort is
   // stable, so two rows that were given the same number keep this order, which
   // is what puts a folder created after a drag above All markets.
   const rows: PanelRow[] = [
-    {
-      id: WATCHED_ROW,
-      name: "Watched",
-      // A count that is not known yet says nothing rather than "0 waiting":
-      // before the first read, and after one that failed, zero would be
-      // claiming an answer the panel does not have.
-      count:
-        watchedOrders.settled && !watchedOrders.failed
-          ? `${new Set(watchedOrders.rows.map((order) => order.marketKey)).size} waiting`
-          : "",
-      position: panelRows.watched.position,
-      hidden: panelRows.watched.hidden,
-      folder: null,
-      body: (
-        <WatchedOrdersList
-          orders={watchedOrders.rows}
-          markets={marketRows}
-          cacheScope={watchedOrders.cacheScope}
-          refusals={watchedOrders.refusals}
-          walletName={walletName}
-          settled={watchedOrders.settled}
-          failed={watchedOrders.failed}
-          onRetry={watchedOrders.onRetry}
-          onSelectMarket={onSelectMarket}
-          selectedKey={selectedMarketKey}
-        />
-      ),
-    },
     ...folders.map((folder) => {
       const folderMarkets = folder.marketKeys
         .flatMap((key) => {
@@ -341,10 +290,6 @@ export function MarketFoldersPanel({
     )
     onPanelRowsChange({
       ...panelRows,
-      watched: {
-        position: rowIds.indexOf(WATCHED_ROW),
-        hidden: hidden.has(WATCHED_ROW),
-      },
       all: { position: rowIds.indexOf(ALL_ROW), hidden: hidden.has(ALL_ROW) },
     })
     setBusy(true)
@@ -373,7 +318,9 @@ export function MarketFoldersPanel({
    */
   function setMarketHiddenByHand(marketKey: string, hidden: boolean) {
     const previous = panelRows
-    const without = panelRows.hiddenMarketKeys.filter((key) => key !== marketKey)
+    const without = panelRows.hiddenMarketKeys.filter(
+      (key) => key !== marketKey
+    )
     onPanelRowsChange({
       ...panelRows,
       hiddenMarketKeys: hidden ? [...without, marketKey] : without,
@@ -651,9 +598,9 @@ export function MarketFoldersPanel({
               <CardHeader>
                 <CardTitle>Hidden markets</CardTitle>
                 <CardDescription>
-                  Markets you hid by right-clicking them in All markets.
-                  Markets under your daily volume setting are a different
-                  list and come back on their own when the setting changes.
+                  Markets you hid by right-clicking them in All markets. Markets
+                  under your daily volume setting are a different list and come
+                  back on their own when the setting changes.
                 </CardDescription>
                 <CardAction className="text-xs text-muted-foreground tabular-nums">
                   {hiddenByHandRows.length}{" "}
@@ -691,10 +638,7 @@ export function MarketFoldersPanel({
             </Card>
           </DialogBody>
           <DialogFooter>
-            <Button
-              type="button"
-              onClick={() => setManaging(false)}
-            >
+            <Button type="button" onClick={() => setManaging(false)}>
               Done
             </Button>
           </DialogFooter>
@@ -752,7 +696,7 @@ function PanelRowManager({
     row.id,
     true
   )
-  // Fav can be renamed and Watched and All markets cannot, because those two
+  // Fav can be renamed and All markets cannot, because that row
   // are not folders. Only a named folder can be deleted.
   const renameable = row.folder !== null
   const deletable = row.folder !== null && !row.folder.isFav

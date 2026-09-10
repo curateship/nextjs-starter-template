@@ -123,7 +123,6 @@ Stop loss and take profit travel with the watch and are applied when the
 position opens. A timeout is not proof of refusal: Trade keeps the order marked
 sent until its result is known, preventing a duplicate submission.
 
-
 ### Adding to a position uses market orders
 
 The position row's + button opens an addition at the current market price.
@@ -236,15 +235,15 @@ built in `use-trading.ts`, so they can never disagree.
 - **On the chart of its own coin**, as the line the order would have been.
 - **Under Open orders** in the bottom panel, mixed in with real and practice
   orders, because a watched price IS an open order to the person who placed it.
-- **Under the Watched tab**, the first tab of the market list on the left. That
+- **Under Manual orders**, a separate draggable panel below Smart orders and
+  Bots on the right. That
   is the only one of the three that answers "what am I waiting on across all my
   coins" without changing market. Each market appears once. When several
   orders wait on the same market, the row shows the order nearest today's
   price. `../screens/rules-everywhere.md` has the rest of its rules.
 
-It is deliberately NOT in the Smart orders panel beside the wallets. That panel
-is for strategies being worked — a ladder, a grid — and a plain order waiting
-at a price is not one.
+It does not share the Smart orders tab or its card. Smart orders is for a
+ladder or grid. Manual orders is for a plain order waiting at a price.
 
 ### A level that was refused says so
 
@@ -254,7 +253,7 @@ eighteen minutes — the market had reached the exchange's cap on open interest
 and would not accept anything that opened a position — and the row said
 "waiting" the whole time. There was no way to find out from the app at all.
 
-The reason now sits under the level, on the Watched tab row.
+The reason now sits under the level in the Manual orders panel.
 
 - **It comes from the record that was already being kept.** Every refusal has
   always been written to `trade_live_journal`. Nothing read it, on the
@@ -313,7 +312,7 @@ replacement.
 After five order-specific refusals in a row the engine puts the watch down:
 nothing rests on the exchange, later passes skip it, and the fifth refusal
 sends one notice (`../screens/notices.md` has the counting rule). A paused
-watch does not resume itself. It stays under Open orders, on the Watched tab
+watch does not resume itself. It stays under Open orders, in Manual orders
 with the refusal under it, and on its chart, exactly where an unpaused one
 sits.
 
@@ -336,7 +335,7 @@ sits.
   leftover smaller than one step counts as done. `part-close.md` covers the
   close itself.
 
-### The Watched tab opens on last time's levels
+### Manual orders opens on last time's levels
 
 The rows come from the trading read, and that read takes about three and a half
 seconds against the database. Measured on 21 Aug 2026, the same on a warm
@@ -389,7 +388,7 @@ the exchange had said a word.
 Every list that merges the two halves can be told the same lie, and the bottom
 panel's Positions, Open orders and Journal all merge them — they said "No open
 positions" off `loading` in exactly the same way, and the count on each tab
-said "0". It showed on the Watched tab first because that is the tab the panel
+said "0". It showed in Manual orders first because that panel
 opens on, and because that tab was also writing the half-answer down. All four
 wait for the whole read now.
 

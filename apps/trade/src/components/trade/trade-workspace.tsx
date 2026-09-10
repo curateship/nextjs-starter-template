@@ -19,6 +19,7 @@ import {
 } from "@/components/trade/activity-panel"
 import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
 import { SmartOrdersMenu } from "@/components/trade/smart-orders-menu"
+import { ManualOrdersPanel } from "@/components/trade/manual-orders-panel"
 import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
 import {
@@ -109,7 +110,7 @@ import { listenForHeaderProfitVisibility } from "@/lib/trade/header-profit-visib
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import {
-  WATCHED_ROW,
+  ALL_ROW,
   favFolder,
   type MarketFolder,
   type MarketFolderActions,
@@ -309,9 +310,7 @@ export function TradeWorkspace({
 
   // ----- Market folders: one exchange, optimistic item changes -------------
   const [folders, setFolders] = React.useState(initialFolders)
-  // Where Watched and All markets sit and whether they show. Beside the
-  // folders rather than inside them: neither row is a folder, and one drag
-  // saves both halves together.
+  // Where All markets sits and whether it shows.
   const [panelRows, setPanelRows] = React.useState(initialPanelRows)
   const [folderBusy, setFolderBusy] = React.useState(false)
   const folderQueues = React.useRef(new Map<string, Promise<void>>())
@@ -571,9 +570,10 @@ export function TradeWorkspace({
   )
   const expandedMarketRowId = hasSavedOpenMarketRow
     ? (panelLayouts.layouts.openMarketRows[marketPanelScopeId] ?? null)
-    : WATCHED_ROW
+    : ALL_ROW
   const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
   const verticalKey = tradePanelLayoutKey.workspaceVertical
+  const ordersVerticalKey = tradePanelLayoutKey.workspaceOrdersVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
     tradePanelIds[horizontalKey],
     panelLayouts.layouts.current[horizontalKey],
@@ -583,6 +583,11 @@ export function TradeWorkspace({
     tradePanelIds[verticalKey],
     panelLayouts.layouts.current[verticalKey],
     (layout) => panelLayouts.remember(verticalKey, layout)
+  )
+  const ordersVerticalLayout = useRememberedPanelLayoutInPlace(
+    tradePanelIds[ordersVerticalKey],
+    panelLayouts.layouts.current[ordersVerticalKey],
+    (layout) => panelLayouts.remember(ordersVerticalKey, layout)
   )
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayouts = React.useRef<{
@@ -901,9 +906,8 @@ export function TradeWorkspace({
     [trading.walletNames, account.wallets]
   )
 
-  // Folders stays one panel rather than splitting folders and markets again:
-  // Watched is its first row and All markets its last (decided 23 Aug 2026).
-  // Alerts now opens from the market header, so Folders owns this full column.
+  // The left column is only market navigation. Hand-placed orders live with
+  // the other order controls in the right column.
   const marketColumn = (
     <WorkspacePanel
       collapsed={marketsCollapsed}
@@ -917,26 +921,6 @@ export function TradeWorkspace({
         catalogs={catalogs}
         marketsError={marketsError}
         marketsPending={marketsPending}
-        // The same list the chart draws its waiting lines from and the Open
-        // orders tab lists, so the row can never disagree with either.
-        watchedOrders={{
-          rows: trading.watchOrders,
-          // The account and the exchange together, so one person's levels
-          // never flash up for the next person to sign in on this machine,
-          // and one exchange's never flash up on another's page.
-          cacheScope: `${user.id}:${protocol}`,
-          // NOT `trading.loading`: that turns false when the practice half
-          // lands on its own, and a screen whose waiting levels are all on
-          // real wallets would say "nothing is waiting" until the exchange
-          // answered.
-          settled: trading.settled,
-          failed: trading.failed,
-          // Why a level has not fired. See `RefusalNote` — without it a level
-          // the exchange keeps refusing reads as one quietly waiting.
-          refusals: trading.refusals,
-          onRetry: trading.retry,
-        }}
-        walletName={walletNameOf}
         expandedId={expandedMarketRowId}
         selectedMarketKey={selectedKey}
         panelRows={panelRows}
@@ -1005,6 +989,44 @@ export function TradeWorkspace({
     />
   )
 
+  const manualOrdersPanel = (
+    <ManualOrdersPanel
+      compact={desktop && smartOrdersCollapsed}
+      orders={trading.watchOrders}
+      markets={marketRows}
+      cacheScope={`${user.id}:${protocol}`}
+      refusals={trading.refusals}
+      walletName={walletNameOf}
+      settled={trading.settled}
+      failed={trading.failed}
+      onRetry={trading.retry}
+      onSelectMarket={onSelectMarket}
+      selectedKey={selectedKey}
+    />
+  )
+
+  const orderPanels = (
+    <ResizablePanelGroup
+      data-panel-group="orders"
+      groupRef={ordersVerticalLayout.groupRef}
+      orientation="vertical"
+      className="min-h-0 flex-1"
+      onLayoutChanged={ordersVerticalLayout.onLayoutChanged}
+    >
+      <ResizablePanel id="managed-orders" defaultSize="60%" minSize="25%">
+        <WorkspacePanel className="flex min-h-0 flex-1 flex-col">
+          {smartOrdersPanel}
+        </WorkspacePanel>
+      </ResizablePanel>
+      <ResizableHandle gap className={NO_RING} />
+      <ResizablePanel id="manual-orders" defaultSize="40%" minSize="25%">
+        <WorkspacePanel className="flex min-h-0 flex-1 flex-col">
+          {manualOrdersPanel}
+        </WorkspacePanel>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  )
+
   const middle = (
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
     // a width to fill it shrinks to its content.
@@ -1019,15 +1041,6 @@ export function TradeWorkspace({
           marketAction={
             <div className="flex shrink-0 items-center gap-2">
               <MarketFoldersMenu
-                watchedOrders={{
-                  rows: trading.watchOrders,
-                  cacheScope: `${user.id}:${protocol}`,
-                  settled: trading.settled,
-                  failed: trading.failed,
-                  refusals: trading.refusals,
-                  onRetry: trading.retry,
-                }}
-                walletName={walletNameOf}
                 panelRows={panelRows}
                 marketsError={marketsError}
                 marketsPending={marketsPending}
@@ -1093,7 +1106,12 @@ export function TradeWorkspace({
               />
               {walletManagement}
               {desktop && smartOrdersCollapsed && !chartFullscreen ? (
-                <SmartOrdersMenu>{smartOrdersPanel}</SmartOrdersMenu>
+                <SmartOrdersMenu>
+                  <div className="grid max-h-[var(--radix-popover-content-available-height)] grid-rows-2 overflow-hidden">
+                    {smartOrdersPanel}
+                    <div className="min-h-0 border-t">{manualOrdersPanel}</div>
+                  </div>
+                </SmartOrdersMenu>
               ) : null}
             </>
           }
@@ -1242,12 +1260,12 @@ export function TradeWorkspace({
         onResize={(size) => setSmartOrdersCollapsed(size.asPercentage < 0.5)}
       >
         {smartOrdersCollapsed ? null : (
-          <WorkspacePanel
+          <div
             onDoubleClick={smartOrdersDoubleClick}
-            className="flex min-h-0 flex-1 flex-col"
+            className="flex h-full min-h-0 flex-col"
           >
-            {smartOrdersPanel}
-          </WorkspacePanel>
+            {orderPanels}
+          </div>
         )}
       </ResizablePanel>
     </ResizablePanelGroup>
@@ -1335,11 +1353,13 @@ export function TradeWorkspace({
           >
             <SheetHeader className="sr-only">
               <SheetTitle>
-                {sideSheet.side === "smart-orders" ? "Smart orders" : "Markets"}
+                {sideSheet.side === "smart-orders"
+                  ? "Orders and bots"
+                  : "Markets"}
               </SheetTitle>
             </SheetHeader>
             {sideSheet.side === "smart-orders" ? (
-              <div className="flex min-h-0 flex-1">{smartOrdersPanel}</div>
+              <div className="flex min-h-0 flex-1">{orderPanels}</div>
             ) : (
               <div className="flex min-h-0 flex-1">{marketColumn}</div>
             )}

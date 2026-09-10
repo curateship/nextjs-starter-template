@@ -10,7 +10,6 @@ import {
 } from "@/lib/protocols/contracts"
 import {
   ALL_ROW,
-  WATCHED_ROW,
   type MarketFolder,
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
@@ -38,13 +37,9 @@ const marketKeySchema = z
   .refine((key) => parseMarketKey(key) !== null, {
     message: "Not a market key.",
   })
-/** Watched, All markets, Fav and the hundred named folders a scope allows. */
-const MAX_PANEL_ROWS = 2 + 1 + 100
-const panelRowIdSchema = z.union([
-  z.literal(WATCHED_ROW),
-  z.literal(ALL_ROW),
-  z.string().uuid(),
-])
+/** All markets, Fav and the hundred named folders a scope allows. */
+const MAX_PANEL_ROWS = 1 + 1 + 100
+const panelRowIdSchema = z.union([z.literal(ALL_ROW), z.string().uuid()])
 const panelLayoutSchema = z.object({
   protocol: z.enum(KNOWN_PROTOCOLS),
   network: z.enum(["mainnet", "testnet"]),

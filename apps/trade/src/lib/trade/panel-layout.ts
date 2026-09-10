@@ -11,7 +11,7 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { ALL_ROW, WATCHED_ROW } from "@/lib/trade/market-folders"
+import { ALL_ROW } from "@/lib/trade/market-folders"
 import {
   TRADE_PANEL_LAYOUT_KEYS,
   type TradePanelLayoutKey,
@@ -375,7 +375,6 @@ export function readOpenMarketRows(value: unknown): OpenMarketRows {
     if (!MARKET_PANEL_SCOPE_KEYS.has(scope)) continue
     if (
       rowId === null ||
-      rowId === WATCHED_ROW ||
       rowId === ALL_ROW ||
       (typeof rowId === "string" && UUID_PATTERN.test(rowId))
     ) {
