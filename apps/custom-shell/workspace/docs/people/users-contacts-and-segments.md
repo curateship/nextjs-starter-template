@@ -10,10 +10,18 @@ history.
 The Users dashboard lets an admin:
 
 - Search, filter, sort, and page through accounts.
-- Create an account.
+- Create an account, either by emailing the person a link that sets their own
+  password, or by typing a password for them.
 - Change a role, plan, profile, or status.
 - End sessions and inspect security details.
 - Temporarily view the product as that person.
+
+Add account asks for a name, an email address and a role. Leaving the optional
+password empty is the normal path: the account starts with no password at all,
+and the emailed link sets one and confirms the address. Typing a password
+instead sends no email, stores that password, and marks the address verified so
+the person can sign in as soon as the admin passes it on. The password is never
+shown again.
 
 Suspension signs the person out and blocks sign in. Deletion first schedules the
 account for removal so an admin can restore it during the recovery period. The

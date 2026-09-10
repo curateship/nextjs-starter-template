@@ -26,6 +26,12 @@ in `saas-foundation.md`.
   goes with it. There is no background job, so the purge runs on registration
   and on sign-in; an admin can also delete a marked account a second time to
   remove it immediately.
+- An account an admin adds normally has no password, and the emailed link both
+  sets one and proves the address. An admin who types a password in the Add
+  account modal replaces that link: the password is hashed the same way, it is
+  refused if it appears in a known breach, and the address is marked verified at
+  once, because sign-in refuses an unverified account and no link is sent that
+  could prove it. Handing the password to the person is then the admin's job.
 - Verification, password-reset, sign-in and email-change links are single-use,
   expiring tokens; only their hash is stored. Completing a reset signs out every
   session.

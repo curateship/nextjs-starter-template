@@ -38,11 +38,17 @@ import {
   customShellSubscriptions,
   customShellUsers,
 } from "@/server/schema"
-import { findUserByEmail, now, uuid } from "@/server/auth/security"
+import {
+  findUserByEmail,
+  hashPassword,
+  now,
+  uuid,
+} from "@/server/auth/security"
 import {
   createWorkspaceAuthToken,
   type AuthLinkContext,
 } from "@/server/auth/link-expiry"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import { recordSubscriptionEvent } from "@/server/billing/subscription-events"
 import { listMemberTags } from "@/server/people/member-tags"
 import {
@@ -324,18 +330,26 @@ export async function loadNewestAccounts(
 /**
  * Adds a person directly, instead of waiting for them to register themselves.
  *
- * The account starts with no password at all — nothing typed can match a null
- * hash, so nobody can sign in to it until the emailed link has set one. The
- * link is the same one a password reset sends, and spending it does two things
- * at once: sets the password, and marks the email verified, because opening a
- * link that was mailed to the address proves the inbox is theirs.
+ * Without a password the account starts with no password at all — nothing typed
+ * can match a null hash, so nobody can sign in to it until the emailed link has
+ * set one. The link is the same one a password reset sends, and spending it
+ * does two things at once: sets the password, and marks the email verified,
+ * because opening a link that was mailed to the address proves the inbox is
+ * theirs.
+ *
+ * When the admin types a password instead, the account is ready to sign in
+ * straight away: the password is stored and the address is marked verified,
+ * because there is no emailed link left to prove it and an unverified account
+ * is refused at sign in. Nothing is emailed, so the admin has to pass the
+ * password on themselves.
  */
 export async function createAccountByAdmin(
   email: string,
   name: string,
   role: "admin" | "member",
   database: CustomShellDb = db,
-  linkContext?: AuthLinkContext
+  linkContext?: AuthLinkContext,
+  password?: string
 ) {
   // An address stays taken while a deleted account holding it can still be
   // restored, and frees up the moment that account is really gone — the same
@@ -347,6 +361,41 @@ export async function createAccountByAdmin(
   }
 
   const createdAt = now()
+
+  if (password) {
+    const passwordHash = await hashPassword(password)
+    const created = await database.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(customShellUsers)
+        .values({
+          id: uuid(),
+          email,
+          name,
+          role,
+          status: "active",
+          passwordHash,
+          // The admin vouching for the address stands in for the emailed link,
+          // which is the only other thing that ever sets this.
+          emailVerifiedAt: createdAt,
+          createdAt,
+          updatedAt: createdAt,
+        })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      // The same event the emailed link fires when it verifies an address, so
+      // an automation watching for members does not miss these accounts.
+      await emitMemberEvent("verified", user, tx)
+      return user
+    })
+
+    return { id: created.id, delivered: false }
+  }
+
   const { userId, token } = await database.transaction(async (tx) => {
     const [user] = await tx
       .insert(customShellUsers)
