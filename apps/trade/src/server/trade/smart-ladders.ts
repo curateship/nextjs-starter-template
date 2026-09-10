@@ -1005,13 +1005,9 @@ function aimBrackets(
 }
 
 /**
- * Where the ladder wants its stop: under the base when one can carry it, and
- * on the plain percent until then.
- *
- * Null is a real answer, not a missing one — a 100% stop is one that price
- * would have to reach zero to hit, which is how you say "nothing until the
- * base arrives". Writing a stop at zero instead would be a stop in name only,
- * and it would sit under every rung and kill them all.
+ * Where the ladder wants its chosen stop. A base stop returns null until a
+ * confirmed base sits below the held position. It never borrows the average
+ * buy percentage while it waits.
  */
 export function wantedStopPx(
   plan: Pick<LadderPlan, "rungs" | "stopLoss" | "baseWatch">,
@@ -1026,6 +1022,7 @@ export function wantedStopPx(
   }
   const level = baseStopPx(plan, plan.baseWatch?.levelPx ?? null)
   if (level !== null) return roundPx(level)
+  if (sl.base) return null
   const pct = sl.pct ?? 0
   if (!(pct > 0) || pct >= 100) return null
   return roundPx(entryPx * (1 - pct / 100))

@@ -367,7 +367,7 @@ export function DcaSettingsFields({
       <OptionCard
         id={id("sl-on")}
         title="Stop loss"
-        hint="Place the stop below the average buy or below the last rung. If the stop hits, everything sells and waiting rungs are cancelled."
+        hint="Place the stop below the average buy, below the last rung, or under a confirmed base. If the stop hits, everything sells and waiting rungs are cancelled."
         foldWhenOff={false}
         toggle={{
           checked: form.slOn,
@@ -395,16 +395,24 @@ export function DcaSettingsFields({
         {form.slOn ? (
           <>
             <div className="grid gap-2">
-              <FieldLabel htmlFor={id("sl-reference")}>Stop position</FieldLabel>
+              <FieldLabel
+                htmlFor={id("sl-reference")}
+                hint={
+                  form.slReference === "base"
+                    ? "No DCA stop is placed until a 4h base confirms below the held position. Only the hard stop remains."
+                    : undefined
+                }
+              >
+                Stop position
+              </FieldLabel>
               <Select
                 value={form.slReference}
                 disabled={busy}
                 onValueChange={(value) =>
                   onChange({
                     ...form,
-                    slReference: value as "average" | "lastRung",
+                    slReference: value as "average" | "lastRung" | "base",
                     slPct: String(value === "lastRung" ? 2 : suggestedSlPct),
-                    baseOn: false,
                   })
                 }
               >
@@ -417,37 +425,39 @@ export function DcaSettingsFields({
                 <SelectContent>
                   <SelectItem value="average">Stop under average buy</SelectItem>
                   <SelectItem value="lastRung">Stop under last rung</SelectItem>
+                  <SelectItem value="base">Stop under the base</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor={id("sl-pct")}
-                hint={
-                  form.slReference === "lastRung"
-                    ? "Distance below the deepest buy rung. Drag the red stop line on the chart to change the distance."
-                    : "Where the stop rests until a base takes over. 100 means price would have to reach zero."
-                }
-              >
-                Stop
-              </FieldLabel>
-              <PercentField
-                id={id("sl-pct")}
-                value={form.slPct}
-                disabled={busy}
-                invalid={showValidation && inspection.invalid.stopLoss}
-                onChange={(value) => change("slPct", value)}
-                onBlur={onBlur}
-              />
-            </div>
-            {form.slReference === "average" ? (
+            {form.slReference !== "base" ? (
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor={id("sl-pct")}
+                  hint={
+                    form.slReference === "lastRung"
+                      ? "Distance below the deepest buy rung. Drag the red stop line on the chart to change the distance."
+                      : "Distance below the average price paid for the held coins."
+                  }
+                >
+                  Stop
+                </FieldLabel>
+                <PercentField
+                  id={id("sl-pct")}
+                  value={form.slPct}
+                  disabled={busy}
+                  invalid={showValidation && inspection.invalid.stopLoss}
+                  onChange={(value) => change("slPct", value)}
+                  onBlur={onBlur}
+                />
+              </div>
+            ) : null}
+            {form.slReference === "base" ? (
               <BaseStopFields
-                on={form.baseOn}
+                on
                 underPct={form.baseUnderPct}
                 reclaimDays={form.baseReclaimDays}
                 disabled={busy}
                 showErrors={showValidation}
-                onOn={(value) => change("baseOn", value)}
                 onUnderPct={(value) => change("baseUnderPct", value)}
                 onReclaimDays={(value) => change("baseReclaimDays", value)}
                 onBlur={onBlur}

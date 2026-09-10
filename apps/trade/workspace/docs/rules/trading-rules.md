@@ -245,6 +245,10 @@ add up to.
   the web app and engine together.
 - **The base stop steps the ladder down.** Selling at the stop and re-buying
   at the next rung is one motion of the same ladder, not a new ladder.
+- Tyler, 9 Sep 2026: **"If there is no base then there is no stop from the
+  average buy. Only the hardstop."** Choosing the base as the stop position
+  places no DCA stop until a confirmed base exists below the held position.
+  The base rule never falls back to a percentage under the average buy.
 - **A rung is never written off for money or price.** Dropped for cash, it
   goes back to waiting. Passed by the price while it was held back, it fires
   at the market the moment the wallet's rules allow — today's price, taker

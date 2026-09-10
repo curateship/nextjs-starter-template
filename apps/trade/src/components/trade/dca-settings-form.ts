@@ -35,9 +35,8 @@ export type DcaSettingsFormState = {
   tpPct: string
   exitGapPct: string
   slOn: boolean
-  slReference: "average" | "lastRung"
+  slReference: "average" | "lastRung" | "base"
   slPct: string
-  baseOn: boolean
   baseUnderPct: string
   baseReclaimDays: string
 }
@@ -73,9 +72,10 @@ export function dcaSettingsFormState(
       settings.takeProfit?.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT
     ),
     slOn: settings.stopLoss !== null,
-    slReference: settings.stopLoss?.reference ?? "average",
+    slReference: settings.stopLoss?.base
+      ? "base"
+      : (settings.stopLoss?.reference ?? "average"),
     slPct: String(settings.stopLoss?.pct ?? DEFAULT_DCA_STOP_LOSS_PCT),
-    baseOn: settings.stopLoss?.base != null,
     baseUnderPct: String(
       settings.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT
     ),
@@ -158,14 +158,19 @@ export function inspectDcaSettingsForm(
   const slPct = parseOrderNumber(form.slPct)
   const badStopLoss =
     form.slOn &&
+    form.slReference !== "base" &&
     (slPct === null ||
       slPct <= 0 ||
       slPct > 100 ||
       (form.slReference === "lastRung" && slPct >= 100))
   const badBaseUnder =
-    form.slOn && form.baseOn && badBaseUnderPct(form.baseUnderPct)
+    form.slOn &&
+    form.slReference === "base" &&
+    badBaseUnderPct(form.baseUnderPct)
   const badBaseDays =
-    form.slOn && form.baseOn && badBaseReclaimDays(form.baseReclaimDays)
+    form.slOn &&
+    form.slReference === "base" &&
+    badBaseReclaimDays(form.baseReclaimDays)
   const baseUnderPct = parseOrderNumber(form.baseUnderPct)
   const baseReclaimDays = parseOrderNumber(form.baseReclaimDays)
 
@@ -201,19 +206,24 @@ export function inspectDcaSettingsForm(
               }
             : null,
           stopLoss: form.slOn
-            ? {
-                pct: slPct as number,
-                ...(form.slReference === "lastRung"
-                  ? { reference: "lastRung" as const }
-                  : {}),
-                base:
-                  form.baseOn && form.slReference !== "lastRung"
-                    ? {
-                        underPct: baseUnderPct as number,
-                        reclaimDays: baseReclaimDays as number,
-                      }
-                    : null,
-              }
+            ? form.slReference === "base"
+              ? {
+                  // Older plans require this field. The engine ignores it for
+                  // a base stop, so no average-buy stop exists while the base
+                  // is missing.
+                  pct: 100,
+                  base: {
+                    underPct: baseUnderPct as number,
+                    reclaimDays: baseReclaimDays as number,
+                  },
+                }
+              : {
+                  pct: slPct as number,
+                  ...(form.slReference === "lastRung"
+                    ? { reference: "lastRung" as const }
+                    : {}),
+                  base: null,
+                }
             : null,
         }
   const candidate =

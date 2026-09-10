@@ -364,16 +364,15 @@ export const dcaParamsSchema = z.object({
       /**
        * Percent below the average buy price, re-aimed as the average moves.
        *
-       * 100 is allowed and means the stop can never fire — price would have to
-       * reach zero. That is not a mistake: it is how you say "no stop until the
-       * base arrives" while `base` below is switched on.
+       * 100 remains valid for older base-stop plans. A base stop never reads
+       * this percentage while its base is missing.
        */
       pct: z.number().positive().max(100),
       reference: z.enum(["average", "lastRung"]).optional(),
       /**
-       * Rest the stop under the confirmed 4h base instead, once one has
-       * confirmed below the first buy. The percent above stands until then, so
-       * there is always a stop. Null leaves the ladder on the percent alone.
+       * Rest the stop under the confirmed 4h base once one has confirmed below
+       * the first buy. Until then this rule places no stop. Null leaves the
+       * ladder on the percentage or last-rung rule alone.
        */
       base: dcaBaseStopSchema.nullable().default(null),
     })

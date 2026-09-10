@@ -229,9 +229,9 @@ and below 100. This choice does not use the confirmed-base rule.
 ## A stop that rests under the base
 
 A DCA ladder can put its stop on the confirmed base instead of a fixed distance
-below the entry. It is on the Stop loss part of both the window that places a
-ladder and the one that edits a live ladder's exits, in its own grey card, and
-it is a port of the QFL automation from the old app rather than anything new.
+below the entry. "Stop under the base" is one of the Stop position choices in
+both the placement window and the live ladder settings. It is a port of the QFL
+automation from the old app rather than anything new.
 
 - **Bases are read off the 4h**, whatever chart the ladder was placed from. Not
   a setting: the rule was measured on the 4h, and a base found on the 5m is a
@@ -239,10 +239,10 @@ it is a port of the QFL automation from the old app rather than anything new.
 - **The base's own two numbers are frozen when the ladder is placed**, so
   nudging the indicator on the chart changes the chart and leaves every live
   stop exactly where it is.
-- **There is always a stop.** Until a base has confirmed below what the ladder
-  is holding, the plain percent stands. Setting that percent to 100 means price
-  would have to reach zero, which is how you say "nothing until the base
-  arrives" — and it writes no stop at all rather than one resting at zero.
+- **There is no average-buy fallback.** Until a base confirms below what the
+  ladder holds, the base rule places no DCA stop. Only the separate hard stop
+  remains. An older saved plan may still carry an average-buy percentage, but
+  the engine ignores it whenever the base rule is selected.
 - **A level above what is held is refused.** That is a place to take profit, not
   a place to give up, and a stop there would close winners as losses.
 - **Being stopped is one rung failing, not the ladder failing.** Everything

@@ -78,6 +78,52 @@ afterEach(async () => {
 })
 
 describe("the DCA ladder window", () => {
+  it("offers the base as its own stop position without an average-buy fallback", async () => {
+    rememberDcaPrefs({
+      ...defaultDcaParams(),
+      anchor: "click",
+      stopLoss: { pct: 5, base: { underPct: 1, reclaimDays: 2 } },
+    })
+    const onPlace = vi.fn(async (_input: unknown) => false)
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 100, x: 20, y: 20 }}
+            market={market}
+            equity={10000}
+            free={10000}
+            interval="15m"
+            busy={false}
+            onPreview={() => undefined}
+            onPlace={onPlace}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    expect(host.querySelector("#smart-sl-reference")?.textContent).toContain(
+      "Stop under the base"
+    )
+    expect(host.querySelector("#smart-sl-pct")).toBeNull()
+    expect(host.querySelector("#base-stop-under")).not.toBeNull()
+
+    await act(async () =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.startsWith("Place"))
+        ?.click()
+    )
+    expect(onPlace.mock.calls[0]?.[0]).toMatchObject({
+      params: {
+        stopLoss: {
+          pct: 100,
+          base: { underPct: 1, reclaimDays: 2 },
+        },
+      },
+    })
+  })
+
   it("places the last-rung percentage changed by the chart", async () => {
     rememberDcaPrefs({
       ...defaultDcaParams(),

@@ -2229,15 +2229,16 @@ function baseStop(over: Partial<NonNullable<DcaParams["stopLoss"]>> = {}) {
 
 describe("a stop that rests under the base", () => {
   it("leaves no stop at all until a base confirms below what is held", async () => {
-    await place({ stopLoss: baseStop() })
+    await place({ stopLoss: baseStop({ pct: 5 }) })
     await backdate()
 
     await dipTo(95)
 
     // The base in force is 100 — above the buy at 95, so it is a place to take
-    // profit rather than one to give up. That leaves the percent, and 100%
-    // below the entry is a stop price would have to reach zero to hit. So
-    // there is no stop, rather than one resting at zero under every rung.
+    // profit rather than one to give up. A base stop never falls back to the
+    // old average-buy percentage, even when an older saved plan still carries
+    // one. The separate hard stop is the only protection until a lower base
+    // confirms.
     expect((await positions())[0].slPx).toBeNull()
   })
 

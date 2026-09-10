@@ -13,9 +13,9 @@ import { BASE_STOP_INTERVAL } from "@/lib/trade/dca"
  * automation panel — and the words are the difficult part. A rule explained
  * two ways is a rule nobody trusts.
  *
- * A plain checkbox row, not a card of its own — Tyler's ask, 1 Sep 2026: it
- * sits inside the Stop loss card already, and a card in a card read as a
- * second window. Its two boxes appear under the row while it is on.
+ * Most screens use a plain checkbox row inside their Stop loss card. A DCA
+ * ladder selects the base as the stop position itself, so it asks only for
+ * the two base settings and leaves `onOn` out.
  *
  * **The level has two sides.** A buying plan rests under a confirmed floor,
  * which this app calls a base. A selling grid rests above a confirmed ceiling,
@@ -50,7 +50,7 @@ export function BaseStopFields({
    * "long" is the default and no other screen has to say anything.
    */
   direction?: "long" | "short"
-  onOn: (next: boolean) => void
+  onOn?: (next: boolean) => void
   onUnderPct: (next: string) => void
   onReclaimDays: (next: string) => void
   onBlur?: () => void
@@ -58,24 +58,26 @@ export function BaseStopFields({
   const short = direction === "short"
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="base-stop-on"
-          checked={on}
-          disabled={disabled}
-          onCheckedChange={(next) => onOn(next === true)}
-        />
-        <FieldLabel
-          htmlFor="base-stop-on"
-          hint={
-            short
-              ? `The stop moves onto the ${BASE_STOP_INTERVAL} resistance once one confirms above your short. Until then the percent above stands — 100 means no stop before it.`
-              : `The stop moves onto the ${BASE_STOP_INTERVAL} base once one confirms below your buy. Until then the percent above stands — 100 means no stop before it.`
-          }
-        >
-          {short ? "Stop above resistance" : "Stop under the base"}
-        </FieldLabel>
-      </div>
+      {onOn ? (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="base-stop-on"
+            checked={on}
+            disabled={disabled}
+            onCheckedChange={(next) => onOn(next === true)}
+          />
+          <FieldLabel
+            htmlFor="base-stop-on"
+            hint={
+              short
+                ? `The stop moves onto the ${BASE_STOP_INTERVAL} resistance once one confirms above your short. Until then the percent above stands — 100 means no stop before it.`
+                : `The stop moves onto the ${BASE_STOP_INTERVAL} base once one confirms below your buy. Until then the percent above stands — 100 means no stop before it.`
+            }
+          >
+            {short ? "Stop above resistance" : "Stop under the base"}
+          </FieldLabel>
+        </div>
+      ) : null}
       {on ? (
         <>
           <div className="grid gap-2">
