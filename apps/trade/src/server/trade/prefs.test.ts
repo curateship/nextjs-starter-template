@@ -212,6 +212,7 @@ describe("the remembered order window", () => {
   it("comes back the way the last order was sized", async () => {
     const { id } = await insertUser(database)
     const prefs = {
+      entryStyle: "rest" as const,
       sizeUnit: "pct" as const,
       size: "25",
       leverage: 3,

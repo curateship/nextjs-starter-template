@@ -29,3 +29,17 @@ export function readOrderStyle(value: unknown): OrderStyle {
     ? (value as OrderStyle)
     : DEFAULT_ORDER_STYLE
 }
+
+/**
+ * What the Long and Short window itself was set to: the two styles above, plus
+ * filling at the venue's current price now.
+ *
+ * Only that window uses it, and it sends the answer with the order. Anything
+ * that does not name a style still follows the account setting.
+ */
+export const ENTRY_STYLES = ["watch", "rest", "market"] as const
+
+export type EntryStyle = (typeof ENTRY_STYLES)[number]
+
+/** Watching, the same answer the account starts on. */
+export const DEFAULT_ENTRY_STYLE: EntryStyle = "watch"

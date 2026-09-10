@@ -146,8 +146,9 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   Money is monospaced and tabular. Wallet and smart-order profit use the same
   12px type and end on the same right edge.
 - **Right, two separate order panels.** Smart orders and Bots share the upper
-  tabbed panel. Manual orders is its own panel below and lists hand-placed
-  watched prices. A draggable divider changes their heights and the account
+  tabbed panel. Manual orders is its own panel below. It lists the coins you
+  are holding by hand first, each with what it is up or down, then the
+  hand-placed prices still waiting. A draggable divider changes their heights and the account
   remembers the split. When the column is collapsed, a bot icon opens both
   panels in one dropdown. Dragging the right divider open returns both panels.
   The dropdown is as wide as the side

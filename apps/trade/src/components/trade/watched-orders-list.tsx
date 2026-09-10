@@ -9,10 +9,21 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
-import { formatPrice, formatWholeUsd } from "@/lib/trade/format"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatWholeUsd,
+} from "@/lib/trade/format"
 import { refusalForWatchedOrder, type LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import type { TradeOrder } from "@/lib/trade/paper"
+import { moneyToneSurface } from "@/lib/trade/money-tone"
+import {
+  positionProfit,
+  positionValue,
+  type TradeOrder,
+  type TradePosition,
+} from "@/lib/trade/paper"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 import {
   readWatchedCache,
   toWatchedLevel,
@@ -47,6 +58,8 @@ import { cn } from "@/lib/utils"
  */
 export function WatchedOrdersList({
   orders,
+  positions,
+  smartOrders,
   markets,
   cacheScope,
   refusals,
@@ -59,6 +72,13 @@ export function WatchedOrdersList({
 }: {
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly TradeOrder[]
+  /** Everything held right now, practice and real together. */
+  positions: readonly TradePosition[]
+  /**
+   * Every ladder, grid, signal and watch that is working. The coins the first
+   * three run are somebody else's rows — see `positionsYouOpenedByHand`.
+   */
+  smartOrders: readonly SmartOrder[]
   /** The catalogue, for a price on an exchange whose feed does not tick. */
   markets: readonly MarketRow[]
   /** Which account and exchange these belong to; see `watched-cache.ts`. */
@@ -136,7 +156,18 @@ export function WatchedOrdersList({
   const standingIn = !answered && cached !== null
   const rows = standingIn ? cached : fresh
 
-  const live = useLiveMarks(rows.map((row) => row.marketKey))
+  // The coins you got into by hand, above the prices still waiting. A grid or
+  // a ladder's coin belongs to the Smart orders panel over this one, where the
+  // strategy running it is named beside its money.
+  const held = React.useMemo(
+    () => positionsYouOpenedByHand(positions, smartOrders),
+    [positions, smartOrders]
+  )
+
+  const live = useLiveMarks([
+    ...held.map((position) => position.marketKey),
+    ...rows.map((row) => row.marketKey),
+  ])
   // **A price from the catalogue when the feed has none.** KuCoin has no
   // all-markets socket topic, so its levels never got a live mark and sat
   // without a distance at all; Phemex's feed takes a moment to speak. The
@@ -163,7 +194,11 @@ export function WatchedOrdersList({
   // The panel is a couple of hundred pixels wide, and with every level in the
   // same wallet its name is the same word on every row — it pushes the level
   // and the distance into an ellipsis to say nothing.
-  const severalWallets = new Set(shownRows.map((row) => row.walletId)).size > 1
+  const severalWallets =
+    new Set([
+      ...held.map((position) => position.walletId),
+      ...shownRows.map((row) => row.walletId),
+    ]).size > 1
 
   return (
     // ManualOrdersPanel owns the scrollbar so the header stays fixed.
@@ -178,7 +213,7 @@ export function WatchedOrdersList({
             Try again
           </button>
         </p>
-      ) : !answered && !standingIn && rows.length === 0 ? (
+      ) : !answered && !standingIn && rows.length === 0 && held.length === 0 ? (
         // Only when there is genuinely nothing to draw. A half-landed read
         // that DID bring levels draws them at once — the spinner is what
         // stands between somebody and their own levels, and this tab was
@@ -195,14 +230,37 @@ export function WatchedOrdersList({
           {standingIn && failed ? (
             <StaleAfterFailureNote onRetry={onRetry} />
           ) : null}
-          {shownRows.length === 0 ? (
-            <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-              Nothing is waiting at a price. Right-click the chart where you
-              want to buy or sell. The order waits here until the market reaches
-              it.
-            </p>
-          ) : (
+          {/* What you are already in, above what you are waiting for. A
+              holding is the thing being watched hardest, and its row answers
+              a different question from a waiting level: not "how far away" but
+              "how much is it up or down". */}
+          {held.length > 0 ? (
             <div className="flex flex-col">
+              {held.map((position) => (
+                <HeldRow
+                  key={position.id}
+                  position={position}
+                  wallet={severalWallets ? walletName(position.walletId) : null}
+                  mark={marks.get(position.marketKey) ?? null}
+                  selected={position.marketKey === selectedKey}
+                  onSelect={() => onSelectMarket(position.marketKey)}
+                />
+              ))}
+            </div>
+          ) : null}
+          {shownRows.length === 0 ? (
+            held.length > 0 ? null : (
+              <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+                Nothing is waiting at a price. Right-click the chart where you
+                want to buy or sell. The order waits here until the market
+                reaches it.
+              </p>
+            )
+          ) : (
+            // The line is what separates money already in the market from
+            // money that is only promised, so it is only drawn when both are
+            // on screen.
+            <div className={cn("flex flex-col", held.length > 0 && "border-t")}>
               {shownRows.map((row) => (
                 <WatchedRow
                   key={row.id}
@@ -220,6 +278,62 @@ export function WatchedOrdersList({
       )}
     </div>
   )
+}
+
+/**
+ * The positions you opened yourself, biggest stake first.
+ *
+ * **A coin a strategy is running is not one of these.** A ladder, a grid or a
+ * signal already has its own row in the Smart orders panel directly above,
+ * with its money beside the strategy's name, so repeating the same holding
+ * here would put one position on the screen twice. A watch is the exception:
+ * a watch IS a hand-placed order, so a coin with one waiting is still yours.
+ *
+ * Sorted by what was put in rather than by what it is worth now, so a row
+ * cannot move under the pointer while a price ticks.
+ */
+export function positionsYouOpenedByHand(
+  positions: readonly TradePosition[],
+  smartOrders: readonly SmartOrder[]
+): TradePosition[] {
+  const run = new Set(
+    smartOrders
+      .filter((order) => order.kind !== "watch")
+      .map((order) => `${order.walletId}:${order.marketKey}`)
+  )
+  return positions
+    .filter(
+      (position) => !run.has(`${position.walletId}:${position.marketKey}`)
+    )
+    .sort(
+      (left, right) =>
+        Math.abs(right.szi * right.entryPx) - Math.abs(left.szi * left.entryPx)
+    )
+}
+
+/**
+ * What a held position is up or down right now, or null when no price has
+ * been quoted for it.
+ *
+ * Fees come off, so a position that has paid more in fees than the price has
+ * moved reads as down rather than even. That is the same figure the Smart
+ * orders panel shows beside a strategy's name.
+ */
+function openProfit(
+  position: TradePosition,
+  mark: number | null
+): number | null {
+  // A Solana holding whose entry price was never recorded, or which nothing
+  // will quote, has no honest answer here. A made-up zero would read as
+  // breaking even.
+  if (mark === null) return null
+  if (
+    position.owned &&
+    (!position.owned.entryKnown || !position.owned.priced)
+  ) {
+    return null
+  }
+  return positionProfit(position, mark) - position.feesPaid
 }
 
 /**
@@ -361,6 +475,71 @@ function WatchedRow({
         ) : null}
       </span>
       {refusal ? <RefusalNote refusal={refusal} /> : null}
+    </button>
+  )
+}
+
+/**
+ * One coin you are already in: the ticker, what it is worth now, and what it
+ * is up or down.
+ *
+ * **The same shape as the waiting row under it**, so the two read as one list.
+ * The pill is the only difference, and it is the difference that matters: a
+ * waiting level shows how far the price still has to travel, while a holding
+ * shows the money. Green and red carry the sign as well as the colour, per the
+ * standard's rule against saying anything in colour alone.
+ */
+function HeldRow({
+  position,
+  wallet,
+  mark,
+  selected,
+  onSelect,
+}: {
+  position: TradePosition
+  /** Named only when the list spans several wallets; null when it does not. */
+  wallet: string | null
+  /** Today's price, or null when the feed has not said one yet. */
+  mark: number | null
+  selected: boolean
+  onSelect: () => void
+}) {
+  const symbol = marketSymbol(position.marketKey)
+  const long = position.szi > 0
+  const profit = openProfit(position, mark)
+  const worth = mark === null ? null : positionValue(position, mark)
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={selected ? "true" : undefined}
+      title={`${symbol} · ${long ? "Long" : "Short"} ${Math.abs(position.szi)} from ${formatPrice(position.entryPx)}${wallet ? ` · ${wallet}` : ""}`}
+      className={cn(
+        "flex min-w-0 flex-col justify-center border-r-2 px-3 py-1.5 text-left",
+        selected
+          ? "border-r-foreground bg-muted"
+          : "border-r-transparent hover:bg-muted/50",
+        focusRing
+      )}
+    >
+      <span className="flex h-6 min-w-0 items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="min-w-0 truncate text-sm font-medium">{symbol}</span>
+          <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+            {worth === null ? "—" : formatWholeUsd(worth)}
+          </span>
+        </span>
+        {profit === null ? null : (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums",
+              moneyToneSurface(profit) ?? "bg-muted"
+            )}
+          >
+            {formatSignedUsd(profit)}
+          </span>
+        )}
+      </span>
     </button>
   )
 }

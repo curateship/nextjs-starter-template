@@ -5,6 +5,7 @@ import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getLiveErrorMessage, loadSwapQuote } from "@/lib/api/trade/live"
 import { type MarketRow, type SwapQuote } from "@/lib/protocols/contracts"
 import { absoluteStopPrice, bracketPrice } from "@/lib/trade/brackets"
@@ -23,6 +25,7 @@ import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { BUY_BUTTON, LOST_MONEY, SELL_BUTTON } from "@/lib/trade/money-tone"
+import { type EntryStyle } from "@/lib/trade/order-style"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { type TradePosition, type TradeSide } from "@/lib/trade/paper"
 import {
@@ -149,6 +152,12 @@ export function ChartQuickOrder({
     leverage: number
     reduceOnly: boolean
     market: boolean
+    /**
+     * Where a waiting order waits: here in the app until the price is
+     * reached, or on the exchange itself. Absent on a market order, which
+     * waits nowhere.
+     */
+    orderStyle?: "watch" | "rest"
     /** Opened from an existing position. Always sent at market. */
     addingToPosition?: boolean
     tpPx: number | null
@@ -169,9 +178,14 @@ export function ChartQuickOrder({
   // venue's fresh quote.
   const live = useLiveFigures(market.key)
   const mark = live?.price ?? market.price
-  const [marketChecked, setMarketOrder] = React.useState(false)
+  // The window opens on the style it was last left on, Watched until somebody
+  // chooses otherwise. A swap venue has no book for an order to rest in, so a
+  // remembered Resting reads as Watched there.
+  const [entryStyle, setEntryStyle] = React.useState<EntryStyle>(
+    swaps && prefs.entryStyle === "rest" ? "watch" : prefs.entryStyle
+  )
   const addingNow = addingTo !== null
-  const marketOrder = addingNow || marketChecked
+  const marketOrder = addingNow || entryStyle === "market"
   const entryPx = marketOrder ? mark : quick.px
 
   // How this window was left the last time it placed something. Every field
@@ -422,6 +436,14 @@ export function ChartQuickOrder({
       leverage,
       reduceOnly,
       market: marketOrder,
+      // Which way a waiting order waits, chosen here rather than read from the
+      // account setting. A market order names no style: there is nothing to
+      // wait for.
+      orderStyle: marketOrder
+        ? undefined
+        : entryStyle === "rest"
+          ? "rest"
+          : "watch",
       tpPx: targetPx,
       slPx: stopPx,
     })
@@ -429,6 +451,7 @@ export function ChartQuickOrder({
     // its settings — so a number half-typed and thought better of is not what
     // the next right-click opens on.
     onRemember({
+      entryStyle,
       sizeUnit,
       size: sizeInput,
       leverage,
@@ -499,15 +522,57 @@ export function ChartQuickOrder({
               Adds at the current market price. The final fill price can move.
             </p>
           ) : (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="quick-market"
-                checked={marketOrder}
-                onCheckedChange={(next) => setMarketOrder(next === true)}
-              />
-              <Label htmlFor="quick-market">
-                {swaps ? "Swap now at the current price" : "Market"}
-              </Label>
+            <div className="grid gap-2">
+              {/* No htmlFor: the control is a segmented row of buttons rather
+                  than one input, and a label pointing at the first of them
+                  would switch the order to Watched when it was pressed. The
+                  row names itself to a screen reader instead. */}
+              <FieldLabel
+                hint={
+                  <span className="grid gap-1.5">
+                    <span>
+                      <b>Watched</b> keeps the price in this app. Nothing
+                      reaches the exchange until the market gets there, so the
+                      money stays free and nobody else can see the level. It
+                      only fires while the trading engine is running.
+                    </span>
+                    {swaps ? null : (
+                      <span>
+                        <b>Resting</b> puts the order on the exchange now. It
+                        fills even with this app switched off, but it ties the
+                        money up while it waits and anyone reading the
+                        exchange&rsquo;s book can see it.
+                      </span>
+                    )}
+                    <span>
+                      <b>{swaps ? "Swap now" : "Market"}</b>{" "}
+                      {buy ? "buys" : "sells"} straight away at the current
+                      price. The price you get can move while it goes through.
+                    </span>
+                  </span>
+                }
+              >
+                Order
+              </FieldLabel>
+              <Tabs
+                value={entryStyle}
+                onValueChange={(next) => setEntryStyle(next as EntryStyle)}
+              >
+                <TabsList aria-label="How this order goes out">
+                  <TabsTrigger id="quick-style-watch" value="watch">
+                    Watched
+                  </TabsTrigger>
+                  {/* A swap venue has no book, so nothing can rest in one. */}
+                  {swaps ? null : (
+                    <TabsTrigger id="quick-style-rest" value="rest">
+                      Resting
+                    </TabsTrigger>
+                  )}
+                  <TabsTrigger id="quick-style-market" value="market">
+                    {swaps ? "Swap now" : "Market"}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           )}
           <div className="grid gap-2">

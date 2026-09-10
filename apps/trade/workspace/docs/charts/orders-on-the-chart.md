@@ -18,8 +18,9 @@ Once an order has been placed, the right-click menu starts with **Recent**.
 The two latest kinds are shown, newest first. Long, Short, DCA ladder and Grid
 can all appear there. Picking one uses
 the price that was just clicked and opens the same window as its row lower in
-the menu. The Long and Short window has a Market checkbox. Checking it fills
-the chosen side now, but does not add a separate Market kind to Recent. Closing
+the menu. The Long and Short window has an order row of Watched, Resting and
+Market. Picking Market fills the chosen side now, but does not add a separate
+Market kind to Recent. Closing
 a window without placing does not change the list.
 The browser saves the list under the signed-in account, so a reload keeps the
 same order without sharing it with another account on the same machine. A new
@@ -168,7 +169,7 @@ is the only thing left to fill in, and it starts empty and focused.
   off, a live wallet with no trading key, and a market the exchange has stopped
   listing each say so and nothing moves.
 - **Adding uses a market order.** The button says "Add at market" and the
-  Market checkbox is hidden. The final fill price can move. Ordinary chart
+  Watched / Resting / Market row is hidden. The final fill price can move. Ordinary chart
   orders keep their existing price choices.
 - **The position shows "Adding..." during submission.** Its + button stays
   disabled until the request finishes. Repeated submissions for that wallet

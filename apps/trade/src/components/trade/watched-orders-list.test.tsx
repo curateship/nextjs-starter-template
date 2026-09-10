@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest"
 import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
 import type { MarketRow } from "@/lib/protocols/contracts"
-import type { TradeOrder } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 
 /**
  * The Manual orders panel's four answers, told apart.
@@ -25,6 +26,8 @@ const EMPTY = "Nothing is waiting at a price"
 const READING = "Reading your watched prices"
 
 const shared = {
+  positions: [],
+  smartOrders: [],
   markets: [],
   cacheScope: "test:hyperliquid",
   refusals: new Map(),
@@ -51,8 +54,53 @@ const waitingLevel: TradeOrder = {
   watched: true,
 }
 
+const xmrMarket = {
+  key: "hyperliquid:mainnet:XMR",
+  marketId: "XMR",
+  symbol: "XMR",
+  quoteAsset: "USDC",
+  subExchange: null,
+  category: "crypto",
+  sizeDecimals: 3,
+  priceTick: null,
+  minOrderValueUsd: null,
+  maxLeverage: 20,
+  isolatedOnly: false,
+  iconUrl: null,
+  price: 100,
+  change24h: 0,
+  volume24hUsd: 1_000_000,
+  fundingHourly: null,
+  openInterestUsd: null,
+} satisfies MarketRow
+
+const heldCoin: TradePosition = {
+  id: "p1",
+  walletId: "w1",
+  marketKey: "hyperliquid:mainnet:SOL",
+  szi: 4,
+  entryPx: 90,
+  leverage: 2,
+  maxLeverage: 20,
+  targets: [],
+  tpPx: null,
+  slPx: null,
+  feesPaid: 1,
+  updatedAt: 1,
+}
+
+const solMarket = {
+  ...xmrMarket,
+  key: heldCoin.marketKey,
+  marketId: "SOL",
+  symbol: "SOL",
+  price: 100,
+} satisfies MarketRow
+
 function draw(state: {
   orders: readonly TradeOrder[]
+  positions?: readonly TradePosition[]
+  smartOrders?: readonly SmartOrder[]
   markets?: readonly MarketRow[]
   settled: boolean
   failed: boolean
@@ -144,29 +192,9 @@ describe("the Manual orders list", () => {
       sz: 2,
       createdAt: 0,
     }
-    const market = {
-      key: waitingLevel.marketKey,
-      marketId: "XMR",
-      symbol: "XMR",
-      quoteAsset: "USDC",
-      subExchange: null,
-      category: "crypto",
-      sizeDecimals: 3,
-      priceTick: null,
-      minOrderValueUsd: null,
-      maxLeverage: 20,
-      isolatedOnly: false,
-      iconUrl: null,
-      price: 100,
-      change24h: 0,
-      volume24hUsd: 1_000_000,
-      fundingHourly: null,
-      openInterestUsd: null,
-    } satisfies MarketRow
-
     const rows = draw({
       orders: [farther, nearest],
-      markets: [market],
+      markets: [xmrMarket],
       settled: true,
       failed: false,
     })
@@ -214,6 +242,95 @@ describe("the Manual orders list", () => {
     expect(
       draw({ orders: [newWatch], settled: true, failed: false, refusals })
     ).not.toContain(note)
+  })
+
+  it("puts what you hold above what you are waiting for, with its profit", () => {
+    const rows = draw({
+      orders: [waitingLevel],
+      positions: [heldCoin],
+      markets: [xmrMarket, solMarket],
+      settled: true,
+      failed: false,
+    })
+
+    // 4 coins bought at $90, now $100, less $1 of fees.
+    expect(rows).toContain("+$39.00")
+    // Worth 4 × $100 today.
+    expect(rows).toContain("$400")
+    expect(rows.indexOf(">SOL<")).toBeLessThan(rows.indexOf(">XMR<"))
+  })
+
+  it("says a losing holding in red and a winning one in green", () => {
+    const losing = draw({
+      orders: [],
+      positions: [{ ...heldCoin, entryPx: 120 }],
+      markets: [solMarket],
+      settled: true,
+      failed: false,
+    })
+    expect(losing).toContain("-$81.00")
+    expect(losing).toContain("text-destructive")
+
+    const winning = draw({
+      orders: [],
+      positions: [heldCoin],
+      markets: [solMarket],
+      settled: true,
+      failed: false,
+    })
+    expect(winning).toContain("text-emerald-600")
+  })
+
+  it("leaves a coin a grid or ladder is running to the Smart orders panel", () => {
+    const grid = {
+      id: "g1",
+      walletId: heldCoin.walletId,
+      marketKey: heldCoin.marketKey,
+      kind: "grid",
+    } as unknown as SmartOrder
+
+    const rows = draw({
+      orders: [],
+      positions: [heldCoin],
+      smartOrders: [grid],
+      markets: [solMarket],
+      settled: true,
+      failed: false,
+    })
+
+    expect(rows).not.toContain(">SOL<")
+    expect(rows).toContain(EMPTY)
+  })
+
+  it("keeps a coin whose only smart order is the watch waiting on it", () => {
+    const watch = {
+      id: "w9",
+      walletId: heldCoin.walletId,
+      marketKey: heldCoin.marketKey,
+      kind: "watch",
+    } as unknown as SmartOrder
+
+    const rows = draw({
+      orders: [],
+      positions: [heldCoin],
+      smartOrders: [watch],
+      markets: [solMarket],
+      settled: true,
+      failed: false,
+    })
+
+    expect(rows).toContain(">SOL<")
+  })
+
+  it("says nothing about waiting prices when a holding is on screen alone", () => {
+    const rows = draw({
+      orders: [],
+      positions: [heldCoin],
+      markets: [solMarket],
+      settled: true,
+      failed: false,
+    })
+    expect(rows).not.toContain(EMPTY)
   })
 
   it("shows a refusal made while this watch was active", () => {

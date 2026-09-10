@@ -72,6 +72,7 @@ import {
 } from "@/lib/trade/live"
 import type { DcaLadderSettings, DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
+import type { OrderStyle } from "@/lib/trade/order-style"
 import { formatUsd } from "@/lib/trade/format"
 import {
   gridHeldSz,
@@ -358,6 +359,12 @@ export type Trading = {
     reduceOnly: boolean
     /** Fill at the venue's current price instead of waiting at `px`. */
     market?: boolean
+    /**
+     * Where a waiting order waits: `watch` keeps the level in this app until
+     * the price is reached, `rest` puts it on the exchange now. Left out, the
+     * account's own setting decides.
+     */
+    orderStyle?: OrderStyle
     /** An addition from a position row, always sent at market. */
     addingToPosition?: boolean
     startNow?: boolean

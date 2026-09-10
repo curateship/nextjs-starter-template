@@ -38,6 +38,7 @@ import {
 } from "@/server/trade/live-fills"
 import { closeLivePositions as closePositionRows } from "@/server/trade/close-live-positions"
 import { loadOrderStyle } from "@/server/trade/prefs"
+import { ORDER_STYLES } from "@/lib/trade/order-style"
 import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
 import { setBracketsByHand } from "@/server/trade/hand-brackets"
 import {
@@ -77,6 +78,13 @@ const placeSchema = z.object({
   leverage: z.number().min(1).max(100),
   reduceOnly: z.boolean(),
   market: z.boolean().optional(),
+  /**
+   * Where this waiting order waits, chosen in the order window: `watch` keeps
+   * the level in this app until the price is reached, `rest` puts a passive
+   * limit on the exchange now. Left out, the account setting decides, which is
+   * what an older browser tab still open through a deploy sends.
+   */
+  orderStyle: z.enum(ORDER_STYLES).optional(),
   /**
    * Work this order from today's price rather than waiting for `px`.
    *
@@ -225,17 +233,21 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(
     async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
-      // Started before the rate-limit check rather than after it: the two
-      // reads do not depend on each other, and one behind the other they were
-      // two waits where one would do. The catch keeps a rate-limited request
-      // from leaving an unhandled refusal behind; the await below still
-      // surfaces a real failure.
-      const style = data.market
-        ? Promise.resolve(null)
-        : loadOrderStyle(context.user.id)
+      // The order window names its own style, so most orders need no read at
+      // all. When one does not name it — a market order, or a tab left open
+      // through a deploy — the account setting is read, and started before the
+      // rate-limit check rather than after it: the two reads do not depend on
+      // each other, and one behind the other they were two waits where one
+      // would do. The catch keeps a rate-limited request from leaving an
+      // unhandled refusal behind; the await below still surfaces a real
+      // failure.
+      const style =
+        data.market || data.orderStyle
+          ? Promise.resolve(data.orderStyle ?? null)
+          : loadOrderStyle(context.user.id)
       style.catch(() => undefined)
       return await runLiveOrderAction(context.user.id, "order", async () => {
-        const { market = false, ...order } = data
+        const { market = false, orderStyle: _style, ...order } = data
         const wallet = await findWallet(context.user.id, order.walletId)
         if (!wallet) throw new Error("LIVE_WALLET")
         // A swap venue has no book to rest in, so a plain order there is

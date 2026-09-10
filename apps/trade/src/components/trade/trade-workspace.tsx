@@ -993,6 +993,8 @@ export function TradeWorkspace({
     <ManualOrdersPanel
       compact={desktop && smartOrdersCollapsed}
       orders={trading.watchOrders}
+      positions={trading.positions}
+      smartOrders={trading.smartOrders}
       markets={marketRows}
       cacheScope={`${user.id}:${protocol}`}
       refusals={trading.refusals}

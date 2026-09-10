@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { DEFAULT_ENTRY_STYLE, ENTRY_STYLES } from "@/lib/trade/order-style"
+
 /**
  * What the right-click order window was set to last time it placed something.
  *
@@ -25,6 +27,12 @@ export function slippageFraction(pct: string | undefined): number {
 }
 
 export const quickOrderPrefsSchema = z.object({
+  /**
+   * Whether the order waits here, waits on the exchange, or fills now. The
+   * window opens on the last answer, so somebody who trades one way is not
+   * choosing it again on every right-click.
+   */
+  entryStyle: z.enum(ENTRY_STYLES).default(DEFAULT_ENTRY_STYLE),
   /**
    * How the size was being said: in dollars, as a share of the free cash, or
    * as the share of the whole wallet the trade may lose.
@@ -57,6 +65,7 @@ export type QuickOrderPrefs = z.infer<typeof quickOrderPrefsSchema>
 
 /** A first visit: nothing typed, no borrowed money, no stop or target. */
 export const DEFAULT_QUICK_ORDER: QuickOrderPrefs = {
+  entryStyle: DEFAULT_ENTRY_STYLE,
   sizeUnit: "usd",
   size: "",
   leverage: 1,

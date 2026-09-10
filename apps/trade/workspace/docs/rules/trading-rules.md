@@ -92,10 +92,12 @@ add up to.
   server pointed at the live database: the old server at 5.78.189.158 did
   exactly that through 3 and 4 Sep 2026. `../engine/deploying-all-three.md`
   has the story.
-- **The Market checkbox is the only plain-order choice that explicitly asks to
-  fill now.** It sits inside the Long and Short window. When checked, the order
-  uses the venue's current price, pays the taker fee, does not become a watched
-  level and ignores the account's Watch or Rest choice.
+- **Market is the only plain-order choice that explicitly asks to fill now.**
+  It is the third option on the Long and Short window's order row, beside
+  Watched and Resting. Picked, the order uses the venue's current price, pays
+  the taker fee, does not become a watched level and ignores the account's
+  Watch or Rest choice. The other two say where the order waits, and neither
+  ever turns into a fill at market.
 - **A watched order may carry a stop loss without a take profit, or a take
   profit without a stop loss.** The stop can be its exact losing price or a
   percent away from entry. The chosen line stays with the watched level and is

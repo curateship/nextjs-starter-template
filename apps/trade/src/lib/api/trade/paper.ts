@@ -25,6 +25,7 @@ import {
   updatePaperOrder as updateOrderRow,
 } from "@/server/trade/paper"
 import { loadOrderStyle } from "@/server/trade/prefs"
+import { ORDER_STYLES } from "@/lib/trade/order-style"
 import {
   listActiveSmartOrdersIfChanged,
   placeWatchOrder,
@@ -62,6 +63,8 @@ const placeSchema = z.object({
   leverage: z.number().min(1).max(100),
   reduceOnly: z.boolean(),
   market: z.boolean().optional(),
+  /** Where a waiting order waits, chosen in the order window. */
+  orderStyle: z.enum(ORDER_STYLES).optional(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
 })
@@ -212,7 +215,7 @@ const placePaperOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<{ placed: true }> => {
     const wallet = await paperWallet(context.user.id, data.walletId, true)
-    const { market = false, ...order } = data
+    const { market = false, orderStyle: _style, ...order } = data
     if (market) {
       await placeOrderRow(context.user.id, wallet, {
         ...order,
@@ -220,10 +223,10 @@ const placePaperOrderFn = createServerFn({ method: "POST" })
       })
       return { placed: true }
     }
-    // Asked here rather than sent up from the window: which way an order waits
-    // is an account setting, and a browser that could name it could place an
-    // order the setting says it may not.
-    if ((await loadOrderStyle(context.user.id)) === "watch") {
+    // The order window names its style; the account setting answers for
+    // anything that does not, which is a tab left open through a deploy.
+    const style = data.orderStyle ?? (await loadOrderStyle(context.user.id))
+    if (style === "watch") {
       await placeWatchOrder(context.user.id, wallet, order)
       return { placed: true }
     }

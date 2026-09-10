@@ -5,7 +5,10 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { loadSwapQuote } from "@/lib/api/trade/live"
-import { bnbRefusalSentence, type BnbRefusal } from "@/server/protocols/bnb/refusals"
+import {
+  bnbRefusalSentence,
+  type BnbRefusal,
+} from "@/server/protocols/bnb/refusals"
 vi.mock("@/lib/api/trade/live", () => ({
   loadSwapQuote: vi.fn(),
   getLiveErrorMessage: (e: Error) => e.message,
@@ -47,6 +50,7 @@ const market = {
 } satisfies MarketRow
 
 const prefs: QuickOrderPrefs = {
+  entryStyle: "watch",
   sizeUnit: "usd",
   size: "100",
   leverage: 1,
@@ -145,6 +149,19 @@ async function type(selector: string, value: string) {
   })
 }
 
+/**
+ * Picks one of the Watched / Resting / Market tabs. A segmented tab answers to
+ * the press rather than to the click, so a plain `.click()` leaves it where it
+ * was.
+ */
+async function choose(id: string) {
+  const tab = host.querySelector<HTMLButtonElement>(id)
+  if (!tab) throw new Error(`no ${id}`)
+  await act(async () => {
+    tab.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+  })
+}
+
 async function place() {
   await act(async () => {
     host.querySelector<HTMLButtonElement>("button.w-full")?.click()
@@ -174,7 +191,7 @@ describe("the chart's Long, Short and Market window", () => {
     // at 100. Pinning the order to 110 is what made adding wait for a price
     // the market had already left, sometimes for minutes.
     const { onPlace } = await draw({ addingTo: heldLong })
-    expect(host.querySelector("#quick-market")).toBeNull()
+    expect(host.querySelector("#quick-style-watch")).toBeNull()
     expect(host.textContent).toContain("Add at market")
     expect(host.textContent).toContain("The final fill price can move.")
 
@@ -200,7 +217,7 @@ describe("the chart's Long, Short and Market window", () => {
     })
     await place()
     expect(onPlace).not.toHaveBeenCalled()
-    expect(host.querySelector("#quick-market")).toBeNull()
+    expect(host.querySelector("#quick-style-watch")).toBeNull()
     await type("#quick-size", "100")
     await place()
     expect(onPlace).toHaveBeenCalledWith(
@@ -223,32 +240,90 @@ describe("the chart's Long, Short and Market window", () => {
     )
   })
 
-  it("keeps a Short below market waiting while Market is clear", async () => {
+  it("opens on Watched and keeps a Short below market waiting", async () => {
     const { onPlace } = await draw({ side: "sell" })
 
     expect(
       host
-        .querySelector<HTMLElement>("#quick-market")
+        .querySelector<HTMLElement>("#quick-style-watch")
         ?.getAttribute("data-state")
-    ).toBe("unchecked")
+    ).toBe("active")
     await place()
 
     expect(onPlace).toHaveBeenCalledWith(
-      expect.objectContaining({ side: "sell", px: 90, market: false })
+      expect.objectContaining({
+        side: "sell",
+        px: 90,
+        market: false,
+        orderStyle: "watch",
+      })
     )
   })
 
-  it("market-shorts now when Market is checked inside the Short window", async () => {
+  it("market-shorts now when Market is chosen inside the Short window", async () => {
     const { onPlace } = await draw({ side: "sell" })
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>("#quick-market")?.click()
-    })
+    await choose("#quick-style-market")
     expect(host.textContent).toContain("Market short BTC")
     await place()
 
     expect(onPlace).toHaveBeenCalledWith(
-      expect.objectContaining({ side: "sell", px: 100, market: true })
+      expect.objectContaining({
+        side: "sell",
+        px: 100,
+        market: true,
+        orderStyle: undefined,
+      })
+    )
+  })
+
+  it("rests the order on the exchange when Resting is chosen, and remembers it", async () => {
+    const { onPlace, onRemember } = await draw({})
+
+    await choose("#quick-style-rest")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ px: 110, market: false, orderStyle: "rest" })
+    )
+    expect(onRemember).toHaveBeenCalledWith(
+      expect.objectContaining({ entryStyle: "rest" })
+    )
+  })
+
+  it("opens on the style the last order was placed with", async () => {
+    const { onPlace } = await draw({
+      initialPrefs: { ...prefs, entryStyle: "rest" },
+    })
+
+    expect(
+      host
+        .querySelector<HTMLElement>("#quick-style-rest")
+        ?.getAttribute("data-state")
+    ).toBe("active")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ orderStyle: "rest" })
+    )
+  })
+
+  it("offers no Resting on a swap venue and reads a remembered one as Watched", async () => {
+    const { onPlace } = await draw({
+      swaps: true,
+      initialPrefs: { ...prefs, entryStyle: "rest" },
+    })
+
+    expect(host.querySelector("#quick-style-rest")).toBeNull()
+    expect(
+      host
+        .querySelector<HTMLElement>("#quick-style-watch")
+        ?.getAttribute("data-state")
+    ).toBe("active")
+    await place()
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ market: false, orderStyle: "watch" })
     )
   })
 
@@ -395,11 +470,30 @@ it("shows the provider, route and impact for a swap without placing an order", a
   expect(onPlace).not.toHaveBeenCalled()
 })
 
-it.each<BnbRefusal>(["no-route", "unknown-token", "maximum", "malformed", "kyber-busy", "node-busy", "slippage", "approval", "gas", "unsellable", "pending", "replaced", "unknown"])("shows the BNB %s refusal and preserves the order size", async (code) => {
+it.each<BnbRefusal>([
+  "no-route",
+  "unknown-token",
+  "maximum",
+  "malformed",
+  "kyber-busy",
+  "node-busy",
+  "slippage",
+  "approval",
+  "gas",
+  "unsellable",
+  "pending",
+  "replaced",
+  "unknown",
+])("shows the BNB %s refusal and preserves the order size", async (code) => {
   const sentence = bnbRefusalSentence(code)
   vi.mocked(loadSwapQuote).mockRejectedValue(new Error(sentence))
-  const { onPlace } = await draw({ swaps: true, initialPrefs: { ...prefs, size: "10" } })
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 700)) })
+  const { onPlace } = await draw({
+    swaps: true,
+    initialPrefs: { ...prefs, size: "10" },
+  })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 700))
+  })
   expect(host.textContent).toContain(sentence)
   expect(host.querySelector<HTMLInputElement>("#quick-size")?.value).toBe("10")
   expect(host.textContent).not.toContain("LIVE_ORDER_REFUSED:")

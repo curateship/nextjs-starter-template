@@ -60,8 +60,27 @@ migration is needed for this behavior.
   If the clicked level is already through today's price, the order becomes a
   local watch instead of quietly filling at market.
 
-Every account starts on watch. One saved setting flips the whole account back
-to resting.
+Every account starts on watch. One saved setting in Settings → Trading engine
+flips the whole account back to resting.
+
+**The Long and Short window picks its own style, order by order.** Above the
+size box it has one row of three: **Watched**, **Resting** and **Market**. It
+opens on Watched, and after that it opens on whatever the last order that
+actually went out was placed with, the same way the size and leverage are
+remembered. The choice is saved as `entryStyle` inside the window's own
+remembered settings, and it travels with the order as `orderStyle`.
+
+The account setting is what answers when an order names no style — a market
+order, or a browser tab left open through a deploy. So the window now decides
+every ordinary Long and Short, and Settings → Trading engine only decides the
+first one on a fresh account.
+
+The label carries the explanation of all three on hover, per the UI rule that
+help is a tooltip beside the label rather than a paragraph under the control.
+
+A swap venue has no book for an order to rest in, so it offers Watched and
+Swap now only. A remembered Resting reads as Watched there rather than being
+sent as something the venue cannot do.
 
 The web app and the trading engine must run this behavior from the same commit.
 The web app records whether price must rise or fall into the level. An older
@@ -137,7 +156,7 @@ sent until its result is known, preventing a duplicate submission.
 ### Adding to a position uses market orders
 
 The position row's + button opens an addition at the current market price.
-The window has no Market checkbox. Its button says "Add at market" and explains
+The window has no order style row at all. Its button says "Add at market" and explains
 that the final fill price can move. An addition creates no watched order.
 
 The position row shows "Adding..." while the placement request is pending.
@@ -147,15 +166,14 @@ shows the existing error toast. A confirmed addition refreshes the position.
 The progress indicator describes the submission, not a guarantee of a full fill.
 
 Existing watched orders remain active until filled or cancelled. Ordinary Long
-and Short windows keep their Market checkbox and chosen-price behavior.
+and Short windows keep the three-way choice and the chosen-price behaviour.
 
-The Long and Short window has a **Market** checkbox for filling now. With the
-box clear, the account's Watch or Rest choice still decides where the level
-waits whenever the level can rest passively. A crossed Rest level becomes a
-local watch, because the unchecked box keeps the chosen price as a limit. With
-the box checked, the chosen side uses the venue's fresh current price, pays the
-taker fee and never creates a watched row. A checked Market box works the same
-whether the account setting is Watch or Rest.
+On **Watched** the level stays here. On **Resting** the order goes to the
+exchange as a passive limit, and a level already through today's price becomes
+a local watch instead, because the chosen price is a limit and an order that
+was not asked to fill now must never quietly fill at market. On **Market** the
+chosen side uses the venue's fresh current price, pays the taker fee and
+creates no watched row.
 
 Stop loss and Take profit are separate checkboxes in the same window. A watched
 order may carry either one, both, or neither. The stop loss accepts either its
@@ -252,6 +270,33 @@ built in `use-trading.ts`, so they can never disagree.
   coins" without changing market. Each market appears once. When several
   orders wait on the same market, the row shows the order nearest today's
   price. `../screens/rules-everywhere.md` has the rest of its rules.
+
+### What you are holding sits above what you are waiting for
+
+The panel opens with the coins you are already in, then a line, then the prices
+still waiting. Both halves are one list of the same rows, and pressing any of
+them charts that coin.
+
+- **A holding shows money, a waiting price shows distance.** The green or red
+  pill on a holding is what it is up or down right now, in dollars: today's
+  price less the entry, times the coins held, less the fees it has paid. It is
+  the same figure the Smart orders panel shows beside a strategy's name, and it
+  comes off `positionProfit` in `paper.ts` like every other profit on the
+  screen. A waiting price keeps its "% away" pill,
+  because a level that has not fired has no profit to report.
+- **The quiet figure changes meaning with the row.** On a holding it is what
+  the coins are worth at today's price. On a waiting price it is what the
+  order will spend when it fires.
+- **A coin a strategy is running is not here.** A ladder, a grid or a signal
+  already has its own row with its own money in the Smart orders panel above,
+  so repeating it would put one position on the screen twice. A coin whose only
+  smart order is a watch is still yours, because a watch IS a hand-placed
+  order. The rule lives in `positionsYouOpenedByHand`.
+- **Sorted by what was put in, biggest first.** Sorting by profit would
+  reshuffle the list under the pointer every time a price ticked, which is the
+  same reason the waiting half is sorted by age.
+- **A Solana holding with no recorded entry price shows no profit pill**,
+  rather than a made-up zero that would read as breaking even.
 
 It does not share the Smart orders tab or its card. Smart orders is for a
 ladder or grid. Manual orders is for a plain order waiting at a price.
