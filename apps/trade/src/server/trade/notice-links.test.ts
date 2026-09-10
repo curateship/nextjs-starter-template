@@ -20,7 +20,7 @@ import {
   tradeSoundEventsAfter,
 } from "@/server/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
-import { tradeWallets } from "@/server/trade/schema"
+import { tradeNoticeLinks, tradeWallets } from "@/server/trade/schema"
 
 let client: PGlite
 let database: CustomShellDb
@@ -121,14 +121,11 @@ describe("where a trade notice leads", () => {
         .from(customShellNotifications)
         .where(eq(customShellNotifications.id, noticeId))
       expect(notice.readAt).toEqual(readAt)
-      const [words] = await database
-        .select()
-        .from(customShellAnnouncements)
-        .where(eq(customShellAnnouncements.id, notice.announcementId!))
-      expect(words.title).toBe(
+      const words = notice
+      expect(words.message).toBe(
         `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $700 of SUSHIUSDTM at $175 (Ku1)`
       )
-      if (dir === "Close Long") expect(words.body).toContain("$20.00")
+      if (dir === "Close Long") expect(words.detail).toContain("$20.00")
       expect(
         (await tradeSoundEventsAfter(userId, sounds.cursor)).events
       ).toEqual([])
@@ -147,12 +144,12 @@ describe("where a trade notice leads", () => {
       expect(await noticeIdsOf(userId)).toEqual([noticeId])
       const [combined] = await database
         .select()
-        .from(customShellAnnouncements)
-        .where(eq(customShellAnnouncements.id, notice.announcementId!))
-      expect(combined.title).toBe(
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.id, noticeId))
+      expect(combined.message).toBe(
         `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $1,700 of SUSHIUSDTM at $170 (Ku1)`
       )
-      if (dir === "Close Long") expect(combined.body).toContain("$40.00")
+      if (dir === "Close Long") expect(combined.detail).toContain("$40.00")
 
       await recordLiveFills(userId, wallet, [
         { ...fill, fillId: "other-fill", orderId: "other-order" },
@@ -176,9 +173,9 @@ describe("where a trade notice leads", () => {
       }
       const [unchanged] = await database
         .select()
-        .from(customShellAnnouncements)
-        .where(eq(customShellAnnouncements.id, notice.announcementId!))
-      expect(unchanged.title).toBe(combined.title)
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.id, noticeId))
+      expect(unchanged.message).toBe(combined.message)
     }
   )
 
@@ -211,6 +208,64 @@ describe("where a trade notice leads", () => {
 
     const [noticeId] = await noticeIdsOf(userId)
     expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({})
+  })
+
+  it("writes the notice to one inbox and announces nothing", async () => {
+    const userId = await makePerson()
+    await writeTradeNotice({
+      userId,
+      title: "Entered a trade: $500 of NEAR at $2.5151 (HL1 - Grid)",
+      body: "The order filled on the exchange.",
+      level: "critical",
+      database,
+    })
+
+    const [notice] = await database
+      .select()
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.recipientUserId, userId))
+    expect(notice.type).toBe("app_activity")
+    expect(notice.message).toBe(
+      "Entered a trade: $500 of NEAR at $2.5151 (HL1 - Grid)"
+    )
+    expect(notice.detail).toBe("The order filled on the exchange.")
+    // The words are the notice's own, so nothing stands in for them.
+    expect(notice.announcementId).toBeNull()
+    expect(await database.select().from(customShellAnnouncements)).toEqual([])
+
+    const [extras] = await database
+      .select()
+      .from(tradeNoticeLinks)
+      .where(eq(tradeNoticeLinks.noticeId, notice.id))
+    expect(extras.level).toBe("critical")
+  })
+
+  it("follows the words when a later piece makes the notice louder", async () => {
+    const userId = await makePerson()
+    const notice = {
+      userId,
+      title: "Exited a trade: $500 of ETH at $90 (Main)",
+      body: "The order filled on the exchange.",
+      href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      soundKind: "fill" as const,
+      noticeKey: JSON.stringify(["fill", "order-1"]),
+      database,
+    }
+    await writeTradeNotice({ ...notice, level: "info" })
+    // The second piece of the same fill turns the close into a loss.
+    await writeTradeNotice({
+      ...notice,
+      level: "warning",
+      body: "Lost $55.00 on this close.",
+    })
+
+    const [row] = await database.select().from(tradeNoticeLinks)
+    expect(row.level).toBe("warning")
+    // The page and the sound are still there, not wiped by the second write.
+    expect(row.href).toBe(
+      "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH"
+    )
+    expect(row.soundKind).toBe("fill")
   })
 
   // The id of somebody else's notice is a guess anyone can make, and the

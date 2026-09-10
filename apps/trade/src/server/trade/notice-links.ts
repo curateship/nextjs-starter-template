@@ -34,10 +34,7 @@ export async function tradeNoticeLinksFor(
     .from(customShellNotifications)
     .innerJoin(
       tradeNoticeLinks,
-      eq(
-        tradeNoticeLinks.announcementId,
-        customShellNotifications.announcementId
-      )
+      eq(tradeNoticeLinks.noticeId, customShellNotifications.id)
     )
     .where(
       and(
@@ -67,10 +64,7 @@ export async function tradeSoundEventsAfter(
     .from(customShellNotifications)
     .innerJoin(
       tradeNoticeLinks,
-      eq(
-        tradeNoticeLinks.announcementId,
-        customShellNotifications.announcementId
-      )
+      eq(tradeNoticeLinks.noticeId, customShellNotifications.id)
     )
     .where(
       and(

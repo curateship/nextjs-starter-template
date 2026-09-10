@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm"
 
 import type { CustomShellDb } from "@/server/db"
 import {
-  customShellAnnouncements,
   customShellNotifications,
 } from "@/server/schema"
 import {
@@ -68,14 +67,10 @@ async function heartbeat(lastSeenAt: Date) {
 async function notices() {
   return database
     .select({
-      title: customShellAnnouncements.title,
-      body: customShellAnnouncements.body,
+      title: customShellNotifications.message,
+      body: customShellNotifications.detail,
     })
     .from(customShellNotifications)
-    .innerJoin(
-      customShellAnnouncements,
-      eq(customShellAnnouncements.id, customShellNotifications.announcementId)
-    )
     .where(eq(customShellNotifications.recipientUserId, adminId))
 }
 

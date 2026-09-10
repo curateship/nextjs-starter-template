@@ -315,9 +315,9 @@ export function NotificationCenter({
   function openNotification(item: NotificationItem) {
     // The app's own answer first. A notice the app wrote knows where it came
     // from — the coin that filled, the flow that stopped — and the app is the
-    // only side that can say so. To the shell those same rows are
-    // announcements, which it opens nothing for, so without this the reading
-    // that has an address loses to the one that does not.
+    // only side that can say so. The shell opens nothing for those rows, so
+    // without this the reading that has an address loses to the one that does
+    // not.
     const appHref = appLinks[item.id]
     if (appHref) {
       setOpen(false)

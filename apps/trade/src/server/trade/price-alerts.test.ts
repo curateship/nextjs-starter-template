@@ -9,7 +9,6 @@ import {
 import { uuid } from "@/server/auth/security"
 import type { CustomShellDb } from "@/server/db"
 import {
-  customShellAnnouncements,
   customShellNotifications,
   customShellUsers,
 } from "@/server/schema"
@@ -207,8 +206,8 @@ describe("the engine's alert check", () => {
     expect(pushedMarks).toHaveBeenCalledTimes(1)
     expect(await loadArmedPriceAlerts(userId)).toEqual([])
 
-    const notices = await database.select().from(customShellAnnouncements)
-    expect(notices.map((notice) => notice.title)).toEqual([
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices.map((notice) => notice.message)).toEqual([
       "BTC reached $110 (was rising)",
       "ETH reached $90 (was falling)",
     ])

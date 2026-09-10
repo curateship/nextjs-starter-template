@@ -95,13 +95,12 @@ export const appOptions: AppOptions = {
     /**
      * Where a trade notice goes when it is clicked.
      *
-     * Every notice this app sends is written as an announcement, because that
-     * is the shell's one way to put a sentence in somebody's inbox — so to the
-     * shell they all look like a title with nowhere to go. The page each one
-     * came off is remembered in `trade_notice_links` when the notice is
-     * written, and this is where the bell asks for it.
+     * A trade notice carries its own words and no link, so the shell opens
+     * nothing for one. The page it came off is remembered in
+     * `trade_notice_links` when the notice is written, and this is where the
+     * bell asks for it.
      *
-     * Only announcements are asked about. The shell's own notices — a reply on
+     * Only this app's own notices are asked about. The shell's own — a reply on
      * a piece of feedback, a published update, a run waiting for approval —
      * already know where they lead, and asking about them would be a database
      * trip that can only ever come back empty.
@@ -109,7 +108,7 @@ export const appOptions: AppOptions = {
     linksFor: async (notices) =>
       (await import("@/lib/api/trade/notice-links")).loadTradeNoticeLinks(
         notices
-          .filter((one) => one.type === "announcement")
+          .filter((one) => one.type === "app_activity")
           .map((one) => one.id)
       ),
   },

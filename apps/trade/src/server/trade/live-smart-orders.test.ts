@@ -12,7 +12,7 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { customShellAnnouncements } from "@/server/schema"
+import { customShellNotifications } from "@/server/schema"
 import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
@@ -2201,13 +2201,13 @@ describe("live Smart orders", () => {
     await reconcileLiveLadders(userId, wallet)
     expect(place).toHaveBeenCalledTimes(5)
 
-    const notices = await database.select().from(customShellAnnouncements)
+    const notices = await database.select().from(customShellNotifications)
     expect(notices).toHaveLength(1)
     expect(notices[0]).toMatchObject({
-      title: "BTC watched order paused",
-      level: "warning",
+      message: "BTC watched order paused",
+      type: "app_activity",
     })
-    expect(notices[0].body).toContain(
+    expect(notices[0].detail).toContain(
       "The order is below this market's minimum size."
     )
   })

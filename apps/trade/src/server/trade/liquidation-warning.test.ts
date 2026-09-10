@@ -6,7 +6,6 @@ import type { TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import {
-  customShellAnnouncements,
   customShellNotifications,
   customShellUsers,
 } from "@/server/schema"
@@ -107,8 +106,8 @@ describe("the liquidation crossing record", () => {
     expect(await database.select().from(customShellNotifications)).toHaveLength(
       2
     )
-    const notices = await database.select().from(customShellAnnouncements)
-    expect(notices[0]?.title).toContain(
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices[0]?.message).toContain(
       "ETH on Hyperliquid main is 4.65% from liquidation at $82.00"
     )
 

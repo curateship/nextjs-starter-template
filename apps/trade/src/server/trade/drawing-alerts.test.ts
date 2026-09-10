@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { uuid } from "@/server/auth/security"
 import type { CustomShellDb } from "@/server/db"
 import {
-  customShellAnnouncements,
   customShellNotifications,
   customShellUsers,
 } from "@/server/schema"
@@ -88,8 +87,8 @@ describe("alerts on drawn lines", () => {
       firedPrice: 120,
       firedThreshold: 120,
     })
-    const notices = await database.select().from(customShellAnnouncements)
-    expect(notices.map((notice) => notice.title)).toEqual([
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices.map((notice) => notice.message)).toEqual([
       "BTC crossed your trendline at $120 (was rising)",
     ])
     expect(await database.select().from(customShellNotifications)).toHaveLength(1)
@@ -229,11 +228,11 @@ describe("alerts on drawn lines", () => {
         database,
       })
     ).toBe(1)
-    const notices = await database.select().from(customShellAnnouncements)
-    expect(notices.map((notice) => notice.title)).toEqual([
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices.map((notice) => notice.message)).toEqual([
       "BTC crossed 4h base (was rising)",
     ])
-    expect(notices[0]?.body).toContain("4h base was at $120.")
+    expect(notices[0]?.detail).toContain("4h base was at $120.")
     const { fired } = await loadDrawingAlerts(userId, 5_000, database)
     expect(fired.map((one) => one.name)).toEqual(["4h base"])
   })
@@ -255,8 +254,8 @@ describe("alerts on drawn lines", () => {
     expect(
       await checkDrawingAlerts({ pushedMarks, checkedAt: new Date(3_000), database })
     ).toBe(0)
-    const notices = await database.select().from(customShellAnnouncements)
-    expect(notices.map((notice) => notice.title)).toEqual([
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices.map((notice) => notice.message)).toEqual([
       "BTC crossed your level at $100 (was falling)",
     ])
     expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBe(2_000)
@@ -311,13 +310,13 @@ describe("the break buffer", () => {
       })
     ).toBe(0)
 
-    const notices = await database.select().from(customShellAnnouncements)
+    const notices = await database.select().from(customShellNotifications)
     // The title names the line, which is the level somebody drew; the body
     // says how far past it the price had to go.
-    expect(notices.map((notice) => notice.title)).toEqual([
+    expect(notices.map((notice) => notice.message)).toEqual([
       "BTC crossed your level at $60,000 (was rising)",
     ])
-    expect(notices[0]?.body).toContain("The price had to go 0.1% past the level.")
+    expect(notices[0]?.detail).toContain("The price had to go 0.1% past the level.")
   })
 
   it("is the same instruction on a coin worth twenty cents", async () => {
@@ -387,8 +386,8 @@ describe("the break buffer", () => {
         database,
       })
     ).toBe(1)
-    const notices = await database.select().from(customShellAnnouncements)
-    expect(notices[0]?.body).not.toContain("past the level")
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices[0]?.detail).not.toContain("past the level")
   })
 
   it("keeps the buffer when a fired line is switched on again", async () => {

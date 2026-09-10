@@ -4,12 +4,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm"
 
 import { publishNotificationCreatedMany } from "@/server/notifications/events"
 import { db, type CustomShellDb } from "@/server/db"
-import {
-  customShellAnnouncements,
-  customShellNotifications,
-  customShellUsers,
-  customShellWorkspaces,
-} from "@/server/schema"
+import { customShellNotifications, customShellUsers } from "@/server/schema"
 import {
   tradeEngineOutages,
   tradeEngineOutageHistory,
@@ -68,7 +63,6 @@ function recoveryWords(outageStartedAt: Date, recoveredAt: Date) {
 
 async function writeNotice(
   words: { title: string; body: string },
-  level: "info" | "critical",
   timestamp: Date,
   database: CustomShellDb
 ): Promise<string[]> {
@@ -83,32 +77,15 @@ async function writeNotice(
     )
   if (!recipients.length) return []
 
-  const [workspace] = await database
-    .select({ id: customShellWorkspaces.id })
-    .from(customShellWorkspaces)
-    .limit(1)
-  if (!workspace) return []
-
-  const announcementId = randomUUID()
-  await database.insert(customShellAnnouncements).values({
-    id: announcementId,
-    workspaceId: workspace.id,
-    ...words,
-    level,
-    audience: "app",
-    showBanner: false,
-    notify: true,
-    startsAt: timestamp,
-    endsAt: timestamp,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  })
+  // One row per admin, each carrying the words. The engine stopping is news
+  // for every admin at once, and each of them reads and clears their own copy.
   await database.insert(customShellNotifications).values(
     recipients.map(({ id }) => ({
       id: randomUUID(),
       recipientUserId: id,
-      type: "announcement" as const,
-      announcementId,
+      type: "app_activity" as const,
+      message: words.title,
+      detail: words.body,
       createdAt: timestamp,
     }))
   )
@@ -263,7 +240,6 @@ export async function monitorTradingEngine({
             outage.outageStartedAt,
             heartbeat?.lastSeenAt ?? checkedAt
           ),
-          "info",
           checkedAt,
           tx
         )
@@ -279,7 +255,6 @@ export async function monitorTradingEngine({
 
       const recipients = await writeNotice(
         outageWords(lastExpectedAt),
-        "critical",
         checkedAt,
         tx
       )

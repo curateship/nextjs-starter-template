@@ -57,7 +57,7 @@ import type {
 } from "@/lib/trade/backtest/result"
 import type { WalletKind, WalletStatus } from "@/lib/trade/wallets"
 import {
-  customShellAnnouncements,
+  customShellNotifications,
   customShellUsers,
   customShellWorkspaces,
 } from "@/server/schema"
@@ -1583,15 +1583,29 @@ export const tradeFlowRunOrders = pgTable(
  * and a check on the reading side is the one that still holds if that ever
  * stops being true.
  */
+/**
+ * The page, the sound and the loudness behind one trade notice, keyed by the
+ * notice itself.
+ *
+ * Trade notices used to be written as announcements, so this pointed at the
+ * announcements table. It points at the notice now.
+ */
 export const tradeNoticeLinks = pgTable("trade_notice_links", {
-  announcementId: varchar("announcement_id", { length: 36 })
+  noticeId: varchar("notice_id", { length: 36 })
     .primaryKey()
-    .references(() => customShellAnnouncements.id, { onDelete: "cascade" }),
+    .references(() => customShellNotifications.id, { onDelete: "cascade" }),
   href: text("href"),
   /** Which bundled sound an open trading screen may play for this notice. */
   soundKind: varchar("sound_kind", { length: 8 }).$type<
     "fill" | "stop" | "alert"
   >(),
+  /**
+   * How loud the notice is meant to be: a liquidation is critical, a close that
+   * lost money is a warning, everything else is info. The words each notice
+   * carries already say which it is; this is the same judgement in a column, so
+   * the notices can be told apart without reading them.
+   */
+  level: varchar("level", { length: 8 }).$type<"info" | "warning" | "critical">().notNull().default("info"),
 })
 
 export const tradeMarketFirstSeen = pgTable("trade_market_first_seen", {

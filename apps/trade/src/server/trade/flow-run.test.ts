@@ -921,13 +921,13 @@ describe("changing a folder while its flow is running", () => {
     expect(run.waiting["hyperliquid:mainnet:BTC"]?.code).toBe(
       "FLOW_CANCEL_FAILED"
     )
-    expect(await db.select().from(customShellAnnouncements)).toHaveLength(1)
+    expect(await db.select().from(customShellNotifications)).toHaveLength(1)
 
     await advanceRemovedFlowLadders(NOW + 2, db)
     ;[run] = await db.select().from(tradeFlowRuns)
     expect(run.marketCancels).toEqual({})
     expect(run.waiting["hyperliquid:mainnet:BTC"]).toBeUndefined()
-    expect(await db.select().from(customShellAnnouncements)).toHaveLength(1)
+    expect(await db.select().from(customShellNotifications)).toHaveLength(1)
   })
 
   it("keeps an unconfirmed live cancellation queued without warning", async () => {
@@ -991,12 +991,12 @@ describe("changing a folder while its flow is running", () => {
     let [run] = await db.select().from(tradeFlowRuns)
     expect(run.marketCancels["hyperliquid:mainnet:BTC"]).toBeTruthy()
     expect(run.waiting["hyperliquid:mainnet:BTC"]).toBeUndefined()
-    expect(await db.select().from(customShellAnnouncements)).toHaveLength(0)
+    expect(await db.select().from(customShellNotifications)).toHaveLength(0)
 
     await advanceRemovedFlowLadders(NOW + 2, db)
     ;[run] = await db.select().from(tradeFlowRuns)
     expect(run.marketCancels).toEqual({})
-    expect(await db.select().from(customShellAnnouncements)).toHaveLength(0)
+    expect(await db.select().from(customShellNotifications)).toHaveLength(0)
   })
 })
 
@@ -1589,9 +1589,9 @@ describe("switching one off", () => {
     expect(liveCancel).toHaveBeenCalledTimes(2)
     const [run] = await db.select().from(tradeFlowRuns)
     expect(run.status).toBe("stopping")
-    const announcements = await db.select().from(customShellAnnouncements)
+    const announcements = await db.select().from(customShellNotifications)
     expect(announcements).toHaveLength(1)
-    expect(announcements[0].body).toContain(
+    expect(announcements[0].detail).toContain(
       "Stop could not call off BTC. It will keep trying."
     )
   })
@@ -1622,9 +1622,9 @@ describe("switching one off", () => {
     await advanceStoppingFlows(NOW + 2, db)
 
     expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopping")
-    const announcements = await db.select().from(customShellAnnouncements)
+    const announcements = await db.select().from(customShellNotifications)
     expect(announcements).toHaveLength(1)
-    expect(announcements[0].body).toContain(
+    expect(announcements[0].detail).toContain(
       "Stop could not call off BTC. It will keep trying."
     )
   })
@@ -1650,11 +1650,11 @@ describe("who is told about a stop", () => {
     const notices = await db.select().from(customShellNotifications)
     expect(notices).toHaveLength(1)
     expect(notices[0].recipientUserId).toBe(userId)
-    const [announcement] = await db.select().from(customShellAnnouncements)
-    expect(announcement.title).toBe("Flow Flow flow-1 stopped")
-    expect(announcement.body).toBe("Practice was switched off.")
-    expect(announcement.level).toBe("warning")
-    expect(announcement.showBanner).toBe(false)
+    expect(notices[0].message).toBe("Flow Flow flow-1 stopped")
+    expect(notices[0].detail).toBe("Practice was switched off.")
+    expect(notices[0].type).toBe("app_activity")
+    // Nothing announced this. It is one person's notice about their own flow.
+    expect(await db.select().from(customShellAnnouncements)).toHaveLength(0)
   })
 
   it("stays silent when a person pressed Stop", async () => {

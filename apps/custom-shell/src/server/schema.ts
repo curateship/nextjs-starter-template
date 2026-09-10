@@ -384,7 +384,10 @@ export const customShellNotifications = pgTable(
       { onDelete: "cascade" }
     ),
     type: varchar("type", { length: 50 }).notNull(),
-    /** The notice's own words when it is about the recipient's account. */
+    /**
+     * The notice's own words when it is about the recipient's account, or when
+     * an app wrote it about that person's own activity.
+     */
     message: text("message"),
     detail: text("detail"),
     feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
@@ -425,7 +428,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,

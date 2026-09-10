@@ -1,4 +1,5 @@
 import {
+  ActivityIcon,
   CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
@@ -54,6 +55,7 @@ function isFromTheApp(item: NotificationItem) {
     item.type === "automation_failed" ||
     item.type === "account_update" ||
     item.type === "system_email_failed" ||
+    item.type === "app_activity" ||
     isAiLimitNotification(item.type)
   )
 }
@@ -91,6 +93,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
             <UserRoundCogIcon className="h-4 w-4" />
           ) : item.type === "system_email_failed" ? (
             <MailWarningIcon className="h-4 w-4" />
+          ) : item.type === "app_activity" ? (
+            <ActivityIcon className="h-4 w-4" />
           ) : (
             <GaugeIcon className="h-4 w-4" />
           )}
@@ -107,7 +111,11 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
-  if (item.type === "account_update" || item.type === "system_email_failed") {
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
     return <strong>{item.message ?? "The app needs attention"}</strong>
   }
   if (item.type === "changelog") {
@@ -162,6 +170,9 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "app_activity") {
+    return <ActivityIcon className="h-3.5 w-3.5" />
+  }
   if (item.type === "account_update") {
     return <UserRoundCogIcon className="h-3.5 w-3.5" />
   }
@@ -202,7 +213,9 @@ function notificationPreview(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
-    item.type === "account_update" || item.type === "system_email_failed"
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
       ? (item.detail ?? "")
       : item.type === "changelog"
         ? (item.changelog_title ?? "")

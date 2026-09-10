@@ -25,12 +25,31 @@ there.
   rather than shutting on the words somebody just clicked. A coin on an exchange
   with no dashboard here is one of those.
 
-**How it is stored.** The shell's bell knows what the shell's own notices are
-about and opens each one. It cannot know what this app's notices are about,
-because they are written as announcements — a title and a body, with nowhere to
-go. So the page each notice came off is written into `trade_notice_links` at the
-same moment the notice is, and the bell asks for it through the shell's
-`notifications.linksFor` app option.
+**How it is stored.** A trade notice is one row in the shell's `notifications`
+table, typed `app_activity`, carrying its own words in `message` and `detail`.
+It belongs to one account and only that account ever sees it.
+
+Until 10 September 2026 each notice was also written as an announcement,
+because that looked like the only way to put a sentence in somebody's inbox. It
+was not: the notifications table has columns for a notice's own words. The old
+shape left 4,000 fills sitting in the Announcements dashboard, which is for
+things a person announces. The migration
+`drizzle/0173_trade_notices_leave_announcements.sql` moved every existing notice
+into its own row and deleted the stand-ins.
+
+**One cleanup is owed on the live database.** The migration ran before the new
+engine shipped, so the engine still running the old code was writing a column
+that no longer existed and every notice it tried to write failed. A temporary
+column and trigger, `trade_notice_links_old_writer`, accept the old shape and
+map it onto the new one. Once the engine, worker and website are all on this
+code, drop both, and move any notices the old engine wrote in the meantime with
+the same steps the migration uses.
+
+The shell's bell knows what the shell's own notices are about and opens each
+one. It cannot know what a trade notice is about, so the page each one came off
+is written into `trade_notice_links` at the same moment the notice is, and the
+bell asks for it through the shell's `notifications.linksFor` app option. That
+row also holds the notice's sound and how loud it is meant to be.
 
 The bell asks **once per page of notices, while the tray is being read**, not
 once per click. The database is a second away, and a second of nothing between
@@ -156,10 +175,11 @@ process cannot overwrite a newer total with an older one. A failed notice
 rolls back only that order's notice writes. Other orders keep their notices.
 A notice failure never removes the recorded fills.
 
-The announcement id is derived from the owner and order grouping. Updating
-that announcement preserves its inbox row and chart link. No new database
-table is needed. Older notices have random ids and no saved order association,
-so the app does not guess which historical alerts to merge.
+The notice's id is derived from the owner and the order grouping, so every
+piece of one fill lands on the same row. Updating it rewrites only the words:
+the arrival time and the read dot belong to the notice the reader has already
+seen. Older notices have random ids and no saved order association, so the app
+does not guess which historical alerts to merge.
 
 ## When a stop or a target fires
 

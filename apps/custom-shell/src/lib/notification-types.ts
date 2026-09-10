@@ -8,6 +8,12 @@
  * hands out `undefined` to whichever side of it loads first.
  */
 
+/**
+ * `app_activity` is the notice an app writes about the reader's own doing —
+ * a trade that filled, a price that crossed a line. It carries its own words in
+ * `message` and `detail` and belongs to one person, so it needs nothing else in
+ * the database behind it.
+ */
 export type NotificationType =
   | "feedback_vote"
   | "feedback_comment"
@@ -20,6 +26,7 @@ export type NotificationType =
   | "automation_failed"
   | "account_update"
   | "system_email_failed"
+  | "app_activity"
 
 export const NOTIFICATION_TYPES = [
   "feedback_vote",
@@ -33,6 +40,7 @@ export const NOTIFICATION_TYPES = [
   "automation_failed",
   "account_update",
   "system_email_failed",
+  "app_activity",
 ] as const satisfies readonly NotificationType[]
 
 export type NotificationTypeVisibility = Record<NotificationType, boolean>
@@ -80,6 +88,7 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   automation_failed: "Automation failed",
   account_update: "Account update",
   system_email_failed: "Email failed",
+  app_activity: "Activity",
 }
 
 /**

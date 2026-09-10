@@ -11,7 +11,7 @@ import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
 import type { GridPlan } from "@/lib/trade/grid"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
-import { customShellAnnouncements } from "@/server/schema"
+import { customShellNotifications } from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -525,8 +525,8 @@ describe("flipping after the opposite side confirms", () => {
     expect(rows).toHaveLength(2)
     const active = rows.find((row) => row.status === "active")
     expect((active?.plan as GridPlan).direction).toBe("short")
-    const [notice] = await database.select().from(customShellAnnouncements)
-    expect(notice.title).toBe("The BTC flow grid flipped")
+    const [notice] = await database.select().from(customShellNotifications)
+    expect(notice.message).toBe("The BTC flow grid flipped")
   })
 
   it("sends a warning when the fresh opposite grid is refused", async () => {
@@ -542,8 +542,8 @@ describe("flipping after the opposite side confirms", () => {
     )
 
     expect(refused).toMatchObject({ did: "refused", flip: true })
-    const [notice] = await database.select().from(customShellAnnouncements)
-    expect(notice.title).toBe("The BTC flow grid could not flip")
+    const [notice] = await database.select().from(customShellNotifications)
+    expect(notice.message).toBe("The BTC flow grid could not flip")
   })
 
   it("closes only a held live grid's coins and removes its paired stop", async () => {
