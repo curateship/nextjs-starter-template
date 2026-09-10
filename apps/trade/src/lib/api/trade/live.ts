@@ -176,20 +176,23 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
           data.protocol === undefined || wallet.protocol === data.protocol
       )
       const liveWallets = wallets.filter((wallet) => wallet.kind === "live")
-      // The exchange read and the smart-order read do not depend on each
-      // other, so they go out together.
-      const [portfolio, smart] = await Promise.all([
-        loadLivePortfolio(context.user.id, wallets, {
-          journalStamp: data.journalStamp,
-          journalOpen: data.journalOpen ?? false,
-          credentials: read.credentials,
-        }),
-        listActiveSmartOrdersIfChanged(
-          context.user.id,
-          liveWallets.map((wallet) => wallet.id),
-          data.smartOrdersStamp
-        ),
-      ])
+      // Read the smart orders first, then the exchange. A watched order can
+      // finish while this request is running. Reading both at once let the
+      // smart-order half see it gone while the exchange half still carried
+      // the account from just before the fill, leaving neither row on screen.
+      //
+      // With this order, either the watch is still in `smart`, or a watch
+      // already missing there gets the newer account read that follows it.
+      const smart = await listActiveSmartOrdersIfChanged(
+        context.user.id,
+        liveWallets.map((wallet) => wallet.id),
+        data.smartOrdersStamp
+      )
+      const portfolio = await loadLivePortfolio(context.user.id, wallets, {
+        journalStamp: data.journalStamp,
+        journalOpen: data.journalOpen ?? false,
+        credentials: read.credentials,
+      })
       return {
         ...portfolio,
         smartOrders: smart.smartOrders,

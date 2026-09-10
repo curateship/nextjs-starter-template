@@ -114,11 +114,13 @@ describe("a wallet the exchange would not answer for", () => {
   function answer(over: {
     positions?: unknown[]
     orders?: unknown[]
+    smartOrders?: unknown[]
     unreachable?: string[]
   }) {
     return {
       positions: (over.positions ?? []) as never[],
       orders: (over.orders ?? []) as never[],
+      smartOrders: (over.smartOrders ?? []) as never[],
       unreachable: over.unreachable ?? [],
     }
   }
@@ -141,6 +143,21 @@ describe("a wallet the exchange would not answer for", () => {
     const landed = answer({ positions: [] })
 
     expect(keepUnreachableRows(held, landed).positions).toEqual([])
+  })
+
+  it("keeps a reached watch until its resulting position can be read", () => {
+    const reached = {
+      id: "watch-dot",
+      walletId: "w1",
+      marketKey: "hyperliquid:mainnet:DOT",
+      kind: "watch",
+      plan: { phase: "taking" },
+    }
+    const held = answer({ smartOrders: [reached] })
+    const failed = answer({ unreachable: ["w1"] })
+
+    expect(keepUnreachableRows(held, failed).smartOrders).toEqual([reached])
+    expect(keepUnreachableRows(held, answer({})).smartOrders).toEqual([])
   })
 
   it("only carries the wallet that could not be reached", () => {

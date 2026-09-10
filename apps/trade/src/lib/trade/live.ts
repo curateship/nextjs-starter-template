@@ -5,6 +5,7 @@ import {
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 
 /**
  * Live trading in the app's own words — browser-safe on purpose, like its
@@ -251,6 +252,7 @@ export function keepUnreachableRows<
   Answer extends {
     positions: TradePosition[]
     orders: TradeOrder[]
+    smartOrders: SmartOrder[]
     unreachable: string[]
   },
 >(was: Answer | null, next: Answer): Answer {
@@ -262,5 +264,18 @@ export function keepUnreachableRows<
     ...next,
     positions: [...next.positions, ...held(was.positions)],
     orders: [...next.orders, ...held(was.orders)],
+    // A taking watch may have filled even though this account read failed.
+    // The database already calls it done, but without an account answer the
+    // screen cannot draw what replaced it. Keep only that handoff row. A
+    // waiting or cancelled watch still obeys the fresh database answer.
+    smartOrders: [
+      ...next.smartOrders,
+      ...held(was.smartOrders).filter(
+        (order) =>
+          order.kind === "watch" &&
+          order.plan.phase === "taking" &&
+          !next.smartOrders.some((fresh) => fresh.id === order.id)
+      ),
+    ],
   }
 }

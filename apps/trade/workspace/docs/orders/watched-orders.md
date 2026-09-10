@@ -114,6 +114,17 @@ fill at that price or higher. An immediate fill is allowed; the order does not
 become a market order. An unfilled remainder waits at the same limit instead
 of following the market beyond the chosen price.
 
+The live account read starts after the watched-order read finishes. This keeps
+the handoff intact while a fill is happening. Either the response still has
+the reached watch, or its later account snapshot has the resulting order or
+position. The Manual orders and Open orders panels do not go empty between a
+watch reaching its price and the position appearing.
+
+If the exchange does not answer that later account read, the reached watch
+stays in Manual orders. Waiting and cancelled watches still follow the saved
+database state. The reached row leaves only after a successful account read
+can show what replaced it.
+
 An existing paused watch stays paused. A paused ordinary watch with no submitted
 order can be dragged to a new price. Moving returns it to waiting but does not
 resume it. Resume is a separate action. Watches with a submitted or uncertain
