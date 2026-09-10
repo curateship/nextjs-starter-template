@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import type { useTradeAccount } from "@/components/trade/use-trade-account"
 import { Button } from "@/components/ui/button"
@@ -97,9 +98,9 @@ function SignedUsd({
   className?: string
 }) {
   return (
-    <span className={cn("tabular-nums", moneyTone(value), className)}>
+    <PnlAmount className={cn("tabular-nums", moneyTone(value), className)}>
       {formatSignedUsd(value)}
-    </span>
+    </PnlAmount>
   )
 }
 

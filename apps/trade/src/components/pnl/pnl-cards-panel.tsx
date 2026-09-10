@@ -5,6 +5,7 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatSignedUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import type { PatternCards } from "@/lib/trade/pnl/patterns"
@@ -104,9 +105,11 @@ function PatternCard({
         <CardTitle className="flex items-center gap-2 text-sm">
           {icon}
           {title}
-          <span className={cn("ml-auto tabular-nums", moneyTone(cards.total))}>
+          <PnlAmount
+            className={cn("ml-auto tabular-nums", moneyTone(cards.total))}
+          >
             {cards.trades === 0 ? null : formatSignedUsd(cards.total)}
-          </span>
+          </PnlAmount>
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -131,14 +134,14 @@ function PatternCard({
                   <span className="text-muted-foreground tabular-nums">
                     {group.trades} {group.trades === 1 ? "trade" : "trades"}
                   </span>
-                  <span
+                  <PnlAmount
                     className={cn(
                       "w-20 text-right tabular-nums",
                       moneyTone(group.dollars)
                     )}
                   >
                     {formatSignedUsd(group.dollars)}
-                  </span>
+                  </PnlAmount>
                 </div>
               ))}
             </div>

@@ -12,7 +12,7 @@ import {
   savePanelLayout,
 } from "@/lib/api/trade/panel-layouts"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
-import { publishHeaderProfitVisibility } from "@/lib/trade/header-profit-visibility"
+import { setHidePnl } from "@/lib/trade/hide-pnl"
 import {
   TRADE_PANEL_LAYOUT_KEYS,
   type TradePanelLayoutKey,
@@ -240,7 +240,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
               : state.value.chartToolbarPosition,
         },
       }))
-      publishHeaderProfitVisibility(saved.headerProfitVisible)
+      setHidePnl(!saved.headerProfitVisible)
     },
     [enqueue]
   )

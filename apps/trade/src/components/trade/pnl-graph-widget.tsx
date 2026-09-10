@@ -45,6 +45,7 @@ import {
   mergeTradingOverviewProfitSeries,
   type TradingOverviewProfitChartPoint,
 } from "@/lib/trade/dashboard/profit-series"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { walletProfitWindowLabel } from "@/lib/trade/wallets"
@@ -241,14 +242,14 @@ export function PnlGraphWidget({
             aria-label="Current made or lost"
             className="flex items-center gap-1.5"
           >
-            <p
+            <PnlAmount
               className={cn(
-                "font-mono text-xl leading-none font-semibold tracking-tight tabular-nums",
+                "block font-mono text-xl leading-none font-semibold tracking-tight tabular-nums",
                 moneyTone(madeOrLost)
               )}
             >
               {formatSignedUsd(madeOrLost)}
-            </p>
+            </PnlAmount>
             {profitShare === null ? null : (
               <TradeBadge
                 tone={
@@ -607,9 +608,9 @@ function WalletResultRow({
                       formatter={(value) => (
                         <div className="flex w-full items-center justify-between gap-3">
                           <span className="text-muted-foreground">{label}</span>
-                          <span className="font-mono font-medium tabular-nums">
+                          <PnlAmount className="font-mono font-medium tabular-nums">
                             {formatSignedUsd(Number(value))}
-                          </span>
+                          </PnlAmount>
                         </div>
                       )}
                     />
@@ -633,14 +634,14 @@ function WalletResultRow({
             </ChartContainer>
           ) : null}
         </div>
-        <span
+        <PnlAmount
           className={cn(
             "font-mono text-base font-semibold tabular-nums",
             moneyTone(madeOrLost)
           )}
         >
           {formatSignedUsd(madeOrLost)}
-        </span>
+        </PnlAmount>
       </div>
     </button>
   )
@@ -716,12 +717,14 @@ function ProfitChart({
             <span className="text-foreground">{formatUsd(balance)}</span>
             <span aria-hidden="true"> · </span>
             settled{" "}
-            <span className={moneyTone(settled)}>
+            <PnlAmount className={moneyTone(settled)}>
               {formatSignedUsd(settled)}
-            </span>
+            </PnlAmount>
             <span aria-hidden="true"> · </span>
             open{" "}
-            <span className={moneyTone(open)}>{formatSignedUsd(open)}</span>
+            <PnlAmount className={moneyTone(open)}>
+              {formatSignedUsd(open)}
+            </PnlAmount>
             <span aria-hidden="true"> · </span>
             fees <span className="text-foreground">{formatUsd(fees)}</span>
           </p>
@@ -820,9 +823,9 @@ function ProfitChart({
                       <span className="flex-1 text-muted-foreground">
                         {config[String(name)]?.label ?? String(name)}
                       </span>
-                      <span className="font-mono font-medium tabular-nums">
+                      <PnlAmount className="font-mono font-medium tabular-nums">
                         {formatSignedUsd(Number(value))}
-                      </span>
+                      </PnlAmount>
                     </div>
                   )}
                 />

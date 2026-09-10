@@ -8,6 +8,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   SHELL_ROLES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
+  TOP_RIGHT_NAVIGATION_ITEM_IDS,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import {
@@ -161,7 +162,9 @@ const shellSectionSchema = z.object({
 const shellTopRightItemSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("builtIn"),
-    id: z.enum(["feedback", "theme", "notifications"]),
+    // The one list, so a built-in renamed in `custom-shell.tsx` cannot be
+    // refused here by a copy of the names nobody remembered to change.
+    id: z.enum(TOP_RIGHT_NAVIGATION_ITEM_IDS),
     visible: z.boolean(),
   }),
   z.object({

@@ -106,7 +106,7 @@ import {
   type TradePanelLayouts,
   useRememberedPanelLayoutInPlace,
 } from "@/lib/trade/panel-layout"
-import { listenForHeaderProfitVisibility } from "@/lib/trade/header-profit-visibility"
+import { hidePnlNow } from "@/lib/trade/hide-pnl"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import {
@@ -549,16 +549,6 @@ export function TradeWorkspace({
   const verticalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  const headerProfitVisibleRef = React.useRef(
-    initialPanelLayouts.headerProfitVisible
-  )
-  React.useEffect(
-    () =>
-      listenForHeaderProfitVisibility((visible) => {
-        headerProfitVisibleRef.current = visible
-      }),
-    []
-  )
   const marketPanelScope = React.useMemo(
     () => ({ protocol, network }),
     [network, protocol]
@@ -698,7 +688,9 @@ export function TradeWorkspace({
         vertical,
         marketPanelScope,
         expandedMarketRowId,
-        headerProfitVisibleRef.current,
+        // A saved layout records whether profit was on show when it was made,
+        // and applying it puts that back.
+        !hidePnlNow(),
         panelLayouts.layouts.chartToolbarPosition
       )
     },

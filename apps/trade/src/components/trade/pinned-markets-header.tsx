@@ -18,11 +18,17 @@ import {
 import { formatChange, formatPrice } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
+import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
 
 export default function PinnedMarketsHeader({
   fallback,
 }: AppHeaderLeftContentProps) {
   const { pins, quotes, busy, failed, store } = usePinnedMarkets()
+  // Not about pinned markets at all. This is the app's own control on the
+  // signed-in header, so it is the one component drawn on every screen — and
+  // the saved Hide profit and loss choice has to reach the page before any
+  // figure is painted, whether or not anybody opens the settings cog.
+  useHidePnlSync()
   React.useEffect(() => {
     let running = false
     const refresh = () => {

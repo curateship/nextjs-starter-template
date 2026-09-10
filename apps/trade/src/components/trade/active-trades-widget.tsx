@@ -20,6 +20,7 @@ import type {
 } from "@/lib/trade/dashboard/overview"
 import { orderKindLabel } from "@/lib/trade/dashboard/order-kind"
 import { summarizeActiveTrades } from "@/lib/trade/dashboard/active-trades"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
@@ -228,9 +229,9 @@ function SummaryMoney({ value }: { value: number | null }) {
 function SummaryProfit({ value }: { value: number | null }) {
   if (value === null) return <span className="text-muted-foreground">—</span>
   return (
-    <span className={cn("font-medium tabular-nums", moneyTone(value))}>
+    <PnlAmount className={cn("font-medium tabular-nums", moneyTone(value))}>
       {formatSignedUsd(value)}
-    </span>
+    </PnlAmount>
   )
 }
 
@@ -286,19 +287,19 @@ function ActiveTradeRow({
           <span className="text-muted-foreground">—</span>
         ) : (
           <>
-            <span
+            <PnlAmount
               className={cn(
                 "font-medium tabular-nums",
                 moneyTone(trade.profit)
               )}
             >
               {formatSignedUsd(trade.profit)}
-            </span>{" "}
-            <span
+            </PnlAmount>{" "}
+            <PnlAmount
               className={cn("text-xs tabular-nums", moneyTone(trade.profit))}
             >
               {formatChange(trade.profitShare)}
-            </span>
+            </PnlAmount>
           </>
         )}
       </TableCell>

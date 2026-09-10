@@ -29,6 +29,9 @@ screen: anything not written there has not been agreed yet.
 
 ## screens/ — what each screen shows
 
+- `hiding-profit-and-loss.md` — the one switch in the header's settings cog
+  that blurs every figure saying what you made or lost, what it deliberately
+  leaves readable, and how it is remembered.
 - `pinned-markets.md` — fixed member links, saved header pins, price refreshes,
   the five-market limit, narrow screens and the pending member-access decision.
 

@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { OrderDistanceBadge } from "@/components/trade/order-distance-badge"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { orderDistance, orderDistanceLabel } from "@/lib/trade/order-distance"
 
 import { InfoIcon, TriangleAlertIcon } from "lucide-react"
@@ -530,14 +531,14 @@ function HeldRow({
           </span>
         </span>
         {profit === null ? null : (
-          <span
+          <PnlAmount
             className={cn(
               "shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums",
               moneyToneSurface(profit) ?? "bg-muted"
             )}
           >
             {formatSignedUsd(profit)}
-          </span>
+          </PnlAmount>
         )}
       </span>
     </button>

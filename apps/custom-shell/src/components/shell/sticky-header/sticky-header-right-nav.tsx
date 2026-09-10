@@ -5,7 +5,7 @@ import { MessageSquarePlusIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
-import { ThemeToggle } from "@/components/shell/theme-toggle"
+import { QuickSettingsMenu } from "@/components/shell/sticky-header/quick-settings-menu"
 import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { Button } from "@/components/ui/button"
 import {
@@ -155,8 +155,8 @@ export function StickyHeaderRightNav({
           ) : null
         }
 
-        if (item.id === "theme") {
-          return <ThemeToggle key={item.id} />
+        if (item.id === "settings") {
+          return <QuickSettingsMenu key={item.id} role={role} />
         }
 
         // Explicit, not a catch-all `else`: when links joined this list the

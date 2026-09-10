@@ -56,6 +56,17 @@ compact navigation menu, and an app-owned replacement header controls its own
 contents. Changes use the existing automatic save and survive a reload.
 
 
+The header's colour-mode button is now a **settings cog**. It holds the three
+colour modes as one pill — follow the device, light, dark — and under them
+whatever switches the app running on this shell adds, such as Trade's "Hide
+profit and loss". It is one row in Your top right menu, called Settings, and it
+reorders and hides like every other row there. A menu saved before the change
+kept a row called Theme; that row IS this control, so it keeps the place and
+the on-or-off state it was left in.
+
+Public pages keep their own separate colour-mode button, because a visitor who
+is not signed in has no settings to put in a menu.
+
 Navigation and widget settings can:
 
 - Rename, reorder, hide, and group known navigation items.

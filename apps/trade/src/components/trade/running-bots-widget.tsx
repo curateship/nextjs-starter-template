@@ -15,6 +15,7 @@ import type {
   TradingOverviewBot,
   TradingOverviewBotState,
 } from "@/lib/trade/dashboard/overview"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatSignedUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
@@ -180,9 +181,11 @@ function BotRow({
         {bot.positionCount.toLocaleString()}
       </TableCell>
       <TableCell column="meta" className="py-2.5 text-left text-xs">
-        <span className={cn("font-medium tabular-nums", moneyTone(bot.netUsd))}>
+        <PnlAmount
+          className={cn("font-medium tabular-nums", moneyTone(bot.netUsd))}
+        >
           {formatSignedUsd(bot.netUsd)}
-        </span>
+        </PnlAmount>
       </TableCell>
     </TableRow>
   )

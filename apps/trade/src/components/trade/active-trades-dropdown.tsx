@@ -50,12 +50,10 @@ function defaultWatchingDirection(): "asc" {
 export function ActiveTradesDropdown({
   snapshot,
   className,
-  headerAction,
   onTradeOpen,
 }: {
   snapshot: ActiveTradesSnapshot
   className?: string
-  headerAction?: React.ReactNode
   onTradeOpen?: () => void
 }) {
   const [tab, setTab] = React.useState<DropdownTab>("active")
@@ -101,7 +99,6 @@ export function ActiveTradesDropdown({
         <DashboardCardTabsHeader
           action={
             <>
-              {headerAction}
               <CountedFilterPopover
                 items={filterItems}
                 groups={[

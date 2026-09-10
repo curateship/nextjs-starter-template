@@ -63,7 +63,6 @@ import {
   ShieldCheckIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
-  SunMoonIcon,
   TagIcon,
   TypeIcon,
   UsersIcon,
@@ -343,7 +342,7 @@ export type ShellSection = {
 
 export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
   "feedback",
-  "theme",
+  "settings",
   "notifications",
 ] as const
 
@@ -402,7 +401,7 @@ export const topRightBuiltInMeta: Record<
   { label: string; icon: LucideIcon }
 > = {
   feedback: { label: "Feedback", icon: MessageSquarePlusIcon },
-  theme: { label: "Theme", icon: SunMoonIcon },
+  settings: { label: "Settings", icon: SettingsIcon },
   notifications: { label: "Notifications", icon: BellIcon },
 }
 
@@ -1159,24 +1158,30 @@ export function normalizeTopRightNavigation(
   for (const raw of items) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue
     const item = raw as Partial<ShellTopRightLink> & { visible?: unknown }
-    if (typeof item.id !== "string" || !item.id || seenIds.has(item.id)) continue
+    if (typeof item.id !== "string" || !item.id) continue
+    // The colour-mode button became the Settings cog, which holds colour mode
+    // and the app's own switches. A row saved as `theme` is that same control
+    // under its old name, so it keeps the place and the on-or-off it was left
+    // in rather than being dropped and added again at the end.
+    const id = item.id === "theme" ? "settings" : item.id
+    if (seenIds.has(id)) continue
 
-    if (builtInIds.has(item.id)) {
-      seenIds.add(item.id)
+    if (builtInIds.has(id)) {
+      seenIds.add(id)
       kept.push({
         type: "builtIn",
-        id: item.id as ShellTopRightNavigationItemId,
+        id: id as ShellTopRightNavigationItemId,
         // Missing reads as shown: hiding is a deliberate saved `false`.
         visible: item.visible !== false,
       })
       continue
     }
 
-    if (appIds.has(item.id)) {
-      seenIds.add(item.id)
+    if (appIds.has(id)) {
+      seenIds.add(id)
       kept.push({
         type: "app",
-        id: item.id,
+        id,
         visible: item.visible !== false,
       })
       continue
@@ -1188,10 +1193,10 @@ export function normalizeTopRightNavigation(
       typeof item.href === "string" &&
       typeof item.icon === "string"
     ) {
-      seenIds.add(item.id)
+      seenIds.add(id)
       kept.push({
         type: "link",
-        id: item.id,
+        id,
         label: item.label,
         href: item.href,
         icon: item.icon,

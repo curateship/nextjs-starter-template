@@ -5,23 +5,19 @@ import type { ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { loadActiveTradesHeader, saveHeaderProfitVisibility } = vi.hoisted(
-  () => ({
-    loadActiveTradesHeader: vi.fn(),
-    saveHeaderProfitVisibility: vi.fn(),
-  })
-)
+import { setHidePnl } from "@/lib/trade/hide-pnl"
+
+const { loadActiveTradesHeader } = vi.hoisted(() => ({
+  loadActiveTradesHeader: vi.fn(),
+}))
 
 vi.mock("@/lib/api/trade/active-trades-header", () => ({
   loadActiveTradesHeader,
-  saveHeaderProfitVisibility,
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
 vi.mock("@/components/trade/active-trades-dropdown", () => ({
-  ActiveTradesDropdown: ({ headerAction }: { headerAction?: ReactNode }) => (
-    <div>{headerAction}</div>
-  ),
+  ActiveTradesDropdown: () => <div />,
 }))
 
 vi.mock("@/components/ui/popover", () => ({
@@ -86,9 +82,8 @@ beforeEach(() => {
       activeTradesUnavailable: [],
       watchingOrders: [],
     },
-    headerProfitVisible: true,
   })
-  saveHeaderProfitVisibility.mockResolvedValue({ saved: true })
+  setHidePnl(false)
 })
 
 afterEach(async () => {
@@ -137,7 +132,7 @@ describe("the Active Trades header", () => {
     expect(host.textContent).toContain("$1,250")
   })
 
-  it("hides and restores the header profit from the eye button", async () => {
+  it("blurs the header profit while the switch is on, keeping its place", async () => {
     await act(async () => root.render(<ActiveTradesHeader role="admin" />))
 
     const trigger = host.querySelector<HTMLButtonElement>(
@@ -146,57 +141,22 @@ describe("the Active Trades header", () => {
     expect(trigger?.textContent).toContain("$1,250")
     expect(trigger?.textContent).toContain("-$42")
 
-    const hide = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Hide header profit and loss"]'
-    )
-    await act(async () => hide?.click())
+    await act(async () => setHidePnl(true))
 
-    expect(trigger?.textContent).toContain("$1,250")
-    expect(trigger?.textContent).not.toContain("-$42")
-    expect(trigger?.getAttribute("aria-label")).toContain(
-      "profit and loss hidden"
-    )
-    expect(saveHeaderProfitVisibility).toHaveBeenCalledWith(false)
-
-    const show = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Show header profit and loss"]'
-    )
-    expect(show?.getAttribute("aria-pressed")).toBe("true")
-    await act(async () => show?.click())
-
+    // Still there and still the same width — frosted, not removed. A figure
+    // that vanished would move the controls beside it every time.
     expect(trigger?.textContent).toContain("-$42")
-    expect(saveHeaderProfitVisibility).toHaveBeenLastCalledWith(true)
+    expect(host.querySelector(".blur-\\[5px\\]")).not.toBeNull()
+
+    await act(async () => setHidePnl(false))
+    expect(host.querySelector(".blur-\\[5px\\]")).toBeNull()
   })
 
-  it("opens with the account's saved hidden choice", async () => {
-    loadActiveTradesHeader.mockResolvedValueOnce({
-      ...(await loadActiveTradesHeader()),
-      headerProfitVisible: false,
-    })
-
+  it("has no eye button of its own any more", async () => {
+    // One switch, in the header's settings cog, for every figure in the app.
     await act(async () => root.render(<ActiveTradesHeader role="admin" />))
-
-    const trigger = host.querySelector<HTMLButtonElement>(
-      "[data-active-trades-header-trigger]"
-    )
-    expect(trigger?.textContent).toContain("$1,250")
-    expect(trigger?.textContent).not.toContain("-$42")
-  })
-
-  it("follows the eye choice restored by a named layout", async () => {
-    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
-
-    await act(async () => {
-      window.dispatchEvent(
-        new CustomEvent("trade-header-profit-visibility", { detail: false })
-      )
-    })
-
-    const trigger = host.querySelector<HTMLButtonElement>(
-      "[data-active-trades-header-trigger]"
-    )
-    expect(trigger?.textContent).toContain("$1,250")
-    expect(trigger?.textContent).not.toContain("-$42")
-    expect(saveHeaderProfitVisibility).not.toHaveBeenCalled()
+    expect(
+      host.querySelector('[aria-label="Hide header profit and loss"]')
+    ).toBeNull()
   })
 })

@@ -1,10 +1,5 @@
 import * as React from "react"
-import {
-  CandlestickChartIcon,
-  EyeIcon,
-  EyeOffIcon,
-  Loader2Icon,
-} from "lucide-react"
+import { CandlestickChartIcon, Loader2Icon } from "lucide-react"
 
 import { ActiveTradesDropdown } from "@/components/trade/active-trades-dropdown"
 import { Button } from "@/components/ui/button"
@@ -13,15 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
-  loadActiveTradesHeader,
-  saveHeaderProfitVisibility,
-} from "@/lib/api/trade/active-trades-header"
+import { loadActiveTradesHeader } from "@/lib/api/trade/active-trades-header"
 import type { AppHeaderActionProps } from "@/lib/app-options"
 import type { ActiveTradesSnapshot } from "@/lib/trade/dashboard/overview"
 import {
@@ -29,12 +16,8 @@ import {
   summarizeActiveTrades,
 } from "@/lib/trade/dashboard/active-trades"
 import { formatWholeUsd } from "@/lib/trade/format"
-import {
-  listenForHeaderProfitVisibility,
-  publishHeaderProfitVisibility,
-} from "@/lib/trade/header-profit-visibility"
+import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
 import { moneyTone } from "@/lib/trade/money-tone"
-import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 const REFRESH_MS = 15_000
@@ -64,23 +47,16 @@ function useActiveTradesHeader() {
     null
   )
   const [failed, setFailed] = React.useState(false)
-  const [profitVisible, setProfitVisible] = React.useState(true)
   const requestRef = React.useRef<Promise<void> | null>(null)
-  const visibilityVersion = React.useRef(0)
-  const writeQueue = React.useRef(Promise.resolve())
 
   const refresh = React.useCallback(() => {
     if (requestRef.current) return requestRef.current
-    const version = visibilityVersion.current
     const request = (async () => {
       try {
         const fresh = await loadActiveTradesHeader()
         setSnapshot((was) =>
           was ? mergeActiveTradesSnapshot(was, fresh.snapshot) : fresh.snapshot
         )
-        if (visibilityVersion.current === version) {
-          setProfitVisible(fresh.headerProfitVisible)
-        }
         setFailed(false)
       } catch {
         setFailed(true)
@@ -91,31 +67,6 @@ function useActiveTradesHeader() {
       if (requestRef.current === request) requestRef.current = null
     })
     return request
-  }, [])
-
-  React.useEffect(
-    () =>
-      listenForHeaderProfitVisibility((visible) => {
-        visibilityVersion.current += 1
-        setProfitVisible(visible)
-      }),
-    []
-  )
-
-  const updateProfitVisibility = React.useCallback((visible: boolean) => {
-    visibilityVersion.current += 1
-    setProfitVisible(visible)
-    publishHeaderProfitVisibility(visible)
-    const pending = writeQueue.current.then(() =>
-      saveHeaderProfitVisibility(visible)
-    )
-    writeQueue.current = pending.then(
-      () => undefined,
-      () => undefined
-    )
-    void pending.catch(() =>
-      showErrorToast("The header profit choice could not be saved. Try again.")
-    )
   }, [])
 
   React.useEffect(() => {
@@ -154,18 +105,12 @@ function useActiveTradesHeader() {
     }
   }, [refresh])
 
-  return {
-    snapshot,
-    failed,
-    refresh,
-    profitVisible,
-    updateProfitVisibility,
-  }
+  return { snapshot, failed, refresh }
 }
 
 function AdminActiveTradesHeader() {
-  const { snapshot, failed, refresh, profitVisible, updateProfitVisibility } =
-    useActiveTradesHeader()
+  const { snapshot, failed, refresh } = useActiveTradesHeader()
+  const hiddenPnl = useHiddenPnlClass()
   const [open, setOpen] = React.useState(false)
   const closeTimer = React.useRef<number | null>(null)
   const hoverOpen = React.useRef(false)
@@ -202,9 +147,7 @@ function AdminActiveTradesHeader() {
   }, [cancelClose, closeSoon, open])
 
   const label = figures
-    ? profitVisible
-      ? `Active trades, ${figures.value} in trades, ${figures.profit} profit and loss`
-      : `Active trades, ${figures.value} in trades, profit and loss hidden`
+    ? `Active trades, ${figures.value} in trades, ${figures.profit} profit and loss`
     : failed
       ? "Active trades could not be read"
       : "Reading active trades"
@@ -241,18 +184,15 @@ function AdminActiveTradesHeader() {
           <span className="font-mono text-xs tabular-nums">
             {figures?.value ?? "—"}
           </span>
-          {profitVisible ? (
-            <span
-              className={cn(
-                "font-mono text-xs font-medium tabular-nums",
-                figures
-                  ? moneyTone(figures.profitValue)
-                  : "text-muted-foreground"
-              )}
-            >
-              {figures?.profit ?? "—"}
-            </span>
-          ) : null}
+          <span
+            className={cn(
+              "font-mono text-xs font-medium tabular-nums",
+              figures ? moneyTone(figures.profitValue) : "text-muted-foreground",
+              hiddenPnl
+            )}
+          >
+            {figures?.profit ?? "—"}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -268,35 +208,6 @@ function AdminActiveTradesHeader() {
             snapshot={snapshot}
             className="[&_[data-slot=table-container]]:w-full [&_table]:w-full"
             onTradeOpen={() => setOpen(false)}
-            headerAction={
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label={
-                      profitVisible
-                        ? "Hide header profit and loss"
-                        : "Show header profit and loss"
-                    }
-                    aria-pressed={!profitVisible}
-                    onClick={() => updateProfitVisibility(!profitVisible)}
-                  >
-                    {profitVisible ? (
-                      <EyeIcon className="size-4" />
-                    ) : (
-                      <EyeOffIcon className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {profitVisible
-                    ? "Hide header profit and loss"
-                    : "Show header profit and loss"}
-                </TooltipContent>
-              </Tooltip>
-            }
           />
         ) : failed ? (
           <div className="flex items-center justify-center p-4 text-center text-sm text-muted-foreground">

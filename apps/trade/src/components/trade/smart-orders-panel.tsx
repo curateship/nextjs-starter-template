@@ -57,6 +57,7 @@ import {
   formatRelativeTime,
   formatTimeAgo,
 } from "@/lib/format/format-time"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -427,14 +428,14 @@ function BotRow({
             </span>
           </span>
           <span className="shrink-0 text-right text-xs tabular-nums">
-            <span
+            <PnlAmount
               className={cn(
                 "block font-medium",
                 bot.tradesClosed > 0 && moneyTone(bot.netUsd)
               )}
             >
               {bot.tradesClosed > 0 ? formatSignedUsd(bot.netUsd) : "—"}
-            </span>
+            </PnlAmount>
             <span className="block text-muted-foreground">
               {working} working
             </span>
@@ -459,14 +460,14 @@ function BotRow({
             <div className="grid gap-3 p-3">
               <div className="flex flex-col gap-1 text-sm">
                 <BotFigureRow label="Made or lost">
-                  <span
+                  <PnlAmount
                     className={cn(
                       "tabular-nums",
                       bot.tradesClosed > 0 && moneyTone(bot.netUsd)
                     )}
                   >
                     {bot.tradesClosed > 0 ? formatSignedUsd(bot.netUsd) : "—"}
-                  </span>
+                  </PnlAmount>
                 </BotFigureRow>
                 <BotFigureRow label="Closed trades">
                   <span className="tabular-nums">{bot.tradesClosed}</span>
@@ -856,11 +857,11 @@ function SmartOrdersView({
                         {openProfit === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
-                          <span
+                          <PnlAmount
                             className={cn("font-medium", moneyTone(openProfit))}
                           >
                             {formatSignedUsd(openProfit)}
-                          </span>
+                          </PnlAmount>
                         )}
                       </TableCell>
                       <TableCell className="px-1 py-2 text-right font-mono text-xs tabular-nums">
@@ -1000,9 +1001,9 @@ function SmartOrderDetailsTooltip({
           ) : null}
           {openProfit === null ? null : (
             <DetailRow label="Open profit">
-              <span className={cn("tabular-nums", moneyTone(openProfit))}>
+              <PnlAmount className={cn("tabular-nums", moneyTone(openProfit))}>
                 {formatSignedUsd(openProfit)}
-              </span>
+              </PnlAmount>
             </DetailRow>
           )}
         </div>

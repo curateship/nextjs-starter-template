@@ -38,6 +38,7 @@ import {
 } from "@/lib/protocols/contracts"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
@@ -779,11 +780,11 @@ function PositionsGlance({
                   <PositionSideBadge position={position} />
                 </span>
                 <span className="text-right">{valueLabel}</span>
-                <span
+                <PnlAmount
                   className={cn("text-right font-medium", moneyTone(profit))}
                 >
                   {profitLabel}
-                </span>
+                </PnlAmount>
               </button>
             )
           })}

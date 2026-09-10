@@ -35,6 +35,8 @@ import {
   parseMarketKey,
   type MarketRow,
 } from "@/lib/protocols/contracts"
+import { PnlAmount } from "@/components/trade/pnl-amount"
+import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
 import {
   formatFeeUsd,
   formatPrice,
@@ -264,6 +266,7 @@ function TotalsFooter<Key extends string>({
   signed?: readonly Key[]
   practiceIncluded: boolean
 }) {
+  const hiddenPnl = useHiddenPnlClass()
   return (
     <tfoot className="sticky bottom-0 z-10">
       <tr className={stickyPanelSectionBarClassName}>
@@ -275,7 +278,7 @@ function TotalsFooter<Key extends string>({
           )
           const value = totals[key]
           return (
-            <Cell key={key} className={cn("font-medium", value != null && signed.includes(key) ? moneyTone(value) : undefined)}>
+            <Cell key={key} className={cn("font-medium", value != null && signed.includes(key) ? moneyTone(value) : undefined, value != null && signed.includes(key) ? hiddenPnl : undefined)}>
               {customCells[key] ?? (value === undefined ? null : value === null ? (
                 <span title="A complete total is unavailable because a row has no value.">—</span>
               ) : signed.includes(key) ? formatSignedUsd(value) : formatUsd(value))}
@@ -292,9 +295,9 @@ function TotalMoney({ value, fee = false }: { value: number | null; fee?: boolea
   return value === null ? (
     <span title="A complete total is unavailable because a row is missing data or has incomplete fees.">—</span>
   ) : (
-    <span className={fee ? "text-muted-foreground" : moneyTone(value)}>
+    <PnlAmount className={fee ? "text-muted-foreground" : moneyTone(value)}>
       {fee ? formatFeeUsd(value) : formatSignedUsd(value)}
-    </span>
+    </PnlAmount>
   )
 }
 
@@ -509,17 +512,17 @@ function PositionRow({
           {/* The target is always the good end and the stop the bad one, so
               these two say which colour they mean rather than asking a helper
               with a made-up figure. */}
-          <span className={MADE_MONEY}>
+          <PnlAmount className={MADE_MONEY}>
             {targetsProfit(position) === null
               ? "—"
               : `${position.targets.length > 1 ? `${position.targets.length} · ` : ""}${formatSignedUsd(targetsProfit(position) ?? 0)}`}
-          </span>
+          </PnlAmount>
           <span className="text-muted-foreground">/</span>
-          <span className={LOST_MONEY}>
+          <PnlAmount className={LOST_MONEY}>
             {position.slPx === null
               ? "—"
               : formatSignedUsd(projectedProfit(position, position.slPx))}
-          </span>
+          </PnlAmount>
         </span>
       </Cell>
       <Cell>
@@ -529,9 +532,9 @@ function PositionRow({
         {ifStopped === null ? (
           <span className="text-muted-foreground">—</span>
         ) : (
-          <span className={cn("font-medium", moneyTone(ifStopped))}>
+          <PnlAmount className={cn("font-medium", moneyTone(ifStopped))}>
             {formatSignedUsd(ifStopped)}
-          </span>
+          </PnlAmount>
         )}
       </Cell>
       <Cell className="text-muted-foreground">
@@ -564,9 +567,9 @@ function PositionRow({
           <span className="text-muted-foreground">—</span>
         ) : (
           <>
-            <span className={cn("font-medium", moneyTone(profit))}>
+            <PnlAmount className={cn("font-medium", moneyTone(profit))}>
               {formatSignedUsd(profit)}
-            </span>{" "}
+            </PnlAmount>{" "}
             {/* The dollars are the answer; the percentage only says whether
                 they were a lot for the money that was in — the same pairing
                 the Journal uses two tables down. */}
@@ -1200,6 +1203,7 @@ export function TradesTable({
   /** No ticks, no bins and no row press — see above. */
   readOnly?: boolean
 }) {
+  const hiddenPnl = useHiddenPnlClass()
   const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
     "opened",
     "desc",
@@ -1348,7 +1352,7 @@ export function TradesTable({
             <Cell>{formatPrice(row.trade.entryPx)}</Cell>
             <Cell>{formatPrice(row.trade.exitPx)}</Cell>
             <Cell>{formatSize(row.trade.sz)}</Cell>
-            <Cell className={moneyTone(row.trade.pnl)}>
+            <Cell className={cn(moneyTone(row.trade.pnl), hiddenPnl)}>
               {formatSignedUsd(row.trade.pnl)}
               {/* The dollars are the answer; the percentage is only there to
                   say whether they were a lot for the money that was in. */}

@@ -46,6 +46,7 @@ import {
   type TradingDashboardWidgetLayout,
   type TradingDashboardWidgetSlot,
 } from "@/lib/trade/dashboard/widgets"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
@@ -405,16 +406,16 @@ function TradeRow({ fill }: { fill: TradingOverviewFill }) {
         {fill.walletLabel}
       </TableCell>
       <TableCell column="meta" className="text-right">
-        <p
+        <PnlAmount
           className={cn(
-            "font-medium tabular-nums",
+            "block font-medium tabular-nums",
             fill.money === null
               ? "text-muted-foreground"
               : moneyTone(fill.money)
           )}
         >
           {fill.money === null ? "—" : formatSignedUsd(fill.money)}
-        </p>
+        </PnlAmount>
         <p className="text-xs text-muted-foreground">
           {fill.sz.toLocaleString()} · fee {formatUsd(fill.fee)}
         </p>

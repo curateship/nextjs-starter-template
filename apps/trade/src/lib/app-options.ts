@@ -91,6 +91,35 @@ export type AppHeaderAction = {
   }>
 }
 
+/** What the shell hands one app-owned row inside the quick settings menu. */
+export type AppQuickSettingProps = { role: string }
+
+/**
+ * One app-owned row in the header's settings menu.
+ *
+ * The menu itself belongs to the shell: the cog, its place in the Top right
+ * menu, the panel and the row spacing are the same on every app. What differs
+ * is which switches sit under colour mode, and that is all this describes.
+ *
+ * The row draws itself, because only the app can read and write its own
+ * setting — Trade's "Hide profit and loss" is kept in Trade's own preferences
+ * and the shell has no business knowing it exists. `QuickSettingSwitch` is the
+ * shared control those rows are built from, so an app supplies the behaviour
+ * and still cannot invent its own look.
+ *
+ * The component sits behind a pointer for the same reason a header action
+ * does: an app reads its own APIs from inside it, and that code has no place
+ * in the bundle of an app with no such row.
+ */
+export type AppQuickSetting = {
+  id: string
+  /** Unset means admins and members may both see it. */
+  roles?: readonly string[]
+  component: () => Promise<{
+    default: ComponentType<AppQuickSettingProps>
+  }>
+}
+
 type HeaderOptions = {
   /** App-owned left navigation. Render the supplied fallback when empty. */
   leftContent?: AppHeaderLeftContent
@@ -99,6 +128,12 @@ type HeaderOptions = {
    * the signed-in header and its settings exactly as they were.
    */
   rightAction?: AppHeaderAction
+  /**
+   * The app's own switches inside the header's settings menu, in the order
+   * they are written. Unset leaves the menu holding colour mode alone, which
+   * is what every app starts with.
+   */
+  quickSettings?: readonly AppQuickSetting[]
 }
 
 /**
@@ -492,6 +527,38 @@ export function appHeaderRightActionForRole(
   const action = appHeaderRightAction(options)
   if (!action || (action.roles && !action.roles.includes(role))) return null
   return action
+}
+
+/**
+ * The app's rows for the header's settings menu, in the order the app wrote
+ * them and filtered to who is looking.
+ *
+ * Two rows sharing an id would draw one of them twice under one key, so that
+ * is said out loud on the first read rather than shipped as a menu that
+ * misbehaves. The role filter is the header action's: a row about somebody's
+ * own screen is for everybody, a row about how the app runs is usually an
+ * admin's, and the app says which by naming roles.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means a menu of colour mode alone.
+ */
+export function appQuickSettingsForRole(
+  role: string,
+  options: AppOptions = appOptions
+): readonly AppQuickSetting[] {
+  const rows = options.header?.quickSettings ?? []
+
+  const seen = new Set<string>()
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      throw new Error(
+        `Two quick settings both call themselves "${row.id}". Each one needs its own id.`
+      )
+    }
+    seen.add(row.id)
+  }
+
+  return rows.filter((row) => !row.roles || row.roles.includes(role))
 }
 
 /**

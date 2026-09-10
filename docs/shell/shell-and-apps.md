@@ -102,6 +102,14 @@ the guess that one might:
   stable id, label, icon and allowed roles put it in the same draggable Top
   right menu settings as the shell controls. Its component loads only when the
   header draws. Unset leaves the header and its settings unchanged.
+- `header.quickSettings` — the app's own switches inside the header's settings
+  cog, in the order the app writes them. The cog, its place in the Top right
+  menu, the panel and the colour-mode pill at the top belong to the shell; each
+  app row is a component behind a pointer, loaded when the menu first opens,
+  and is built from the shared `QuickSettingSwitch` so no app invents its own
+  look. A row names roles when it is not for everybody. Unset leaves the menu
+  holding colour mode alone, which is what the old standalone theme button was.
+  Two rows sharing an id are refused out loud.
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.

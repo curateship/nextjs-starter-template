@@ -30,6 +30,17 @@ export const appOptions: AppOptions = {
       roles: ["admin"],
       component: () => import("@/components/trade/active-trades-header"),
     },
+    /**
+     * One switch, and it is about somebody's own screen rather than about the
+     * app, so a member gets it as well as an admin. It hides every figure
+     * saying what was made or lost, wherever that figure is drawn.
+     */
+    quickSettings: [
+      {
+        id: "hide-pnl",
+        component: () => import("@/components/trade/hide-pnl-setting"),
+      },
+    ],
   },
   settings: {
     /**

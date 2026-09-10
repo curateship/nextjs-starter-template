@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { setHidePnl } from "@/lib/trade/hide-pnl"
 import { DEFAULT_TRADING_RULES } from "@/lib/trade/trading-rules"
 
 const {
@@ -556,10 +557,10 @@ describe("the trade workspace chart full screen", () => {
     expect(host.querySelector('[data-chart-fullscreen="true"]')).toBeNull()
     expect(chartMounts.count).toBe(1)
 
+    // A layout remembers whether profit was on show when it was saved, so the
+    // switch is turned on before saving one.
     await act(async () => {
-      window.dispatchEvent(
-        new CustomEvent("trade-header-profit-visibility", { detail: false })
-      )
+      setHidePnl(true)
       clickButton("Save test layout")
       await Promise.resolve()
     })

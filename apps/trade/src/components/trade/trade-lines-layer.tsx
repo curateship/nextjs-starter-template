@@ -15,6 +15,7 @@ import {
   type TradeOrder,
   type TradePosition,
 } from "@/lib/trade/paper"
+import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 
 /**
@@ -304,6 +305,11 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   onSurface?: (surface: ChartSurface) => void
 }) {
   const [grab, setGrab] = React.useState<Grab | null>(null)
+  // Only the Entry line's figure goes behind frosted glass. It is what the
+  // position is up or down right now — the same number the panels hide. An
+  // Exit or a Stop Loss says what WOULD happen at a price nothing has reached,
+  // so it stays readable: those are the figures somebody drags a line by.
+  const hiddenPnl = useHiddenPnlClass()
 
   React.useEffect(() => {
     onSurface?.(surface)
@@ -871,7 +877,12 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
                   {line.money ? (
                     <>
                       {line.money.before}
-                      <tspan fill={moneyColor(line.money.value, colors, color)}>
+                      <tspan
+                        className={
+                          line.kind === "entry" ? hiddenPnl : undefined
+                        }
+                        fill={moneyColor(line.money.value, colors, color)}
+                      >
                         {line.money.text}
                       </tspan>
                       {line.money.after}

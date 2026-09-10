@@ -4876,7 +4876,7 @@ describe("top right menu", () => {
     ])
 
     expect(normalized).toEqual([
-      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "settings", visible: false },
       { type: "builtIn", id: "feedback", visible: true },
       // Never saved, so it is appended rather than lost.
       { type: "builtIn", id: "notifications", visible: true },
@@ -4905,7 +4905,7 @@ describe("top right menu", () => {
     expect(normalized).toEqual([
       { type: "builtIn", id: "feedback", visible: true },
       link,
-      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "settings", visible: true },
       { type: "builtIn", id: "notifications", visible: true },
     ])
   })
@@ -4914,14 +4914,14 @@ describe("top right menu", () => {
     expect(
       normalizeTopRightNavigation(
         [
-          { id: "theme", visible: true },
+          { id: "settings", visible: true },
           { type: "app", id: "app-status", visible: false },
           { id: "feedback", visible: true },
         ],
         ["app-status"]
       )
     ).toEqual([
-      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "settings", visible: true },
       { type: "app", id: "app-status", visible: false },
       { type: "builtIn", id: "feedback", visible: true },
       { type: "builtIn", id: "notifications", visible: true },
@@ -4939,7 +4939,7 @@ describe("top right menu", () => {
     const testDb = database as unknown as CustomShellDb
 
     const memberMenu = [
-      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "settings", visible: true },
       { type: "builtIn", id: "feedback", visible: false },
       { type: "builtIn", id: "notifications", visible: true },
       {
@@ -4979,7 +4979,7 @@ describe("top right menu", () => {
     // rule the member sidebar follows.
     const allOff = [
       { type: "builtIn", id: "feedback", visible: false },
-      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "settings", visible: false },
       { type: "builtIn", id: "notifications", visible: false },
     ]
     expect(

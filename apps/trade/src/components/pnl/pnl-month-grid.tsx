@@ -22,6 +22,7 @@ import {
   weekdayColumn,
   type DayKey,
 } from "@/lib/trade/pnl/periods"
+import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatSignedUsd, formatWholeUsd } from "@/lib/trade/format"
 import { moneyTone, moneyToneSurface } from "@/lib/trade/money-tone"
 import { walletProfitWindowStart } from "@/lib/trade/wallets"
@@ -77,9 +78,14 @@ export function PnlMonthGrid({
         icon={<CalendarDaysIcon />}
         title={formatMonthAndYear(month.year, month.month)}
         meta={
-          total.trades === 0 && total.unpriced === 0
-            ? "No trades"
-            : `${formatSignedUsd(total.money)} across ${total.trades} ${total.trades === 1 ? "trade" : "trades"}${total.unpriced ? `, ${total.unpriced} unpriced` : ""}`
+          total.trades === 0 && total.unpriced === 0 ? (
+            "No trades"
+          ) : (
+            <>
+              <PnlAmount>{formatSignedUsd(total.money)}</PnlAmount>
+              {` across ${total.trades} ${total.trades === 1 ? "trade" : "trades"}${total.unpriced ? `, ${total.unpriced} unpriced` : ""}`}
+            </>
+          )
         }
         action={
           <span className="flex items-center gap-1">
@@ -179,11 +185,11 @@ function DayTile({
         >
           <span className="font-medium tabular-nums">{number}</span>
           {traded && !quiet ? (
-            <span className={cn("tabular-nums", moneyTone(result.money))}>
+            <PnlAmount className={cn("tabular-nums", moneyTone(result.money))}>
               {result.money === 0 && result.unpriced
                 ? "—"
                 : formatWholeUsd(result.money)}
-            </span>
+            </PnlAmount>
           ) : null}
         </div>
       </TooltipTrigger>
