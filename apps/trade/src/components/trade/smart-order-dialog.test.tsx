@@ -105,7 +105,7 @@ describe("the DCA ladder window", () => {
         </TooltipProvider>
       )
     )
-    expect(host.textContent).toContain("Below last rung")
+    expect(host.textContent).toContain("Stop under last rung")
     expect(host.querySelector("#smart-sl-pct")).not.toBeNull()
     const last = (preview as DcaPreview | null)!.rungs.at(-1)!.px
     await act(async () =>

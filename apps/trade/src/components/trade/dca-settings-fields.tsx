@@ -395,7 +395,7 @@ export function DcaSettingsFields({
         {form.slOn ? (
           <>
             <div className="grid gap-2">
-              <FieldLabel htmlFor={id("sl-reference")}>Measure from</FieldLabel>
+              <FieldLabel htmlFor={id("sl-reference")}>Stop position</FieldLabel>
               <Select
                 value={form.slReference}
                 disabled={busy}
@@ -415,8 +415,8 @@ export function DcaSettingsFields({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="average">Average buy</SelectItem>
-                  <SelectItem value="lastRung">Below last rung</SelectItem>
+                  <SelectItem value="average">Stop under average buy</SelectItem>
+                  <SelectItem value="lastRung">Stop under last rung</SelectItem>
                 </SelectContent>
               </Select>
             </div>

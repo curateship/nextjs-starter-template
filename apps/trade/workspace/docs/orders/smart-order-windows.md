@@ -196,12 +196,13 @@ Placing a ladder sends no order to a live exchange. The venue receives the
 chosen borrowing when the first rung reaches its price, so no exchange has a
 placement-time borrowing setting to change or undo.
 
-## A stop below the last rung
+## Stop under last rung
 
-The DCA Stop loss card has a **Measure from** choice. **Average buy** keeps
-the existing behavior. **Below last rung** measures the percentage below the
-deepest buy rung, including while only the first rung holds coins. A last rung
-at $100 with a 2% stop puts the stop at $98. The percentage must be above zero
+The DCA Stop loss card has a **Stop position** choice. **Stop under average
+buy** keeps the existing behavior. **Stop under last rung** measures the
+percentage below the deepest buy rung, including while only the first rung
+holds coins. A last rung at $100 with a 2% stop puts the stop at $98. The
+percentage must be above zero
 and below 100. This choice does not use the confirmed-base rule.
 
 - **Stop label:** The red label shows the combined dollar loss if every rung
