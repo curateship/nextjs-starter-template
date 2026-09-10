@@ -84,6 +84,12 @@ export const appOptions: AppOptions = {
     ],
   },
   workspaces: {
+    /**
+     * **CMS is the app with several sites**, and the shell now assumes one
+     * unless told otherwise, so this has to be said out loud. Admins have and
+     * switch sites; members have none and reach none.
+     */
+    whoMayHave: "admins",
     siteBranding: true,
     /**
      * This app builds websites, so its containers are sites. The shell says

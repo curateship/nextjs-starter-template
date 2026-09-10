@@ -36,7 +36,11 @@ import type {
 } from "@/lib/api/people/workspaces"
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
-import { capitalise, workspaceWord } from "@/lib/app-options"
+import {
+  capitalise,
+  whoMayHaveWorkspaces,
+  workspaceWord,
+} from "@/lib/app-options"
 import { workspaceListedAddress } from "@/lib/workspaces/addresses"
 
 const subscribeToBrowserOrigin = () => () => {}
@@ -115,9 +119,20 @@ export function WorkspaceSwitcher({
   }
 
   // The name and logo come from the workspace when there is one, and from the
-  // site's own settings when there is not. Only the first case gets a menu.
+  // site's own settings when there is not.
   const brandName = activeWorkspace ? activeWorkspaceName : brand!.name
   const brandFavicon = activeWorkspace ? activeFavicon : brand!.favicon
+
+  /**
+   * Whether there is a menu at all.
+   *
+   * Two ways to have none. An app that is one site says so in its options, and
+   * then nobody switches, admin included — the endpoints refuse it too. And a
+   * member owns no workspace, so their list is empty and there is nothing to
+   * put in a menu. Either way the name and logo above still draw: this block
+   * is who the site is first and a switcher second.
+   */
+  const maySwitch = Boolean(activeWorkspace) && whoMayHaveWorkspaces() !== "off"
 
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false)
@@ -152,14 +167,15 @@ export function WorkspaceSwitcher({
               >
                 <span className="truncate font-medium">{brandName}</span>
                 {/* The address is what tells two sites apart, so it is drawn
-                    only where there are two to tell apart. */}
-                {activeWorkspace ? (
+                    only where there are two to tell apart: not on an app that
+                    is one site, and not for a member who reaches one. */}
+                {maySwitch ? (
                   <span className="truncate text-xs text-muted-foreground">
                     {addressOf(activeWorkspace)}
                   </span>
                 ) : null}
               </Link>
-              {activeWorkspace ? (
+              {maySwitch ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     {/* The shared Button already draws the app's focus ring and

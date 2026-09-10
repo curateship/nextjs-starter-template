@@ -31,7 +31,11 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/people/workspaces"
 import { renderShellIcon } from "@/lib/custom-shell"
-import { capitalise, workspaceWord } from "@/lib/app-options"
+import {
+  capitalise,
+  whoMayHaveWorkspaces,
+  workspaceWord,
+} from "@/lib/app-options"
 
 /**
  * The line under a site's name is **its address**, which is the one thing that
@@ -116,6 +120,15 @@ export function WorkspaceSwitcher({
     }
   }
 
+  /**
+   * Whether there is a menu at all.
+   *
+   * An app that is one site says so in its options, and then nobody switches,
+   * admin included — the endpoints refuse it too. The name and logo above
+   * still draw: this block is who the site is first and a switcher second.
+   */
+  const maySwitch = whoMayHaveWorkspaces() !== "off"
+
   return (
     <>
       <SidebarMenu>
@@ -139,10 +152,15 @@ export function WorkspaceSwitcher({
                 <span className="truncate font-medium">
                   {activeWorkspaceName}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {addressOf(activeWorkspace)}
-                </span>
+                {/* The address is what tells two sites apart, so it is drawn
+                    only where there are two to tell apart. */}
+                {maySwitch ? (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {addressOf(activeWorkspace)}
+                  </span>
+                ) : null}
               </Link>
+              {maySwitch ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {/* The shared Button already draws the app's focus ring and
@@ -221,6 +239,7 @@ export function WorkspaceSwitcher({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              ) : null}
             </div>
           </div>
         </SidebarMenuItem>

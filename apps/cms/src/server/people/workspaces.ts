@@ -586,6 +586,80 @@ export async function startWorkspaceFor(
   })
 }
 
+/**
+ * Put this person in the deployment's ONE site, making it only if there is none.
+ *
+ * This is what `whoMayHave: "off"` uses instead of `startWorkspaceFor`. The
+ * difference is ownership: `startWorkspaceFor` looks for a workspace this
+ * PERSON owns and makes them one when they have none, which is how a
+ * deployment ends up with a row per admin. Here there is one site for
+ * everybody, so the oldest existing workspace is the answer for whoever signs
+ * in, and a new one is made only when the table is empty.
+ *
+ * **Why make one at all.** Everything the shell writes is scoped to a
+ * workspace — announcements, media, contacts, the site's own styling and
+ * sidebar — and `currentWorkspaceId` throws for somebody in none. "Off" means
+ * one site, not no site, so a fresh database still gets its single row on the
+ * first sign-in.
+ *
+ * It is created owned by nobody. With one site there is nobody for it to
+ * belong to, and `workspaces.user_id` is nullable for exactly this reason: a
+ * site outlives whoever happened to sign in first.
+ *
+ * **The pointer is written straight here rather than through
+ * `setCurrentWorkspace`.** That function is the permission check for the
+ * switch endpoint — it refuses a workspace you do not own — and nobody owns
+ * this one. Calling it with its check turned off would weaken the real switch
+ * for the sake of a sign-in that has nothing to choose between. Same as
+ * `pointAtWorkspaceForHost` just above, which writes it directly too.
+ */
+export async function startOnlyWorkspaceFor(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const current = await findCurrentWorkspace(userId, database)
+  if (current) return applyNavigationUpgrade(current, database)
+
+  return database.transaction(async (tx) => {
+    const [oldest] = await tx
+      .select()
+      .from(customShellWorkspaces)
+      .orderBy(asc(customShellWorkspaces.createdAt))
+      .limit(1)
+
+    let workspace = oldest
+    if (!workspace) {
+      const createdAt = now()
+      const id = uuid()
+      const [created] = await tx
+        .insert(customShellWorkspaces)
+        .values({
+          id,
+          userId: null,
+          name: DEFAULT_WORKSPACE_NAME,
+          subdomain: await freeSubdomain(DEFAULT_WORKSPACE_NAME, id, tx),
+          settings: defaultWorkspaceSettings(),
+          createdAt,
+          updatedAt: createdAt,
+        })
+        .returning()
+
+      if (!created) {
+        throw new Error("Workspace was not created")
+      }
+      workspace = created
+      dropWorkspaceCache()
+    }
+
+    await tx
+      .update(customShellUsers)
+      .set({ currentWorkspaceId: workspace.id, updatedAt: now() })
+      .where(eq(customShellUsers.id, userId))
+
+    return applyNavigationUpgrade(workspace, tx)
+  })
+}
+
 /** The workspace switcher's list, already serialized for the browser. */
 export async function readWorkspaceList(
   userId: string,

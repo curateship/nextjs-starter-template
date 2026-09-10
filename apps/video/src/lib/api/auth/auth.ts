@@ -30,7 +30,7 @@ import {
 } from "@/server/people/email-change"
 import { sendAuthEmail } from "@/server/email/send"
 import { enforceDeliverableEmail } from "@/server/email/deliverability"
-import { mayHaveWorkspace } from "@/lib/app-options"
+import { mayHaveWorkspace, whoMayHaveWorkspaces } from "@/lib/app-options"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { googleSignInEnabled } from "@/server/auth/google"
@@ -1045,10 +1045,10 @@ export function serializeUser(user: {
 export async function startWorkspaceFor(
   user: Pick<CustomShellUser, "id" | "role">
 ) {
-  // Whoever this app says may have one — admins by default. Every sign-in used
-  // to make one for everybody, and the shell's own database had seven, all
-  // empty, all called "My project", belonging to people who never see the
-  // switcher. See `0048_custom_shell_workspaces_are_for_admins.sql` and
+  // Whoever this app says may have one. Every sign-in used to make one for
+  // everybody, and the shell's own database had seven, all empty, all called
+  // "My project", belonging to people who never see the switcher. See
+  // `0048_custom_shell_workspaces_are_for_admins.sql` and
   // `workspaces.whoMayHave` in `src/lib/app-options.ts`.
   //
   // The role is compared inside `mayHaveWorkspace` rather than through
@@ -1056,12 +1056,20 @@ export async function startWorkspaceFor(
   // top-level in a file the browser reaches, so importing that module for it
   // pulled `node:crypto` into the client bundle and broke the app on load.
   // Inside a handler it would be stripped; out here it is not.
-  if (!mayHaveWorkspace(user)) return
+  const single = whoMayHaveWorkspaces() === "off"
+  if (!single && !mayHaveWorkspace(user)) return
 
-  const { startWorkspaceFor: start, pointAtWorkspaceForHost } = await import(
-    "@/server/people/workspaces"
-  )
-  await start(user.id)
+  const {
+    startWorkspaceFor: start,
+    startOnlyWorkspaceFor,
+    pointAtWorkspaceForHost,
+  } = await import("@/server/people/workspaces")
+
+  // One site for the whole deployment: everybody signing in is put in it,
+  // admin or member, and it is made only if there is none. Content is scoped
+  // to a workspace everywhere in the shell, so "off" has to mean one rather
+  // than none or the first announcement has nowhere to go.
+  await (single ? startOnlyWorkspaceFor(user.id) : start(user.id))
 
   // Signing in on a workspace's own domain puts you in that workspace. Somebody
   // who went to alpha's address to sign in means to work on alpha, and making

@@ -15,4 +15,13 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  workspaces: {
+    /**
+     * Video is one site and always will be. The shell defaults to this, and
+     * saying it here anyway is worth the line: this file is where somebody
+     * reads what this app is, and a default can change under you.
+     */
+    whoMayHave: "off",
+  },
+}

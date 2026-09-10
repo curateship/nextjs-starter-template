@@ -636,16 +636,16 @@ export function appSettingsTabs(
 /**
  * Who may have a workspace on this app — see `workspaces.whoMayHave` above.
  *
- * Defaults to admins only, which is deliberately *not* what the shell did
- * before this option existed. The reason is written on the option itself.
+ * Defaults to off: one site, and an app with several says so. The reason is
+ * written on the option itself.
  *
  * The argument is only ever passed by the tests, so the check that an unset
- * option still means "admins" keeps working inside an app that has set it.
+ * option still means "off" keeps working inside an app that has set it.
  */
 export function whoMayHaveWorkspaces(
   options: AppOptions = appOptions
 ): WhoMayHaveWorkspaces {
-  return options.workspaces?.whoMayHave ?? "admins"
+  return options.workspaces?.whoMayHave ?? "off"
 }
 
 /** Whether this person may have a workspace at all, on this app. */

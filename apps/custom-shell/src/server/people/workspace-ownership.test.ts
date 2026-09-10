@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { startWorkspaceFor as startWorkspaceOnSignIn } from "@/lib/api/auth/auth"
+import { mayHaveWorkspace, whoMayHaveWorkspaces } from "@/lib/app-options"
 import { now, uuid } from "@/server/auth/security"
 import {
   deleteUserWorkspace,
@@ -58,7 +59,88 @@ async function addContact(workspaceId: string) {
   })
 }
 
-describe("workspaces are for admins", () => {
+/**
+ * What sign-in does depends on what THIS app says in `src/app/options.ts`, and
+ * this file is copied into every app built on the shell — so it asks the same
+ * question the code does and runs the block that describes the app it is in.
+ * One file, true everywhere, rather than a forked copy per app.
+ */
+const workspaceMode = whoMayHaveWorkspaces()
+
+describe.runIf(workspaceMode === "off")("one site for the whole deployment", () => {
+  async function allWorkspaces() {
+    return database.select().from(customShellWorkspaces)
+  }
+
+  it("makes exactly one when the first person signs in, owned by nobody", async () => {
+    // Every sign-in used to make one for everybody, and the shell's own
+    // database collected seven empty rows called "My project". One site has
+    // nobody to belong to, so it is left unowned and outlives whoever arrived
+    // first.
+    const admin = await insertUser(database, { role: "admin" })
+    await startWorkspaceOnSignIn(admin)
+
+    const rows = await allWorkspaces()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.userId).toBeNull()
+  })
+
+  it("puts everybody after them in that same one", async () => {
+    const admin = await insertUser(database, { role: "admin" })
+    await startWorkspaceOnSignIn(admin)
+    const [site] = await allWorkspaces()
+
+    const second = await insertUser(database, { role: "admin" })
+    const member = await insertUser(database, { role: "member" })
+    await startWorkspaceOnSignIn(second)
+    await startWorkspaceOnSignIn(member)
+
+    expect(await allWorkspaces()).toHaveLength(1)
+    for (const person of [admin, second, member]) {
+      const [row] = await database
+        .select({ current: customShellUsers.currentWorkspaceId })
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, person.id))
+      expect(row!.current).toBe(site!.id)
+    }
+  })
+
+  it("puts a member in it too, so their writes have somewhere to go", async () => {
+    // Content is scoped to a workspace throughout the shell, and
+    // `currentWorkspaceId` throws for somebody in none. Off means one, never
+    // none.
+    const member = await insertUser(database, { role: "member" })
+    await startWorkspaceOnSignIn(member)
+
+    const rows = await allWorkspaces()
+    expect(rows).toHaveLength(1)
+    const [row] = await database
+      .select({ current: customShellUsers.currentWorkspaceId })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+    expect(row!.current).toBe(rows[0]!.id)
+  })
+
+  it("signing in again adds nothing", async () => {
+    const admin = await insertUser(database, { role: "admin" })
+    await startWorkspaceOnSignIn(admin)
+    await startWorkspaceOnSignIn(admin)
+    await startWorkspaceOnSignIn(admin)
+
+    expect(await allWorkspaces()).toHaveLength(1)
+  })
+
+  it("still refuses everybody the endpoints that make a second", async () => {
+    // Hiding the switcher while leaving the door open is worse than either.
+    const admin = await insertUser(database, { role: "admin" })
+    expect(mayHaveWorkspace(admin)).toBe(false)
+    expect(mayHaveWorkspace(await insertUser(database, { role: "member" }))).toBe(
+      false
+    )
+  })
+})
+
+describe.runIf(workspaceMode === "admins")("a site per admin", () => {
   it("makes none when a member signs in", async () => {
     // Every sign-in used to make one for everybody. A member never sees the
     // switcher, so seven empty ones sat in the shell's own database unnoticed.

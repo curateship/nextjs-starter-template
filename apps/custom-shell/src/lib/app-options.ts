@@ -220,23 +220,36 @@ type WorkspaceOptions = {
   /**
    * Who may have a workspace at all.
    *
-   * - **`"off"`** — nobody. No switcher is drawn and a second workspace is
-   *   refused. For an app that is one site and always will be, like Trade and
-   *   Video. Hiding the control while leaving the door open is worse than
-   *   either, which is why this closes the door too.
-   * - **`"admins"`** — the default. Admins have and switch sites; members have
-   *   none and reach none. What this shell and cms want.
+   * **This is a decision the app makes in code, not a switch an admin flips.**
+   * "This app is one site" is a fact about the app rather than a preference
+   * that changes on a Tuesday, and there is nowhere honest to save it as a
+   * setting: settings are saved per workspace, so a per-workspace switch
+   * governing how many workspaces you may have is circular.
+   *
+   * - **`"off"`** — the default. One site for the whole deployment, and
+   *   everybody signing in is put in it. No switcher is drawn, the
+   *   `/workspaces` page refuses, and every create, copy, delete and switch
+   *   call is refused for everybody including admins. Hiding the control while
+   *   leaving the door open is worse than either, which is why this closes the
+   *   door too.
+   * - **`"admins"`** — admins have and switch sites; members have none and
+   *   reach none. What CMS wants, and it says so.
    * - **`"everyone"`** — an app that genuinely gives each member a workspace of
    *   their own says so deliberately.
    *
-   * **This is the one option whose default is not today's behaviour, and that
-   * is a decision rather than an oversight.** Today every signed-in person was
-   * given a workspace on sign-in and every workspace endpoint was open to any
-   * member, so a member could make and delete workspaces on any app built on
-   * this shell. Nobody noticed because members are never shown the switcher.
-   * Defaulting to `"everyone"` would keep that door open to satisfy a
-   * convention about defaults, and no app can tell the difference because no
-   * app ever showed members the control.
+   * **`"off"` still means exactly one workspace, never none.** Content is
+   * scoped to a workspace throughout the shell — announcements, media,
+   * contacts, the site's own styling and sidebar — and a deployment with no
+   * workspace at all cannot write any of it. So sign-in still puts a person in
+   * the deployment's single site, and creates that site only when none exists
+   * yet. It is created owned by nobody, because with one site there is nobody
+   * for it to belong to.
+   *
+   * **The default was `"admins"` until 10 Sep 2026.** Before this option
+   * existed every signed-in person was given a workspace on sign-in and every
+   * workspace endpoint was open to any member, so the shell's own database
+   * collected seven empty rows called "My project" and Trade collected four.
+   * Multi-site is the exception, so the exception is the thing an app types.
    */
   whoMayHave?: WhoMayHaveWorkspaces
 }
@@ -703,16 +716,16 @@ export function appSettingsTabs(
 /**
  * Who may have a workspace on this app — see `workspaces.whoMayHave` above.
  *
- * Defaults to admins only, which is deliberately *not* what the shell did
- * before this option existed. The reason is written on the option itself.
+ * Defaults to off: one site, and an app with several says so. The reason is
+ * written on the option itself.
  *
  * The argument is only ever passed by the tests, so the check that an unset
- * option still means "admins" keeps working inside an app that has set it.
+ * option still means "off" keeps working inside an app that has set it.
  */
 export function whoMayHaveWorkspaces(
   options: AppOptions = appOptions
 ): WhoMayHaveWorkspaces {
-  return options.workspaces?.whoMayHave ?? "admins"
+  return options.workspaces?.whoMayHave ?? "off"
 }
 
 /** Whether this person may have a workspace at all, on this app. */

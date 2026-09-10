@@ -213,12 +213,22 @@ describe("who may have a workspace", () => {
   const admin = { role: "admin" }
   const member = { role: "member" }
 
-  it("means admins when the app has not said otherwise", () => {
-    // The one option whose default is deliberately **not** what the shell did
-    // before it existed — the old answer was everybody, and that was the hole.
-    expect(whoMayHaveWorkspaces({})).toBe("admins")
-    expect(mayHaveWorkspace(admin, {})).toBe(true)
+  it("means one site when the app has not said otherwise", () => {
+    // Multi-site is the exception, so the exception is what an app types. An
+    // app that says nothing gets one site and nobody may add a second — not
+    // even an admin, which is the half that stops a deployment collecting a
+    // row per person.
+    expect(whoMayHaveWorkspaces({})).toBe("off")
+    expect(mayHaveWorkspace(admin, {})).toBe(false)
     expect(mayHaveWorkspace(member, {})).toBe(false)
+  })
+
+  it("gives admins sites when an app asks for that, and members none", () => {
+    const admins = { workspaces: { whoMayHave: "admins" as const } }
+
+    expect(whoMayHaveWorkspaces(admins)).toBe("admins")
+    expect(mayHaveWorkspace(admin, admins)).toBe(true)
+    expect(mayHaveWorkspace(member, admins)).toBe(false)
   })
 
   it("closes the door on everybody when an app is one site", () => {
