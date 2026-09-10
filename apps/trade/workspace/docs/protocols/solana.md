@@ -18,7 +18,7 @@ something, it says so, so nobody reads a promise as a feature.
   Solana perpetuals venues because each has a short market list. Every
   leverage or margin control reads as "cannot" on a Solana market, with that
   reason.
-- **Its page is `/admin/solana`**, the same workspace every exchange gets,
+- **Its page is `/protocols/solana`**, the same workspace every exchange gets,
   with the market list Jupiter knows: every verified coin plus the day's most
   traded, tokenised stocks included. Without a Jupiter key it opens with an
   empty list and one sentence saying why (see "Before the key is set").

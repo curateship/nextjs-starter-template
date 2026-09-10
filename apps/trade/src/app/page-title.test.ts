@@ -8,7 +8,7 @@ import {
 
 const matches = [
   { routeId: "__root__", loaderData: { appName: "Trade" } },
-  { routeId: "/_authenticated/admin/hyper-liquid" },
+  { routeId: "/_authenticated/protocols/hyper-liquid" },
 ]
 
 describe("trade page titles", () => {

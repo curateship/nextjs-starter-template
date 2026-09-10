@@ -30,7 +30,7 @@ even, and its fee is still a real loss.
 
 The rules this machinery must add up to are stated once, in
 `../rules/trading-rules.md` — that file outranks both this doc and the code. The
-request budget this all has to live inside is `../exchanges/hyperliquid-rate-limits.md`.
+request budget this all has to live inside is `../protocols/hyperliquid-rate-limits.md`.
 
 The code lives in `src/server/trade/wallets.ts` (`loadWalletSummaries`, the
 sweep), each exchange folder's `account.ts`,
@@ -180,7 +180,7 @@ missed read. No venue is in that state today; Solana was until 4 Sep 2026.
 more row, "SOL for fees", with the SOL balance, and an amber sentence above
 the figures when that balance is under 0.02 SOL, the working cost of twenty
 transactions. The registry's figures carry it as `feeCoin`; a venue that
-pays fees out of its cash balance has no such row. `../exchanges/solana.md`
+pays fees out of its cash balance has no such row. `../protocols/solana.md`
 has the rule and the numbers.
 
 An account setting Trade cannot read is not a short outage either. Aster's
@@ -215,7 +215,7 @@ Two more are asked for, and neither on every read:
   them**, so only those accounts pay for them. A classic account used to read
   them on every poll and throw the answer away.
 
-`../exchanges/hyperliquid-rate-limits.md` has the before-and-after figures, counted.
+`../protocols/hyperliquid-rate-limits.md` has the before-and-after figures, counted.
 
 A practice wallet costs nothing per wallet. The engine settles them together
 and asks the exchange once for every market they are collectively in — see

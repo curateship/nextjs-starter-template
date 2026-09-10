@@ -278,4 +278,4 @@ working bar streams beside it.
   refresh for any venue that does publish a socket, so a future dashboard
   cannot quietly start polling one. A hidden tab asks nothing, and a refused
   or failed turn leaves the figures already on screen rather than blanking
-  them. `../exchanges/solana.md` has the arithmetic.
+  them. `../protocols/solana.md` has the arithmetic.

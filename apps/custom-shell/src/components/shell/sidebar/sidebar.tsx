@@ -178,6 +178,15 @@ export function AppSidebar({
             workspaces={workspaces}
             baseDomain={baseDomain}
             copyChoices={copyChoices}
+            // A member owns no workspace, so the LIST reaches them empty and
+            // the switcher has nothing to name. The config names the site
+            // either way — `readShellSettings` answers it for the request, not
+            // only for somebody who owns a workspace — so this is what fills
+            // the header in, with no chevron beside it.
+            brand={{
+              name: config.workspaceName,
+              favicon: config.workspaceFavicon,
+            }}
           />
         )}
       </SidebarHeader>

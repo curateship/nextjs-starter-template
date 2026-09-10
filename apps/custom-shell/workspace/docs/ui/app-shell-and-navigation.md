@@ -16,6 +16,42 @@ The shell also applies the active workspace's:
 The browser title and favicon are app-wide. The same favicon set is present on
 signed-in and public pages, with an optional dark-tab image.
 
+## Who the sidebar says this site is
+
+The top of the sidebar names the site and shows its logo, for everybody.
+
+An admin gets a chevron beside the name that opens the list of sites they may
+switch between. **A member gets the name and the logo and no chevron**, because
+a member may not change site. Clicking either the logo or the name goes home,
+for both.
+
+The address under the name is drawn only for an admin. It is there to tell two
+sites apart, and a member has only the one.
+
+The header used to render nothing at all for a member. The workspace list is
+the sites a person may switch to, a member owns none, so their list arrived
+empty and there was nothing to name. The name and logo now come from the shell
+config instead of from that list, and the config answers for everybody — see
+below. With no site on the deployment at all, the header is drawn as nothing
+rather than as an empty box.
+
+## Whose settings a page is drawn with
+
+Everything a site decides about itself is saved on its workspace row: the
+content gutter and card borders from Settings → Styling, the name, the logo,
+the sidebar width.
+
+**The site being looked at decides, not who owns a site.** `readShellSettings`
+asks for the workspace the person is IN first, so an admin who picked Beta in
+the switcher while sitting on Alpha's domain gets Beta. A member is in no
+workspace, so it falls back to the workspace this REQUEST belongs to, which is
+the same row the admin edits.
+
+Without that fallback a member was handed the built-in defaults, and the same
+page was spaced two different ways depending on who opened it: a gutter saved
+at 6px drew at 6px for an admin and 14px for a member, and the site's logo and
+name were missing from their sidebar entirely.
+
 Navigation comes from the shell catalog plus app options. The server removes
 items the current role may not see, then the browser applies saved labels, order,
 groups, and visibility. Route loaders and server functions still enforce access.

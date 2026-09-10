@@ -4,7 +4,7 @@ BNB Chain lists priced coins, draws charts and supports adding and making
 wallets. Wallet cards read holdings. KyberSwap buys and sells use USDT, with BNB
 reserved for network fees.
 
-- **Where to open it:** `/admin/bnb` uses the shared exchange page and wallet
+- **Where to open it:** `/protocols/bnb` uses the shared exchange page and wallet
   controls. BNB Chain appears in the protocol list. The sidebar link is managed
   in Settings and is not added by code.
 - **Wallet rule:** keep in this wallet only what you mean to trade. The private
@@ -42,7 +42,7 @@ Wallet generation follows the existing viem library's
 
 ## Testing road map
 
-1. Open `/admin/bnb` on the running Trade app. Expect BNB Chain and the wallet
+1. Open `/protocols/bnb` on the running Trade app. Expect BNB Chain and the wallet
    control, with priced markets and Buy and Sell controls.
 2. Open Add wallet, select Real and make an unfunded wallet. Expect its address
    with Copy, and no displayed private key. Close the window and reload.
@@ -140,9 +140,9 @@ Provider references are the [DexScreener API](https://docs.dexscreener.com/api/r
   cases explicitly modify those saved shapes; they are not claimed as live
   scam detections. Rotation and request ceilings use a controlled clock.
 
-To repeat the market check, open `/admin/bnb` and choose a market. If the saved
+To repeat the market check, open `/protocols/bnb` and choose a market. If the saved
 layout hides the list, open
-`/admin/bnb?market=bnb%3Amainnet%3A0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82`.
+`/protocols/bnb?market=bnb%3Amainnet%3A0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82`.
 Use the market-name picker to sort and search. Enter a name absent from the
 filtered list and press Find. Expect separate address-based results and
 Unverified or Suspicious badges where applicable. Select a result and open its

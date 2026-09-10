@@ -2,7 +2,7 @@
  * Dukascopy's instrument list, copied from dukascopy-node 1.50.0 on 2 Sep 2026.
  *
  * Generated. Do not edit by hand: re-run the generator noted in
- * workspace/docs/exchanges/dukascopy.md against the package's
+ * workspace/docs/protocols/dukascopy.md against the package's
  * src/utils/instrument-meta-data/generated/instrument-meta-data.json.
  *
  * Only the instruments this app can map a venue market to carry a full entry:

@@ -133,7 +133,7 @@ describe("where a trade notice leads", () => {
         (await tradeSoundEventsAfter(userId, sounds.cursor)).events
       ).toEqual([])
       expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({
-        [noticeId]: "/admin/kucoin?market=kucoin%3Amainnet%3ASUSHIUSDTM",
+        [noticeId]: "/protocols/kucoin?market=kucoin%3Amainnet%3ASUSHIUSDTM",
       })
 
       await Promise.all([
@@ -189,13 +189,13 @@ describe("where a trade notice leads", () => {
       title: "Bought $500 of ETH at $90 (Main)",
       body: "The order filled on the exchange.",
       level: "info",
-      href: "/admin/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
       database,
     })
 
     const [noticeId] = await noticeIdsOf(userId)
     expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({
-      [noticeId]: "/admin/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      [noticeId]: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
     })
   })
 
@@ -224,7 +224,7 @@ describe("where a trade notice leads", () => {
       title: "Stop hit on ETH: sold at $80 (Their wallet)",
       body: "The stop order fired and closed the position.",
       level: "warning",
-      href: "/admin/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
       database,
     })
 
@@ -298,7 +298,7 @@ describe("where a trade notice leads", () => {
     expect(ids).toHaveLength(1)
     // The practice network, not the real one wearing the same coin's name.
     expect(await tradeNoticeLinksFor(user.id, ids)).toEqual({
-      [ids[0]]: "/admin/aster?market=aster%3Atestnet%3ABTCUSDT",
+      [ids[0]]: "/protocols/aster?market=aster%3Atestnet%3ABTCUSDT",
     })
   })
 

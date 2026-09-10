@@ -1,4 +1,4 @@
-import { asc } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { findCurrentWorkspaceId } from "@/server/people/workspaces"
@@ -104,4 +104,30 @@ export async function visitorWorkspaceId(
   if (answer.kind === "unknown") return null
 
   return onlyWorkspaceId(database)
+}
+
+/**
+ * The whole workspace row this request belongs to, or null when the deployment
+ * has no site at all.
+ *
+ * Everything a site decides about itself — its styling, its name, its logo,
+ * its sidebar width — is saved on this row. An admin owns theirs, so reads
+ * that ask "the workspace this PERSON is in" find it. A member owns none, and
+ * those reads come back empty and hand them the built-in defaults instead of
+ * the site's own choices. This asks the question that has an answer for both.
+ */
+export async function workspaceRowForRequest(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const workspaceId = await findWorkspaceIdForRequest(userId, database)
+  if (!workspaceId) return null
+
+  const [row] = await database
+    .select()
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+
+  return row ?? null
 }

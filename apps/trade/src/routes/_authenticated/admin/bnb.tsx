@@ -1,10 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { mainnetExchangeRoute } from "@/components/trade/exchange-page"
-import type { ProtocolId } from "@/lib/protocols/contracts"
+import { readMarketSearch } from "@/lib/trade/trade-network"
 
-const PROTOCOL: ProtocolId = "bnb"
-
-export const Route = createFileRoute("/_authenticated/admin/bnb")(
-  mainnetExchangeRoute({ protocol: PROTOCOL, label: "BNB Chain" })
-)
+/**
+ * The old address of the BNB Chain dashboard, kept as a redirect.
+ *
+ * The protocol screens moved out from under `/admin` so that a member can
+ * open one at all. Saved links, the browser's memory, and notices already
+ * written into `trade_notice_links` with the old address all still land on
+ * the right coin, because the search params ride along.
+ */
+export const Route = createFileRoute("/_authenticated/admin/bnb")({
+  validateSearch: readMarketSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/protocols/bnb", search, replace: true })
+  },
+})

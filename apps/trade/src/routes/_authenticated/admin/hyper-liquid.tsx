@@ -1,18 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { practiceExchangeRoute } from "@/components/trade/exchange-page"
-import type { ProtocolId } from "@/lib/protocols/contracts"
+import { readTradeSearch } from "@/lib/trade/trade-network"
 
 /**
- * The Hyperliquid dashboard — the shared exchange page at its own address.
- * The one thing that makes it Hyperliquid's is the constant below, held as
- * DATA; the page body lives in `@/components/trade/exchange-page`.
+ * The old address of the Hyperliquid dashboard, kept as a redirect.
  *
- * Hyperliquid still runs a practice network, so `?network=testnet` is
- * honoured here.
+ * The protocol screens moved out from under `/admin` so that a member can
+ * open one at all. Saved links, the browser's memory, and notices already
+ * written into `trade_notice_links` with the old address all still land on
+ * the right coin, because the search params ride along.
  */
-const PROTOCOL: ProtocolId = "hyperliquid"
-
-export const Route = createFileRoute("/_authenticated/admin/hyper-liquid")(
-  practiceExchangeRoute({ protocol: PROTOCOL, label: "Hyperliquid" })
-)
+export const Route = createFileRoute("/_authenticated/admin/hyper-liquid")({
+  validateSearch: readTradeSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/protocols/hyper-liquid", search, replace: true })
+  },
+})

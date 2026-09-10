@@ -51,10 +51,22 @@ function createStore() {
       version += 1
       publish({ ...state, quotes: withoutPrices(state.quotes) })
     },
+    /**
+     * A refresh LEAVES THE FIGURES ON SCREEN while it waits.
+     *
+     * It used to blank them the moment a read started, so every fifteen
+     * seconds each chip lost its percentage, shrank to the width of a dash,
+     * and grew back when the answer landed. The row jumped on a clock. The
+     * number a chip shows is at most fifteen seconds old either way, and a
+     * reader cannot tell a blank from a dead market — so the old figure
+     * stays until a new one replaces it.
+     *
+     * A read that FAILS still blanks them, because that is the case where
+     * the age of the number is genuinely unknown.
+     */
     async refresh() {
       if (state.busy) return
       const readingVersion = ++version
-      publish({ ...state, quotes: withoutPrices(state.quotes) })
       try {
         const answer = await loadHeaderPinnedMarkets()
         if (version === readingVersion)

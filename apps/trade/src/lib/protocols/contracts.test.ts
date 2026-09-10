@@ -10,11 +10,11 @@ import {
 describe("market keys", () => {
   it("opens a supported market on its protocol chart", () => {
     expect(marketChartHref("kucoin:mainnet:SOLUSDTM")).toBe(
-      "/admin/kucoin?market=kucoin%3Amainnet%3ASOLUSDTM"
+      "/protocols/kucoin?market=kucoin%3Amainnet%3ASOLUSDTM"
     )
     expect(marketChartHref("binance:mainnet:BTCUSDT")).toBeNull()
     expect(marketChartHref("aster:testnet:BTCUSDT")).toBe(
-      "/admin/aster?market=aster%3Atestnet%3ABTCUSDT"
+      "/protocols/aster?market=aster%3Atestnet%3ABTCUSDT"
     )
   })
 

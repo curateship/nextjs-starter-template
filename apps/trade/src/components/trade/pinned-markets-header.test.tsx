@@ -106,15 +106,20 @@ describe("header market pins", () => {
     expect(host.querySelector('a[aria-label^="Open BTC"]')).toBeNull()
     expect(host.textContent).toContain("Home")
   })
-  it("shows Home with no pins, pins from the chart and unpins from the header", async () => {
+  it("keeps the normal navigation beside the pins, and pins and unpins", async () => {
     await mount()
     expect(host.textContent).toContain("Home")
     await click("Pin to header")
-    expect(host.textContent).not.toContain("Home")
-    expect(host.textContent).toContain("$61,240")
+    // A pin is ADDED to the header, it does not take the section's links out
+    // of it. Both are there at once.
+    expect(host.textContent).toContain("Home")
+    // The chip carries the day's change and no price; the price is left to
+    // the tooltip, which is not rendered until it opens.
+    expect(host.textContent).toContain("+1.20%")
+    expect(host.textContent).not.toContain("$61,240")
     expect(
       host.querySelector('a[aria-label^="Open BTC"]')?.getAttribute("href")
-    ).toBe("/admin/hyper-liquid?market=hyperliquid%3Amainnet%3ABTC")
+    ).toBe("/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3ABTC")
     expect(
       host
         .querySelector('[aria-label="Unpin from header"]')
@@ -122,6 +127,7 @@ describe("header market pins", () => {
     ).toBe("true")
     await click("Unpin BTC, hyperliquid, mainnet from header")
     expect(host.textContent).toContain("Home")
+    expect(host.textContent).not.toContain("+1.20%")
   })
   it("names five existing pins when a sixth is attempted without saving", async () => {
     pins = ["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key)
@@ -132,14 +138,14 @@ describe("header market pins", () => {
       expect.stringContaining("BTC, ETH, SOL, DOGE, AVAX")
     )
   })
-  it("replaces failed prices with dashes and stops polling while hidden", async () => {
+  it("replaces a failed figure with a dash and stops polling while hidden", async () => {
     pins = [key("BTC")]
     await mount()
     api.load.mockRejectedValue(new Error("offline"))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15000)
     })
-    expect(host.textContent).not.toContain("$61,240")
+    expect(host.textContent).not.toContain("+1.20%")
     expect(host.textContent).toContain("—")
     const reads = api.load.mock.calls.length
     Object.defineProperty(document, "visibilityState", {
@@ -159,7 +165,34 @@ describe("header market pins", () => {
     await act(async () => {
       document.dispatchEvent(new Event("visibilitychange"))
     })
-    expect(host.textContent).toContain("$61,240")
+    expect(host.textContent).toContain("+1.20%")
+  })
+
+  it("keeps the percentage on screen while the next read is in flight", async () => {
+    pins = [key("BTC")]
+    await mount()
+    expect(host.textContent).toContain("+1.20%")
+    // A read that has left but not landed. The chip must still show the
+    // figure it had: blanking it here is what made the row shrink and jump
+    // every fifteen seconds.
+    let finish!: (value: ReturnType<typeof snapshot>) => void
+    api.load.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000)
+    })
+    expect(api.load).toHaveBeenCalledTimes(2)
+    expect(host.textContent).toContain("+1.20%")
+    expect(host.textContent).not.toContain("—")
+
+    const next = snapshot()
+    next.quotes[0].change24h = -0.034
+    await act(async () => {
+      finish(next)
+    })
+    expect(host.textContent).toContain("-3.40%")
+    expect(host.textContent).not.toContain("+1.20%")
   })
   it("picks up pins changed by another browser on the next refresh", async () => {
     pins = [key("BTC")]

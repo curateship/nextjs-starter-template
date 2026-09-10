@@ -1,7 +1,10 @@
 # The Trade workspace
 
-Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
-`/admin/kucoin`, `/admin/aster`, and `/admin/lighter`.
+Four areas on each protocol screen, at `/protocols/hyper-liquid`,
+`/protocols/phemex`, `/protocols/kucoin`, `/protocols/aster`,
+`/protocols/lighter`, `/protocols/solana` and `/protocols/bnb`. A member opens
+these as well as an admin, and sees only their own wallets and orders there —
+`who-can-open-a-protocol-screen.md` says who gets what.
 
 ```
 ┌────────────┬─────────────────────┬────────────┐

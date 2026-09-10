@@ -160,7 +160,7 @@ line, then no repeated price requests while the socket is healthy.
 Looking every second is only safe if a look is nearly free. Hyperliquid allows
 1,200 request-weight a minute per machine and answers `429` to everything once
 that is gone, which took the app down for a full day on 13 August 2026.
-`../exchanges/hyperliquid-rate-limits.md` has the whole budget.
+`../protocols/hyperliquid-rate-limits.md` has the whole budget.
 
 **Every second, because these decide whether a level fires:** the price, what
 the wallet holds, and what is resting on the exchange. Prices already arrive on

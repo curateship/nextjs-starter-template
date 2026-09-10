@@ -72,6 +72,13 @@ import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as AuthenticatedFlowRunsRunIdRouteImport } from './routes/_authenticated/flow-runs_.$runId'
+import { Route as AuthenticatedProtocolsAsterRouteImport } from './routes/_authenticated/protocols/aster'
+import { Route as AuthenticatedProtocolsBnbRouteImport } from './routes/_authenticated/protocols/bnb'
+import { Route as AuthenticatedProtocolsHyperLiquidRouteImport } from './routes/_authenticated/protocols/hyper-liquid'
+import { Route as AuthenticatedProtocolsKucoinRouteImport } from './routes/_authenticated/protocols/kucoin'
+import { Route as AuthenticatedProtocolsLighterRouteImport } from './routes/_authenticated/protocols/lighter'
+import { Route as AuthenticatedProtocolsPhemexRouteImport } from './routes/_authenticated/protocols/phemex'
+import { Route as AuthenticatedProtocolsSolanaRouteImport } from './routes/_authenticated/protocols/solana'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -433,6 +440,48 @@ const AuthenticatedFlowRunsRunIdRoute =
     path: '/flow-runs/$runId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProtocolsAsterRoute =
+  AuthenticatedProtocolsAsterRouteImport.update({
+    id: '/protocols/aster',
+    path: '/protocols/aster',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProtocolsBnbRoute =
+  AuthenticatedProtocolsBnbRouteImport.update({
+    id: '/protocols/bnb',
+    path: '/protocols/bnb',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProtocolsHyperLiquidRoute =
+  AuthenticatedProtocolsHyperLiquidRouteImport.update({
+    id: '/protocols/hyper-liquid',
+    path: '/protocols/hyper-liquid',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProtocolsKucoinRoute =
+  AuthenticatedProtocolsKucoinRouteImport.update({
+    id: '/protocols/kucoin',
+    path: '/protocols/kucoin',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProtocolsLighterRoute =
+  AuthenticatedProtocolsLighterRouteImport.update({
+    id: '/protocols/lighter',
+    path: '/protocols/lighter',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProtocolsPhemexRoute =
+  AuthenticatedProtocolsPhemexRouteImport.update({
+    id: '/protocols/phemex',
+    path: '/protocols/phemex',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProtocolsSolanaRoute =
+  AuthenticatedProtocolsSolanaRouteImport.update({
+    id: '/protocols/solana',
+    path: '/protocols/solana',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -603,6 +652,13 @@ export interface FileRoutesByFullPath {
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
+  '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
+  '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
+  '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
+  '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
+  '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
+  '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
+  '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -684,6 +740,13 @@ export interface FileRoutesByTo {
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
+  '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
+  '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
+  '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
+  '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
+  '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
+  '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
+  '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -769,6 +832,13 @@ export interface FileRoutesById {
   '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_authenticated/flow-runs_/$runId': typeof AuthenticatedFlowRunsRunIdRoute
+  '/_authenticated/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
+  '/_authenticated/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
+  '/_authenticated/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
+  '/_authenticated/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
+  '/_authenticated/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
+  '/_authenticated/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
+  '/_authenticated/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -854,6 +924,13 @@ export interface FileRouteTypes {
     | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/flow-runs/$runId'
+    | '/protocols/aster'
+    | '/protocols/bnb'
+    | '/protocols/hyper-liquid'
+    | '/protocols/kucoin'
+    | '/protocols/lighter'
+    | '/protocols/phemex'
+    | '/protocols/solana'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -935,6 +1012,13 @@ export interface FileRouteTypes {
     | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/flow-runs/$runId'
+    | '/protocols/aster'
+    | '/protocols/bnb'
+    | '/protocols/hyper-liquid'
+    | '/protocols/kucoin'
+    | '/protocols/lighter'
+    | '/protocols/phemex'
+    | '/protocols/solana'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1019,6 +1103,13 @@ export interface FileRouteTypes {
     | '/_authenticated/backtests_/$groupId'
     | '/_authenticated/changelog/whats-new'
     | '/_authenticated/flow-runs_/$runId'
+    | '/_authenticated/protocols/aster'
+    | '/_authenticated/protocols/bnb'
+    | '/_authenticated/protocols/hyper-liquid'
+    | '/_authenticated/protocols/kucoin'
+    | '/_authenticated/protocols/lighter'
+    | '/_authenticated/protocols/phemex'
+    | '/_authenticated/protocols/solana'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1514,6 +1605,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFlowRunsRunIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/protocols/aster': {
+      id: '/_authenticated/protocols/aster'
+      path: '/protocols/aster'
+      fullPath: '/protocols/aster'
+      preLoaderRoute: typeof AuthenticatedProtocolsAsterRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/protocols/bnb': {
+      id: '/_authenticated/protocols/bnb'
+      path: '/protocols/bnb'
+      fullPath: '/protocols/bnb'
+      preLoaderRoute: typeof AuthenticatedProtocolsBnbRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/protocols/hyper-liquid': {
+      id: '/_authenticated/protocols/hyper-liquid'
+      path: '/protocols/hyper-liquid'
+      fullPath: '/protocols/hyper-liquid'
+      preLoaderRoute: typeof AuthenticatedProtocolsHyperLiquidRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/protocols/kucoin': {
+      id: '/_authenticated/protocols/kucoin'
+      path: '/protocols/kucoin'
+      fullPath: '/protocols/kucoin'
+      preLoaderRoute: typeof AuthenticatedProtocolsKucoinRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/protocols/lighter': {
+      id: '/_authenticated/protocols/lighter'
+      path: '/protocols/lighter'
+      fullPath: '/protocols/lighter'
+      preLoaderRoute: typeof AuthenticatedProtocolsLighterRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/protocols/phemex': {
+      id: '/_authenticated/protocols/phemex'
+      path: '/protocols/phemex'
+      fullPath: '/protocols/phemex'
+      preLoaderRoute: typeof AuthenticatedProtocolsPhemexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/protocols/solana': {
+      id: '/_authenticated/protocols/solana'
+      path: '/protocols/solana'
+      fullPath: '/protocols/solana'
+      preLoaderRoute: typeof AuthenticatedProtocolsSolanaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -1806,6 +1946,13 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
   AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
+  AuthenticatedProtocolsAsterRoute: typeof AuthenticatedProtocolsAsterRoute
+  AuthenticatedProtocolsBnbRoute: typeof AuthenticatedProtocolsBnbRoute
+  AuthenticatedProtocolsHyperLiquidRoute: typeof AuthenticatedProtocolsHyperLiquidRoute
+  AuthenticatedProtocolsKucoinRoute: typeof AuthenticatedProtocolsKucoinRoute
+  AuthenticatedProtocolsLighterRoute: typeof AuthenticatedProtocolsLighterRoute
+  AuthenticatedProtocolsPhemexRoute: typeof AuthenticatedProtocolsPhemexRoute
+  AuthenticatedProtocolsSolanaRoute: typeof AuthenticatedProtocolsSolanaRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1820,6 +1967,14 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
   AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,
+  AuthenticatedProtocolsAsterRoute: AuthenticatedProtocolsAsterRoute,
+  AuthenticatedProtocolsBnbRoute: AuthenticatedProtocolsBnbRoute,
+  AuthenticatedProtocolsHyperLiquidRoute:
+    AuthenticatedProtocolsHyperLiquidRoute,
+  AuthenticatedProtocolsKucoinRoute: AuthenticatedProtocolsKucoinRoute,
+  AuthenticatedProtocolsLighterRoute: AuthenticatedProtocolsLighterRoute,
+  AuthenticatedProtocolsPhemexRoute: AuthenticatedProtocolsPhemexRoute,
+  AuthenticatedProtocolsSolanaRoute: AuthenticatedProtocolsSolanaRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

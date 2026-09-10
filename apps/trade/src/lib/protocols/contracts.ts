@@ -239,14 +239,31 @@ export function marketSymbol(key: string): string {
   return ref.marketId
 }
 
+/**
+ * Where each protocol's dashboard lives, and the ONE answer to "where does
+ * this coin live". Around twenty callers ask, eight of them on the server
+ * while writing a notice's link into the database — so there is exactly one
+ * address per protocol and it can never depend on who is looking.
+ *
+ * **Protocol, not exchange.** Hyperliquid, Phemex, KuCoin, Aster and Lighter
+ * are exchanges; Solana and BNB Chain are chains. Protocol is the word that
+ * is true of all of them, which is why the ids, the tables and this table
+ * have always used it.
+ *
+ * These sit outside `/admin` on purpose. A member is refused every `/admin`
+ * address twice over, by the sidebar filter and by the admin layout, so a
+ * protocol screen under `/admin` could never be opened by one. The old
+ * `/admin/…` addresses are kept as redirects for saved links and for notices
+ * already written with them.
+ */
 const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
-  hyperliquid: "/admin/hyper-liquid",
-  phemex: "/admin/phemex",
-  kucoin: "/admin/kucoin",
-  aster: "/admin/aster",
-  lighter: "/admin/lighter",
-  solana: "/admin/solana",
-  bnb: "/admin/bnb",
+  hyperliquid: "/protocols/hyper-liquid",
+  phemex: "/protocols/phemex",
+  kucoin: "/protocols/kucoin",
+  aster: "/protocols/aster",
+  lighter: "/protocols/lighter",
+  solana: "/protocols/solana",
+  bnb: "/protocols/bnb",
 }
 
 /** The chart address for a market whose protocol has a trading dashboard. */

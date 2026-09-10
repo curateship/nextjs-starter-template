@@ -107,7 +107,7 @@ describe("Markets table", () => {
     expect(host.textContent).toContain("—")
     expect(
       host.querySelector(
-        'a[href="/admin/aster?market=aster%3Amainnet%3ACOIN2999"]'
+        'a[href="/protocols/aster?market=aster%3Amainnet%3ACOIN2999"]'
       )
     ).not.toBeNull()
   })

@@ -55,11 +55,21 @@ export function WorkspaceSwitcher({
   workspaces,
   baseDomain = "",
   copyChoices = [],
+  brand,
 }: {
   workspaces: WorkspaceItem[]
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
   copyChoices?: WorkspaceCopyChoice[]
+  /**
+   * Who this site is, for somebody with no list to choose from.
+   *
+   * A member owns no workspace, so `workspaces` reaches them empty and this
+   * whole block used to render nothing — the top of their sidebar was blank
+   * while an admin's named the site. They get the same logo and name, and no
+   * chevron, because there is nothing they may switch to.
+   */
+  brand?: { name: string; favicon: string } | null
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const activeWorkspace =
@@ -99,16 +109,22 @@ export function WorkspaceSwitcher({
   // dashboard does the same thing and the two must not drift apart.
   const { switchToWorkspace, busyWorkspaceId } = useSwitchWorkspace()
 
-  if (!activeWorkspace) {
+  // Nothing to switch between and nothing to name: draw no header at all.
+  if (!activeWorkspace && !brand?.name) {
     return null
   }
+
+  // The name and logo come from the workspace when there is one, and from the
+  // site's own settings when there is not. Only the first case gets a menu.
+  const brandName = activeWorkspace ? activeWorkspaceName : brand!.name
+  const brandFavicon = activeWorkspace ? activeFavicon : brand!.favicon
 
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false)
   }
   const handleSwitch = async (workspaceId: string) => {
     closeMobileSidebar()
-    if (workspaceId === activeWorkspace.id) return
+    if (!activeWorkspace || workspaceId === activeWorkspace.id) return
     await switchToWorkspace(workspaceId)
   }
 
@@ -123,9 +139,9 @@ export function WorkspaceSwitcher({
               className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center"
             >
               <WorkspaceLogo
-                favicon={activeFavicon}
-                icon={activeWorkspace.icon}
-                name={activeWorkspaceName}
+                favicon={brandFavicon}
+                icon={activeWorkspace?.icon}
+                name={brandName}
               />
             </Link>
             <div className="flex min-w-0 flex-1 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
@@ -134,65 +150,68 @@ export function WorkspaceSwitcher({
                 onClick={closeMobileSidebar}
                 className="grid min-w-0 flex-1 text-left text-sm leading-tight"
               >
-                <span className="truncate font-medium">
-                  {activeWorkspaceName}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {addressOf(activeWorkspace)}
-                </span>
+                <span className="truncate font-medium">{brandName}</span>
+                {/* The address is what tells two sites apart, so it is drawn
+                    only where there are two to tell apart. */}
+                {activeWorkspace ? (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {addressOf(activeWorkspace)}
+                  </span>
+                ) : null}
               </Link>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  {/* The shared Button already draws the app's focus ring and
-                      shades itself while the menu is open (`aria-expanded`). */}
-                  <Button variant="ghost" size="icon-sm">
-                    <ChevronsUpDownIcon />
-                    <span className="sr-only">Change {word.one}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="w-72 rounded-lg"
-                  align="start"
-                  side={isMobile ? "bottom" : "right"}
-                  sideOffset={4}
-                >
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    {capitalise(word.many)}
-                  </DropdownMenuLabel>
-                  {workspaces.map((workspace) => {
-                    const displayName = workspace.name
-                    const workspaceFavicon = workspace.active
-                      ? activeFavicon
-                      : workspace.favicon
-                    const busy = busyWorkspaceId === workspace.id
+              {activeWorkspace ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    {/* The shared Button already draws the app's focus ring and
+                        shades itself while the menu is open (`aria-expanded`). */}
+                    <Button variant="ghost" size="icon-sm">
+                      <ChevronsUpDownIcon />
+                      <span className="sr-only">Change {word.one}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-72 rounded-lg"
+                    align="start"
+                    side={isMobile ? "bottom" : "right"}
+                    sideOffset={4}
+                  >
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      {capitalise(word.many)}
+                    </DropdownMenuLabel>
+                    {workspaces.map((workspace) => {
+                      const displayName = workspace.name
+                      const workspaceFavicon = workspace.active
+                        ? activeFavicon
+                        : workspace.favicon
+                      const busy = busyWorkspaceId === workspace.id
 
-                    return (
-                      <div key={workspace.id} className="flex items-center">
-                        <DropdownMenuItem
-                          disabled={Boolean(busyWorkspaceId)}
-                          onSelect={() => void handleSwitch(workspace.id)}
-                          className="min-w-0 flex-1 gap-2 p-2"
-                        >
-                          <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
-                            <WorkspaceLogo
-                              favicon={workspaceFavicon}
-                              icon={workspace.icon}
-                              name={displayName}
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium">
-                              {displayName}
+                      return (
+                        <div key={workspace.id} className="flex items-center">
+                          <DropdownMenuItem
+                            disabled={Boolean(busyWorkspaceId)}
+                            onSelect={() => void handleSwitch(workspace.id)}
+                            className="min-w-0 flex-1 gap-2 p-2"
+                          >
+                            <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
+                              <WorkspaceLogo
+                                favicon={workspaceFavicon}
+                                icon={workspace.icon}
+                                name={displayName}
+                              />
                             </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {addressOf(workspace)}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium">
+                                {displayName}
+                              </div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {addressOf(workspace)}
+                              </div>
                             </div>
-                          </div>
-                          {busy ? (
-                            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                          ) : workspace.active ? (
-                            <CheckIcon className="size-4 text-muted-foreground" />
-                          ) : null}
+                            {busy ? (
+                              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                            ) : workspace.active ? (
+                              <CheckIcon className="size-4 text-muted-foreground" />
+              ) : null}
                         </DropdownMenuItem>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -247,6 +266,7 @@ export function WorkspaceSwitcher({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              ) : null}
             </div>
           </div>
         </SidebarMenuItem>

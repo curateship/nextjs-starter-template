@@ -44,6 +44,10 @@ screen: anything not written there has not been agreed yet.
 
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
+- `who-can-open-a-protocol-screen.md` — the protocol screens sit outside
+  `/admin` so a member can open one, the address of each, why protocol rather
+  than exchange, why there is one address rather than one per role, and what
+  stays admin-only.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, Long/Short badge columns, and where the navigation lives.
 - `trading-overview.md`: the signed-in home page and its Active trades menu,
@@ -163,7 +167,12 @@ screen: anything not written there has not been agreed yet.
   the saved wallet display, how distance is measured, and why one crossing
   sends one notice.
 
-## exchanges/ — the venues
+## protocols/ — the venues
+
+Protocol, not exchange: Hyperliquid, Phemex, KuCoin, Aster and Lighter are
+exchanges, Solana and BNB Chain are chains, and protocol is the word that is
+true of all of them. It is what the ids, the tables and the addresses have
+always used.
 
 - `bnb-chain.md` explains BNB Chain wallets, pool-based markets, search, risk
   labels, ten-second screen prices, pool and borrowed charts, request limits

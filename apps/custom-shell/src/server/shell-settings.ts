@@ -72,7 +72,10 @@ import {
   currentPublicOrigin,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
-import { visitorWorkspaceId } from "@/server/workspaces/for-request"
+import {
+  visitorWorkspaceId,
+  workspaceRowForRequest,
+} from "@/server/workspaces/for-request"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb = db) {
@@ -261,9 +264,19 @@ export async function readShellSettings(
   const globals = await readShellGlobals(database)
   // Reads never make a workspace. This runs on every signed-in page load,
   // including a member's, and the old read created one when it missed — which
-  // is how members ended up owning workspaces they never saw. Nobody in a
-  // workspace yet simply gets the app-wide defaults.
-  const workspace = await currentWorkspace(user.id, database)
+  // is how members ended up owning workspaces they never saw.
+  //
+  // **Whose workspace, then?** The one this person is IN, when they are in
+  // one: an admin who picked Beta in the switcher while sitting on Alpha's
+  // domain means Beta, and that has to keep winning. A member is in none, and
+  // used to fall through to the built-in defaults — so the site's saved
+  // gutter, card borders, logo and sidebar width reached every admin and no
+  // member, and the same page was spaced two different ways depending on who
+  // opened it. The site they are ON is the honest answer for them, and it is
+  // the same row the admin is editing.
+  const workspace =
+    (await currentWorkspace(user.id, database)) ??
+    (await workspaceRowForRequest(user.id, database))
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
   const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
   const publicTheme = workspaceDomainsEnabled

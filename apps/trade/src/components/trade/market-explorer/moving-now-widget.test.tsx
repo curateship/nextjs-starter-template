@@ -100,7 +100,7 @@ it("shows the ten busiest completed minute windows with chart links in a scroll 
   expect(host.querySelectorAll("li")).toHaveLength(10)
   expect(host.querySelector("ol a")?.textContent).toBe("COIN19 · Aster")
   expect(host.querySelector("ol a")?.getAttribute("href")).toBe(
-    "/admin/aster?market=aster%3Amainnet%3ACOIN19"
+    "/protocols/aster?market=aster%3Amainnet%3ACOIN19"
   )
   expect(
     host.querySelector('[data-slot="scroll-area-viewport"] ol')

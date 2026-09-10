@@ -1,7 +1,7 @@
 # What Lighter does differently
 
 Trade reads Lighter's perpetual markets, charts and funding at
-`/admin/lighter`, on mainnet only, holds a connected Lighter wallet, shows what
+`/protocols/lighter`, on mainnet only, holds a connected Lighter wallet, shows what
 it holds, and places, moves, cancels and closes orders on it. This file records
 only behaviour the app runs today or a live response proved.
 
@@ -120,7 +120,7 @@ Lighter runs a practice network and Trade does not carry it. Decided 26 August
 - BTC returned zero candles on 1m, 1h, 4h and 1d, including a 400-day daily
   window. The practice network serves no candle history at all.
 
-So there was nothing to look at, and the `/admin/lighter` page has no `?network`
+So there was nothing to look at, and the `/protocols/lighter` page has no `?network`
 setting at all. A pasted one is dropped from the address rather than accepted
 and quietly overridden. This matches Phemex and KuCoin, which are mainnet only
 for their own reasons.

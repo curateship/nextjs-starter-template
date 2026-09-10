@@ -15,7 +15,7 @@ import {
   marketSymbol,
   parseMarketKey,
 } from "@/lib/protocols/contracts"
-import { formatChange, formatPrice } from "@/lib/trade/format"
+import { formatChange } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
@@ -52,89 +52,110 @@ export default function PinnedMarketsHeader({
     }
   }, [store, busy])
 
-  if (!pins.length)
-    return (
-      <>
-        {fallback}
-        {failed ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void store.refresh()}
-          >
-            Retry header pins
-          </Button>
-        ) : null}
-      </>
-    )
+  /*
+    Pins sit BESIDE the normal navigation, never instead of it.
+
+    They used to replace it: pinning a market took the section's links out of
+    the header, so the way to the other protocols vanished the moment somebody
+    used the pin. The header's own row is a flex line with a gap, so returning
+    both puts the links first and the chips after them, and the links keep
+    their own overflow menu.
+  */
   return (
-    <ScrollArea className="min-w-0 max-w-full">
-      <nav
-        aria-label="Pinned markets"
-        className="flex w-max items-center gap-1"
-      >
-        {pins.map((key) => {
-          const quote = quotes.find((item) => item.key === key)
-          const symbol = quote?.symbol ?? marketSymbol(key)
-          const ref = parseMarketKey(key)!
-          const label = `${symbol}, ${ref.protocol}, ${ref.network}`
-          const price = quote?.price ?? null
-          const change = quote?.change24h ?? null
-          return (
-            <div key={key} className="flex min-w-0 items-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="min-w-0 gap-1 px-1"
+    <>
+      {fallback}
+      {pins.length ? (
+        <ScrollArea className="max-w-full min-w-0">
+          <nav
+            aria-label="Pinned markets"
+            className="flex w-max items-center gap-1"
+          >
+            {pins.map((key) => {
+              const quote = quotes.find((item) => item.key === key)
+              const symbol = quote?.symbol ?? marketSymbol(key)
+              const ref = parseMarketKey(key)!
+              const label = `${symbol}, ${ref.protocol}, ${ref.network}`
+              const change = quote?.change24h ?? null
+              return (
+                /*
+                  ONE hovered surface for the whole chip, the same height as a
+                  navigation link beside it.
+
+                  The market and the unpin cross used to be two buttons, each
+                  shading only itself: hovering the name lit a short pill that
+                  stopped before the cross, and the cross lit a second one. The
+                  hover now belongs to this wrapper — `h-8 rounded-md
+                  hover:bg-muted`, the same three the top-left links use — and
+                  the two controls inside paint no background of their own.
+                */
+                <div
+                  key={key}
+                  className="inline-flex h-8 min-w-0 items-center gap-1 rounded-md pr-1 pl-2.5 text-sm font-medium transition-all hover:bg-muted"
+                >
+                  {/*
+                    No tooltip on the chip.
+
+                    It named the protocol, the network and the price, and it
+                    covered the row under the header every time the pointer
+                    crossed a pin on its way somewhere else. The chip already
+                    says the two things worth knowing, and the chart it opens
+                    says the rest. `aria-label` still carries the full
+                    description for a screen reader.
+                  */}
+                  <Link
+                    to={marketChartHref(key)!}
+                    aria-label={`Open ${label} chart`}
+                    className="inline-flex min-w-0 items-center gap-1 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    <Link
-                      to={marketChartHref(key)!}
-                      aria-label={`Open ${label} chart`}
+                    <span className="max-w-16 truncate">{symbol}</span>
+                    {/*
+                      The day's change, and no price anywhere. The price was
+                      the longest thing on the chip and the least looked at,
+                      and the chart this opens is where it is read now.
+
+                      The figure sits right after the symbol, sized to what it
+                      says. It had a fixed-width column for a while, which
+                      right-aligned a short percentage and left a visible hole
+                      between the two. `tabular-nums` is what actually holds
+                      the row steady: every digit is the same width, so a
+                      figure ticking from -2.15% to -2.17% moves nothing.
+                    */}
+                    <span
+                      className={`hidden font-mono tabular-nums xl:inline ${change === null ? "text-muted-foreground" : moneyTone(change)}`}
                     >
-                      <span className="max-w-16 truncate">{symbol}</span>
-                      <span className="hidden font-mono tabular-nums xl:inline">
-                        {price === null ? "—" : formatPrice(price)}
-                      </span>
-                      <span
-                        className={`hidden font-mono tabular-nums xl:inline ${change === null ? "text-muted-foreground" : moneyTone(change)}`}
+                      {change === null ? "—" : formatChange(change)}
+                    </span>
+                  </Link>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        aria-label={`Unpin ${label} from header`}
+                        onClick={() => void store.setPin(key, false)}
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
                       >
-                        {change === null ? "—" : formatChange(change)}
-                      </span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {label}
-                  {price === null
-                    ? ". Price unavailable."
-                    : `, ${formatPrice(price)}`}
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    disabled={busy}
-                    aria-label={`Unpin ${label} from header`}
-                    onClick={() => void store.setPin(key, false)}
-                  >
-                    <XIcon className="size-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {busy ? "Saving header pins" : `Unpin ${symbol} from header`}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          )
-        })}
-      </nav>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+                        <XIcon className="size-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {busy
+                        ? "Saving header pins"
+                        : `Unpin ${symbol} from header`}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )
+            })}
+          </nav>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      ) : null}
+      {failed ? (
+        <Button variant="ghost" size="sm" onClick={() => void store.refresh()}>
+          Retry header pins
+        </Button>
+      ) : null}
+    </>
   )
 }
