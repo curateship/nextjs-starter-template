@@ -178,6 +178,7 @@ function toOrder(row: OrderRow): TradeOrder {
     leverage: row.leverage,
     maxLeverage: row.maxLeverage,
     reduceOnly: row.reduceOnly,
+    ...(row.riskSized ? { riskSized: true as const } : {}),
     tpPx: row.tpPx,
     slPx: row.slPx,
     createdAt: row.createdAt.getTime(),
@@ -297,6 +298,7 @@ export async function saveBook(
           leverage: order.leverage,
           maxLeverage: order.maxLeverage,
           reduceOnly: order.reduceOnly,
+          riskSized: order.riskSized === true,
           tpPx: order.tpPx,
           slPx: order.slPx,
           createdAt: new Date(order.createdAt),
@@ -1049,6 +1051,8 @@ export async function placePaperOrder(
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
+    /** Sized by risking a share of the wallet, so its stop may resize it. */
+    riskSized?: boolean
     /** A checked Market box fills now, whatever chart price opened the window. */
     marketOnly?: boolean
     /** An unchecked order may rest, but it may never take the market. */
@@ -1176,6 +1180,7 @@ export async function placePaperOrder(
     leverage: input.leverage,
     maxLeverage,
     reduceOnly: input.reduceOnly,
+    riskSized: input.riskSized === true,
     tpPx,
     slPx,
     createdAt: new Date(now),

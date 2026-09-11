@@ -189,6 +189,17 @@ export type TradeOrder = {
   createdAt: number
   updatedAt: number
   /**
+   * Sized by risking a share of the wallet, rather than by dollars typed or a
+   * share of the free cash.
+   *
+   * **Only this kind of order resizes when its stop is dragged.** The stop is
+   * what turned "1% of the wallet" into an amount of coin, so moving it has to
+   * work the amount out again or the order no longer risks what was asked for.
+   * An order sized in dollars means those dollars, and dragging its stop moves
+   * the stop and nothing else.
+   */
+  riskSized?: true
+  /**
    * A REAL resting order. Its id is the exchange's own; it cannot be dragged
    * to a new price or changed in place yet, and its leverage reads as a dash —
    * the account's setting, not the order's.

@@ -785,6 +785,11 @@ export const tradePaperOrders = pgTable(
     leverage: doublePrecision("leverage").notNull(),
     maxLeverage: doublePrecision("max_leverage").notNull(),
     reduceOnly: boolean("reduce_only").notNull().default(false),
+    /**
+     * Sized by risking a share of the wallet, which is the one kind of order
+     * that resizes when its stop is dragged.
+     */
+    riskSized: boolean("risk_sized").notNull().default(false),
     // The brackets to hand the position this order opens, once it fills.
     tpPx: doublePrecision("tp_px"),
     slPx: doublePrecision("sl_px"),

@@ -92,6 +92,7 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     tpPx: null,
     slPx: null,
     reduceOnly: false,
+    riskSized: false,
     maker: false,
     heldAtStart: 0,
     chaseGiveUp: 0,

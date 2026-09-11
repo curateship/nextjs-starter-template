@@ -64,6 +64,13 @@ const watchPlanSchema = z.object({
   /** Only shrink what is held — never open the other way round. */
   reduceOnly: z.boolean().default(false),
   /**
+   * Sized by risking a share of the wallet, so dragging the stop works the
+   * amount out again. False for an order sized in dollars or in a share of the
+   * free cash, and for every watch written before this existed — those keep
+   * the amount they were given, which is what their owner typed.
+   */
+  riskSized: z.boolean().default(false),
+  /**
    * Never take the market: rest just off it and follow, however far price goes.
    *
    * Part closes size each replacement from what remains held and follow the

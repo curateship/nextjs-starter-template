@@ -242,8 +242,38 @@ message says why.
   reach it.
 
 - **A practice order**: re-prices its row, same as ever.
-- A waiting order's **stop** drags too, and the order resizes so it still
-  risks the same money. Its **target** drags without touching the size.
+- A waiting order's **stop** drags too. What that does to the amount depends on
+  how the order was sized:
+  - **Sized by Risk %**: the amount is worked out again from the new stop, so
+    the order still risks the same money. The stop is what turned "1% of the
+    wallet" into an amount of coin in the first place, so moving it has to
+    redo that sum or the order quietly stops risking what was asked for. The
+    new amount is floored to the market's own step, never rounded up.
+  - **Sized in USD, or in a share of free cash**: the amount stays exactly
+    where it was typed, however far the stop is dragged. Those orders were
+    given their amount outright, and the stop has no say in it.
+
+  Which of the two an order is, is written down when it is placed — on the
+  practice order's row, and in a watched order's plan. Every order placed
+  before 10 September 2026 counts as typed by hand, so dragging its stop
+  leaves its amount alone.
+
+  Its **target** drags without touching the size, whatever the order was
+  sized by.
+
+  **A new level appears the moment it is written, not at the next read.** The
+  answer to placing a watched order carries the row itself, so the chart draws
+  the level from that and the "sending" line hands over at once. It used to wait
+  for the next full account read — another round trip to the exchange, and a
+  read already in flight when the order went knows nothing about it and is
+  thrown away, so the wait could run to ten or fifteen seconds.
+
+  **The line stays where you drop it.** The new stop is shown the instant the
+  drag ends and held there until a read carries it back, the same way a dragged
+  order price is. Waiting for the save to answer first left the line at the old
+  stop for the length of the round trip, so it appeared to spring back and then
+  jump forward. A refusal puts the line back where the server has it and says
+  why.
 
 The order bar uses the same 12px settings cog as the Grid bar. Pressing it opens
 a compact settings window beside the bar, like the DCA and Grid editors, rather

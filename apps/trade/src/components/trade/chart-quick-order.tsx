@@ -162,6 +162,11 @@ export function ChartQuickOrder({
     addingToPosition?: boolean
     tpPx: number | null
     slPx: number | null
+    /**
+     * Sized by risking a share of the wallet, which is the one kind of order
+     * whose amount is worked out again when its stop is dragged.
+     */
+    riskSized: boolean
   }) => void
   /**
    * Keeps how this order was sized, once it has gone. Called with the window's
@@ -446,6 +451,8 @@ export function ChartQuickOrder({
           : "watch",
       tpPx: targetPx,
       slPx: stopPx,
+      // Only a risk-sized order is resized when its stop is dragged later.
+      riskSized: byRisk,
     })
     // Kept only once an order has really gone, the way the DCA window keeps
     // its settings — so a number half-typed and thought better of is not what

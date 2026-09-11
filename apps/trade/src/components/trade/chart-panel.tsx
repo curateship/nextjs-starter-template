@@ -114,9 +114,8 @@ import {
 } from "@/lib/trade/live-trades"
 import { positionFees } from "@/lib/trade/position-fees"
 import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
-import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
-import { resizeForStop } from "@/lib/trade/risk-size"
+import { sizeAfterStopDrag } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import {
   loadRecentOrderTypes,
@@ -1194,17 +1193,16 @@ export function ChartPanel({
         tradingWatchOrders.find((one) => one.id === orderId)
       if (!order || order.slPx === null) return
       void tradingEditOrder(walletId, orderId, {
-        // Floored to the market's own step, never rounded up: rounding up
-        // buys more than the risk asked for.
-        sz: floorSize(
-          resizeForStop({
-            entryPx: order.px,
-            fromStopPx: order.slPx,
-            toStopPx: price,
-            sz: order.sz,
-          }),
-          sizeDecimals
-        ),
+        // An order sized by risk is worked out again from the new stop; every
+        // other order keeps the amount it was given. See `sizeAfterStopDrag`.
+        sz: sizeAfterStopDrag({
+          riskSized: order.riskSized === true,
+          entryPx: order.px,
+          fromStopPx: order.slPx,
+          toStopPx: price,
+          sz: order.sz,
+          sizeDecimals,
+        }),
         leverage: order.leverage,
         tpPx: order.tpPx,
         slPx: price,
@@ -1803,10 +1801,9 @@ export function ChartPanel({
           }}
           onDeleteAlert={onDeletePriceAlert}
           onCancelOrder={onCancelOrder}
-          // Dragging a waiting order's stop resizes the order so it still
-          // risks the same money. Worked out from the order in front of you
-          // rather than from a remembered setting, so it holds whether the
-          // order was sized by risk or typed by hand.
+          // Dragging a waiting order's stop moves the stop. An order sized by
+          // risking a share of the wallet is resized with it so it still risks
+          // the same money; an order sized in dollars keeps its dollars.
           onMoveOrderTarget={onMoveOrderTarget}
           onMoveOrderStop={onMoveOrderStop}
           onEditOrder={onEditOrder}

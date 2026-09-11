@@ -493,6 +493,136 @@ describe("the line for an order being sent", () => {
     expect(latest?.placing[0].live).toBe(true)
   })
 
+  it("draws a watched level from the placement answer, with no read in between", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 0.1,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      phase: "waiting",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        // A watched level has no exchange order to name, which is why the
+        // row itself comes back beside the outcome.
+        orderId: null,
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+      watch: {
+        id: "watch-new",
+        walletId: wallet.id,
+        marketKey: "hyperliquid:mainnet:ENA",
+        kind: "watch",
+        status: "active",
+        flowRunId: null,
+        createdAt: 2,
+        updatedAt: 2,
+        plan,
+      },
+    })
+    await finishFirstRead()
+    // Nothing else may land: the point is that the level shows without one.
+    api.loadLiveTrading.mockImplementation(() => new Promise(() => {}))
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    // No "sending" row left, and the level is on the chart as a watched order.
+    expect(latest?.placing).toHaveLength(0)
+    expect(api.loadLiveTrading).toHaveBeenCalled()
+    expect(latest?.watchOrders).toHaveLength(1)
+    expect(latest?.watchOrders[0]).toMatchObject({
+      id: "watch-new",
+      px: 0.1,
+      sz: 10,
+      watched: true,
+    })
+  })
+
+  it("keeps the sending line for a watch that starts working at once", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 0.1,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      // Not waiting for a level: already on its way to being an order, which
+      // the chart hides beside whatever it becomes.
+      phase: "taking",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: null,
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+      watch: {
+        id: "watch-now",
+        walletId: wallet.id,
+        marketKey: "hyperliquid:mainnet:ENA",
+        kind: "watch",
+        status: "active",
+        flowRunId: null,
+        createdAt: 2,
+        updatedAt: 2,
+        plan,
+      },
+    })
+    await finishFirstRead()
+    api.loadLiveTrading.mockImplementation(() => new Promise(() => {}))
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        startNow: true,
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    // Handing over here would leave the chart with nothing at all, so the
+    // "sending" row waits for the read that says what it became.
+    expect(latest?.placing).toHaveLength(1)
+    expect(latest?.placing[0].placing).toBe(true)
+  })
+
   it("restores a confirmed resting order if cancelling it fails before the next read", async () => {
     api.placeLiveOrder.mockResolvedValue({
       outcome: { status: "resting", orderId: "exchange-cancel" },
@@ -1089,6 +1219,68 @@ describe("editing a watched order", () => {
       tpPx: 110,
       slPx: 85,
     })
+  })
+
+  it("shows a dragged stop while the save is still in flight", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 95,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: 88,
+      phase: "waiting",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [
+        {
+          id: "watch-1",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          kind: "watch",
+          status: "active",
+          flowRunId: null,
+          createdAt: 1,
+          updatedAt: 1,
+          plan,
+        },
+      ],
+    })
+    await finishFirstRead()
+    expect(latest?.watchOrders[0]).toMatchObject({ slPx: 88 })
+
+    // The save is left hanging, which is the whole point: the line must be at
+    // the new stop before the server has answered, or it falls back to the old
+    // one and jumps forward when the answer lands.
+    let finish: (value: boolean) => void = () => {}
+    api.editWatch.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finish = resolve
+      })
+    )
+
+    let saving: Promise<boolean> | undefined
+    await act(async () => {
+      saving = latest?.editOrder(wallet.id, "watch-1", {
+        sz: 1,
+        leverage: 1,
+        tpPx: null,
+        slPx: 80,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(latest?.watchOrders[0]).toMatchObject({ slPx: 80, sz: 1 })
+
+    await act(async () => {
+      finish(true)
+      await saving
+    })
+    expect(latest?.watchOrders[0]).toMatchObject({ slPx: 80 })
   })
 })
 

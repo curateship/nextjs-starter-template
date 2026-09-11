@@ -1,3 +1,5 @@
+import { floorSize } from "@/lib/trade/dca"
+
 /**
  * Sizing a trade by what it can lose rather than by what it costs.
  *
@@ -41,10 +43,9 @@ export function coinsForRisk(input: {
  * The same trade after its stop is dragged: the amount changes, the money at
  * risk does not.
  *
- * Worked out from the order in front of you rather than from a remembered
- * setting, so it holds whatever the order was placed with — a risk percent, or
- * a size somebody typed. Moving a stop further away halves the amount rather
- * than doubling what is at stake, which is what makes dragging it safe.
+ * Moving a stop further away halves the amount rather than doubling what is at
+ * stake, which is what makes dragging it safe. Only an order sized by risk is
+ * put through this — see `sizeAfterStopDrag`.
  */
 export function resizeForStop(input: {
   entryPx: number
@@ -59,6 +60,32 @@ export function resizeForStop(input: {
   const now = Math.abs(input.entryPx - input.toStopPx)
   if (!(was > 0) || !(now > 0) || !(input.sz > 0)) return input.sz
   return (input.sz * was) / now
+}
+
+/**
+ * What a waiting order is for once its stop has been dragged somewhere else.
+ *
+ * **Two orders, two answers.** An order sized by risking a share of the wallet
+ * was never given an amount directly: the stop is what turned "1% of the
+ * wallet" into an amount of coin, so moving the stop has to work that amount
+ * out again or the order quietly stops risking what was asked for. An order
+ * sized in dollars, or in a share of the free cash, was given its amount
+ * outright — dragging its stop moves the stop and leaves the amount alone.
+ *
+ * The new amount is floored to the market's own step, never rounded up:
+ * rounding up buys more than the risk asked for.
+ */
+export function sizeAfterStopDrag(input: {
+  /** Sized by risking a share of the wallet. */
+  riskSized: boolean
+  entryPx: number
+  fromStopPx: number
+  toStopPx: number
+  sz: number
+  sizeDecimals: number | null
+}): number {
+  if (!input.riskSized) return input.sz
+  return floorSize(resizeForStop(input), input.sizeDecimals)
 }
 
 /**

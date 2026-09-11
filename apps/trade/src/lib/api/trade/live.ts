@@ -13,7 +13,7 @@ import type { PollScope } from "@/lib/api/trade/paper"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
-import type { SmartOrder } from "@/lib/trade/smart-plan"
+import type { SmartOrder, SmartWatch } from "@/lib/trade/smart-plan"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { formatUsd } from "@/lib/trade/format"
 import { slippageFraction } from "@/lib/trade/quick-order"
@@ -85,6 +85,12 @@ const placeSchema = z.object({
    * what an older browser tab still open through a deploy sends.
    */
   orderStyle: z.enum(ORDER_STYLES).optional(),
+  /**
+   * Sized by risking a share of the wallet. It travels with a watched level,
+   * which is the only kind of order whose stop can be dragged; an order
+   * resting on the exchange is cancelled and placed again instead.
+   */
+  riskSized: z.boolean().optional(),
   /**
    * Work this order from today's price rather than waiting for `px`.
    *
@@ -232,7 +238,10 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
   .handler(
-    async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
+    async ({
+      data,
+      context,
+    }): Promise<{ outcome: PlaceOrderOutcome; watch?: SmartWatch }> => {
       // The order window names its own style, so most orders need no read at
       // all. When one does not name it — a market order, or a tab left open
       // through a deploy — the account setting is read, and started before the
@@ -266,7 +275,11 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
               leverage: order.leverage,
             })
           }
-          await placeWatchOrder(context.user.id, wallet, order)
+          const { watch: placed } = await placeWatchOrder(
+            context.user.id,
+            wallet,
+            order
+          )
           // A watched level writes no exchange row, so the rule it went out
           // against is written here, on its own row, the way a ladder's is.
           if (order.overrode) {
@@ -291,6 +304,9 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
               protection: null,
               protectionNote: null,
             },
+            // The row that was just written, so the chart can draw the level
+            // now rather than after another read of the whole account.
+            watch: placed,
           }
         }
         if (market) {

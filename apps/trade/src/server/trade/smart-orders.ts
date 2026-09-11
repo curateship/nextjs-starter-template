@@ -29,6 +29,7 @@ import {
   readSmartPlan,
   type SmartLadder,
   type SmartOrder,
+  type SmartWatch,
   type SmartOrderKind,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
@@ -1391,6 +1392,8 @@ export async function placeWatchOrder(
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
+    /** Sized by risking a share of the wallet, so its stop may resize it. */
+    riskSized?: boolean
     /**
      * Start working the order at today's price instead of waiting for `px`.
      *
@@ -1406,7 +1409,7 @@ export async function placeWatchOrder(
      */
     startNow?: boolean
   }
-): Promise<{ watching: true }> {
+): Promise<{ watching: true; watch: SmartWatch }> {
   if (!hasWalletPlanWrite(userId, wallet.id)) {
     return await withWalletPlanWrite(userId, wallet.id, () =>
       placeWatchOrder(userId, wallet, input)
@@ -1475,6 +1478,7 @@ export async function placeWatchOrder(
     tpPx: input.tpPx,
     slPx: input.slPx,
     reduceOnly: input.reduceOnly,
+    riskSized: input.riskSized === true,
     // Long and Short always wait for the direction recorded above. `maker`
     // remains the separate part-close rule that never pays the spread.
     maker: false,
@@ -1494,6 +1498,7 @@ export async function placeWatchOrder(
     startedAt: now.getTime(),
   }
 
+  const id = randomUUID()
   await db.transaction(async (tx) => {
     await tx
       .select({ id: tradeWallets.id })
@@ -1507,7 +1512,7 @@ export async function placeWatchOrder(
     // reason to refuse a hand-placed order beside it.
     await tx.insert(tradeSmartLadders).values({
       userId,
-      id: randomUUID(),
+      id,
       walletId: wallet.id,
       marketKey: input.marketKey,
       kind: "watch",
@@ -1518,7 +1523,25 @@ export async function placeWatchOrder(
     })
   })
 
-  return { watching: true }
+  // **The row itself comes back, not just "yes".** The chart draws the level
+  // from this answer, so the order stops reading "sending" the moment the
+  // write lands instead of waiting for the next full account read — which is
+  // another exchange round trip, and a read already in flight when the order
+  // was placed knows nothing about it and is thrown away.
+  return {
+    watching: true as const,
+    watch: {
+      id,
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "watch" as const,
+      status: "active" as const,
+      flowRunId: null,
+      plan,
+      createdAt: now.getTime(),
+      updatedAt: now.getTime(),
+    },
+  }
 }
 
 /**

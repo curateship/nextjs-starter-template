@@ -622,7 +622,9 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
           `Stop Loss ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
         onMove: resize,
         hint: resize
-          ? "Drag to move the stop. The order's size changes with it, so it still risks the same money."
+          ? order.riskSized
+            ? "Drag to move the stop. The order's size changes with it, so it still risks the same money."
+            : "Drag to move the stop. The order's size stays where you put it."
           : undefined,
       })
     }

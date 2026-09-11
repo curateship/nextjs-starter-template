@@ -4,6 +4,7 @@ import {
   affordableCoins,
   coinsForRisk,
   resizeForStop,
+  sizeAfterStopDrag,
   riskUsdOf,
 } from "@/lib/trade/risk-size"
 
@@ -81,6 +82,46 @@ describe("dragging the stop", () => {
     expect(
       resizeForStop({ entryPx: 100, fromStopPx: 98, toStopPx: 100, sz: 10 })
     ).toBe(10)
+  })
+})
+
+describe("which orders a dragged stop resizes", () => {
+  const order = {
+    entryPx: 100,
+    fromStopPx: 98,
+    toStopPx: 96,
+    sz: 50,
+    sizeDecimals: 3,
+  }
+
+  it("works a risk-sized order out again from the new stop", () => {
+    // $100 at risk before the drag, and $100 after it: 25 coins $4 away.
+    expect(sizeAfterStopDrag({ ...order, riskSized: true })).toBeCloseTo(25, 9)
+  })
+
+  it("leaves an order sized in dollars exactly where it was typed", () => {
+    expect(sizeAfterStopDrag({ ...order, riskSized: false })).toBe(50)
+    // However far the stop is dragged, in either direction.
+    expect(
+      sizeAfterStopDrag({ ...order, riskSized: false, toStopPx: 99.5 })
+    ).toBe(50)
+    expect(
+      sizeAfterStopDrag({ ...order, riskSized: false, toStopPx: 50 })
+    ).toBe(50)
+  })
+
+  it("never rounds a risk-sized order up past the market's step", () => {
+    // 1.5 coins $2 away, dragged to $3 away, is 1 coin exactly at one decimal.
+    expect(
+      sizeAfterStopDrag({
+        riskSized: true,
+        entryPx: 100,
+        fromStopPx: 98,
+        toStopPx: 97,
+        sz: 1.5,
+        sizeDecimals: 1,
+      })
+    ).toBe(1)
   })
 })
 

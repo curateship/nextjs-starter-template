@@ -6,7 +6,7 @@ import {
   parseMarketKey,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import type { SmartOrder } from "@/lib/trade/smart-plan"
+import type { SmartOrder, SmartWatch } from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { formatUsd } from "@/lib/trade/format"
@@ -65,6 +65,11 @@ const placeSchema = z.object({
   market: z.boolean().optional(),
   /** Where a waiting order waits, chosen in the order window. */
   orderStyle: z.enum(ORDER_STYLES).optional(),
+  /**
+   * Sized by risking a share of the wallet. Only such an order resizes when
+   * its stop is dragged, because the stop is what worked its amount out.
+   */
+  riskSized: z.boolean().optional(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
 })
@@ -213,42 +218,50 @@ const loadOlderPaperTradesFn = createServerFn({ method: "GET" })
 const placePaperOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
-  .handler(async ({ data, context }): Promise<{ placed: true }> => {
-    const wallet = await paperWallet(context.user.id, data.walletId, true)
-    const { market = false, orderStyle: _style, ...order } = data
-    if (market) {
-      await placeOrderRow(context.user.id, wallet, {
-        ...order,
-        marketOnly: true,
-      })
-      return { placed: true }
-    }
-    // The order window names its style; the account setting answers for
-    // anything that does not, which is a tab left open through a deploy.
-    const style = data.orderStyle ?? (await loadOrderStyle(context.user.id))
-    if (style === "watch") {
-      await placeWatchOrder(context.user.id, wallet, order)
-      return { placed: true }
-    }
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ placed: true; watch?: SmartWatch }> => {
+      const wallet = await paperWallet(context.user.id, data.walletId, true)
+      const { market = false, orderStyle: _style, ...order } = data
+      if (market) {
+        await placeOrderRow(context.user.id, wallet, {
+          ...order,
+          marketOnly: true,
+        })
+        return { placed: true }
+      }
+      // The order window names its style; the account setting answers for
+      // anything that does not, which is a tab left open through a deploy.
+      const style = data.orderStyle ?? (await loadOrderStyle(context.user.id))
+      if (style === "watch") {
+        // The row comes back so the chart can draw the level at once, rather
+        // than leaving it reading "sending" until the next full read.
+        const { watch } = await placeWatchOrder(context.user.id, wallet, order)
+        return { placed: true, watch }
+      }
     // A passive Rest limit may sit on the practice book. A level already
     // through the price becomes a local watch instead of an unchecked order
     // quietly turning into a market fill.
-    try {
-      await placeOrderRow(context.user.id, wallet, {
-        ...order,
-        restingOnly: true,
-      })
-    } catch (error) {
-      if (
-        !(error instanceof Error) ||
-        error.message !== "PAPER_ORDER_NOT_RESTING"
-      ) {
-        throw error
+      try {
+        await placeOrderRow(context.user.id, wallet, {
+          ...order,
+          restingOnly: true,
+        })
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          error.message !== "PAPER_ORDER_NOT_RESTING"
+        ) {
+          throw error
+        }
+        const { watch } = await placeWatchOrder(context.user.id, wallet, order)
+        return { placed: true, watch }
       }
-      await placeWatchOrder(context.user.id, wallet, order)
+      return { placed: true }
     }
-    return { placed: true }
-  })
+  )
 
 const movePaperOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])

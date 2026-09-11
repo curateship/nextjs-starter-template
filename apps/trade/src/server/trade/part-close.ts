@@ -242,6 +242,9 @@ export async function openPartClose(
     tpPx: null,
     slPx: null,
     reduceOnly: true,
+    // A close is sized by what is held, never by risking a share of the
+    // wallet, and it has no stop of its own to drag.
+    riskSized: false,
     maker: true,
     // What is left to sell is measured against this, so a fill that lands
     // between two moves of the chase is never asked for twice.

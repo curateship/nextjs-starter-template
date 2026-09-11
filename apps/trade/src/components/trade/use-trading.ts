@@ -85,6 +85,7 @@ import {
   type SmartGrid,
   type SmartLadder,
   type SmartOrder,
+  type SmartWatch,
 } from "@/lib/trade/smart-plan"
 import type {
   LiveFill,
@@ -153,6 +154,20 @@ import type { TradeWallet } from "@/lib/trade/wallets"
  */
 
 const REFRESH_MS = 4_000
+
+/**
+ * Whether a freshly written watch is one the chart will draw straight away.
+ *
+ * A level still waiting is drawn as its own row, so the "sending" line can hand
+ * over to it. One that starts working immediately is already on its way to
+ * being an order or a position, and `watchOrders` deliberately hides it beside
+ * the position it is adding to — handing over to a row nothing draws would
+ * leave the chart empty. That one keeps its "sending" line until a read brings
+ * back whatever it became.
+ */
+function showsAsWatch(watch: SmartWatch | undefined): watch is SmartWatch {
+  return watch !== undefined && watch.plan.phase === "waiting"
+}
 
 /** What a poll may leave out, to be carried over from the last answer. */
 type Carried = {
@@ -365,6 +380,12 @@ export type Trading = {
      * account's own setting decides.
      */
     orderStyle?: OrderStyle
+    /**
+     * Sized by risking a share of the wallet. Dragging such an order's stop
+     * works its amount out again; every other order keeps the amount it was
+     * given.
+     */
+    riskSized?: boolean
     /** An addition from a position row, always sent at market. */
     addingToPosition?: boolean
     startNow?: boolean
@@ -1579,6 +1600,7 @@ export function useTrading(
                 leverage: order.plan.leverage,
                 maxLeverage: order.plan.maxLeverage,
                 reduceOnly: order.plan.reduceOnly,
+                ...(order.plan.riskSized ? { riskSized: true as const } : {}),
                 tpPx: order.plan.tpPx,
                 slPx: order.plan.slPx,
                 createdAt: order.createdAt,
@@ -1684,6 +1706,7 @@ export function useTrading(
         leverage: input.leverage,
         maxLeverage: input.leverage,
         reduceOnly: input.reduceOnly,
+        ...(input.riskSized ? { riskSized: true as const } : {}),
         tpPx: input.tpPx,
         slPx: input.slPx,
         createdAt: Date.now(),
@@ -1695,16 +1718,36 @@ export function useTrading(
       void (async () => {
         try {
           if (kind === "paper") {
-            await placePaperOrder({ walletId, ...input })
+            const { watch } = await placePaperOrder({ walletId, ...input })
+            // A practice watch is a row of ours, and the answer carries it, so
+            // the level is drawn now instead of at the next read.
+            if (showsAsWatch(watch)) {
+              holdSmart(watch)
+              setPlacing((held) =>
+                held.filter((order) => order.id !== ghost.id)
+              )
+            }
           } else {
             // The one part of the real road that still speaks up: an order
             // that went on but whose protection did not is the thing that
             // must never pass quietly.
-            const { outcome } = await placeLiveOrder({
+            const { outcome, watch } = await placeLiveOrder({
               walletId,
               ...input,
               overrode,
             })
+            // **A watched level is finished the moment the write lands.** The
+            // answer carries the row, so it is drawn from that and the
+            // "sending" line hands over at once. Waiting for the next full
+            // account read meant another exchange round trip, and a read
+            // already in flight when the order went knows nothing about it and
+            // is thrown away — which is where the long wait came from.
+            if (showsAsWatch(watch)) {
+              holdSmart(watch)
+              setPlacing((held) =>
+                held.filter((order) => order.id !== ghost.id)
+              )
+            }
             if (outcome.protection === "partial" && outcome.protectionNote) {
               showErrorToast(outcome.protectionNote)
             }
@@ -1804,7 +1847,7 @@ export function useTrading(
         }
       })()
     },
-    [walletId, wallet, refresh]
+    [walletId, wallet, refresh, holdSmart]
   )
 
   const editOrder: Trading["editOrder"] = React.useCallback(
@@ -1825,43 +1868,60 @@ export function useTrading(
         const watch = smartOrders.find(
           (one) => one.kind === "watch" && one.id === orderId
         )
-        const saved = await run(() =>
-          editWatch({ walletId, ladderId: orderId, ...changes })
-        )
-        if (saved && watch?.kind === "watch") {
-          // The write has landed. Keep the edited copy on screen until a read
-          // carries it back, so reopening the window cannot show the values
-          // from before Save was pressed.
+        // **Held before the write, not after it.** A stop dragged to a new
+        // price is shown there straight away, exactly as a dragged order price
+        // is. Holding only once the save answered left the line sitting at the
+        // old stop for the length of the round trip, so it fell back to where
+        // it started and jumped forward a moment later.
+        if (watch?.kind === "watch") {
           holdSmart({
             ...watch,
             plan: { ...watch.plan, ...changes },
             updatedAt: Date.now(),
           })
         }
+        const saved = await run(() =>
+          editWatch({ walletId, ladderId: orderId, ...changes })
+        )
+        // A refusal puts the row back as the server has it, rather than
+        // leaving a price on screen that nothing agreed to.
+        if (!saved && watch?.kind === "watch") {
+          holdSmart(watch)
+        }
         return saved
       }
-      const saved = await run(() =>
-        updatePaperOrder({ walletId, orderId, ...changes })
-      )
-      if (saved) {
-        // Practice orders are ordinary rows rather than smart-order plans.
-        // Update the copy already on screen while the post-save read lands.
+      // Practice orders are ordinary rows rather than smart-order plans, and
+      // the copy on screen is edited the same way: now, not once the save has
+      // answered.
+      const wasOrder = order ?? null
+      const showOrder = (values: Partial<TradeOrder>) =>
         setPaperAnswer((answer) =>
           answer
             ? {
                 ...answer,
                 orders: answer.orders.map((one) =>
                   one.walletId === walletId && one.id === orderId
-                    ? { ...one, ...changes, updatedAt: Date.now() }
+                    ? { ...one, ...values, updatedAt: Date.now() }
                     : one
                 ),
               }
             : answer
         )
+      showOrder(changes)
+      const saved = await run(() =>
+        updatePaperOrder({ walletId, orderId, ...changes })
+      )
+      if (!saved && wasOrder) {
+        showOrder({
+          sz: wasOrder.sz,
+          leverage: wasOrder.leverage,
+          tpPx: wasOrder.tpPx,
+          slPx: wasOrder.slPx,
+        })
       }
       return saved
     },
-    [run, findOrder, smartOrders, holdSmart]
+    [run, findOrder, smartOrders, holdSmart, setPaperAnswer]
   )
 
   const move: Trading["move"] = React.useCallback(
