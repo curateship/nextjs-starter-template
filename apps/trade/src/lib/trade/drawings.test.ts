@@ -6,6 +6,8 @@ import {
   describeDrawing,
   describeDrawingInline,
   drawingAlertArmed,
+  drawingAlertFiresOn,
+  DRAWING_VOLUME_LOOKBACK,
   extendedRight,
   fibLevels,
   moveShape,
@@ -14,6 +16,9 @@ import {
   readDrawingAlert,
   readDrawingBuffer,
   readDrawingShape,
+  readDrawingVolumeMultiple,
+  ruledAlert,
+  volumeConfirmsBreak,
 } from "@/lib/trade/drawings"
 
 describe("reading a saved drawing", () => {
@@ -417,4 +422,116 @@ it("does not accept the removed arrow drawing kind", () => {
       to: { time: 2000, price: 200 },
     })
   ).toBeNull()
+})
+
+describe("what a line is waiting for", () => {
+  const armed = {
+    direction: "above" as const,
+    armedAt: 1_000,
+    firedAt: null,
+  }
+
+  it("is a touch until a timeframe is set on it", () => {
+    expect(drawingAlertFiresOn(null)).toBe("touch")
+    expect(drawingAlertFiresOn(armed)).toBe("touch")
+    expect(drawingAlertFiresOn({ ...armed, closeInterval: "1h" })).toBe("close")
+  })
+
+  it("sets both rules together and takes either off again", () => {
+    const close = ruledAlert(armed, {
+      closeInterval: "4h",
+      volumeMultiple: 1.5,
+    })
+    expect(close).toEqual({
+      ...armed,
+      closeInterval: "4h",
+      volumeMultiple: 1.5,
+    })
+
+    // A key is deleted rather than stored as null, so a line that never asked
+    // for a close reads exactly as it always did.
+    const back = ruledAlert(close, {
+      closeInterval: null,
+      volumeMultiple: null,
+    })
+    expect(back).toEqual(armed)
+    expect("closeInterval" in back).toBe(false)
+    expect("volumeMultiple" in back).toBe(false)
+  })
+
+  it("leaves the alert it was given alone", () => {
+    const before = { ...armed, closeInterval: "1h" as const }
+    ruledAlert(before, { closeInterval: null, volumeMultiple: null })
+    expect(before.closeInterval).toBe("1h")
+  })
+})
+
+describe("reading a volume multiple", () => {
+  it("takes a number, with or without the x somebody typed", () => {
+    expect(readDrawingVolumeMultiple("2")).toBe(2)
+    expect(readDrawingVolumeMultiple(" 1.5x ")).toBe(1.5)
+    expect(readDrawingVolumeMultiple("1.5X")).toBe(1.5)
+  })
+
+  it("reads blank as no condition at all", () => {
+    expect(readDrawingVolumeMultiple("")).toBeNull()
+    expect(readDrawingVolumeMultiple("   ")).toBeNull()
+  })
+
+  it("refuses anything that is not a multiple above zero", () => {
+    expect(readDrawingVolumeMultiple("0")).toBe(false)
+    expect(readDrawingVolumeMultiple("-2")).toBe(false)
+    expect(readDrawingVolumeMultiple("lots")).toBe(false)
+    expect(readDrawingVolumeMultiple("1000")).toBe(false)
+  })
+})
+
+describe("volume on the candle that broke the line", () => {
+  const twenty = (volume: number) =>
+    Array.from({ length: DRAWING_VOLUME_LOOKBACK }, () => volume)
+
+  it("clears at the multiple and fails a hair under it", () => {
+    expect(
+      volumeConfirmsBreak({
+        breaking: 150,
+        previous: twenty(100),
+        multiple: 1.5,
+      })
+    ).toBe(true)
+    expect(
+      volumeConfirmsBreak({
+        breaking: 149.9,
+        previous: twenty(100),
+        multiple: 1.5,
+      })
+    ).toBe(false)
+  })
+
+  it("averages the twenty nearest the break and ignores older ones", () => {
+    // Thirty candles: ten quiet ones long ago, then twenty busy ones. Only
+    // the busy twenty count, so a break at 150 no longer clears 1.5x.
+    const previous = [...twenty(1).slice(0, 10), ...twenty(100)]
+    expect(
+      volumeConfirmsBreak({ breaking: 150, previous, multiple: 1.5 })
+    ).toBe(true)
+    expect(
+      volumeConfirmsBreak({ breaking: 149, previous, multiple: 1.5 })
+    ).toBe(false)
+  })
+
+  it("has no answer when there are fewer than twenty behind it", () => {
+    expect(
+      volumeConfirmsBreak({
+        breaking: 10_000,
+        previous: twenty(100).slice(0, 19),
+        multiple: 1.5,
+      })
+    ).toBeNull()
+  })
+
+  it("has no answer when the twenty behind it carry no volume", () => {
+    expect(
+      volumeConfirmsBreak({ breaking: 5, previous: twenty(0), multiple: 1.5 })
+    ).toBeNull()
+  })
 })

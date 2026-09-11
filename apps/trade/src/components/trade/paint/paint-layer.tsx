@@ -8,7 +8,7 @@ import {
   projectCandleWicks,
   type WickTip,
 } from "@/components/trade/paint/wick-snap"
-import type { CandleBar } from "@/lib/protocols/contracts"
+import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 import {
   describeDrawing,
   describeDrawingInline,
@@ -590,6 +590,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   onDelete,
   onSetAlert,
   onSetBuffer,
+  onSetRules,
   onAlertOpen,
   wide = true,
   lineAlertsPaused = false,
@@ -616,6 +617,14 @@ export const PaintLayer = React.memo(function PaintLayer({
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
   /** The percentage past the line before an armed alert fires, or none. */
   onSetBuffer?: (id: string, buffer: number | null) => void
+  /** What an armed alert waits for: a candle's close, and its volume. */
+  onSetRules?: (
+    id: string,
+    rules: {
+      closeInterval: CandleInterval | null
+      volumeMultiple: number | null
+    }
+  ) => void
   /** The alert window is opening: a chance to read the lines again. */
   onAlertOpen?: () => void
   /** The shell's 1280-pixel layout answer. Narrow puts the window in a sheet. */
@@ -1375,6 +1384,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                   )
                 }
                 onSetBuffer={(buffer) => onSetBuffer?.(alertDrawing.id, buffer)}
+                onSetRules={(rules) => onSetRules?.(alertDrawing.id, rules)}
               />
             )
           })()

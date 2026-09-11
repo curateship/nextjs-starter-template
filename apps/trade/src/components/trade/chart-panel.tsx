@@ -1722,6 +1722,7 @@ export function ChartPanel({
             onDelete={paint.remove}
             onSetAlert={paint.setAlert}
             onSetBuffer={paint.setBuffer}
+            onSetRules={paint.setRules}
             onAlertOpen={onAlertOpen}
             wide={wide}
             lineAlertsPaused={lineAlertsPaused}
@@ -1866,6 +1867,7 @@ export function ChartPanel({
       paint.move,
       paint.setAlert,
       paint.setBuffer,
+      paint.setRules,
       paint.remove,
       paintTool,
       onAlertOpen,

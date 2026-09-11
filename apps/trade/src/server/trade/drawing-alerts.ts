@@ -6,15 +6,27 @@ import {
   type LineAlertList,
 } from "@/lib/trade/line-alerts"
 
-import { marketChartHref } from "@/lib/protocols/contracts"
+import {
+  marketChartHref,
+  parseMarketKey,
+  type CandleBar,
+  type CandleInterval,
+  type MarketKey,
+} from "@/lib/protocols/contracts"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   alertFirePrice,
   drawingAlertArmed,
+  DRAWING_VOLUME_LOOKBACK,
   priceAtTime,
   readDrawingAlert,
   readDrawingShape,
+  volumeConfirmsBreak,
 } from "@/lib/trade/drawings"
+import {
+  candleCloseTime,
+  loadFinishedCandles,
+} from "@/server/trade/alert-candles"
 import { drawingAlertNoticeWords } from "@/lib/trade/trade-notice-words"
 import { db, type CustomShellDb } from "@/server/db"
 import { writeTradeNotice } from "@/server/trade/notices"
@@ -80,6 +92,103 @@ export async function loadDrawingAlerts(
 }
 
 /**
+ * One armed line, as the firing loop holds it: the stored row with its alert
+ * and shape already read.
+ */
+type ArmedLine = {
+  userId: string
+  id: string
+  marketKey: string
+  shape: NonNullable<ReturnType<typeof readDrawingShape>>
+  alert: NonNullable<ReturnType<typeof readDrawingAlert>>
+}
+
+/**
+ * What a break is once one has happened: where the line was, where it had to
+ * be crossed, what crossed it, and the candle that did if there was one.
+ */
+type Break = {
+  linePrice: number
+  firePrice: number
+  /** The price compared: a live tick, or a finished candle's close. */
+  at: number
+}
+
+/** The Touch rule, unchanged: the live price is at or past the line. */
+function touchBroke(
+  row: ArmedLine,
+  mark: number | undefined,
+  now: number
+): Break | null {
+  if (mark === undefined) return null
+  const linePrice = priceAtTime(row.shape, now)
+  if (linePrice === null) return null
+  // Not the line, but the line moved by however far past it the person asked
+  // the price to go before this counts as a break.
+  const firePrice = alertFirePrice(
+    linePrice,
+    row.alert.direction,
+    row.alert.buffer
+  )
+  const crossed =
+    row.alert.direction === "above" ? mark >= firePrice : mark <= firePrice
+  return crossed ? { linePrice, firePrice, at: mark } : null
+}
+
+/**
+ * The Close rule: the newest finished candle closed on the far side of the
+ * line, and its volume cleared the bar if one was asked for.
+ *
+ * **The newest finished candle only.** The store publishes some time after a
+ * candle closes, so this runs a little late rather than at the close itself;
+ * what it must never do is reach back and fire on a candle from this morning
+ * because that is the first one it happened to read.
+ *
+ * **Nothing that closed before the switch went on.** Arming a line while the
+ * last finished candle already sits past it would otherwise ring at once, on
+ * news that was old when the alert was made.
+ *
+ * **The line is read at the candle's close**, not at now, so a trendline is
+ * compared where it actually was when the candle finished.
+ */
+function closeBroke(row: ArmedLine, bars: readonly CandleBar[]): Break | null {
+  const interval = row.alert.closeInterval
+  if (interval === undefined) return null
+  const breaking = bars.at(-1)
+  if (!breaking) return null
+
+  const closedAt = candleCloseTime(breaking.openTime, interval)
+  if (closedAt <= row.alert.armedAt) return null
+
+  const linePrice = priceAtTime(row.shape, closedAt)
+  if (linePrice === null) return null
+  const firePrice = alertFirePrice(
+    linePrice,
+    row.alert.direction,
+    row.alert.buffer
+  )
+  const crossed =
+    row.alert.direction === "above"
+      ? breaking.close >= firePrice
+      : breaking.close <= firePrice
+  if (!crossed) return null
+
+  // A break on thin volume is often a fake, so a line that asked for volume
+  // waits rather than firing when the app cannot judge it.
+  // `volumeConfirmsBreak` says which is which.
+  if (row.alert.volumeMultiple !== undefined) {
+    const confirmed = volumeConfirmsBreak({
+      breaking: breaking.volume,
+      previous: bars.slice(0, -1).map((bar) => bar.volume),
+      multiple: row.alert.volumeMultiple,
+    })
+    if (confirmed !== true) return null
+  }
+
+  return { linePrice, firePrice, at: breaking.close }
+}
+
+/**
  * Fire every armed drawn line the price has crossed.
  *
  * The same shape as `checkPriceAlerts`, and run beside it once per engine
@@ -101,6 +210,7 @@ export async function loadDrawingAlerts(
  */
 export async function checkDrawingAlerts({
   pushedMarks,
+  finishedCandles = loadFinishedCandles,
   checkedAt = new Date(),
   database = db,
 }: {
@@ -108,6 +218,17 @@ export async function checkDrawingAlerts({
     marks: ReadonlyMap<string, number>
     missing: string[]
   }
+  /**
+   * The finished bars a Close alert is judged on. Handed in so a test can say
+   * what closed without a store behind it; the engine leaves it alone.
+   */
+  finishedCandles?: (input: {
+    marketKey: MarketKey
+    interval: CandleInterval
+    count: number
+    now: number
+    database?: CustomShellDb
+  }) => Promise<CandleBar[]>
   checkedAt?: Date
   database?: CustomShellDb
 }): Promise<number> {
@@ -142,25 +263,65 @@ export async function checkDrawingAlerts({
   })
   if (armed.length === 0) return 0
 
-  const marketKeys = [...new Set(armed.map((row) => row.marketKey))]
-  const { marks } = pushedMarks(marketKeys)
+  // Only the Touch lines need a pushed price. A Close line is judged on a
+  // finished candle, so a market with no live tick still fires.
+  const touchKeys = [
+    ...new Set(
+      armed
+        .filter((row) => row.alert.closeInterval === undefined)
+        .map((row) => row.marketKey)
+    ),
+  ]
+  const { marks } = pushedMarks(touchKeys)
   const now = checkedAt.getTime()
+
+  // One read per market and timeframe, however many lines share it, and all
+  // of them together rather than one after another: each is a round trip to a
+  // database a moment away, and this runs inside an engine pass that has
+  // orders waiting behind it. Twenty-one bars each: the one that may have
+  // broken the line, and the twenty behind it the volume condition averages
+  // over.
+  const pairs = new Map<
+    string,
+    { marketKey: MarketKey; interval: CandleInterval }
+  >()
+  for (const row of armed) {
+    const interval = row.alert.closeInterval
+    if (interval === undefined) continue
+    // The key is checked rather than asserted: a row written by something
+    // else, or by an older build, is left waiting instead of being read
+    // under a name the catalogue cannot place.
+    const marketKey = parseMarketKey(row.marketKey)
+      ? (row.marketKey as MarketKey)
+      : null
+    if (!marketKey) continue
+    pairs.set(`${row.marketKey}@${interval}`, { marketKey, interval })
+  }
+  const candles = new Map<string, CandleBar[]>(
+    await Promise.all(
+      [...pairs].map(
+        async ([pair, ask]) =>
+          [
+            pair,
+            await finishedCandles({
+              ...ask,
+              count: DRAWING_VOLUME_LOOKBACK + 1,
+              now,
+              database,
+            }),
+          ] as const
+      )
+    )
+  )
+
   let fired = 0
   for (const row of armed) {
-    const mark = marks.get(row.marketKey)
-    if (mark === undefined) continue
-    const linePrice = priceAtTime(row.shape, now)
-    if (linePrice === null) continue
-    // Not the line, but the line moved by however far past it the person
-    // asked the price to go before this counts as a break.
-    const firePrice = alertFirePrice(
-      linePrice,
-      row.alert.direction,
-      row.alert.buffer
-    )
-    const crossed =
-      row.alert.direction === "above" ? mark >= firePrice : mark <= firePrice
-    if (!crossed) continue
+    const interval = row.alert.closeInterval
+    const broke = interval
+      ? closeBroke(row, candles.get(`${row.marketKey}@${interval}`) ?? [])
+      : touchBroke(row, marks.get(row.marketKey), now)
+    if (!broke) continue
+    const { linePrice, firePrice, at } = broke
 
     // The same guarded write either way, so a line moved or switched off
     // after the read is never touched.
@@ -175,7 +336,7 @@ export async function checkDrawingAlerts({
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'grid-line-stop:' + row.userId}, 0))`)
       const [prefs] = await tx.select({ paused: tradePrefs.lineAlertsPaused }).from(tradePrefs).where(eq(tradePrefs.userId, row.userId))
       if (prefs?.paused) {
-        const direction = priceAlertDirection(linePrice, mark)
+        const direction = priceAlertDirection(linePrice, at)
         if (direction !== row.alert.direction) {
           await tx.update(tradeChartDrawings).set({ alert: { ...row.alert, direction } }).where(claim)
         }
@@ -196,6 +357,8 @@ export async function checkDrawingAlerts({
         direction: row.alert.direction,
         name: row.shape.name ?? null,
         buffer: row.alert.buffer ?? null,
+        closeInterval: row.alert.closeInterval ?? null,
+        volumeMultiple: row.alert.volumeMultiple ?? null,
       })
       await writeTradeNotice({
         userId: row.userId,

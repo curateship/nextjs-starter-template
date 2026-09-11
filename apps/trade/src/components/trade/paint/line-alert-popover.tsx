@@ -1,9 +1,20 @@
 import * as React from "react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
+import { OptionCard } from "@/components/trade/option-card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Popover,
   PopoverContent,
@@ -15,11 +26,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
+  CANDLE_INTERVALS,
+  type CandleInterval,
+} from "@/lib/protocols/contracts"
+import {
+  DEFAULT_DRAWING_VOLUME_MULTIPLE,
   drawingAlertArmed,
+  drawingAlertFiresOn,
   describeDrawing,
+  DRAWING_VOLUME_LOOKBACK,
   MAX_DRAWING_BUFFER_PCT,
   MAX_DRAWING_DESCRIPTION_LENGTH,
+  MAX_DRAWING_VOLUME_MULTIPLE,
   readDrawingBuffer,
+  readDrawingVolumeMultiple,
   type Drawing,
 } from "@/lib/trade/drawings"
 import { formatPrice } from "@/lib/trade/format"
@@ -51,6 +71,7 @@ export function LineAlertPopover({
   onSetExtend,
   onSetName,
   onSetBuffer,
+  onSetRules,
 }: {
   drawing: Drawing
   /** Where the line was when the window opened, or null for a vertical line. */
@@ -80,7 +101,34 @@ export function LineAlertPopover({
   onSetName: (name: string) => void
   /** The percentage past the line before it fires, or null for none. */
   onSetBuffer: (buffer: number | null) => void
+  /**
+   * What the alert waits for, sent whole: a timeframe whose finished candle
+   * has to close past the line, and the volume that candle has to carry.
+   */
+  onSetRules: (rules: {
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+  }) => void
 }) {
+  /*
+    **Which way the window opens, decided once as it opens.**
+
+    The library normally decides this for itself and revisits it whenever the
+    content changes size — and this window does change size, because Close adds
+    a timeframe and the volume switch adds a field. Pressing one made it flip
+    from below the line to above it, which moved the whole window 563 pixels in
+    one jump and put its header off the top of the screen. Whatever somebody
+    was about to press had gone somewhere else.
+
+    So the choice is made here, from where the line's point sits on the screen,
+    and then held: below the point normally, above it when there is not room
+    for a full window below and there is more room above. Collision handling is
+    switched off so that nothing re-decides it afterwards, and the ceiling on
+    the class below is what keeps the window on screen instead.
+
+    Read as the window opens rather than on every render. `at` is the line's
+    own point and does not move while the window is up.
+  */
   // A pretend element for the popover to hang off: a zero-size box at one
   // point, measured off the layer each time the popover asks.
   const virtualRef = React.useMemo(
@@ -107,17 +155,19 @@ export function LineAlertPopover({
     [svg, at.x, at.y]
   )
 
-  const body = (headerClassName: string) => (
+  const body = (headerClassName: string, scroll: boolean) => (
     <LineAlertBody
       drawing={drawing}
       linePrice={linePrice}
       currentPrice={currentPrice}
       paused={paused}
       headerClassName={headerClassName}
+      scroll={scroll}
       onSetAlert={onSetAlert}
       onSetExtend={onSetExtend}
       onSetName={onSetName}
       onSetBuffer={onSetBuffer}
+      onSetRules={onSetRules}
     />
   )
 
@@ -141,7 +191,7 @@ export function LineAlertPopover({
           {/* The divider reaches the sheet's own edges, which are 16 pixels
               out from its content. A line stopping short of them reads as a
               broken one. */}
-          {body("-mx-4 border-b px-4 pb-2.5")}
+          {body("-mx-4 border-b px-4 pb-2.5", false)}
         </div>
       </TouchOrderFrame>
     )
@@ -151,7 +201,25 @@ export function LineAlertPopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverPrimitive.Anchor virtualRef={virtualRef} />
       <PopoverContent
-        className="w-64"
+        /*
+          **A fixed height, and the body scrolls inside it — the same frame
+          every order window on the chart uses.**
+
+          The window hangs off a point on the chart, and its controls change
+          how tall it wants to be: the close rule adds a timeframe, and the
+          volume box adds a field. While its height followed its content, the
+          library had to move the whole window to keep it on screen — 563
+          pixels in one jump, with the header ending above the top of the
+          screen and whatever somebody was about to press somewhere else.
+
+          A window whose height never changes never has to be moved. 24rem is
+          what that height is — shorter than the order windows, because this
+          one is a handful of switches rather than a form, and a tall window
+          over a chart covers the candles the line was drawn through. The room
+          the screen has wins when it is less, and `ScrollArea` carries
+          whatever does not fit, the way it does in the DCA and grid windows.
+        */
+        className="grid h-[min(24rem,var(--radix-popover-content-available-height))] w-72 grid-rows-[auto_minmax(0,1fr)] gap-0 p-0"
         onOpenAutoFocus={(event) => {
           if (!autoFocus) event.preventDefault()
         }}
@@ -165,8 +233,7 @@ export function LineAlertPopover({
         // popover cannot: its anchor is a point on the chart, not an element.
         onCloseAutoFocus={(event) => event.preventDefault()}
       >
-        {/* Ten pixels out to the popover's edges, matching its own padding. */}
-        {body("-mx-2.5 border-b px-2.5 pb-2.5")}
+        {body("border-b p-2.5", true)}
       </PopoverContent>
     </Popover>
   )
@@ -179,10 +246,12 @@ function LineAlertBody({
   currentPrice,
   paused,
   headerClassName,
+  scroll,
   onSetAlert,
   onSetExtend,
   onSetName,
   onSetBuffer,
+  onSetRules,
 }: {
   drawing: Drawing
   linePrice: number | null
@@ -190,10 +259,20 @@ function LineAlertBody({
   paused: boolean
   /** Pulls the header's divider out to whichever frame is holding it. */
   headerClassName: string
+  /**
+   * Put the fields in a scroll area under a header that stays put. True in
+   * the popover, which is a fixed height; false in the bottom sheet, which
+   * scrolls itself and would otherwise scroll twice.
+   */
+  scroll: boolean
   onSetAlert: (on: boolean) => void
   onSetExtend: (on: boolean) => void
   onSetName: (name: string) => void
   onSetBuffer: (buffer: number | null) => void
+  onSetRules: (rules: {
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+  }) => void
 }) {
   const armed = drawingAlertArmed(drawing.alert)
   const fired = drawing.alert?.firedAt ?? null
@@ -207,28 +286,13 @@ function LineAlertBody({
   const extendId = `line-extend-${drawing.id}`
   const descriptionId = `line-description-${drawing.id}`
   const bufferId = `line-buffer-${drawing.id}`
+  const firesOnId = `line-fires-on-${drawing.id}`
   const shape = drawing.shape
   const supportsAlert = shape.kind === "level" || shape.kind === "trendline"
   const noun = shape.kind === "level" ? "level" : "line"
 
-  return (
+  const fields = (
     <>
-      <PopoverHeader className={headerClassName}>
-        <PopoverTitle>
-          {shape.kind === "fib"
-            ? "Fib retracement"
-            : shape.kind === "level"
-              ? "Level"
-              : "Trendline"}
-        </PopoverTitle>
-        <p className="text-muted-foreground">
-          {!supportsAlert
-            ? describeDrawing(shape, formatPrice)
-            : linePrice === null
-              ? "This line is straight up and down."
-              : `The ${noun} is at ${formatPrice(linePrice)} right now.`}
-        </p>
-      </PopoverHeader>
       {supportsAlert && paused ? (
         <p role="status" className="text-xs text-muted-foreground">
           Paused in Settings. No line alert fires until the Line alerts switch
@@ -262,8 +326,20 @@ function LineAlertBody({
           />
         </div>
       ) : null}
-      {/* Only offered while the alert is on, because that is the record the
-          dollars are kept on. */}
+      {/* Only offered while the alert is on, because that is the record every
+          one of these rules is kept on. Fire on comes first: it decides
+          whether the volume condition below it means anything at all. */}
+      {supportsAlert && armed && drawing.alert ? (
+        <CloseRuleCard
+          id={firesOnId}
+          noun={noun}
+          // Per line: opening another one starts from that line's own saved
+          // rule rather than carrying this one's remembered choices across.
+          key={firesOnId}
+          alert={drawing.alert}
+          onSetRules={onSetRules}
+        />
+      ) : null}
       {supportsAlert && armed && drawing.alert ? (
         <BufferField
           id={bufferId}
@@ -282,7 +358,7 @@ function LineAlertBody({
           is what the switch itself says. */}
       {supportsAlert && armed ? (
         <p className="text-xs text-muted-foreground">
-          {`Fires once when the price crosses ${drawing.alert?.direction === "above" ? "up through" : "down through"} the ${noun}, then switches itself off.`}
+          {waitingWords(drawing.alert, noun)}
         </p>
       ) : supportsAlert && fired !== null ? (
         <p className="text-xs text-muted-foreground">
@@ -296,6 +372,255 @@ function LineAlertBody({
         onSetName={onSetName}
       />
     </>
+  )
+
+  return (
+    <>
+      <PopoverHeader className={headerClassName}>
+        <PopoverTitle>
+          {shape.kind === "fib"
+            ? "Fib retracement"
+            : shape.kind === "level"
+              ? "Level"
+              : "Trendline"}
+        </PopoverTitle>
+        <p className="text-muted-foreground">
+          {!supportsAlert
+            ? describeDrawing(shape, formatPrice)
+            : linePrice === null
+              ? "This line is straight up and down."
+              : `The ${noun} is at ${formatPrice(linePrice)} right now.`}
+        </p>
+      </PopoverHeader>
+      {scroll ? (
+        <ScrollArea className="min-h-0">
+          <div className="grid gap-2.5 p-2.5">{fields}</div>
+        </ScrollArea>
+      ) : (
+        fields
+      )}
+    </>
+  )
+}
+
+/**
+ * What an armed line is waiting for, in one sentence under the switches.
+ *
+ * Written from the saved rules rather than from a fixed string, so the line
+ * says what it will actually do: a touch, a finished candle's close, and the
+ * volume that candle has to carry.
+ */
+function waitingWords(alert: Drawing["alert"], noun: string): string {
+  const crossing = alert?.direction === "above" ? "up through" : "down through"
+  if (!alert || alert.closeInterval === undefined) {
+    return `Fires once when the price crosses ${crossing} the ${noun}, then switches itself off.`
+  }
+  const volume =
+    alert.volumeMultiple === undefined
+      ? ""
+      : ` on volume at least ${alert.volumeMultiple}x the average of the ${DRAWING_VOLUME_LOOKBACK} candles before it`
+  return `Fires once when a finished ${alert.closeInterval} candle closes ${crossing} the ${noun}${volume}, then switches itself off.`
+}
+
+/**
+ * The close rule, as one card that can be switched off wholesale: the
+ * timeframe whose finished candle has to close past the line, and the volume
+ * that candle has to carry.
+ *
+ * An `OptionCard`, the same as every rule on the DCA window. The box turns the
+ * rule on and the chevron shows its settings, guidance sits behind the info
+ * icon rather than under the controls, and the card says its own answer on the
+ * right so a folded one still reads. Unchecked is the touch alert every line
+ * had before this: the moment the price reaches the line, it fires.
+ *
+ * The volume condition lives inside this card rather than beside it, because a
+ * live price carries no volume of its own — there is nothing for it to mean
+ * until a candle is what fires the line.
+ */
+function CloseRuleCard({
+  id,
+  noun,
+  alert,
+  onSetRules,
+}: {
+  id: string
+  /** What this drawing is called in a sentence: "line" or "level". */
+  noun: string
+  alert: NonNullable<Drawing["alert"]>
+  onSetRules: (rules: {
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+  }) => void
+}) {
+  const on = drawingAlertFiresOn(alert) === "close"
+  // Kept so switching the card off and on does not lose the timeframe or the
+  // multiple somebody picked a moment ago. Written only in the handlers below,
+  // which are the only places either can change, and seeded from this line's
+  // own saved rule. The card is keyed on the line, so opening another one
+  // starts from that line's answer rather than from this one's.
+  const [lastInterval, setLastInterval] = React.useState<CandleInterval>(
+    alert.closeInterval ?? "1h"
+  )
+  const [lastMultiple, setLastMultiple] = React.useState<number>(
+    alert.volumeMultiple ?? DEFAULT_DRAWING_VOLUME_MULTIPLE
+  )
+
+  const volumeId = `${id}-volume`
+  const multipleId = `${id}-multiple`
+
+  return (
+    <OptionCard
+      id={id}
+      title="Wait for a close"
+      hint={`A finished candle has to close on the far side of the ${noun}, instead of the alert firing the moment the price touches it. A close is what most people mean by a break; firing on the touch means being woken by every wick.`}
+      foldWhenOff={false}
+      // The card's own answer, so a folded one still says what it will do.
+      summary={
+        on
+          ? alert.volumeMultiple === undefined
+            ? alert.closeInterval
+            : `${alert.closeInterval}, ${alert.volumeMultiple}×`
+          : null
+      }
+      toggle={{
+        checked: on,
+        onChange: (next) =>
+          onSetRules({
+            closeInterval: next ? lastInterval : null,
+            // A volume condition means nothing on a touch, so it comes off
+            // with the rule rather than sitting there unread.
+            volumeMultiple: null,
+          }),
+      }}
+    >
+      {on ? (
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor={`${id}-interval`}
+              hint="Which candle has to close past the line. On 1h a new one finishes every hour, on 1d once a day. A shorter one tells you sooner and is wrong more often; a longer one asks the price to hold before you are told."
+            >
+              Timeframe
+            </FieldLabel>
+            <Select
+              value={alert.closeInterval}
+              onValueChange={(next) => {
+                setLastInterval(next as CandleInterval)
+                onSetRules({
+                  closeInterval: next as CandleInterval,
+                  volumeMultiple: alert.volumeMultiple ?? null,
+                })
+              }}
+            >
+              <SelectTrigger id={`${id}-interval`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CANDLE_INTERVALS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={volumeId}
+              checked={alert.volumeMultiple !== undefined}
+              onCheckedChange={(next) =>
+                onSetRules({
+                  closeInterval: alert.closeInterval ?? lastInterval,
+                  volumeMultiple: next === true ? lastMultiple : null,
+                })
+              }
+            />
+            <FieldLabel
+              htmlFor={volumeId}
+              hint={`A break on thin volume is often a fake. This asks the candle that closes past the ${noun} to have carried more trade than usual before the alert fires.`}
+            >
+              Only on above-average volume
+            </FieldLabel>
+          </div>
+          {alert.volumeMultiple === undefined ? null : (
+            <MultipleField
+              id={multipleId}
+              key={`multiple-${alert.volumeMultiple}`}
+              multiple={alert.volumeMultiple}
+              onSetMultiple={(multiple) => {
+                if (multiple !== null) setLastMultiple(multiple)
+                onSetRules({
+                  closeInterval: alert.closeInterval ?? lastInterval,
+                  // Emptying the box is the same as clearing the box above.
+                  volumeMultiple: multiple,
+                })
+              }}
+            />
+          )}
+        </div>
+      ) : null}
+    </OptionCard>
+  )
+}
+
+/**
+ * How many times its recent average the breaking candle's volume has to be.
+ * Blank takes the condition off, which is the same thing the box above it
+ * does — a break that has to beat nothing is not a volume-confirmed break.
+ *
+ * The unit is in the label, the way the DCA window's "Size ramp ×" carries
+ * its own, rather than printed inside the box.
+ */
+function MultipleField({
+  id,
+  multiple,
+  onSetMultiple,
+}: {
+  id: string
+  multiple: number
+  onSetMultiple: (multiple: number | null) => void
+}) {
+  const [draft, setDraft] = React.useState(String(multiple))
+  const typed = readDrawingVolumeMultiple(draft)
+  const unreadable = typed === false
+
+  const commit = () => {
+    if (unreadable) {
+      showErrorToast(
+        `A volume multiple is a number above zero and no more than ${MAX_DRAWING_VOLUME_MULTIPLE}, or nothing at all.`
+      )
+      return
+    }
+    if (typed === multiple) return
+    onSetMultiple(typed)
+  }
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel
+        htmlFor={id}
+        hint={`How many times the average of the ${DRAWING_VOLUME_LOOKBACK} candles before it. At 1.5 the breaking candle has to carry half as much again as usual.`}
+      >
+        Volume multiple ×
+      </FieldLabel>
+      <Input
+        id={id}
+        inputMode="decimal"
+        value={draft}
+        placeholder="None"
+        autoComplete="off"
+        aria-invalid={unreadable || undefined}
+        className="bg-background"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit()
+          }
+        }}
+      />
+    </div>
   )
 }
 

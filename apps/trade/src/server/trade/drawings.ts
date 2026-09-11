@@ -7,14 +7,17 @@ import {
   MAX_DRAWINGS_PER_MARKET,
   bufferedAlert,
   drawingAlertArmed,
+  rearmedAlert,
   extendedRight,
   priceAtTime,
   readDrawingAlert,
   readDrawingShape,
+  ruledAlert,
   type Drawing,
   type DrawingAlert,
   type DrawingShape,
 } from "@/lib/trade/drawings"
+import type { CandleInterval } from "@/lib/protocols/contracts"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import { db } from "@/server/db"
 import { tradeChartDrawings } from "@/server/trade/schema"
@@ -194,13 +197,14 @@ export async function setChartDrawingAlert(
       throw new Error(DRAWING_ALERT_NO_PRICE)
     }
     const previousAlert = readDrawingAlert(row.alert)
-    alert = bufferedAlert(
+    alert = rearmedAlert(
       {
         direction: priceAlertDirection(linePrice, input.currentPrice),
         armedAt: now,
         firedAt: null,
       },
-      previousAlert ? (previousAlert.buffer ?? null) : (input.buffer ?? null)
+      previousAlert,
+      input.buffer ?? null
     )
     saved = extendedRight(shape)
   }
@@ -261,6 +265,61 @@ export async function setChartDrawingAlertBuffer(
   }
 
   const saved = bufferedAlert(alert, input.buffer)
+  await db
+    .update(tradeChartDrawings)
+    .set({ alert: saved, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+  return { id: row.id, shape, alert: saved }
+}
+
+/**
+ * Set or clear what an armed alert waits for: a finished candle on a
+ * timeframe instead of a live touch, and the volume that candle has to carry.
+ *
+ * Both rules are written together, always, because the window knows both and
+ * a half-sent rule has no meaning anybody could name. Its own door rather than
+ * a second job for `setChartDrawingAlert`, for the reason the buffer has one:
+ * that function arms and disarms, so putting a rule through it would reset the
+ * direction and the armed time every time somebody changed a timeframe.
+ *
+ * Only an armed alert takes one, the same as the buffer.
+ */
+export async function setChartDrawingAlertRules(
+  userId: string,
+  input: {
+    id: string
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+  }
+): Promise<Drawing> {
+  const [row] = await db
+    .select({
+      id: tradeChartDrawings.id,
+      shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
+    })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+    .limit(1)
+  const shape = row ? readDrawingShape(row.shape) : null
+  if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+
+  const alert = readDrawingAlert(row.alert)
+  if (!drawingAlertArmed(alert) || !alert) {
+    throw new Error(DRAWING_ALERT_NOT_ARMED)
+  }
+
+  const saved = ruledAlert(alert, input)
   await db
     .update(tradeChartDrawings)
     .set({ alert: saved, updatedAt: new Date() })

@@ -1,4 +1,5 @@
-import { marketSymbol } from "@/lib/protocols/contracts"
+import { marketSymbol, type CandleInterval } from "@/lib/protocols/contracts"
+import { DRAWING_VOLUME_LOOKBACK } from "@/lib/trade/drawings"
 import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 
 /**
@@ -43,6 +44,10 @@ export function drawingAlertNoticeWords(input: {
   name?: string | null
   /** How far past the line the price had to go, as a percentage. */
   buffer?: number | null
+  /** The timeframe whose finished candle had to close past it, or null. */
+  closeInterval?: CandleInterval | null
+  /** The volume the breaking candle had to beat, as a multiple, or null. */
+  volumeMultiple?: number | null
 }): { title: string; body: string; level: TradeNoticeLevel } {
   const coin = marketSymbol(input.marketKey)
   const movement = input.direction === "above" ? "rising" : "falling"
@@ -53,7 +58,15 @@ export function drawingAlertNoticeWords(input: {
   const past = input.buffer
     ? `The price had to go ${input.buffer}% past the ${input.kind}. `
     : ""
-  const rest = `${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
+  // What the candle had to do, in the order it was asked for: close on the
+  // far side, and carry the volume. A Touch alert says neither.
+  const closed = input.closeInterval
+    ? `A finished ${input.closeInterval} candle closed ${input.direction} it. `
+    : ""
+  const volume = input.volumeMultiple
+    ? `Its volume was at least ${input.volumeMultiple}x the average of the ${DRAWING_VOLUME_LOOKBACK} candles before it. `
+    : ""
+  const rest = `${closed}${volume}${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
   if (input.name) {
     return {
       title: `${coin} crossed ${input.name} (was ${movement})`,

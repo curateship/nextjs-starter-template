@@ -33,11 +33,19 @@ an alert on never slides the buttons out from under the pointer.
 Pressing the cog opens the alert window, and double-clicking the line opens
 the same one.
 
+**The window is a fixed height and its body scrolls, the same frame the order
+windows on the chart use.** Its height does not follow its content, so it never
+has to be moved to stay on screen. While it did follow, ticking the close rule
+made it taller, and the library moved the whole window 563 pixels in one jump
+to fit — header above the top of the screen, and whatever somebody was about to
+press somewhere else. The height is the order windows' own, or the room the
+screen has if that is less, and `ScrollArea` carries the rest.
+
 The window hangs off the foot of the line's column. It opens with a header
 saying which drawing it is and where that line is right now in dollars, with a
 divider under it running the full width of the window. Then a switch, Alert,
-then Continuous line on a trendline, then Break buffer once the alert is on,
-then a Description field.
+then Continuous line on a trendline, then — once the alert is on — the Wait for
+a close card and Break buffer, then a Description field.
 
 A level's price is its price. A trendline's price "right now" is its slope
 carried on past its second point. A line straight up and down has no one
@@ -179,6 +187,114 @@ instruction on every coin.
 The engine compares the price against the line moved by that percentage. The percentage is measured off the size of the
 price, so a line dragged below zero still moves the way the words say.
 
+## Wait for a close
+
+A line can wait for two different things. **A touch** is what every line has
+always done and what every line still does until somebody changes it: the
+moment a live price reaches the line, it fires. **A close** waits for a
+finished candle on a timeframe to close on the far side of it. Tyler's words:
+rules "like price must cross line and close above or below it".
+
+It is one card in the line's window, **Wait for a close**, built like every
+rule on the DCA and grid windows: a box that turns the rule on, a chevron that
+shows its settings, guidance behind the info icon rather than under the
+controls, and the card's own answer — "4h", or "4h, 1.5×" — printed on the
+right so a folded card still reads. Unticked is the touch alert.
+
+A close on the far side is what most people mean by a break. Firing on the
+touch means being woken by every wick.
+
+- **The timeframe is picked from the same list the chart draws**, 1m through
+  1d, and the card only offers it once the rule is on. The choice is kept when
+  the rule goes off and on again, so comparing the two does not cost the
+  timeframe each time.
+- **Only finished candles count.** The bar still forming has a close that is
+  just the price right now, so firing on it would be the Touch alert wearing a
+  candle's name. The newest bar the engine will look at is the one whose whole
+  period is already in the past.
+- **Nothing that closed before the switch went on.** Arming a line while the
+  last finished candle already sits past it would otherwise ring at once, on
+  news that was old when the alert was made. The candle has to have closed
+  after the moment the switch went on.
+- **A trendline is read where it was when the candle closed**, not where it is
+  now, so a sloping line is compared against the candle beside it rather than
+  against a point it has since moved on to.
+- **The break buffer still applies**, on the candle's close instead of on a
+  live price. A close has to be that percentage past the line.
+- **A market the store has no candles for waits.** The store fills from charts
+  and backtests, never by walking a catalogue, so a coin nobody has opened can
+  genuinely have no bars. Nothing fires and nothing is said; the line goes on
+  waiting.
+- **The store fills per timeframe, so pick one you have looked at.** Opening a
+  market's 4h chart fills the store's 4h rows for it and nothing else. A Close
+  alert set to 1m on a market whose 1m bars nobody has ever asked for has
+  nothing to read, and waits until somebody opens that timeframe once. The
+  refresh job tops up the pairs the store already covers; it does not invent
+  new ones.
+- **No live price is needed at all.** A Close line is judged on a candle, so a
+  market whose pushed feed is quiet still fires. The engine does not even ask
+  for that market's price.
+
+**The candles come from the store, under the key that holds that coin's
+history.** A Hyperliquid line on NEAR is judged on the NEAR bars the store
+keeps, which come from Binance — the same rows the chart already draws behind
+the venue's own recent slice. `candle-store.md` explains why the store keeps
+one copy per coin rather than one per venue. What that means here is worth
+saying plainly: **the volume compared below is the source's volume, not the
+venue's**, and for a coin that trades far more on Binance than on the venue,
+that is the better number anyway.
+
+**The notice runs a little behind the close.** The store publishes some time
+after a candle closes, and the engine checks once per pass, so the bell arrives
+after the candle rather than on it. The lag belongs to the store's refresh, which
+`candle-store.md` measures.
+
+## Only on above-average volume
+
+A break on thin volume is often a fake. Inside the same card, a box called
+**Only on above-average volume** asks for the breaking candle to have carried
+more trade than usual, with a multiple under it that starts at 1.5.
+
+The engine compares that candle's volume against the average of the **20
+finished candles before it**. At 1.5 the candle has to have one and a half
+times the average. A 1h close past the line on half the usual volume fires
+nothing; the next one at double fires, and the notice says the multiple.
+
+- **The box lives inside the close card**, because a live price carries no
+  volume of its own. A control that could never do anything is worse than no
+  control.
+- **It comes off when the close rule comes off**, rather than sitting there
+  unread. The multiple is remembered, so turning the rule back on does not cost
+  the number.
+- **Emptying the multiple box is the same as switching the condition off.** A
+  break that has to beat nothing is not a volume-confirmed break.
+- **Fewer than 20 candles behind the break means no answer, and the line
+  waits.** A coin listed this morning has three, and three candles are not an
+  average.
+- **An average of zero also means no answer, and the line waits.** Markets with
+  nothing to borrow get minute bars built from watched prices, and a price
+  carries no volume, so every one of those bars is zero. Without this the
+  comparison would be "at least 1.5 times nothing", which every candle passes,
+  and the filter would read as working while doing the opposite of what it says.
+- **At most 100.** That ceiling is there because this is a number arriving from
+  a browser, not because anybody would type near it.
+- A hole in the store's rows is not an error here. The twenty candles are the
+  twenty nearest the break that the store actually holds, which may span more
+  than twenty periods.
+
+## What the window says it is waiting for
+
+The sentence at the foot of the window is written from the saved rules rather
+than from a fixed string, so an armed line always says what it will actually
+do:
+
+- A touch: "Fires once when the price crosses up through the line, then
+  switches itself off."
+- A close: "Fires once when a finished 4h candle closes up through the line,
+  then switches itself off."
+- A close with volume: "…closes up through the line on volume at least 1.5x the
+  average of the 20 candles before it, then switches itself off."
+
 ## The next line remembers Alert
 
 Tyler's rule: "For the line tool. Make the alert on by default and it also
@@ -225,11 +341,28 @@ alert that has already fired is never changed by a move.
 ## What fires it
 
 The trading engine reads every armed line once per pass, beside the price
-alerts, and asks the pushed-price feeds for their markets. It works out where
-the line is at that moment, a level's own price or a trendline's slope carried
-on, and moves it by the break buffer if the line carries one. A rise fires at
-or above that price, a fall at or below it. A market with no pushed price
-waits.
+alerts. It works out where the line is at the moment being compared, a level's
+own price or a trendline's slope carried on, and moves it by the break buffer
+if the line carries one. A rise fires at or above that price, a fall at or
+below it.
+
+**Which moment that is depends on the close rule.** A line without it is
+compared against the pushed price now, and a market with no pushed price waits.
+A line with it is compared against the newest finished candle's close, at the
+moment that candle closed; it needs no pushed price, and the engine only asks
+the price feeds for the markets its touch lines are on.
+
+**One read per market and timeframe**, however many lines share it, and all of
+them together rather than one after another: each is a round trip to a database
+a moment away, inside an engine pass with orders waiting behind it. Twenty-one
+bars come back each time: the one that may have broken the line, and the twenty
+behind it the volume condition averages over.
+
+**A line keeps its close rule when it is armed again.** A line that has fired
+holds on to its timeframe, its multiple and its buffer, so switching it back on
+watches the same line the same way. Switching the alert off by hand is the
+other thing entirely: that takes the record away, which is what switching it
+off means, and the next arming starts from the account's remembered buffer.
 
 Firing is claimed with one conditional update that names the line's points
 and the alert as they were read. A line moved after the read, or an alert
@@ -238,7 +371,10 @@ containers cannot both announce the same line.
 
 The bell and inbox say, for example, "BTC crossed your trendline at $61,200
 (was rising)" or "BTC crossed your level at $61,200 (was falling)", the alert
-sound plays, and the notice opens that market. **A line with a description is
+sound plays, and the notice opens that market. A line with a close rule adds what
+the candle had to do, in the order it was asked for: "A finished 1h candle
+closed above it. Its volume was at least 1.5x the average of the 20 candles
+before it." **A line with a description is
 called by its description instead**: "BTC crossed 4h base (was rising)", with
 the price moved into the sentence underneath. A price in a notice needs
 translating and a description the person typed does not. The alert then

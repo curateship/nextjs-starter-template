@@ -23,6 +23,7 @@ import {
   saveChartDrawing,
   setChartDrawingAlert,
   setChartDrawingAlertBuffer,
+  setChartDrawingAlertRules,
 } from "@/server/trade/drawings"
 import { saveLineAlertsPaused } from "@/server/trade/prefs"
 
@@ -494,5 +495,329 @@ describe("the master switch in Settings", () => {
       armedAt: 2_000,
       firedAt: null,
     })
+  })
+})
+
+/**
+ * A level at $60,000 with an alert waiting for a close above it, armed an hour
+ * before the candles below. The level rather than the trendline, because a
+ * flat line makes what the candle did the only thing under test.
+ */
+const LEVEL = { kind: "level" as const, price: 60_000 }
+const HOUR = 3_600_000
+/** The 1h candle that opens at this hour closed at the next one. */
+const ARMED_AT = 10 * HOUR
+const CHECKED_AT = new Date(12 * HOUR + 60_000)
+/** The newest finished 1h candle when the check runs just after 12:00. */
+const BREAKING_OPEN = 11 * HOUR
+
+async function closeLine(
+  userId: string,
+  rules: { closeInterval: "1h"; volumeMultiple?: number }
+) {
+  const id = uuid()
+  await saveChartDrawing(userId, BTC, { id, shape: LEVEL })
+  await setChartDrawingAlert(
+    userId,
+    { id, on: true, currentPrice: 59_000, buffer: null },
+    ARMED_AT
+  )
+  await setChartDrawingAlertRules(userId, {
+    id,
+    closeInterval: rules.closeInterval,
+    volumeMultiple: rules.volumeMultiple ?? null,
+  })
+  return id
+}
+
+/**
+ * Bars ending with the one that may break the line: twenty at `average`
+ * volume behind it, then the breaking bar at its own close and volume.
+ */
+function bars(input: {
+  close: number
+  volume: number
+  average?: number
+  behind?: number
+}) {
+  const behind = input.behind ?? 20
+  const average = input.average ?? 100
+  const rows = []
+  for (let step = behind; step >= 1; step -= 1) {
+    rows.push({
+      openTime: BREAKING_OPEN - step * HOUR,
+      open: 59_000,
+      high: 59_500,
+      low: 58_500,
+      close: 59_000,
+      volume: average,
+    })
+  }
+  rows.push({
+    openTime: BREAKING_OPEN,
+    open: 59_000,
+    high: Math.max(60_500, input.close),
+    low: 58_500,
+    close: input.close,
+    volume: input.volume,
+  })
+  return rows
+}
+
+const noMarks = () => ({ marks: new Map<string, number>(), missing: [] })
+
+describe("waiting for a candle to close past the line", () => {
+  it("ignores a wick and fires on the close that finishes past it", async () => {
+    const userId = await person()
+    const id = await closeLine(userId, { closeInterval: "1h" })
+
+    // A candle whose high poked through at $60,200 but closed back at $59,900.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () => bars({ close: 59_900, volume: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () => bars({ close: 60_100, volume: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(1)
+
+    const [drawing] = await loadChartDrawings(userId, BTC)
+    expect(drawing?.id).toBe(id)
+    expect(drawing?.alert?.firedAt).toBe(CHECKED_AT.getTime())
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices[0]?.detail).toContain("A finished 1h candle closed above it")
+  })
+
+  it("needs no pushed price at all, and never asks for one", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h" })
+    const pushedMarks = vi.fn(noMarks)
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks,
+        finishedCandles: async () => bars({ close: 60_100, volume: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(1)
+    // A Close line is judged on a candle, so its market is not in the ask.
+    expect(pushedMarks).toHaveBeenCalledWith([])
+  })
+
+  it("stays quiet about a candle that closed before the switch went on", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h" })
+
+    // The newest finished candle opened two hours before the alert was armed,
+    // so it was already past the line when somebody asked to be told.
+    const stale = bars({ close: 60_100, volume: 100 }).map((bar) => ({
+      ...bar,
+      openTime: bar.openTime - 3 * HOUR,
+    }))
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () => stale,
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+  })
+
+  it("waits while the store has no candles for that market", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h" })
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () => [],
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBeNull()
+  })
+
+  it("reads one market and timeframe once, however many lines share it", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h" })
+    await closeLine(userId, { closeInterval: "1h" })
+    const finishedCandles = vi.fn(async () => bars({ close: 60_100, volume: 100 }))
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles,
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(2)
+    expect(finishedCandles).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("only on above-average volume", () => {
+  it("stays quiet on a thin break and fires on the next heavy one", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h", volumeMultiple: 1.5 })
+
+    // Closed past the line on half the average volume: a likely fake.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 50, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert?.firedAt).toBeNull()
+
+    // The next one closes past it on double.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 200, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(1)
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices[0]?.detail).toContain(
+      "Its volume was at least 1.5x the average of the 20 candles before it"
+    )
+  })
+
+  it("fires at exactly the multiple, and not a hair under", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h", volumeMultiple: 1.5 })
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 149.9, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 150, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(1)
+  })
+
+  it("waits rather than firing when there are too few candles to average", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h", volumeMultiple: 1.5 })
+
+    // A coin listed this morning: three candles behind the break is not an
+    // average, so the line keeps waiting instead of firing on a guess.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 10_000, behind: 3 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+  })
+
+  it("waits on a market whose stored bars carry no volume at all", async () => {
+    const userId = await person()
+    await closeLine(userId, { closeInterval: "1h", volumeMultiple: 1.5 })
+
+    // Markets with nothing to borrow get minute bars built from watched
+    // prices, and a price carries no volume. Without the zero-average guard
+    // every one of these would clear "1.5 times nothing" and fire.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 0, average: 0 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+  })
+
+  it("keeps the close rule and the multiple when a fired line is armed again", async () => {
+    const userId = await person()
+    const id = await closeLine(userId, {
+      closeInterval: "1h",
+      volumeMultiple: 2,
+    })
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 500, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(1)
+
+    // Armed again after it went off. The same line is watched the same way,
+    // rather than quietly dropping back to firing on a touch.
+    await setChartDrawingAlert(
+      userId,
+      { id, on: true, currentPrice: 59_000 },
+      ARMED_AT
+    )
+    const [drawing] = await loadChartDrawings(userId, BTC)
+    expect(drawing?.alert?.closeInterval).toBe("1h")
+    expect(drawing?.alert?.volumeMultiple).toBe(2)
+
+    // And it behaves that way: a thin close fires nothing.
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 50, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(0)
+  })
+
+  it("fires without the condition once the switch goes off", async () => {
+    const userId = await person()
+    const id = await closeLine(userId, {
+      closeInterval: "1h",
+      volumeMultiple: 1.5,
+    })
+    await setChartDrawingAlertRules(userId, {
+      id,
+      closeInterval: "1h",
+      volumeMultiple: null,
+    })
+
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: noMarks,
+        finishedCandles: async () =>
+          bars({ close: 60_100, volume: 1, average: 100 }),
+        checkedAt: CHECKED_AT,
+        database,
+      })
+    ).toBe(1)
   })
 })

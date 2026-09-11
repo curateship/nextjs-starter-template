@@ -11,7 +11,9 @@ import {
   saveDrawing,
   setDrawingAlert,
   setDrawingAlertBuffer,
+  setDrawingAlertRules,
 } from "@/lib/api/trade/drawings"
+import type { CandleInterval } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
@@ -21,6 +23,8 @@ import {
   drawingAlertArmed,
   extendedRight,
   priceAtTime,
+  rearmedAlert,
+  ruledAlert,
   type Drawing,
   type DrawingShape,
 } from "@/lib/trade/drawings"
@@ -341,18 +345,16 @@ export function useChartDrawings(
       if (!previous) return
       const now = Date.now()
       const linePrice = priceAtTime(previous.shape, now)
-      const buffer = previous.alert
-        ? (previous.alert.buffer ?? null)
-        : defaultBuffer
       const guess =
         on && linePrice !== null && currentPrice !== null
-          ? bufferedAlert(
+          ? rearmedAlert(
               {
                 direction: priceAlertDirection(linePrice, currentPrice),
                 armedAt: now,
                 firedAt: null,
               },
-              buffer
+              previous.alert,
+              defaultBuffer
             )
           : null
       const shape = guess ? extendedRight(previous.shape) : previous.shape
@@ -445,6 +447,60 @@ export function useChartDrawings(
       })()
     },
     [drawings, marketKey, revise, onAlertChange, onBufferPreference]
+  )
+
+  /**
+   * Set or clear what an armed alert waits for: a finished candle on a
+   * timeframe, and the volume that candle has to carry. Shown at once and
+   * replaced by the server's answer; a refused save puts the old rule back
+   * and says why.
+   *
+   * The same shape as `setBuffer`, including waiting on the arming save: a
+   * rule sent while the switch's own write is still in the air would be
+   * refused as not-armed, because the alert does not exist yet.
+   */
+  const setRules = React.useCallback(
+    (
+      id: string,
+      rules: {
+        closeInterval: CandleInterval | null
+        volumeMultiple: number | null
+      }
+    ) => {
+      if (!marketKey) return
+      const key = marketKey
+      const previous = drawings.find((candidate) => candidate.id === id)
+      if (!previous?.alert) return
+      const guess = ruledAlert(previous.alert, rules)
+      revise(key, (current) =>
+        current.map((candidate) =>
+          candidate.id === id ? { ...candidate, alert: guess } : candidate
+        )
+      )
+      void (async () => {
+        const alertSaved = await pendingAlertSaves.current.get(id)
+        if (alertSaved === false) return
+        try {
+          const saved = await setDrawingAlertRules(id, rules)
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id
+                ? { ...candidate, shape: saved.shape, alert: saved.alert }
+                : candidate
+            )
+          )
+          onAlertChange?.()
+        } catch (error) {
+          revise(key, (current) =>
+            current.map((candidate) =>
+              candidate.id === id ? previous : candidate
+            )
+          )
+          showErrorToast(getDrawingAlertErrorMessage(error))
+        }
+      })()
+    },
+    [drawings, marketKey, revise, onAlertChange]
   )
 
   /**
@@ -556,6 +612,7 @@ export function useChartDrawings(
     remove,
     setAlert,
     setBuffer,
+    setRules,
     refresh,
     clearAll,
   }

@@ -3,7 +3,11 @@ import { GRID_LINE_STOP_ERRORS, withLinkedGridStopMessage } from "@/lib/trade/gr
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  CANDLE_INTERVALS,
+  parseMarketKey,
+  type CandleInterval,
+} from "@/lib/protocols/contracts"
 import {
   drawingShapeSchema,
   DRAWING_ALERT_NO_PRICE,
@@ -12,6 +16,7 @@ import {
   DEFAULT_DRAWING_BUFFER_PCT,
   MAX_DRAWING_BUFFER_PCT,
   MAX_DRAWINGS_PER_MARKET,
+  MAX_DRAWING_VOLUME_MULTIPLE,
   type Drawing,
   type DrawingShape,
 } from "@/lib/trade/drawings"
@@ -25,6 +30,7 @@ import {
   saveChartDrawing,
   setChartDrawingAlert,
   setChartDrawingAlertBuffer,
+  setChartDrawingAlertRules,
 } from "@/server/trade/drawings"
 
 import { createErrorMessage } from "../error-message"
@@ -90,6 +96,21 @@ const setBufferSchema = z.object({
   buffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).nullable(),
 })
 
+// What the alert waits for, sent whole: a timeframe whose finished candle has
+// to close past the line, and the volume that candle has to carry. Null is
+// "not this rule", which is what the window sends when a switch goes off.
+// Bounded the same way the stored record is, so a hand-made request cannot
+// write a number the reader would later refuse.
+const setRulesSchema = z.object({
+  id: drawingIdSchema,
+  closeInterval: z.enum(CANDLE_INTERVALS).nullable(),
+  volumeMultiple: z
+    .number()
+    .positive()
+    .max(MAX_DRAWING_VOLUME_MULTIPLE)
+    .nullable(),
+})
+
 const loadChartDrawingsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(marketSchema)
@@ -131,6 +152,15 @@ const setChartDrawingAlertBufferFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
     return {
       drawing: await setChartDrawingAlertBuffer(context.user.id, data).catch(rethrowGridLineStopError),
+    }
+  })
+
+const setChartDrawingAlertRulesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(setRulesSchema)
+  .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => {
+    return {
+      drawing: await setChartDrawingAlertRules(context.user.id, data).catch(rethrowGridLineStopError),
     }
   })
 
@@ -191,6 +221,22 @@ export async function setDrawingAlertBuffer(
   buffer: number | null
 ) {
   const answer = await setChartDrawingAlertBufferFn({ data: { id, buffer } })
+  invalidateDashboardBootstrap()
+  return answer.drawing
+}
+
+/**
+ * Set or clear what one armed alert waits for: a finished candle on a
+ * timeframe, and the volume that candle has to carry. Both go together.
+ */
+export async function setDrawingAlertRules(
+  id: string,
+  rules: {
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+  }
+) {
+  const answer = await setChartDrawingAlertRulesFn({ data: { id, ...rules } })
   invalidateDashboardBootstrap()
   return answer.drawing
 }

@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+import {
+  CANDLE_INTERVALS,
+  type CandleInterval,
+} from "@/lib/protocols/contracts"
+
 /**
  * What a drawing on the chart is.
  *
@@ -54,6 +59,25 @@ export const MAX_DRAWING_BUFFER_PCT = 100
 export const DEFAULT_DRAWING_BUFFER_PCT = 1
 
 /**
+ * How many times its recent average a candle's volume has to be before a
+ * volume-confirmed break counts, when the account has not chosen a number.
+ */
+export const DEFAULT_DRAWING_VOLUME_MULTIPLE = 1.5
+
+/**
+ * The largest volume multiple that can be stored. Far past anything anybody
+ * would ask for; it is here because this is a number arriving from a browser.
+ */
+export const MAX_DRAWING_VOLUME_MULTIPLE = 100
+
+/**
+ * How many finished candles before the breaking one the average is taken
+ * over. Twenty is what the task settled on, and the whole twenty are
+ * required: an average over three candles is not an average.
+ */
+export const DRAWING_VOLUME_LOOKBACK = 20
+
+/**
  * The alert a line carries, once somebody has switched it on.
  *
  * The direction is fixed from the live price at the moment the switch goes
@@ -89,6 +113,24 @@ export type DrawingAlert = {
    * carrying a number unreadable, which would quietly stop that line firing.
    */
   buffer?: number
+  /**
+   * **Which finished candle has to close past the line**, instead of firing
+   * the moment a live price touches it. Left out is a touch, which is what
+   * every line did before this and what every line still does until somebody
+   * asks for a close.
+   *
+   * A close on the far side is what most people mean by a break. Firing on the
+   * touch means being woken by every wick.
+   */
+  closeInterval?: CandleInterval
+  /**
+   * **How many times its recent average the breaking candle's volume has to
+   * be.** Left out is no volume condition at all.
+   *
+   * Only ever read alongside `closeInterval`, because a pushed price carries
+   * no volume of its own.
+   */
+  volumeMultiple?: number
 }
 
 /** One saved drawing: its id, where it sits, and the alert it carries. */
@@ -191,6 +233,12 @@ export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
   firedPrice: z.number().finite().optional(),
   firedThreshold: z.number().finite().optional(),
   buffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).optional(),
+  closeInterval: z.enum(CANDLE_INTERVALS).optional(),
+  volumeMultiple: z
+    .number()
+    .positive()
+    .max(MAX_DRAWING_VOLUME_MULTIPLE)
+    .optional(),
 })
 
 /**
@@ -255,6 +303,107 @@ export function bufferedAlert(
   const without = { ...alert }
   delete without.buffer
   return without
+}
+
+/**
+ * A volume multiple typed into the line's window. Blank is none, which is
+ * null, and means the line fires on the close whatever the volume was. Text
+ * that is not a multiple above zero answers `false`, which marks the field and
+ * saves nothing rather than storing a guess. A trailing "x" is taken off,
+ * because that is what a person types.
+ */
+export function readDrawingVolumeMultiple(raw: string): number | null | false {
+  const text = raw.trim().replace(/x$/i, "").trim()
+  if (text === "") return null
+  const multiple = Number(text)
+  if (!Number.isFinite(multiple) || multiple <= 0) return false
+  return multiple > MAX_DRAWING_VOLUME_MULTIPLE ? false : multiple
+}
+
+/**
+ * What a line is waiting for, as one word: a price touching it, or a finished
+ * candle closing past it.
+ */
+export function drawingAlertFiresOn(
+  alert: DrawingAlert | null
+): "touch" | "close" {
+  return alert?.closeInterval === undefined ? "touch" : "close"
+}
+
+/**
+ * The same alert with its close timeframe and volume multiple set, or with
+ * either taken off.
+ *
+ * Both are written together because the window always knows both, which
+ * removes the whole question of what a half-sent rule means. A key is deleted
+ * rather than stored as null, so a line that never asked for a close reads
+ * exactly as it always did.
+ */
+export function ruledAlert(
+  alert: DrawingAlert,
+  rules: {
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+  }
+): DrawingAlert {
+  const next = { ...alert }
+  if (rules.closeInterval === null) delete next.closeInterval
+  else next.closeInterval = rules.closeInterval
+  if (rules.volumeMultiple === null) delete next.volumeMultiple
+  else next.volumeMultiple = rules.volumeMultiple
+  return next
+}
+
+/**
+ * A fresh alert wearing the rules the last one on this line carried: the break
+ * buffer, the close timeframe and the volume multiple.
+ *
+ * Arming a line that has already fired watches it the same way as before,
+ * rather than quietly dropping back to a touch. Only what the person set
+ * travels; the direction and the armed time are read fresh, because those
+ * describe this arming and not the last one. A line switched off by hand has
+ * no record left to carry, which is what switching it off means.
+ */
+export function rearmedAlert(
+  fresh: DrawingAlert,
+  previous: DrawingAlert | null,
+  fallbackBuffer: number | null
+): DrawingAlert {
+  const buffered = bufferedAlert(
+    fresh,
+    previous ? (previous.buffer ?? null) : fallbackBuffer
+  )
+  return ruledAlert(buffered, {
+    closeInterval: previous?.closeInterval ?? null,
+    volumeMultiple: previous?.volumeMultiple ?? null,
+  })
+}
+
+/**
+ * Whether a breaking candle's volume clears its recent average, or null when
+ * there is no honest answer and the line must keep waiting.
+ *
+ * Null, not false, in two cases, because neither is a quiet break — both are
+ * the app not knowing:
+ *
+ * - **Fewer than the full lookback.** A coin listed yesterday has three
+ *   candles, and three candles are not an average.
+ * - **An average of nothing.** Markets with no borrowable history get minute
+ *   bars built from watched prices, and a price carries no volume, so every
+ *   one of those bars is zero. Without this the comparison would be "at least
+ *   1.5 times nothing", which every candle passes, and the filter would read
+ *   as working while doing the opposite of what it says.
+ */
+export function volumeConfirmsBreak(input: {
+  breaking: number
+  previous: readonly number[]
+  multiple: number
+}): boolean | null {
+  if (input.previous.length < DRAWING_VOLUME_LOOKBACK) return null
+  const recent = input.previous.slice(-DRAWING_VOLUME_LOOKBACK)
+  const average = recent.reduce((sum, one) => sum + one, 0) / recent.length
+  if (!(average > 0)) return null
+  return input.breaking >= average * input.multiple
 }
 
 /**

@@ -531,6 +531,7 @@ it("renders Alert on for a new line and uses the switch choice for the next line
             onSetExtend={() => undefined}
             onSetName={() => undefined}
             onSetBuffer={() => undefined}
+        onSetRules={() => undefined}
           />
         ) : null}
       </>

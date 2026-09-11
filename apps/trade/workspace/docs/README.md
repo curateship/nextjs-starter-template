@@ -86,7 +86,8 @@ screen: anything not written there has not been agreed yet.
   the remembered on/off choice, the cog, the alert
   window, every way into it without a mouse, naming a line, the bell and the
   dot on the chart, what fires it, the percentage past the line it waits for,
-  and the master switch that pauses the lot.
+  whether it waits for a touch or a candle's close, the above-average volume
+  the breaking candle has to carry, and the master switch that pauses the lot.
 - `indicators.md` — the indicator list and how each one draws.
 - `orders-on-the-chart.md` — dragging orders on the chart, buying more, selling
   part, leverage, the one rule for the money beside each grid line, and which
