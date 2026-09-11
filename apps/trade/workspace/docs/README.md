@@ -34,6 +34,9 @@ screen: anything not written there has not been agreed yet.
   leaves readable, and how it is remembered.
 - `pinned-markets.md` — fixed member links, saved header pins, price refreshes,
   the five-market limit, narrow screens and the pending member-access decision.
+- `daily-goal.md` — the daily goal: how the target is set as a percent of the
+  wallets or a fixed amount, what the header button says, what counts as money
+  made today, and how often the exchanges are asked.
 
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,

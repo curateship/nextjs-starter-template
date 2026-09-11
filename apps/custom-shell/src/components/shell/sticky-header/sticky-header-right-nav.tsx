@@ -9,7 +9,7 @@ import { QuickSettingsMenu } from "@/components/shell/sticky-header/quick-settin
 import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { Button } from "@/components/ui/button"
 import {
-  appHeaderRightActionForRole,
+  appHeaderRightActionsForRole,
   type AppHeaderAction,
   type AppHeaderActionProps,
 } from "@/lib/app-options"
@@ -27,7 +27,7 @@ const lazyHeaderActions = new Map<
   React.LazyExoticComponent<React.ComponentType<AppHeaderActionProps>>
 >()
 
-/** The app's one place in the signed-in header. */
+/** One app-owned control in the signed-in header. */
 function AppHeaderRightAction({
   action,
   role,
@@ -106,10 +106,10 @@ export function StickyHeaderRightNav({
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
-  const appAction = appHeaderRightActionForRole(role)
+  const appActions = appHeaderRightActionsForRole(role)
   const navItems = normalizeTopRightNavigation(
     items,
-    appAction ? [appAction.id] : []
+    appActions.map((action) => action.id)
   )
 
   return (
@@ -129,12 +129,9 @@ export function StickyHeaderRightNav({
         if (!item.visible) return null
 
         if (item.type === "app") {
-          return appAction && item.id === appAction.id ? (
-            <AppHeaderRightAction
-              key={item.id}
-              action={appAction}
-              role={role}
-            />
+          const action = appActions.find((one) => one.id === item.id)
+          return action ? (
+            <AppHeaderRightAction key={item.id} action={action} role={role} />
           ) : null
         }
 

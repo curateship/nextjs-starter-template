@@ -50,8 +50,8 @@ type TopRightSettingsProps = {
   items: ShellTopRightNavigationItem[]
   onItemsChange: (items: ShellTopRightNavigationItem[]) => void
   onSaveConfig: () => Promise<boolean>
-  /** The app-owned item this menu may contain, including its editor details. */
-  appAction?: AppHeaderAction | null
+  /** The app-owned items this menu may contain, with their editor details. */
+  appActions?: readonly AppHeaderAction[]
   /** The card the chips sit in. Reset stays outside it. */
   card: { storageId: string; title: string; description: string }
   /** What the Reset button does, and what it warns it will do. */
@@ -65,6 +65,31 @@ type TopRightSettingsProps = {
  */
 const CHIP_CLASS =
   "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+
+/**
+ * One app-owned chip. A saved row whose control the app no longer offers draws
+ * nothing: the row is kept in the saved order so the chip returns in its old
+ * place if the app offers that control again.
+ */
+function AppActionChip({
+  item,
+  action,
+  onVisibleChange,
+}: {
+  item: ShellTopRightAppAction
+  action: AppHeaderAction | undefined
+  onVisibleChange: (visible: boolean) => void
+}) {
+  if (!action) return null
+
+  return (
+    <SortableFixedChip
+      item={item}
+      meta={action}
+      onVisibleChange={onVisibleChange}
+    />
+  )
+}
 
 function SortableFixedChip({
   item,
@@ -261,7 +286,7 @@ export function TopRightSettings({
   items,
   onItemsChange,
   onSaveConfig,
-  appAction,
+  appActions = [],
   card,
   reset,
 }: TopRightSettingsProps) {
@@ -370,16 +395,14 @@ export function TopRightSettings({
                     onSaveConfig={onSaveConfig}
                   />
                 ) : item.type === "app" ? (
-                  appAction && item.id === appAction.id ? (
-                    <SortableFixedChip
-                      key={item.id}
-                      item={item}
-                      meta={appAction}
-                      onVisibleChange={(visible) =>
-                        handleVisibleChange(item.id, visible)
-                      }
-                    />
-                  ) : null
+                  <AppActionChip
+                    key={item.id}
+                    item={item}
+                    action={appActions.find((action) => action.id === item.id)}
+                    onVisibleChange={(visible) =>
+                      handleVisibleChange(item.id, visible)
+                    }
+                  />
                 ) : (
                   <SortableFixedChip
                     key={item.id}

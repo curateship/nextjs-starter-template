@@ -49,7 +49,7 @@ import {
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 import {
-  appHeaderRightActionForRole,
+  appHeaderRightActionsForRole,
   appHeaderLeftContentForRole,
   capitalise,
   workspaceWord,
@@ -710,10 +710,12 @@ function normalizeConfig(
   role: string
 ): ShellConfig {
   const fallback = createDefaultShellConfig()
-  const action = appHeaderRightActionForRole(role)
-  const memberAction = appHeaderRightActionForRole("member")
-  const actionIds = action ? [action.id] : []
-  const memberActionIds = memberAction ? [memberAction.id] : []
+  const actionIds = appHeaderRightActionsForRole(role).map(
+    (action) => action.id
+  )
+  const memberActionIds = appHeaderRightActionsForRole("member").map(
+    (action) => action.id
+  )
   if (!settings) {
     return {
       ...fallback,

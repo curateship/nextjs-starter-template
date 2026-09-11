@@ -16,6 +16,7 @@ const marketsRoute = getRouteApi("/_authenticated/admin/settings_/markets")
 const tradingRulesRoute = getRouteApi(
   "/_authenticated/admin/settings_/trading-rules"
 )
+const goalsRoute = getRouteApi("/_authenticated/admin/settings_/goals")
 
 export function TradingWidgetsSettingsPage() {
   const { layout } = widgetsRoute.useLoaderData()
@@ -47,11 +48,16 @@ export function TradingRulesSettingsPage() {
   )
 }
 
+export function GoalsSettingsPage() {
+  const { goal } = goalsRoute.useLoaderData()
+  return <TradeSettingsPage tab="goals" bootstrap={{ goal }} />
+}
+
 function TradeSettingsPage({
   tab,
   bootstrap,
 }: {
-  tab: "trading-widgets" | "markets" | "trading-rules"
+  tab: "trading-widgets" | "markets" | "trading-rules" | "goals"
   bootstrap: TradeSettingsBootstrap
 }) {
   useTradePageTitle("Settings")

@@ -1,12 +1,14 @@
 import * as React from "react"
 
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
+import type { Goal } from "@/lib/trade/goal"
 import type { TradingRules } from "@/lib/trade/trading-rules"
 
 export type TradeSettingsBootstrap = {
   tradingWidgets?: TradingDashboardWidgetLayout
   minimumMarketVolumeUsd?: number
   tradingRules?: TradingRules
+  goal?: Goal
 }
 
 export const TradeSettingsContext =

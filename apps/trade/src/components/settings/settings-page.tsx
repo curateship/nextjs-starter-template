@@ -23,7 +23,7 @@ import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
 import { CardGroup } from "@/components/ui/card"
 import {
-  appHeaderRightActionForRole,
+  appHeaderRightActionsForRole,
   appSettingsTabs,
 } from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -119,8 +119,10 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
-  const adminHeaderAction = appHeaderRightActionForRole("admin")
-  const memberHeaderAction = appHeaderRightActionForRole("member")
+  const adminHeaderActions = appHeaderRightActionsForRole("admin")
+  const memberHeaderActions = appHeaderRightActionsForRole("member")
+  const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
+  const memberHeaderActionIds = memberHeaderActions.map((action) => action.id)
 
   return (
     <div
@@ -268,7 +270,7 @@ export function SettingsPage({
               onConfigChange({ ...config, topRightNavigation })
             }
             onSaveConfig={onSaveConfig}
-            appAction={adminHeaderAction}
+            appActions={adminHeaderActions}
             card={{
               storageId: "top-right",
               title: "Your top right menu",
@@ -283,7 +285,7 @@ export function SettingsPage({
                 onConfigChange({
                   ...config,
                   topRightNavigation: createDefaultTopRightNavigation(
-                    adminHeaderAction ? [adminHeaderAction.id] : []
+                    adminHeaderActionIds
                   ),
                 }),
             }}
@@ -296,7 +298,7 @@ export function SettingsPage({
               onConfigChange({ ...config, memberTopRightNavigation })
             }
             onSaveConfig={onSaveConfig}
-            appAction={memberHeaderAction}
+            appActions={memberHeaderActions}
             card={{
               storageId: "member-top-right",
               title: "Member top right menu",
@@ -311,7 +313,7 @@ export function SettingsPage({
                 onConfigChange({
                   ...config,
                   memberTopRightNavigation: createDefaultTopRightNavigation(
-                    memberHeaderAction ? [memberHeaderAction.id] : []
+                    memberHeaderActionIds
                   ),
                 }),
             }}

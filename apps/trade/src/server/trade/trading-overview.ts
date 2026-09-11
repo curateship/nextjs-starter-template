@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, gte, inArray } from "drizzle-orm"
 
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
@@ -145,7 +145,14 @@ export async function loadTradingOverview(
  */
 export async function loadOverviewFills(
   userId: string,
-  wallets: readonly Pick<TradeWallet, "id" | "label" | "protocol">[]
+  wallets: readonly Pick<TradeWallet, "id" | "label" | "protocol">[],
+  /**
+   * Only fills at or after this instant. The overview and the P&L page want
+   * every fill and leave it unset; the daily goal wants today's alone and
+   * reads it every fifteen seconds, which is not a reason to carry eighty
+   * thousand rows out of the database each time.
+   */
+  since?: number
 ): Promise<TradingOverviewFill[]> {
   if (wallets.length === 0) return []
   const rows = await db
@@ -158,7 +165,8 @@ export async function loadOverviewFills(
           tradeLiveFills.walletId,
           wallets.map((wallet) => wallet.id)
         ),
-        eq(tradeLiveFills.hidden, false)
+        eq(tradeLiveFills.hidden, false),
+        since === undefined ? undefined : gte(tradeLiveFills.at, since)
       )
     )
     .orderBy(desc(tradeLiveFills.at))

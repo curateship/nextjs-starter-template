@@ -88,6 +88,7 @@ import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './ro
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminRecipesRecipeIdRouteImport } from './routes/_authenticated/admin/recipes_.$recipeId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminSettingsGoalsRouteImport } from './routes/_authenticated/admin/settings_.goals'
 import { Route as AuthenticatedAdminSettingsMarketsRouteImport } from './routes/_authenticated/admin/settings_.markets'
 import { Route as AuthenticatedAdminSettingsTradingEngineRouteImport } from './routes/_authenticated/admin/settings_.trading-engine'
 import { Route as AuthenticatedAdminSettingsTradingRulesRouteImport } from './routes/_authenticated/admin/settings_.trading-rules'
@@ -533,6 +534,12 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
+const AuthenticatedAdminSettingsGoalsRoute =
+  AuthenticatedAdminSettingsGoalsRouteImport.update({
+    id: '/settings_/goals',
+    path: '/settings/goals',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSettingsMarketsRoute =
   AuthenticatedAdminSettingsMarketsRouteImport.update({
     id: '/settings_/markets',
@@ -670,6 +677,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
   '/admin/settings/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
@@ -758,6 +766,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
   '/admin/settings/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
@@ -850,6 +859,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/recipes_/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/_authenticated/admin/settings_/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/_authenticated/admin/settings_/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/_authenticated/admin/settings_/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
   '/_authenticated/admin/settings_/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
@@ -942,6 +952,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
+    | '/admin/settings/goals'
     | '/admin/settings/markets'
     | '/admin/settings/trading-engine'
     | '/admin/settings/trading-rules'
@@ -1030,6 +1041,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
+    | '/admin/settings/goals'
     | '/admin/settings/markets'
     | '/admin/settings/trading-engine'
     | '/admin/settings/trading-rules'
@@ -1121,6 +1133,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/recipes_/$recipeId'
     | '/_authenticated/admin/settings/$tab'
+    | '/_authenticated/admin/settings_/goals'
     | '/_authenticated/admin/settings_/markets'
     | '/_authenticated/admin/settings_/trading-engine'
     | '/_authenticated/admin/settings_/trading-rules'
@@ -1717,6 +1730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
+    '/_authenticated/admin/settings_/goals': {
+      id: '/_authenticated/admin/settings_/goals'
+      path: '/settings/goals'
+      fullPath: '/admin/settings/goals'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsGoalsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/settings_/markets': {
       id: '/_authenticated/admin/settings_/markets'
       path: '/settings/markets'
@@ -1852,6 +1872,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminRecipesRecipeIdRoute: typeof AuthenticatedAdminRecipesRecipeIdRoute
+  AuthenticatedAdminSettingsGoalsRoute: typeof AuthenticatedAdminSettingsGoalsRoute
   AuthenticatedAdminSettingsMarketsRoute: typeof AuthenticatedAdminSettingsMarketsRoute
   AuthenticatedAdminSettingsTradingEngineRoute: typeof AuthenticatedAdminSettingsTradingEngineRoute
   AuthenticatedAdminSettingsTradingRulesRoute: typeof AuthenticatedAdminSettingsTradingRulesRoute
@@ -1901,6 +1922,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminRecipesRecipeIdRoute:
     AuthenticatedAdminRecipesRecipeIdRoute,
+  AuthenticatedAdminSettingsGoalsRoute: AuthenticatedAdminSettingsGoalsRoute,
   AuthenticatedAdminSettingsMarketsRoute:
     AuthenticatedAdminSettingsMarketsRoute,
   AuthenticatedAdminSettingsTradingEngineRoute:

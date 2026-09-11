@@ -124,10 +124,11 @@ type HeaderOptions = {
   /** App-owned left navigation. Render the supplied fallback when empty. */
   leftContent?: AppHeaderLeftContent
   /**
-   * A single app-owned control in the draggable top-right menu. Unset leaves
-   * the signed-in header and its settings exactly as they were.
+   * The app's own controls in the draggable top-right menu, in the order they
+   * are written. Unset leaves the signed-in header and its settings exactly as
+   * they were.
    */
-  rightAction?: AppHeaderAction
+  rightActions?: readonly AppHeaderAction[]
   /**
    * The app's own switches inside the header's settings menu, in the order
    * they are written. Unset leaves the menu holding colour mode alone, which
@@ -525,21 +526,40 @@ export function appHeaderLeftContentForRole(
   return action
 }
 
-/** The app's one control on the signed-in header, or none. */
-export function appHeaderRightAction(
+/**
+ * The app's controls on the signed-in header, in the order the app wrote them.
+ *
+ * Two controls sharing an id would draw one of them twice under one key and
+ * would both answer to the same saved row in the Top right menu, so that is
+ * said out loud on the first read rather than shipped as a header that
+ * misbehaves. The quick settings rows below are checked the same way.
+ */
+export function appHeaderRightActions(
   options: AppOptions = appOptions
-): AppHeaderAction | null {
-  return options.header?.rightAction ?? null
+): readonly AppHeaderAction[] {
+  const actions = options.header?.rightActions ?? []
+
+  const seen = new Set<string>()
+  for (const action of actions) {
+    if (seen.has(action.id)) {
+      throw new Error(
+        `Two header controls both call themselves "${action.id}". Each one needs its own id.`
+      )
+    }
+    seen.add(action.id)
+  }
+
+  return actions
 }
 
-/** The app-owned header item for this role, or none. */
-export function appHeaderRightActionForRole(
+/** The app-owned header items for this role, in the app's order. */
+export function appHeaderRightActionsForRole(
   role: string,
   options: AppOptions = appOptions
-): AppHeaderAction | null {
-  const action = appHeaderRightAction(options)
-  if (!action || (action.roles && !action.roles.includes(role))) return null
-  return action
+): readonly AppHeaderAction[] {
+  return appHeaderRightActions(options).filter(
+    (action) => !action.roles || action.roles.includes(role)
+  )
 }
 
 /**

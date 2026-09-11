@@ -8,6 +8,7 @@ import {
   type TradingRules,
 } from "@/lib/trade/trading-rules"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
+import { readGoal, type Goal } from "@/lib/trade/goal"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
 import {
@@ -496,6 +497,25 @@ export async function saveTradingRules(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { tradingRules, updatedAt: new Date() },
+    })
+}
+
+export async function loadGoal(userId: string): Promise<Goal> {
+  const row = await db
+    .select({ goal: tradePrefs.goal })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readGoal(row[0]?.goal ?? null)
+}
+
+export async function saveGoal(userId: string, goal: Goal): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, goal, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { goal, updatedAt: new Date() },
     })
 }
 

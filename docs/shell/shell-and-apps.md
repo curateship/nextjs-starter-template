@@ -98,10 +98,13 @@ the guess that one might:
   links, and renders that value when it has nothing to show. The same links
   remain visible while the component loads. Custom Shell leaves the option
   unset.
-- `header.rightAction` — one app-owned control in the signed-in header. Its
-  stable id, label, icon and allowed roles put it in the same draggable Top
-  right menu settings as the shell controls. Its component loads only when the
-  header draws. Unset leaves the header and its settings unchanged.
+- `header.rightActions` — the app's own controls in the signed-in header, in
+  the order the app writes them. Each one's stable id, label, icon and allowed
+  roles put it in the same draggable Top right menu settings as the shell
+  controls, where it can be reordered or hidden like any of them, and a control
+  the app has stopped offering leaves its saved row alone rather than deleting
+  it. A component loads only when the header draws. Two controls sharing an id
+  are refused out loud. Unset leaves the header and its settings unchanged.
 - `header.quickSettings` — the app's own switches inside the header's settings
   cog, in the order the app writes them. The cog, its place in the Top right
   menu, the panel and the colour-mode pill at the top belong to the shell; each

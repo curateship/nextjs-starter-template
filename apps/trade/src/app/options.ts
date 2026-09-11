@@ -1,4 +1,4 @@
-import { CandlestickChartIcon } from "lucide-react"
+import { CandlestickChartIcon, TargetIcon } from "lucide-react"
 
 import type { AppOptions } from "@/lib/app-options"
 
@@ -31,13 +31,26 @@ export const appOptions: AppOptions = {
       roles: ["member", "admin"],
       component: () => import("@/components/trade/pinned-markets-header"),
     },
-    rightAction: {
-      id: "active-trades",
-      label: "Active trades",
-      icon: CandlestickChartIcon,
-      roles: ["admin"],
-      component: () => import("@/components/trade/active-trades-header"),
-    },
+    rightActions: [
+      {
+        id: "active-trades",
+        label: "Active trades",
+        icon: CandlestickChartIcon,
+        roles: ["admin"],
+        component: () => import("@/components/trade/active-trades-header"),
+      },
+      {
+        /**
+         * How today is going against the daily goal. Everybody's own figure
+         * off their own wallets, so a member gets it as well as an admin, and
+         * it draws nothing at all until a goal is set in Settings → Goals.
+         */
+        id: "goal",
+        label: "Goal",
+        icon: TargetIcon,
+        component: () => import("@/components/trade/goal-header"),
+      },
+    ],
     /**
      * One switch, and it is about somebody's own screen rather than about the
      * app, so a member gets it as well as an admin. It hides every figure
@@ -88,6 +101,13 @@ export const appOptions: AppOptions = {
         id: "trading-rules",
         label: "Trading rules",
         panel: () => import("@/components/trade/trading-rules-settings"),
+      },
+      {
+        // How much this account is trying to make in a day, and the button in
+        // the top right that says how today is going against it.
+        id: "goals",
+        label: "Goals",
+        panel: () => import("@/components/trade/goal-settings"),
       },
     ],
   },
