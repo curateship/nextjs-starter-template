@@ -37,11 +37,13 @@ import type {
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
 import {
+  appUsesSiteBranding,
   capitalise,
   whoMayHaveWorkspaces,
   workspaceWord,
 } from "@/lib/app-options"
 import { workspaceListedAddress } from "@/lib/workspaces/addresses"
+import { cn } from "@/lib/utils"
 
 const subscribeToBrowserOrigin = () => () => {}
 
@@ -73,7 +75,12 @@ export function WorkspaceSwitcher({
    * while an admin's named the site. They get the same logo and name, and no
    * chevron, because there is nothing they may switch to.
    */
-  brand?: { name: string; favicon: string } | null
+  brand?: {
+    name: string
+    favicon: string
+    logo: string
+    logoDark: string
+  } | null
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const activeWorkspace =
@@ -121,7 +128,21 @@ export function WorkspaceSwitcher({
   // The name and logo come from the workspace when there is one, and from the
   // site's own settings when there is not.
   const brandName = activeWorkspace ? activeWorkspaceName : brand!.name
-  const brandFavicon = activeWorkspace ? activeFavicon : brand!.favicon
+  // A site's own picture counts only where an app builds distinct sites, which
+  // is the same gate `readBranding` puts on the public pictures. Everywhere
+  // else the one uploaded logo stands in, so the sidebar, the signed-out pages
+  // and the browser tab are the same picture rather than three choices. Both
+  // sources meet here — the config for somebody in no site, the workspaces list
+  // for an admin who owns one — so the rule is written once, here.
+  // Only the fallback gets a dark twin: a site's own picture has none.
+  const siteBranding = appUsesSiteBranding()
+  const siteFavicon = siteBranding
+    ? activeWorkspace
+      ? activeFavicon
+      : brand!.favicon
+    : ""
+  const brandFavicon = siteFavicon || brand?.logo || ""
+  const brandFaviconDark = siteFavicon ? "" : (brand?.logoDark ?? "")
 
   /**
    * Whether there is a menu at all.
@@ -155,6 +176,7 @@ export function WorkspaceSwitcher({
             >
               <WorkspaceLogo
                 favicon={brandFavicon}
+                darkFavicon={brandFaviconDark}
                 icon={activeWorkspace?.icon}
                 name={brandName}
               />
@@ -196,9 +218,16 @@ export function WorkspaceSwitcher({
                     </DropdownMenuLabel>
                     {workspaces.map((workspace) => {
                       const displayName = workspace.name
-                      const workspaceFavicon = workspace.active
-                        ? activeFavicon
-                        : workspace.favicon
+                      // Gated like the header above. The rows do NOT fall
+                      // back to the app logo, though: a row answers "which
+                      // site", and the same logo on every row answers nothing.
+                      // The site editor's chosen shape is what tells them
+                      // apart.
+                      const workspaceFavicon = siteBranding
+                        ? workspace.active
+                          ? activeFavicon
+                          : workspace.favicon
+                        : ""
                       const busy = busyWorkspaceId === workspace.id
 
                       return (
@@ -301,22 +330,58 @@ export function WorkspaceSwitcher({
 
 function WorkspaceLogo({
   favicon,
+  darkFavicon = "",
   icon,
   name,
 }: {
   favicon: string
+  /** The dark-sidebar twin, when this picture is the app's own logo. */
+  darkFavicon?: string
   icon: WorkspaceItem["icon"]
   name: string
 }) {
-  if (favicon) {
-    return (
-      <img
-        src={favicon}
-        alt={`${name || "Workspace"} favicon`}
-        className="size-full rounded-md object-cover"
-      />
-    )
-  }
+  if (!favicon) return renderShellIcon(icon)
+  if (!darkFavicon) return <FaviconImage src={favicon} name={name} />
 
-  return renderShellIcon(icon)
+  // Both are drawn and CSS hides one, the same way `BrandLogo` does it on the
+  // signed-out pages. Choosing in JavaScript after load would flash the wrong
+  // picture on a hard reload.
+  return (
+    <>
+      <FaviconImage src={favicon} name={name} className="dark:hidden" />
+      <FaviconImage
+        src={darkFavicon}
+        name={name}
+        className="hidden dark:block"
+      />
+    </>
+  )
+}
+
+function FaviconImage({
+  src,
+  name,
+  className,
+}: {
+  src: string
+  name: string
+  className?: string
+}) {
+  // The file behind this can be deleted from the media library without warning,
+  // and the sidebar names the site on its own — so nothing is better than a
+  // broken-image glyph sitting at the top of every page. `BrandLogo` does the
+  // same on the signed-out pages, and for the same reason.
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null)
+  if (failedSrc === src) return null
+
+  return (
+    <img
+      src={src}
+      alt={`${name || "Workspace"} logo`}
+      // Contained rather than cropped: a square site icon looks the same either
+      // way, and a logo that is wider than it is tall must not lose its ends.
+      className={cn("size-full rounded-md object-contain", className)}
+      onError={() => setFailedSrc(src)}
+    />
+  )
 }

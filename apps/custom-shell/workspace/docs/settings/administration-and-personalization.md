@@ -81,19 +81,65 @@ Styling settings control:
 - Font choices and sidebar dimensions.
 - Public branding.
 
-General settings has one app-wide favicon for every browser tab, including
-public pages, plus an optional favicon for dark browser tabs. Each field uses
-the media library's square image picker. The image shown beside a site in the
-workspace switcher remains that site's own icon and is changed from the site
-editor instead.
+### One logo for everything
 
-Saving a favicon checks that the image belongs to the admin's media library.
-The server then makes 16px, 32px, 180px, and 512px PNG files from the one
-selection. The first page response includes the matching browser icon links,
-so public pages have the right favicon before any browser code runs. Each set
-gets a new storage address to avoid stale browser caches. Replacing or clearing
-a favicon stops serving the old links and removes the generated files. The
-original media-library image remains available.
+General settings has a single Logo field, and it uses the media library's
+square image picker. That one picture is the logo above the signed-out pages
+and the icon in every browser tab, on public pages as well as signed-in ones.
+There is no separate favicon field, no dark logo field and no dark favicon
+field. It is also the picture beside the site name at the top of the sidebar.
+
+The app makes the dark-mode version itself. It reads the uploaded picture and
+flips lightness alone, so dark ink becomes light ink and light ink becomes dark
+while hue and saturation stay where they are. A navy mark comes back as pale
+blue rather than the orange a photographic negative would give. An SVG stays an
+SVG and is recoloured as text, so the signed-out logo is still a vector at any
+size; every other format is redrawn pixel by pixel and saved as PNG, which is
+the raster format that keeps a logo's transparent background.
+
+Saving checks that the picture belongs to the admin's media library. The server
+then writes the dark twin plus 16px, 32px, 180px and 512px PNG files from each
+of the two, light and dark. Only the chosen version is linked from the page. The
+other is still stored: it is what proves the stored chain was built from the
+logo now saved, it is what makes the Browser tab icon setting instant, and
+keeping it in the set is what lets the replacement sweep delete it when the logo
+changes. The first page response includes the matching
+browser icon links, so public pages have the right icon before any browser code
+runs. Each save gets a new storage address to avoid stale browser caches.
+Replacing or clearing the logo stops serving the old links and removes the
+generated files. The original media-library image remains available.
+
+**A Browser tab icon setting picks which of the two versions the tab shows**, and
+only one is ever offered to the browser. It starts on the dark-mode version,
+because tab strips are dark or grey far more often than they are white and a
+logo drawn in near-black disappears on them. An admin whose tabs sit on white
+picks the logo as uploaded instead. Both versions stay generated either way, so
+flipping the setting redraws nothing.
+
+Handing the browser both and letting it choose was tried first and did not work.
+Marking the everyday mark `(prefers-color-scheme: light)` sounds like "only on a
+light browser", but that query also matches a browser that states no preference
+at all, so the everyday mark won for nearly everybody and the tab looked
+unchanged. One unconditioned set is the only honest way to say which mark the
+tab shows.
+
+The sidebar follows a short order of preference. An app that builds distinct
+sites, meaning `workspaces.siteBranding` is on, can give each site its own
+picture, and that picture wins for that site. Every other app falls back to the
+one uploaded logo, with its dark twin on a dark sidebar. That gate matters:
+without it a picture left on a workspace row by an older screen would beat the
+uploaded logo forever, which is exactly what happened before it was added. With
+neither, the sidebar draws the plain shape chosen in the site editor's Icon
+list. The picture is contained rather than cropped, so a logo wider than it is
+tall keeps both its ends.
+
+Nothing is redrawn on a save that leaves the logo alone. The app checks the
+whole chain rather than the logo by itself, so an install carrying a separately
+chosen favicon from before this rule rebuilds once on its next settings save
+and is in step from then on. **Clearing the Logo field clears the browser tab
+icon with it**, because they are the same picture. An install that had a
+favicon set and no logo therefore loses that favicon on its next settings save.
+Pick the picture in the Logo field before saving and it comes back as both.
 
 Public Styling is separate from the Platform Styling tab. Platform Styling
 changes the signed-in workspace used by admins and members. Public Styling

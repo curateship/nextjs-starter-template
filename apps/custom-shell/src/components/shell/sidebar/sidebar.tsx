@@ -186,6 +186,10 @@ export function AppSidebar({
           brand={{
             name: config.workspaceName,
             favicon: config.workspaceFavicon,
+            // The one uploaded logo stands in when the site has no icon of its
+            // own, which is every app that is not multisite.
+            logo: config.logo,
+            logoDark: config.logoDark,
           }}
         />
       </SidebarHeader>

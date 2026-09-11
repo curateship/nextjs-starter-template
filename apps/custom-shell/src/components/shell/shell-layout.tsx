@@ -72,6 +72,7 @@ import { normalizePublicFontAsset } from "@/lib/public-font"
 import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import {
+  normalizeFaviconMode,
   normalizePublicFaviconSet,
   publicFaviconLinks,
   type FaviconLink,
@@ -220,7 +221,12 @@ export function ShellLayout({
   const lastSettingsRef = React.useRef(settings)
 
   useShellDocumentTitle(config.appName)
-  useShellFavicons(config.favicon, config.faviconDark, config.faviconSet)
+  useShellFavicons(
+    config.favicon,
+    config.faviconDark,
+    config.faviconSet,
+    config.faviconMode
+  )
   useModalStyleVars(config.styling.modal)
   useBorderStyleVars(config.styling)
 
@@ -290,7 +296,10 @@ export function ShellLayout({
         const savedConfig = normalizeConfig(
           {
             ...snapshot,
-            faviconSet: result.faviconSet,
+            // The dark logo, the tab icon and its sizes are all made from the
+            // one uploaded logo on the server, so they arrive with the answer
+            // rather than being guessed at here.
+            ...result.brand,
             publicFont: result.publicFont,
           },
           user.role
@@ -747,6 +756,7 @@ function normalizeConfig(
     favicon: settings.favicon ?? fallback.favicon,
     faviconDark: settings.faviconDark ?? fallback.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
     logo: settings.logo ?? fallback.logo,
     logoDark: settings.logoDark ?? fallback.logoDark,
     shareImage: normalizeShareImage(settings.shareImage),
@@ -873,13 +883,14 @@ function useShellDocumentTitle(appName: string) {
 function useShellFavicons(
   favicon: string,
   faviconDark: string,
-  faviconSet: ShellConfig["faviconSet"]
+  faviconSet: ShellConfig["faviconSet"],
+  faviconMode: ShellConfig["faviconMode"]
 ) {
   React.useEffect(() => {
     replaceShellFaviconLinks(
-      publicFaviconLinks({ favicon, faviconDark, faviconSet })
+      publicFaviconLinks({ favicon, faviconDark, faviconSet, faviconMode })
     )
-  }, [favicon, faviconDark, faviconSet])
+  }, [favicon, faviconDark, faviconSet, faviconMode])
 }
 
 function replaceShellFaviconLinks(links: FaviconLink[]) {
@@ -902,7 +913,6 @@ function replaceShellFaviconLinks(links: FaviconLink[]) {
     link.href = favicon.href
     if (favicon.type) link.type = favicon.type
     if (favicon.sizes) link.setAttribute("sizes", favicon.sizes)
-    if (favicon.media) link.media = favicon.media
     link.setAttribute("data-custom-shell-favicon", "true")
     document.head.appendChild(link)
   }
@@ -917,8 +927,7 @@ function faviconLinkMatches(
       current.rel === expected.rel &&
       current.getAttribute("href") === expected.href &&
       (current.getAttribute("type") ?? undefined) === expected.type &&
-      (current.getAttribute("sizes") ?? undefined) === expected.sizes &&
-      (current.getAttribute("media") ?? undefined) === expected.media
+      (current.getAttribute("sizes") ?? undefined) === expected.sizes
   )
 }
 

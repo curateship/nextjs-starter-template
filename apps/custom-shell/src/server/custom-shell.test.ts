@@ -4728,6 +4728,23 @@ describe("member sidebar", () => {
     })
   })
 
+  it("carries the browser tab icon choice through a save and back", () => {
+    expect(
+      parseShellGlobals(
+        pickShellGlobals({
+          ...createDefaultShellConfig(),
+          faviconMode: "light",
+        })
+      ).faviconMode
+    ).toBe("light")
+    // Anything else means the dark version, which is what a row saved before
+    // this setting existed holds: nothing at all.
+    expect(parseShellGlobals({}).faviconMode).toBe("dark")
+    expect(parseShellGlobals({ faviconMode: "sideways" }).faviconMode).toBe(
+      "dark"
+    )
+  })
+
   it("carries app-wide SEO, social cards, and public system copy through a save", () => {
     const saved = pickShellGlobals({
       ...createDefaultShellConfig(),

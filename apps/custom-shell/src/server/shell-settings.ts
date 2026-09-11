@@ -36,7 +36,9 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  normalizeFaviconMode,
   normalizePublicFaviconSet,
+  type FaviconMode,
   type PublicFaviconSet,
 } from "@/lib/favicon"
 import {
@@ -127,6 +129,7 @@ export async function readBranding(
   favicon: string
   faviconDark: string
   faviconSet: PublicFaviconSet | null
+  faviconMode: FaviconMode
   logo: string
   logoDark: string
   shareImage: string
@@ -170,6 +173,7 @@ export async function readBranding(
       favicon: globals.favicon,
       faviconDark: globals.faviconDark,
       faviconSet: globals.faviconSet,
+      faviconMode: globals.faviconMode,
       logo: globals.logo,
       logoDark: globals.logoDark,
       shareImage: versionedShareImage(
@@ -214,6 +218,7 @@ export async function readBranding(
     favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
     faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
     faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    faviconMode: globals.faviconMode,
     logo: (siteBranding && workspaceSettings.logo) || globals.logo,
     logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
     shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
@@ -370,6 +375,7 @@ export function parseShellGlobals(value: unknown) {
         ? settings.faviconDark
         : fallback.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -474,6 +480,7 @@ export function pickShellGlobals(
     | "favicon"
     | "faviconDark"
     | "faviconSet"
+    | "faviconMode"
     | "logo"
     | "logoDark"
     | "shareImage"
@@ -509,6 +516,7 @@ export function pickShellGlobals(
     favicon: settings.favicon,
     faviconDark: settings.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
     logo: settings.logo,
     logoDark: settings.logoDark,
     shareImage: normalizeShareImage(settings.shareImage),

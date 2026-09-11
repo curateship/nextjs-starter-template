@@ -43,14 +43,20 @@ Pictures selected for testimonials, logo strips, and screenshots on the public
 front page pass the same ownership check before settings save. Existing saved
 pictures remain editable by another admin without transferring file ownership.
 
-The app favicon also starts with an owned image. When Settings saves that
-choice, the server reads the original from R2 and writes square PNG copies at
-16px, 32px, 180px, and 512px under a versioned favicon folder. A separate dark
-choice gets its own set. Generated favicon files stay out of the media picker;
-the selected originals remain the editable records. Replacing or clearing a
-choice removes the generated files after the settings record saves. The media
-orphan tool leaves this managed favicon folder alone, so it cannot erase an
-active browser icon merely because the generated file has no media row.
+The app logo also starts with an owned image, and it is the browser tab icon
+too. When Settings saves that choice, the server reads the original from R2 and
+writes, under one versioned favicon folder: the dark-mode twin of the picture,
+square PNG copies of the original at 16px, 32px, 180px and 512px, and the same
+four sizes of the twin. What the dark twin is and how it is made is in
+`settings/administration-and-personalization.md`.
+
+Every one of those files is generated. They stay out of the media picker, and
+the selected original remains the editable record. Replacing or clearing the
+logo removes the generated files after the settings record saves, the twin
+included, because the sweep matches the whole folder rather than the sizes
+alone. The media orphan tool leaves this managed folder alone, so it cannot
+erase an active browser icon merely because the generated file has no media
+row. The original the admin picked is not in that folder and is never swept.
 
 ## Admin and cleanup
 

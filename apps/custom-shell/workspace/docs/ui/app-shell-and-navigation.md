@@ -13,12 +13,17 @@ The shell also applies the active workspace's:
 - Colors and font.
 - Border style and width choices.
 
-The browser title and favicon are app-wide. The same favicon set is present on
-signed-in and public pages, with an optional dark-tab image.
+The browser title and tab icon are app-wide. The tab icon is one version of the
+signed-out logo, named by the Browser tab icon setting and the same on signed-in
+and public pages. There is no second icon for the browser to choose between.
 
 ## Who the sidebar says this site is
 
-The top of the sidebar names the site and shows its logo, for everybody.
+The top of the sidebar names the site and shows its logo, for everybody. That
+logo is the one uploaded in Settings → General. A per-site picture wins over it
+only in an app that builds distinct sites, meaning `workspaces.siteBranding` is
+on. With neither, the plain shape from the site editor's Icon list is drawn
+instead.
 
 An admin gets a chevron beside the name that opens the list of sites they may
 switch between. **A member gets the name and the logo and no chevron**, because

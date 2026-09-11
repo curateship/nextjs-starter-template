@@ -31,7 +31,11 @@ import {
 import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
-import type { PublicFaviconSet } from "@/lib/favicon"
+import {
+  DEFAULT_FAVICON_MODE,
+  type FaviconMode,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -442,6 +446,8 @@ export type ShellConfig = {
   faviconDark: string
   /** Server-generated PNG sizes for the selected favicon images. */
   faviconSet: PublicFaviconSet | null
+  /** Which of the two versions of the logo the browser tab shows. */
+  faviconMode: FaviconMode
   /**
    * App-wide brand image drawn above the signed-out pages (sign in, register,
    * reset, pricing). A media-library URL, empty for no logo. It is app-wide for
@@ -1049,6 +1055,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceShareImage: "",
     faviconDark: "",
     faviconSet: null,
+    faviconMode: DEFAULT_FAVICON_MODE,
     logo: "",
     logoDark: "",
     shareImage: "",

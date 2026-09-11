@@ -364,6 +364,9 @@ export async function findOwnedImageByUrl(
       id: customShellMedia.id,
       fileType: customShellMedia.fileType,
       storagePath: customShellMedia.storagePath,
+      // The brand image's dark twin is made from the file's own kind: an SVG is
+      // recoloured as text and everything else is redrawn pixel by pixel.
+      mimeType: customShellMedia.mimeType,
     })
     .from(customShellMedia)
     .where(

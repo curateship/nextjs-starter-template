@@ -58,10 +58,13 @@ in the admin area does not change the public site. A deployment with workspace
 domains reads the menu and footer from the workspace named by the domain. Page
 visibility still follows the workspace that owns the public content.
 
-The root page load also puts the app-wide favicon set in the document head.
-Public pages and signed-in pages therefore use the same light favicon, optional
-dark favicon, and generated browser sizes. With no saved favicon the document
-adds no custom icon links, which keeps the app's built-in browser behavior.
+The root page load also puts the app-wide browser icons in the document head.
+Public pages and signed-in pages therefore use the same icons: the admin's one
+uploaded logo, the dark-mode twin the app made from it, and the generated sizes
+of each. Only the version named by the Browser tab icon setting is linked, with
+no colour-scheme query, so every browser shows the same mark. With no saved logo
+the document adds no custom icon links, which keeps the app's built-in browser
+behavior.
 
 Apps that enable `workspaces.siteBranding` can override those images per public
 domain. Custom Shell leaves that option unset and continues using app-wide
