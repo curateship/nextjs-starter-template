@@ -21,6 +21,9 @@ and commits its recorded changes. Another wallet can take its own turn meanwhile
   order prevents a fill recorder and an engine pass waiting on each other's rows.
 - A waiting writer has five seconds to acquire the wallet lock. After that,
   the action returns `SMART_ORDER_WRITE_BUSY` without starting its work.
+- Hyperliquid HTTP requests time out after fifteen seconds while a wallet turn
+  is active. The timeout lets the transaction finish and release its lock when
+  the exchange stops answering.
 - The five-second limit applies to acquiring the lock. An exchange request
   already running keeps ownership until it finishes. Releasing the lock while
   that request can still place an order would allow two writers again.

@@ -276,7 +276,13 @@ async function exchangeClient(network: NetworkId, auth: OrderAuth) {
   await assertRealMoneyAllowed(network)
   const signer = agentSigner(auth.agentKey)
   return new ExchangeClient({
-    transport: new HttpTransport({ isTestnet: network === "testnet" }),
+    // Keep a hung exchange request from holding the wallet transaction open.
+    // The SDK default is also bounded, but make the safety limit explicit here
+    // because this client runs while the shared wallet lock is held.
+    transport: new HttpTransport({
+      isTestnet: network === "testnet",
+      timeout: 15_000,
+    }),
     wallet: signer,
     nonceManager: () => auth.allocateNonce(signer.address.toLowerCase()),
   })
