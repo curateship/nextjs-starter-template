@@ -129,6 +129,16 @@ describe("header market pins", () => {
     expect(host.textContent).toContain("Home")
     expect(host.textContent).not.toContain("+1.20%")
   })
+  it("pushes the pins to the far right of the header", async () => {
+    await mount()
+    await click("Pin to header")
+    // The chips sit against the right-hand controls rather than trailing the
+    // navigation links, so neither moves when the other changes length.
+    const chips = host.querySelector('[aria-label="Pinned markets"]')
+    expect(chips?.closest("[data-slot='scroll-area']")?.className).toContain(
+      "ml-auto"
+    )
+  })
   it("names five existing pins when a sixth is attempted without saving", async () => {
     pins = ["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key)
     await mount("XRP")

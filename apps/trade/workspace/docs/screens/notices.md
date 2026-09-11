@@ -37,13 +37,25 @@ things a person announces. The migration
 `drizzle/0173_trade_notices_leave_announcements.sql` moved every existing notice
 into its own row and deleted the stand-ins.
 
-**One cleanup is owed on the live database.** The migration ran before the new
-engine shipped, so the engine still running the old code was writing a column
-that no longer existed and every notice it tried to write failed. A temporary
-column and trigger, `trade_notice_links_old_writer`, accept the old shape and
-map it onto the new one. Once the engine, worker and website are all on this
-code, drop both, and move any notices the old engine wrote in the meantime with
-the same steps the migration uses.
+**One cleanup is owed on the live database, and until it is done some notices
+open nothing.** The migration ran before the new engine shipped, so the engine
+still running the old code was writing a column that no longer existed and
+every notice it tried to write failed. A temporary column and trigger,
+`trade_notice_links_old_writer`, accept the old shape and map it onto the new
+one. Once the engine, worker and website are all on this code, drop both, and
+move any notices the old engine wrote in the meantime with the same steps the
+migration uses.
+
+What that looks like on screen, and the reason not to go looking for a bug in
+the bell: a notice the old engine wrote is still typed `announcement`, and an
+announcement is a notice whose own words are the whole message, so the bell
+opens nothing for it. Its page is written into `trade_notice_links` all the
+same, by the trigger, so the straggler move is all it needs — the row becomes
+an `app_activity` notice and starts opening its coin's chart like every other.
+Measured on 11 September 2026: clicking a trade notice the new code wrote
+opened the right coin on the right exchange, including one on an exchange other
+than the one the tray was opened from; every notice that opened nothing was one
+of the old engine's.
 
 The shell's bell knows what the shell's own notices are about and opens each
 one. It cannot know what a trade notice is about, so the page each one came off

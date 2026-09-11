@@ -15,10 +15,26 @@ turn of the browser's event loop. The older rows go in behind the venue's bars
 without a flicker: the newer bars are the same bars and the chart keeps its own
 zoom. Where both have a bar, the venue's wins.
 
-The timeframe is remembered in local storage, not on the server. A browser
-left on another timeframe ignores the carried 4-hour candles and sends the
-normal first request on the next event-loop turn. A direct market link that is
-different from the account's remembered market does the same.
+**Each exchange remembers its own timeframe.** Hyperliquid can sit on 1d while
+KuCoin sits on 1h, and moving between the two no longer drags one screen's
+frame onto the other. Tyler's rule, 10 September 2026. It is one choice per
+exchange, not one per market: every coin on Hyperliquid opens on Hyperliquid's
+frame.
+
+The timeframe is remembered in local storage, not on the server, under a key
+that names the exchange. An exchange with no saved frame opens on 4h. The one
+key every exchange used to share is history and is never read: a browser left
+on 1d before this changed starts every exchange at 4h and is told once, by
+choosing again, which is a smaller surprise than a fallback that would have to
+live in the code forever. The favourite timeframes in the picker stay shared,
+because those are about how somebody reads a chart rather than about a
+particular exchange.
+
+A browser left on another timeframe ignores the carried 4-hour candles and
+sends the normal first request on the next event-loop turn. A direct market
+link that is different from the account's remembered market does the same. The
+dashboard's opening answer always carries 4-hour bars, so an exchange saved on
+another frame pays for one more request on its first paint.
 
 Every request after the first still waits 250 milliseconds. Picking several
 markets or timeframes during that pause cancels the earlier timers, so only the

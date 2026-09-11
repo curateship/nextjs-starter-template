@@ -70,11 +70,9 @@ import {
 } from "@/lib/api/trade/market-folders"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
-  CANDLE_INTERVALS,
   marketSymbol,
   parseMarketKey,
   protocolLabel,
-  type CandleInterval,
   type MarketRow,
   type NetworkId,
   type ProtocolId,
@@ -89,11 +87,7 @@ import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveTrade } from "@/lib/trade/live-trades"
-import {
-  CHART_INTERVAL_STORAGE_KEY,
-  DEFAULT_CHART_INTERVAL,
-} from "@/lib/trade/chart-interval"
-import { useRememberedChoice } from "@/lib/remembered-choice"
+import { useChartInterval } from "@/lib/trade/use-chart-interval"
 import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
@@ -484,12 +478,8 @@ export function TradeWorkspace({
   }, [])
 
   // The chart's timeframe, owned here so the header's picker and the chart's
-  // fetch read the same choice.
-  const [interval, setInterval] = useRememberedChoice<CandleInterval>(
-    CHART_INTERVAL_STORAGE_KEY,
-    DEFAULT_CHART_INTERVAL,
-    CANDLE_INTERVALS
-  )
+  // fetch read the same choice, and remembered against this exchange alone.
+  const [interval, setInterval] = useChartInterval(protocol)
 
   // The indicators, owned here for the same reason: the header's menu switches
   // them on and the chart below draws them, so both have to be reading one
@@ -1191,12 +1181,22 @@ export function TradeWorkspace({
           />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
-            without remembering that the divider is still draggable. */}
+            without remembering that the divider is still draggable. Both
+            edges carry one: the orders panel had only the menu in the chart
+            header, which says what is in the panel but never that the panel
+            itself can come back. */}
         {desktop && marketsCollapsed && !chartFullscreen ? (
           <PanelReopenTab
             side="left"
             label="Show markets"
             onClick={toggleMarkets}
+          />
+        ) : null}
+        {desktop && smartOrdersCollapsed && !chartFullscreen ? (
+          <PanelReopenTab
+            side="right"
+            label="Show orders"
+            onClick={toggleSmartOrders}
           />
         ) : null}
       </div>

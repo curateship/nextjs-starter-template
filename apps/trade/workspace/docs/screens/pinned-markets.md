@@ -45,6 +45,15 @@ the other exchanges out of the header. The links keep their own overflow menu
 and their own limit; the chips follow them and scroll on their own when the
 row runs out of room.
 
+**The chips sit at the far right of the header**, against the equity figure
+and the bell, on their own light ground. Tyler's rule, 10 September 2026. The
+links then start at the same place on every screen and the chips end at the
+same place, so neither moves when the other changes length: pinning a market,
+or opening a section with more links, no longer slides everything else along
+the row. The ground is the same shape as the chart's timeframe picker — a tray
+the height of a navigation link, holding chips one step smaller — which is what
+makes the pins read as one thing rather than as more links further along.
+
 **Each chip shows its symbol and the change over the last day, and nothing
 else.** No price, and no tooltip. The price was the longest thing on the chip
 and the least looked at, and the tooltip that replaced it named the exchange,
@@ -57,11 +66,12 @@ The chip's `aria-label` still carries the full description, so a screen reader
 is told the market, the exchange and the network. The unpin cross keeps its own
 tooltip, which is also where a save in progress is named.
 
-**A chip is one hovered surface, the height of a navigation link beside it.**
-The market and the unpin cross used to be two buttons that each shaded only
-themselves, so hovering the name lit a short pill that stopped before the
-cross. The whole chip now takes the shading, cross included, and neither
-control paints a background of its own.
+**A chip is one hovered surface, filling the tray it sits in.** The market and
+the unpin cross used to be two buttons that each shaded only themselves, so
+hovering the name lit a short pill that stopped before the cross. The whole
+chip now takes the shading, cross included, and neither control paints a
+background of its own. Its hover is a step darker than the tray, so a chip
+under the pointer is still visible against it.
 
 **A refresh leaves the figure on screen while it waits.** It used to be blanked
 the moment a read started, so every fifteen seconds each chip lost its
@@ -119,9 +129,10 @@ and a market that is no longer listed.
 Check the actual saved workflow in the existing server on port 3014:
 
 1. Open a BTC chart, press Pin to header, then open Settings. BTC should remain
-   at the top left. Wait through a 15-second refresh: the percentage must stay
-   on screen the whole time and the chip must not change width. Compare the new
-   figure with a fresh exchange price.
+   at the far right of the header, just left of the equity figure. Wait through
+   a 15-second refresh: the percentage must stay on screen the whole time and
+   the chip must not change width. Compare the new figure with a fresh exchange
+   price.
 2. Pin four more markets. Attempt a sixth and check that the refusal names all
    five. Remove a header chip and confirm the chart's pin button also clears.
 3. Reload, then sign into a second browser as the same account. Check the saved

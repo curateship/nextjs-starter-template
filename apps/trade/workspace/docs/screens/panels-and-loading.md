@@ -7,7 +7,10 @@ fixed in one is fixed in both.
 
 - Every visible divider drags.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
-  middle panel's edge where each one disappeared, and brings it back.
+  middle panel's edge where each one disappeared, and brings it back. **Both
+  edges have one.** On the trade workspace the orders panel had only the menu
+  in the chart header, which says what is in the panel but never that the panel
+  itself can come back, so a panel dragged shut looked gone for good.
 - **The bottom never disappears.** It shuts down to its own tab row, which stays
   on screen with its counts, and the divider above it stays draggable.
 - **Positions open with the most Unrealized P&L first.** The largest current

@@ -202,7 +202,24 @@ vi.mock("@/components/trade/use-panel-layouts", () => ({
 
 vi.mock("@/components/ui/resizable", () => ({
   BOTTOM_COLLAPSED_HEIGHT: "58px",
-  PanelReopenTab: () => null,
+  // Rendered rather than dropped, so a test can check which edges offer a
+  // way back and what each one is called.
+  PanelReopenTab: ({
+    side,
+    label,
+    onClick,
+  }: {
+    side: "left" | "right"
+    label: string
+    onClick: () => void
+  }) => (
+    <button
+      type="button"
+      data-testid={`reopen-${side}`}
+      aria-label={label}
+      onClick={onClick}
+    />
+  ),
   ResizableHandle: ({ className }: { className?: string }) => (
     <div data-testid="handle" className={className} />
   ),
@@ -483,8 +500,16 @@ describe("the trade workspace chart full screen", () => {
       "Open alerts",
     ])
     expect(host.querySelector('[data-testid="smart-orders-menu"]')).toBeNull()
+    // Nothing is shut, so neither edge offers a way back.
+    expect(host.querySelector('[data-testid="reopen-right"]')).toBeNull()
 
     await act(async () => clickButton("Collapse smart-orders panel"))
+    // The orders panel gets the same slim tab the market list has always had.
+    // The menu in the chart header says what is in the panel; only this says
+    // the panel itself can come back.
+    expect(host.querySelector('[data-testid="reopen-right"]')?.ariaLabel).toBe(
+      "Show orders"
+    )
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Open orders and bots"]'
