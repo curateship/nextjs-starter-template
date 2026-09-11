@@ -838,6 +838,257 @@ describe("the chart stop-loss shortcut", () => {
     expect(host.textContent).not.toContain("Stop loss")
   })
 
+  it("keeps the stop row away from a price the market is already under", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    // A breakout buy waiting at $120 with the market at $85. A stop at $90 is
+    // below what the order pays but above the price, so it would get out the
+    // moment the order filled and the chart would not draw it.
+    const watched = {
+      id: "watch-1",
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:BTC",
+      side: "buy" as const,
+      px: 120,
+      sz: 2,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true as const,
+    }
+    const oneTrading = {
+      ...trading,
+      wallet: { id: "wallet-1" },
+      positions: [],
+      watchOrders: [watched],
+      walletNames: new Map([["wallet-1", "Practice"]]),
+      editOrder: vi.fn(async () => true),
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="hyperliquid:BTC"
+          interval="15m"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          tradingRules={DEFAULT_TRADING_RULES}
+          indicators={{}}
+          market={{ key: "hyperliquid:BTC", price: 85 } as never}
+          trading={oneTrading}
+          free={1000}
+          equity={1000}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    const plot = host.firstElementChild
+    await act(async () => {
+      plot?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+
+    expect(host.textContent).not.toContain("Stop loss")
+  })
+
+  it("puts one stop on every waiting order the clicked price suits", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    const editOrder = vi.fn(
+      async (_walletId: string, _orderId: string, _changes: unknown) => true
+    )
+    const watched = (id: string, px: number) => ({
+      id,
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:BTC",
+      side: "buy" as const,
+      px,
+      sz: 2,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true as const,
+    })
+    const oneTrading = {
+      ...trading,
+      wallet: { id: "wallet-1" },
+      positions: [],
+      watchOrders: [watched("watch-1", 100), watched("watch-2", 99)],
+      walletNames: new Map([["wallet-1", "Practice"]]),
+      editOrder,
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="hyperliquid:BTC"
+          interval="15m"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          tradingRules={DEFAULT_TRADING_RULES}
+          indicators={{}}
+          market={{ key: "hyperliquid:BTC" } as never}
+          trading={oneTrading}
+          free={1000}
+          equity={1000}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    const plot = host.firstElementChild
+    await act(async () => {
+      plot?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+    const stop = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent === "Stop loss"
+    )
+    expect(stop).toBeDefined()
+    await act(async () => stop?.click())
+
+    expect(editOrder.mock.calls.map((call) => call[1])).toEqual([
+      "watch-1",
+      "watch-2",
+    ])
+    expect(editOrder.mock.calls[0][2]).toEqual({
+      sz: 2,
+      leverage: 1,
+      tpPx: null,
+      slPx: 90,
+    })
+  })
+
+  it("puts one exit on every waiting order the clicked price suits", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    const editOrder = vi.fn(
+      async (_walletId: string, _orderId: string, _changes: unknown) => true
+    )
+    // Both buy below the clicked price, so $90 is where they take a profit.
+    const watched = (id: string, px: number) => ({
+      id,
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:BTC",
+      side: "buy" as const,
+      px,
+      sz: 2,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: 70,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true as const,
+    })
+    const oneTrading = {
+      ...trading,
+      wallet: { id: "wallet-1" },
+      positions: [],
+      watchOrders: [watched("watch-1", 80), watched("watch-2", 79)],
+      walletNames: new Map([["wallet-1", "Practice"]]),
+      editOrder,
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="hyperliquid:BTC"
+          interval="15m"
+          initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          tradingRules={DEFAULT_TRADING_RULES}
+          indicators={{}}
+          market={{ key: "hyperliquid:BTC" } as never}
+          trading={oneTrading}
+          free={1000}
+          equity={1000}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    const plot = host.firstElementChild
+    await act(async () => {
+      plot?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+    const exit = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent === "Exit"
+    )
+    expect(exit).toBeDefined()
+    await act(async () => exit?.click())
+
+    expect(editOrder.mock.calls.map((call) => call[1])).toEqual([
+      "watch-1",
+      "watch-2",
+    ])
+    expect(editOrder.mock.calls[0][2]).toEqual({
+      sz: 2,
+      leverage: 1,
+      tpPx: 90,
+      slPx: 70,
+    })
+  })
+
   it.each([null, 85])("prioritizes the position before the waiting order when its stop is %s", async (positionStop) => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockResolvedValue({

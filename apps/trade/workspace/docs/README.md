@@ -92,9 +92,10 @@ screen: anything not written there has not been agreed yet.
   whether it waits for a touch or a candle's close, the above-average volume
   the breaking candle has to carry, and the master switch that pauses the lot.
 - `indicators.md` — the indicator list and how each one draws.
-- `orders-on-the-chart.md` — dragging orders on the chart, buying more, selling
-  part, leverage, the one rule for the money beside each grid line, and which
-  chart line wins an overlap.
+- `orders-on-the-chart.md` — dragging orders on the chart, the one stop and one
+  exit the hand-placed orders share, buying more, selling part, leverage, the
+  one rule for the money beside each grid line, and which chart line wins an
+  overlap.
 - `timezone.md` — the one clock the chart is on, where it is set, and why it is
   stored as a place rather than as an offset.
 - `loading.md` — which candles arrive with a dashboard, when a chart asks on

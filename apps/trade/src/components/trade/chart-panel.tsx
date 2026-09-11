@@ -115,6 +115,7 @@ import {
 import { positionFees } from "@/lib/trade/position-fees"
 import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
+import type { StopMerge } from "@/lib/trade/order-line-groups"
 import { sizeAfterStopDrag } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import {
@@ -993,18 +994,24 @@ export function ChartPanel({
     )
   }, [trading.positions, trading.wallet?.id, selectedKey])
   // A manual watched order has no position yet, but it still needs the same
-  // right-click shortcut while it waits. Keep the choice unambiguous: prefer
-  // the active wallet and offer the row only when one stopless order matches.
-  const bareWatchedStop = React.useMemo(() => {
-    const waiting = trading.watchOrders.filter(
-      (one) =>
-        one.walletId === trading.wallet?.id &&
-        one.marketKey === selectedKey &&
-        !one.reduceOnly &&
-        one.slPx === null
-    )
-    return waiting.length === 1 ? waiting[0] : null
-  }, [trading.watchOrders, trading.wallet?.id, selectedKey])
+  // right-click shortcut while it waits.
+  //
+  // **Every stopless order the clicked price suits takes the stop**, not only
+  // a lone one. The row used to appear for one order and vanish for two, so
+  // somebody who had just placed two levels by hand had no way to protect
+  // either of them from the chart. Orders on one side share a stop anyway —
+  // see `orderStopGroups` — so two of them is no longer an ambiguous question.
+  const bareWatchedStops = React.useMemo(
+    () =>
+      trading.watchOrders.filter(
+        (one) =>
+          one.walletId === trading.wallet?.id &&
+          one.marketKey === selectedKey &&
+          !one.reduceOnly &&
+          one.slPx === null
+      ),
+    [trading.watchOrders, trading.wallet?.id, selectedKey]
+  )
   const takeProfitPosition = takeProfit
     ? (trading.positions.find((one) => one.id === takeProfit.positionId) ??
       null)
@@ -1025,19 +1032,77 @@ export function ChartPanel({
           setMenu(null)
         }
       : null
+  // The same thing for an exit: a waiting order with nowhere to take its
+  // profit yet. Tyler asked for this row beside the stop one on 11 Sep 2026,
+  // after the stop row learned to cover more than one order.
+  const bareWatchedTargets = React.useMemo(
+    () =>
+      trading.watchOrders.filter(
+        (one) =>
+          one.walletId === trading.wallet?.id &&
+          one.marketKey === selectedKey &&
+          !one.reduceOnly &&
+          one.tpPx === null
+      ),
+    [trading.watchOrders, trading.wallet?.id, selectedKey]
+  )
+  // Which waiting orders a stop at the clicked price would belong to: below
+  // what a buy pays, above what a sell pays.
+  //
+  // **Never both ways from one click.** A price under a buy is also over a
+  // sell, so a coin holding both kinds of waiting order would arm a line on
+  // two opposite trades at once. The order nearest the click decides which
+  // side the row is for.
+  const suitedWatches = (
+    orders: readonly TradeOrder[],
+    losing: boolean
+  ): TradeOrder[] => {
+    if (!menu) return []
+    // A stop also has to be on the losing side of the price the market is at
+    // now, or it would get out the instant the order filled — and the chart
+    // refuses to draw one there, so the row would save something invisible.
+    // An exit has no such limit: reaching it in profit is the whole point.
+    const marked = market ? (liveMarkOf(market.key) ?? market.price) : null
+    const nowPx = Number.isFinite(marked) ? (marked as number) : null
+    const suited = orders.filter((one) => {
+      const ahead = (one.side === "buy") === losing
+      if (ahead ? menu.price >= one.px : menu.price <= one.px) return false
+      if (!losing || nowPx === null) return true
+      return one.side === "buy" ? menu.price < nowPx : menu.price > nowPx
+    })
+    if (suited.length === 0) return []
+    const nearest = suited.reduce((best, one) =>
+      Math.abs(one.px - menu.price) < Math.abs(best.px - menu.price) ? one : best
+    )
+    return suited.filter((one) => one.side === nearest.side)
+  }
+  const watchedStopTargets = suitedWatches(bareWatchedStops, true)
   const watchedStopShortcut =
-    menu &&
-    bareWatchedStop &&
-    (bareWatchedStop.side === "buy"
-      ? menu.price < bareWatchedStop.px
-      : menu.price > bareWatchedStop.px)
+    menu && watchedStopTargets.length > 0
       ? () => {
-          void trading.editOrder(bareWatchedStop.walletId, bareWatchedStop.id, {
-            sz: bareWatchedStop.sz,
-            leverage: bareWatchedStop.leverage,
-            tpPx: bareWatchedStop.tpPx,
-            slPx: menu.price,
-          })
+          for (const order of watchedStopTargets) {
+            void trading.editOrder(order.walletId, order.id, {
+              sz: order.sz,
+              leverage: order.leverage,
+              tpPx: order.tpPx,
+              slPx: menu.price,
+            })
+          }
+          setMenu(null)
+        }
+      : null
+  const watchedExitTargets = suitedWatches(bareWatchedTargets, false)
+  const watchedExitShortcut =
+    menu && watchedExitTargets.length > 0
+      ? () => {
+          for (const order of watchedExitTargets) {
+            void trading.editOrder(order.walletId, order.id, {
+              sz: order.sz,
+              leverage: order.leverage,
+              tpPx: menu.price,
+              slPx: order.slPx,
+            })
+          }
           setMenu(null)
         }
       : null
@@ -1209,6 +1274,37 @@ export function ChartPanel({
       })
     },
     [tradingOrders, tradingWatchOrders, tradingEditOrder, sizeDecimals]
+  )
+  /**
+   * Two hand-placed orders that both carry a stop are put on one stop price,
+   * which is what lets the chart draw them one red line instead of two — see
+   * `orderStopGroups`. The amount each order is for is left exactly as it was:
+   * this move is nobody's decision, so the only thing it may do is move the
+   * stop to the price that loses less.
+   *
+   * Each order is asked for once. A save the server turns down stays turned
+   * down until something else about the order changes, rather than going out
+   * again on every repaint.
+   */
+  const mergedStops = React.useRef(new Map<string, number>())
+  const onMergeStops = React.useCallback(
+    (merges: readonly StopMerge[]) => {
+      for (const merge of merges) {
+        if (mergedStops.current.get(merge.orderId) === merge.price) continue
+        const order =
+          tradingOrders.find((one) => one.id === merge.orderId) ??
+          tradingWatchOrders.find((one) => one.id === merge.orderId)
+        if (!order || order.slPx === null) continue
+        mergedStops.current.set(merge.orderId, merge.price)
+        void tradingEditOrder(merge.walletId, merge.orderId, {
+          sz: order.sz,
+          leverage: order.leverage,
+          tpPx: order.tpPx,
+          slPx: merge.price,
+        })
+      }
+    },
+    [tradingOrders, tradingWatchOrders, tradingEditOrder]
   )
   const onEditOrder = React.useCallback(
     (orderId: string, anchor: Element) => {
@@ -1807,6 +1903,7 @@ export function ChartPanel({
           // the same money; an order sized in dollars keeps its dollars.
           onMoveOrderTarget={onMoveOrderTarget}
           onMoveOrderStop={onMoveOrderStop}
+          onMergeStops={onMergeStops}
           onEditOrder={onEditOrder}
           entryBadge={entryBadgeOf}
           onSetBrackets={dragBrackets}
@@ -1891,6 +1988,7 @@ export function ChartPanel({
       onCancelOrder,
       onMoveOrderTarget,
       onMoveOrderStop,
+      onMergeStops,
       onEditOrder,
       entryBadgeOf,
       dragBrackets,
@@ -2063,6 +2161,10 @@ export function ChartPanel({
             }
             setMenu(null)
           }}
+          // A position's Exit opens a window, because part of a position can
+          // be sold and the size has to be chosen. A waiting order's exit is
+          // the whole order, so there is nothing to ask and it saves at once.
+          // The position comes first, exactly as the stop row does.
           onPickTakeProfit={
             targetablePosition && menu.price > 0
               ? () => {
@@ -2074,7 +2176,7 @@ export function ChartPanel({
                   })
                   setMenu(null)
                 }
-              : null
+              : watchedExitShortcut
           }
           // The losing side of the entry is the matching stop-loss shortcut.
           // A trailing stop beyond entry is still edited from the position's

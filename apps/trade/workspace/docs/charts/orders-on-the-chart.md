@@ -37,7 +37,11 @@ target window can hold up to three rows, with a running figure showing how much
 of the position they cover. The chart draws one labelled line for every target
 while the wallet saves in the background. The Take profit shortcut stays in
 the menu until the position has three targets. A stop already set keeps the
-Stop loss shortcut out because its chart line is the place to change it.
+Stop loss shortcut out because its chart line is the place to change it. With
+no position, the same two rows act on the waiting orders instead: Stop loss
+puts a stop on every waiting order the clicked price suits, Exit puts an exit
+on every one that has none, and each acts on one side only. See
+`../orders/watched-orders.md`.
 
 A live take-profit or stop-loss order appears once, as its coloured target or
 stop bar. Each target label states the dollars sold and the profit at its
@@ -109,7 +113,8 @@ does not close the position immediately.
   red as a position's but in a finer dash — they are where the trade will get
   out once the order fills, which is a plan rather than a fact. The bar says
   what each would pay in dollars if it got there. Either line can be dragged,
-  and the order's own window can change both together.
+  and the order's own window can change both together. Orders that can share a
+  stop are drawn as one stop line, below.
 - **Pressing a waiting order's bar opens that window** — how much the order is
   for, the leverage it will use, and where it gets out. Not its price: the
   price is the line, and you drag it. The bar carries the same 12px settings
@@ -139,6 +144,84 @@ does not close the position immediately.
   answer, and a toast on every click of a trading screen is noise. Refusals
   still speak up, and so does the one case that must never pass quietly — a
   real order that went on without the protection asked for.
+
+### One stop and one exit for the hand-placed orders that share them
+
+**Hand-placed orders on the same coin and the same side share one stop.** Two
+Buy orders used to draw two red Stop Loss lines a few pixels apart, each with
+its own dollar figure. They now draw one line, and its figure is what all of
+them lose together at that price. Tyler asked for this on 11 September 2026.
+
+The orders really are moved onto one price. The line is not a tidier picture of
+two prices behind it, because a line at a price where only half the money gets
+out says the wrong thing about where the loss stops.
+
+- **The tighter stop wins.** Of the prices already set, they all move to the one
+  that loses least: the higher price for a buy, the lower price for a sell. The
+  other direction would widen a stop somebody set on purpose and put more money
+  at risk, which is not a change a chart may make by itself.
+- **The amounts are left alone.** Dragging a stop by hand resizes an order sized
+  by risk so it still risks the same money. This move is nobody's decision, so
+  the only thing it does is move the stop somewhere that loses less.
+- **A stop never lands on the wrong side of an entry.** A buy at $2,054 and a
+  buy at $2,522 cannot share a stop at $2,437, because for the cheaper order
+  that price is above what it buys at. An order the winning price does not suit
+  keeps its own line, and whatever is left groups among itself.
+- **A buy and a sell never share, and neither do two wallets.** They are
+  different trades going opposite ways, and different people's money.
+- **Dragging the one line moves every order under it.** Each order is saved
+  separately, and an order sized by risk resizes as it always has.
+- **An order already resting at the exchange keeps its own line.** It cannot be
+  changed in place, so there is nothing to merge it with. An order still being
+  placed keeps its own line too, because there is nothing on the server yet.
+- **The merge happens when the coin's chart is open**, not in the background.
+  Opening ETH with two Buy orders on it saves the tighter stop onto both.
+
+What this costs: the edit window can no longer hold one of these orders at a
+wider stop than the others on the same coin and side. Widen one there and the
+chart pulls it back to the tightest the next time that coin is drawn. Move the
+whole group by dragging the one line instead.
+
+**An exit line groups the same way, but nothing is ever moved to make one.** A
+stop is a limit on what a trade may lose, so putting two of them on the tighter
+price only ever risks less. An exit is where a trade takes its profit, and
+dragging one onto another would quietly give profit away. Two exits at the same
+price draw as one line because they are one price; two at different prices stay
+two lines. The chart's own Exit row sets one price on every order at once, so
+the ordinary way of setting them already gives one line.
+
+**No stop is ever drawn above the price for a long, or below it for a short.**
+A stop there would get out the instant it was set, so it is not a stop, and the
+pill gives itself away by printing a profit. Tyler on 11 September 2026: "Just
+dont show the stoploss above the price, that makes no sense." The rule covers a
+position's stop as well as a waiting order's, and the line cannot be dragged
+there either. Until the exchange has given a price there is nothing to judge
+against, and every stop is drawn as it always was.
+
+**A waiting order's stop cannot be dragged to its winning side, nor its exit to
+its losing side.** The line stops following the pointer at the last price that
+is still a stop for every order under it, and a drag that never reached one
+saves nothing. Dropped the wrong way round a stop is not a stop: it sits where
+the trade is ahead, and the pill says so by printing a profit, which is what
+Tyler was shown on 11 September 2026 as "Stop Loss +$521.61". A position's stop may still be dragged past the entry, because
+after the price has moved your way that is a trailing stop and the profit it
+locks in is real. It still has to stay on the losing side of today's price.
+
+**A stop or exit line is drawn only while the order it belongs to is on the
+chart.** An order priced far outside what the chart is showing has its own bar
+drawn off the top or the bottom, where it is clipped away, and its stop was
+left sitting alone in the middle of the screen with nothing to explain it. On
+11 September 2026 Tyler cancelled the orders he could see and read that
+leftover line as a stop that would not go away. Scroll or zoom until the order
+is in view and its stop comes back with it.
+
+**An order still being sent draws no stop or exit line at all.** Its stop
+cannot join anything yet, because there is nothing on the server to save, so it
+used to appear for a second as a second red line beside the one it was about to
+join. The order's own bar already says "sending".
+
+The rules live in `src/lib/trade/order-line-groups.ts` and the lines are drawn
+in `src/components/trade/trade-lines-layer.tsx`.
 
 ### Buying more of what a position holds
 

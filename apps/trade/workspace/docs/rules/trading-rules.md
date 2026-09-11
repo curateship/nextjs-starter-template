@@ -102,11 +102,12 @@ add up to.
   profit without a stop loss.** The stop can be its exact losing price or a
   percent away from entry. The chosen line stays with the watched level and is
   put on the position as soon as the entry fills.
-- **A waiting manual order can gain its stop from the chart.** Right-clicking a
-  losing-side price offers Stop loss for the active wallet's one eligible
-  stopless watch, even when it also has a position on the same market.
-  If several eligible watches make the target ambiguous, the shortcut stays
-  hidden and the exact order line opens the edit window instead.
+- **A waiting manual order can gain its stop or its exit from the chart.**
+  Right-clicking a losing-side price offers Stop loss for the active wallet's
+  stopless watches, and a winning-side price offers Exit for the ones with no
+  exit, even when it also has a position on the same market. Every watch the
+  clicked price suits takes it, on one side only: the order nearest the click
+  decides whether the row means the buys or the sells.
 - **A waiting order edits beside its chart bar.** Its bar uses the standard
   12px settings cog used by the Grid bar, and the editor opens beside it like
   the other chart-order editors. It does not cover the workspace with a modal.

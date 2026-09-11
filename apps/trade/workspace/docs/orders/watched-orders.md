@@ -186,15 +186,27 @@ The window remembers the two switches and the stop's price-or-percent choice
 after a successful order. Saved settings from before the switches were split
 still mean what they meant then: the old combined switch turns both lines on.
 
-A stop can also be added after a manual watched order is placed. Right-click a
-price on the losing side of a stopless waiting order and choose **Stop loss**;
-the clicked price is saved on that watch without adding a target. The shortcut
+A stop or an exit can also be added after a manual watched order is placed.
+Right-click a price on the losing side of a stopless waiting order and choose
+**Stop loss**, or a price on the winning side of one with no exit and choose
+**Exit**; the clicked price is saved on that watch and the other line is left
+as it was. A stop also has to be on the losing side of the price the market is
+at now, or the order would get out the instant it filled, so the row stays away
+from those prices. An exit has no such limit, because reaching it in profit is
+the point of it. The shortcut
 prefers an open position that needs a stop over a waiting order on the same
 market. Once the position has its stop, the shortcut can target the waiting
 order. The waiting order's own line always opens its exact edit window.
-When more than one stopless manual order is waiting on that market in the active
-wallet, the watched-order shortcut stays hidden because the intended order
-would be ambiguous. A position stop remains available. Press the exact waiting order line instead to open its edit window.
+Both rows work the same way when more than one manual order is waiting on that
+market in the active wallet: all of them the clicked price suits take that stop
+or that exit at once. They share
+one stop line afterwards, so there is nothing ambiguous left to decide. Before
+11 September 2026 the shortcut hid itself in that case, which left somebody who
+had just placed two levels by hand with no way to protect either from the
+chart. The shortcut never acts both ways from one click: a price under a buy is
+also over a sell, so the stopless order nearest the click decides which side
+the row is for, and only that side's orders take the stop. A position stop
+still comes first. Pressing one order's own line still opens its edit window.
 
 The DCA ladder's rungs work the same way on real and practice wallets, and the
 grid always has. In a backtest a rung is modelled as a resting order the

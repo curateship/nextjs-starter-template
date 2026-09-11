@@ -15,6 +15,13 @@ import {
   type TradeOrder,
   type TradePosition,
 } from "@/lib/trade/paper"
+import {
+  orderStopGroups,
+  orderTargetGroups,
+  stopMerges,
+  type OrderLineGroup,
+  type StopMerge,
+} from "@/lib/trade/order-line-groups"
 import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 
@@ -105,6 +112,12 @@ type Line = {
   }
   /** Dragging it re-prices the thing behind it. */
   onMove?: (price: number) => void
+  /**
+   * Prices this line may be dragged to. The line stops following the pointer
+   * at the edge of what it allows rather than being dropped somewhere that
+   * means nothing — a stop on the winning side of the order it protects.
+   */
+  allows?: (price: number) => boolean
   /** The × throws it away. */
   onRemove?: () => void
   /** The ⚙ opens whatever settings the thing behind it has. */
@@ -233,6 +246,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   onMoveOrder,
   onMoveAlert,
   onMoveOrderStop,
+  onMergeStops,
   onMoveOrderTarget,
   onCancelOrder,
   onDeleteAlert,
@@ -274,6 +288,12 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
    * reason this line is draggable at all — see `resizeForStop`.
    */
   onMoveOrderStop?: (walletId: string, orderId: string, price: number) => void
+  /**
+   * Puts the waiting orders that share a stop onto one price, so the single
+   * line drawn for them is the truth rather than a tidier picture of two — see
+   * `orderStopGroups`. Called as the lines are worked out, never from a drag.
+   */
+  onMergeStops?: (merges: readonly StopMerge[]) => void
   /** Dragging a waiting order's target. The amount is left alone. */
   onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
   onCancelOrder: (order: TradeOrder) => void
@@ -315,6 +335,22 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     onSurface?.(surface)
   }, [surface, onSurface])
 
+  /**
+   * Whether a price is still a stop for a trade going this way.
+   *
+   * **A stop never sits above the price for a long, or below it for a short.**
+   * A stop there would fire the moment it was set, so it is not a stop at all,
+   * and the pill gives itself away by printing a profit. Tyler on 11 Sep 2026:
+   * "Just dont show the stoploss above the price, that makes no sense." So a
+   * line like that is neither drawn nor draggable, whether it belongs to a
+   * waiting order or to an open position.
+   *
+   * With no price yet from the exchange there is nothing to judge against, and
+   * every stop is drawn as it always was rather than hidden on a guess.
+   */
+  const stopSuitsPrice = (long: boolean, price: number) =>
+    currentPx === null || (long ? price < currentPx : price > currentPx)
+
   const held = positions.filter((one) => one.marketKey === marketKey)
   const bracketOrderIds = new Map<string, Set<string>>()
   for (const position of held) {
@@ -340,6 +376,26 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       one.marketKey === marketKey &&
       !bracketOrderIds.get(one.walletId)?.has(one.id)
   )
+
+  // One stop line and one exit line per price the waiting orders share, and the
+  // saves that make the stop line true — see `orderStopGroups`. Worked out here
+  // rather than in the loop below, because a group is a fact about all the
+  // orders at once.
+  const stopGroups = orderStopGroups(waiting)
+  const targetGroups = orderTargetGroups(waiting)
+  const merges = stopMerges(stopGroups)
+  // The list is rebuilt on every pan and every price tick, so the effect is
+  // hung on what is actually in it. An unchanged list is a save already asked
+  // for, and asking again would send the same write on a loop.
+  const mergeKey = merges.map((one) => `${one.orderId}@${one.price}`).join(",")
+  const mergesRef = React.useRef<readonly StopMerge[]>(merges)
+  React.useEffect(() => {
+    mergesRef.current = merges
+  })
+  React.useEffect(() => {
+    if (mergeKey === "") return
+    onMergeStops?.(mergesRef.current)
+  }, [mergeKey, onMergeStops])
 
   // More than one wallet in this market means every line has to say which
   // wallet it belongs to, or two entry lines sit there with nothing to tell
@@ -468,7 +524,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
           }),
       })
     }
-    if (position.slPx !== null) {
+    if (position.slPx !== null && stopSuitsPrice(position.szi > 0, position.slPx)) {
       lines.push({
         id: `sl:${position.id}`,
         kind: "stop_loss",
@@ -481,6 +537,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
           feesPaid === null
             ? "The fills on hand do not cover this position's fees."
             : "After fees charged so far. The closing fee is known only after the order fills.",
+        allows: (price) => stopSuitsPrice(position.szi > 0, price),
         onMove: (price) =>
           onSetBrackets(position, {
             targets: position.targets.map((target) => ({
@@ -533,12 +590,6 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     // An order still on its way to the server has no id anything could act on,
     // so it is drawn and nothing more. It says so rather than looking stuck.
     const settled = !order.placing
-    // The trade this order would open, for working out what its own target and
-    // stop would pay. It is not held yet — this is what it would be.
-    const wouldHold = {
-      szi: order.side === "buy" ? order.sz : -order.sz,
-      entryPx: order.px,
-    }
     // A real resting order cannot be changed here. Practice and watched
     // orders both belong to this app, so their line opens the edit window.
     const edit =
@@ -584,50 +635,143 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         ? "Change this order's size, leverage, stop loss, and exit."
         : undefined,
     })
+  }
 
-    if (order.tpPx !== null) {
-      // Moving the target changes where the trade gets out in profit and
-      // nothing else — the amount stays where it was put, because the target
-      // has no say in what the trade can lose.
-      const move =
-        settled && !order.live && onMoveOrderTarget
-          ? (price: number) =>
+  /**
+   * Whether a price is somewhere on the chart as it is scrolled right now.
+   *
+   * An order far outside the visible prices has its bar drawn off the top or
+   * the bottom, where the SVG clips it away — and its stop, if the stop price
+   * happens to be in view, was left sitting there on its own with no bar to
+   * explain it. On 11 Sep 2026 Tyler cancelled the orders he could see and
+   * read the leftover line as a stop that would not go away. A stop belongs to
+   * an order, so it is drawn when that order is.
+   */
+  const onChart = (price: number) => {
+    const y = surface.yOf(price)
+    return y !== null && y >= 0 && y <= surface.height
+  }
+
+  // What a group of waiting orders would make or lose together at a price.
+  // Read as a function so the figure follows the line while it is dragged.
+  const together = (group: OrderLineGroup) => (at: number) =>
+    group.orders.reduce(
+      (total, order) =>
+        total +
+        projectedProfit(
+          {
+            szi: order.side === "buy" ? order.sz : -order.sz,
+            entryPx: order.px,
+          },
+          at
+        ),
+      0
+    )
+
+  /**
+   * Whether a price is a real stop, or a real exit, for every order under the
+   * line being dragged.
+   *
+   * **A waiting order's stop has to be on its losing side and its exit on its
+   * winning side.** Dropped the wrong way round a stop is not a stop: it sits
+   * where the trade is ahead, and the pill says so by printing a profit. On 11
+   * Sep 2026 Tyler was shown "Stop Loss +$521.61" and asked why a stop was
+   * above the price. The drag now refuses that drop and the line goes back
+   * where it was, which is the same answer the right-click Stop loss row
+   * already gives.
+   *
+   * A position's stop is a different thing and keeps its freedom: dragged past
+   * the entry after the price has moved your way it becomes a trailing stop,
+   * and the profit it prints is real.
+   */
+  const soundFor = (
+    group: OrderLineGroup,
+    price: number,
+    losing: boolean
+  ): boolean =>
+    group.orders.every(
+      (order) =>
+        ((order.side === "buy") === losing
+          ? price < order.px
+          : price > order.px) &&
+        // And on the right side of the price the market is at now, which is
+        // the one a person reads the line against — see `stopSuitsPrice`.
+        (!losing || stopSuitsPrice(order.side === "buy", price))
+    )
+
+  // The waiting orders' stops, one line per price they share rather than one
+  // per order — see `orderStopGroups`. Drawn after the order bars above so a
+  // stop pill that has to move sideways moves clear of them and not under.
+  for (const group of stopGroups) {
+    if (!group.orders.some((order) => onChart(order.px))) continue
+    if (!soundFor(group, group.price, true)) continue
+    const tag = whose(group.walletId)
+    const loss = together(group)
+    // Draggable only on orders this app holds, exactly like the order's own
+    // price line above: a real resting order cannot be changed in place, it
+    // has to be cancelled and placed again.
+    const resize =
+      group.movable && onMoveOrderStop
+        ? (price: number) => {
+            if (!soundFor(group, price, true)) return
+            for (const order of group.orders) {
+              onMoveOrderStop(order.walletId, order.id, price)
+            }
+          }
+        : undefined
+    const sharing =
+      group.orders.length > 1
+        ? `One stop for ${group.orders.length} waiting orders. `
+        : ""
+    const sizing = group.orders.some((order) => order.riskSized)
+      ? group.orders.length > 1
+        ? "The orders sized by risk change with it, so they still risk the same money."
+        : "The order's size changes with it, so it still risks the same money."
+      : group.orders.length > 1
+        ? "The amounts stay where you put them."
+        : "The order's size stays where you put it."
+    lines.push({
+      id: group.id,
+      kind: "order_stop_loss",
+      price: group.price,
+      label: (at) => `Stop Loss ${formatSignedUsd(loss(at))}${tag}`,
+      onMove: resize,
+      allows: (price) => soundFor(group, price, true),
+      hint: resize ? `${sharing}Drag to move the stop. ${sizing}` : undefined,
+    })
+  }
+
+  // The waiting orders' exits. One line per price they already share, and
+  // nothing is moved to make one — see `orderTargetGroups`. Moving an exit
+  // changes where the trade gets out in profit and nothing else: the amounts
+  // stay where they were put, because an exit has no say in what a trade can
+  // lose.
+  for (const group of targetGroups) {
+    if (!group.orders.some((order) => onChart(order.px))) continue
+    const tag = whose(group.walletId)
+    const profit = together(group)
+    const move =
+      group.movable && onMoveOrderTarget
+        ? (price: number) => {
+            if (!soundFor(group, price, false)) return
+            for (const order of group.orders) {
               onMoveOrderTarget(order.walletId, order.id, price)
-          : undefined
-      lines.push({
-        id: `order-tp:${order.id}`,
-        kind: "order_take_profit",
-        price: order.tpPx,
-        label: (at) =>
-          `Exit ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
-        onMove: move,
-        hint: move
-          ? "Drag to move where this order takes its profit."
-          : undefined,
-      })
-    }
-    if (order.slPx !== null) {
-      // Draggable only on a practice order, exactly like the order's own price
-      // line above: a real resting order cannot be changed in place, it has to
-      // be cancelled and placed again.
-      const resize =
-        settled && !order.live && onMoveOrderStop
-          ? (price: number) => onMoveOrderStop(order.walletId, order.id, price)
-          : undefined
-      lines.push({
-        id: `order-sl:${order.id}`,
-        kind: "order_stop_loss",
-        price: order.slPx,
-        label: (at) =>
-          `Stop Loss ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
-        onMove: resize,
-        hint: resize
-          ? order.riskSized
-            ? "Drag to move the stop. The order's size changes with it, so it still risks the same money."
-            : "Drag to move the stop. The order's size stays where you put it."
-          : undefined,
-      })
-    }
+            }
+          }
+        : undefined
+    lines.push({
+      id: group.id,
+      kind: "order_take_profit",
+      price: group.price,
+      label: (at) => `Exit ${formatSignedUsd(profit(at))}${tag}`,
+      onMove: move,
+      allows: (price) => soundFor(group, price, false),
+      hint: move
+        ? group.orders.length > 1
+          ? `One exit for ${group.orders.length} waiting orders. Drag to move where they all take their profit.`
+          : "Drag to move where this order takes its profit."
+        : undefined,
+    })
   }
 
   // Pointer moves arrive faster than the screen repaints, so a drag's moves
@@ -668,6 +812,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         if (!held.moved && Math.abs(y - held.fromY) <= DRAG_SLOP) return held
         const price = surface.priceAt(y)
         if (price === null || price <= 0) return held
+        // A line held against what it allows stays where it is and the pointer
+        // goes on without it, so the pill never reads a price nothing would
+        // save.
+        const line = lines.find((one) => one.id === held.id)
+        if (line?.allows && !line.allows(price)) {
+          return { ...held, moved: true }
+        }
         return { ...held, price, moved: true }
       })
     })
@@ -689,7 +840,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     const price = surface.priceAt(y)
     // A press that never travelled was a press, not a move, and saving a price
     // that did not change would be a write for nothing.
-    if (moved && price !== null && price > 0) line.onMove?.(price)
+    if (moved && price !== null && price > 0) {
+      // The drop lands where the drag was allowed to reach, which for a line
+      // held at its edge is the last price it stood on. A line dragged only
+      // into prices it refuses lands back where it started and saves nothing.
+      const drop = line.allows && !line.allows(price) ? grab.price : price
+      if (drop !== line.price) line.onMove?.(drop)
+    }
     setGrab(null)
   }
 

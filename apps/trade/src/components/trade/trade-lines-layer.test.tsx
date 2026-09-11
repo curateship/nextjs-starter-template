@@ -538,3 +538,523 @@ describe("chart bracket lines", () => {
     expect(html).not.toContain("theme-neutral")
   })
 })
+
+describe("one stop line for the hand-placed orders that share it", () => {
+  function watched(id: string, px: number, slPx: number): TradeOrder {
+    return {
+      id,
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+  }
+
+  function renderOrders(
+    orders: readonly TradeOrder[],
+    onMergeStops?: (merges: readonly { orderId: string; price: number }[]) => void
+  ): string {
+    return renderToStaticMarkup(
+      <TradeLinesLayer
+        surface={surface}
+        colors={colors}
+        marketKey={MARKET}
+        currentPx={100}
+        positions={[]}
+        orders={orders}
+        walletName={() => "Wallet"}
+        tool={null}
+        onMoveOrder={() => undefined}
+        onCancelOrder={() => undefined}
+        onMoveOrderStop={() => undefined}
+        onMergeStops={onMergeStops}
+        onSetBrackets={() => undefined}
+      />
+    )
+  }
+
+  it("draws one pill carrying what both orders lose together", () => {
+    const html = renderOrders([watched("a", 100, 90), watched("b", 104, 91)])
+    const host = document.createElement("div")
+    host.innerHTML = html
+    const stops = [...host.querySelectorAll("text")].filter((one) =>
+      one.textContent?.startsWith("Stop Loss")
+    )
+
+    expect(stops).toHaveLength(1)
+    // Both stop at 91: the first order loses $9 of its $100, the second $13.
+    expect(stops[0].textContent).toBe("Stop Loss -$22.00")
+  })
+
+  it("moves every order in the group when the one line is dragged", async () => {
+    const onMoveOrderStop = vi.fn()
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[watched("a", 100, 91), watched("b", 104, 91)]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onMoveOrderStop={onMoveOrderStop}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+
+    const drag = host.querySelector<SVGLineElement>(
+      '[aria-label="Stop Loss -$22.00 at $91"]'
+    )
+    expect(drag).not.toBeNull()
+    Object.assign(drag!, {
+      setPointerCapture: () => undefined,
+      hasPointerCapture: () => false,
+      releasePointerCapture: () => undefined,
+    })
+    await act(async () => {
+      drag!.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 109 })
+      )
+    })
+    await act(async () => {
+      drag!.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 115 })
+      )
+    })
+
+    expect(onMoveOrderStop.mock.calls).toEqual([
+      ["wallet", "a", 85],
+      ["wallet", "b", 85],
+    ])
+    await act(async () => root.unmount())
+  })
+
+  it("asks for the saves that put both orders on the tighter stop", async () => {
+    const onMergeStops = vi.fn()
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[watched("a", 100, 90), watched("b", 104, 91)]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onMoveOrderStop={() => undefined}
+          onMergeStops={onMergeStops}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+
+    expect(onMergeStops).toHaveBeenCalledTimes(1)
+    expect(onMergeStops.mock.calls[0][0]).toEqual([
+      { walletId: "wallet", orderId: "a", price: 91 },
+    ])
+  })
+
+  it("leaves a real resting order its own line", () => {
+    const resting: TradeOrder = {
+      ...watched("live", 104, 91),
+      watched: undefined,
+      live: true,
+    }
+    const html = renderOrders([watched("a", 100, 90), resting])
+    const host = document.createElement("div")
+    host.innerHTML = html
+    const stops = [...host.querySelectorAll("text")].filter((one) =>
+      one.textContent?.startsWith("Stop Loss")
+    )
+
+    expect(stops).toHaveLength(2)
+  })
+})
+
+describe("one exit line for the orders that share it", () => {
+  function watched(
+    id: string,
+    px: number,
+    tpPx: number,
+    extra: Partial<TradeOrder> = {}
+  ): TradeOrder {
+    return {
+      id,
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+      ...extra,
+    }
+  }
+
+  function exits(orders: readonly TradeOrder[]): (string | null)[] {
+    const host = document.createElement("div")
+    host.innerHTML = renderToStaticMarkup(
+      <TradeLinesLayer
+        surface={surface}
+        colors={colors}
+        marketKey={MARKET}
+        currentPx={100}
+        positions={[]}
+        orders={orders}
+        walletName={() => "Wallet"}
+        tool={null}
+        onMoveOrder={() => undefined}
+        onCancelOrder={() => undefined}
+        onMoveOrderTarget={() => undefined}
+        onSetBrackets={() => undefined}
+      />
+    )
+    return [...host.querySelectorAll("text")]
+      .map((one) => one.textContent)
+      .filter((one) => one?.startsWith("Exit") ?? false)
+  }
+
+  it("draws one pill carrying what both orders make together", () => {
+    // Both bought below $120: the first makes $30, the second $20.
+    expect(exits([watched("a", 90, 120), watched("b", 100, 120)])).toEqual([
+      "Exit +$50.00",
+    ])
+  })
+
+  it("leaves two exits at different prices as two lines", () => {
+    expect(exits([watched("a", 90, 120), watched("b", 100, 130)])).toEqual([
+      "Exit +$30.00",
+      "Exit +$30.00",
+    ])
+  })
+
+  it("draws nothing for an order still being sent", () => {
+    expect(
+      exits([watched("sending", 90, 120, { placing: true, watched: undefined })])
+    ).toEqual([])
+  })
+})
+
+describe("a stop with no order in sight", () => {
+  function watched(id: string, px: number, slPx: number): TradeOrder {
+    return {
+      id,
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+  }
+
+  function labels(orders: readonly TradeOrder[]): (string | null)[] {
+    const host = document.createElement("div")
+    host.innerHTML = renderToStaticMarkup(
+      <TradeLinesLayer
+        surface={surface}
+        colors={colors}
+        marketKey={MARKET}
+        currentPx={100}
+        positions={[]}
+        orders={orders}
+        walletName={() => "Wallet"}
+        tool={null}
+        onMoveOrder={() => undefined}
+        onCancelOrder={() => undefined}
+        onMoveOrderStop={() => undefined}
+        onSetBrackets={() => undefined}
+      />
+    )
+    return [...host.querySelectorAll("text")].map((one) => one.textContent)
+  }
+
+  // The test surface puts price 100 at the middle of a 240px chart and price
+  // 400 far above its top, where the order's own bar is clipped away.
+  it("drops the stop line while the order it belongs to is off the chart", () => {
+    const drawn = labels([watched("far", 400, 90)])
+    expect(drawn).toContain("Buy $400")
+    expect(drawn).not.toContain("Stop Loss -$310.00")
+    expect(drawn.some((one) => one?.startsWith("Stop Loss"))).toBe(false)
+  })
+
+  it("keeps it while the order is in view", () => {
+    expect(labels([watched("near", 100, 90)])).toContain("Stop Loss -$10.00")
+  })
+})
+
+describe("a waiting order's stop cannot be dragged to the winning side", () => {
+  function watched(id: string, px: number, slPx: number): TradeOrder {
+    return {
+      id,
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+  }
+
+  async function dragTo(clientY: number) {
+    const onMoveOrderStop = vi.fn()
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[watched("a", 100, 90), watched("b", 104, 90)]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onMoveOrderStop={onMoveOrderStop}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+    const drag = host.querySelector<SVGLineElement>(
+      '[aria-label="Stop Loss -$24.00 at $90"]'
+    )
+    expect(drag).not.toBeNull()
+    Object.assign(drag!, {
+      setPointerCapture: () => undefined,
+      hasPointerCapture: () => false,
+      releasePointerCapture: () => undefined,
+    })
+    await act(async () => {
+      drag!.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 110 })
+      )
+    })
+    await act(async () => {
+      drag!.dispatchEvent(
+        new MouseEvent("pointermove", { bubbles: true, clientY })
+      )
+    })
+    await act(async () => {
+      drag!.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientY }))
+    })
+    const drawn = [...host.querySelectorAll("text")].map((one) => one.textContent)
+    await act(async () => root.unmount())
+    return { onMoveOrderStop, drawn }
+  }
+
+  // The surface maps price to 200 - y, so y 110 is $90 and y 80 is $120,
+  // which is above both orders and so not a stop for either of them.
+  it("refuses a drop above the cheaper order and keeps the pill honest", async () => {
+    const { onMoveOrderStop, drawn } = await dragTo(80)
+    expect(onMoveOrderStop).not.toHaveBeenCalled()
+    expect(drawn).toContain("Stop Loss -$24.00")
+  })
+
+  it("still moves it anywhere below both orders", async () => {
+    const { onMoveOrderStop } = await dragTo(130)
+    expect(onMoveOrderStop.mock.calls).toEqual([
+      ["wallet", "a", 70],
+      ["wallet", "b", 70],
+    ])
+  })
+})
+
+describe("no stop line on the wrong side of the price", () => {
+  function watched(id: string, px: number, slPx: number): TradeOrder {
+    return {
+      id,
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: null,
+      slPx,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+  }
+
+  function stopsDrawn(
+    orders: readonly TradeOrder[],
+    positions: readonly TradePosition[],
+    currentPx: number | null
+  ): (string | null)[] {
+    const host = document.createElement("div")
+    host.innerHTML = renderToStaticMarkup(
+      <TradeLinesLayer
+        surface={surface}
+        colors={colors}
+        marketKey={MARKET}
+        currentPx={currentPx}
+        positions={positions}
+        orders={orders}
+        walletName={() => "Wallet"}
+        tool={null}
+        onMoveOrder={() => undefined}
+        onCancelOrder={() => undefined}
+        onMoveOrderStop={() => undefined}
+        onSetBrackets={() => undefined}
+      />
+    )
+    return [...host.querySelectorAll("text")]
+      .map((one) => one.textContent)
+      .filter((one) => one?.startsWith("Stop Loss") ?? false)
+  }
+
+  it("hides a waiting buy order's stop once it is above the price", () => {
+    // The order buys at $130 with a stop at $120, and the market is at $100:
+    // a stop $20 above the price would get out the instant it was set.
+    expect(stopsDrawn([watched("a", 130, 120)], [], 100)).toEqual([])
+  })
+
+  it("keeps it while it is below the price", () => {
+    expect(stopsDrawn([watched("a", 130, 90)], [], 100)).toEqual([
+      "Stop Loss -$40.00",
+    ])
+  })
+
+  it("hides a long position's stop once it is above the price", () => {
+    const long = position("stop")
+    long.slPx = 120
+    expect(stopsDrawn([], [long], 100)).toEqual([])
+  })
+
+  it("draws every stop while the exchange has given no price", () => {
+    expect(stopsDrawn([watched("a", 130, 120)], [], null)).toEqual([
+      "Stop Loss -$10.00",
+    ])
+  })
+})
+
+describe("dragging the exit leaves the stop where it is", () => {
+  function watched(id: string, px: number): TradeOrder {
+    return {
+      id,
+      walletId: "wallet",
+      marketKey: MARKET,
+      side: "buy",
+      px,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: 120,
+      slPx: 90,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+  }
+
+  it("moves only the line that was taken hold of", async () => {
+    const onMoveOrderTarget = vi.fn()
+    const onMoveOrderStop = vi.fn()
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[watched("a", 100), watched("b", 104)]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onMoveOrderStop={onMoveOrderStop}
+          onMoveOrderTarget={onMoveOrderTarget}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+
+    const exit = host.querySelector<SVGLineElement>(
+      '[aria-label="Exit +$36.00 at $120"]'
+    )
+    expect(exit).not.toBeNull()
+    Object.assign(exit!, {
+      setPointerCapture: () => undefined,
+      hasPointerCapture: () => false,
+      releasePointerCapture: () => undefined,
+    })
+    await act(async () => {
+      exit!.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientY: 80 })
+      )
+    })
+    await act(async () => {
+      exit!.dispatchEvent(
+        new MouseEvent("pointermove", { bubbles: true, clientY: 70 })
+      )
+    })
+    // The stop keeps its own price and its own figure all the way through.
+    const midDrag = [...host.querySelectorAll("text")]
+      .map((one) => one.textContent)
+      .filter((one) => one?.startsWith("Stop Loss") ?? false)
+    expect(midDrag).toEqual(["Stop Loss -$24.00"])
+    await act(async () => {
+      exit!.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 70 })
+      )
+    })
+
+    expect(onMoveOrderTarget.mock.calls).toEqual([
+      ["wallet", "a", 130],
+      ["wallet", "b", 130],
+    ])
+    expect(onMoveOrderStop).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+})
