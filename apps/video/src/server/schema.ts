@@ -82,6 +82,16 @@ export const customShellUsers = pgTable(
      * until it picks one.
      */
     currentWorkspaceId: varchar("current_workspace_id", { length: 36 }),
+    /**
+     * How wide THIS PERSON likes the sidebar, in pixels, and null until they
+     * have dragged it.
+     *
+     * It used to be saved on the workspace, which made it one width for the
+     * whole site: on an app that is one site, a member dragging their rail
+     * resized the admin's. A width is a personal thing, so it lives on the
+     * person. Null falls back to `DEFAULT_SIDEBAR_WIDTH`.
+     */
+    sidebarWidth: integer("sidebar_width"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

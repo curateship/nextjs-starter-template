@@ -98,6 +98,7 @@ import {
 } from "@/server/media/favicon"
 import {
   customShellSettings,
+  customShellUsers,
   customShellWorkspaces,
   DEFAULT_SETTINGS_KEY,
 } from "@/server/schema"
@@ -396,9 +397,6 @@ const shellConfigSchema = z.object({
       value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
     )
   ),
-  // Per-workspace sidebar width. Always populated with a valid value by the
-  // loader (workspace settings default it), so a plain required field is fine.
-  sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   workspaceFavicon: faviconSourceSchema,
@@ -523,7 +521,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             logo: normalizeShareImage(data.workspaceLogo),
             logoDark: normalizeShareImage(data.workspaceLogoDark),
             shareImage: normalizeShareImage(data.workspaceShareImage),
-            sidebarWidth: data.sidebarWidth,
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
             publicNavigation: workspaceDomainsEnabled
               ? data.publicNavigation
@@ -764,16 +761,19 @@ function faviconVariantForLockedSave(
   )
 }
 
-// Lightweight, per-user save for the draggable sidebar width. Unlike the full
-// shell save this is not admin-gated — any signed-in user can persist their own
-// workspace's sidebar width by dragging the rail.
-//
-// No `dropWorkspaceCache()` here, on purpose. This writes the same `settings`
-// column the save above does, but the only thing the host cache serves out of
-// it is what a signed-out visitor sees — the site's name, its public menu and
-// its footer. Nothing reads `sidebarWidth` through the cache, and dropping it
-// on every drag of the rail would rebuild it dozens of times a minute for no
-// visible difference.
+/**
+ * The draggable sidebar width, saved on the PERSON who dragged it.
+ *
+ * Not admin-gated, because it is nobody else's business how wide somebody
+ * likes their own rail. It used to write the width into the workspace's
+ * settings, which made it one width for the whole site: on an app that is one
+ * site everybody is in the same workspace, so a member dragging their rail
+ * resized the admin's. Their own row is the only thing this touches now, so
+ * the question of who may write it does not arise.
+ *
+ * A row of their own also means no `dropWorkspaceCache()` to think about: the
+ * host cache is built from workspace settings, and this no longer writes any.
+ */
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
@@ -786,21 +786,18 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }) => {
-    const workspace = await requireCurrentWorkspace(context.user.id)
-    const settings = parseWorkspaceSettings(workspace.settings)
-
+    // `updatedAt` is deliberately left alone. The account window shows it as
+    // "Last changed", and a dragged rail is not a change to the account — an
+    // admin reading that date wants to know when the person's name, role or
+    // status last moved, not that somebody widened their sidebar.
     const [updated] = await db
-      .update(customShellWorkspaces)
-      .set({
-        settings: { ...settings, sidebarWidth: data.sidebarWidth },
-        updatedAt: now(),
-      })
-      // Admin-only endpoint, and an admin may edit any workspace.
-      .where(eq(customShellWorkspaces.id, workspace.id))
-      .returning({ id: customShellWorkspaces.id })
+      .update(customShellUsers)
+      .set({ sidebarWidth: data.sidebarWidth })
+      .where(eq(customShellUsers.id, context.user.id))
+      .returning({ id: customShellUsers.id })
 
     if (!updated) {
-      throw new Error("Workspace not found")
+      throw new Error("Account not found")
     }
 
     return data

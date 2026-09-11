@@ -16,9 +16,14 @@ import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSettings,
+  customShellUsers,
   DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+} from "@/lib/layout/sidebar-width"
 import { isAdmin } from "@/server/auth/security"
 import {
   currentWorkspace,
@@ -110,6 +115,26 @@ export async function readBranding(
  * them, saved app-wide — one list in one place, rather than the private frozen
  * copy every member used to be handed on their first sign-in.
  */
+/**
+ * How wide this person likes the sidebar.
+ *
+ * Saved on them, not on the site. It used to live in the workspace's settings,
+ * which meant one width for everybody in it — so on an app that is one site, a
+ * member dragging their rail resized the admin's. Null means they have never
+ * dragged it, and they get the default.
+ */
+async function sidebarWidthFor(userId: string, database: CustomShellDb) {
+  const [person] = await database
+    .select({ sidebarWidth: customShellUsers.sidebarWidth })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
+
+  return person?.sidebarWidth == null
+    ? DEFAULT_SIDEBAR_WIDTH
+    : clampSidebarWidth(person.sidebarWidth)
+}
+
 export async function readShellSettings(
   user: Pick<CustomShellUser, "id" | "role">,
   database: CustomShellDb = db
@@ -127,7 +152,7 @@ export async function readShellSettings(
     // The site's own name, not the app-wide value — that is only the fallback
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
-    sidebarWidth: workspaceSettings.sidebarWidth,
+    sidebarWidth: await sidebarWidthFor(user.id, database),
     favicon: workspaceSettings.favicon,
     // Same rule as the sidebar below: an admin sees and edits their own row,
     // everybody else gets the one an admin built for them.

@@ -26,11 +26,6 @@ import {
   type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import {
-  DEFAULT_SIDEBAR_WIDTH,
-  MAX_SIDEBAR_WIDTH,
-  MIN_SIDEBAR_WIDTH,
-} from "@/lib/layout/sidebar-width"
-import {
   cleanCustomDomain,
   cleanSubdomain,
   customDomainProblem,
@@ -454,8 +449,6 @@ export type WorkspaceSettings = {
   sections: ShellSection[]
   /** How far this workspace's saved sidebar has been brought forward. */
   navVersion: number
-  // Draggable sidebar width in px, saved per-workspace.
-  sidebarWidth: number
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
   styling: ShellStyling
   // Which cards the Overview dashboard draws, and where, saved per-workspace.
@@ -2605,10 +2598,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       // once and a link deleted afterwards stays deleted.
       navVersion:
         typeof settings.navVersion === "number" ? settings.navVersion : 0,
-      // Default fills rows saved before this field existed.
-      sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
-        ? settings.sidebarWidth
-        : fallback.sidebarWidth,
       styling: normalizeStyling(settings.styling),
       // A workspace saved before widgets existed has none, and gets the
       // arrangement it was already looking at.
@@ -2660,9 +2649,6 @@ function cleanWorkspaceSettings(
       typeof settings.navVersion === "number"
         ? settings.navVersion
         : fallback.navVersion,
-    sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
-      ? settings.sidebarWidth
-      : fallback.sidebarWidth,
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
@@ -2749,7 +2735,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     // The defaults above are already the current shape, so a new workspace has
     // nothing to be brought forward.
     navVersion: NAVIGATION_VERSION,
-    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
     dashboardWidgets: createDefaultDashboardWidgets(),
     automationFavoriteNodeKeys: [],
@@ -2814,11 +2799,3 @@ function isWorkspaceIcon(value: unknown): value is IconKey {
   return typeof value === "string" && value in iconMeta
 }
 
-function isValidSidebarWidth(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= MIN_SIDEBAR_WIDTH &&
-    value <= MAX_SIDEBAR_WIDTH
-  )
-}

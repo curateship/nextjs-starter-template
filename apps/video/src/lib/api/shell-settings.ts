@@ -18,6 +18,7 @@ import { db } from "@/server/db"
 import { isOwnedImageUrl } from "@/server/media/library"
 import {
   customShellSettings,
+  customShellUsers,
   customShellWorkspaces,
   DEFAULT_SETTINGS_KEY,
 } from "@/server/schema"
@@ -149,9 +150,6 @@ const shellConfigSchema = z.object({
       value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
     )
   ),
-  // Per-workspace sidebar width. Always populated with a valid value by the
-  // loader (workspace settings default it), so a plain required field is fine.
-  sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
@@ -203,7 +201,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
-            sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
@@ -311,21 +308,18 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }) => {
-    const workspace = await requireCurrentWorkspace(context.user.id)
-    const settings = parseWorkspaceSettings(workspace.settings)
-
+    // `updatedAt` is deliberately left alone. The account window shows it as
+    // "Last changed", and a dragged rail is not a change to the account — an
+    // admin reading that date wants to know when the person's name, role or
+    // status last moved, not that somebody widened their sidebar.
     const [updated] = await db
-      .update(customShellWorkspaces)
-      .set({
-        settings: { ...settings, sidebarWidth: data.sidebarWidth },
-        updatedAt: now(),
-      })
-      // Admin-only endpoint, and an admin may edit any workspace.
-      .where(eq(customShellWorkspaces.id, workspace.id))
-      .returning({ id: customShellWorkspaces.id })
+      .update(customShellUsers)
+      .set({ sidebarWidth: data.sidebarWidth })
+      .where(eq(customShellUsers.id, context.user.id))
+      .returning({ id: customShellUsers.id })
 
     if (!updated) {
-      throw new Error("Workspace not found")
+      throw new Error("Account not found")
     }
 
     return data

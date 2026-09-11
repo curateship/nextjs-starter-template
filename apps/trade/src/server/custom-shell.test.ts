@@ -43,6 +43,7 @@ import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
+import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { loadMemberHome } from "@/server/people/member-home"
 import {
   createAnnouncement,
@@ -4556,6 +4557,36 @@ describe("member sidebar", () => {
       testDb
     )
     expect(emptied.sections).toEqual([])
+  })
+
+  it("gives each person their own sidebar width, not the site's", async () => {
+    // It used to be saved on the workspace, so everybody in it shared one
+    // width — and on an app that is one site, that is everybody. A member
+    // dragging their rail resized the admin's.
+    const { adminId, memberId } = await seedPeople()
+    const testDb = database as unknown as CustomShellDb
+
+    // Nobody has dragged anything yet.
+    const untouched = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(untouched.sidebarWidth).toBe(DEFAULT_SIDEBAR_WIDTH)
+
+    await database
+      .update(customShellUsers)
+      .set({ sidebarWidth: 300 })
+      .where(eq(customShellUsers.id, memberId))
+
+    const dragged = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(dragged.sidebarWidth).toBe(300)
+
+    // The admin beside them is untouched by it.
+    const admin = await readShellSettings({ id: adminId, role: "admin" }, testDb)
+    expect(admin.sidebarWidth).toBe(DEFAULT_SIDEBAR_WIDTH)
   })
 
   it("carries the member sidebar through a save and back", () => {

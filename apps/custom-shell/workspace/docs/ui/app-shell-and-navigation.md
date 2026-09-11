@@ -38,8 +38,7 @@ rather than as an empty box.
 ## Whose settings a page is drawn with
 
 Everything a site decides about itself is saved on its workspace row: the
-content gutter and card borders from Settings → Styling, the name, the logo,
-the sidebar width.
+content gutter and card borders from Settings → Styling, the name, the logo.
 
 **The site being looked at decides, not who owns a site.** `readShellSettings`
 asks for the workspace the person is IN first, so an admin who picked Beta in
@@ -51,6 +50,24 @@ Without that fallback a member was handed the built-in defaults, and the same
 page was spaced two different ways depending on who opened it: a gutter saved
 at 6px drew at 6px for an admin and 14px for a member, and the site's logo and
 name were missing from their sidebar entirely.
+
+## The sidebar width belongs to the person
+
+**How wide somebody likes their sidebar is saved on them, in
+`users.sidebar_width`, not on the site.** Dragging the rail writes that one
+column and nothing else. Null means they have never dragged it, and they get
+218px.
+
+It used to be saved in the workspace's settings, which made it one width for
+everybody in that workspace. On an app that is one site everybody is in the
+same one, so a member dragging their rail resized the admin's. Moving it onto
+the person also removes the question of who is allowed to write it: the save is
+open to any signed-in person because the only row it can touch is their own.
+
+The admin's full Settings save no longer carries a width at all, and the old
+workspace copy is left in the jsonb unread. Nobody's sidebar changed width in
+the move: the migration started each person on the width their workspace was
+saving for them.
 
 Navigation comes from the shell catalog plus app options. The server removes
 items the current role may not see, then the browser applies saved labels, order,
