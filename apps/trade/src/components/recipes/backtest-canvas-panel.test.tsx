@@ -11,7 +11,8 @@ import BacktestCanvasPanel from "@/components/recipes/backtest-canvas-panel"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
-const { runRecipe } = vi.hoisted(() => ({
+const { loadBacktests, runRecipe } = vi.hoisted(() => ({
+  loadBacktests: vi.fn(async () => ({ runs: [] })),
   runRecipe: vi.fn(async () => ({
     started: true,
     mode: "backtest",
@@ -26,7 +27,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/lib/api/trade/backtests", () => ({
   getBacktestErrorMessage: (error: unknown) => String(error),
-  loadBacktests: vi.fn(async () => ({ runs: [] })),
+  loadBacktests,
   stopBacktest: vi.fn(),
 }))
 
@@ -40,6 +41,30 @@ vi.mock("@/lib/api/trade/recipes", () => ({
 }))
 
 describe("the backtest canvas panel", () => {
+  it("reports that a new recipe has no result for the header tab", async () => {
+    const latest = vi.fn()
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <BacktestCanvasPanel
+          automationId="new-recipe"
+          runId={null}
+          onClose={() => {}}
+          onLatestRunIdChange={latest}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(latest).toHaveBeenCalledWith(null)
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("defaults to the recipe size and submits three checked sizes", async () => {
     runRecipe.mockClear()
     const host = document.createElement("div")

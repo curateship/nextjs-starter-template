@@ -156,7 +156,9 @@ describe("the market folder controls", () => {
     })
 
     const star = host.querySelector('button[aria-label="Add BTC to Fav"]')!
-    expect(star.className).toContain("focus-visible:outline-solid")
+    expect(star.className).toContain("text-amber-600")
+    expect(star.className).toContain("bg-muted/60")
+    expect(star.className).toContain("border")
     await act(async () => click(star))
     expect(quickAdd).toHaveBeenCalledOnce()
     expect(document.body.textContent).not.toContain("Save to folder")
@@ -182,8 +184,9 @@ describe("the market folder controls", () => {
     const star = host.querySelector(
       'button[aria-label="Choose folders for BTC"]'
     )!
-    expect(star.className).toContain("text-muted-foreground/50")
+    expect(star.className).toContain("text-amber-600")
     expect(star.className).toContain("p-0.5")
+    expect(star.className).not.toContain("bg-muted/60")
     await act(async () => click(star))
     expect(document.body.textContent).toContain("Save to folder")
     expect(document.body.textContent).not.toContain("New folder")

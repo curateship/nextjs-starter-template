@@ -74,8 +74,11 @@ Saved folders remain in the chart header's folder menu.
   Chart bars show traded prices, so the newest candle may sit above or below
   the number the exchange uses for stops and account value.
 - **A bare visit reopens your last market**, remembered against the account
-  (a second machine gets it too). A link with `?market=` always wins, and a
-  remembered market that no longer resolves shows the honest missing state.
+  (a second machine gets it too). The browser also keeps each protocol's most
+  recent market while the account save is travelling, so moving to another
+  protocol and straight back does not open an empty chart. A link with
+  `?market=` always wins, and a remembered market that no longer resolves
+  shows the honest missing state.
 - **Sort is drawn as column headers** — "24h Vol" left, "24h Change" right, the
   shared `TableSortButton` — and clicking the sorted one flips the direction.
   Both headings lead with the time window, and so does the market picker's "24h
@@ -124,6 +127,9 @@ the right. A plain order does not rest on the exchange any more. The app holds
 the level and sends nothing until the market comes to it, which
 `../orders/watched-orders.md` explains — and those levels were only ever visible one coin
 at a time on the chart, or mixed in with everything else under Open orders.
+
+When the panel also shows a hand-held position, a muted **Waiting orders**
+header separates the positions already open from prices that have not fired.
 
 - **One row per market.** When several orders wait on the same market, the row
   shows the order nearest today's price. The market keeps the place given to
@@ -200,3 +206,7 @@ Playwright checked the combined filters, reset, Escape and pinning on
 Hyperliquid with no page errors or failed requests. The desktop picker measured
 448 pixels wide. At a 375-pixel viewport, the picker measured 352.5 pixels and
 stayed within the screen. Other exchange pages were not repeated for this change.
+The selected market's Favorite star and header pin sit on the same light-gray
+button surface as the other header controls. Both use an amber outline and
+fill. The market-list row star stays a bare amber star, so the list does not
+gain a second button shape.

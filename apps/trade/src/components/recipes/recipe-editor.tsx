@@ -4,6 +4,7 @@
  * templates, member tests and scheduled automation controls.
  */
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { WorkflowIcon } from "lucide-react"
 
@@ -23,6 +24,7 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import {
@@ -55,6 +57,7 @@ export function RecipeEditor({
   openNode?: string
 }) {
   const { reportSaveStatus } = useShellRuntime()
+  const navigate = useNavigate()
   const [name] = React.useState(initial.name)
   const [graph, setGraph] = React.useState(initial.graph)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
@@ -88,6 +91,9 @@ export function RecipeEditor({
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [backtestShut, setBacktestShut] = React.useState(false)
+  const [latestResultId, setLatestResultId] = React.useState<string | null>(
+    null
+  )
 
   const desktop = useWideScreen()
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
@@ -357,7 +363,27 @@ export function RecipeEditor({
       back={{ to: "/admin/recipes", label: "Back to recipes" }}
       title={name}
       action={
-        <FlowStatusHeader automationId={initial.id} beforeRun={saveNow} />
+        <div className="flex items-center gap-2">
+          <Tabs value="canvas">
+            <TabsList aria-label="Recipe view">
+              <TabsTrigger value="canvas">Canvas</TabsTrigger>
+              <TabsTrigger
+                value="results"
+                disabled={latestResultId === null}
+                onClick={() => {
+                  if (!latestResultId) return
+                  void navigate({
+                    to: "/backtests/$groupId",
+                    params: { groupId: latestResultId },
+                  })
+                }}
+              >
+                Results
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <FlowStatusHeader automationId={initial.id} beforeRun={saveNow} />
+        </div>
       }
     />
   )
@@ -380,6 +406,7 @@ export function RecipeEditor({
         onClose={() => setBacktestShut(true)}
         beforeRun={saveNow}
         compiledConfig={compiled.config}
+        onLatestRunIdChange={setLatestResultId}
       />
     </div>
   )

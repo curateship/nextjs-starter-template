@@ -60,45 +60,44 @@ export function MarketFolderStar({
     setAttempted(false)
   }
 
+  const label = filled
+    ? `Choose folders for ${symbol}`
+    : `Add ${symbol} to Fav`
+  const star = (
+    <StarIcon className={cn("size-4", filled && `fill-amber-500 ${WARNING}`)} />
+  )
+  // The chart header uses the same outlined, gray Button as its Pin control.
+  // Picker rows keep the bare star Tyler supplied as the reference.
   const trigger = compact ? (
     <button
       type="button"
-      aria-label={
-        filled ? `Choose folders for ${symbol}` : `Add ${symbol} to Fav`
-      }
+      aria-label={label}
       aria-pressed={filled}
       onClick={(event) => event.stopPropagation()}
-      className={cn("rounded p-0.5 text-muted-foreground/50 hover:text-amber-500", focusRingInset)}
+      className={cn(
+        "rounded p-0.5 text-amber-600 hover:text-amber-700",
+        focusRingInset
+      )}
     >
-      <StarIcon
-        className={cn("size-4", filled && `fill-amber-500 ${WARNING}`)}
-      />
+      {star}
     </button>
   ) : (
     <Button
       type="button"
       variant="outline"
       size="icon"
-      aria-label={
-        filled ? `Choose folders for ${symbol}` : `Add ${symbol} to Fav`
-      }
+      aria-label={label}
       aria-pressed={filled}
+      className="bg-muted/60 text-amber-600 hover:text-amber-700"
       onClick={(event) => event.stopPropagation()}
-      className={cn(
-        "bg-muted/60 text-muted-foreground hover:text-amber-500 focus-visible:ring-0 focus-visible:outline-solid dark:bg-muted/60",
-        focusRingInset,
-        filled && WARNING
-      )}
     >
-      <StarIcon className={cn("size-4", filled && "fill-current")} />
+      {star}
     </Button>
   )
 
   return (
     <Popover open={open} onOpenChange={changeOpen}>
-      {compact ? (
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      ) : (
+      {compact ? <PopoverTrigger asChild>{trigger}</PopoverTrigger> : (
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>{trigger}</PopoverTrigger>

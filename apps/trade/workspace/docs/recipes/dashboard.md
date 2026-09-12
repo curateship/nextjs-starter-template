@@ -19,6 +19,10 @@ The sidebar is stored in the database. Add an admin-only link to
 
 ## The canvas
 
+The middle header has **Canvas** and **Results** tabs. Canvas returns from a
+result to the recipe. Results opens the newest finished backtest for that
+recipe. A recipe with no result keeps Results muted and unavailable.
+
 The palette has five steps: Wallet, Markets, DCA, Signals and Grid. The canvas
 keeps the existing drag, connection, zoom, keyboard and inspector behaviour.
 One Wallet connects to one Markets step, which connects to one DCA, Signals or

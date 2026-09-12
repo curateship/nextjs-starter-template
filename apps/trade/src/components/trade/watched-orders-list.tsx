@@ -257,10 +257,12 @@ export function WatchedOrdersList({
               </p>
             )
           ) : (
-            // The line is what separates money already in the market from
-            // money that is only promised, so it is only drawn when both are
-            // on screen.
-            <div className={cn("flex flex-col", held.length > 0 && "border-t")}>
+            <div className="flex flex-col">
+              {held.length > 0 ? (
+                <h3 className="border-y bg-muted/60 px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Waiting orders
+                </h3>
+              ) : null}
               {shownRows.map((row) => (
                 <WatchedRow
                   key={row.id}

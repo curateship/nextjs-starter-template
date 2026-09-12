@@ -38,6 +38,7 @@ import { RUNNING_BOTS_READ_ERROR } from "@/lib/trade/running-bots"
 import { dashboardBootstrapVersion } from "@/lib/trade/dashboard-bootstrap-cache"
 import { seedTradeSounds } from "@/lib/trade/trade-sounds"
 import { useStreamed } from "@/lib/trade/use-streamed"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import {
   marketKeyOnDashboard,
   readMarketSearch,
@@ -65,6 +66,38 @@ type ExchangePage = {
   protocol: ProtocolId
   /** The name in the tab title — "Hyperliquid", "KuCoin". */
   label: string
+}
+
+function sessionMarketKey(protocol: ProtocolId, network: NetworkId) {
+  return `trade:last-market:${protocol}:${network}`
+}
+
+/**
+ * A protocol change can outrun the account save. Keep the market locally too,
+ * so returning to a dashboard in the same visit never opens blank while that
+ * save is still travelling to the server.
+ */
+function readSessionMarket(protocol: ProtocolId, network: NetworkId) {
+  if (typeof window === "undefined") return null
+  try {
+    const saved = window.sessionStorage.getItem(sessionMarketKey(protocol, network))
+    return saved && marketKeyOnDashboard(saved, protocol, network) ? saved : null
+  } catch {
+    return null
+  }
+}
+
+function rememberSessionMarket(
+  protocol: ProtocolId,
+  network: NetworkId,
+  marketKey: string
+) {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.setItem(sessionMarketKey(protocol, network), marketKey)
+  } catch {
+    // The account save below still makes the choice available next visit.
+  }
 }
 
 /** What the exchange half answers when the server never answered at all. */
@@ -229,6 +262,10 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
   seedTradeSounds(core.tradeSounds)
   const { market } = useSearch({ strict: false }) as TradeSearch
   const navigate = useNavigate()
+  const [sessionMarket, setSessionMarket] = React.useState<string | null>(null)
+  useEffectBeforePaint(() => {
+    setSessionMarket(readSessionMarket(protocol, network))
+  }, [network, protocol])
 
   const markets = React.useMemo<DashboardMarkets>(
     () => (arrived ? { ...arrived.markets, pending: false } : PENDING_MARKETS),
@@ -259,11 +296,15 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
   // another exchange's dashboard, since the memory is shared across all of
   // them — is left alone rather than shown as missing: it should read as a
   // bare page here, not a delisting.
-  const remembered =
+  const rememberedFromAccount =
     core.lastMarketKey &&
     marketKeyOnDashboard(core.lastMarketKey, protocol, network)
       ? core.lastMarketKey
       : null
+  // The account can still contain the market from before this visit while its
+  // newer save travels to the server. Prefer the visit's own choice until the
+  // account catches up.
+  const remembered = sessionMarket ?? rememberedFromAccount
   const selectedKey = market ?? remembered ?? null
   useMarketPageTitle(selectedKey, label)
 
@@ -336,6 +377,8 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialWallets={wallets}
       selectedKey={selectedKey}
       onSelectMarket={(key) => {
+        rememberSessionMarket(protocol, network, key)
+        setSessionMarket(key)
         const href = marketChartHref(key)
         if (href) void navigate({ href })
       }}

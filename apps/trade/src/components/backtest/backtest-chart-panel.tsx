@@ -1,8 +1,7 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import {
   CandlestickChartIcon,
-  SlidersHorizontalIcon,
   TrendingUpIcon,
 } from "lucide-react"
 
@@ -18,6 +17,7 @@ import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
@@ -117,6 +117,7 @@ export function BacktestChartPanel({
   onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
 }) {
+  const navigate = useNavigate()
   const chartable = coins.filter((coin) => coin.summary)
   // A run with nothing to draw has no Graph to offer: no button, and the
   // candles whatever the page asked for. One point is not a line — the same
@@ -296,27 +297,22 @@ export function BacktestChartPanel({
                 )}
               </Button>
             ) : null}
-            {/* Straight back to the settings this run was made from, with
-                the ladder step already chosen. Picking a coin lives in the
-                Coins tab below, where the whole list is; a dropdown up here
-                was a second way to do the same thing, from a shorter list. */}
-            <Button asChild type="button" variant="outline">
-              <Link
-                to="/admin/recipes/$recipeId"
-                params={{ recipeId: automationId }}
-                search={{
-                  node:
-                    spec.strategy.kind === "dca"
-                      ? "tradeDca"
-                      : spec.strategy.kind === "signals"
-                        ? "tradeSignals"
-                        : "tradeGrid",
-                }}
-              >
-                <SlidersHorizontalIcon className="size-4" />
-                Parameter settings
-              </Link>
-            </Button>
+            <Tabs value="results">
+              <TabsList aria-label="Recipe view">
+                <TabsTrigger
+                  value="canvas"
+                  onClick={() =>
+                    void navigate({
+                      to: "/admin/recipes/$recipeId",
+                      params: { recipeId: automationId },
+                    })
+                  }
+                >
+                  Canvas
+                </TabsTrigger>
+                <TabsTrigger value="results">Results</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         }
       />

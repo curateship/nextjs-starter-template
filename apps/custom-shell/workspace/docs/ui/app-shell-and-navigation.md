@@ -95,6 +95,8 @@ The standard top left navigation follows the active sidebar section. Settings â†
 Platform â†’ Navigation holds Top left max items and the sidebar and top right
 menu editors. Links beyond the saved limit appear in the vertical three-dot
 menu without changing the sidebar order. Show all removes that overflow limit.
+The vertical three-dot menu uses the same outlined light-gray button as the
+other header controls, so it remains visible as a control beside the links.
 
 ## Responsive behavior
 

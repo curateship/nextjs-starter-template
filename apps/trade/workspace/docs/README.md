@@ -61,7 +61,7 @@ screen: anything not written there has not been agreed yet.
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
-- `market-list.md` — remembered picker filters, the market list, compact three-column pinned picker,
+- `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, search toolbar and the Manual orders panel.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
@@ -250,7 +250,7 @@ always used.
 
 ## recipes/
 
-- `dashboard.md` explains the admin Recipes table and canvas, what Backtest and
+- `dashboard.md` explains the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
   Switch on run, the live-run deletion rule, and how saved Trade drawings move
   out of Automations.
 

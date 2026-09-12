@@ -110,7 +110,7 @@ function draw(selection: MarketSelection, favorites: string[]): string {
 describe("the market header's star", () => {
   it("names the exchange, network and quote asset and offers market rules", () => {
     const markup = draw(market, [])
-    expect(markup.match(/bg-muted\/60/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(markup.match(/bg-muted\/60/g)?.length).toBeGreaterThanOrEqual(1)
     expect(markup).toContain("BTC-USDC")
     expect(markup).toContain("text-xs font-medium text-muted-foreground")
     expect(markup).toContain("Hyperliquid")
@@ -129,6 +129,23 @@ describe("the market header's star", () => {
 
     expect(picker?.className.split(/\s+/)).not.toContain("bg-muted")
     expect(picker?.parentElement?.className).toContain("bg-muted/60")
+    expect(
+      host.querySelector('button[aria-label="Add BTC to Fav"]')?.className
+    ).toContain("bg-muted/60")
+    expect(
+      host.querySelector('button[aria-label="Add BTC to Fav"]')?.className
+    ).toContain("border")
+    expect(
+      host.querySelector('button[aria-label="Pin to header"]')?.className
+    ).toContain("bg-muted/60")
+    expect(
+      host.querySelector('button[aria-label="Pin to header"]')?.className
+    ).toContain("text-amber-600")
+    expect(
+      host
+        .querySelector('button[aria-label="Pin to header"] svg')
+        ?.getAttribute("class")
+    ).toContain("fill-amber-500")
   })
 
   it("states a market's smallest dollar order when the venue gives one", () => {
@@ -206,8 +223,12 @@ describe("the market header's star", () => {
   })
 
   it("fills the star only when the market is starred, so colour is not the only difference", () => {
-    expect(draw(market, [key])).toContain("fill-current")
-    expect(draw(market, [])).not.toContain("fill-current")
+    expect(
+      draw(market, [key]).match(/lucide-star[^>]*fill-amber-500/)
+    ).not.toBeNull()
+    expect(
+      draw(market, []).match(/lucide-star[^>]*fill-amber-500/)
+    ).toBeNull()
   })
 
   it("leads the header row: the star, then the market's art, then its name", () => {

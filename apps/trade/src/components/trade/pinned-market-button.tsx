@@ -22,9 +22,10 @@ export function PinnedMarketButton({ marketKey }: { marketKey: string }) {
           aria-label={label}
           aria-pressed={pinned}
           disabled={!loaded || busy}
+          className="bg-muted/60 text-amber-600 hover:text-amber-700"
           onClick={() => void store.setPin(marketKey, !pinned)}
         >
-          <PinIcon className="size-4" fill={pinned ? "currentColor" : "none"} />
+          <PinIcon className="size-4 fill-amber-500" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>

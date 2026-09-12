@@ -68,9 +68,12 @@ export default function BacktestCanvasPanel({
   onClose,
   beforeRun,
   compiledConfig,
+  onLatestRunIdChange,
 }: AutomationCanvasPanelProps & {
   beforeRun?: () => Promise<boolean>
   compiledConfig?: RecipeCompiledConfig | null
+  /** Keeps the canvas header linked to this recipe's newest finished result. */
+  onLatestRunIdChange?: (runId: string | null) => void
 }) {
   const sizes = compiledConfig
     ? backtestIntervalsFromFlow(compiledConfig)
@@ -178,6 +181,7 @@ export default function BacktestCanvasPanel({
         if (stopped) return false
         const newest = list.runs[0] ?? null
         setRun(newest)
+        onLatestRunIdChange?.(newest?.id ?? null)
         setNoneYet(list.runs.length === 0)
         // The click has landed, so stop believing it on faith. Either of two
         // things proves it:
@@ -229,7 +233,7 @@ export default function BacktestCanvasPanel({
     // "Reading the run…" forever the moment a flow was switched on, because
     // the two now sit on the panel together. A saved round trip is not worth a
     // card that never loads.
-  }, [automationId, runId, readNow])
+  }, [automationId, onLatestRunIdChange, runId, readNow])
 
   /**
    * What the flow is set up to do, kept up to date while the panel is open.

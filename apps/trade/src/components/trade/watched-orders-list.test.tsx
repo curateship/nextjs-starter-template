@@ -258,6 +258,8 @@ describe("the Manual orders list", () => {
     // Worth 4 × $100 today.
     expect(rows).toContain("$400")
     expect(rows.indexOf(">SOL<")).toBeLessThan(rows.indexOf(">XMR<"))
+    expect(rows).toContain(">Waiting orders<")
+    expect(rows).toContain("bg-muted/60")
   })
 
   it("says a losing holding in red and a winning one in green", () => {
