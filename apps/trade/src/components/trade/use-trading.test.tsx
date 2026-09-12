@@ -1406,3 +1406,181 @@ describe("placing a grid during cancellation", () => {
     }
   )
 })
+
+describe("a watched level the engine has finished with", () => {
+  const planFor = (phase: "waiting" | "taking") =>
+    readWatchPlan({
+      triggerPx: 0.1,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      phase,
+    })!
+
+  const rowFor = (phase: "waiting" | "taking", id: string) => ({
+    id,
+    walletId: wallet.id,
+    marketKey: "hyperliquid:mainnet:ENA",
+    kind: "watch" as const,
+    status: "active" as const,
+    flowRunId: null,
+    createdAt: 2,
+    updatedAt: 2,
+    plan: planFor(phase),
+  })
+
+  it("takes the level off the chart once a read stops carrying it", async () => {
+    const row = rowFor("waiting", "watch-finished")
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: null,
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+      watch: row,
+    })
+    await finishFirstRead()
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+    })
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders).toHaveLength(1)
+
+    // The level was reached, the order filled, and the engine marked the row
+    // done — a read only carries rows that are still running, so it is gone.
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [
+        {
+          id: "pos-ena",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:ENA",
+          szi: 10,
+          entryPx: 0.1,
+          leverage: 1,
+          maxLeverage: 50,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          feesPaid: 0,
+          updatedAt: 3,
+          live: {
+            marginUsed: 1,
+            liquidationPx: null,
+            tpOrderId: null,
+            slOrderId: null,
+          },
+        },
+      ],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+
+    // Drawn again here, the level would sit beside the Entry line it became.
+    expect(latest?.watchOrders).toHaveLength(0)
+  })
+
+  it("refuses a second order on the same coin and side while one is being placed", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [rowFor("taking", "watch-taking")],
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(api.placeLiveOrder).not.toHaveBeenCalled()
+    expect(latest?.placing).toHaveLength(0)
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "A buy on this coin is being placed right now. Wait for it to finish, then place the next one."
+    )
+  })
+
+  it("still lets the other side through, and still lets a close through", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [rowFor("taking", "watch-taking")],
+    })
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: "exchange-other-side",
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "sell",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.placeLiveOrder).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: true,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.placeLiveOrder).toHaveBeenCalledTimes(2)
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+  })
+})

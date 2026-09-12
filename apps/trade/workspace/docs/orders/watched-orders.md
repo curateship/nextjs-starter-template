@@ -125,6 +125,40 @@ no saved watch or exchange order will replace it, and the toast shows the same
 reason. A successful line remains until the saved watch or resting order takes
 its place, so success never flashes an empty chart between the two.
 
+## One line per order, and one attempt at a time
+
+**A level that has finished leaves the chart at the next read.** The reads only
+carry levels that are still running, so a level missing from one has either not
+reached the app yet or is over. The app used to treat both the same way and hold
+its own copy on screen for thirty seconds, which meant a level that filled soon
+after it was placed was drawn twice: once as the Entry line with its stop and
+its target, and once more as a waiting order with a second stop and a second
+exit beside them. On 12 September 2026 an ARB sell filled twenty seconds after
+it was placed and the chart showed that pile. A level the reads have already
+carried once is now dropped the moment they stop carrying it. A level they have
+never carried is still held, because that one really is on its way.
+
+**A second order on the same coin and the same side is refused while the first
+one is being placed.** Between the market reaching a level and the order coming
+back filled there are a few seconds where nothing on screen moves and it looks
+as though the press did nothing. Pressing again in those seconds used to write a
+second order, and both of them filled. On 12 September 2026 three ARB sells went
+on inside a minute that way, each with its own stop and its own exit, which is
+the wall of bars Tyler was looking at. The refusal says "A sell on this coin is
+being placed right now. Wait for it to finish, then place the next one."
+
+- **Only a level that has actually been touched blocks anything.** A level still
+  waiting for its price is a price somebody chose, and you may stack as many of
+  those on one coin as you like.
+- **A close is never blocked.** Getting out is never made to wait for something
+  that is going in.
+- **The other side is never blocked**, and neither is the + button on a position
+  row, which has its own guard against a double press.
+
+The rules live in `place` and `withJustPlaced` in
+`src/components/trade/use-trading.ts`, and `use-trading.test.tsx` fails if
+either one goes back.
+
 ## What happens when the price hits the level
 
 When the market reaches a watched Long or Short, Trade submits a normal limit

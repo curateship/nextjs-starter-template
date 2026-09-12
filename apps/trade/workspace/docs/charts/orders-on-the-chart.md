@@ -43,6 +43,11 @@ puts a stop on every waiting order the clicked price suits, Exit puts an exit
 on every one that has none, and each acts on one side only. See
 `../orders/watched-orders.md`.
 
+A watched level that has already become a position is not drawn a second time
+as a waiting order, and a second order on the same coin and side is refused
+while the first is being placed. Both rules are in
+`../orders/watched-orders.md`.
+
 A live take-profit or stop-loss order appears once, as its coloured target or
 stop bar. Each target label states the dollars sold and the profit at its
 price. This includes a grid's own SL line, its stop. The chart does not draw the

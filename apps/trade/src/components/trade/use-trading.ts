@@ -805,7 +805,7 @@ export function useTrading(
   // chart and came back a second later. `at` is when the hold was taken,
   // which for a moved grid is now rather than when it was first placed.
   const [placedSmart, setPlacedSmart] = React.useState<
-    { order: SmartOrder; at: number }[]
+    { order: SmartOrder; at: number; readBack?: boolean }[]
   >([])
   // Orders whose × has been pressed, still being told to the exchange.
   const [cancelling, setCancelling] = React.useState<
@@ -1180,6 +1180,38 @@ export function useTrading(
   )
 
   /**
+   * A hold that has been read back once has nothing left to stand in for.
+   *
+   * A read only carries smart orders that are still running, so a row missing
+   * from one means one of two opposite things. A row a read has NEVER carried
+   * is a placement the next read has not caught up with, and the hold below
+   * stands in for it. A row a read carried and then stopped carrying has
+   * FINISHED, and standing in for that one draws a watched level beside the
+   * position it turned into. On 12 Sep 2026 an ARB sell that filled twenty
+   * seconds after it was placed was drawn twice, once as the Entry line with
+   * its stop and target, and again as a waiting "Sell $250" with a second stop
+   * and a second exit.
+   *
+   * Marked and swept here, during the render that sees the row, the same way
+   * `retainedPlacements` retires a placeholder order below.
+   */
+  const readBackSmart = placedSmart.map((one) =>
+    one.readBack || !allSmartOrders.some((real) => real.id === one.order.id)
+      ? one
+      : { ...one, readBack: true }
+  )
+  const keptSmart = readBackSmart.filter(
+    (one) =>
+      !one.readBack || allSmartOrders.some((real) => real.id === one.order.id)
+  )
+  if (
+    keptSmart.length !== placedSmart.length ||
+    readBackSmart.some((one, index) => one !== placedSmart[index])
+  ) {
+    setPlacedSmart(keptSmart)
+  }
+
+  /**
    * The same list with anything already called off taken out of it, so a ×
    * lands the moment it is pressed instead of a second later.
    *
@@ -1212,7 +1244,11 @@ export function useTrading(
       )
     )
     const appending = held.filter(
-      (one) => !allSmartOrders.some((real) => real.id === one.order.id)
+      (one) =>
+        // A row a read has already carried and is no longer carrying has
+        // finished, and is swept above rather than appended here.
+        !one.readBack &&
+        !allSmartOrders.some((real) => real.id === one.order.id)
     )
     if (overriding.length === 0 && appending.length === 0) {
       return allSmartOrders
@@ -1682,6 +1718,32 @@ export function useTrading(
   const place: Trading["place"] = React.useCallback(
     ({ overrode, addingToPosition, ...input }) => {
       if (!walletId || !wallet) return
+      // **One attempt at a time on a coin and a side.** A watched level that
+      // has been touched is already buying: the order is out at the exchange,
+      // or on its way there, and it says nothing at all while it works.
+      // Pressing place again a few seconds later, when it looks as though the
+      // first one did nothing, used to write a second order, and both of them
+      // filled. On 12 Sep 2026 three ARB sells went on inside a minute that
+      // way. A level still WAITING is a price somebody chose on purpose and
+      // may be stacked as often as you like, and a close is never blocked.
+      const busy =
+        !input.reduceOnly && !addingToPosition
+          ? smartOrders.find(
+              (order): order is SmartWatch =>
+                order.kind === "watch" &&
+                order.walletId === walletId &&
+                order.marketKey === input.marketKey &&
+                order.plan.side === input.side &&
+                order.plan.phase === "taking" &&
+                order.plan.paused !== true
+            )
+          : undefined
+      if (busy) {
+        showErrorToast(
+          `A ${input.side === "buy" ? "buy" : "sell"} on this coin is being placed right now. Wait for it to finish, then place the next one.`
+        )
+        return
+      }
       const additionKey = JSON.stringify([walletId, input.marketKey])
       if (addingToPosition) {
         if (additionRequests.current.has(additionKey)) return
@@ -1847,7 +1909,7 @@ export function useTrading(
         }
       })()
     },
-    [walletId, wallet, refresh, holdSmart]
+    [walletId, wallet, refresh, holdSmart, smartOrders]
   )
 
   const editOrder: Trading["editOrder"] = React.useCallback(
