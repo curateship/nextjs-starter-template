@@ -59,7 +59,6 @@ import {
 } from "@/lib/format/format-time"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
-import { gridContinuationLabel } from "@/lib/trade/grid"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import {
@@ -781,10 +780,6 @@ function SmartOrdersView({
                   bankedValue,
                   keyExpired,
                 }) => {
-                  const continuation =
-                    order.kind === "grid"
-                      ? gridContinuationLabel(order.plan, symbol)
-                      : null
                   const selected = order.marketKey === selectedMarketKey
                   return (
                     <TableRow
@@ -824,21 +819,6 @@ function SmartOrdersView({
                               </button>
                             </SmartOrderDetailsTooltip>
                           </div>
-                          {continuation ? (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                onSelectMarket(order.marketKey)
-                              }}
-                              className={cn(
-                                "min-w-0 rounded-sm pl-6 text-left text-xs break-words whitespace-normal text-muted-foreground underline-offset-4 hover:text-foreground hover:underline",
-                                focusRing
-                              )}
-                            >
-                              {continuation}
-                            </button>
-                          ) : null}
                           {order.plan.paused ? (
                             <span
                               className={cn(

@@ -9,7 +9,6 @@ import {
 } from "@/lib/protocols/contracts"
 import {
   exitSide,
-  gridContinuationLabel,
   gridFlippedPcts,
   gridRowPctsFromLevels,
   gridStopPx,
@@ -303,7 +302,7 @@ async function reversalNotice(
   await writeTradeNotice({
     userId,
     title: `The ${symbol} grid reversed`,
-    body: `${gridContinuationLabel(plan, symbol)}. Its stop fired and sold everything it held, and a grid running the other way now works the same range. Its stop sits at ${stopPx ?? "the old End Grid line"} and its End Grid at ${plan.takeProfitPx ?? "below the fired stop"}. It will not reverse again on its own.`,
+    body: `Its stop fired and sold everything it held, and a grid running the other way now works the same range. Its stop sits at ${stopPx ?? "the old End Grid line"} and its End Grid at ${plan.takeProfitPx ?? "below the fired stop"}. It will not reverse again on its own.`,
     level: "info",
     href: marketChartHref(marketKey),
     database,

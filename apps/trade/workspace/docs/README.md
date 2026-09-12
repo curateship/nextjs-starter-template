@@ -123,7 +123,7 @@ screen: anything not written there has not been agreed yet.
   real-money Long, Short, DCA or Grid, the one warning window that names what
   is unmet and asks him to confirm or go back, and the "Overrode" note the
   Journal keeps.
-- `grid-orders.md` — parent links on reversed Smart orders rows and matching bell wording; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
+- `grid-orders.md` — the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, and what following price up and down does.
 - `grid-rung-gap.md` — typing the percent gap between rungs instead of a
