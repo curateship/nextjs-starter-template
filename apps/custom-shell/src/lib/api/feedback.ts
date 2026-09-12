@@ -1001,7 +1001,7 @@ async function loadAttachmentUrls(
     const storagePath = pathsByMediaId.get(row.attachmentMediaId as string)
     if (!storagePath) continue
     try {
-      urls.set(row.id, getPublicMediaUrl(storagePath))
+      urls.set(row.id, await getPublicMediaUrl(storagePath))
     } catch {
       // Storage not configured: there is no address to hand out, and the rest
       // of the item is still worth showing.

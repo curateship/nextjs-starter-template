@@ -55,6 +55,7 @@ local setup docs.
 ## Media
 
 - [Media library, picker, and storage](media/library-picker-and-storage.md)
+- [Where uploaded files are kept](media/storage-settings.md)
 
 ## Operations
 

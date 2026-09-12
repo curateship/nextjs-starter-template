@@ -30,7 +30,7 @@ type FaviconStorage = {
     contentType?: string
   ) => Promise<void>
   remove: (storagePath: string) => Promise<void>
-  publicUrl: (storagePath: string) => string
+  publicUrl: (storagePath: string) => Promise<string>
 }
 
 const defaultStorage: FaviconStorage = {
@@ -64,7 +64,7 @@ export async function createFaviconVariant(
       storage,
       uploadedPaths,
     })
-    return { source: storage.publicUrl(source.storagePath), ...images }
+    return { source: await storage.publicUrl(source.storagePath), ...images }
   } catch (error) {
     await Promise.allSettled(uploadedPaths.map((path) => storage.remove(path)))
     throw error
@@ -103,7 +103,7 @@ export async function createDarkBrandVariant(
       storage,
       uploadedPaths,
     })
-    return { source: storage.publicUrl(darkSourcePath), ...images }
+    return { source: await storage.publicUrl(darkSourcePath), ...images }
   } catch (error) {
     await Promise.allSettled(uploadedPaths.map((path) => storage.remove(path)))
     throw error
@@ -137,7 +137,7 @@ async function writeFaviconSizes({
     // R2 accepted the bytes, so cleanup must try the uncertain path too.
     uploadedPaths.push(storagePath)
     await storage.write(storagePath, data, "image/png")
-    images[key] = storage.publicUrl(storagePath)
+    images[key] = await storage.publicUrl(storagePath)
   }
 
   return {
@@ -152,7 +152,11 @@ async function writeFaviconSizes({
 export async function deleteReplacedFaviconFiles(
   previousValue: unknown,
   nextValue: unknown,
-  remove: (storagePath: string) => Promise<void> = deleteFromR2
+  remove: (storagePath: string) => Promise<void> = deleteFromR2,
+  // Turning a URL back into a bucket key needs the bucket's public address,
+  // which is saved in the database. Injectable so a test of the filtering does
+  // not have to stand a database up to prove it.
+  toStoragePath: (url: string) => Promise<string | null> = storagePathForUrl
 ) {
   const previous = normalizePublicFaviconSet(previousValue)
   if (!previous) return
@@ -160,12 +164,15 @@ export async function deleteReplacedFaviconFiles(
   const nextUrls = new Set(
     faviconFileUrls(normalizePublicFaviconSet(nextValue))
   )
-  const oldPaths = faviconFileUrls(previous)
-    .filter((url) => !nextUrls.has(url))
-    .map(storagePathForUrl)
-    .filter((path): path is string =>
-      Boolean(path && isGeneratedFaviconStoragePath(path))
+  const oldPaths = (
+    await Promise.all(
+      faviconFileUrls(previous)
+        .filter((url) => !nextUrls.has(url))
+        .map(toStoragePath)
     )
+  ).filter((path): path is string =>
+    Boolean(path && isGeneratedFaviconStoragePath(path))
+  )
 
   await Promise.all(oldPaths.map((path) => remove(path)))
 }

@@ -1,21 +1,11 @@
 import sharp from "sharp"
-import { afterAll, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   createDarkBrandVariant,
   createFaviconVariant,
   deleteReplacedFaviconFiles,
 } from "@/server/media/favicon"
-
-const savedPublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
-
-afterAll(() => {
-  if (savedPublicUrl === undefined) {
-    delete process.env.CUSTOM_SHELL_R2_PUBLIC_URL
-  } else {
-    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = savedPublicUrl
-  }
-})
 
 describe("favicon image sets", () => {
   it("creates each PNG size beside one uploaded source", async () => {
@@ -44,7 +34,7 @@ describe("favicon image sets", () => {
         remove: async (path) => {
           files.delete(path)
         },
-        publicUrl: (path) => `https://media.example.test/${path}`,
+        publicUrl: async (path) => `https://media.example.test/${path}`,
       }
     )
 
@@ -84,7 +74,7 @@ describe("favicon image sets", () => {
             if (path.endsWith("-32.png")) throw new Error("Storage failed")
           },
           remove,
-          publicUrl: (path) => `https://media.example.test/${path}`,
+          publicUrl: async (path) => `https://media.example.test/${path}`,
         }
       )
     ).rejects.toThrow("Storage failed")
@@ -105,7 +95,7 @@ describe("favicon image sets", () => {
         remove: async (path) => {
           files.delete(path)
         },
-        publicUrl: (path) => `https://media.example.test/${path}`,
+        publicUrl: async (path) => `https://media.example.test/${path}`,
       }
     )
 
@@ -140,7 +130,7 @@ describe("favicon image sets", () => {
         remove: async (path) => {
           files.delete(path)
         },
-        publicUrl: (path) => `https://media.example.test/${path}`,
+        publicUrl: async (path) => `https://media.example.test/${path}`,
       }
     )
 
@@ -169,7 +159,7 @@ describe("favicon image sets", () => {
             if (path.endsWith("-16.png")) throw new Error("Storage failed")
           },
           remove,
-          publicUrl: (path) => `https://media.example.test/${path}`,
+          publicUrl: async (path) => `https://media.example.test/${path}`,
         }
       )
     ).rejects.toThrow("Storage failed")
@@ -179,8 +169,9 @@ describe("favicon image sets", () => {
   })
 
   it("deletes only replaced generated files", async () => {
-    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = "https://media.example.test"
     const remove = vi.fn(async () => undefined)
+    const toStoragePath = async (url: string) =>
+      url.replace("https://media.example.test/", "") || null
     const oldLight = variant("00000000-0000-4000-8000-000000000002", "light")
     const keptDark = variant("00000000-0000-4000-8000-000000000003", "dark")
     const nextLight = variant("00000000-0000-4000-8000-000000000004", "light")
@@ -188,7 +179,8 @@ describe("favicon image sets", () => {
     await deleteReplacedFaviconFiles(
       { light: oldLight, dark: keptDark },
       { light: nextLight, dark: keptDark },
-      remove
+      remove,
+      toStoragePath
     )
 
     expect(remove).toHaveBeenCalledTimes(4)

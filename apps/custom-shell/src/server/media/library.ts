@@ -299,7 +299,7 @@ export async function listOwnedMedia({
     .limit(normalizedPageSize)
 
   return {
-    media: rows.map(serializeMedia),
+    media: await Promise.all(rows.map(serializeMedia)),
     total,
     page: normalizedPage,
     page_size: normalizedPageSize,
@@ -356,7 +356,7 @@ export async function findOwnedImageByUrl(
   url: string,
   database: Pick<CustomShellDb, "select"> = db
 ) {
-  const storagePath = storagePathForUrl(url)
+  const storagePath = await storagePathForUrl(url)
   if (!storagePath) return null
 
   const [row] = await database
@@ -397,7 +397,7 @@ export async function clearAvatarsForStoragePaths(
 
   let urls: string[]
   try {
-    urls = storagePaths.map(getPublicMediaUrl)
+    urls = await Promise.all(storagePaths.map(getPublicMediaUrl))
   } catch {
     // No public URL means no account can be holding one.
     return
@@ -413,12 +413,12 @@ export async function clearAvatarsForStoragePaths(
  * The bucket key a public media URL points at, or null when the URL is not one
  * this app would ever have handed out.
  */
-export function storagePathForUrl(url: string) {
+export async function storagePathForUrl(url: string) {
   let prefix: string
   try {
     // Passing the empty key yields the public base with its trailing slash,
     // which is exactly what every real media URL starts with.
-    prefix = getPublicMediaUrl("")
+    prefix = await getPublicMediaUrl("")
   } catch {
     // Storage is not configured, so this app has handed out no media URLs and
     // nothing can match.
@@ -449,7 +449,7 @@ export async function getOwnedMedia(userId: string, mediaId: string) {
   return row
 }
 
-export function serializeMedia(row: CustomShellMedia): MediaItem {
+export async function serializeMedia(row: CustomShellMedia): Promise<MediaItem> {
   return {
     id: row.id,
     filename: row.filename,
@@ -458,7 +458,7 @@ export function serializeMedia(row: CustomShellMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
-    url: getPublicMediaUrl(row.storagePath),
+    url: await getPublicMediaUrl(row.storagePath),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -592,14 +592,16 @@ export async function listAllMedia(
   const total = totals?.total ?? 0
 
   return {
-    media: rows.map((row) => ({
-      ...serializeMedia(row.media),
-      owner_id: row.owner.id,
-      owner_name: row.owner.name,
-      owner_email: row.owner.email,
-      storage_path: row.media.storagePath,
-      email_protected_at: row.media.emailProtectedAt?.toISOString() ?? null,
-    })),
+    media: await Promise.all(
+      rows.map(async (row) => ({
+        ...(await serializeMedia(row.media)),
+        owner_id: row.owner.id,
+        owner_name: row.owner.name,
+        owner_email: row.owner.email,
+        storage_path: row.media.storagePath,
+        email_protected_at: row.media.emailProtectedAt?.toISOString() ?? null,
+      }))
+    ),
     total,
     page,
     page_size: pageSize,
@@ -618,7 +620,7 @@ export async function getAdminMedia(mediaId: string): Promise<AdminMediaItem | n
 
   return row
     ? {
-        ...serializeMedia(row.media),
+        ...(await serializeMedia(row.media)),
         owner_id: row.owner.id,
         owner_name: row.owner.name,
         owner_email: row.owner.email,
@@ -817,7 +819,7 @@ async function scanMediaOrphans(
       createdAt: null,
       fileType: fileTypeFromKey(object.key),
       // The file is still there, so it can be previewed before it is erased.
-      url: getPublicMediaUrl(object.key),
+      url: await getPublicMediaUrl(object.key),
     })
   }
 

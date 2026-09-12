@@ -1405,6 +1405,26 @@ export const customShellAiProviderKeys = pgTable("ai_provider_keys", {
 })
 
 /**
+ * Where uploaded files are kept, app-wide. One row, always id "r2", so the
+ * bucket can be set up from Settings instead of from the server's environment.
+ *
+ * `secretAccessKey` is never the secret as typed: it is the AES-256-GCM output
+ * of `encryptSecret` (`src/server/auth/encryption.ts`), the same treatment the
+ * AI keys get. `accountId`, `accessKeyId`, `bucketName` and `publicUrl` are
+ * plain, because none of them opens the bucket without the secret.
+ */
+export const customShellStorageSettings = pgTable("storage_settings", {
+  id: varchar("id", { length: 20 }).primaryKey(),
+  accountId: text("account_id"),
+  accessKeyId: text("access_key_id"),
+  secretAccessKey: text("secret_access_key"),
+  bucketName: text("bucket_name"),
+  publicUrl: text("public_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * One registered passkey (WebAuthn credential). `publicKey` is exactly that —
  * public — so unlike a password hash there is nothing on this row a database
  * thief could sign in with.

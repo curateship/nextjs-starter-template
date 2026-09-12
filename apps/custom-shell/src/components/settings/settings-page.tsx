@@ -17,6 +17,7 @@ import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StorageSettings } from "@/components/settings/storage-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
@@ -45,6 +46,7 @@ const settingsTabs = [
   { id: "notifications", label: "Notifications" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
+  { id: "storage", label: "Storage" },
   { id: "ai", label: "AI" },
 ] as const
 
@@ -349,6 +351,7 @@ export function SettingsPage({
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
+        {activeTab === "storage" ? <StorageSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
         <AppSettingsPanel activeTab={activeTab} />
       </div>

@@ -1,7 +1,8 @@
 # Media library, picker, and storage
 
 The media library stores images, video, and audio for one owner in one workspace.
-Files live in R2 object storage. The database keeps:
+Files live in R2 object storage, set up on Settings → Storage and described in
+[Where uploaded files are kept](storage-settings.md). The database keeps:
 
 - Ownership and file type.
 - Size and dimensions where available.
