@@ -52,7 +52,7 @@ type TopRightSettingsProps = {
   onSaveConfig: () => Promise<boolean>
   /** The app-owned items this menu may contain, with their editor details. */
   appActions?: readonly AppHeaderAction[]
-  /** The card the chips sit in. Reset stays outside it. */
+  /** The card containing the chips and reset action. */
   card: { storageId: string; title: string; description: string }
   /** What the Reset button does, and what it warns it will do. */
   reset: { label: string; description: string; onReset: () => void }
@@ -398,7 +398,9 @@ export function TopRightSettings({
                   <AppActionChip
                     key={item.id}
                     item={item}
-                    action={appActions.find((action) => action.id === item.id)}
+                    action={appActions.find(
+                      (action) => action.id === item.id
+                    )}
                     onVisibleChange={(visible) =>
                       handleVisibleChange(item.id, visible)
                     }
@@ -428,20 +430,17 @@ export function TopRightSettings({
             </div>
           </SortableContext>
         </DndContext>
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setResetOpen(true)}
+          >
+            <RotateCcwIcon className="h-4 w-4" />
+            {reset.label}
+          </Button>
+        </div>
       </CollapsibleSettingsCard>
-
-      {/* Outside the card on purpose, like the sidebar tab's actions: it acts
-          on the whole row, not on anything inside the card. */}
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={() => setResetOpen(true)}
-        >
-          <RotateCcwIcon className="h-4 w-4" />
-          {reset.label}
-        </Button>
-      </div>
 
       <ConfirmDialog
         open={resetOpen}

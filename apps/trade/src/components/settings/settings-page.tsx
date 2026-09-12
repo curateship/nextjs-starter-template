@@ -17,15 +17,14 @@ import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StorageSettings } from "@/components/settings/storage-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
+import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
 import { CardGroup } from "@/components/ui/card"
-import {
-  appHeaderRightActionsForRole,
-  appSettingsTabs,
-} from "@/lib/app-options"
+import { appHeaderRightActionsForRole, appSettingsTabs } from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -40,14 +39,14 @@ import {
 /** Settings that are about the app, and about the admin's own shell. */
 const settingsTabs = [
   { id: "general", label: "General settings" },
-  { id: "sidebar", label: "Sidebar" },
-  { id: "top-right", label: "Top right menu" },
+  { id: "navigation", label: "Navigation" },
   { id: "widgets", label: "Widgets" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
   { id: "notifications", label: "Notifications" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
+  { id: "storage", label: "Storage" },
   { id: "ai", label: "AI" },
 ] as const
 
@@ -56,8 +55,7 @@ const settingsTabs = [
  * so it is obvious at a glance which of these change somebody else's screen.
  */
 const memberSettingsTabs = [
-  { id: "member-sidebar", label: "Sidebar" },
-  { id: "member-top-right", label: "Top right menu" },
+  { id: "member-navigation", label: "Navigation" },
 ] as const
 
 /** Settings for the pages a site's visitors see before signing in. */
@@ -229,10 +227,7 @@ export function SettingsPage({
           </CardGroup>
         ) : null}
         {activeTab === "public-seo" ? (
-          <PublicSeoSettings
-            config={config}
-            onConfigChange={onConfigChange}
-          />
+          <PublicSeoSettings config={config} onConfigChange={onConfigChange} />
         ) : null}
         {activeTab === "public-social" ? (
           <PublicSocialSettings
@@ -240,91 +235,95 @@ export function SettingsPage({
             onConfigChange={onConfigChange}
           />
         ) : null}
-        {activeTab === "sidebar" ? (
-          <SidebarSettings
-            sections={config.sections}
-            onSectionsChange={(sections) =>
-              onConfigChange({ ...config, sections })
-            }
-            onSaveConfig={onSaveConfig}
-            card={{
-              storageId: "sidebar",
-              // Not just "Sidebar": the rail already says that, and the twin
-              // card under Members names itself the same way.
-              title: "Your sidebar",
-              description:
-                "The links you see in your own sidebar, in the order you put them. What members see is on the Members → Sidebar tab.",
-            }}
-            reset={{
-              label: "Reset all to defaults",
-              description:
-                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
-              onReset: () => onConfigChange(createDefaultShellConfig()),
-            }}
-          />
+        {activeTab === "navigation" ? (
+          <CardGroup>
+            <SidebarSettings
+              topLeftNavigation={
+                <TopLeftNavigationSettings
+                  config={config}
+                  onConfigChange={onConfigChange}
+                />
+              }
+              sections={config.sections}
+              onSectionsChange={(sections) =>
+                onConfigChange({ ...config, sections })
+              }
+              onSaveConfig={onSaveConfig}
+              card={{
+                storageId: "sidebar",
+                title: "Your sidebar",
+                description:
+                  "The links you see in your own sidebar, in the order you put them. What members see is on the Members → Navigation page.",
+              }}
+              reset={{
+                label: "Reset all to defaults",
+                description:
+                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
+                onReset: () => onConfigChange(createDefaultShellConfig()),
+              }}
+            />
+            <TopRightSettings
+              items={config.topRightNavigation}
+              onItemsChange={(topRightNavigation) =>
+                onConfigChange({ ...config, topRightNavigation })
+              }
+              onSaveConfig={onSaveConfig}
+              appActions={adminHeaderActions}
+              card={{
+                storageId: "top-right",
+                title: "Your top right menu",
+                description:
+                  "The buttons in the top right of your own header, in the order you put them. What members see is on the Members → Navigation page.",
+              }}
+              reset={{
+                label: "Reset top right menu",
+                description:
+                  "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
+                onReset: () =>
+                  onConfigChange({
+                    ...config,
+                    topRightNavigation: createDefaultTopRightNavigation(
+                      adminHeaderActionIds
+                    ),
+                  }),
+              }}
+            />
+          </CardGroup>
         ) : null}
-        {activeTab === "top-right" ? (
-          <TopRightSettings
-            items={config.topRightNavigation}
-            onItemsChange={(topRightNavigation) =>
-              onConfigChange({ ...config, topRightNavigation })
-            }
-            onSaveConfig={onSaveConfig}
-            appActions={adminHeaderActions}
-            card={{
-              storageId: "top-right",
-              title: "Your top right menu",
-              description:
-                "The buttons in the top right of your own header, in the order you put them. What members see is on the Members → Top right menu tab.",
-            }}
-            reset={{
-              label: "Reset top right menu",
-              description:
-                "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
-              onReset: () =>
-                onConfigChange({
-                  ...config,
-                  topRightNavigation: createDefaultTopRightNavigation(
-                    adminHeaderActionIds
-                  ),
-                }),
-            }}
-          />
-        ) : null}
-        {activeTab === "member-top-right" ? (
-          <TopRightSettings
-            items={config.memberTopRightNavigation}
-            onItemsChange={(memberTopRightNavigation) =>
-              onConfigChange({ ...config, memberTopRightNavigation })
-            }
-            onSaveConfig={onSaveConfig}
-            appActions={memberHeaderActions}
-            card={{
-              storageId: "member-top-right",
-              title: "Member top right menu",
-              description:
-                "The buttons every member sees in the top right of their header, in the order you put them. Your own menu is on the Top right menu tab and is not affected.",
-            }}
-            reset={{
-              label: "Reset member menu",
-              description:
-                "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
-              onReset: () =>
-                onConfigChange({
-                  ...config,
-                  memberTopRightNavigation: createDefaultTopRightNavigation(
-                    memberHeaderActionIds
-                  ),
-                }),
-            }}
-          />
-        ) : null}
-        {activeTab === "member-sidebar" ? (
-          <MemberSettings
-            config={config}
-            onConfigChange={onConfigChange}
-            onSaveConfig={onSaveConfig}
-          />
+        {activeTab === "member-navigation" ? (
+          <CardGroup>
+            <MemberSettings
+              config={config}
+              onConfigChange={onConfigChange}
+              onSaveConfig={onSaveConfig}
+            />
+            <TopRightSettings
+              items={config.memberTopRightNavigation}
+              onItemsChange={(memberTopRightNavigation) =>
+                onConfigChange({ ...config, memberTopRightNavigation })
+              }
+              onSaveConfig={onSaveConfig}
+              appActions={memberHeaderActions}
+              card={{
+                storageId: "member-top-right",
+                title: "Member top right menu",
+                description:
+                  "The buttons every member sees in the top right of their header, in the order you put them. Your own menu is on the Platform → Navigation page and is not affected.",
+              }}
+              reset={{
+                label: "Reset member menu",
+                description:
+                  "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
+                onReset: () =>
+                  onConfigChange({
+                    ...config,
+                    memberTopRightNavigation: createDefaultTopRightNavigation(
+                      memberHeaderActionIds
+                    ),
+                  }),
+              }}
+            />
+          </CardGroup>
         ) : null}
         {activeTab === "widgets" ? (
           <WidgetSettings
@@ -352,6 +351,7 @@ export function SettingsPage({
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
+        {activeTab === "storage" ? <StorageSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
         <AppSettingsPanel activeTab={activeTab} />
       </div>

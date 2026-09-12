@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { drizzle } from "drizzle-orm/pglite"
 
 import { setDbForTests } from "@/server/db"
+import { clearStorageConfigCache } from "@/server/media/storage-settings"
 import * as schema from "@/server/schema"
 
 import type { TestDatabase } from "./test-support"
@@ -92,5 +93,10 @@ export async function createTestDatabase(): Promise<{
   })
   const db = drizzle(client, { schema }) as unknown as TestDatabase
   setDbForTests(db)
+  // The shell's `createTestDatabase` does this, and this function stands in for
+  // it. The storage settings are remembered for a few seconds so every upload
+  // is not a query; a fresh database is a different set of settings, so the
+  // remembered row has to go with the old one.
+  clearStorageConfigCache()
   return { client, db }
 }

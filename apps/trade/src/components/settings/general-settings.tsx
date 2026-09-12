@@ -18,7 +18,6 @@ import {
 import { DEFAULT_APP_NAME } from "@/lib/branding"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
@@ -52,7 +51,7 @@ export function GeneralSettings({
       <CollapsibleSettingsCard
         storageId="general"
         title="General settings"
-        description="Set the app and workspace names, browser-tab icons, and the logo on the signed-out pages."
+        description="Set the app and site names, and the one logo used on the signed-out pages and in the browser tab."
         contentClassName="space-y-6"
       >
         <div className="grid gap-2">
@@ -169,38 +168,6 @@ export function GeneralSettings({
           </Select>
         </div>
 
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="top-left-nav-limit"
-            hint="The row of links in the top bar comes from whichever sidebar section you are in, so a big section makes a long row. Past this many links the rest fold into a menu behind a three-dot button. If the page you are on is one of the folded ones, nothing in the row is highlighted."
-          >
-            Top bar links before a menu
-          </FieldLabel>
-          <Select
-            value={String(config.topLeftNavLimit)}
-            onValueChange={(value) =>
-              onConfigChange({
-                ...config,
-                topLeftNavLimit: Number(value),
-              })
-            }
-          >
-            <SelectTrigger
-              id="top-left-nav-limit"
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TOP_LEFT_NAV_LIMIT_OPTIONS.map((value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {value === 0 ? "Show all" : value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         <NumberField
           id="toast-seconds"
           label="Toast message duration (seconds)"
@@ -213,52 +180,41 @@ export function GeneralSettings({
           }
         />
 
-        {/* The app's pictures sit together: they are all small, so a row of
-            them is shorter than a stack and reads as one decision. */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
-          <ImageUpload
-            label="Favicon"
-            value={config.favicon}
-            onChange={(url) => onConfigChange({ ...config, favicon: url })}
-            aspect="square"
-            fit="contain"
-            emptyLabel="Select favicon"
-            hint="Shown in browser tabs across the signed-in app and public pages. The app makes the common browser sizes from this one square image."
-            className="max-w-24"
-          />
+        <ImageUpload
+          label="Logo"
+          value={config.logo}
+          onChange={(url) => onConfigChange({ ...config, logo: url })}
+          aspect="square"
+          fit="contain"
+          emptyLabel="Select logo"
+          hint="One picture for the whole app: the logo above the signed-out pages, the icon beside the site name in the sidebar, and the icon in the browser tab. Upload a PNG or an SVG. The app makes the dark-mode version itself, by turning the image's dark tones light and its light tones dark, and cuts the browser-tab sizes from both. Leave it empty for the app name on its own."
+          className="max-w-24"
+        />
 
-          <ImageUpload
-            label="Dark favicon"
-            value={config.faviconDark}
-            onChange={(url) => onConfigChange({ ...config, faviconDark: url })}
-            aspect="square"
-            fit="contain"
-            emptyLabel="Select favicon"
-            hint="Optional. Browsers that use dark tabs get this image instead. Leave it empty to use the favicon above everywhere."
-            className="max-w-24"
-          />
-
-          <ImageUpload
-            label="Logo"
-            value={config.logo}
-            onChange={(url) => onConfigChange({ ...config, logo: url })}
-            aspect="square"
-            fit="contain"
-            emptyLabel="Select logo"
-            hint="Shown above the signed-out pages — sign in, register, verify, reset password and pricing. Everyone sees the same one. Leave it empty for the app name on its own."
-            className="max-w-24"
-          />
-
-          <ImageUpload
-            label="Dark logo"
-            value={config.logoDark}
-            onChange={(url) => onConfigChange({ ...config, logoDark: url })}
-            aspect="square"
-            fit="contain"
-            emptyLabel="Select logo"
-            hint="Optional. Shown in place of the logo while a visitor has their device in dark mode, so a logo drawn in near-black does not disappear on a dark page. Leave it empty and the one logo above is used on both."
-            className="max-w-24"
-          />
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="favicon-mode"
+            hint="Which version of the logo the browser tab shows. Tabs usually sit on a dark or grey strip, where a logo in near-black disappears, so the dark-mode version is the usual answer. Only one is ever shown, because a browser left to choose between the two picks the wrong one."
+          >
+            Browser tab icon
+          </FieldLabel>
+          <Select
+            value={config.faviconMode}
+            onValueChange={(value) =>
+              onConfigChange({
+                ...config,
+                faviconMode: value as ShellConfig["faviconMode"],
+              })
+            }
+          >
+            <SelectTrigger id="favicon-mode" className="w-full sm:w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dark">Dark-mode version</SelectItem>
+              <SelectItem value="light">The logo as uploaded</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </CollapsibleSettingsCard>
 

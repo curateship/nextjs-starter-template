@@ -59,7 +59,7 @@ const cleanOrphansSchema = z.object({
 export const getAdminMediaErrorMessage = createErrorMessage(
   {
     R2_NOT_CONFIGURED:
-      "File storage is not set up. Add the CUSTOM_SHELL_R2_* environment variables first.",
+      "File storage is not set up. Fill in the bucket under Settings \u2192 Storage first.",
     SCAN_FAILED: "Storage could not be read, so orphans are unknown right now.",
   },
   "We could not update the media library. Please try again."

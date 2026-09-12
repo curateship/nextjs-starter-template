@@ -130,12 +130,12 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     try {
       // Library records hand this address to browsers, so fail before writing
       // anything if direct public delivery is not configured.
-      getPublicMediaUrl(storagePath)
+      await getPublicMediaUrl(storagePath)
       await uploadToR2(storagePath, fileData, mimeType)
     } catch (error) {
       if (error instanceof R2StorageNotConfiguredError) {
         throw new Error(
-          "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables, including CUSTOM_SHELL_R2_PUBLIC_URL."
+          "File storage is not set up. Fill in the bucket, including its public address, under Settings \u2192 Storage."
         )
       }
       throw new Error("Upload failed")
