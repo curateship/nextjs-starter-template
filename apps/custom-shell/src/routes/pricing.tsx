@@ -9,6 +9,7 @@ import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
+import { PlanChangeConfirmation } from "@/components/shared/plan-change-confirmation"
 import { Button } from "@/components/ui/button"
 import { loadCurrentUser, type AuthUser } from "@/lib/api/auth/auth"
 import {
@@ -17,6 +18,7 @@ import {
   loadPublicPricing,
   openPlanChange,
   type PlanOption,
+  type PlanChangePreview,
 } from "@/lib/api/billing/billing"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
@@ -47,8 +49,9 @@ export const Route = createFileRoute("/pricing")({
     return {
       user,
       plans: pricing.plans,
-      selectedPlanSlug:
-        pricing.plans.some((plan) => plan.slug === deps.plan) ? deps.plan : null,
+      selectedPlanSlug: pricing.plans.some((plan) => plan.slug === deps.plan)
+        ? deps.plan
+        : null,
       selectedInterval: deps.interval ?? null,
       // The public answer, so a signed-out visitor is told the same thing a
       // member is rather than being shown a grid on the assumption it is on.
@@ -57,9 +60,7 @@ export const Route = createFileRoute("/pricing")({
       // Kept, not thrown away: without it the page cannot tell a monthly
       // subscriber's own card from the yearly one it should still sell them.
       currentInterval: overview?.interval ?? null,
-      // An existing Stripe subscription changes in the portal, never through a
-      // second checkout — see the comment on `handleSelect`.
-      manageInStripe: Boolean(overview?.isPaid && overview.hasStripeCustomer),
+      changingPlan: overview?.source === "stripe" && overview.hasStripeCustomer,
       // A visitor we do not know yet is never told they have spent a trial.
       trialUsed: Boolean(overview?.trialUsed),
     }
@@ -76,7 +77,7 @@ function PricingRoute() {
     selectedInterval,
     currentPlanSlug,
     currentInterval,
-    manageInStripe,
+    changingPlan,
     billingEnabled,
     trialUsed,
   } = Route.useLoaderData()
@@ -87,6 +88,8 @@ function PricingRoute() {
     selectedInterval ?? currentInterval ?? "monthly"
   )
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
+  const [preview, setPreview] = React.useState<PlanChangePreview | null>(null)
+  const selecting = React.useRef(false)
 
   const handleSelect = React.useCallback(
     async (plan: PlanOption, selectedInterval: BillingInterval) => {
@@ -98,20 +101,21 @@ function PricingRoute() {
         return
       }
 
+      if (selecting.current) return
+      selecting.current = true
       setBusyPlanSlug(plan.slug)
       try {
-        const { url } = await openPlanChange(
-          manageInStripe,
-          plan.slug,
-          selectedInterval
-        )
-        window.location.href = url
+        const result = await openPlanChange(plan.slug, selectedInterval)
+        if ("preview" in result) setPreview(result.preview)
+        else window.location.href = result.url
       } catch (checkoutError) {
         showErrorToast(getBillingErrorMessage(checkoutError))
+      } finally {
+        selecting.current = false
         setBusyPlanSlug(null)
       }
     },
-    [manageInStripe, navigate, user]
+    [navigate, user]
   )
 
   return (
@@ -124,7 +128,12 @@ function PricingRoute() {
           </p>
         </header>
 
-        {billingEnabled ? (
+        {preview ? (
+          <PlanChangeConfirmation
+            preview={preview}
+            onCancel={() => setPreview(null)}
+          />
+        ) : billingEnabled ? (
           <PricingTable
             plans={plans}
             currentPlanSlug={currentPlanSlug ?? undefined}
@@ -135,8 +144,9 @@ function PricingRoute() {
             onSelect={handleSelect}
             busyPlanSlug={busyPlanSlug}
             trialUsed={trialUsed}
+            changingPlan={changingPlan}
             actionLabel={
-              !user ? "Get started" : manageInStripe ? "Change in Stripe" : "Upgrade"
+              !user ? "Get started" : changingPlan ? "Change plan" : "Upgrade"
             }
           />
         ) : (
