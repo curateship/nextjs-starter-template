@@ -619,3 +619,7 @@ time, so this matters most when trading against a dev machine.
   USDC balance backs orders on every market, main or side, with the exchange
   moving slices onto a market as orders there need them. The app no longer
   gates anything on "money parked on that market".
+If the chart or wallet does not reach the requested position within five
+seconds, the request is cleared and an error toast explains that the order
+window could not open. The message names the position's market and asks the
+user to pick that market and try again.

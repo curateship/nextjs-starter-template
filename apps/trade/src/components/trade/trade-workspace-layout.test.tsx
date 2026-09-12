@@ -15,6 +15,7 @@ const {
   rememberedLayouts,
   rememberedToolbarPosition,
   layoutSetEvents,
+  showErrorToast,
 } = vi.hoisted(() => ({
   chartMounts: { count: 0 },
   createNamedLayout: vi.fn().mockResolvedValue(undefined),
@@ -25,7 +26,10 @@ const {
     fullscreen: boolean
     layout: Record<string, number>
   }>,
+  showErrorToast: vi.fn(),
 }))
+
+vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast }))
 
 vi.mock("@tanstack/react-router", () => ({
   getRouteApi: () => ({
@@ -46,7 +50,38 @@ vi.mock("@/components/trade/use-protocol-abilities", () => ({
   useProtocolAbilities: () => null,
 }))
 vi.mock("@/components/trade/activity-panel", () => ({
-  ActivityPanel: () => null,
+  ActivityPanel: ({
+    onAddToPosition,
+  }: {
+    onAddToPosition: (position: unknown) => void
+  }) => (
+    <div data-testid="activity-panel">
+      <button
+        type="button"
+        aria-label="Add BTC test position"
+        onClick={() =>
+          onAddToPosition({
+            id: "position-btc",
+            walletId: "wallet-1",
+            marketKey: "hyperliquid:mainnet:BTC",
+            szi: 1,
+          })
+        }
+      />
+      <button
+        type="button"
+        aria-label="Add ETH test position"
+        onClick={() =>
+          onAddToPosition({
+            id: "position-eth",
+            walletId: "wallet-1",
+            marketKey: "hyperliquid:mainnet:ETH",
+            szi: 1,
+          })
+        }
+      />
+    </div>
+  ),
 }))
 vi.mock("@/components/trade/smart-orders-panel", () => ({
   SmartOrdersPanel: () => <div data-testid="smart-orders-panel" />,
@@ -81,8 +116,15 @@ vi.mock("@/components/trade/use-trading", () => ({
 }))
 vi.mock("@/components/trade/use-trade-account", () => ({
   useTradeAccount: () => ({
-    activeWallet: null,
-    wallets: [],
+    activeWallet: { id: "wallet-1" },
+    wallets: [
+      {
+        id: "wallet-1",
+        label: "Main wallet",
+        kind: "paper",
+        status: "active",
+      },
+    ],
     summaryOf: () => null,
     switchWallet: vi.fn(),
     refresh: vi.fn(),
@@ -113,9 +155,13 @@ vi.mock("@/components/trade/chart-panel", () => ({
   ChartPanel: ({
     onChartToolbarPositionChange,
     cornerControl,
+    addTo,
+    onAddOpened,
   }: {
     onChartToolbarPositionChange?: (position: { x: number; y: number }) => void
     cornerControl?: React.ReactNode
+    addTo?: unknown
+    onAddOpened?: () => void
   }) => {
     React.useEffect(() => {
       chartMounts.count += 1
@@ -123,6 +169,13 @@ vi.mock("@/components/trade/chart-panel", () => ({
     return (
       <div data-testid="chart">
         {cornerControl}
+        {addTo ? (
+          <button
+            type="button"
+            aria-label="Open add order window"
+            onClick={onAddOpened}
+          />
+        ) : null}
         <button
           type="button"
           aria-label="Move test toolbar"
@@ -408,6 +461,11 @@ describe("the trade workspace chart full screen", () => {
                     symbol: "BTC",
                     price: 100,
                   },
+                  {
+                    key: "hyperliquid:mainnet:ETH",
+                    symbol: "ETH",
+                    price: 100,
+                  },
                 ],
                 protocolLabel: "Hyperliquid",
                 networkLabel: "Mainnet",
@@ -607,6 +665,19 @@ describe("the trade workspace chart full screen", () => {
       workspace: 60,
       activity: 40,
     })
+
+    vi.useFakeTimers()
+    showErrorToast.mockClear()
+    await act(async () => clickButton("Add BTC test position"))
+    await act(async () => clickButton("Open add order window"))
+    expect(showErrorToast).not.toHaveBeenCalled()
+
+    await act(async () => clickButton("Add ETH test position"))
+    await act(async () => vi.advanceTimersByTime(5_000))
+    expect(showErrorToast).toHaveBeenCalledOnce()
+    expect(showErrorToast).toHaveBeenCalledWith(
+      "Could not open the order window for ETH. Pick the market and try again."
+    )
   })
 })
 

@@ -870,7 +870,12 @@ export function TradeWorkspace({
   // press nobody remembers making.
   React.useEffect(() => {
     if (!adding) return
-    const giveUp = window.setTimeout(() => setAdding(null), 5_000)
+    const giveUp = window.setTimeout(() => {
+      showErrorToast(
+        `Could not open the order window for ${marketSymbol(adding.marketKey)}. Pick the market and try again.`
+      )
+      setAdding(null)
+    }, 5_000)
     return () => window.clearTimeout(giveUp)
   }, [adding])
 
