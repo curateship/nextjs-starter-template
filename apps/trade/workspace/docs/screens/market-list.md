@@ -61,8 +61,8 @@ line in the body, share the panel's one 12px gutter.
 - **Both side panels open at their smallest useful width.** Folders starts at
   12% of the workspace and Smart orders starts at 18.5rem. The chart takes
   the space left between them. Either width is still yours to drag and is
-  remembered per browser, so a width you have already dragged to wins over
-  these starting sizes.
+  remembered in the account, so the same layout follows you to another
+  browser.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain

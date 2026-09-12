@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/tooltip"
 import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   marketSymbol,
   parseMarketKey,
@@ -138,7 +139,7 @@ function InfoMark({
         <button
           type="button"
           aria-label={label}
-          className="text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className={cn("text-muted-foreground transition-colors hover:text-foreground", focusRing)}
         >
           <InfoIcon className="size-3" />
         </button>
@@ -165,10 +166,10 @@ const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
   { key: "value", label: "Value" },
   { key: "margin", label: "Margin" },
   { key: "liquidation", label: "Liquidation" },
-  { key: "projected", label: "Projected P / L" },
+  { key: "projected", label: "At target / stop" },
   { key: "ifStopped", label: "If stopped" },
   { key: "fees", label: "Fees" },
-  { key: "unrealized", label: "Unrealized P&L" },
+  { key: "unrealized", label: "Making / losing" },
 ]
 
 type OrderColumn =
@@ -336,7 +337,7 @@ function MarketCell({
           <button
             type="button"
             onClick={onSelect}
-            className="rounded-sm text-xs font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className={cn("rounded-sm text-xs font-medium hover:underline", focusRing)}
           >
             {symbol}
           </button>
@@ -375,7 +376,7 @@ function MissingStopBadge({
         <button
           type="button"
           aria-label={`${symbol} has no ${kind} stop`}
-          className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className={cn("rounded-md", focusRing)}
           onClick={(event) => event.stopPropagation()}
         >
           <TradeBadge tone="lost">No {kind} stop</TradeBadge>

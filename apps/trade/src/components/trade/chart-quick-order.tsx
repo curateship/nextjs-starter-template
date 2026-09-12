@@ -612,7 +612,7 @@ export function ChartQuickOrder({
                       : undefined
                   }
                   className="w-full"
-                  placeholder="Size"
+                  placeholder="0.5"
                   aria-describedby={shownUsd ? "quick-size-usd" : undefined}
                   // Only once something has been typed. A box nobody has
                   // touched yet is not a mistake, and the sentence above the

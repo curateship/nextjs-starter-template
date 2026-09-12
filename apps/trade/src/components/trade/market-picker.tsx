@@ -57,6 +57,7 @@ import {
 } from "@/lib/trade/market-picker-options"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { getMarketsErrorMessage } from "@/lib/api/trade/markets"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
 import {
@@ -382,7 +383,10 @@ export function MarketPicker({
             setSearchShown(true)
             searchRef.current?.focus()
           }}
-          className="flex h-full max-w-full min-w-0 items-center gap-1.5 rounded-l-lg px-2.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className={cn(
+            "flex h-full max-w-full min-w-0 items-center gap-1.5 rounded-l-lg px-2.5 font-bold transition-colors hover:bg-muted",
+            focusRing
+          )}
         >
           <MarketIcon symbol={selected.symbol} iconUrl={selected.iconUrl} />
           <span className="truncate">

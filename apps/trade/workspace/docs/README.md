@@ -281,6 +281,9 @@ always used.
 
 ## Adding a doc
 
+- `polish-readable-failures-and-forms.md` explains persistent panel failures,
+  shared folder creation forms, and the trade wording changes.
+
 One file per subject, named after the subject, in the folder for the part of
 the app it describes, plus its line above in the same turn as the code. Write
 it the way `.agents/skills/unslop/SKILL.md` says. A rule Tyler stated out loud

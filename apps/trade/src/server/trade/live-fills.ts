@@ -34,6 +34,7 @@ import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
 import type { TradeSide } from "@/lib/trade/paper"
 import {
   fillNoticeWords,
+  ladderFillNoticeWords,
   triggerNoticeWords,
 } from "@/lib/trade/trade-notice-words"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -60,6 +61,7 @@ import {
   tradeLiveFills,
   tradeLiveJournal,
   tradeLiveTriggers,
+  tradeGridOrderRungs,
   tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
@@ -447,7 +449,79 @@ async function announceFills(
       )
       .for("update")
     const orders = await loadFillNoticeOrders(tx, userId, wallet, recent)
+    const rungRows = await tx
+      .select({
+        orderId: tradeGridOrderRungs.orderId,
+        ladderId: tradeGridOrderRungs.ladderId,
+      })
+      .from(tradeGridOrderRungs)
+      .where(
+        and(
+          eq(tradeGridOrderRungs.userId, userId),
+          eq(tradeGridOrderRungs.walletId, wallet.id),
+          inArray(
+            tradeGridOrderRungs.orderId,
+            orders.map((fill) => fill.orderId)
+          )
+        )
+      )
+    const ladderByOrder = new Map(
+      rungRows.map((row) => [row.orderId, row.ladderId])
+    )
+    const grouped = new Map<
+      string,
+      {
+        ladderId: string
+        marketKey: string
+        fills: WalletOrderFill[]
+      }
+    >()
+    const groupedOrderIds = new Set<string>()
     for (const fill of orders) {
+      const ladderId = ladderByOrder.get(fill.orderId)
+      if (!ladderId || fill.closedPnl !== 0 || fill.liquidation) continue
+      const key = `${ladderId}:${fill.marketId}:${Math.floor(fill.at / 60_000)}`
+      const group = grouped.get(key) ?? {
+        ladderId,
+        marketKey: marketKey({
+          protocol: wallet.protocol,
+          network: wallet.network,
+          marketId: fill.marketId,
+        }),
+        fills: [],
+      }
+      group.fills.push(fill)
+      grouped.set(key, group)
+      groupedOrderIds.add(fill.orderId)
+    }
+    for (const group of grouped.values()) {
+      const first = group.fills[0]
+      const dollars = group.fills.reduce(
+        (sum, fill) => sum + Math.abs(fill.px * fill.sz),
+        0
+      )
+      await writeTradeNotice({
+        userId,
+        href: marketChartHref(group.marketKey),
+        soundKind: "fill",
+        database: tx,
+        noticeKey: JSON.stringify([
+          "ladder-fill",
+          wallet.id,
+          group.ladderId,
+          Math.floor(first.at / 60_000),
+        ]),
+        ...ladderFillNoticeWords({
+          marketKey: group.marketKey,
+          count: group.fills.length,
+          dollars,
+          walletLabel: wallet.label,
+          practice: wallet.network !== "mainnet",
+        }),
+      })
+    }
+    for (const fill of orders) {
+      if (groupedOrderIds.has(fill.orderId)) continue
       try {
         await tx.transaction(async (noticeTx) => {
           const key = marketKey({

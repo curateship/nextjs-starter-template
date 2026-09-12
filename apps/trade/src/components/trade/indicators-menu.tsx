@@ -23,6 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
+import { MADE_MONEY_DOT } from "@/lib/trade/money-tone"
 import {
   Select,
   SelectContent,
@@ -82,7 +83,7 @@ function IndicatorMark({
   }
   return (
     <span aria-hidden="true" className="flex w-8 flex-col gap-1">
-      <span className="h-0.5 rounded-full bg-emerald-600" />
+      <span className={`h-0.5 rounded-full ${MADE_MONEY_DOT}`} />
       <span className="h-0.5 rounded-full bg-rose-600" />
     </span>
   )

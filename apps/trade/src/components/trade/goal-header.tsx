@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { TargetIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import {
   Popover,
   PopoverContent,
@@ -218,13 +219,11 @@ function GoalPanel({
       ) : null}
 
       {failed ? (
-        <button
-          type="button"
-          className="text-left text-xs underline"
-          onClick={onRetry}
-        >
-          Today&apos;s goal could not be read. Try again
-        </button>
+        <ErrorRow
+          message="Today's goal could not be read."
+          onRetry={onRetry}
+          className="p-0 text-xs"
+        />
       ) : null}
 
       <Button type="button" variant="outline" asChild onClick={onOpenPnl}>

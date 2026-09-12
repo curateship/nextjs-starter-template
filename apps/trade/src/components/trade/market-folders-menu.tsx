@@ -8,6 +8,7 @@ import {
 
 import type { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ErrorRow } from "@/components/ui/error-row"
 import { MarketRowLine } from "@/components/trade/market-list-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -181,7 +182,7 @@ export function MarketFoldersMenu({
                 <Input
                   id="new-market-folder-menu-name"
                   autoFocus
-                  placeholder="Folder name"
+                placeholder="Majors"
                   value={newName}
                   maxLength={80}
                   disabled={busy}
@@ -276,12 +277,7 @@ export function MarketFoldersMenu({
                 {marketsPending ? (
                   <LoadingRow label="Loading markets" />
                 ) : marketsError ? (
-                  <div className="grid gap-2 p-3">
-                    <p>{marketsError}</p>
-                    <Button variant="outline" onClick={onRetryMarkets}>
-                      Try again
-                    </Button>
-                  </div>
+                  <ErrorRow message={marketsError} onRetry={onRetryMarkets} className="p-3" />
                 ) : allMarkets.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground">
                     No markets match your market visibility settings.

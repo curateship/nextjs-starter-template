@@ -18,6 +18,7 @@ import type {
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatSignedUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 const STATE_LABELS: Record<TradingOverviewBotState, string> = {
@@ -155,7 +156,7 @@ function BotRow({
         <Link
           to="/flow-runs/$runId"
           params={{ runId: bot.runId }}
-          className="block max-w-48 truncate rounded-sm text-xs font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className={cn("block max-w-48 truncate rounded-sm text-xs font-medium hover:underline", focusRing)}
         >
           {bot.name}
         </Link>

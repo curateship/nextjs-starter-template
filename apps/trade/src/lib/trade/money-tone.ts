@@ -30,6 +30,8 @@ export const MADE_MONEY_SURFACE =
 export const LOST_MONEY_SURFACE = "bg-destructive/10 text-destructive"
 export const WARNING_SURFACE =
   "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+export const MADE_MONEY_DOT = "bg-emerald-500"
+export const WARNING_DOT = "bg-amber-500"
 export const ALARM_SURFACE = "bg-destructive/20 text-destructive"
 
 /** Filled trading actions. Text follows the active light or dark canvas. */

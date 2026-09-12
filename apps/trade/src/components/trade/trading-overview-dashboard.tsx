@@ -210,7 +210,7 @@ const TRADE_COLUMNS = [
   { key: "at", label: "Market" },
   { key: "venue", label: "Exchange" },
   { key: "wallet", label: "Wallet" },
-  { key: "money", label: "Money" },
+  { key: "money", label: "Money", align: "right" },
 ] as const satisfies readonly ColumnSpec<TradeColumn>[]
 
 function defaultTradeDirection(column: TradeColumn) {

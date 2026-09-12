@@ -3,6 +3,7 @@ import { CandlestickChartIcon, Loader2Icon } from "lucide-react"
 
 import { ActiveTradesDropdown } from "@/components/trade/active-trades-dropdown"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import {
   Popover,
   PopoverContent,
@@ -210,16 +211,11 @@ function AdminActiveTradesHeader() {
             onTradeOpen={() => setOpen(false)}
           />
         ) : failed ? (
-          <div className="flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            Active trades could not be read.{" "}
-            <button
-              type="button"
-              className="ml-1 underline"
-              onClick={() => void refresh()}
-            >
-              Try again
-            </button>
-          </div>
+          <ErrorRow
+            message="Active trades could not be read."
+            onRetry={() => void refresh()}
+            className="p-4 text-sm"
+          />
         ) : (
           <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
             <Loader2Icon className="size-4 animate-spin" />

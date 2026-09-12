@@ -94,6 +94,52 @@ type PanelRow = {
   body: React.ReactNode
 }
 
+function CreateFolderForm({
+  busy,
+  onCreate,
+  inputId = "new-market-folder-name",
+}: {
+  busy: boolean
+  onCreate: (name: string) => Promise<void>
+  inputId?: string
+}) {
+  const [name, setName] = React.useState("")
+  const [attempted, setAttempted] = React.useState(false)
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    setAttempted(true)
+    const trimmed = name.trim()
+    if (!trimmed) {
+      showErrorToast("Enter a folder name.")
+      return
+    }
+    await onCreate(trimmed)
+    setName("")
+    setAttempted(false)
+  }
+
+  return (
+    <form className="grid gap-2" onSubmit={submit}>
+      <Label htmlFor={inputId}>Folder name</Label>
+      <div className="flex gap-2">
+        <Input
+          id={inputId}
+          aria-invalid={attempted && !name.trim()}
+          placeholder="Majors"
+          value={name}
+          maxLength={80}
+          disabled={busy}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <Button type="submit" disabled={busy}>
+          Create folder
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 export function MarketFoldersPanel({
   folders,
   panelRows,
@@ -135,7 +181,6 @@ export function MarketFoldersPanel({
   onManageOpenChange?: (open: boolean) => void
 }) {
   const [creating, setCreating] = React.useState(false)
-  const [newName, setNewName] = React.useState("")
   const [localManageOpen, setLocalManageOpen] = React.useState(false)
   const managing = manageOpen ?? localManageOpen
   const setManaging = onManageOpenChange ?? setLocalManageOpen
@@ -257,18 +302,18 @@ export function MarketFoldersPanel({
 
   const shown = rows.filter((row) => !row.hidden)
 
-  function submitNewFolder(event: React.FormEvent) {
-    event.preventDefault()
-    if (busy || !newName.trim()) return
+  async function createNewFolder(name: string) {
+    if (busy) return
     setBusy(true)
-    void createFolder({ protocol, network, name: newName })
-      .then((next) => {
-        onFoldersChange(next)
-        setNewName("")
-        setCreating(false)
-      })
-      .catch((error) => showErrorToast(getMarketFolderErrorMessage(error)))
-      .finally(() => setBusy(false))
+    try {
+      onFoldersChange(await createFolder({ protocol, network, name }))
+      setCreating(false)
+    } catch (error) {
+      showErrorToast(getMarketFolderErrorMessage(error))
+      throw error
+    } finally {
+      setBusy(false)
+    }
   }
 
   /**
@@ -432,32 +477,9 @@ export function MarketFoldersPanel({
         }
       />
       {creating ? (
-        <form
-          className="grid shrink-0 gap-2 border-b p-2"
-          onSubmit={submitNewFolder}
-        >
-          <Label htmlFor="new-market-folder-name">Folder name</Label>
-          <div className="flex gap-2">
-            <Input
-              id="new-market-folder-name"
-              autoFocus
-              placeholder="Folder name"
-              value={newName}
-              maxLength={80}
-              disabled={busy}
-              onChange={(event) => setNewName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setCreating(false)
-                  setNewName("")
-                }
-              }}
-            />
-            <Button type="submit" disabled={busy || !newName.trim()}>
-              Create folder
-            </Button>
-          </div>
-        </form>
+        <div className="shrink-0 border-b p-2">
+          <CreateFolderForm busy={busy} onCreate={createNewFolder} />
+        </div>
       ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid">
@@ -524,29 +546,18 @@ export function MarketFoldersPanel({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <form onSubmit={submitNewFolder}>
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>New folder</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-2">
-                  <Label htmlFor="manage-market-folder-name">Folder name</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="manage-market-folder-name"
-                      placeholder="Folder name"
-                      value={newName}
-                      maxLength={80}
-                      disabled={busy}
-                      onChange={(event) => setNewName(event.target.value)}
-                    />
-                    <Button type="submit" disabled={busy || !newName.trim()}>
-                      Create folder
-                    </Button>
-                  </div>
+                  <CreateFolderForm
+                    busy={busy}
+                    onCreate={createNewFolder}
+                    inputId="manage-market-folder-name"
+                  />
                 </CardContent>
               </Card>
-            </form>
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Order</CardTitle>

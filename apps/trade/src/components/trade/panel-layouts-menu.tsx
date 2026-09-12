@@ -22,6 +22,8 @@ import {
   type NamedPanelLayout,
 } from "@/lib/trade/panel-layout"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
 
 export function PanelLayoutsMenu({
   layouts,
@@ -144,7 +146,7 @@ export function PanelLayoutsMenu({
                     role="radio"
                     aria-checked={layout.id === activeId}
                     data-state={layout.id === activeId ? "checked" : "unchecked"}
-                    className="ml-2 size-4 rounded-full border border-foreground/50 p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={cn("ml-2 size-4 rounded-full border border-foreground/50 p-0.5", focusRing)}
                     disabled={busy}
                     aria-label={`Use ${layout.name}`}
                     onClick={() => void apply(layout.id)}

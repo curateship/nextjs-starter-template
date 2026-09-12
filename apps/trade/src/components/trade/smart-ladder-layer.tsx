@@ -19,6 +19,7 @@ import {
 } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { TradeOrder } from "@/lib/trade/paper"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   formatPrice,
   formatSignedUsd,
@@ -500,7 +501,7 @@ function PreviewLines({
             <button
               type="button"
               disabled={!preview.onMoveStop}
-              className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className={cn("flex cursor-ns-resize items-center gap-0.5 rounded", focusRing)}
               aria-label="Move DCA stop loss"
               title={`Combined loss if every rung fills, before fees. Stop at ${formatPrice(stopPx!)}. Drag to move the stop.`}
               onPointerDown={startDrag("stop", deepestIndex)}

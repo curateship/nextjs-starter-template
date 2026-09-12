@@ -23,6 +23,7 @@ import { summarizeActiveTrades } from "@/lib/trade/dashboard/active-trades"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { cn } from "@/lib/utils"
 
@@ -252,7 +253,7 @@ function ActiveTradeRow({
             <button
               type="button"
               onClick={onOpen}
-              className="rounded-sm text-xs font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className={cn("rounded-sm text-xs font-medium hover:underline", focusRing)}
             >
               {trade.market}
             </button>

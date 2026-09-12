@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
+import { ErrorRow } from "@/components/ui/error-row"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import type { useTradeAccount } from "@/components/trade/use-trade-account"
@@ -60,7 +61,9 @@ import { useLiveMarks } from "@/lib/trade/live-market"
 import { walletMarginHealth } from "@/lib/trade/margin-health"
 import {
   ALARM_SURFACE,
+  MADE_MONEY_DOT,
   WARNING_SURFACE,
+  WARNING_DOT,
   moneyTone,
 } from "@/lib/trade/money-tone"
 import type { TradePosition } from "@/lib/trade/paper"
@@ -265,8 +268,8 @@ function WalletStatusDot({
           : !ok
             ? "bg-destructive"
             : stale
-              ? "bg-amber-500"
-              : "bg-emerald-500"
+              ? WARNING_DOT
+              : MADE_MONEY_DOT
       )}
       aria-hidden
     />
@@ -878,17 +881,7 @@ function PanelLoading() {
 }
 
 function LoadFailed({ onRetry }: { onRetry: () => void }) {
-  return (
-    <PanelPlaceholder
-      icon={<CreditCardIcon className="size-4" />}
-      title="The wallets could not be loaded"
-    >
-      Nothing is wrong with the wallets themselves — the read failed.{" "}
-      <button type="button" className="underline" onClick={onRetry}>
-        Try again
-      </button>
-    </PanelPlaceholder>
-  )
+  return <ErrorRow message="The wallets could not be loaded." onRetry={onRetry} />
 }
 
 function NoWalletsYet() {
@@ -897,7 +890,7 @@ function NoWalletsYet() {
       icon={<CreditCardIcon className="size-4" />}
       title="No wallets yet"
     >
-      Add one below. It can use pretend cash or a live exchange account.
+      Use Add wallet above. It can use pretend cash or a live exchange account.
     </PanelPlaceholder>
   )
 }

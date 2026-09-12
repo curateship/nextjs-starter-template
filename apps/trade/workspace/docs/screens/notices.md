@@ -177,7 +177,9 @@ and the notice stops at the dollars. The notice never asks which exchange it
 is holding: it asks whether that exchange prices every sale, which is written
 once beside the exchange itself in the registry.
 
-A ladder with twenty rungs filling in a cascade is still twenty notices. Each
+A ladder with twenty rungs filling in a cascade is one fill notice for that
+ladder during each 60-second window. The notice names the rung count and the
+dollars that went in. Each
 rung is its own order. The pieces of one rung share a notice.
 
 The order total comes from saved fills, so replaying a socket event or recovery

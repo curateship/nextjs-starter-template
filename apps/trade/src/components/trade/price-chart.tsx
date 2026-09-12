@@ -14,6 +14,7 @@ import type {
 import { loadChartEngine } from "@/components/trade/chart-engine"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ErrorRow } from "@/components/ui/error-row"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { ChartOptions, ChartType } from "@/lib/trade/chart-options"
 import { heikinAshiBar, toHeikinAshi } from "@/lib/trade/heikin-ashi"
@@ -864,7 +865,12 @@ export function PriceChart({
       {engineState === "loading" ? (
         <LoadingRow label="Drawing the chart" className="absolute inset-0" />
       ) : engineState === "failed" ? (
-        <div className="absolute inset-0 grid place-items-center p-3" />
+        <div className="absolute inset-0 grid place-items-center p-3">
+          <ErrorRow
+            message="The chart could not be loaded."
+            onRetry={() => setEngineAttempt((attempt) => attempt + 1)}
+          />
+        </div>
       ) : null}
       {overlay && surface && colors ? (
         // As tall as the plot and as wide as the plot plus the price axis. The

@@ -16,6 +16,11 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
 import { TableSortButton } from "@/components/ui/table"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
+import {
+  MADE_MONEY_SURFACE,
+  LOST_MONEY_SURFACE,
+  WARNING_SURFACE,
+} from "@/lib/trade/money-tone"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { compareMarketChange24h } from "@/lib/trade/market-sort"
@@ -265,8 +270,8 @@ export function AllMarketsList({
  */
 export function TestnetStrip() {
   return (
-    <div className="flex shrink-0 items-center gap-2 border-t bg-amber-500/10 px-3 py-1.5">
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-amber-700 dark:text-amber-400">
+    <div className={cn("flex shrink-0 items-center gap-2 border-t px-3 py-1.5", WARNING_SURFACE)}>
+      <span className="min-w-0 flex-1 truncate text-xs font-medium">
         Testnet — practice network, pretend money.
       </span>
       {/* The way back, and only here.
@@ -281,7 +286,7 @@ export function TestnetStrip() {
         to="."
         search={{ network: "mainnet" }}
         className={cn(
-          "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:bg-amber-500/10 dark:text-amber-400",
+          "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium underline underline-offset-2 hover:opacity-80",
           focusRing
         )}
       >
@@ -327,8 +332,9 @@ export const MarketRowLine = React.memo(function MarketRowLine({
       }
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex h-9 min-w-0 items-center border-r-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "flex h-9 min-w-0 items-center border-r-2 text-left",
         ROW_COLUMNS,
+        focusRing,
         selected
           ? "border-r-foreground bg-muted"
           : "border-r-transparent hover:bg-muted/50",
@@ -366,8 +372,8 @@ export const MarketRowLine = React.memo(function MarketRowLine({
               : cn(
                   "rounded-full px-2 py-0.5",
                   change24h >= 0
-                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
-                    : "bg-destructive/10 text-destructive dark:bg-destructive/20"
+                  ? MADE_MONEY_SURFACE
+                  : LOST_MONEY_SURFACE
                 )
           )}
         >

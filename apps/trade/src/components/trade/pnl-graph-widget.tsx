@@ -51,6 +51,7 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import { walletProfitWindowLabel } from "@/lib/trade/wallets"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { panelSectionBarClassName } from "@/lib/layout/panel-section-bar"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 const WALLET_COLORS = [
@@ -551,7 +552,8 @@ function WalletResultRow({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "block w-full cursor-pointer border-r-2 border-b px-5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+        "block w-full cursor-pointer border-r-2 border-b px-5 py-3 text-left transition-colors hover:bg-muted/40",
+        focusRingInset,
         selected ? "border-r-muted-foreground/60" : "border-r-transparent"
       )}
     >

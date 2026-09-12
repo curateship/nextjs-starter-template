@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TableCell, TableRow, TableSurface } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { marketChartHref } from "@/lib/protocols/contracts"
 import type {
   ActiveTradesSnapshot,
@@ -270,7 +271,7 @@ function WatchingOrdersTable({
                   <button
                     type="button"
                     onClick={open}
-                    className="rounded-sm text-xs font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className={cn("rounded-sm text-xs font-medium hover:underline", focusRing)}
                   >
                     {order.market}
                   </button>

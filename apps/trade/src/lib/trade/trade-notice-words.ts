@@ -152,6 +152,23 @@ export function fillNoticeWords(fill: {
   return { title, body: "The order filled on the exchange.", level: "info" }
 }
 
+/** One short notice for several entry rungs filled by one ladder. */
+export function ladderFillNoticeWords(input: {
+  marketKey: string
+  count: number
+  dollars: number
+  walletLabel: string
+  practice: boolean
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const rungWord = input.count === 1 ? "rung" : "rungs"
+  return {
+    title: `${coin} ladder filled ${input.count} ${rungWord}`,
+    body: `${formatUsdRounded(input.dollars)} in. ${walletTag(input.walletLabel, input.practice)}`,
+    level: "info",
+  }
+}
+
 /**
  * The second notice, sent when a closing fill turns out to have come from a
  * stop or a target. Second on purpose: the fill fact arrives first and the

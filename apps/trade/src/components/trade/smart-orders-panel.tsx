@@ -27,6 +27,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -304,19 +305,7 @@ function BotsView({
   }
 
   if (!known && error) {
-    return (
-      <p
-        className={cn(
-          "flex items-center justify-center p-6 text-center text-sm text-muted-foreground",
-          !compact && "h-full"
-        )}
-      >
-        {error}{" "}
-        <button type="button" className="underline" onClick={onRetry}>
-          Try again
-        </button>
-      </p>
-    )
+    return <ErrorRow message={error} onRetry={onRetry} className={!compact ? "h-full" : undefined} />
   }
 
   const refreshError = error ? (
@@ -722,13 +711,11 @@ function SmartOrdersView({
           className="flex-1 text-xs"
         />
       ) : rows.length === 0 && failed ? (
-        <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          The smart orders could not be read, so it is not known whether a
-          ladder or a grid is working.{" "}
-          <button type="button" className="underline" onClick={onRetry}>
-            Try again
-          </button>
-        </p>
+        <ErrorRow
+          message="The smart orders could not be read, so it is not known whether a ladder or a grid is working."
+          onRetry={onRetry}
+          className="flex-1 p-6 text-sm"
+        />
       ) : rows.length === 0 ? (
         <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
           No ladder or grid of your own is working. Right-click the chart to

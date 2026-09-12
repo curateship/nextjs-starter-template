@@ -2,6 +2,12 @@ import * as React from "react"
 import { GripVerticalIcon, XIcon } from "lucide-react"
 
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { formatUsd } from "@/lib/trade/format"
 import { MADE_MONEY } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
@@ -180,18 +186,25 @@ export function FloatingOrderWindow({
         ) : null}
         {/* A window nothing outside can close carries its own way out. */}
         {persistent ? (
-          <button
-            type="button"
-            aria-label="Close the window"
-            className={cn(
-              "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none",
-              !(wallet || free !== undefined) && "ml-auto"
-            )}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={onClose}
-          >
-            <XIcon className="size-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Close the window"
+                className={cn(
+                  "shrink-0",
+                  !(wallet || free !== undefined) && "ml-auto"
+                )}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={onClose}
+              >
+                <XIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Close window</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
 

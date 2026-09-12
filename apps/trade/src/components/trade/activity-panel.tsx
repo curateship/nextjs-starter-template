@@ -22,6 +22,7 @@ import {
   DashboardCardTabsHeader,
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Popover,
@@ -771,7 +772,7 @@ function PositionsGlance({
                 key={position.id}
                 type="button"
                 aria-label={`Open ${symbol} market, ${type}, ${valueLabel} value, ${profitLabel} current profit and loss`}
-                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={cn("grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted", focusRing)}
                 onClick={() => {
                   clearHover()
                   setOpenFor(null)

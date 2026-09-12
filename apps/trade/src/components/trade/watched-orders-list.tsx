@@ -7,6 +7,7 @@ import { orderDistance, orderDistanceLabel } from "@/lib/trade/order-distance"
 import { InfoIcon, TriangleAlertIcon } from "lucide-react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ErrorRow } from "@/components/ui/error-row"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
@@ -207,13 +208,11 @@ export function WatchedOrdersList({
       {failed && !standingIn ? (
         // "Nothing is waiting" and "I could not find out" are different
         // answers, and only one of them is safe to act on.
-        <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-          The watched prices could not be read, so it is not known what is
-          waiting.{" "}
-          <button type="button" className="underline" onClick={onRetry}>
-            Try again
-          </button>
-        </p>
+        <ErrorRow
+          message="The watched prices could not be read, so it is not known what is waiting."
+          onRetry={onRetry}
+          className="py-8 text-xs"
+        />
       ) : !answered && !standingIn && rows.length === 0 && held.length === 0 ? (
         // Only when there is genuinely nothing to draw. A half-landed read
         // that DID bring levels draws them at once — the spinner is what
@@ -390,17 +389,11 @@ function distanceFromMark(level: WatchedLevel, mark: number): number {
  */
 function StaleAfterFailureNote({ onRetry }: { onRetry: () => void }) {
   return (
-    <p className="flex items-center gap-1.5 border-b px-3 py-1.5 text-xs text-muted-foreground">
-      {/* Says nothing about how many, because it sits above the "nothing is
-          waiting" wording just as often as above rows — an exchange with no
-          levels last time still has to admit the read failed. */}
-      <span className="min-w-0 flex-1">
-        The read failed. This is what was here last time.
-      </span>
-      <button type="button" className="shrink-0 underline" onClick={onRetry}>
-        Try again
-      </button>
-    </p>
+    <ErrorRow
+      message="The read failed. This is what was here last time."
+      onRetry={onRetry}
+      className="border-b px-3 py-2 text-xs"
+    />
   )
 }
 

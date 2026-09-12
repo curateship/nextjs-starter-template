@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   TableSortButton,
@@ -18,6 +19,7 @@ function HeaderCell({
   sort,
   info,
   roomy,
+  align = "left",
 }: {
   children: React.ReactNode
   /** Omitted on the actions column, which is the one thing never sorted. */
@@ -25,14 +27,16 @@ function HeaderCell({
   /** A mark beside the label, kept outside the sort button. */
   info?: React.ReactNode
   roomy: boolean
+  align?: "left" | "right"
 }) {
   return (
     <th
       scope="col"
       className={cn(
         roomy
-          ? "h-10 px-5 text-left text-xs font-medium whitespace-nowrap text-muted-foreground sm:text-sm"
-          : "px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
+          ? "h-10 px-5 text-xs font-medium whitespace-nowrap text-muted-foreground sm:text-sm"
+          : "px-3 py-2 text-xs font-medium whitespace-nowrap text-muted-foreground",
+        align === "right" ? "text-right" : "text-left",
         // Pinned to the top of the scrolling box, so eleven columns of dollars
         // never end up under an empty strip. `z-10` because a focused row
         // paints an outline and would otherwise draw over the headings.
@@ -40,7 +44,7 @@ function HeaderCell({
         stickyPanelTableCellClassName
       )}
     >
-      <span className="flex items-center gap-1">
+      <span className={cn("flex items-center gap-1", align === "right" && "justify-end")}>
         {sort ? (
           <TableSortButton
             active={sort.active}
@@ -61,7 +65,11 @@ function HeaderCell({
   )
 }
 
-export type ColumnSpec<Key extends string> = { key: Key; label: string }
+export type ColumnSpec<Key extends string> = {
+  key: Key
+  label: string
+  align?: "left" | "right"
+}
 
 /**
  * The row a table shows when it has no rows: still reading, the read failed
@@ -105,17 +113,11 @@ export function TableStateRow({
             className={cn("py-6 text-xs", className)}
           />
         ) : failed ? (
-          <div
-            className={cn(
-              "px-3 py-6 text-center text-xs text-muted-foreground",
-              className
-            )}
-          >
-            {children}{" "}
-            <button type="button" className="underline" onClick={onRetry}>
-              Try again
-            </button>
-          </div>
+          <ErrorRow
+            message={children}
+            onRetry={onRetry}
+            className={cn("py-6 text-xs", className)}
+          />
         ) : (
           <div
             className={cn(
@@ -186,7 +188,7 @@ export function TradeTable<Row, Key extends string>({
           {leadingHeader === undefined ? null : (
             <HeaderCell roomy={roomy}>{leadingHeader}</HeaderCell>
           )}
-          {columns.map(({ key, label }) => (
+          {columns.map(({ key, label, align }) => (
             <HeaderCell
               key={key}
               sort={{
@@ -196,8 +198,11 @@ export function TradeTable<Row, Key extends string>({
               }}
               info={headerInfo?.(key)}
               roomy={roomy}
+              align={align}
             >
-              {label}
+              <span className={align === "right" ? "block text-right" : undefined}>
+                {label}
+              </span>
             </HeaderCell>
           ))}
           {actions ? (

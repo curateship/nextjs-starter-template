@@ -43,6 +43,7 @@ import {
   updateWallet,
 } from "@/lib/api/trade/wallets"
 import { liquidationWarningSchema } from "@/lib/trade/liquidation-warning"
+import { MADE_MONEY_DOT } from "@/lib/trade/money-tone"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   cleanAgentKey,
@@ -857,7 +858,7 @@ function WalletSettingsWindow({
                 {active ? (
                   <span className="flex shrink-0 items-center gap-1.5 text-xs font-normal text-muted-foreground">
                     <span
-                      className="size-1.5 rounded-full bg-emerald-500"
+                      className={`size-1.5 rounded-full ${MADE_MONEY_DOT}`}
                       aria-hidden
                     />
                     This wallet is active

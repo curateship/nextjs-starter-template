@@ -18,7 +18,7 @@ import {
   formatSize,
   formatUsd,
 } from "@/lib/trade/format"
-import { moneyTone } from "@/lib/trade/money-tone"
+import { MADE_MONEY, moneyTone } from "@/lib/trade/money-tone"
 import { projectedProfit, type TradePosition } from "@/lib/trade/paper"
 
 export type ChartTakeProfitState = {
@@ -187,7 +187,7 @@ export function ChartTakeProfit({
           }}
         >
           <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className={`${MADE_MONEY} text-sm font-semibold`}>
             Exit
           </span>
           <span className="ml-auto min-w-0 truncate text-xs font-medium text-muted-foreground">

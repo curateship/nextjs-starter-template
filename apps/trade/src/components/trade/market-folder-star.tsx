@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/tooltip"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import type { MarketFolder } from "@/lib/trade/market-folders"
+import { WARNING } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 export function MarketFolderStar({
@@ -67,10 +68,10 @@ export function MarketFolderStar({
       }
       aria-pressed={filled}
       onClick={(event) => event.stopPropagation()}
-      className="rounded p-0.5 text-muted-foreground/50 hover:text-amber-500 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className={cn("rounded p-0.5 text-muted-foreground/50 hover:text-amber-500", focusRingInset)}
     >
       <StarIcon
-        className={cn("size-4", filled && "fill-amber-500 text-amber-500")}
+        className={cn("size-4", filled && `fill-amber-500 ${WARNING}`)}
       />
     </button>
   ) : (
@@ -86,7 +87,7 @@ export function MarketFolderStar({
       className={cn(
         "bg-muted/60 text-muted-foreground hover:text-amber-500 focus-visible:ring-0 focus-visible:outline-solid dark:bg-muted/60",
         focusRingInset,
-        filled && "text-amber-500 dark:text-amber-400"
+        filled && WARNING
       )}
     >
       <StarIcon className={cn("size-4", filled && "fill-current")} />
@@ -137,7 +138,7 @@ export function MarketFolderStar({
           <Input
             aria-label="Folder name"
             aria-invalid={attempted && !name.trim()}
-            placeholder="Folder name"
+            placeholder="Majors"
             maxLength={80}
             value={name}
             disabled={busy}

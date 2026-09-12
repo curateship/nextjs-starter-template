@@ -20,9 +20,11 @@ import {
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatPrice } from "@/lib/trade/format"
+import { focusRing } from "@/lib/layout/focus-ring"
 import type { LineAlert } from "@/lib/trade/line-alerts"
 import type { FiredPriceAlert, PriceAlert } from "@/lib/trade/price-alerts"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 const FIRED_REFRESH_MS = 2_000
 
@@ -273,7 +275,7 @@ function activeRows(
 }
 
 const BIN_CLASS =
-  "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+  `flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground ${focusRing}`
 
 function ActiveAlertsView({
   alerts,
@@ -494,7 +496,7 @@ function LineAlertRow({
   return (
     <button
       type="button"
-      className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className={cn("flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm", focusRing)}
       onClick={() => onSelect(alert.marketKey, alert.id)}
     >
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -536,7 +538,7 @@ function PriceAlertRow({
   return (
     <button
       type="button"
-      className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className={cn("flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm", focusRing)}
       onClick={() => onSelectMarket(alert.marketKey)}
     >
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
