@@ -16,8 +16,12 @@ import {
 } from "@/components/ui/tooltip"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import type { MarketFolder } from "@/lib/trade/market-folders"
-import { WARNING } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
+
+import {
+  marketHeaderIconClassName,
+  MarketHeaderIconButton,
+} from "./market-header-icon-style"
 
 export function MarketFolderStar({
   symbol,
@@ -64,7 +68,7 @@ export function MarketFolderStar({
     ? `Choose folders for ${symbol}`
     : `Add ${symbol} to Fav`
   const star = (
-    <StarIcon className={cn("size-4", filled && `fill-amber-500 ${WARNING}`)} />
+    <StarIcon className={marketHeaderIconClassName(filled)} />
   )
   // The chart header uses the same outlined, gray Button as its Pin control.
   // Picker rows keep the bare star Tyler supplied as the reference.
@@ -82,17 +86,14 @@ export function MarketFolderStar({
       {star}
     </button>
   ) : (
-    <Button
+    <MarketHeaderIconButton
       type="button"
-      variant="outline"
-      size="icon"
       aria-label={label}
       aria-pressed={filled}
-      className="bg-muted/60 text-amber-600 hover:text-amber-700"
       onClick={(event) => event.stopPropagation()}
     >
       {star}
-    </Button>
+    </MarketHeaderIconButton>
   )
 
   return (

@@ -130,6 +130,9 @@ describe("header market pins", () => {
         .querySelector('[aria-label="Unpin from header"] svg')
         ?.getAttribute("class")
     ).toContain("fill-amber-500")
+    expect(
+      host.querySelector('[aria-label="Unpin from header"]')?.className
+    ).toContain("hover:text-amber-700")
     await click("Unpin BTC, hyperliquid, mainnet from header")
     expect(host.textContent).toContain("Home")
     expect(host.textContent).not.toContain("+1.20%")

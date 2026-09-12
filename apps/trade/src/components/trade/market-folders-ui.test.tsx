@@ -185,6 +185,7 @@ describe("the market folder controls", () => {
       'button[aria-label="Choose folders for BTC"]'
     )!
     expect(star.className).toContain("text-amber-600")
+    expect(star.className).toContain("hover:text-amber-700")
     expect(star.className).toContain("p-0.5")
     expect(star.className).not.toContain("bg-muted/60")
     await act(async () => click(star))
