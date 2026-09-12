@@ -33,7 +33,7 @@ local setup docs.
 
 ## Billing
 
-- [Plans, subscriptions, and entitlements](billing/plans-subscriptions-and-entitlements.md)
+- [Plans, subscriptions, and entitlements](billing/plans-subscriptions-and-entitlements.md), including in-app plan changes and their test path
 - [Referral program](billing/referral-program.md)
 
 ## Content
