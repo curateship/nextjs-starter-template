@@ -1012,6 +1012,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
 
               <g style={{ pointerEvents: "none" }}>
                 <rect
+                  data-chart-order-bar
                   x={pillX}
                   y={top}
                   width={pillWidth}

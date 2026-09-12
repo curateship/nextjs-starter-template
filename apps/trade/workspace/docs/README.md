@@ -94,7 +94,7 @@ screen: anything not written there has not been agreed yet.
   whether it waits for a touch or a candle's close, the above-average volume
   the breaking candle has to carry, and the master switch that pauses the lot.
 - `indicators.md` — the indicator list and how each one draws.
-- `orders-on-the-chart.md` — the cursor + menu, disabled duplicate smart orders, dragging orders on the chart, the one stop and one
+- `orders-on-the-chart.md` — the cursor + menu and its clearance around order controls, disabled duplicate smart orders, dragging orders on the chart, the one stop and one
   exit the hand-placed orders share, buying more, selling part, leverage, the
   one rule for the money beside each grid line, and which chart line wins an
   overlap.

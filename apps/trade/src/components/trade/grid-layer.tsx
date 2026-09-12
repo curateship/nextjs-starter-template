@@ -736,6 +736,7 @@ function BarRow({
 }) {
   return (
     <div
+      data-chart-order-bar={pointerEvents === "auto" ? "" : undefined}
       className="absolute right-0 z-10 flex -translate-y-1/2 items-center gap-1"
       style={{ top, pointerEvents }}
     >

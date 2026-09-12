@@ -32,12 +32,30 @@ export function ChartPriceAction({
       const x = pointer.clientX - box.left
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
+        // Check the full shortcut box, including a small gap, before it can
+        // cover an order's settings or remove control.
+        const left = box.left + surface.width - 24
+        const right = box.left + surface.width
+        const overlapsOrder = Array.from(
+          plot.querySelectorAll("[data-chart-order-bar]")
+        ).some((bar) => {
+          const bounds = bar.getBoundingClientRect()
+          return (
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            left < bounds.right + 4 &&
+            right > bounds.left - 4 &&
+            pointer.clientY - 12 < bounds.bottom + 4 &&
+            pointer.clientY + 12 > bounds.top - 4
+          )
+        })
         const price = surface.priceAt(nextY)
         setY(
           x >= 0 &&
             x <= surface.width &&
             nextY >= 12 &&
             nextY <= surface.height - 12 &&
+            !overlapsOrder &&
             price !== null &&
             price > 0
             ? nextY

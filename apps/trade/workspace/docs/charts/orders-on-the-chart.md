@@ -7,6 +7,9 @@ right-hand end.
 On desktop, a small + button beside the price scale follows the cursor's height.
 Clicking + opens the same actions at that price. The button hides outside the
 chart, while a drawing tool is selected, and while the menu is open.
+The + and its tooltip also hide whenever the button would overlap an order
+bar, with four pixels of clearance. Order settings and remove controls stay
+clickable. Moving clear of the bar brings + back at the cursor's price.
 Touch screens keep the existing long-press menu.
 
 Under Recent the menu has two fold-out rows, Manual order and Smart order,
