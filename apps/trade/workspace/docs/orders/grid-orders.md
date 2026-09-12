@@ -665,6 +665,15 @@ a DCA ladder never reverses; the selling grid would fight the ladder.
 The new grid's badge tooltip says it continues a reversed grid. The greyed-out
 reverse icon says why it is greyed, on hover.
 
+The Smart orders row also names its parent, such as "Continues ETH long grid".
+Clicking that line selects the parent's market. The line supports keyboard
+focus and activation. A plain grid shows no continuation line.
+
+The saved `reversedFrom` id identifies a reversal. Reversals keep the parent's
+market and switch direction, so the label remains available after the ended
+parent leaves the active order list. Reversing back names the immediate short
+parent. The automatic reversal bell notice starts with the same words.
+
 ## Ending the grid
 
 On a selling grid End Grid sits **below** the range instead of above it, and

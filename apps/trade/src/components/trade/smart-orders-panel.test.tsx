@@ -799,6 +799,70 @@ describe("the Smart orders panel", () => {
     host.remove()
   })
 
+  it.each([
+    ["short", "long"],
+    ["long", "short"],
+  ] as const)(
+    "names the parent of a %s grid without needing the ended order",
+    async (direction, parentDirection) => {
+      ;(
+        globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+      ).IS_REACT_ACT_ENVIRONMENT = true
+      const reversed = {
+        ...grid,
+        marketKey: "hyperliquid:mainnet:ETH",
+        plan: { ...grid.plan, direction, reversedFrom: "ended-parent" },
+      } as SmartOrder
+      const onSelectMarket = vi.fn()
+      const host = document.createElement("div")
+      const root = createRoot(host)
+      try {
+        await act(async () =>
+          root.render(
+            <SmartOrdersPanel
+              {...shared}
+              smartOrders={[reversed]}
+              settled
+              failed={false}
+              onSelectMarket={onSelectMarket}
+            />
+          )
+        )
+        const continuation = Array.from(
+          host.querySelectorAll("tbody button")
+        ).find(
+          (button) =>
+            button.textContent === `Continues ETH ${parentDirection} grid`
+        )
+        expect(continuation).toBeDefined()
+        await act(async () => (continuation as HTMLButtonElement).click())
+        expect(onSelectMarket).toHaveBeenCalledExactlyOnceWith(
+          reversed.marketKey
+        )
+
+        await act(async () =>
+          root.render(
+            <SmartOrdersPanel
+              {...shared}
+              smartOrders={[
+                {
+                  ...reversed,
+                  plan: { ...reversed.plan, reversedFrom: null },
+                } as SmartOrder,
+                ladder,
+              ]}
+              settled
+              failed={false}
+            />
+          )
+        )
+        expect(host.textContent).not.toContain("Continues")
+      } finally {
+        await act(async () => root.unmount())
+      }
+    }
+  )
+
   it("says a selling grid is holding to BUY BACK, not to sell", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

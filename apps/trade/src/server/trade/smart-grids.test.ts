@@ -16,6 +16,7 @@ import { defaultPaperCosts, type TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import { customShellNotifications } from "@/server/schema"
 import type { WalletBook } from "@/server/trade/paper-replay"
 import {
   HAND_PROTECTION_QUIET_MS,
@@ -2393,6 +2394,10 @@ describe("reversing a grid", () => {
     // The chain marker, and the switch NOT carried — autos never ping-pong.
     expect(freshPlan.reversedFrom).toBe(old!.id)
     expect(freshPlan.reverseWhenStopped).toBe(false)
+    const notices = await database.select().from(customShellNotifications)
+    expect(
+      notices.find((notice) => notice.message === "The BTC grid reversed")?.detail
+    ).toMatch(/^Continues BTC long grid\./)
     // The stop sold everything; the new grid holds nothing.
     expect(await positions()).toHaveLength(0)
   })
