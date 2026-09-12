@@ -36,7 +36,7 @@ export const appOptions: AppOptions = {
         id: "active-trades",
         label: "Active trades",
         icon: CandlestickChartIcon,
-        roles: ["admin"],
+        roles: ["member", "admin"],
         component: () => import("@/components/trade/active-trades-header"),
       },
       {

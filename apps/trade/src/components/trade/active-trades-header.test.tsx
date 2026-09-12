@@ -14,7 +14,10 @@ const { loadActiveTradesHeader } = vi.hoisted(() => ({
 vi.mock("@/lib/api/trade/active-trades-header", () => ({
   loadActiveTradesHeader,
 }))
-vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
+vi.mock("@/lib/toast/error-toast", () => ({
+  showErrorToast: vi.fn(),
+  useErrorToast: vi.fn(),
+}))
 
 vi.mock("@/components/trade/active-trades-dropdown", () => ({
   ActiveTradesDropdown: () => <div />,
@@ -93,6 +96,14 @@ afterEach(async () => {
 })
 
 describe("the Active Trades header", () => {
+  it("renders for members as well as admins", async () => {
+    await act(async () => root.render(<ActiveTradesHeader role="member" />))
+
+    expect(
+      host.querySelector("[data-active-trades-header-trigger]")
+    ).not.toBeNull()
+  })
+
   it("grows with its rows until the middle of the screen", async () => {
     await act(async () => root.render(<ActiveTradesHeader role="admin" />))
 

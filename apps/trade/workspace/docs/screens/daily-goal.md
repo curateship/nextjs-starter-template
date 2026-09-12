@@ -37,9 +37,9 @@ room it took.
 - **A figure that never arrived is a dash**, never the last number drawn as if
   it were live. A read that fails blanks both figures to dashes rather than
   leaving the last ones on screen, and the panel says so with a Try again.
-- **Nothing is drawn at all while the goal is switched off**, so somebody who
-  never sets one sees the header they see today. Nothing is drawn before the
-  first answer either, so the button never appears and then vanishes.
+- **The member and admin headers always show the goal control.** Before the
+  first answer it says "Set goal" while loading. When the goal is switched off,
+  opening it points to Settings → Goals instead of hiding the control.
 - Its place in the row is set in Settings → Top right menu, where it can be
   dragged or hidden like any other button.
 

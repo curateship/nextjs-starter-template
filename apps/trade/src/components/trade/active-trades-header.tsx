@@ -109,7 +109,7 @@ function useActiveTradesHeader() {
   return { snapshot, failed, refresh }
 }
 
-function AdminActiveTradesHeader() {
+function ActiveTradesHeaderContent() {
   const { snapshot, failed, refresh } = useActiveTradesHeader()
   const hiddenPnl = useHiddenPnlClass()
   const [open, setOpen] = React.useState(false)
@@ -227,6 +227,6 @@ function AdminActiveTradesHeader() {
   )
 }
 
-export default function ActiveTradesHeader({ role }: AppHeaderActionProps) {
-  return role === "admin" ? <AdminActiveTradesHeader /> : null
+export default function ActiveTradesHeader(_props: AppHeaderActionProps) {
+  return <ActiveTradesHeaderContent />
 }

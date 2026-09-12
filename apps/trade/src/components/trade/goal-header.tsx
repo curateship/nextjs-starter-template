@@ -92,15 +92,13 @@ export default function GoalHeader() {
   const hiddenPnl = useHiddenPnlClass()
   const [open, setOpen] = React.useState(false)
 
-  if (!read || !read.goal.on) return null
-
   // **A read that failed shows dashes, never the figures it last had.** The
   // button is money as it stands now; a minute-old total drawn as if it were
   // live is the one thing every figure in this app refuses to do.
-  const progress = failed ? unread(read.progress) : read.progress
-  const goal = read.goal
-  const tone = goalTone(progress)
-  const label = goalLabel(progress)
+  const goal = read?.goal ?? null
+  const progress = read ? (failed ? unread(read.progress) : read.progress) : null
+  const tone = progress ? goalTone(progress) : null
+  const label = progress ? goalLabel(progress) : null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -111,7 +109,13 @@ export default function GoalHeader() {
           data-icon="inline-start"
           data-nav-shape="text"
           aria-label={
-            failed ? "Today's goal could not be read" : `Today's goal. ${label}`
+            !read
+              ? "Reading today's goal"
+              : !goal?.on
+                ? "Set today's goal"
+                : failed
+                  ? "Today's goal could not be read"
+                  : `Today's goal. ${label}`
           }
         >
           <TargetIcon className="size-3.5" />
@@ -125,7 +129,7 @@ export default function GoalHeader() {
               hiddenPnl
             )}
           >
-            {shortGoalLabel(progress)}
+            {progress && goal?.on ? shortGoalLabel(progress) : "Set goal"}
           </span>
         </Button>
       </PopoverTrigger>
@@ -134,14 +138,22 @@ export default function GoalHeader() {
         sideOffset={8}
         className="w-70 max-w-[calc(100vw-1rem)]"
       >
-        <GoalPanel
-          goal={goal}
-          progress={progress}
-          failed={failed}
-          hiddenPnl={hiddenPnl}
-          onRetry={() => void refresh()}
-          onOpenPnl={() => setOpen(false)}
-        />
+        {!read ? (
+          <p className="text-sm text-muted-foreground">Reading today&apos;s goal</p>
+        ) : !goal?.on || !progress ? (
+          <p className="text-sm text-muted-foreground">
+            Set a daily goal in Settings → Goals.
+          </p>
+        ) : (
+          <GoalPanel
+            goal={goal}
+            progress={progress}
+            failed={failed}
+            hiddenPnl={hiddenPnl}
+            onRetry={() => void refresh()}
+            onOpenPnl={() => setOpen(false)}
+          />
+        )}
       </PopoverContent>
     </Popover>
   )
