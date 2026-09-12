@@ -34,7 +34,7 @@ screen: anything not written there has not been agreed yet.
   leaves readable, and how it is remembered.
 - `pinned-markets.md` — fixed member links, saved header pins, price refreshes,
   the five-market limit, narrow screens and the pending member-access decision.
-- `daily-goal.md` — the daily goal: how the target is set as a percent of the
+- `daily-goal.md` — positive-profit button colour and the daily goal: how the target is set as a percent of the
   wallets or a fixed amount, what the header button says, what counts as money
   made today, and how often the exchanges are asked.
 
@@ -57,7 +57,7 @@ screen: anything not written there has not been agreed yet.
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
-- `market-list.md` — the market list, compact three-column pinned picker,
+- `market-list.md` — remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, search toolbar and the Manual orders panel.
 - `panels-and-loading.md` — how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
@@ -92,7 +92,7 @@ screen: anything not written there has not been agreed yet.
   whether it waits for a touch or a candle's close, the above-average volume
   the breaking candle has to carry, and the master switch that pauses the lot.
 - `indicators.md` — the indicator list and how each one draws.
-- `orders-on-the-chart.md` — dragging orders on the chart, the one stop and one
+- `orders-on-the-chart.md` — the cursor + menu, disabled duplicate smart orders, dragging orders on the chart, the one stop and one
   exit the hand-placed orders share, buying more, selling part, leverage, the
   one rule for the money beside each grid line, and which chart line wins an
   overlap.
@@ -123,7 +123,7 @@ screen: anything not written there has not been agreed yet.
   real-money Long, Short, DCA or Grid, the one warning window that names what
   is unmet and asks him to confirm or go back, and the "Overrode" note the
   Journal keeps.
-- `grid-orders.md` — the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
+- `grid-orders.md` — parent links on reversed Smart orders rows and matching bell wording; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, and what following price up and down does.
 - `grid-rung-gap.md` — typing the percent gap between rungs instead of a

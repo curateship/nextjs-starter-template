@@ -26,6 +26,7 @@ import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
+import { ChartPriceAction } from "@/components/trade/chart-price-action"
 import { prefetchChartEngine } from "@/components/trade/chart-engine"
 import { GridLayer } from "@/components/trade/grid-layer"
 import type {
@@ -906,27 +907,30 @@ export function ChartPanel({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [addTo, market, onAddOpened])
 
-  const openMenu = (point: { clientX: number; clientY: number }) => {
-    // A tool in hand is drawing, not trading. Right-click puts it down in the
-    // handler below, and a touch long-press has no order menu to offer.
-    if (paintTool || !market) return false
-    const surface = surfaceRef.current
-    const box = plotRef.current?.getBoundingClientRect()
-    if (!surface || !box) return false
-    const price = surface.priceAt(point.clientY - box.top)
-    if (price === null || price <= 0) return false
-    // Asked for the moment the menu opens, so by the time a preset is picked
-    // the base the ladder hangs from and both windows' saved settings are
-    // usually already in hand.
-    if (trading.wallet) {
-      prefetchLadderBase(market.key)
-      prefetchSmartPrefs()
-    }
-    setQuick(null)
-    setSmart(null)
-    setMenu({ price, x: point.clientX, y: point.clientY })
-    return true
-  }
+  const openMenu = React.useCallback(
+    (point: { clientX: number; clientY: number }) => {
+      // A tool in hand is drawing, not trading. Right-click puts it down in the
+      // handler below, and a touch long-press has no order menu to offer.
+      if (paintTool || !market) return false
+      const surface = surfaceRef.current
+      const box = plotRef.current?.getBoundingClientRect()
+      if (!surface || !box) return false
+      const price = surface.priceAt(point.clientY - box.top)
+      if (price === null || price <= 0) return false
+      // Asked for the moment the menu opens, so by the time a preset is picked
+      // the base the ladder hangs from and both windows' saved settings are
+      // usually already in hand.
+      if (trading.wallet) {
+        prefetchLadderBase(market.key)
+        prefetchSmartPrefs()
+      }
+      setQuick(null)
+      setSmart(null)
+      setMenu({ price, x: point.clientX, y: point.clientY })
+      return true
+    },
+    [paintTool, market, trading.wallet]
+  )
   const longPress = useLongPress(openMenu)
 
   // The orders a smart order is running — a ladder's rungs and sells, a grid's
@@ -942,6 +946,8 @@ export function ChartPanel({
   const smartOrderIds = React.useMemo(() => {
     const ids = new Set<string>()
     for (const order of trading.smartOrders) {
+      // Watched entries use the plain order layer when the exchange row arrives.
+      if (order.kind === "watch") continue
       forEachPlanOrderId(order.kind, order.plan, (orderId) => {
         ids.add(orderId)
       })
@@ -1796,6 +1802,9 @@ export function ChartPanel({
             stop is something somebody put there, and that should never end
             up behind a dash. */}
         <IndicatorLayer surface={surface} paint={indicatorPainted} />
+        {wide && !paintTool && !menu ? (
+          <ChartPriceAction surface={surface} onOpen={openMenu} />
+        ) : null}
         {options.drawings ? (
           <PaintLayer
             surface={surface}
@@ -1951,6 +1960,8 @@ export function ChartPanel({
     ),
     [
       trading.grids,
+      menu,
+      openMenu,
       indicatorPainted,
       current?.candles,
       liveBars,
@@ -2142,6 +2153,12 @@ export function ChartPanel({
           swaps={market ? ordersAreSwaps(market.key) : false}
           smartOrders={trading.wallet !== null}
           recentOrderTypes={recentOrderTypes}
+          hasGrid={trading.grids.some(
+            (one) => one.marketKey === selectedKey && one.status === "active"
+          )}
+          hasLadder={trading.ladders.some(
+            (one) => one.marketKey === selectedKey && one.status === "active"
+          )}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })

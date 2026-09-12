@@ -1408,6 +1408,88 @@ describe("placing a grid during cancellation", () => {
 })
 
 describe("a watched level the engine has finished with", () => {
+  it("keeps an adding watch until the held amount changes, and restores a paused watch", async () => {
+    const row = rowFor("taking", "watch-adding")
+    row.plan.heldWhenPlaced = 10
+    const position = {
+      id: "existing",
+      walletId: wallet.id,
+      marketKey: row.marketKey,
+      szi: 10,
+      entryPx: 0.1,
+      leverage: 1,
+      maxLeverage: 50,
+      targets: [],
+      tpPx: null,
+      slPx: null,
+      feesPaid: 0,
+      updatedAt: 3,
+    }
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+      positions: [position],
+    })
+    await finishFirstRead()
+    expect(latest?.watchOrders[0]?.taking).toBe(true)
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+      positions: [{ ...position, szi: 20 }],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders).toHaveLength(0)
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [{ ...row, plan: { ...row.plan, paused: true } }],
+      positions: [{ ...position, szi: 20 }],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders[0]?.paused).toBe(true)
+    expect(latest?.watchOrders[0]?.taking).toBeUndefined()
+  })
+
+  it("keeps all watched prices while the named exchange order has not arrived", async () => {
+    const row = rowFor("taking", "watch-taking")
+    row.plan.orderId = "not-read-yet"
+    row.plan.slPx = 0.09
+    row.plan.tpPx = 0.12
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+    })
+    await finishFirstRead()
+    expect(latest?.watchOrders).toHaveLength(1)
+    expect(latest?.watchOrders[0]).toMatchObject({
+      px: 0.1,
+      slPx: 0.09,
+      tpPx: 0.12,
+      taking: true,
+    })
+    const exchangeOrder = {
+      ...latest!.watchOrders[0],
+      id: "not-read-yet",
+      watched: undefined,
+      taking: undefined,
+      live: true as const,
+      slPx: null,
+      tpPx: null,
+    }
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+      orders: [exchangeOrder],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders).toHaveLength(0)
+    expect(latest?.orders).toHaveLength(1)
+    expect(latest?.orders[0]).toMatchObject({
+      id: "not-read-yet",
+      slPx: 0.09,
+      tpPx: 0.12,
+    })
+  })
+
   const planFor = (phase: "waiting" | "taking") =>
     readWatchPlan({
       triggerPx: 0.1,

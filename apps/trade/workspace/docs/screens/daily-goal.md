@@ -31,8 +31,9 @@ dollars, at every screen width. The target icon beside it and the button's
 spoken name say what the two figures are, so the word Goal is not worth the
 room it took.
 
-- **It is green once the target is met** and red on a day that lost money,
-  from the one green in `reading-the-figures.md`. Any other day is plain.
+- **Positive dollars are green before the target is met**, using the colour
+  in `reading-the-figures.md`. A displayed loss is red. A displayed $0 is neutral.
+  For example, $8/$24 is green. Missing figures stay neutral.
 - **A figure that never arrived is a dash**, never the last number drawn as if
   it were live. A read that fails blanks both figures to dashes rather than
   leaving the last ones on screen, and the panel says so with a Try again.

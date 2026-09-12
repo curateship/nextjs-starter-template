@@ -4,6 +4,11 @@ An order is placed by right-clicking the candles at the price you want, and
 from then on it lives on the chart as its own line with a coloured bar at the
 right-hand end.
 
+On desktop, a small + button beside the price scale follows the cursor's height.
+Clicking + opens the same actions at that price. The button hides outside the
+chart, while a drawing tool is selected, and while the menu is open.
+Touch screens keep the existing long-press menu.
+
 Under Recent the menu has two fold-out rows, Manual order and Smart order,
 drawn the way the Folders panel draws a folder: a chevron on the right that
 turns when the row is open, the open row in gray, and its choices under it.
@@ -25,6 +30,14 @@ a window without placing does not change the list.
 The browser saves the list under the signed-in account, so a reload keeps the
 same order without sharing it with another account on the same machine. A new
 browser or a first visit has no Recent section.
+
+An active grid on the chart removes Grid from Recent and disables Grid under
+Smart order. Hovering or tabbing to the disabled row explains,
+"You already have a grid on this chart". An active DCA ladder does the same
+for DCA ladder, with "You already have a DCA ladder on this chart".
+The check includes active orders in other wallets shown on that chart.
+Paused orders still count. Completed orders and orders on other charts do not.
+A grid and a DCA ladder remain separate choices, so their allowed pairing stays available.
 
 With a position open, the same menu offers Take profit when the clicked price
 is on the winning side of the entry and Stop loss when it is on the losing

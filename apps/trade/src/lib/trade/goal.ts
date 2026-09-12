@@ -136,8 +136,7 @@ export function goalRemaining(progress: GoalProgress): number | null {
 }
 
 /**
- * What colour the button's figures are: "made" once the target is reached,
- * "lost" on a day that is down, and null for everything in between.
+ * Positive printed dollars are green, negative dollars red, and zero neutral.
  *
  * **It follows the figures as printed, not the figures as held.** The button
  * says whole dollars, and a day that has paid four tenths of a cent in fees
@@ -149,7 +148,7 @@ export function goalTone(progress: GoalProgress): "made" | "lost" | null {
   const made = progress.made === null ? null : Math.round(progress.made)
   const target = progress.target === null ? null : Math.round(progress.target)
   if (made === null || target === null) return null
-  if (made >= target) return "made"
+  if (made > 0) return "made"
   if (made < 0) return "lost"
   return null
 }

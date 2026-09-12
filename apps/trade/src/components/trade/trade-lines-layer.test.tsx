@@ -582,6 +582,15 @@ describe("one stop line for the hand-placed orders that share it", () => {
     )
   }
 
+  it("keeps the stop and exit beside the placing entry", () => {
+    const html = renderOrders([{ ...watched("taking", 100, 90), tpPx: 120, taking: true }])
+    expect(html).toContain("Placing order...")
+    expect(html).toContain("Stop Loss -$10.00")
+    expect(html).toContain("Exit +$20.00")
+    expect(html).not.toContain("Change this order")
+    expect(html).not.toContain("Drag to move")
+  })
+
   it("draws one pill carrying what both orders lose together", () => {
     const html = renderOrders([watched("a", 100, 90), watched("b", 104, 91)])
     const host = document.createElement("div")

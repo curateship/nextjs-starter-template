@@ -1580,16 +1580,27 @@ export function useTrading(
             (order) =>
               !cancelling.has(order.id) || holdExpired(cancelling.get(order.id))
           )
-    if (dropped.size === 0) return shown
     return shown.map((order) => {
+      const watch = smartOrders.find(
+        (one) =>
+          one.kind === "watch" &&
+          one.walletId === order.walletId &&
+          one.marketKey === order.marketKey &&
+          one.plan.orderId === order.id
+      )
+      // Exchange order reads omit the brackets that the watch will attach on fill.
+      const protectedOrder =
+        watch?.kind === "watch"
+          ? { ...order, tpPx: watch.plan.tpPx, slPx: watch.plan.slPx }
+          : order
       const held = dropped.get(order.id)
       // A hold that has waited long enough stops speaking for the row: if the
       // venue put the order somewhere else, that is what has to show.
       return held === undefined || holdExpired(held.at)
-        ? order
-        : { ...order, px: held.px }
+        ? protectedOrder
+        : { ...protectedOrder, px: held.px }
     })
-  }, [allOrders, dropped, cancelling, holdExpired])
+  }, [allOrders, smartOrders, dropped, cancelling, holdExpired])
 
   const watchOrders = React.useMemo(
     () =>
@@ -1603,7 +1614,7 @@ export function useTrading(
         // then a bar arrived out of nowhere, so it is held until the thing it
         // turned into is really there.
         //
-        // Once the exchange has named that order, the order IS the row: it
+        // Once the exchange read carries that order, the order IS the row: it
         // carries the real price and can be dragged and cancelled. Drawing
         // the watch as well put the same single order on the chart twice
         // under two labels — one LINK order on Phemex showed as two rows in
@@ -1616,11 +1627,15 @@ export function useTrading(
         (order.plan.paused === true ||
           order.plan.phase === "waiting" ||
           (order.plan.phase === "taking" &&
-            order.plan.orderId === null &&
+            !allOrders.some(
+              (one) =>
+                one.walletId === order.walletId && one.id === order.plan.orderId
+            ) &&
             !allPositions.some(
               (position) =>
                 position.walletId === order.walletId &&
-                position.marketKey === order.marketKey
+                position.marketKey === order.marketKey &&
+                Math.abs(position.szi - order.plan.heldWhenPlaced) > 1e-9
             ))) &&
         (!cancelling.has(order.id) || holdExpired(cancelling.get(order.id)))
           ? [
@@ -1645,6 +1660,9 @@ export function useTrading(
                 // `TradeOrder`. Everything that would reach for one steps
                 // aside; the × still works and goes the smart-order way.
                 watched: true,
+                ...(order.plan.phase === "taking" && !order.plan.paused
+                  ? { taking: true as const }
+                  : {}),
                 ...(order.plan.paused === true
                   ? { paused: true as const }
                   : {}),
@@ -1653,7 +1671,7 @@ export function useTrading(
             ]
           : []
       ),
-    [smartOrders, dropped, cancelling, holdExpired, allPositions]
+    [smartOrders, dropped, cancelling, holdExpired, allPositions, allOrders]
   )
 
   const positions = React.useMemo(() => {

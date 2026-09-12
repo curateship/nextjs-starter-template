@@ -124,7 +124,7 @@ export function orderStopGroups(
         walletId: takers[0].walletId,
         price,
         orders: takers,
-        movable: true,
+        movable: takers.every((one) => !one.taking),
       })
       rest = rest.filter((one) => !takers.includes(one))
     }
@@ -199,7 +199,7 @@ export function orderTargetGroups(
       walletId: members[0].walletId,
       price: members[0].tpPx ?? 0,
       orders: members,
-      movable: true,
+      movable: members.every((one) => !one.taking),
     })
   }
 

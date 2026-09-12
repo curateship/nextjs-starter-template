@@ -16,6 +16,7 @@ import type { RecentOrderType } from "@/lib/trade/recent-order-types"
 import { formatPrice } from "@/lib/trade/format"
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { cn } from "@/lib/utils"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 
 /**
  * The little menu a right-click on the chart puts under the pointer.
@@ -58,6 +59,8 @@ export function ChartOrderMenu({
   swaps = false,
   smartOrders,
   recentOrderTypes,
+  hasGrid = false,
+  hasLadder = false,
   onPick,
   onPickSmart,
   onPickTakeProfit,
@@ -75,6 +78,8 @@ export function ChartOrderMenu({
   smartOrders: boolean
   /** Unique kinds actually placed by this account, newest first. */
   recentOrderTypes: readonly RecentOrderType[]
+  hasGrid?: boolean
+  hasLadder?: boolean
   onPick: (side: TradeSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
   /**
@@ -128,6 +133,8 @@ export function ChartOrderMenu({
     menu.y,
     orders,
     smartOrders,
+    hasGrid,
+    hasLadder,
     open,
     recentOrderTypes.length,
     onPickTakeProfit,
@@ -138,7 +145,9 @@ export function ChartOrderMenu({
     ? recentOrderTypes
         .filter(
           (orderType) =>
-            smartOrders || orderType === "buy" || orderType === "sell"
+            (smartOrders || orderType === "buy" || orderType === "sell") &&
+            !(orderType === "grid" && hasGrid) &&
+            !(orderType === "dca" && hasLadder)
         )
         .slice(0, MAX_RECENT_ORDER_TYPES)
     : []
@@ -213,11 +222,19 @@ export function ChartOrderMenu({
           >
             <IconRow
               label="DCA ladder"
+              disabledReason={
+                hasLadder
+                  ? "You already have a DCA ladder on this chart"
+                  : undefined
+              }
               icon={<LayersIcon className="size-4 text-muted-foreground" />}
               onPick={() => onPickSmart("dca")}
             />
             <IconRow
               label="Grid"
+              disabledReason={
+                hasGrid ? "You already have a grid on this chart" : undefined
+              }
               icon={<Grid2x2Icon className="size-4 text-muted-foreground" />}
               onPick={() => onPickSmart("grid")}
             />
@@ -312,7 +329,7 @@ function FoldRow({
         />
       </button>
       {open ? (
-        <div className="bg-muted/30 [&>button]:pl-4">{children}</div>
+        <div className="bg-muted/30 [&_button]:pl-4">{children}</div>
       ) : null}
     </div>
   )
@@ -323,21 +340,30 @@ function IconRow({
   label,
   icon,
   onPick,
+  disabledReason,
 }: {
   label: string
   icon: React.ReactNode
   onPick: () => void
+  disabledReason?: string
 }) {
   return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onPick}
-      className="flex min-h-11 w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none min-[1280px]:min-h-0"
+    <DisabledReason
+      disabled={Boolean(disabledReason)}
+      reason={disabledReason}
+      className="w-full"
     >
-      {icon}
-      <span className="font-medium">{label}</span>
-    </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onPick}
+        disabled={Boolean(disabledReason)}
+        className="flex min-h-11 w-full items-center gap-2 px-2 py-1.5 text-left text-sm focus-visible:bg-accent focus-visible:outline-none enabled:hover:bg-accent disabled:pointer-events-none disabled:opacity-50 min-[1280px]:min-h-0"
+      >
+        {icon}
+        <span className="font-medium">{label}</span>
+      </button>
+    </DisabledReason>
   )
 }
 

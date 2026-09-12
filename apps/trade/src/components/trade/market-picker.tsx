@@ -1,4 +1,5 @@
 import * as React from "react"
+import { z } from "zod"
 import {
   ChevronDownIcon,
   GripVerticalIcon,
@@ -64,6 +65,14 @@ import {
   type MarketFolderActions,
 } from "@/lib/trade/market-folders"
 import { cn } from "@/lib/utils"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+
+const FILTER_STORAGE_KEY = "trade-market-picker-filters"
+const filterSchema = z.object({
+  views: z.array(z.enum(["favorites", "crypto", "tradfi", "hip3", "trending"])),
+  categories: z.array(z.enum(["stocks", "indices", "commodities", "forex"])),
+})
+type PickerFilters = z.infer<typeof filterSchema>
 
 type TradFiCategory =
   | "all"
@@ -231,10 +240,29 @@ export function MarketPicker({
       })
     }
   }
-  const [views, setViews] = React.useState<Exclude<MarketPickerView, "all">[]>(
-    []
-  )
-  const [categories, setCategories] = React.useState<TradFiCategory[]>([])
+  const [filters, setFilters] = React.useState<PickerFilters>({
+    views: [],
+    categories: [],
+  })
+  const { views, categories } = filters
+  useEffectBeforePaint(() => {
+    try {
+      const saved = window.localStorage.getItem(FILTER_STORAGE_KEY)
+      if (!saved) return
+      const parsed = filterSchema.safeParse(JSON.parse(saved))
+      if (parsed.success) setFilters(parsed.data)
+    } catch {
+      // Blocked storage or an unreadable preference leaves all markets visible.
+    }
+  }, [])
+  const chooseFilters = (next: PickerFilters) => {
+    setFilters(next)
+    try {
+      window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // Filters still work for this visit when the browser refuses storage.
+    }
+  }
   const [sort, setSort] = React.useState<{
     key: MarketPickerSortKey
     dir: "asc" | "desc"
@@ -537,8 +565,7 @@ export function MarketPicker({
                 checked={activeViews.length === 0}
                 onSelect={(event) => event.preventDefault()}
                 onCheckedChange={() => {
-                  setViews([])
-                  setCategories([])
+                  chooseFilters({ views: [], categories: [] })
                 }}
               >
                 All markets
@@ -552,11 +579,12 @@ export function MarketPicker({
                     checked={activeViews.includes(view)}
                     onSelect={(event) => event.preventDefault()}
                     onCheckedChange={(checked) =>
-                      setViews((current) =>
-                        checked
-                          ? [...current, view]
-                          : current.filter((item) => item !== view)
-                      )
+                      chooseFilters({
+                        ...filters,
+                        views: checked
+                          ? [...views, view]
+                          : views.filter((item) => item !== view),
+                      })
                     }
                   >
                     {PICKER_VIEW_LABELS[view]}
@@ -576,13 +604,15 @@ export function MarketPicker({
                       }
                       onSelect={(event) => event.preventDefault()}
                       onCheckedChange={(checked) =>
-                        setCategories((current) =>
-                          value === "all"
-                            ? []
-                            : checked
-                              ? [...current, value]
-                              : current.filter((item) => item !== value)
-                        )
+                        chooseFilters({
+                          ...filters,
+                          categories:
+                            value === "all"
+                              ? []
+                              : checked
+                                ? [...categories, value]
+                                : categories.filter((item) => item !== value),
+                        })
                       }
                     >
                       {label}

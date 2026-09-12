@@ -29,6 +29,10 @@ line in the body, share the panel's one 12px gutter.
   The toolbar has grip, pin and search icons beside a checkbox filter dropdown.
   Several checked groups combine, so Crypto and TradFi show markets from either.
   All markets clears the choices; clearing the last choice also shows all markets.
+  The browser remembers the checked filters and TradFi categories after closing
+  the picker, changing markets, or reloading. A filter unavailable on another
+  exchange stays saved but does not narrow that exchange's list. Search text
+  remains temporary. Blocked storage keeps the choices for the current visit.
   TradFi reveals category checkboxes in the same menu. No category selected means
   all TradFi categories. Trending adds the fifty highest-volume matching markets.
   Search narrows the combined results. The filter menu stays open while checking

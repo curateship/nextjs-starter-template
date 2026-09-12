@@ -589,7 +589,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     const tag = whose(order.walletId)
     // An order still on its way to the server has no id anything could act on,
     // so it is drawn and nothing more. It says so rather than looking stuck.
-    const settled = !order.placing
+    const settled = !order.placing && !order.taking
     // A real resting order cannot be changed here. Practice and watched
     // orders both belong to this app, so their line opens the edit window.
     const edit =
@@ -613,13 +613,15 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       // zero and fall back to what the position would be worth. Saying the
       // wrong figure with a straight face is worse than saying the plain one.
       label: () =>
-        spare
-          ? `Extra ${spare === "take_profit" ? "Target" : "Stop"} ${formatUsdRounded(
-              orderCostUsd(order)
-            )}${tag}`
-          : `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
-              orderCostUsd(order)
-            )}${tag}${settled ? "" : " · sending"}`,
+        order.taking
+          ? `Placing order...${tag}`
+          : spare
+            ? `Extra ${spare === "take_profit" ? "Target" : "Stop"} ${formatUsdRounded(
+                orderCostUsd(order)
+              )}${tag}`
+            : `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
+                orderCostUsd(order)
+              )}${tag}${settled ? "" : " · sending"}`,
       // Every kind drags except a real trigger leg. A practice order
       // re-prices its row, a real resting order is moved in place by the
       // exchange's modify, and a watched price changes the level the app is

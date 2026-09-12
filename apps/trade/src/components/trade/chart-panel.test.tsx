@@ -23,6 +23,8 @@ import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { Trading } from "@/components/trade/use-trading"
+import type { TradeOrder } from "@/lib/trade/paper"
+import { readWatchPlan } from "@/lib/trade/watch-order"
 
 vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
   const actual =
@@ -118,11 +120,13 @@ vi.mock("@/components/trade/trade-lines-layer", async () => {
       surface,
       onSurface,
       positions = [],
+      orders = [],
       entryBadge,
     }: {
       surface: unknown
       onSurface?: (surface: unknown) => void
       positions?: Array<{ id: string }>
+      orders?: TradeOrder[]
       entryBadge?: (position: { id: string }) => {
         onRemove: (() => void) | null
       } | null
@@ -130,6 +134,7 @@ vi.mock("@/components/trade/trade-lines-layer", async () => {
       React.useLayoutEffect(() => onSurface?.(surface), [surface, onSurface])
       return (
         <>
+          {orders.map((order) => <span key={order.id} data-testid="drawn-order">{order.id}</span>)}
           {positions.map((position) => {
             const badge = entryBadge?.(position)
             return badge?.onRemove ? (
@@ -1555,7 +1560,8 @@ function ladderWithStatuses(
 function chartWithLadder(
   ladder: SmartLadder,
   cancelLadder: (walletId: string, ladderId: string) => Promise<void>,
-  equityOfWallet?: (walletId: string) => number | null
+  equityOfWallet?: (walletId: string) => number | null,
+  extraTrading?: Partial<Trading>
 ) {
   const positions = ladder.plan.rungs.some((rung) => rung.status === "filled")
     ? [
@@ -1583,6 +1589,7 @@ function chartWithLadder(
     smartOrders: [ladder],
     walletNames: new Map([[ladder.walletId, "Practice"]]),
     cancelLadder,
+    ...extraTrading,
   } as unknown as Trading
 
   return (
@@ -1626,6 +1633,57 @@ function chartWithLadder(
 }
 
 describe("removing a DCA ladder from the chart", () => {
+  it("draws the exchange order a watch became instead of hiding it as a ladder rung", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const ladder = ladderWithStatuses([])
+    const order: TradeOrder = {
+      id: "exchange-watch", walletId: ladder.walletId, marketKey: ladder.marketKey,
+      side: "buy", px: 100, sz: 1, leverage: 1, maxLeverage: 50,
+      reduceOnly: false, tpPx: 120, slPx: 90, live: true, createdAt: 1, updatedAt: 2,
+    }
+    const plan = readWatchPlan({
+      triggerPx: 100, side: "buy", sz: 1, leverage: 1, maxLeverage: 50,
+      sizeDecimals: 3, tpPx: 120, slPx: 90, phase: "taking", orderId: order.id,
+    })!
+    await act(async () => root.render(chartWithLadder(ladder, async () => {}, undefined, {
+      ladders: [], orders: [order], smartOrders: [{
+        id: "watch", walletId: ladder.walletId, marketKey: ladder.marketKey,
+        kind: "watch", status: "active", flowRunId: null, createdAt: 1, updatedAt: 2, plan,
+      }],
+    })))
+    expect([...host.querySelectorAll('[data-testid="drawn-order"]')].map((one) => one.textContent)).toEqual(["exchange-watch"])
+  })
+
+  it("disables another DCA ladder on the chart while leaving Grid available", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const ladder = ladderWithStatuses(["waiting"])
+    await act(async () => root.render(chartWithLadder(ladder, async () => {})))
+    await act(async () =>
+      host.firstElementChild!.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    )
+    const buttons = () => [
+      ...host.querySelectorAll<HTMLButtonElement>("button"),
+    ]
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent === "Smart order")!
+        .click()
+    )
+    expect(
+      buttons().find((one) => one.textContent === "DCA ladder")?.disabled
+    ).toBe(true)
+    expect(buttons().find((one) => one.textContent === "Grid")?.disabled).toBe(
+      false
+    )
+  })
+
   it("opens settings with the account value of the ladder's own wallet", async () => {
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
     const ladder = ladderWithStatuses(["waiting", "waiting"])

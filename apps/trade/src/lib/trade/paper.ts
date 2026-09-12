@@ -223,6 +223,8 @@ export type TradeOrder = {
    * a real exchange.
    */
   watched?: true
+  /** The saved watch is submitting an order. Its prices stay visible but locked. */
+  taking?: true
   /**
    * A watched price the engine has stopped working after the exchange refused
    * it five times running. Nothing is resting anywhere. The row stays on

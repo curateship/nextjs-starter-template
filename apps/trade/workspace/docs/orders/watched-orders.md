@@ -16,6 +16,16 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
 
 ## Moving a watched price
 
+When a saved watch starts placing its order, the entry bar says "Placing order...".
+The stop and exit remain visible. Those three prices cannot be dragged during
+placement. A paused watch returns to its normal controls.
+
+An exchange order id alone does not remove the watched bars. The chart waits
+until the matching exchange order or changed position arrives in a wallet read.
+The exchange order keeps the watch's stop and exit prices because exchange
+order reads do not include those planned protections. The chart draws only one
+entry throughout that handover.
+
 Dragging a waiting watch saves its new price in the app. The drag does not
 place or move an exchange order. The engine can place the order separately
 when the watched condition is met.
@@ -198,6 +208,10 @@ The + button is disabled for that wallet and market, and repeated submissions
 are ignored until the request finishes. A refusal clears the indicator and
 shows the existing error toast. A confirmed addition refreshes the position.
 The progress indicator describes the submission, not a guarantee of a full fill.
+If the chart or wallet does not reach the requested position within five
+seconds, the request is cleared and an error toast explains that the order
+window could not open. The message names the position's market and asks the
+user to pick that market and try again.
 
 Existing watched orders remain active until filled or cancelled. Ordinary Long
 and Short windows keep the three-way choice and the chosen-price behaviour.
@@ -619,7 +633,3 @@ time, so this matters most when trading against a dev machine.
   USDC balance backs orders on every market, main or side, with the exchange
   moving slices onto a market as orders there need them. The app no longer
   gates anything on "money parked on that market".
-If the chart or wallet does not reach the requested position within five
-seconds, the request is cleared and an error toast explains that the order
-window could not open. The message names the position's market and asks the
-user to pick that market and try again.

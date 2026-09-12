@@ -53,6 +53,7 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  window.localStorage.clear()
   host = document.createElement("div")
   document.body.append(host)
   root = createRoot(host)
@@ -110,6 +111,18 @@ function type(text: string) {
 const bodyText = () => document.body.textContent ?? ""
 
 describe("the Solana list", () => {
+  it.each(["broken json", '{"views":["old-filter"],"categories":[]}'])(
+    "ignores unreadable saved filters: %s",
+    async (saved) => {
+      window.localStorage.setItem("trade-market-picker-filters", saved)
+      await openPicker()
+      expect(
+        document.querySelector('[aria-label="Filter markets"]')?.textContent
+      ).toBe("All markets")
+      expect(document.querySelectorAll("tbody tr").length).toBeGreaterThan(0)
+    }
+  )
+
   it("keeps a pinned picker open outside the pointer and moves it with arrow keys", async () => {
     await openPicker()
     const panel = document.querySelector<HTMLElement>('[aria-label="Markets"]')!
@@ -240,6 +253,18 @@ describe("the Solana list", () => {
     await check("Stocks")
     expect(table()).toContain("STOCK")
     expect(table()).not.toContain("GOLD")
+    await act(async () => root.render(null))
+    await openPicker(undefined, shown)
+    expect(table()).toContain("COIN")
+    expect(table()).toContain("STOCK")
+    expect(table()).not.toContain("GOLD")
+    await act(async () =>
+      document
+        .querySelector('[aria-label="Filter markets"]')!
+        .dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+    )
     await check("Commodities")
     expect(table()).toContain("GOLD")
     await check("Crypto")

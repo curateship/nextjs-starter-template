@@ -90,9 +90,9 @@ describe("what the header says", () => {
 })
 
 describe("how the day is going", () => {
-  it("is green once the target is reached", () => {
+  it("is green whenever the printed amount made is positive", () => {
     expect(goalTone(progress({ made: 25 }))).toBe("made")
-    expect(goalTone(progress({ made: 24 }))).toBeNull()
+    expect(goalTone(progress({ made: 8, target: 24 }))).toBe("made")
   })
 
   it("is red on a day that is down", () => {

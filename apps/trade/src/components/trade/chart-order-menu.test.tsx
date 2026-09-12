@@ -1,5 +1,9 @@
+// @vitest-environment jsdom
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 import { ChartOrderMenu } from "@/components/trade/chart-order-menu"
 
@@ -105,6 +109,77 @@ describe("the chart order menu's Manual and Smart fold-out rows", () => {
 })
 
 describe("the chart order menu's recent orders", () => {
+  it("hides existing smart kinds from Recent and explains their disabled rows", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    let picked = false
+    try {
+      await act(async () =>
+        root.render(
+          <TooltipProvider delayDuration={0}>
+            <ChartOrderMenu
+              menu={{ price: 100, x: 20, y: 20 }}
+              orders
+              smartOrders
+              hasGrid
+              hasLadder
+              recentOrderTypes={["grid", "dca", "buy"]}
+              onPick={() => {}}
+              onPickSmart={() => {
+                picked = true
+              }}
+              onPickTakeProfit={null}
+              onPickStopLoss={null}
+              onPickAlert={() => {}}
+              onClose={() => {}}
+            />
+          </TooltipProvider>
+        )
+      )
+      const recent = host.querySelector('[aria-label="Recent"]')!
+      expect(recent.textContent).toContain("Long")
+      expect(recent.textContent).not.toContain("Grid")
+      expect(recent.textContent).not.toContain("DCA ladder")
+      await act(async () =>
+        [...host.querySelectorAll<HTMLButtonElement>("button")]
+          .find((button) => button.textContent === "Smart order")!
+          .click()
+      )
+      for (const [label, reason] of [
+        ["Grid", "You already have a grid on this chart"],
+        ["DCA ladder", "You already have a DCA ladder on this chart"],
+      ]) {
+        const button = [
+          ...host.querySelectorAll<HTMLButtonElement>("button"),
+        ].find((button) => button.textContent === label)!
+        expect(button.disabled).toBe(true)
+        await act(async () => {
+          button.click()
+          document.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
+          )
+          button.parentElement!.focus()
+        })
+        expect(picked).toBe(false)
+        expect(document.body.textContent).toContain(reason)
+      }
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("lists the latest placed kind first, above the fold-out rows", () => {
     const html = draw({
       recentOrderTypes: ["grid", "buy"],
