@@ -10,6 +10,8 @@ import {
 } from "@/lib/protocols/contracts"
 import {
   drawingShapeSchema,
+  drawingExpirySchema,
+  type DrawingExpiry,
   DRAWING_ALERT_NO_PRICE,
   DRAWING_ALERT_NOT_ARMED,
   DRAWINGS_FULL,
@@ -31,6 +33,7 @@ import {
   setChartDrawingAlert,
   setChartDrawingAlertBuffer,
   setChartDrawingAlertRules,
+  setChartDrawingAlertExpiry,
 } from "@/server/trade/drawings"
 
 import { createErrorMessage } from "../error-message"
@@ -271,8 +274,12 @@ export const getDrawingAlertErrorMessage = withLinkedGridStopMessage(createError
     ...GRID_LINE_STOP_ERRORS,
     [DRAWING_ALERT_NO_PRICE]:
       "There is no live price to set the alert from yet. Try again in a moment.",
+    DRAWING_ALERT_INVALID_EXPIRY: "That expiry date is too far away. Enter fewer days so the date is before 2100.",
+    DRAWING_ALERT_LINE_END_PAST: "This line ends in the past. Choose a number of days, or move the line's second point to a future date.",
+    DRAWING_ALERT_LINE_END_UNAVAILABLE: "At line end is only available for trendlines. Choose a number of days instead.",
+    DRAWING_ALERT_EXPIRY_LINKED: "A running grid needs this alert. Replace its stop or close the grid before adding expiry.",
     [DRAWING_ALERT_NOT_ARMED]:
-      "That line's alert is no longer on, so there is nothing to set a buffer on. Switch it on again.",
+      "That line's alert is no longer on, so its settings cannot be changed. Switch it on again.",
   },
   "The alert did not save. Try it again."
 ))
@@ -281,3 +288,16 @@ export const getDrawingsLoadErrorMessage = createErrorMessage(
   {},
   "Your drawings for this market could not be loaded."
 )
+
+const setChartDrawingAlertExpiryFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ id: drawingIdSchema, expiry: drawingExpirySchema }))
+  .handler(async ({ data, context }): Promise<{ drawing: Drawing }> => ({
+    drawing: await setChartDrawingAlertExpiry(context.user.id, data).catch(rethrowGridLineStopError),
+  }))
+
+export async function setDrawingAlertExpiry(id: string, expiry: DrawingExpiry) {
+  const answer = await setChartDrawingAlertExpiryFn({ data: { id, expiry } })
+  invalidateDashboardBootstrap()
+  return answer.drawing
+}

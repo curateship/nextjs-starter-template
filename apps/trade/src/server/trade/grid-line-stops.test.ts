@@ -15,12 +15,13 @@ import { tradeGridLineStops, tradeSmartLadders, tradeWallets } from "./schema"
 import {
   saveChartDrawing,
   setChartDrawingAlert,
+  setChartDrawingAlertExpiry,
   deleteChartDrawing,
   clearChartDrawings,
 } from "./drawings"
 import { saveLineAlertsPaused } from "./prefs"
 import { checkDrawingAlerts } from "./drawing-alerts"
-import { completeGridLineStop, readGridLineStop } from "./grid-line-stops"
+import { completeGridLineStop, readGridLineStop, validateGridLineStop } from "./grid-line-stops"
 
 const marketKey = "hyperliquid:mainnet:BTC"
 let client: { close: () => Promise<void>; waitForLock?: () => Promise<void> }
@@ -336,3 +337,29 @@ describe.runIf(!!process.env.TRADE_TEST_POSTGRES_URL)(
     })
   }
 )
+
+it("refuses expiry on a linked grid stop and refuses linking an expiring alert", async () => {
+  await setChartDrawingAlertExpiry(
+    userId,
+    { id: drawingId, expiry: { mode: "days", days: 2 } },
+    2_000
+  )
+  await expect(
+    database.transaction((tx) =>
+      validateGridLineStop(userId, marketKey, { drawingId, armedAt }, tx)
+    )
+  ).rejects.toThrow("SMART_GRID_LINE_STOP_UNAVAILABLE")
+  await setChartDrawingAlertExpiry(
+    userId,
+    { id: drawingId, expiry: { mode: "never" } },
+    2_000
+  )
+  await attach()
+  await expect(
+    setChartDrawingAlertExpiry(
+      userId,
+      { id: drawingId, expiry: { mode: "days", days: 2 } },
+      2_000
+    )
+  ).rejects.toThrow("DRAWING_ALERT_EXPIRY_LINKED")
+})

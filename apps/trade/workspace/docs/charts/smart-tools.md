@@ -381,6 +381,38 @@ translating and a description the person typed does not. The alert then
 switches itself off and the line stays on the chart. Opening the window again
 says when it fired, and the switch can go on again for one more.
 
+## Alert expiry
+
+A line alert can switch itself off after a number of days or at a trendline's second point.
+
+- **Days:** Choose After a number of days, then type a positive whole number. Press Enter or leave the field to save.
+- **Tyler's choice:** "I want to input a number of day instead of a preselected 1d, 1week".
+- **Clock:** Days count as 24-hour periods from the server's save time. The saved deadline is absolute and survives reloads.
+- **Reading the field:** Reopening shows the remaining days rounded up. The window also says, for example, "Expires in 4 days".
+- **Never:** Removes the deadline. New alerts start with Never.
+- **At line end:** Trendlines only. The second point must be in the future. Saving copies that point's time into the deadline.
+- **Moving a line:** Moving either point afterward does not change a saved deadline. Choose Never, then At line end to use the moved endpoint.
+- **Expiry:** At or after the deadline, the next engine pass removes the alert record before checking prices or candles. The drawing stays.
+- **Silence:** Expiry creates no notice, sound, fired dot or Fired-list entry. Expiry also runs while alerts are paused or prices are missing.
+- **Switching on again:** Starts a new alert without the old deadline. An expiry setting belongs to one activation of a line.
+- **Invalid entries:** Zero, negative numbers, fractions and deadlines beyond the beginning of 2100 are refused. The typed value stays for correction.
+- **Trying again:** Choosing another expiry option or submitting days clears the earlier error. A corrected value does not leave a stale red error over a successful save.
+- **A past endpoint:** The error names the past endpoint and offers typed days or moving the second point into the future. Days work regardless of the line's endpoint dates.
+- **Grid stops:** An expiring alert cannot become a grid stop. A linked grid stop cannot receive expiry until its grid releases the line.
+- **Storage:** The drawing's existing alert JSON holds `expiresAt` and the optional `expiresAtLineEnd` marker. No database migration is needed.
+- **Release:** Both web and trading engine need this code. Local validation does not update production.
+
+### Testing alert expiry
+
+1. Draw a level and open its alert settings. Switch Alert on if needed.
+2. Choose After a number of days and enter 4. Leave the field and expect "Expires in 4 days".
+3. Reload and reopen the level. Expect the same expiry, with remaining days rounded up.
+4. Enter 0 or 1.5 and leave the field. Expect an error and the invalid value to remain. Enter a valid number again and expect the error to disappear.
+5. Choose Never. Expect the countdown to disappear and stay absent after reload.
+6. Draw a trendline with its second point in the future. Choose At line end and expect a countdown.
+7. Run the focused drawing-alert tests to advance the clock to the exact deadline. Expect Alert off with the drawing retained and no notice.
+8. Check a grid-linked alert. Adding expiry must fail; an expiring alert must be absent from grid-stop choices.
+
 ## The master switch in Settings
 
 Settings → Sounds and alerts holds one switch, **Line alerts**, that belongs

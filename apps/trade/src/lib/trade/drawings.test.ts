@@ -9,6 +9,7 @@ import {
   drawingAlertFiresOn,
   DRAWING_VOLUME_LOOKBACK,
   extendedRight,
+  expiringAlert,
   fibLevels,
   moveShape,
   namedShape,
@@ -533,5 +534,40 @@ describe("volume on the candle that broke the line", () => {
     expect(
       volumeConfirmsBreak({ breaking: 5, previous: twenty(0), multiple: 1.5 })
     ).toBeNull()
+  })
+})
+
+
+describe("expiry validation messages", () => {
+  const now = Date.UTC(2026, 8, 13)
+  const alert = { direction: "above" as const, armedAt: now, firedAt: null }
+  const pastLine = {
+    kind: "trendline" as const,
+    from: { time: now - 2000, price: 100 },
+    to: { time: now - 1000, price: 110 },
+  }
+
+  it("accepts typed days even when both line endpoints are in the past", () => {
+    for (const days of [1, 3, 7, 30]) {
+      expect(
+        expiringAlert(alert, pastLine, { mode: "days", days }, now).expiresAt
+      ).toBe(now + days * 86_400_000)
+    }
+  })
+  it("separates a past line end from too many days", () => {
+    expect(() =>
+      expiringAlert(alert, pastLine, { mode: "line-end" }, now)
+    ).toThrow("DRAWING_ALERT_LINE_END_PAST")
+    expect(() =>
+      expiringAlert(alert, pastLine, { mode: "days", days: 36500 }, now)
+    ).toThrow("DRAWING_ALERT_INVALID_EXPIRY")
+    expect(() =>
+      expiringAlert(
+        alert,
+        { kind: "level", price: 100 },
+        { mode: "line-end" },
+        now
+      )
+    ).toThrow("DRAWING_ALERT_LINE_END_UNAVAILABLE")
   })
 })

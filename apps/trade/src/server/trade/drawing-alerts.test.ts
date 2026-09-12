@@ -24,6 +24,7 @@ import {
   setChartDrawingAlert,
   setChartDrawingAlertBuffer,
   setChartDrawingAlertRules,
+  setChartDrawingAlertExpiry,
 } from "@/server/trade/drawings"
 import { saveLineAlertsPaused } from "@/server/trade/prefs"
 
@@ -819,5 +820,154 @@ describe("only on above-average volume", () => {
         database,
       })
     ).toBe(1)
+  })
+})
+
+describe("alert expiry", () => {
+  it.each([false, true])(
+    "retires at the exact deadline without prices or candles, paused=%s",
+    async (paused) => {
+      const userId = await person()
+      const id = await armedLine(userId, 100)
+      await setChartDrawingAlertRules(userId, {
+        id,
+        closeInterval: "1h",
+        volumeMultiple: null,
+      })
+      const saved = await setChartDrawingAlertExpiry(
+        userId,
+        { id, expiry: { mode: "days", days: 1 } },
+        2_000
+      )
+      expect(saved.alert?.expiresAt).toBe(86_402_000)
+      if (paused) await saveLineAlertsPaused(userId, true)
+      const pushedMarks = vi.fn(() => ({ marks: new Map(), missing: [BTC] }))
+      const finishedCandles = vi.fn(async () => [])
+      expect(
+        await checkDrawingAlerts({
+          pushedMarks,
+          finishedCandles,
+          checkedAt: new Date(86_402_000),
+          database,
+        })
+      ).toBe(0)
+      expect(pushedMarks).not.toHaveBeenCalled()
+      expect(finishedCandles).not.toHaveBeenCalled()
+      const rows = await loadChartDrawings(userId, BTC)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.alert).toBeNull()
+      expect(
+        await database.select().from(customShellNotifications)
+      ).toHaveLength(0)
+      expect(
+        (await loadDrawingAlerts(userId, 86_402_000, database)).fired
+      ).toHaveLength(0)
+    }
+  )
+
+  it("can fire immediately before expiry, but never at expiry even across repeated passes", async () => {
+    const userId = await person()
+    const ids = [uuid(), uuid()]
+    for (const id of ids) {
+      await saveChartDrawing(userId, BTC, {
+        id,
+        shape: { kind: "level", price: 100 },
+      })
+      await setChartDrawingAlert(
+        userId,
+        { id, on: true, currentPrice: 90 },
+        2_000
+      )
+      await setChartDrawingAlertExpiry(
+        userId,
+        { id, expiry: { mode: "days", days: 1 } },
+        2_000
+      )
+    }
+    const pushedMarks = () => ({ marks: new Map([[BTC, 110]]), missing: [] })
+    // Keep the second alert below its crossing price until the deadline.
+    await saveChartDrawing(userId, BTC, {
+      id: ids[1]!,
+      shape: { kind: "level", price: 200 },
+    })
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks,
+        checkedAt: new Date(86_401_999),
+        database,
+      })
+    ).toBe(1)
+    const crossed = () => ({ marks: new Map([[BTC, 210]]), missing: [] })
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: crossed,
+        checkedAt: new Date(86_402_000),
+        database,
+      })
+    ).toBe(0)
+    expect(
+      await checkDrawingAlerts({
+        pushedMarks: crossed,
+        checkedAt: new Date(86_403_000),
+        database,
+      })
+    ).toBe(0)
+    expect(await database.select().from(customShellNotifications)).toHaveLength(
+      1
+    )
+  })
+
+  it("saves the second point as an absolute deadline and Never removes it", async () => {
+    const userId = await person()
+    const id = await armedLine(userId, 100)
+    const shape = { ...rising, to: { time: 10_000, price: 110 } }
+    await saveChartDrawing(userId, BTC, { id, shape })
+    const saved = await setChartDrawingAlertExpiry(
+      userId,
+      { id, expiry: { mode: "line-end" } },
+      2_000
+    )
+    expect(saved.alert).toMatchObject({
+      expiresAt: 10_000,
+      expiresAtLineEnd: true,
+    })
+    expect((await loadChartDrawings(userId, BTC))[0]?.alert).toEqual(
+      saved.alert
+    )
+    const cleared = await setChartDrawingAlertExpiry(
+      userId,
+      { id, expiry: { mode: "never" } },
+      3_000
+    )
+    expect(cleared.alert).not.toHaveProperty("expiresAt")
+    expect(cleared.alert).not.toHaveProperty("expiresAtLineEnd")
+  })
+
+  it("refuses invalid days, another account, and an endpoint in the past", async () => {
+    const userId = await person()
+    const id = await armedLine(userId, 100)
+    for (const days of [0, -1, 1.5, Infinity, 36501]) {
+      await expect(
+        setChartDrawingAlertExpiry(
+          userId,
+          { id, expiry: { mode: "days", days } },
+          2_000
+        )
+      ).rejects.toThrow()
+    }
+    await expect(
+      setChartDrawingAlertExpiry(
+        await person(),
+        { id, expiry: { mode: "days", days: 2 } },
+        2_000
+      )
+    ).rejects.toThrow("DRAWING_NOT_FOUND")
+    await expect(
+      setChartDrawingAlertExpiry(
+        userId,
+        { id, expiry: { mode: "line-end" } },
+        2_000
+      )
+    ).rejects.toThrow("DRAWING_ALERT_LINE_END_PAST")
   })
 })

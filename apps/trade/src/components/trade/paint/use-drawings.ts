@@ -12,12 +12,14 @@ import {
   setDrawingAlert,
   setDrawingAlertBuffer,
   setDrawingAlertRules,
+  setDrawingAlertExpiry,
 } from "@/lib/api/trade/drawings"
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   bufferedAlert,
+  type DrawingExpiry,
   DEFAULT_DRAWING_BUFFER_PCT,
   DRAWING_ALERT_NO_PRICE,
   drawingAlertArmed,
@@ -449,6 +451,27 @@ export function useChartDrawings(
     [drawings, marketKey, revise, onAlertChange, onBufferPreference]
   )
 
+  /** Save expiry after the initial alert exists, then show the server answer. */
+  const setExpiry = React.useCallback(
+    async (id: string, expiry: DrawingExpiry) => {
+      if (!marketKey) return false
+      const key = marketKey
+      if ((await pendingAlertSaves.current.get(id)) === false) return false
+      try {
+        const saved = await setDrawingAlertExpiry(id, expiry)
+        revise(key, (current) =>
+          current.map((candidate) => (candidate.id === id ? saved : candidate))
+        )
+        onAlertChange?.()
+        return true
+      } catch (error) {
+        showErrorToast(getDrawingAlertErrorMessage(error))
+        return false
+      }
+    },
+    [marketKey, revise, onAlertChange]
+  )
+
   /**
    * Set or clear what an armed alert waits for: a finished candle on a
    * timeframe, and the volume that candle has to carry. Shown at once and
@@ -613,6 +636,7 @@ export function useChartDrawings(
     setAlert,
     setBuffer,
     setRules,
+    setExpiry,
     refresh,
     clearAll,
   }

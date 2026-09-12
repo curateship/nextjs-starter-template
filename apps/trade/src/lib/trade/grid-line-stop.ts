@@ -62,6 +62,7 @@ export function eligibleGridStopLines(
     (drawing) =>
       drawing.shape.kind !== "fib" &&
       drawingAlertArmed(drawing.alert) &&
+      drawing.alert?.expiresAt === undefined &&
       priceAtTime(drawing.shape, now) !== null
   )
 }

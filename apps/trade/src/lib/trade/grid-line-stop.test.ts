@@ -39,6 +39,7 @@ describe("grid stop drawing choices", () => {
           slope,
           vertical,
           { ...line, alert: null },
+          { ...line, alert: { ...line.alert!, expiresAt: 999_999 } },
           { ...line, alert: { ...line.alert!, firedAt: 200 } },
           {
             ...slope,

@@ -17,6 +17,7 @@ import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import {
   alertFirePrice,
   drawingAlertArmed,
+  drawingAlertExpired,
   DRAWING_VOLUME_LOOKBACK,
   priceAtTime,
   readDrawingAlert,
@@ -251,7 +252,8 @@ export async function checkDrawingAlerts({
     )
     .orderBy(asc(tradeChartDrawings.createdAt), asc(tradeChartDrawings.id))
 
-  const armed = rows.flatMap((row) => {
+  const now = checkedAt.getTime()
+  const candidates = rows.flatMap((row) => {
     const alert = readDrawingAlert(row.alert)
     const shape = readDrawingShape(row.shape)
     return drawingAlertArmed(alert) &&
@@ -261,6 +263,25 @@ export async function checkDrawingAlerts({
       ? [{ ...row, alert, shape }]
       : []
   })
+  const armed: typeof candidates = []
+  for (const row of candidates) {
+    if (!drawingAlertExpired(row.alert, now)) {
+      armed.push(row)
+      continue
+    }
+    await database.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'grid-line-stop:' + row.userId}, 0))`)
+      await tx
+        .update(tradeChartDrawings)
+        .set({ alert: null, updatedAt: checkedAt })
+        .where(and(
+          eq(tradeChartDrawings.userId, row.userId),
+          eq(tradeChartDrawings.id, row.id),
+          eq(tradeChartDrawings.shape, row.shape),
+          eq(tradeChartDrawings.alert, row.alert)
+        ))
+    })
+  }
   if (armed.length === 0) return 0
 
   // Only the Touch lines need a pushed price. A Close line is judged on a
@@ -273,7 +294,6 @@ export async function checkDrawingAlerts({
     ),
   ]
   const { marks } = pushedMarks(touchKeys)
-  const now = checkedAt.getTime()
 
   // One read per market and timeframe, however many lines share it, and all
   // of them together rather than one after another: each is a round trip to a

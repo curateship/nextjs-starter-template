@@ -90,6 +90,9 @@ export type DrawingAlert = {
   direction: "above" | "below"
   armedAt: number
   firedAt: number | null
+  /** Absolute expiry in epoch milliseconds. Missing means never. */
+  expiresAt?: number
+  expiresAtLineEnd?: true
   /**
    * Where the line was at the moment it fired, so the chart can put a dot
    * there. Left out on rows fired before the dot existed.
@@ -131,6 +134,54 @@ export type DrawingAlert = {
    * no volume of its own.
    */
   volumeMultiple?: number
+}
+
+export const MAX_DRAWING_EXPIRY_DAYS = 36500
+export const DRAWING_EXPIRY_DAY_MS = 86_400_000
+
+export const drawingExpirySchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("never") }),
+  z.object({
+    mode: z.literal("days"),
+    days: z.number().int().min(1).max(MAX_DRAWING_EXPIRY_DAYS),
+  }),
+  z.object({ mode: z.literal("line-end") }),
+])
+export type DrawingExpiry = z.infer<typeof drawingExpirySchema>
+
+export function drawingAlertExpired(alert: DrawingAlert, now: number): boolean {
+  return alert.expiresAt !== undefined && alert.expiresAt <= now
+}
+
+export function expiringAlert(
+  alert: DrawingAlert,
+  shape: DrawingShape,
+  expiry: DrawingExpiry,
+  now: number
+): DrawingAlert {
+  const next = { ...alert }
+  delete next.expiresAt
+  delete next.expiresAtLineEnd
+  if (expiry.mode === "never") return next
+  let expiresAt: number
+  if (expiry.mode === "days") {
+    expiresAt = now + expiry.days * DRAWING_EXPIRY_DAY_MS
+  } else {
+    if (shape.kind !== "trendline")
+      throw new Error("DRAWING_ALERT_LINE_END_UNAVAILABLE")
+    expiresAt = shape.to.time
+    if (expiresAt <= now) throw new Error("DRAWING_ALERT_LINE_END_PAST")
+  }
+  if (
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= now ||
+    expiresAt > MAX_TIME_MS
+  ) {
+    throw new Error("DRAWING_ALERT_INVALID_EXPIRY")
+  }
+  next.expiresAt = expiresAt
+  if (expiry.mode === "line-end") next.expiresAtLineEnd = true
+  return next
 }
 
 /** One saved drawing: its id, where it sits, and the alert it carries. */
@@ -230,6 +281,8 @@ export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
   direction: z.enum(["above", "below"]),
   armedAt: z.number().int().min(0).max(MAX_TIME_MS),
   firedAt: z.number().int().min(0).max(MAX_TIME_MS).nullable(),
+  expiresAt: z.number().int().min(0).max(MAX_TIME_MS).optional(),
+  expiresAtLineEnd: z.literal(true).optional(),
   firedPrice: z.number().finite().optional(),
   firedThreshold: z.number().finite().optional(),
   buffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).optional(),

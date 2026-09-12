@@ -24,13 +24,16 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { formatTimeAgo } from "@/lib/format/format-time"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   CANDLE_INTERVALS,
   type CandleInterval,
 } from "@/lib/protocols/contracts"
 import {
   DEFAULT_DRAWING_VOLUME_MULTIPLE,
+  DRAWING_EXPIRY_DAY_MS,
+  MAX_DRAWING_EXPIRY_DAYS,
+  type DrawingExpiry,
   drawingAlertArmed,
   drawingAlertFiresOn,
   describeDrawing,
@@ -72,6 +75,7 @@ export function LineAlertPopover({
   onSetName,
   onSetBuffer,
   onSetRules,
+  onSetExpiry,
 }: {
   drawing: Drawing
   /** Where the line was when the window opened, or null for a vertical line. */
@@ -101,6 +105,7 @@ export function LineAlertPopover({
   onSetName: (name: string) => void
   /** The percentage past the line before it fires, or null for none. */
   onSetBuffer: (buffer: number | null) => void
+  onSetExpiry: (expiry: DrawingExpiry) => Promise<boolean>
   /**
    * What the alert waits for, sent whole: a timeframe whose finished candle
    * has to close past the line, and the volume that candle has to carry.
@@ -168,6 +173,7 @@ export function LineAlertPopover({
       onSetName={onSetName}
       onSetBuffer={onSetBuffer}
       onSetRules={onSetRules}
+      onSetExpiry={onSetExpiry}
     />
   )
 
@@ -252,6 +258,7 @@ function LineAlertBody({
   onSetName,
   onSetBuffer,
   onSetRules,
+  onSetExpiry,
 }: {
   drawing: Drawing
   linePrice: number | null
@@ -269,6 +276,7 @@ function LineAlertBody({
   onSetExtend: (on: boolean) => void
   onSetName: (name: string) => void
   onSetBuffer: (buffer: number | null) => void
+  onSetExpiry: (expiry: DrawingExpiry) => Promise<boolean>
   onSetRules: (rules: {
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
@@ -351,6 +359,14 @@ function LineAlertBody({
           buffer={drawing.alert.buffer}
           direction={drawing.alert.direction}
           onSetBuffer={onSetBuffer}
+        />
+      ) : null}
+      {supportsAlert && armed && drawing.alert ? (
+        <ExpiryField
+          key={`expiry-${drawing.id}-${drawing.alert.expiresAt ?? "never"}`}
+          id={`line-expiry-${drawing.id}`}
+          drawing={drawing}
+          onSetExpiry={onSetExpiry}
         />
       ) : null}
       {/* Only once there is something to say. A line with no alert used to
@@ -753,6 +769,125 @@ function DescriptionField({
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
       />
+    </div>
+  )
+}
+
+function ExpiryField({
+  id,
+  drawing,
+  onSetExpiry,
+}: {
+  id: string
+  drawing: Drawing
+  onSetExpiry: (expiry: DrawingExpiry) => Promise<boolean>
+}) {
+  const expiresAt = drawing.alert?.expiresAt
+  const savedMode =
+    expiresAt === undefined
+      ? "never"
+      : drawing.alert?.expiresAtLineEnd
+        ? "line-end"
+        : "days"
+  const [openedAt] = React.useState(() => Date.now())
+  const remaining =
+    expiresAt === undefined
+      ? null
+      : Math.max(0, Math.ceil((expiresAt - openedAt) / DRAWING_EXPIRY_DAY_MS))
+  const [mode, setMode] = React.useState(savedMode)
+  const [draft, setDraft] = React.useState(
+    savedMode === "days" ? String(remaining) : ""
+  )
+  const [invalid, setInvalid] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const save = async (expiry: DrawingExpiry) => {
+    setBusy(true)
+    try {
+      if (await onSetExpiry(expiry)) setMode(expiry.mode)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const commitDays = () => {
+    if (busy) return
+    dismissErrorToast()
+    const days = Number(draft)
+    if (!Number.isInteger(days) || days < 1 || days > MAX_DRAWING_EXPIRY_DAYS) {
+      setInvalid(true)
+      showErrorToast(
+        `Enter a whole number of days between 1 and ${MAX_DRAWING_EXPIRY_DAYS}.`
+      )
+      return
+    }
+    setInvalid(false)
+    if (savedMode === "days" && draft === String(remaining)) return
+    void save({ mode: "days", days })
+  }
+  return (
+    <div className="grid gap-4" aria-busy={busy}>
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor={id}
+          hint="Switch the alert off silently after the days you enter. At line end uses the second point's time when saved. The drawing stays."
+        >
+          Expiry
+        </FieldLabel>
+        <Select
+          value={mode}
+          disabled={busy}
+          onValueChange={(next) => {
+            dismissErrorToast()
+            if (next === "days") setMode(next)
+            setInvalid(false)
+            if (next === "never" || next === "line-end")
+              void save({ mode: next })
+          }}
+        >
+          <SelectTrigger id={id}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="never">Never</SelectItem>
+            <SelectItem value="days">After a number of days</SelectItem>
+            {drawing.shape.kind === "trendline" ? (
+              <SelectItem value="line-end">At line end</SelectItem>
+            ) : null}
+          </SelectContent>
+        </Select>
+      </div>
+      {mode === "days" ? (
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor={`${id}-days`}
+            hint="Counted as 24-hour days from saving. Press Enter or leave the field to save."
+          >
+            Number of days
+          </FieldLabel>
+          <Input
+            id={`${id}-days`}
+            inputMode="numeric"
+            value={draft}
+            disabled={busy}
+            aria-invalid={invalid || undefined}
+            autoComplete="off"
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commitDays}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                commitDays()
+              }
+            }}
+          />
+        </div>
+      ) : null}
+      {remaining !== null ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {remaining === 0
+            ? "Expired. The engine will switch this alert off."
+            : `Expires in ${remaining} ${remaining === 1 ? "day" : "days"}.`}
+        </p>
+      ) : null}
     </div>
   )
 }

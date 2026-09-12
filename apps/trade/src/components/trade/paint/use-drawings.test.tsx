@@ -25,11 +25,12 @@ vi.mock("@/lib/api/trade/drawings", () => ({
   setDrawingAlert: api.setAlert,
   setDrawingAlertBuffer: api.setBuffer,
 }))
-vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
+vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn(), dismissErrorToast: vi.fn() }))
 vi.mock("sonner", () => ({ toast: { success: api.toast } }))
 
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { LineAlertPopover } from "@/components/trade/paint/line-alert-popover"
 
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
@@ -531,14 +532,15 @@ it("renders Alert on for a new line and uses the switch choice for the next line
             onSetExtend={() => undefined}
             onSetName={() => undefined}
             onSetBuffer={() => undefined}
-        onSetRules={() => undefined}
+            onSetRules={() => undefined}
+            onSetExpiry={async () => true}
           />
         ) : null}
       </>
     )
   }
   try {
-    await act(async () => root.render(<Controls />))
+    await act(async () => root.render(<TooltipProvider><Controls /></TooltipProvider>))
     await act(async () => host.querySelector("button")!.click())
     const toggle = () =>
       document.querySelector<HTMLButtonElement>('[role="switch"]')!
@@ -575,4 +577,85 @@ it("waits for automatic alert creation before deleting a new line", async () => 
   await act(async () => finish())
   expect(api.remove).toHaveBeenCalledWith(id)
   expect(latest!.drawings.some((row) => row.id === id)).toBe(false)
+})
+
+
+it("clears an earlier expiry error when retrying days, including an unchanged valid value", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  document.body.appendChild(host)
+  const saveExpiry = vi.fn(async () => true)
+  const now = Date.now()
+  function Controls() {
+    const svg = React.useRef<SVGSVGElement>(null)
+    return (
+      <TooltipProvider>
+        <svg ref={svg} />
+        <LineAlertPopover
+          drawing={{
+            id: "expiry-retry",
+            shape: { kind: "level", price: 200 },
+            alert: {
+              direction: "above",
+              armedAt: now,
+              firedAt: null,
+              expiresAt: now + 2 * 86_400_000,
+            },
+          }}
+          linePrice={200}
+          currentPrice={100}
+          svg={svg}
+          at={{ x: 0, y: 0 }}
+          open
+          wide
+          autoFocus={false}
+          paused={false}
+          onOpenChange={() => undefined}
+          onSetAlert={() => undefined}
+          onSetExtend={() => undefined}
+          onSetName={() => undefined}
+          onSetBuffer={() => undefined}
+          onSetRules={() => undefined}
+          onSetExpiry={saveExpiry}
+        />
+      </TooltipProvider>
+    )
+  }
+  await act(async () => root.render(<Controls />))
+  const input = document.querySelector<HTMLInputElement>(
+    "#line-expiry-expiry-retry-days"
+  )!
+  const type = async (value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(input, value)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () =>
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    )
+  }
+  await type("0")
+  expect(input.getAttribute("aria-invalid")).toBe("true")
+  expect(showErrorToast).toHaveBeenCalled()
+  vi.mocked(dismissErrorToast).mockClear()
+  await type("2")
+  expect(dismissErrorToast).toHaveBeenCalledOnce()
+  expect(saveExpiry).not.toHaveBeenCalled()
+  expect(input.getAttribute("aria-invalid")).toBeNull()
+  vi.mocked(dismissErrorToast).mockClear()
+  await type("3")
+  expect(saveExpiry).toHaveBeenCalledWith({ mode: "days", days: 3 })
+  expect(dismissErrorToast).toHaveBeenCalledOnce()
+  expect(vi.mocked(dismissErrorToast).mock.invocationCallOrder[0]).toBeLessThan(
+    saveExpiry.mock.invocationCallOrder[0]!
+  )
 })

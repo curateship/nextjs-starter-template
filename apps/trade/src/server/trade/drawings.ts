@@ -6,6 +6,10 @@ import {
   DRAWING_ALERT_NOT_ARMED,
   MAX_DRAWINGS_PER_MARKET,
   bufferedAlert,
+  drawingExpirySchema,
+  drawingAlertExpired,
+  expiringAlert,
+  type DrawingExpiry,
   drawingAlertArmed,
   rearmedAlert,
   extendedRight,
@@ -19,8 +23,9 @@ import {
 } from "@/lib/trade/drawings"
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
+import { lockGridLineStops } from "@/server/trade/grid-line-stops"
 import { db } from "@/server/db"
-import { tradeChartDrawings } from "@/server/trade/schema"
+import { tradeChartDrawings, tradeGridLineStops } from "@/server/trade/schema"
 
 /**
  * One market's drawings, oldest first so the drawing order on screen is the
@@ -265,15 +270,18 @@ export async function setChartDrawingAlertBuffer(
   }
 
   const saved = bufferedAlert(alert, input.buffer)
-  await db
+  const updated = await db
     .update(tradeChartDrawings)
     .set({ alert: saved, updatedAt: new Date() })
     .where(
       and(
         eq(tradeChartDrawings.userId, userId),
-        eq(tradeChartDrawings.id, input.id)
+        eq(tradeChartDrawings.id, input.id),
+        eq(tradeChartDrawings.alert, row.alert!)
       )
     )
+    .returning({ id: tradeChartDrawings.id })
+  if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
   return { id: row.id, shape, alert: saved }
 }
 
@@ -320,15 +328,18 @@ export async function setChartDrawingAlertRules(
   }
 
   const saved = ruledAlert(alert, input)
-  await db
+  const updated = await db
     .update(tradeChartDrawings)
     .set({ alert: saved, updatedAt: new Date() })
     .where(
       and(
         eq(tradeChartDrawings.userId, userId),
-        eq(tradeChartDrawings.id, input.id)
+        eq(tradeChartDrawings.id, input.id),
+        eq(tradeChartDrawings.alert, row.alert!)
       )
     )
+    .returning({ id: tradeChartDrawings.id })
+  if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
   return { id: row.id, shape, alert: saved }
 }
 
@@ -368,4 +379,64 @@ export async function clearChartDrawings(
     )
     .returning({ id: tradeChartDrawings.id })
   return removed.length
+}
+
+/** Expiry and grid-stop linking share the same account lock. */
+export async function setChartDrawingAlertExpiry(
+  userId: string,
+  input: { id: string; expiry: DrawingExpiry },
+  now = Date.now()
+): Promise<Drawing> {
+  const expiry = drawingExpirySchema.parse(input.expiry)
+  return db.transaction(async (tx) => {
+    await lockGridLineStops(userId, tx)
+    const [row] = await tx
+      .select()
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id)
+        )
+      )
+    const shape = readDrawingShape(row?.shape)
+    const alert = readDrawingAlert(row?.alert)
+    if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+    if (
+      !alert ||
+      !drawingAlertArmed(alert) ||
+      drawingAlertExpired(alert, now)
+    ) {
+      throw new Error(DRAWING_ALERT_NOT_ARMED)
+    }
+    if (expiry.mode !== "never") {
+      const [linked] = await tx
+        .select({ id: tradeGridLineStops.gridId })
+        .from(tradeGridLineStops)
+        .where(
+          and(
+            eq(tradeGridLineStops.userId, userId),
+            eq(tradeGridLineStops.drawingId, input.id),
+            sql`${tradeGridLineStops.state} in ('watching', 'pending')`
+          )
+        )
+        .limit(1)
+      if (linked) throw new Error("DRAWING_ALERT_EXPIRY_LINKED")
+    }
+    const saved = expiringAlert(alert, shape, expiry, now)
+    const updated = await tx
+      .update(tradeChartDrawings)
+      .set({ alert: saved, updatedAt: new Date(now) })
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id),
+          eq(tradeChartDrawings.alert, row.alert!),
+          eq(tradeChartDrawings.shape, row.shape)
+        )
+      )
+      .returning({ id: tradeChartDrawings.id })
+    if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
+    return { id: row.id, shape, alert: saved }
+  })
 }

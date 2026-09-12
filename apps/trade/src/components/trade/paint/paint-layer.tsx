@@ -1,3 +1,4 @@
+import type { DrawingExpiry } from "@/lib/trade/drawings"
 import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
@@ -591,6 +592,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   onSetAlert,
   onSetBuffer,
   onSetRules,
+  onSetExpiry,
   onAlertOpen,
   wide = true,
   lineAlertsPaused = false,
@@ -618,6 +620,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   /** The percentage past the line before an armed alert fires, or none. */
   onSetBuffer?: (id: string, buffer: number | null) => void
   /** What an armed alert waits for: a candle's close, and its volume. */
+  onSetExpiry?: (id: string, expiry: DrawingExpiry) => Promise<boolean>
   onSetRules?: (
     id: string,
     rules: {
@@ -1385,6 +1388,7 @@ export const PaintLayer = React.memo(function PaintLayer({
                 }
                 onSetBuffer={(buffer) => onSetBuffer?.(alertDrawing.id, buffer)}
                 onSetRules={(rules) => onSetRules?.(alertDrawing.id, rules)}
+                onSetExpiry={async (expiry) => (await onSetExpiry?.(alertDrawing.id, expiry)) ?? false}
               />
             )
           })()
