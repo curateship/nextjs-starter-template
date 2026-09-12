@@ -17,8 +17,14 @@ vi.mock("@/lib/trade/live-market", () => ({
   useLiveMarks: () => marks,
 }))
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+}))
+
 vi.mock("@/components/trade/positions-table", () => ({
-  PositionsTable: () => <div>Positions table</div>,
+  PositionsTable: ({ positions, onFlip }: { positions: TradePosition[]; onFlip: (position: TradePosition) => void }) => (
+    <div>Positions table{positions.map((position) => <button key={position.id} onClick={() => onFlip(position)}>Flip position</button>)}</div>
+  ),
   OpenOrdersTable: () => <div>Open orders table</div>,
   TradesTable: ({
     unmatchedHistory,
@@ -338,5 +344,19 @@ describe("the Positions tab glance", () => {
     expect(
       document.body.querySelector('[data-slot="popover-content"]')
     ).toBeNull()
+  })
+})
+
+
+describe("flip confirmation", () => {
+  it("names the opposite direction and sends one flip only after confirmation", async () => {
+    const state = trading([position])
+    await drawActivity([position], () => {}, "positions", state)
+    await act(async () => Array.from(host.querySelectorAll("button")).find((button) => button.textContent === "Flip position")!.click())
+    expect(document.body.textContent).toContain("Flip BTC to short")
+    expect(document.body.textContent).toContain("same number of coins")
+    expect(state.flip).not.toHaveBeenCalled()
+    await act(async () => Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent === "Flip trade")!.click())
+    expect(state.flip).toHaveBeenCalledExactlyOnceWith(position.walletId, position.marketKey, position.szi)
   })
 })

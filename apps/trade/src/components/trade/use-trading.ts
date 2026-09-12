@@ -8,6 +8,7 @@ import {
   changeLiveMargin,
   closeLivePosition,
   closeLivePositions,
+  flipLivePosition,
   getLiveErrorMessage,
   loadOlderLiveTrades,
   loadLiveTrading,
@@ -452,7 +453,7 @@ export type Trading = {
     position: TradePosition,
     ask: { unit: "coins" | "usd"; amount: number }
   ) => Promise<void>
-  flip: (walletId: string, marketKey: string) => Promise<void>
+  flip: (walletId: string, marketKey: string, expectedSzi: number) => Promise<void>
   closeAll: () => Promise<void>
   /**
    * The bin on a Journal row and the Remove button over ticked rows — one
@@ -2253,12 +2254,21 @@ export function useTrading(
   )
 
   const flip: Trading["flip"] = React.useCallback(
-    async (walletId, marketKey) => {
-      if (findPosition(walletId, marketKey)?.live) {
-        // The table hides its flip button on live rows; this is the backstop.
-        showErrorToast(
-          "Turning a real position around in one go isn't built yet — close it, then open the other way."
-        )
+    async (walletId, marketKey, expectedSzi) => {
+      const position = findPosition(walletId, marketKey)
+      if (!position || position.szi !== expectedSzi) {
+        showErrorToast("The position changed. Refresh and check its direction and size before flipping again.")
+        return
+      }
+      if (position.live) {
+        await runWith(getLiveErrorMessage, async () => {
+          const result = await flipLivePosition(walletId, marketKey, expectedSzi)
+          if (!result.complete) {
+            showErrorToast("The original position closed, but the full opposite entry is not confirmed. Check the position and orders before placing anything else. The old stop and targets were cleared.")
+            return
+          }
+          toast.success(`Position flipped in ${nameOf(walletId)}.`)
+        })
         return
       }
       await run(
@@ -2266,7 +2276,7 @@ export function useTrading(
         `Position turned around in ${nameOf(walletId)}.`
       )
     },
-    [run, nameOf, findPosition]
+    [run, runWith, nameOf, findPosition]
   )
 
   const placeLadder: Trading["placeLadder"] = React.useCallback(

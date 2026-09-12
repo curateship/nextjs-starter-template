@@ -1147,3 +1147,71 @@ describe("position and order totals", () => {
     }
   })
 })
+
+describe("the flip position action", () => {
+  it("shows the flip, margin and add tooltips on keyboard focus", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    try {
+      await act(async () => root.render(
+        <TooltipProvider delayDuration={0}>
+          <PositionsTable {...positionsShared} positions={[position("BTC", 2)]}
+            settled failed={false} onAdd={() => {}} onMargin={() => {}} onEdit={() => {}}
+            onFlip={() => {}} onClose={() => {}} onClosePart={() => {}} />
+        </TooltipProvider>
+      ))
+      for (const [name, tooltip] of [
+        ["Flip the BTC position to short", "Flip trade"],
+        ["Change the BTC leverage and margin", "Add margin"],
+        ["Add to the BTC position", "Add to position"],
+      ]) {
+        const button = host.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!
+        await act(async () => {
+          document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
+          button.focus()
+        })
+        expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(tooltip)
+        await act(async () => button.blur())
+      }
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  })
+
+  it("offers live longs and shorts a flip before Add, and disables it while busy", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const clicked: TradePosition[] = []
+    const long = { ...position("BTC", 2), live: { marginUsed: 100, liquidationPx: 50, tpOrderId: null, slOrderId: null } }
+    const short = { ...long, id: "ETH", marketKey: "hyperliquid:mainnet:ETH", szi: -2 }
+    const owned = { ...position("SOL", 2), owned: { entryKnown: true, priced: true } }
+    const render = (busy: boolean) => (
+      <TooltipProvider><PositionsTable {...positionsShared} positions={[long, short, owned]} busy={busy}
+        settled failed={false} onAdd={() => {}} onMargin={null} onEdit={() => {}}
+        onFlip={(row) => clicked.push(row)} onClose={() => {}} onClosePart={() => {}} />
+      </TooltipProvider>
+    )
+    try {
+      await act(async () => root.render(render(false)))
+      const flip = host.querySelector<HTMLButtonElement>('button[aria-label="Flip the BTC position to short"]')!
+      expect(flip).not.toBeNull()
+      expect(flip.querySelector(".lucide-arrow-up-down")).not.toBeNull()
+      expect(flip.nextElementSibling?.getAttribute("aria-label")).toBe("Add to the BTC position")
+      expect(host.querySelector('button[aria-label="Flip the ETH position to long"]')).not.toBeNull()
+      expect(host.querySelector('button[aria-label^="Flip the SOL"]')).toBeNull()
+      await act(async () => flip.click())
+      expect(clicked).toEqual([long])
+      await act(async () => root.render(render(true)))
+      const disabledFlip = host.querySelector<HTMLButtonElement>('button[aria-label="Flip the BTC position to short"]')!
+      expect(disabledFlip.disabled).toBe(true)
+      await act(async () => disabledFlip.click())
+      expect(clicked).toHaveLength(1)
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  })
+})

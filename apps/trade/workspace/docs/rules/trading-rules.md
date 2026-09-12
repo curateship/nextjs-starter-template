@@ -1,5 +1,7 @@
 # The trading rules
 
+- Tyler: "flipping a trade means that if I was in a long trade, clicking on the flip icon I would exit the long trade and immediately enter a short trade". `orders/flip-trade.md` explains the sequence and failure handling.
+
 - Tyler, 8 Sep 2026: **"for dca ladder order. Add an option to place a stop loss under the last rung by percentage. I need to be able to move this stop on the chart as well."** The stop is available through the placement preview, saved ladder, and position chart controls.
 
 The rules of this app, stated once, in plain words. **This file outranks the

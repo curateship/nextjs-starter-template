@@ -36,6 +36,7 @@ import {
   hideLiveTrade as hideTradeRows,
   loadLiveHistoryBefore,
 } from "@/server/trade/live-fills"
+import { flipLivePosition as flipPositionRow } from "@/server/trade/flip-live-position"
 import { closeLivePositions as closePositionRows } from "@/server/trade/close-live-positions"
 import { loadOrderStyle } from "@/server/trade/prefs"
 import { ORDER_STYLES } from "@/lib/trade/order-style"
@@ -492,6 +493,17 @@ const closeLivePositionFn = createServerFn({ method: "POST" })
     })
   })
 
+const flipLivePositionFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(positionSchema.extend({
+    expectedSzi: z.number().finite().refine((value) => value !== 0),
+  }))
+  .handler(async ({ data, context }) =>
+    runLiveOrderAction(context.user.id, "order", () =>
+      flipPositionRow(context.user.id, data)
+    )
+  )
+
 const closeLivePositionsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
@@ -550,6 +562,10 @@ export function setLiveBrackets(input: z.infer<typeof bracketsSchema>) {
 
 export function closeLivePosition(walletId: string, marketKey: string) {
   return closeLivePositionFn({ data: { walletId, marketKey } })
+}
+
+export function flipLivePosition(walletId: string, marketKey: string, expectedSzi: number) {
+  return flipLivePositionFn({ data: { walletId, marketKey, expectedSzi } })
 }
 
 export function closeLivePositions(
@@ -626,6 +642,11 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_ORDER_ID: "That order id is not one the exchange would recognise.",
   LIVE_ORDER_GONE:
     "That order is not on the exchange any more — it may have filled or been cancelled elsewhere.",
+  LIVE_FLIP_OWNED: "This wallet owns coins outright and cannot open a short.",
+  LIVE_FLIP_CHANGED: "The position changed. Refresh and check its direction and size before flipping again.",
+  LIVE_FLIP_SMART_ORDER: "A smart order is still managing this market. Stop its remaining orders before flipping the position.",
+  LIVE_FLIP_CLOSE_UNCONFIRMED: "The full close could not be confirmed. No opposite entry was sent. Check the remaining position and reset its stop and targets before trying again.",
+  LIVE_FLIP_ENTRY_UNCONFIRMED: "The original position closed, but the opposite entry could not be confirmed. Check the position and orders before placing anything else. The old stop and targets were cleared.",
   LIVE_POSITION_GONE: "That position is not on the exchange any more.",
   LIVE_LEVERAGE_UNSUPPORTED:
     "This exchange cannot change leverage on a position that is already open.",

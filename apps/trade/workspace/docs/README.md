@@ -111,6 +111,8 @@ screen: anything not written there has not been agreed yet.
 
 ## orders/ — placing and protecting orders
 
+- `flip-trade.md` — reversing a position, the icon and confirmation, full-close checks, protection removal and partial-failure messages.
+
 - `smart-orders.md` — why a smart order sends nothing until the price is
   reached, what watching costs when a market moves fast, how often the engine
   looks, how repeated failures are counted, how a DCA ladder sells back up its

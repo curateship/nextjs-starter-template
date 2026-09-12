@@ -3,7 +3,7 @@ import * as React from "react"
 import { OrderDistanceBadge } from "@/components/trade/order-distance-badge"
 import { orderDistance } from "@/lib/trade/order-distance"
 import {
-  ArrowLeftRightIcon,
+  ArrowUpDownIcon,
   GaugeIcon,
   InfoIcon,
   Loader2Icon,
@@ -597,38 +597,46 @@ function PositionRow({
           className="flex items-center"
         >
         <span className="flex items-center gap-0.5">
-          {/* Turning a real position around in one go is not built yet, so
-              the button is not offered rather than offered and refused. */}
-          {position.live || position.owned ? null : (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`Turn the ${marketSymbol(position.marketKey)} position around`}
-              onClick={() => onFlip(position)}
-            >
-              <ArrowLeftRightIcon className="size-4" />
-            </Button>
+          {position.owned ? null : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={busy}
+                  aria-label={`Flip the ${marketSymbol(position.marketKey)} position to ${position.szi > 0 ? "short" : "long"}`}
+                  onClick={() => onFlip(position)}
+                >
+                  <ArrowUpDownIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Flip trade</TooltipContent>
+            </Tooltip>
           )}
           {/* Buying more of what this row holds. It charts the coin, switches
               to the row's wallet and opens the order window at today's price —
               the five steps that used to stand between a dip and $250 more, and
               the wallet step is where the mistake went to another wallet. */}
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy || adding}
-            aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
-            onClick={() => onAdd(position)}
-          >
-            {adding ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <PlusIcon className="size-4" />
-            )}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy || adding}
+                aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
+                onClick={() => onAdd(position)}
+              >
+                {adding ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PlusIcon className="size-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add to position</TooltipContent>
+          </Tooltip>
           {adding ? (
             <span role="status" className="text-xs text-muted-foreground">
               Adding...
@@ -638,16 +646,21 @@ function PositionRow({
               exchange really allows one of the two, so a button is never
               offered and then refused. */}
           {onMargin && !position.owned ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
-              onClick={() => onMargin(position)}
-            >
-              <GaugeIcon className="size-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={busy}
+                  aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
+                  onClick={() => onMargin(position)}
+                >
+                  <GaugeIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Add margin</TooltipContent>
+            </Tooltip>
           ) : null}
           {position.owned ? null : (
             <Button

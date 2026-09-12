@@ -598,14 +598,14 @@ export function ActivityPanel({
         }}
         title={
           flipping
-            ? `Turn the ${marketSymbol(flipping.marketKey)} position in ${walletName(flipping.walletId)} around?`
-            : "Turn this position around?"
+            ? `Flip ${marketSymbol(flipping.marketKey)} to ${flipping.szi > 0 ? "short" : "long"} in ${walletName(flipping.walletId)}?`
+            : "Flip this position?"
         }
-        description="What you are holding is closed at today's price and the same size is opened the other way, in one go. Whatever it has made or lost is banked, and any stop and target are cleared."
-        confirmLabel="Turn it around"
+        description="Close this position at the market price, then immediately request the same number of coins in the opposite direction. Stops and targets are cleared. The new entry can fail or fill only partly after the close. Exchange fees apply."
+        confirmLabel="Flip trade"
         destructive={false}
         onConfirm={() => {
-          if (flipping) void trading.flip(flipping.walletId, flipping.marketKey)
+          if (flipping) void trading.flip(flipping.walletId, flipping.marketKey, flipping.szi)
           setFlipping(null)
         }}
       />
