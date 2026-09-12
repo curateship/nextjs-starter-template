@@ -80,6 +80,7 @@ export const DEFAULT_GRID_BELOW_PCT = DEFAULT_GRID_ABOVE_PCT
 export const GRID_DIRECTIONS = ["long", "short"] as const
 export type GridDirection = (typeof GRID_DIRECTIONS)[number]
 
+/** Reversals keep the market and switch direction, even after the parent leaves the active list. */
 /**
  * What each direction is called in a sentence — the chart's badge, and the
  * running grid's window. A phrase, because those places are explaining rather
