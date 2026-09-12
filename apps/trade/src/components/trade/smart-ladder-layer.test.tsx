@@ -5,6 +5,8 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
+import { ChartPriceAction } from "@/components/trade/chart-price-action"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
@@ -769,4 +771,31 @@ describe("DCA chart ladders", () => {
     expect(reshape).toHaveBeenCalledTimes(1)
     await act(async () => finish(true))
   })
+})
+
+
+it("hides the price shortcut over DCA rung controls and restores it clear of them", async () => {
+  host.dataset.slot = "chart-ready"
+  await act(async () => root.render(
+    <TooltipProvider>
+      <SmartLadderLayer surface={surface} colors={colors} marketKey="market"
+        ladders={[]} tool={null} walletName={() => "Wallet"}
+        preview={{ anchorPx: 110, rungs: [{ px: 100, dollars: 250 }],
+          stopPct: 10, onMove: vi.fn(), onResize: vi.fn(), onMoveStop: vi.fn() }} />
+      <ChartPriceAction surface={surface} onOpen={vi.fn()} />
+    </TooltipProvider>
+  ))
+  const bar = host.querySelector('[aria-label="Move the whole DCA ladder from rung 1"]')!.parentElement!
+  vi.spyOn(bar, "getBoundingClientRect").mockReturnValue(new DOMRect(300, 88, 180, 24))
+  const move = async (clientY: number) => act(async () => {
+    host.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 50, clientY }))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  })
+  const shortcut = () => host.querySelector('[aria-label="Actions at cursor price"]')
+  await move(140)
+  expect(shortcut()).not.toBeNull()
+  await move(100)
+  expect(shortcut()).toBeNull()
+  await move(140)
+  expect(shortcut()).not.toBeNull()
 })

@@ -172,6 +172,8 @@ export type GridRow = {
    * pairing at placement.
    */
   paired?: boolean
+  /** The exchange reports a fixed stop size that no longer matches the position. */
+  stopNeedsResize?: boolean
   lineStopState?: "watching" | "pending"
 }
 
@@ -256,9 +258,8 @@ export async function advanceGrid(
 
   // ----- 2. Watched exits close the grid ----------------------------------
   //
-  // Lighter carries no grid stop on its book. Trade watches the saved stop
-  // price and sends one reduce-only close when price reaches it. The stop sits
-  // past the LOSING edge, so the same watch works either way round: below the
+  // Venues without resting stops use a watched price and a reduce-only close.
+  // The stop sits past the LOSING edge, so the same watch works either way round: below the
   // bottom on a buying grid, above the top on a selling one.
   //
   // Not the winning edge of the range. Price past the winning edge just means
@@ -678,9 +679,7 @@ export async function advanceGrid(
   const after = book.positions.get(row.marketKey) ?? null
   if (plan.lineStop || protocol.capabilities.gridStop === "watched") {
     // The watched price is the plan's `stopLoss`. `aimedSlPx` means a stop was
-    // sent to the exchange, so Lighter must always leave it empty. Comparing
-    // Lighter's null `slPx` with this field used to rewrite the saved stop to
-    // null, which is how ENA lost its protection.
+    // sent to the exchange, so a watched stop must leave it empty.
     if (plan.aimedSlPx !== null) {
       plan.aimedSlPx = null
       changed = true
@@ -728,7 +727,8 @@ export async function advanceGrid(
           }
         },
         "replace"
-      )
+      ) ||
+      (row.stopNeedsResize === true && after.slPx !== null)
     ) {
       after.updatedAt = now
       book.touchedMarkets.add(row.marketKey)

@@ -1704,7 +1704,10 @@ function ChartLine({
           right edge — Tyler, 3 Sep 2026, so the grip on the options bar sits
           at the edge. The money column is one width on every line, so the
           amounts stack straight and the bars line up against them. */}
-      <div className="absolute top-0 right-0 flex -translate-y-1/2 items-center gap-1">
+      <div
+        data-chart-order-bar
+        className="absolute top-0 right-0 flex -translate-y-1/2 items-center gap-1"
+      >
         {action}
         {cancel}
         <span

@@ -2459,11 +2459,10 @@ export function useTrading(
       await callOff(
         gridId,
         () => cancelGridRest({ walletId, gridId }),
-        getTradingSmartOrderError,
-        `Grid stopped in ${nameOf(walletId)} — what's held stays.`
+        getTradingSmartOrderError
       )
     },
-    [callOff, nameOf]
+    [callOff]
   )
 
   const moveGridRange: Trading["moveGridRange"] = React.useCallback(

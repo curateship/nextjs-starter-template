@@ -826,13 +826,13 @@ refused before every other pairing rule is even looked at.
 nothing.** That is the ordinary state between one cycle and the next, and the
 stop is then a plan for later rather than protection on something open. It is
 written to exchanges that carry grid protection the moment a level buys, not
-before. On Lighter the stop always stays inside Trade as a watched price. When
-Lighter's live price reaches the line, Trade sends one reduce-only close and
-ends the grid. Setting or moving the line sends no stop order to Lighter.
+before. Lighter now uses that exchange path. Its stop has a fixed coin amount,
+so the engine replaces the stop after the held size changes. A price drag also
+replaces the stop. A matching size and price cause no stop write.
 
 **The stop is one line on the chart, never two.** The grid draws its own red
-SL line, the stop. On Lighter that line is the whole order until its price is
-reached. On exchanges that hold the stop, the untriggered leg at the same price
+SL line, the stop. On exchanges that hold the stop, including Lighter,
+the untriggered leg at the same price
 is not drawn. The grid was the one that showed both, so a grey pill carrying
 the same price sat right behind the red one and read as some second thing at
 that level.
@@ -1020,8 +1020,50 @@ changes do not authorize applying the migration or deploying production.
 
 ## Placing another grid during cancellation
 
-Removing a grid hides its chart lines while cancellation finishes. If another
+Removing a grid hides its chart lines while cancellation finishes. Successful
+grid cancellation does not show a confirmation toast. Cancellation failures
+still show an error. If another
 placement on the same market and wallet receives the existing-order refusal
 during that wait, the toast says "Another grid is being cancelled. Please wait."
 The message uses the grid cancellation tracked by the current browser tab.
 Other placement failures keep their own messages.
+
+
+## Testing Lighter's resting grid stop
+
+The existing Stop grid action cancels future entries and leaves held coins and
+their exits working. Lighter's stop stays with those coins. The stop is removed
+when the grid finishes closing. A failed cancellation leaves its ID saved and
+keeps the grid active for retry. Stop does not immediately close held coins.
+
+- **Local proof:** Focused engine tests cover first-entry protection, growth,
+  shrinkage, dragging, unchanged-stop checks, failed reads, cancellation and
+  retries. Real-signer tests check the stop-limit payload and count requests.
+- **Live setup:** After explicit authorization, use the smallest suitable
+  isolated Lighter grid and keep the Journal open. Record the position size,
+  stop order ID, stop price and stop size in Lighter's own order list.
+- **First entry:** Let one entry fill. Expect a reduce-only stop-limit on Lighter
+  with the held coin amount and the grid's stop price.
+- **Resize:** Let another rung fill, then let one exit fill. After each update,
+  verify the resting stop matches the new position size. An unchanged next
+  pass should leave the same stop order in place.
+- **Drag:** Move the ordinary stop line. Expect the old order to disappear and
+  a new order to carry the new stop price. Repeat for a short grid above price.
+- **Worker outage:** With a correctly sized stop confirmed and no edit underway,
+  stop only the test worker after authorization. Check Lighter directly. The
+  stop should still be listed. Restart the worker after the check.
+- **Stop and finish:** Stop buying while the grid holds coins. Expect future
+  entries to stop and protection to stay. Once the position closes, expect the
+  old stop to disappear. Test cancellation refusals through the local tests.
+
+Cancellation and replacement are separate requests. The position can be
+unprotected during replacement, particularly after a refusal. The stop-limit
+also cannot guarantee a fill through a fast price gap. The worker-outage check
+must start with a confirmed resting stop, not a pending replacement.
+
+No real-money grid or worker outage has been tested for this change. Local
+engine tests are the available validation; they do not prove mainnet behavior.
+The app only exposes Lighter mainnet. No database migration is needed. Production
+requires the web, engine and worker to receive the same build when deployment
+is explicitly authorized. Existing ordinary Lighter grids acquire their stop
+on the next successful engine pass after that build starts.

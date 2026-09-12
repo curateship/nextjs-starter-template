@@ -431,6 +431,7 @@ function PreviewLines({
               style={{ borderColor: colors.up }}
             />
             <span
+              data-chart-order-bar
               className={cn(
                 TAG_CLASS,
                 "tabular-nums",
@@ -490,6 +491,7 @@ function PreviewLines({
             style={{ borderColor: colors.down }}
           />
           <span
+            data-chart-order-bar
             className={TAG_CLASS}
             style={{
               borderColor: colors.down,
@@ -531,6 +533,7 @@ function PreviewLines({
               style={{ borderColor: colors.down }}
             />
             <span
+              data-chart-order-bar
               className={cn(TAG_CLASS, "tabular-nums opacity-80")}
               style={{
                 borderColor: colors.down,
@@ -637,6 +640,7 @@ function LadderLines({
   // owns that price. After the first buy, the position entry carries them.
   const summary = bought ? null : (
     <span
+      data-chart-order-bar
       className={TAG_CLASS}
       style={{
         borderColor: colors.up,
@@ -747,6 +751,7 @@ function LadderLines({
                 style={{ borderColor: colors.up }}
               />
               <span
+                data-chart-order-bar
                 className={TAG_CLASS}
                 style={{
                   borderColor: colors.up,
@@ -816,6 +821,7 @@ function LadderLines({
               style={{ borderColor: colors.down }}
             />
             <span
+              data-chart-order-bar
               className={TAG_CLASS}
               style={{
                 borderColor: colors.down,
@@ -969,6 +975,7 @@ function ExitLadderLines({
           style={{ borderColor: colors.down }}
         />
         <span
+          data-chart-order-bar
           className={TAG_CLASS}
           style={{
             borderColor: colors.down,

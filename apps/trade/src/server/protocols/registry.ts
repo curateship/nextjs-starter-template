@@ -544,6 +544,8 @@ export type ProtocolEntry = {
    * Absent on an exchange that cannot place one. See `account` above.
    */
   orders?: {
+    /** Stops carry a fixed quantity and must be resized after position changes. */
+    fixedSizeStops?: true
     /**
      * What a swap would do right now, before anything is signed. Present on
      * a venue whose orders are swaps (`capabilities.ordersAreSwaps`); absent
@@ -1034,6 +1036,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
     agent: { verify: verifyLighterAgentKey },
     orders: {
+      fixedSizeStops: true,
       place: placeLighterOrder,
       cancel: cancelLighterOrder,
       // Moving one is a cancel and a fresh order. Lighter has an amend

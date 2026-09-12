@@ -680,10 +680,12 @@ export async function fetchLighterOrderPortfolio(
    * no position at all, and the wallet card still shows the money.
    */
   let orders: LighterOpenOrder[] = []
+  let ordersReadable = true
   try {
     const facts = await lighterAccountFacts(network, address, credential)
     orders = await fetchLighterOpenOrders(network, facts)
   } catch (error) {
+    ordersReadable = false
     console.error("Lighter resting orders could not be read", error)
   }
 
@@ -748,6 +750,7 @@ export async function fetchLighterOrderPortfolio(
       tpSz: targets[0]?.sz ?? null,
       tpOrderId: targets[0]?.orderId ?? null,
       slPx: stop?.px ?? null,
+      ...(ordersReadable ? { slSz: stop?.sz ?? 0 } : {}),
       slOrderId: stop?.orderId ?? null,
       // Every leg, not only the pinned ones, because `setBrackets` has to
       // cancel all of them or a spare stop sells the position a second time.
@@ -762,6 +765,7 @@ export async function fetchLighterOrderPortfolio(
   return {
     positions,
     orders: orders.filter((one) => !pinned.has(one.orderId)),
+    ...(!ordersReadable ? { ordersUnavailable: true as const } : {}),
   }
 }
 

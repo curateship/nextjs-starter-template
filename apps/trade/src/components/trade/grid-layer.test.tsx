@@ -5,6 +5,8 @@ import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
+import { ChartPriceAction } from "@/components/trade/chart-price-action"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { GridLayer } from "@/components/trade/grid-layer"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { ChartColors } from "@/lib/trade/chart-theme"
@@ -894,4 +896,45 @@ describe("the money on the rungs while the range is dragged", () => {
     }
     stop()
   })
+})
+
+
+it("hides the price shortcut over a grid price bar and restores it clear of the bar", async () => {
+  const host = document.createElement("div")
+  host.dataset.slot = "chart-ready"
+  document.body.append(host)
+  const layer = document.createElement("div")
+  layer.innerHTML = render(grid("long", false))
+  host.append(layer)
+  const bar = [...layer.querySelectorAll("span")].find(
+    (one) => one.textContent === "UPPER PRICE"
+  )!.closest(".right-0")!
+  vi.spyOn(bar, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(330, 88, 150, 24)
+  )
+  const mount = document.createElement("div")
+  host.append(mount)
+  const root = createRoot(mount)
+  const move = async (clientY: number) => act(async () => {
+    host.dispatchEvent(new MouseEvent("pointermove", {
+      bubbles: true, clientX: 50, clientY,
+    }))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  })
+  try {
+    await act(async () => root.render(
+      <TooltipProvider>
+        <ChartPriceAction surface={surface} onOpen={vi.fn()} />
+      </TooltipProvider>
+    ))
+    await move(140)
+    expect(mount.querySelector("button")).not.toBeNull()
+    await move(100)
+    expect(mount.querySelector("button")).toBeNull()
+    await move(140)
+    expect(mount.querySelector("button")).not.toBeNull()
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
 })

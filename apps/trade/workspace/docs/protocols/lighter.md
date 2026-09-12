@@ -711,17 +711,52 @@ Lighter answers 200 and can still cancel in silence — see "The send proves
 nothing". A silently cancelled stop is a position running unprotected while
 the screen says otherwise, and it now comes back as a refusal instead.
 
-## Grid stops
+## Grid stops rest on Lighter
 
-A Lighter grid stop is a watched price inside Trade. Setting or moving one
-saves the price and sends no bracket order to Lighter. A Lighter position
-therefore reports no stop, and that empty exchange field must never erase the
-price saved on the grid.
+An ordinary Lighter grid stop is a reduce-only stop-limit order on the exchange.
+The first filled grid entry gets a stop during the same engine pass. A matched
+resting stop continues to exist while the worker is offline.
 
-When Lighter's live price reaches the saved stop, Trade closes the whole grid
-with the same reduce-only immediate-or-cancel order used by Close. The order is
-priced three percent through the mark and expires immediately, so it can shrink
-the position but cannot open a short if the position has already changed.
+- **Size:** Lighter requires an explicit coin amount. Aster's ordinary stop
+  closes whatever the position holds when it fires. Trade reads Lighter's
+  resting stop size and replaces the stop when the position grows or shrinks.
+- **Price:** Dragging the ordinary stop replaces the exchange order and saves
+  the returned order ID. A flat grid saves the price for its next entry.
+- **Idle checks:** Matching price and size cause no stop write. A failed
+  resting-order request makes the grid wait instead of inventing a missing stop.
+- **Cleanup:** The grid keeps its fixed stop ID until cancellation succeeds or
+  the exchange no longer lists the order. A failed cancellation keeps the grid
+  active for another eligible pass. Stop buying keeps protection on held coins.
+- **Replacement gap:** Lighter's existing adapter cancels before placing the
+  replacement. There is a gap between those calls. A failed replacement can
+  leave the position unprotected until a later successful pass. The request
+  budget still applies, and the Journal records refusals.
+- **Order limits:** A stop-limit can remain unfilled if price moves through its
+  allowed limit. A resting stop does not guarantee an execution price or a fill.
+- **Drawing links:** A stop linked to a drawing still needs the engine to
+  evaluate its line rule. DCA behavior is unchanged.
+
+## Ten-rung request measurement
+
+The deterministic adapter test simulates one hour. Ten entries build a position,
+ten exits close it, and one drag moves its stop. Each fill is three minutes
+apart. Account and market lookups are warm, the nonce source is mocked, and
+confirmations see the order on their first read.
+
+- **Trading:** Twenty order sends, twenty confirmation reads and one leverage
+  send cost 41 requests.
+- **Stops:** Twenty stop placements, twenty cancellations and twenty
+  confirmation reads cost 60 requests. Replacements account for most of them.
+- **Total:** 101 adapter requests, with a peak of eight in one rolling minute.
+  Every measured request goes through the real budget reservation function.
+- **Excluded:** Account, catalogue, nonce startup and background reads are not
+  counted. Neither are retries or further cycles. Ten rungs alone cannot define
+  an hourly request count because trading frequency changes that count.
+
+The server still divides Lighter's 60-request minute between its processes.
+A faster burst may exhaust the worker's share even when the hourly total is low.
+Use the Journal's allowance refusal to identify a burst. Do not flood mainnet
+just to test the cap.
 
 ## Leverage, and the cash behind a position
 

@@ -1658,6 +1658,12 @@ export async function reconcileLiveLaddersOnce(
       row: never
     ) => Promise<void>
   ): Promise<void> => {
+    if (entry.kind === "grid" && !entry.plan.lineStop && orderApi.fixedSizeStops) {
+      const held = folio.positions.find((one) => one.marketId === parseMarketKey(raw.marketKey)?.marketId)
+      if (held && held.slSz === undefined) {
+        throw new Error(`LIVE_EXCHANGE:${protocol.label}'s resting stops could not be read. The grid will wait before changing orders.`)
+      }
+    }
     const originalPlan = structuredClone(entry.plan)
     // Whether this row is one half of a grid-above-ladder pairing. A paired
     // grid keeps its hands off the position's protection — its own stop is a
@@ -1996,7 +2002,16 @@ export async function reconcileLiveLaddersOnce(
             // The exchange changes and their matching plan are one logical
             // action. A failed save enters the same recovery path as a failed
             // placement so resting orders never drift away from their record.
-            await saveLadderPlan(userId, row.id, row.plan, statusToSave)
+            await saveLadderPlan(
+              userId,
+              row.id,
+              row.plan,
+              entry.kind === "grid" &&
+                entry.plan.fixedStopOrderId &&
+                statusToSave === "done"
+                ? "active"
+                : statusToSave
+            )
             await announcePause()
           } catch (error) {
             // A market fill cannot be undone. Save the conservative advanced
@@ -2118,9 +2133,7 @@ export async function reconcileLiveLaddersOnce(
               originalBrackets?.slPx != null)
           if (
             entry.kind !== "signal" &&
-            // Lighter grid stops stay in Trade as watched prices. Sending this
-            // position through the bracket path both creates the wrong order
-            // and makes the next Lighter read erase the watched price.
+            // Venues without exchange stops keep the saved grid stop in Trade.
             !(
               entry.kind === "grid" &&
               protocol.capabilities.gridStop === "watched"
@@ -2149,7 +2162,7 @@ export async function reconcileLiveLaddersOnce(
                   )
                 : null
             try {
-              await setLiveBrackets(userId, {
+              const placedProtection = await setLiveBrackets(userId, {
                 walletId: wallet.id,
                 marketKey: row.marketKey,
                 targets:
@@ -2164,6 +2177,10 @@ export async function reconcileLiveLaddersOnce(
                       ],
                 slPx: position.slPx,
               })
+              if (entry.kind === "grid" && orderApi.fixedSizeStops) {
+                entry.plan.fixedStopOrderId = placedProtection.slOrderId
+                await saveLadderPlan(userId, row.id, row.plan, status)
+              }
             } catch (error) {
               // Leave the plan ready to retry its rule. The adapter says when
               // it already removed the old protection; otherwise its original
@@ -2196,6 +2213,15 @@ export async function reconcileLiveLaddersOnce(
         id: raw.id,
         marketKey: raw.marketKey,
         plan: entry.plan,
+        stopNeedsResize:
+          entry.kind === "grid" &&
+          folio.positions.some(
+            (held) =>
+              held.marketId === parseMarketKey(raw.marketKey)?.marketId &&
+              held.slSz !== undefined &&
+              Math.abs(held.slSz - Math.abs(held.szi)) >
+                Math.max(1e-9, Math.abs(held.szi) * 1e-6)
+          ),
         paired,
       } as never
     )
@@ -2371,8 +2397,12 @@ export async function reconcileLiveLaddersOnce(
               tx: db, userId, wallet, oldId: raw.id, marketKey: raw.marketKey,
               plan,
               firedStopPx: line.threshold,
-              positionChanged: !!held && (held.szi > 0) !== (plan.direction === "long"),
-              mark: marks.get(raw.marketKey) ?? null, equity: account.equity, takerFeeRate: book.costs.takerFeeRate, now,
+              positionChanged:
+                !!held && held.szi > 0 !== (plan.direction === "long"),
+              mark: marks.get(raw.marketKey) ?? null,
+              equity: account.equity,
+              takerFeeRate: book.costs.takerFeeRate,
+              now,
             })
           }
           continue
@@ -2383,6 +2413,9 @@ export async function reconcileLiveLaddersOnce(
 
       if (entry.kind === "grid") {
         const plan = entry.plan as GridPlan
+        if (!plan.lineStop && orderApi.fixedSizeStops && portfolio.ordersUnavailable) {
+          throw new Error(`LIVE_EXCHANGE:${protocol.label}'s resting orders could not be read. The grid will wait before changing orders.`)
+        }
         const pairedNow = rows.some(
           (other) =>
             other.id !== raw.id &&
@@ -2414,7 +2447,41 @@ export async function reconcileLiveLaddersOnce(
         }
         // A grid has no orders on the exchange to match fills against: its
         // levels are watched prices and it buys when one is reached.
-        await advanceRow(raw, entry, (input, deps, row) => advanceGrid(input, deps, { ...(row as GridRow), lineStopState }))
+        if (orderApi.fixedSizeStops && !pairedNow) {
+          const held = folio.positions.find(
+            (one) => one.marketId === parseMarketKey(raw.marketKey)?.marketId
+          )
+          if (held?.slOrderId) plan.fixedStopOrderId = held.slOrderId
+        }
+        await advanceRow(raw, entry, (input, deps, row) =>
+          advanceGrid(input, deps, { ...(row as GridRow), lineStopState })
+        )
+        if (
+          plan.fixedStopOrderId &&
+          (plan.closedReason !== null || !book.positions.has(raw.marketKey))
+        ) {
+          const orderId = plan.fixedStopOrderId
+          const stillListed =
+            folio.orders.some((one) => one.orderId === orderId) ||
+            folio.positions.some((one) =>
+              one.protectionOrderIds.includes(orderId)
+            )
+          const removed =
+            !stillListed ||
+            (await rollbackLiveOrder(userId, {
+              walletId: wallet.id,
+              marketKey: raw.marketKey,
+              orderId,
+            }))
+          if (removed) plan.fixedStopOrderId = null
+          await saveLadderPlan(
+            userId,
+            raw.id,
+            plan,
+            removed && plan.closedReason !== null ? "done" : "active"
+          )
+          if (!removed) continue
+        }
         // A grid that closed on this pass with its stop fired and the reverse
         // switch on is turned around here. The engine wrote the row as done
         // already, so there is never a moment with two active smart orders on

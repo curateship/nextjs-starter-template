@@ -381,9 +381,11 @@ async function heldOnExchange(
     wallet.address as string,
     await walletCredential(userId, wallet.id)
   )
-  return (
-    portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ?? 0
-  )
+  const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
+  if (held && ordersOf(protocol).fixedSizeStops && held.slSz === undefined) {
+    throw new Error(`LIVE_EXCHANGE:${protocol.label}'s resting stops could not be read. Try moving the grid stop again after the next wallet read.`)
+  }
+  return held?.szi ?? 0
 }
 
 /**
@@ -422,7 +424,12 @@ async function movePairedGridStop(
 export async function updateLiveGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean; lineStop?: GridLineStop | null }
+  input: {
+    gridId: string
+    stopLoss: GridStop
+    reverseWhenStopped?: boolean
+    lineStop?: GridLineStop | null
+  }
 ): Promise<void> {
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
@@ -459,7 +466,7 @@ export async function updateLiveGridStop(
         ? null
         : protocol.markets.roundPx(wanted, plan.sizeDecimals, plan.priceTick)
     if (protocol.capabilities.gridStop === "watched") {
-      // The price stays in the plan. Nothing is placed on Lighter.
+      // Venues without resting stops keep the price in the plan.
       plan.aimedSlPx = null
     } else if (ladder) {
       // Paired, the grid's stop is its own order — the position's stop
@@ -468,17 +475,23 @@ export async function updateLiveGridStop(
       if (slPx !== null) {
         await movePairedGridStop(userId, wallet.id, grid.marketKey, plan, slPx)
       }
-    } else if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+    } else if (
+      ordersOf(protocol).fixedSizeStops
+        ? (await heldOnExchange(userId, wallet, grid.marketKey)) !== 0
+        : (await heldOnExchange(userId, wallet, grid.marketKey)) > 0
+    ) {
       // Only onto the exchange when there is something to protect. Flat, the
       // plan is the whole record, and `advanceGrid` writes the stop onto the
       // position the moment a level buys.
-      await setLiveBrackets(userId, {
+      const placed = await setLiveBrackets(userId, {
         walletId: wallet.id,
         marketKey: grid.marketKey,
         // A grid never writes a target: its exits are its resting sells.
         targets: [],
         slPx,
       })
+      if (ordersOf(protocol).fixedSizeStops)
+        plan.fixedStopOrderId = placed.slOrderId
       plan.aimedSlPx = slPx
     } else {
       // Nothing was written, so nothing is remembered as written. Claiming
@@ -628,6 +641,7 @@ export async function reshapeLiveGrid(
         baseWatch: plan.baseWatch,
         aimedSlPx: plan.aimedSlPx,
         pairedStop: plan.pairedStop,
+        fixedStopOrderId: plan.fixedStopOrderId,
         seenFillsTo: plan.seenFillsTo,
         // A move re-prices the levels; it does not reset the grid's history.
         cycles: plan.cycles,
@@ -712,18 +726,24 @@ export async function moveLiveGridExit(
         plan.aimedSlPx = null
         await movePairedGridStop(userId, wallet.id, grid.marketKey, plan, px)
       } else if (protocol.capabilities.gridStop === "watched") {
-        // Lighter grid stops are watched here, not sent to the exchange.
+        // Venues without resting stops keep the price in the plan.
         plan.aimedSlPx = null
-      } else if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+      } else if (
+        ordersOf(protocol).fixedSizeStops
+          ? (await heldOnExchange(userId, wallet, grid.marketKey)) !== 0
+          : (await heldOnExchange(userId, wallet, grid.marketKey)) > 0
+      ) {
         // See `updateLiveGridStop`: a grid with nothing open has no brackets
         // to set, and asking anyway threw the drag away along with the new
         // stop.
-        await setLiveBrackets(userId, {
+        const placed = await setLiveBrackets(userId, {
           walletId: wallet.id,
           marketKey: grid.marketKey,
           targets: [],
           slPx: px,
         })
+        if (ordersOf(protocol).fixedSizeStops)
+          plan.fixedStopOrderId = placed.slOrderId
         plan.aimedSlPx = px
       } else {
         plan.aimedSlPx = null

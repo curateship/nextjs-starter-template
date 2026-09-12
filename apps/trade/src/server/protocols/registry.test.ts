@@ -292,3 +292,8 @@ it("offers both Lighter position controls with registered commands", () => {
   expect(lighter.orders?.setLeverage).toBeTypeOf("function")
   expect(lighter.orders?.adjustMargin).toBeTypeOf("function")
 })
+
+it("rests Lighter grid stops on the exchange with explicit size tracking", () => {
+  expect(getProtocol("lighter").capabilities.gridStop).toBe("exchange")
+  expect(getProtocol("lighter").orders?.fixedSizeStops).toBe(true)
+})

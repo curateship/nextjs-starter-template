@@ -153,7 +153,7 @@ export const PROTOCOL_DESCRIPTIONS = [
       accounts: true,
       orders: true,
       ordersAreSwaps: false,
-      gridStop: "watched",
+      gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
     },

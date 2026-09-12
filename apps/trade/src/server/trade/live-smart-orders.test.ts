@@ -38,6 +38,7 @@ import {
   placeLiveDcaLadder,
   noteRowFailure,
   reconcileLiveLadders,
+  reconcileLiveLaddersOnce,
   reshapeLiveLadder,
   resetRefusalHolds,
   resetRowFailureHolds,
@@ -79,7 +80,7 @@ let marketMaxLeverage = 50
 // call to nothing.
 vi.mock("@/server/protocols/registry", async (importOriginal) => {
   const gridStops: Record<string, "exchange" | "watched"> = {
-    lighter: "watched",
+    lighter: "exchange",
   }
   return {
     ...(await importOriginal<object>()),
@@ -119,6 +120,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
       },
       account: { fetch: account },
       orders: {
+        ...(id === "lighter" ? { fixedSizeStops: true } : {}),
         portfolio,
         fills,
         fillsNeedRecovery,
@@ -3067,7 +3069,7 @@ describe("changing a live grid while it is flat", () => {
     return rows[0].plan as GridPlan
   }
 
-  async function useLighterWallet(): Promise<void> {
+  async function selectLighterWallet(): Promise<void> {
     await database
       .update(tradeWallets)
       .set({ protocol: "lighter", network: "mainnet" })
@@ -3088,6 +3090,7 @@ describe("changing a live grid while it is flat", () => {
       tpSz: null,
       tpOrderId: null,
       slPx: null,
+      slSz: 0,
       slOrderId: null,
       protectionOrderIds: [],
     }
@@ -3299,29 +3302,69 @@ describe("changing a live grid while it is flat", () => {
     expect(await gridPlan()).toMatchObject({ aimedSlPx: 70 })
   })
 
-  it("keeps a Lighter grid stop in Trade instead of sending a bracket", async () => {
-    await useLighterWallet()
+  it("writes the Lighter stop after the grid's first entry", async () => {
+    await selectLighterWallet()
     await restingGrid(null, LIGHTER_MARKET)
-    portfolio.mockResolvedValue({
-      positions: [lighterPosition()],
-      orders: [],
+    prices.mockResolvedValue(new Map([["BTC", 84]]))
+    portfolio.mockResolvedValue({ positions: [lighterPosition()], orders: [] })
+    place.mockResolvedValue({
+      orderId: "first-entry",
+      avgPx: 84,
+      filledSz: 1,
+      protection: null,
     })
+    setBrackets.mockResolvedValue({ slOrderId: "first-stop" })
+    await reconcileLiveLadders(userId, wallet, { positions: [], orders: [] })
+    expect(place).toHaveBeenCalled()
+    expect(setBrackets).toHaveBeenCalledWith(
+      "mainnet",
+      expect.anything(),
+      expect.objectContaining({ slPx: 76 })
+    )
+    expect(await gridPlan()).toMatchObject({ fixedStopOrderId: "first-stop" })
+  })
 
+  it("moves a Lighter grid stop on the exchange", async () => {
+    await selectLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    portfolio.mockResolvedValue({ positions: [lighterPosition()], orders: [] })
+    setBrackets.mockResolvedValue({ slOrderId: "grid-stop" })
     await moveLiveGridExit(userId, wallet, {
       gridId: "grid-1",
       which: "stopLoss",
       px: 70,
     })
-
     expect(await gridPlan()).toMatchObject({
       stopLoss: { mode: "fixed", px: 70 },
-      aimedSlPx: null,
+      aimedSlPx: 70,
+      fixedStopOrderId: "grid-stop",
     })
-    expect(setBrackets).not.toHaveBeenCalled()
+    expect(setBrackets).toHaveBeenCalledWith(
+      "mainnet",
+      expect.anything(),
+      expect.objectContaining({ slPx: 70, targets: [] })
+    )
   })
 
-  it("does not erase a Lighter grid's watched stop above its price", async () => {
-    await useLighterWallet()
+  it("moves a Lighter short grid's exchange stop", async () => {
+    await selectLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    const plan = await gridPlan()
+    plan.direction = "short"
+    plan.levels[0] = { ...plan.levels[0], status: "holding", heldSz: 1 }
+    plan.levels[1].status = "cancelled"
+    plan.stopLoss = { mode: "fixed", px: 110, underPct: 5, base: null }
+    plan.aimedSlPx = 110
+    await database.update(tradeSmartLadders).set({ plan }).where(eq(tradeSmartLadders.id, "grid-1"))
+    portfolio.mockResolvedValue({ positions: [{ ...lighterPosition(), szi: -1, slPx: 110, slSz: 1, slOrderId: "old-stop", protectionOrderIds: ["old-stop"] }], orders: [] })
+    setBrackets.mockResolvedValue({ slOrderId: "moved-short-stop" })
+    await moveLiveGridExit(userId, wallet, { gridId: "grid-1", which: "stopLoss", px: 115 })
+    expect(setBrackets).toHaveBeenCalledWith("mainnet", expect.anything(), expect.objectContaining({ slPx: 115, position: expect.objectContaining({ szi: -1 }) }))
+    expect(await gridPlan()).toMatchObject({ fixedStopOrderId: "moved-short-stop", aimedSlPx: 115 })
+  })
+
+  async function holdingLighterGrid() {
+    await selectLighterWallet()
     await restingGrid(null, LIGHTER_MARKET)
     const plan = await gridPlan()
     plan.levels[0] = {
@@ -3337,57 +3380,233 @@ describe("changing a live grid while it is flat", () => {
       .set({ plan })
       .where(eq(tradeSmartLadders.id, "grid-1"))
     prices.mockResolvedValue(new Map([["BTC", 75]]))
-    const currentPortfolio = {
-      positions: [lighterPosition()],
-      orders: [],
-    }
+    setBrackets.mockResolvedValue({ slOrderId: "grid-stop" })
+  }
 
-    await reconcileLiveLadders(userId, wallet, currentPortfolio)
-
+  it("places a missing Lighter stop for held grid coins", async () => {
+    await holdingLighterGrid()
+    const current = { positions: [lighterPosition()], orders: [] }
+    portfolio.mockResolvedValue(current)
+    await reconcileLiveLadders(userId, wallet, current)
     expect(await gridPlan()).toMatchObject({
-      stopLoss: { mode: "fixed", px: 70 },
-      aimedSlPx: null,
+      aimedSlPx: 70,
+      fixedStopOrderId: "grid-stop",
     })
-    expect(setBrackets).not.toHaveBeenCalled()
+    expect(setBrackets).toHaveBeenCalledWith(
+      "mainnet",
+      expect.anything(),
+      expect.objectContaining({ slPx: 70 })
+    )
     expect(close).not.toHaveBeenCalled()
   })
 
-  it("closes a Lighter position when price reaches its watched grid stop", async () => {
-    await useLighterWallet()
+  it.each([0.5, 2])(
+    "resizes a Lighter stop from %s coins to the current position",
+    async (slSz) => {
+      await holdingLighterGrid()
+      const current = {
+        positions: [
+          {
+            ...lighterPosition(),
+            slPx: 70,
+            slSz,
+            slOrderId: "old-stop",
+            protectionOrderIds: ["old-stop"],
+          },
+        ],
+        orders: [],
+      }
+      portfolio.mockResolvedValue(current)
+      await reconcileLiveLadders(userId, wallet, current)
+      expect(setBrackets).toHaveBeenCalledTimes(1)
+      expect(setBrackets).toHaveBeenCalledWith(
+        "mainnet",
+        expect.anything(),
+        expect.objectContaining({
+          position: expect.objectContaining({ szi: 1 }),
+          slPx: 70,
+        })
+      )
+    }
+  )
+
+  it("waits without trading or replacing a Lighter stop when its order read failed", async () => {
+    await holdingLighterGrid()
+    const position = lighterPosition()
+    delete position.slSz
+    const current = { positions: [position], orders: [] }
+    portfolio.mockResolvedValue(current)
+    const warning = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      await reconcileLiveLadders(userId, wallet, current)
+      expect(place).not.toHaveBeenCalled()
+      expect(setBrackets).not.toHaveBeenCalled()
+      expect(cancel).not.toHaveBeenCalled()
+      expect(await gridPlan()).toMatchObject({ closedReason: null })
+    } finally {
+      warning.mockRestore()
+    }
+  })
+
+  it("does not rewrite a Lighter stop whose price and size match", async () => {
+    await holdingLighterGrid()
+    const current = {
+      positions: [
+        {
+          ...lighterPosition(),
+          slPx: 70,
+          slSz: 1,
+          slOrderId: "grid-stop",
+          protectionOrderIds: ["grid-stop"],
+        },
+      ],
+      orders: [],
+    }
+    portfolio.mockResolvedValue(current)
+    await reconcileLiveLadders(userId, wallet, current)
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
+  it("does not run the old watched close at a Lighter grid stop", async () => {
+    await holdingLighterGrid()
+    prices.mockResolvedValue(new Map([["BTC", 70]]))
+    const current = {
+      positions: [
+        {
+          ...lighterPosition(),
+          slPx: 70,
+          slSz: 1,
+          slOrderId: "grid-stop",
+          protectionOrderIds: ["grid-stop"],
+        },
+      ],
+      orders: [],
+    }
+    portfolio.mockResolvedValue(current)
+    await reconcileLiveLadders(userId, wallet, current)
+    expect(close).not.toHaveBeenCalled()
+    expect(setBrackets).not.toHaveBeenCalled()
+    expect(await gridPlan()).toMatchObject({ closedReason: null })
+  })
+
+  it("keeps Lighter stop protection when Stop only cancels future entries", async () => {
+    await holdingLighterGrid()
+    const current = {
+      positions: [
+        {
+          ...lighterPosition(),
+          slPx: 70,
+          slSz: 1,
+          slOrderId: "grid-stop",
+          protectionOrderIds: ["grid-stop"],
+        },
+      ],
+      orders: [],
+    }
+    portfolio.mockResolvedValue(current)
+    await cancelLiveGridRest(userId, wallet, { gridId: "grid-1" })
+    expect(cancel).not.toHaveBeenCalledWith(
+      "mainnet",
+      expect.anything(),
+      expect.objectContaining({ orderId: "grid-stop" })
+    )
+    expect(close).not.toHaveBeenCalled()
+  })
+
+  it("does not forget a flat Lighter grid's stop after a failed order read", async () => {
+    await selectLighterWallet()
     await restingGrid(null, LIGHTER_MARKET)
     const plan = await gridPlan()
-    plan.levels[0] = {
-      ...plan.levels[0],
-      status: "holding",
-      heldSz: 1,
+    plan.levels.forEach((level) => { level.status = "cancelled" })
+    plan.fixedStopOrderId = "grid-stop"
+    await database.update(tradeSmartLadders).set({ plan }).where(eq(tradeSmartLadders.id, "grid-1"))
+    const warning = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      await reconcileLiveLadders(userId, wallet, { positions: [], orders: [], ordersUnavailable: true })
+      expect(cancel).not.toHaveBeenCalled()
+      expect(await gridPlan()).toMatchObject({ fixedStopOrderId: "grid-stop", closedReason: null })
+    } finally {
+      warning.mockRestore()
     }
-    plan.stopLoss = { mode: "fixed", underPct: 5, px: 70, base: null }
+  })
+
+  it("keeps a failed Lighter stop cancellation active for another pass", async () => {
+    await selectLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    const plan = await gridPlan()
+    plan.levels.forEach((level) => {
+      level.status = "cancelled"
+    })
+    plan.fixedStopOrderId = "grid-stop"
     await database
       .update(tradeSmartLadders)
       .set({ plan })
       .where(eq(tradeSmartLadders.id, "grid-1"))
-    prices.mockResolvedValue(new Map([["BTC", 70]]))
-    const currentPortfolio = {
-      positions: [lighterPosition()],
-      orders: [],
+    const current = {
+      positions: [],
+      orders: [
+        {
+          orderId: "grid-stop",
+          marketId: "BTC",
+          side: "sell" as const,
+          px: 70,
+          sz: 1,
+          reduceOnly: true,
+          trigger: true,
+        },
+      ],
     }
-    portfolio.mockResolvedValue(currentPortfolio)
-
-    await reconcileLiveLadders(userId, wallet, currentPortfolio)
-
-    expect(close).toHaveBeenCalledWith(
-      wallet.network,
-      expect.anything(),
-      expect.objectContaining({ marketId: "BTC", szi: 1 })
-    )
-    expect(place).not.toHaveBeenCalled()
-    expect(setBrackets).not.toHaveBeenCalled()
-    expect(await gridPlan()).toMatchObject({ closedReason: "stop" })
+    portfolio.mockResolvedValue(current)
+    cancel.mockRejectedValue(new Error("exchange busy"))
+    await reconcileLiveLadders(userId, wallet, current)
     const [row] = await database
-      .select({ status: tradeSmartLadders.status })
+      .select()
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.id, "grid-1"))
-    expect(row.status).toBe("done")
+    expect(row.status).toBe("active")
+    expect(await gridPlan()).toMatchObject({ fixedStopOrderId: "grid-stop" })
+    cancel.mockResolvedValue(undefined)
+    await reconcileLiveLaddersOnce(userId, wallet, current, true)
+    expect(await gridPlan()).toMatchObject({ fixedStopOrderId: null })
+  })
+
+  it("removes a remembered Lighter stop when a flat grid ends", async () => {
+    await selectLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    const plan = await gridPlan()
+    plan.levels.forEach((level) => {
+      level.status = "cancelled"
+    })
+    plan.fixedStopOrderId = "grid-stop"
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan })
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    const current = {
+      positions: [],
+      orders: [
+        {
+          orderId: "grid-stop",
+          marketId: "BTC",
+          side: "sell" as const,
+          px: 70,
+          sz: 1,
+          reduceOnly: true,
+          trigger: true,
+        },
+      ],
+    }
+    portfolio.mockResolvedValue(current)
+    await reconcileLiveLadders(userId, wallet, current)
+    expect(cancel).toHaveBeenCalledWith(
+      "mainnet",
+      expect.anything(),
+      expect.objectContaining({ orderId: "grid-stop" })
+    )
+    expect(await gridPlan()).toMatchObject({
+      fixedStopOrderId: null,
+      closedReason: "flat",
+    })
   })
 })
 

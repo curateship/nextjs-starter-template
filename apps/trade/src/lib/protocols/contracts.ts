@@ -495,6 +495,9 @@ export type PositionMarginLimits = {
  * exchange's number is the one that will actually be enforced.
  */
 export type WalletPosition = {
+  /** Fixed remaining size of the resting stop. Omitted for whole-position stops. */
+  slSz?: number
+
   marginMode?: "cross" | "isolated" | null
   marginLimits?: PositionMarginLimits
 
@@ -570,6 +573,8 @@ export type WalletOpenOrder = {
 
 /** Everything a live wallet holds and has waiting, in one read. */
 export type WalletPortfolio = {
+  /** Positions remain readable, but an empty order list cannot prove absence. */
+  ordersUnavailable?: true
   positions: WalletPosition[]
   orders: WalletOpenOrder[]
 }

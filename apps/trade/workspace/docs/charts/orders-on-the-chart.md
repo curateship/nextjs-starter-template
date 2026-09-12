@@ -10,7 +10,16 @@ chart, while a drawing tool is selected, and while the menu is open.
 The + and its tooltip also hide whenever the button would overlap an order
 bar, with four pixels of clearance. Order settings and remove controls stay
 clickable. Moving clear of the bar brings + back at the cursor's price.
+Grid and DCA ladder rows use the same clearance rule as manual orders, including
+price labels, rung controls, stops, exits and ladder settings. The shortcut disappears over those rows and
+returns when the cursor moves clear.
 Touch screens keep the existing long-press menu.
+
+The grid and DCA component regressions reproduce the overlapping shortcut
+before the row markers are added. Both verify that the shortcut disappears
+over the controls and returns outside their bounds. The focused chart tests
+pass in jsdom. Signed-in browser coverage remains unavailable after the local
+login attempt returned to login.
 
 Under Recent the menu has two fold-out rows, Manual order and Smart order,
 drawn the way the Folders panel draws a folder: a chevron on the right that

@@ -724,10 +724,10 @@ describe("pinning protective orders to their position", () => {
           order_index: 900,
           market_index: 1,
           is_ask: true,
-          price: "700000",
-          remaining_base_amount: "60",
+          price: "70000",
+          remaining_base_amount: "0.0006",
           reduce_only: true,
-          trigger_price: "705000",
+          trigger_price: "70500",
         },
         // An ordinary resting buy, which is not protection and must not be
         // cancelled when a stop is replaced.
@@ -735,8 +735,8 @@ describe("pinning protective orders to their position", () => {
           order_index: 901,
           market_index: 1,
           is_ask: false,
-          price: "700000",
-          remaining_base_amount: "60",
+          price: "70000",
+          remaining_base_amount: "0.0006",
           reduce_only: false,
           trigger_price: "0",
         },
@@ -770,6 +770,7 @@ describe("pinning protective orders to their position", () => {
       () => KEY
     )
     expect(folio.positions[0].protectionOrderIds).toEqual(["900"])
+    expect(folio.positions[0].slSz).toBe(0.0006)
   }, 60_000)
 
   it("fills in the position's own stop and target from its legs", async () => {
@@ -1005,6 +1006,8 @@ describe("pinning protective orders to their position", () => {
     )
     expect(folio.positions).toHaveLength(1)
     expect(folio.positions[0].marketId).toBe("PUMP")
+    expect(folio.ordersUnavailable).toBe(true)
+    expect(folio.positions[0].slSz).toBeUndefined()
     expect(folio.orders).toEqual([])
   }, 60_000)
 })
@@ -1224,4 +1227,122 @@ describe("Lighter position collateral changes", () => {
       }
     }
   )
+})
+
+describe("fixed-size Lighter grid stops", () => {
+  it.each([0.0003, 0.0012])(
+    "replaces a stop with the current %s BTC quantity",
+    async (szi) => {
+      confirmAnswers({ active: [{ client_order_index: 42, status: "open" }] })
+      await setLighterBrackets("mainnet", auth(), {
+        marketId: "BTC",
+        position: { szi, protectionOrderIds: ["111"] },
+        targets: [],
+        slPx: 71000,
+        slSz: null,
+      })
+      expect(sent.mock.calls.map((call) => call[1].txType)).toEqual([15, 14])
+      const stop = JSON.parse(sent.mock.calls[1][1].txInfo)
+      expect(stop).toMatchObject({
+        BaseAmount: Math.round(szi * 100000),
+        TriggerPrice: 710000,
+        ReduceOnly: 1,
+        Type: 3,
+      })
+    }
+  )
+
+  it("never places a replacement after the old stop's cancellation is refused", async () => {
+    sent.mockRejectedValueOnce(new Error("LIGHTER_BUDGET:Wait a minute"))
+    await expect(
+      setLighterBrackets("mainnet", auth(), {
+        marketId: "BTC",
+        position: { szi: 0.001, protectionOrderIds: ["111"] },
+        targets: [],
+        slPx: 71000,
+        slSz: null,
+      })
+    ).rejects.toThrow("Wait a minute")
+    expect(sent.mock.calls.map((call) => call[1].txType)).toEqual([15])
+  })
+
+  it("measures a ten-rung hour with one full cycle and one stop drag", async () => {
+    let at = Date.now()
+    const requests: number[] = []
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => at)
+    clearLighterBudgets()
+    try {
+      sent.mockImplementation(async (network) => {
+        reserveLighterRequest(network, { weight: 6, priority: "order" })
+        requests.push(at)
+        return { code: 200 }
+      })
+      privateRead.mockImplementation(async (network, _path, weight) => {
+        reserveLighterRequest(network, { weight, priority: "order" })
+        requests.push(at)
+        return { orders: [{ client_order_index: 42, status: "open" }] }
+      })
+      let stopId: string | null = null
+      const change = async (coins: number, px: number) => {
+        at += 180000
+        const result = await setLighterBrackets("mainnet", auth(), {
+          marketId: "BTC",
+          position: { szi: coins, protectionOrderIds: stopId ? [stopId] : [] },
+          targets: [],
+          slPx: px,
+          slSz: null,
+        })
+        stopId = result.slOrderId
+      }
+      // Ten entries over 30 minutes, one drag, nine reductions, then flat at one hour.
+      for (let rung = 1; rung <= 10; rung++) {
+        at += 180000
+        await placeLighterOrder(
+          "mainnet",
+          auth(),
+          order({ sz: 0.0001, leverage: rung === 1 ? 1 : null })
+        )
+        at -= 180000
+        await change(rung * 0.0001, 70000)
+      }
+      at -= 180000
+      await change(0.001, 71000)
+      for (let rung = 9; rung >= 1; rung--) {
+        at += 180000
+        await placeLighterOrder(
+          "mainnet",
+          auth(),
+          order({ side: "sell", sz: 0.0001, reduceOnly: true })
+        )
+        at -= 180000
+        await change(rung * 0.0001, 71000)
+      }
+      at += 180000
+      await placeLighterOrder(
+        "mainnet",
+        auth(),
+        order({ side: "sell", sz: 0.0001, reduceOnly: true })
+      )
+      await cancelLighterOrder("mainnet", auth(), {
+        marketId: "BTC",
+        orderId: stopId!,
+      })
+      expect(sent).toHaveBeenCalledTimes(61)
+      expect(privateRead).toHaveBeenCalledTimes(40)
+      expect(
+        Math.max(
+          ...requests.map(
+            (end) =>
+              requests.filter((time) => time > end - 60000 && time <= end)
+                .length
+          )
+        )
+      ).toBe(8)
+      const bodies = sent.mock.calls.map((call) => JSON.parse(call[1].txInfo))
+      expect(bodies.filter((body) => body.Type === 3)).toHaveLength(20)
+    } finally {
+      clock.mockRestore()
+      clearLighterBudgets()
+    }
+  })
 })

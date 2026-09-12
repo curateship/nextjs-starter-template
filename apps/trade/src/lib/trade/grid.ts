@@ -1370,6 +1370,8 @@ const gridPlanSchema = z.object({
    * rather than left unused.
    */
   aimedSlPx: z.number().nullable(),
+  /** Owned fixed-size stop, retained until confirmed cancellation or disappearance. */
+  fixedStopOrderId: z.string().nullable().optional(),
   /**
    * When a hand last set this coin's protection, in epoch milliseconds, or
    * null if it never has.
