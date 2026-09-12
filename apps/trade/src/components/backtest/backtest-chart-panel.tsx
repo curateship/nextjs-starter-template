@@ -17,6 +17,7 @@ import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
@@ -338,7 +339,7 @@ export function BacktestChartPanel({
             onWindow={onWindow}
           />
         ) : error ? (
-          <div className="p-4 sm:p-5" />
+          <ErrorRow message={error} onRetry={onRetry} />
         ) : !openCoin ? (
           <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {chartable.length === 0

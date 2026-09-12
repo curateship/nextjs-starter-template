@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   changeRealMoneySwitch,
   changeWorkerSwitch,
@@ -200,7 +201,20 @@ export default function WorkersSettings() {
   }
 
   if (!data) {
-    return null
+    return (
+      <CardGroup>
+        {(["Engine", "Safety", "Orders"] as const).map((title) => (
+          <Card key={title} className="gap-0 py-0">
+            <CardHeader className="border-b p-4">
+              <CardTitle>{title}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <LoadingRow label={`Loading ${title.toLowerCase()}`} />
+            </CardContent>
+          </Card>
+        ))}
+      </CardGroup>
+    )
   }
 
   return (

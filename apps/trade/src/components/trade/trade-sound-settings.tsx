@@ -158,7 +158,7 @@ function TradeSoundSettingsCard() {
               label="Fills and stops"
               description="Fills use a short high sound. Stops and targets use a lower warning sound. Turning this on plays the fill sound once."
               checked={settings.fillsAndStops}
-              disabled={!loaded || busy !== null}
+              disabled={!loaded || busy !== null && busy !== "fillsAndStops"}
               onChange={(checked) => void change("fillsAndStops", checked)}
             />
             <SoundSettingRow
@@ -166,7 +166,7 @@ function TradeSoundSettingsCard() {
               label="Price alerts"
               description="A crossed price line uses its own alert sound. Turning this on plays that sound once."
               checked={settings.alerts}
-              disabled={!loaded || busy !== null}
+              disabled={!loaded || busy !== null && busy !== "alerts"}
               onChange={(checked) => void change("alerts", checked)}
             />
           </div>

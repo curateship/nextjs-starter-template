@@ -3,7 +3,7 @@ import {
   useBacktestClock,
   type BacktestTiming,
 } from "@/components/backtest/backtest-duration"
-import { ChevronDownIcon, FlaskConicalIcon } from "lucide-react"
+import { ChevronDownIcon, FlaskConicalIcon, Loader2Icon } from "lucide-react"
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 
 import {
@@ -177,7 +177,8 @@ export function BacktestStatsPanel({
               disabled={stopRequested}
               onClick={onStop}
             >
-              {stopRequested ? "Stopping…" : "Stop"}
+              {stopRequested ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+              Stop
             </Button>
           ) : null
         }

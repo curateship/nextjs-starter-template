@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -176,7 +177,10 @@ export function LiquidationWarningSettings({
             </span>
           </div>
         </div>
-        <Button type="submit">{busy ? "Saving…" : "Save"}</Button>
+        <Button type="submit" disabled={busy}>
+          {busy ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+          Save
+        </Button>
       </fieldset>
     </form>
   )

@@ -5,6 +5,7 @@ import {
   BotIcon,
   EllipsisVerticalIcon,
   Grid2x2Icon,
+  Loader2Icon,
   PauseIcon,
   PlayIcon,
   SquareIcon,
@@ -37,11 +38,6 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   getRunningBotsErrorMessage,
   loadRunningBots,
@@ -790,7 +786,7 @@ function SmartOrdersView({
                       <TableCell className="px-1 py-2">
                         <div className="grid min-w-0 gap-1">
                           <div className="flex min-w-0 items-center gap-1">
-                            <SmartOrderDetailsTooltip
+                            <SmartOrderDetailsPopover
                               order={order}
                               symbol={symbol}
                               position={position}
@@ -817,7 +813,7 @@ function SmartOrdersView({
                                   {symbol}
                                 </span>
                               </button>
-                            </SmartOrderDetailsTooltip>
+                            </SmartOrderDetailsPopover>
                           </div>
                           {order.plan.paused ? (
                             <span
@@ -918,12 +914,13 @@ function ResumeSmartOrderButton({
       }}
     >
       <PlayIcon className="size-3" />
-      {resuming ? "Resuming" : "Resume"}
+      {resuming ? <Loader2Icon className="size-3 animate-spin" aria-hidden="true" /> : null}
+      Resume
     </Button>
   )
 }
 
-function SmartOrderDetailsTooltip({
+function SmartOrderDetailsPopover({
   order,
   symbol,
   position,
@@ -945,28 +942,30 @@ function SmartOrderDetailsTooltip({
   const pausedReason =
     order.plan.pauseReason ?? "The exchange refused this smart order."
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {/* A span, not a button: the ticker inside is already a button that
-            switches the chart, and a button may not hold another button. It
-            keeps a tab stop so the details still open from the keyboard. */}
-        <span
-          tabIndex={0}
-          aria-label={`${symbol} smart order details`}
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-1 rounded-sm",
-            focusRing
-          )}
-        >
-          {children}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent
+    <Popover>
+      <div className="flex w-full min-w-0 items-center gap-1">
+        {children}
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={`${symbol} smart order details`}
+            title={`Show ${symbol} smart order details`}
+            className={cn(
+              "ml-auto shrink-0 rounded-sm p-1 text-muted-foreground/40 hover:bg-muted hover:text-foreground",
+              focusRing
+            )}
+          >
+            <EllipsisVerticalIcon className="size-4" aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
+      </div>
+      <PopoverContent
         side="left"
         sideOffset={8}
         collisionPadding={8}
-        className="grid w-56 max-w-[calc(100vw-1rem)] items-stretch gap-0 overflow-hidden bg-popover p-0 text-popover-foreground shadow-md ring-1 ring-border sm:w-64 [&>span:not([role])]:hidden"
+        className="w-64 max-w-[calc(100vw-1rem)] overflow-hidden p-0"
       >
+        <ScrollArea className="max-h-[min(28rem,calc(100vh-2rem))]" viewportClassName="[&>div]:block!">
         <div className="border-b p-2.5">
           <p className="font-medium">
             {symbol} smart order
@@ -1070,8 +1069,9 @@ function SmartOrderDetailsTooltip({
             </>
           )}
         </div>
-      </TooltipContent>
-    </Tooltip>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }
 

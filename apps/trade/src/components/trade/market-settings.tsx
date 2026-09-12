@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Loader2Icon } from "lucide-react"
 import { useTradeSettingsBootstrap } from "@/components/trade/trade-settings-context"
 import {
   Card,
@@ -153,7 +154,8 @@ export default function MarketSettings() {
           </div>
           <div>
             <Button type="submit" disabled={busy}>
-              {busy ? "Saving…" : "Save changes"}
+              {busy ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+              Save changes
             </Button>
           </div>
         </form>

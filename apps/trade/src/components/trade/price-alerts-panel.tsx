@@ -6,6 +6,7 @@ import {
   DashboardCardTabsHeader,
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -293,7 +294,7 @@ function ActiveAlertsView({
   useErrorToast(!error ? lines.error : null, lines.onRetry)
 
   if (error) {
-    return <div className="p-2" />
+    return <ErrorRow message={error} onRetry={onRetry} />
   }
   const rows = activeRows(alerts, lines.armed)
 
@@ -397,7 +398,7 @@ function FiredAlertsView({
     return <LoadingRow label="Loading fired alerts..." className="min-h-32" />
   }
   if (error && !known) {
-    return <div className="p-2" />
+    return <ErrorRow message={error} onRetry={onRetry} />
   }
 
   const rows = firedRows(alerts, lines.fired)

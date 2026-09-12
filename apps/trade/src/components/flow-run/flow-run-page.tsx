@@ -15,6 +15,7 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
 import {
   loadFlowRun,
@@ -394,13 +395,15 @@ export function FlowRunPage({
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+    <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
       <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
         {chartPanel}
       </WorkspacePanel>
       <WorkspacePanel className="flex flex-col">{coinsPanel}</WorkspacePanel>
       <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
-    </div>
+      </div>
+    </ScrollArea>
   )
 
   return (

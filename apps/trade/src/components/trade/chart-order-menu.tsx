@@ -96,9 +96,35 @@ export function ChartOrderMenu({
   onPickAlert: () => void
   onClose: () => void
 }) {
+  const boxRef = React.useRef<HTMLDivElement | null>(null)
+  const previousFocusRef = React.useRef<HTMLElement | null>(null)
+
   React.useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    boxRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape") {
+        event.preventDefault()
+        onClose()
+        previousFocusRef.current?.focus()
+        return
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
+      const items = Array.from(
+        boxRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []
+      ).filter((item) => !item.hasAttribute("disabled"))
+      if (items.length === 0) return
+      const current = items.indexOf(document.activeElement as HTMLElement)
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? items.length - 1
+            : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length
+      event.preventDefault()
+      items[next]?.focus()
     }
     document.addEventListener("keydown", onKeyDown)
     return () => document.removeEventListener("keydown", onKeyDown)
@@ -112,7 +138,6 @@ export function ChartOrderMenu({
    * pointer first and moved inside the window before the browser paints, so
    * there is no frame where a menu hangs off the edge.
    */
-  const boxRef = React.useRef<HTMLDivElement | null>(null)
   const [at, setAt] = React.useState({ left: menu.x, top: menu.y })
   // Both closed until one is clicked. Nothing is saved: the Recent list
   // above already remembers what was placed.

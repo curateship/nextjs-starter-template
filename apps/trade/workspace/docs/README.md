@@ -1,5 +1,7 @@
 # Trade docs
 
+- `polish-scroll-controls-and-states.md` — scroll surfaces, loading and error states, busy controls, disabled reasons, popovers and keyboard behavior.
+
 This folder belongs to the Trade app. Nothing in it comes from Custom Shell, so
 nothing in it ever conflicts when the shell is merged in. Everything true of
 every app built on the shell is in the repo's `docs/shell/` instead.

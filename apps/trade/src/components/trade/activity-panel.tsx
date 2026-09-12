@@ -28,7 +28,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -466,6 +466,7 @@ export function ActivityPanel({
               void trading.closePart(position, ask)
             }
           />
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </TabsContent>
 
@@ -487,6 +488,7 @@ export function ActivityPanel({
             onCancel={(order) => void trading.cancel(order)}
             onResume={trading.resumeSmartOrder}
           />
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </TabsContent>
 
@@ -517,6 +519,7 @@ export function ActivityPanel({
             onTickVisible={journalTicks.toggleVisible}
             tickAllState={journalTicks.selectAllState}
           />
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </TabsContent>
 

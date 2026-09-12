@@ -465,7 +465,7 @@ function WatchedRow({
       <span className="flex h-6 min-w-0 items-center gap-2">
         <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
           <span className="min-w-0 truncate text-sm font-medium">{symbol}</span>
-          <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
             {formatWholeUsd(level.px * level.sz)}
           </span>
         </span>
@@ -526,7 +526,7 @@ function HeldRow({
       <span className="flex h-6 min-w-0 items-center gap-2">
         <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
           <span className="min-w-0 truncate text-sm font-medium">{symbol}</span>
-          <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
             {worth === null ? "—" : formatWholeUsd(worth)}
           </span>
         </span>

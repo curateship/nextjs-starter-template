@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ErrorRow } from "@/components/ui/error-row"
 import { TableSortButton } from "@/components/ui/table"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
@@ -158,7 +159,7 @@ export function AllMarketsList({
   }
 
   if (marketsError) {
-    return <div className="p-3" />
+    return <ErrorRow message={marketsError} onRetry={onRetry} />
   }
 
   if (visible.length === 0) {
@@ -186,7 +187,7 @@ export function AllMarketsList({
           names. */}
       <div
         className={cn(
-          "flex shrink-0 items-center border-b text-muted-foreground",
+          "sticky top-0 z-10 flex shrink-0 items-center border-b bg-card text-muted-foreground",
           ROW_COLUMNS
         )}
       >
@@ -346,7 +347,7 @@ export const MarketRowLine = React.memo(function MarketRowLine({
           <span className="sr-only">{row.symbol}</span>
           <span aria-hidden>{tickerLabel(row.symbol)}</span>
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {formatCompactUsd(volume24hUsd)}
         </span>
         {row.caution ? <CautionBadge caution={row.caution} /> : null}
