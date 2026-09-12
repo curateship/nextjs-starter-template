@@ -154,16 +154,8 @@ export const PROTOCOL_DESCRIPTIONS = [
       orders: true,
       ordersAreSwaps: false,
       gridStop: "watched",
-      changeLeverage: {
-        can: false,
-        because:
-          "Changing a Lighter position's leverage is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
-      },
-      adjustMargin: {
-        can: false,
-        because:
-          "Moving the cash behind a Lighter position is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
-      },
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
     },
     credentialForm: {
       addressLabel: "Lighter account address",

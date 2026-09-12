@@ -284,3 +284,11 @@ describe("the protocol registry", () => {
     expect(named).toContain("Lighter")
   })
 })
+
+it("offers both Lighter position controls with registered commands", () => {
+  const lighter = getProtocol("lighter")
+  expect(lighter.capabilities.changeLeverage).toEqual({ can: true })
+  expect(lighter.capabilities.adjustMargin).toEqual({ can: true })
+  expect(lighter.orders?.setLeverage).toBeTypeOf("function")
+  expect(lighter.orders?.adjustMargin).toBeTypeOf("function")
+})

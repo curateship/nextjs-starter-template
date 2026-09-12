@@ -480,6 +480,14 @@ export type TakeProfitTarget = {
   orderId: string | null
 }
 
+/** Exchange restrictions carried with a position into its margin dialog. */
+export type PositionMarginLimits = {
+  refusal: string | null
+  maxAdd: number | null
+  /** Smallest dollar amount the signed transaction can carry. */
+  step: number
+}
+
 /**
  * One real position a live wallet holds, in the app's own words. Everything
  * here is the exchange's OWN answer — margin held and the liquidation price
@@ -487,6 +495,9 @@ export type TakeProfitTarget = {
  * exchange's number is the one that will actually be enforced.
  */
 export type WalletPosition = {
+  marginMode?: "cross" | "isolated" | null
+  marginLimits?: PositionMarginLimits
+
   /** The exchange's own id for the market. */
   marketId: string
   /** How much is held, signed: positive long, negative short. */

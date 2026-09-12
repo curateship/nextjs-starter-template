@@ -24,7 +24,10 @@ import {
   lighterSendTx,
 } from "@/server/protocols/lighter/client"
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
-import { fetchLighterPortfolio } from "@/server/protocols/lighter/account"
+import {
+  fetchLighterPortfolio,
+  readLighterMarginPosition,
+} from "@/server/protocols/lighter/account"
 import {
   forgetLighterHeldReads,
   heldLighterRead,
@@ -211,6 +214,11 @@ async function saying<T>(work: () => Promise<T>): Promise<T> {
 
 function asLiveRefusal(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
+  if (message.startsWith("EXCHANGE_BUSY:")) {
+    return new Error(
+      "LIVE_EXCHANGE:Lighter's request allowance is used up. Wait a minute and try again."
+    )
+  }
   // Already a code the screens know how to read.
   if (/^LIVE_[A-Z_]+/.test(message)) return new Error(message)
   const said = /^[A-Z][A-Z0-9_]*:([^]+)$/.exec(message)
@@ -531,15 +539,7 @@ export async function cancelLighterOrder(
   })
 }
 
-/**
- * Changes the leverage on a market that already holds a position.
- *
- * The caller has already refused a leverage above what the market allows and
- * has already checked the position is there, so this only has to send it.
- * Cross is kept as the mode: Lighter's own default, and the mode every
- * position on this account was in when checked on 26 Aug 2026. Changing the
- * mode under an open position is a separate act this app does not offer.
- */
+/** Changes leverage for one market while preserving its current margin mode. */
 export async function setLighterLeverage(
   network: NetworkId,
   auth: OrderAuth,
@@ -547,7 +547,17 @@ export async function setLighterLeverage(
 ): Promise<void> {
   return saying(async () => {
     const where = await orderContext(network, auth, params.marketId)
-    await applyLighterLeverage(network, where, params.leverage, "cross")
+    const position = await readLighterMarginPosition(
+      network,
+      where.accountIndex,
+      params.marketId
+    )
+    await applyLighterLeverage(
+      network,
+      where,
+      params.leverage,
+      position.marginMode
+    )
   })
 }
 
@@ -566,9 +576,32 @@ export async function adjustLighterMargin(
   return saying(async () => {
     const where = await orderContext(network, auth, params.marketId)
     const millionths = Math.round(Math.abs(params.dollars) * 1e6)
-    if (millionths <= 0) {
+    if (
+      !Number.isSafeInteger(millionths) ||
+      millionths <= 0 ||
+      Math.abs(millionths / 1e6 - Math.abs(params.dollars)) > 1e-10
+    ) {
       throw new Error(
-        "LIVE_EXCHANGE:That is too small an amount for Lighter to move."
+        "LIVE_EXCHANGE:Enter a nonzero Lighter margin amount with at most six decimal places."
+      )
+    }
+    const position = await readLighterMarginPosition(
+      network,
+      where.accountIndex,
+      params.marketId
+    )
+    if (position.marginLimits?.refusal) {
+      throw new Error(`LIVE_EXCHANGE:${position.marginLimits.refusal}`)
+    }
+    const maxAdd = position.marginLimits?.maxAdd
+    if (params.dollars > 0 && (maxAdd == null || params.dollars > maxAdd)) {
+      throw new Error(
+        "LIVE_EXCHANGE:Lighter has not reported enough available cash for this margin change. Refresh the wallet or add less."
+      )
+    }
+    if (params.dollars < 0 && -params.dollars >= position.marginUsed) {
+      throw new Error(
+        "LIVE_EXCHANGE:Taking that much margin out would leave nothing behind this position. Take out less."
       )
     }
     await send(network, where, LIGHTER_TX_TYPE.updateMargin, (nonce) =>

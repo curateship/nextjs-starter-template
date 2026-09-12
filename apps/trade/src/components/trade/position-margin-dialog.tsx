@@ -98,8 +98,10 @@ export function PositionMarginDialog({
             walletName={walletName}
             canLeverage={canLeverage}
             leverageRefusal={leverageRefusal}
-            canMargin={canMargin}
-            marginRefusal={marginRefusal}
+            canMargin={canMargin && !position.live?.marginLimits?.refusal}
+            marginRefusal={
+              position.live?.marginLimits?.refusal ?? marginRefusal
+            }
             busy={busy}
             onSetLeverage={onSetLeverage}
             onAdjustMargin={onAdjustMargin}
@@ -212,7 +214,8 @@ function MarginForm({
    * compare two different arithmetics, and the difference between them would
    * read as a change the withdrawal had caused.
    */
-  const liquidationEstimateNow = marginNow > 0 ? estimate(notional / marginNow) : null
+  const liquidationEstimateNow =
+    marginNow > 0 ? estimate(notional / marginNow) : null
   const insideTheStop = (px: number | null) =>
     px !== null &&
     position.slPx !== null &&
@@ -230,17 +233,31 @@ function MarginForm({
         ? "Leverage has to be a whole number of at least 1."
         : `Leverage has to be a whole number between 1 and ${maxLeverage}.`
       : null
-  const marginBad = !marginOk
-    ? margin.trim() === ""
+  const limits = position.live?.marginLimits
+  const exchangeMarginBad =
+    !marginOk || !limits
       ? null
-      : "How much margin to move has to be a number other than zero. A minus takes margin back out."
-    : marginLeft <= 0
-      ? `This position is holding ${formatUsd(marginNow)} of margin, and taking ${formatUsd(-typedMargin)} back would leave nothing behind it.`
-      : typedMargin > 0 && surplus
-        ? `${formatUsd(marginNow)} is already behind a position worth ${formatUsd(notional)}, so more cash buys no more room — leverage cannot go under 1×. Take some back instead.`
-        : pastStop
-          ? `Taking that out moves the liquidation price to about ${formatPrice(afterMargin ?? 0)}, which the market reaches before the stop at ${formatPrice(position.slPx ?? 0)}. The exchange would take the trade before the stop could. Take out less, or move the stop first.`
+      : Math.abs(
+            typedMargin / limits.step - Math.round(typedMargin / limits.step)
+          ) > 0.0001
+        ? `The exchange accepts margin amounts in steps of $${limits.step}.`
+        : typedMargin > 0 &&
+            (limits.maxAdd === null || typedMargin > limits.maxAdd)
+          ? "The exchange has not reported enough available cash. Refresh the wallet or add less."
           : null
+  const marginBad =
+    exchangeMarginBad ??
+    (!marginOk
+      ? margin.trim() === ""
+        ? null
+        : "How much margin to move has to be a number other than zero. A minus takes margin back out."
+      : marginLeft <= 0
+        ? `This position is holding ${formatUsd(marginNow)} of margin, and taking ${formatUsd(-typedMargin)} back would leave nothing behind it.`
+        : typedMargin > 0 && surplus
+          ? `${formatUsd(marginNow)} is already behind a position worth ${formatUsd(notional)}, so more cash buys no more room — leverage cannot go under 1×. Take some back instead.`
+          : pastStop
+            ? `Taking that out moves the liquidation price to about ${formatPrice(afterMargin ?? 0)}, which the market reaches before the stop at ${formatPrice(position.slPx ?? 0)}. The exchange would take the trade before the stop could. Take out less, or move the stop first.`
+            : null)
   const shownLeverageRefusal = showLeverageValidation ? leverageBad : null
   const shownMarginRefusal = showMarginValidation ? marginBad : null
 

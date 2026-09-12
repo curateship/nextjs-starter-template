@@ -776,3 +776,25 @@ exchange at all.
   is read: when something happens, and otherwise five-minutely, instead of
   every thirty seconds forever. It can never be read more often than the poll
   it replaced, whatever the socket does.
+
+## Signed position changes
+
+The existing signer sends both changes to `POST /api/v1/sendTx` as form
+fields `tx_type` and `tx_info`. The signed JSON is passed unchanged.
+
+- Leverage uses transaction type 20. The signer receives account index,
+  market index, initial margin fraction, margin mode and nonce. The fraction
+  is `round(10000 / leverage)`. Mode 0 is cross and mode 1 is isolated.
+  The position's current mode must be preserved. The setting belongs to one
+  market in one account, including later orders on that market.
+- Margin uses transaction type 29. The signer receives account index,
+  market index, positive USDC millionths, direction and nonce.
+  Direction **1 adds** collateral and **0 removes** collateral.
+  Only isolated positions accept the change.
+- Each send uses the existing request budget. Account and nonce reads also
+  use the budget. A nonce refusal can require one further signed attempt.
+
+Request shapes and direction constants were checked against Lighter's
+[official signer client](https://github.com/elliottech/lighter-python/blob/main/lighter/signer_client.py).
+Account fields come from its
+[account position model](https://github.com/elliottech/lighter-python/blob/main/lighter/models/account_position.py).

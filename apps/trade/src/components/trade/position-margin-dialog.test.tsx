@@ -143,7 +143,9 @@ describe("changing leverage and margin on an open position", () => {
     await window.type("#margin-dollars", "200")
     expect(window.button("Put $200.00 behind it")).toBeDefined()
     await window.type("#margin-leverage", "3")
-    expect(window.button("Change to 3× and put $200.00 behind it")).toBeDefined()
+    expect(
+      window.button("Change to 3× and put $200.00 behind it")
+    ).toBeDefined()
     await window.close()
   })
 
@@ -332,5 +334,66 @@ describe("changing leverage and margin on an open position", () => {
     expect(document.querySelector("#margin-leverage")).toBeNull()
     await act(async () => root.unmount())
     host.remove()
+  })
+})
+
+describe("Lighter margin restrictions in the position window", () => {
+  function lighter(refusal: string | null = null) {
+    const position = live({ marketKey: "lighter:mainnet:BTC" })
+    position.live!.marginLimits = { refusal, maxAdd: 25, step: 0.000001 }
+    return position
+  }
+
+  it("keeps leverage available and explains why shared margin cannot move", async () => {
+    const window = await open(
+      lighter("Lighter only moves margin for isolated positions.")
+    )
+    expect(document.querySelector("#margin-leverage")).not.toBeNull()
+    expect(document.querySelector("#margin-dollars")).toBeNull()
+    expect(document.body.textContent).toContain(
+      "only moves margin for isolated positions"
+    )
+    await window.close()
+  })
+
+  it.each([
+    ["26", "available cash"],
+    ["0.0000001", "steps of"],
+  ])("refuses %s before calling the server", async (amount, message) => {
+    const window = await open(lighter())
+    await window.type("#margin-dollars", amount)
+    await act(async () =>
+      document
+        .querySelector<HTMLInputElement>("#margin-dollars")
+        ?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    )
+    await act(async () => window.button("Put")?.click())
+    expect(window.refusal("margin-dollars-refusal")).toContain(message)
+    expect(window.pressed.dollars).toEqual([])
+    await window.close()
+  })
+
+  it("sends an allowed isolated margin change and closes after acceptance", async () => {
+    const window = await open(lighter())
+    await window.type("#margin-dollars", "10")
+    await act(async () => window.button("Put")?.click())
+    expect(window.pressed.dollars).toEqual([10])
+    expect(window.pressed.dismissed).toBe(1)
+    await window.close()
+  })
+
+  it("refuses leverage above the exchange's market maximum", async () => {
+    const window = await open(lighter(), 10)
+    await window.type("#margin-leverage", "11")
+    await act(async () =>
+      document
+        .querySelector<HTMLInputElement>("#margin-leverage")
+        ?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    )
+    expect(window.refusal("margin-leverage-refusal")).toContain(
+      "between 1 and 10"
+    )
+    expect(window.pressed.leverage).toEqual([])
+    await window.close()
   })
 })

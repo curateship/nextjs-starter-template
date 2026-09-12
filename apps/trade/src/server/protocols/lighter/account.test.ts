@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   fetchLighterPortfolio,
+  readLighterMarginPosition,
   toLighterAccountFigures,
   toLighterPortfolio,
 } from "@/server/protocols/lighter/account"
@@ -179,5 +180,55 @@ describe("a Lighter account", () => {
       positions: [{ ...ACCOUNT.positions[0], liquidation_price: "0" }],
     })
     expect(portfolio.positions[0].liquidationPx).toBeNull()
+  })
+})
+
+it("reads current margin mode through the budgeted order-priority account request", async () => {
+  const position = await readLighterMarginPosition("mainnet", 5, "BTC")
+  expect(position.marginMode).toBe("cross")
+  expect(position.marginLimits).toMatchObject({
+    maxAdd: 2.771356,
+    step: 0.000001,
+  })
+  expect(position.marginLimits?.refusal).toContain("isolated")
+  expect(publicRead).toHaveBeenCalledWith(
+    "mainnet",
+    "/api/v1/account",
+    300,
+    { by: "index", value: 5 },
+    "order"
+  )
+})
+
+it("refuses an unknown margin mode instead of selecting cross", async () => {
+  publicRead.mockResolvedValue({
+    accounts: [
+      { ...ACCOUNT, positions: [{ ...ACCOUNT.positions[0], margin_mode: 7 }] },
+    ],
+  })
+  await expect(readLighterMarginPosition("mainnet", 5, "BTC")).rejects.toThrow(
+    "did not report"
+  )
+})
+
+it("carries isolated limits and updated exchange figures on the next read", () => {
+  const portfolio = toLighterPortfolio({
+    ...ACCOUNT,
+    positions: [
+      {
+        ...ACCOUNT.positions[0],
+        margin_mode: 1,
+        allocated_margin: "12.00",
+        initial_margin_fraction: "10.00",
+        liquidation_price: "65000",
+      },
+    ],
+  })
+  expect(portfolio.positions[0]).toMatchObject({
+    marginMode: "isolated",
+    marginUsed: 12,
+    leverage: 10,
+    liquidationPx: 65000,
+    marginLimits: { refusal: null, maxAdd: 2.771356 },
   })
 })

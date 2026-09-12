@@ -1,5 +1,6 @@
 import type {
   CandleBar,
+  PositionMarginLimits,
   TakeProfitTarget,
   WalletAccountFigures,
 } from "@/lib/protocols/contracts"
@@ -148,6 +149,7 @@ export type TradePosition = {
    * ids are the protection legs', needed to replace them.
    */
   live?: {
+    marginLimits?: PositionMarginLimits
     marginUsed: number
     liquidationPx: number | null
     tpOrderId: string | null

@@ -170,8 +170,8 @@ screen: anything not written there has not been agreed yet.
   anything is sold, what a refused cancel stops, and how it differs from Close
   all.
 - `position-margin.md` — changing leverage and the cash behind an open
-  position: what each exchange allows, when taking margin out is refused, and
-  why the liquidation figure on the window is an estimate.
+  position, Lighter signed changes and testing steps, exchange limits,
+  withdrawal refusals and the estimated liquidation figure.
 - `stuck-wallet-warning.md` — when a wallet turn is called stuck, what the
   Workers screen says, and why the engine does not cancel the turn.
 - `liquidation-warning.md` — each wallet's distances, the account fallback,
@@ -212,7 +212,7 @@ always used.
   markets are left out, how far its three prices ran from the other four
   venues, what a minute of reading costs against its sixty-a-minute cap, why
   the account is pushed down a socket rather than polled, how leverage is
-  stated, and why it is mainnet only.
+  stated, signed leverage and margin request shapes, and why it is mainnet only.
 - `phemex-refusals.md` — Phemex refusal codes in plain words, with the action
   each one asks for.
 - `kucoin.md` — which KuCoin stop rows count as open, the refusal codes seen

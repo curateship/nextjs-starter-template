@@ -464,7 +464,7 @@ export async function signLighterUpdateLeverage(input: {
  * Signs a change to the cash behind one isolated position.
  *
  * `usdcAmount` is a whole number of millionths, the same six decimals every
- * Lighter quote uses, and `direction` says which way it moves: 0 adds, 1
+ * Lighter quote uses, and `direction` says which way it moves: 1 adds, 0
  * takes back. Lighter carries the direction separately, so the amount itself
  * is never negative.
  */
@@ -489,4 +489,4 @@ export async function signLighterUpdateMargin(input: {
 }
 
 /** Adding cash to a position, and taking it back. */
-export const LIGHTER_MARGIN_DIRECTION = { add: 0, remove: 1 } as const
+export const LIGHTER_MARGIN_DIRECTION = { add: 1, remove: 0 } as const

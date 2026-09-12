@@ -155,6 +155,7 @@ export function livePortfolioRows(
     feesPaid: 0,
     updatedAt: now,
     live: {
+      ...(position.marginLimits ? { marginLimits: position.marginLimits } : {}),
       marginUsed: position.marginUsed,
       liquidationPx: position.liquidationPx,
       tpOrderId: position.tpOrderId,

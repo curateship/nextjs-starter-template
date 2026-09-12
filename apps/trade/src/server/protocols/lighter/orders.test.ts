@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { OrderAuth, PlaceOrderParams } from "@/lib/protocols/contracts"
 import {
+  adjustLighterMargin,
+  setLighterLeverage,
   cancelLighterOrder,
   closeLighterPosition,
   fetchLighterOrderPortfolio,
@@ -24,6 +26,12 @@ import {
   forgetLighterNonce,
 } from "@/server/protocols/lighter/nonces"
 import { forgetLighterHeldReads } from "@/server/protocols/lighter/private-feed"
+import { readLighterMarginPosition } from "@/server/protocols/lighter/account"
+import {
+  clearLighterBudgets,
+  ceilingFor,
+  reserveLighterRequest,
+} from "@/server/protocols/lighter/budget"
 import { loadLighterKey } from "@/server/protocols/lighter/signer"
 
 vi.mock("@/server/protocols/lighter/client", async (importOriginal) => {
@@ -32,6 +40,7 @@ vi.mock("@/server/protocols/lighter/client", async (importOriginal) => {
   return { ...real, lighterSendTx: vi.fn(), lighterPrivate: vi.fn() }
 })
 vi.mock("@/server/protocols/lighter/account", () => ({
+  readLighterMarginPosition: vi.fn(),
   fetchLighterPortfolio: vi.fn(async () => ({ positions: [], orders: [] })),
 }))
 vi.mock("@/server/protocols/lighter/agent", () => ({
@@ -305,7 +314,9 @@ describe("cancelling a Lighter order", () => {
    */
   it("sends again with a fresh number when Lighter refuses the sequence number", async () => {
     sent.mockRejectedValueOnce(
-      new Error("LIGHTER_NONCE:Lighter refused the transaction's sequence number.")
+      new Error(
+        "LIGHTER_NONCE:Lighter refused the transaction's sequence number."
+      )
     )
     await cancelLighterOrder("mainnet", auth(), {
       marketId: "BTC",
@@ -318,16 +329,22 @@ describe("cancelling a Lighter order", () => {
 
   it("shows a second sequence-number refusal in a row instead of looping", async () => {
     sent.mockRejectedValue(
-      new Error("LIGHTER_NONCE:Lighter refused the transaction's sequence number.")
+      new Error(
+        "LIGHTER_NONCE:Lighter refused the transaction's sequence number."
+      )
     )
     await expect(
       cancelLighterOrder("mainnet", auth(), { marketId: "BTC", orderId: "1" })
-    ).rejects.toThrow(/^LIVE_EXCHANGE:Lighter refused the transaction's sequence number/)
+    ).rejects.toThrow(
+      /^LIVE_EXCHANGE:Lighter refused the transaction's sequence number/
+    )
     expect(sent).toHaveBeenCalledTimes(2)
   }, 60_000)
 
   it("does not send a refusal about anything else twice", async () => {
-    sent.mockRejectedValue(new Error("LIGHTER_REFUSED:Lighter refused (code 21500)."))
+    sent.mockRejectedValue(
+      new Error("LIGHTER_REFUSED:Lighter refused (code 21500).")
+    )
     await expect(
       cancelLighterOrder("mainnet", auth(), { marketId: "BTC", orderId: "1" })
     ).rejects.toThrow(/^LIVE_EXCHANGE:/)
@@ -1070,4 +1087,141 @@ describe("a refusal before anything is sent still says why", () => {
       return true
     })
   }, 60_000)
+})
+
+describe("Lighter position collateral changes", () => {
+  beforeEach(() => {
+    vi.mocked(readLighterMarginPosition).mockReset()
+    vi.mocked(readLighterMarginPosition).mockResolvedValue({
+      marketId: "BTC",
+      szi: 0.01,
+      entryPx: 50000,
+      leverage: 5,
+      marginMode: "isolated",
+      marginUsed: 100,
+      marginLimits: { refusal: null, maxAdd: 50, step: 0.000001 },
+      liquidationPx: 40000,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+      tpOrderId: null,
+      slOrderId: null,
+      protectionOrderIds: [],
+    })
+  })
+
+  it.each(["cross", "isolated"] as const)(
+    "preserves %s mode in the signed leverage transaction",
+    async (mode) => {
+      const position = await readLighterMarginPosition("mainnet", 5, "BTC")
+      vi.mocked(readLighterMarginPosition).mockResolvedValue({
+        ...position,
+        marginMode: mode,
+      })
+      await setLighterLeverage("mainnet", auth(), {
+        marketId: "BTC",
+        szi: 0.01,
+        leverage: 10,
+      })
+      expect(sent).toHaveBeenCalledTimes(1)
+      expect(sent.mock.calls[0][1].txType).toBe(20)
+      expect(bodySent()).toMatchObject({
+        AccountIndex: 5,
+        MarketIndex: 1,
+        InitialMarginFraction: 1000,
+        MarginMode: mode === "cross" ? 0 : 1,
+        Nonce: 7,
+      })
+    }
+  )
+
+  it.each([
+    [12.345678, 1],
+    [-12.345678, 0],
+  ])("signs $%s with direction %s", async (dollars, direction) => {
+    await adjustLighterMargin("mainnet", auth(), {
+      marketId: "BTC",
+      szi: 0.01,
+      dollars,
+    })
+    expect(sent).toHaveBeenCalledTimes(1)
+    expect(sent.mock.calls[0][1].txType).toBe(29)
+    expect(bodySent()).toMatchObject({
+      AccountIndex: 5,
+      MarketIndex: 1,
+      USDCAmount: 12345678,
+      Direction: direction,
+      Nonce: 7,
+    })
+  })
+
+  it.each([NaN, Infinity, 0, 0.0000001, 0.1234567, 51, -100])(
+    "refuses invalid or unavailable margin %s without sending",
+    async (dollars) => {
+      await expect(
+        adjustLighterMargin("mainnet", auth(), {
+          marketId: "BTC",
+          szi: 0.01,
+          dollars,
+        })
+      ).rejects.toThrow("LIVE_EXCHANGE:")
+      expect(sent).not.toHaveBeenCalled()
+    }
+  )
+
+  it("refuses shared margin without sending", async () => {
+    const position = await readLighterMarginPosition("mainnet", 5, "BTC")
+    vi.mocked(readLighterMarginPosition).mockResolvedValue({
+      ...position,
+      marginMode: "cross",
+      marginLimits: {
+        refusal: "Lighter only moves margin for isolated positions.",
+        maxAdd: 50,
+        step: 0.000001,
+      },
+    })
+    await expect(
+      adjustLighterMargin("mainnet", auth(), {
+        marketId: "BTC",
+        szi: 0.01,
+        dollars: 1,
+      })
+    ).rejects.toThrow("isolated")
+    expect(sent).not.toHaveBeenCalled()
+  })
+
+  it.each(["leverage", "margin"])(
+    "refuses %s when the real request budget is spent",
+    async (kind) => {
+      const client = await vi.importActual<
+        typeof import("@/server/protocols/lighter/client")
+      >("@/server/protocols/lighter/client")
+      clearLighterBudgets()
+      try {
+        for (let count = 0; count < ceilingFor("order"); count++) {
+          reserveLighterRequest("mainnet", { weight: 6, priority: "order" })
+        }
+        sent.mockImplementation(client.lighterSendTx)
+        const work =
+          kind === "leverage"
+            ? setLighterLeverage("mainnet", auth(), {
+                marketId: "BTC",
+                szi: 0.01,
+                leverage: 10,
+              })
+            : adjustLighterMargin("mainnet", auth(), {
+                marketId: "BTC",
+                szi: 0.01,
+                dollars: 1,
+              })
+        await expect(work).rejects.toThrow(
+          "LIVE_EXCHANGE:Lighter's request allowance is used up. Wait a minute and try again."
+        )
+        expect(sent).toHaveBeenCalledTimes(1)
+      } finally {
+        clearLighterBudgets()
+      }
+    }
+  )
 })

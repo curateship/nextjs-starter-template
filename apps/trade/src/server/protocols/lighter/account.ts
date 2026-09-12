@@ -113,6 +113,12 @@ function toPosition(raw: unknown): WalletPosition | null {
   const liquidation = num(row.liquidation_price)
 
   return {
+    marginMode:
+      row.margin_mode === 0
+        ? "cross"
+        : row.margin_mode === 1
+          ? "isolated"
+          : null,
     marketId: row.symbol,
     szi: row.sign < 0 ? -size : size,
     entryPx: entry,
@@ -170,7 +176,20 @@ export function toLighterPortfolio(raw: unknown): WalletPortfolio {
   return {
     positions: rows
       .map(toPosition)
-      .filter((one): one is WalletPosition => one !== null),
+      .filter((one): one is WalletPosition => one !== null)
+      .map((one) => ({
+        ...one,
+        marginLimits: {
+          refusal:
+            one.marginMode === "isolated"
+              ? null
+              : one.marginMode === "cross"
+                ? "Lighter only moves margin for isolated positions. This position uses shared account margin."
+                : "Lighter did not report this position's margin mode. Refresh before changing margin.",
+          maxAdd: parsed.success ? num(parsed.data.available_balance) : null,
+          step: 0.000001,
+        },
+      })),
     // The account read says nothing about resting orders; they need the
     // account's own signature and come from `fetchLighterOrderPortfolio`.
     orders: [],
@@ -229,4 +248,23 @@ export async function fetchLighterPortfolio(
   return toLighterPortfolio(
     await readAccountPreferringFeed(network, accountIndex, priority)
   )
+}
+
+/** Read current exchange state before changing a position's collateral settings. */
+export async function readLighterMarginPosition(
+  network: NetworkId,
+  accountIndex: number,
+  marketId: string
+): Promise<WalletPosition> {
+  const portfolio = toLighterPortfolio(
+    await readAccount(network, accountIndex, "order")
+  )
+  const position = portfolio.positions.find((one) => one.marketId === marketId)
+  if (!position) throw new Error("LIVE_POSITION_GONE")
+  if (position.marginMode == null) {
+    throw new Error(
+      "LIVE_EXCHANGE:Lighter did not report this position's margin mode. Refresh before changing it."
+    )
+  }
+  return position
 }
