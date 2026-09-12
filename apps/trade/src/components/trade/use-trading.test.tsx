@@ -1519,6 +1519,20 @@ describe("a watched level the engine has finished with", () => {
     plan: planFor(phase),
   })
 
+  it("labels a sent watch without an exchange id as checking", async () => {
+    const row = rowFor("taking", "watch-checking")
+    row.plan.sent = true
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+    })
+
+    await finishFirstRead()
+
+    expect(latest?.watchOrders[0]?.checking).toBe(true)
+    expect(latest?.watchOrders[0]?.taking).toBeUndefined()
+  })
+
   it("takes the level off the chart once a read stops carrying it", async () => {
     const row = rowFor("waiting", "watch-finished")
     api.placeLiveOrder.mockResolvedValue({
