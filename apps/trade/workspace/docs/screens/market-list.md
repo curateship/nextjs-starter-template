@@ -207,6 +207,6 @@ Hyperliquid with no page errors or failed requests. The desktop picker measured
 448 pixels wide. At a 375-pixel viewport, the picker measured 352.5 pixels and
 stayed within the screen. Other exchange pages were not repeated for this change.
 The selected market's Favorite star and header pin sit on the same light-gray
-button surface as the other header controls. Both use an amber outline and
-fill. The market-list row star stays a bare amber star, so the list does not
-gain a second button shape.
+button surface as the other header controls. Both use an amber outline, then
+an amber fill only after they are saved. The market-list row star stays a bare
+amber star, so the list does not gain a second button shape.

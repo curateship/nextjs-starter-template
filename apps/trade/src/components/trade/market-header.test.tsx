@@ -145,7 +145,7 @@ describe("the market header's star", () => {
       host
         .querySelector('button[aria-label="Pin to header"] svg')
         ?.getAttribute("class")
-    ).toContain("fill-amber-500")
+    ).not.toContain("fill-amber-500")
   })
 
   it("states a market's smallest dollar order when the venue gives one", () => {
