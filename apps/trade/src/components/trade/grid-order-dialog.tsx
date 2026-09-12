@@ -17,6 +17,7 @@ import {
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -1306,17 +1307,26 @@ export function GridOrderDialog({
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
                     {level ? formatUsd(level.dollars) : "—"}
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground"
+                  <DisabledReason
                     disabled={busy || rungs.length <= MIN_GRID_LEVELS}
-                    aria-label={`Remove rung ${number}`}
-                    onClick={() => touched(removeRung)(rung.id)}
+                    reason={
+                      busy
+                        ? "Waiting on the exchange."
+                        : `A grid needs at least ${MIN_GRID_LEVELS} rungs.`
+                    }
                   >
-                    <Trash2Icon className="size-4" />
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground"
+                      disabled={busy || rungs.length <= MIN_GRID_LEVELS}
+                      aria-label={`Remove rung ${number}`}
+                      onClick={() => touched(removeRung)(rung.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </Button>
+                  </DisabledReason>
                 </div>
               )
             })}
@@ -1328,26 +1338,44 @@ export function GridOrderDialog({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="justify-start"
+              <DisabledReason
                 disabled={busy || rungs.length >= MAX_GRID_LEVELS}
-                onClick={touched(addRung)}
+                reason={
+                  busy
+                    ? "Waiting on the exchange."
+                    : `A grid takes at most ${MAX_GRID_LEVELS} rungs.`
+                }
               >
-                <PlusIcon className="size-4" />
-                Add rung
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-start"
+                  disabled={busy || rungs.length >= MAX_GRID_LEVELS}
+                  onClick={touched(addRung)}
+                >
+                  <PlusIcon className="size-4" />
+                  Add rung
+                </Button>
+              </DisabledReason>
+              <DisabledReason
                 disabled={busy || rungs.length < MIN_GRID_LEVELS}
-                onClick={touched(evenSplit)}
+                reason={
+                  busy
+                    ? "Waiting on the exchange."
+                    : `A grid needs at least ${MIN_GRID_LEVELS} rungs.`
+                }
               >
-                Even split
-              </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy || rungs.length < MIN_GRID_LEVELS}
+                  onClick={touched(evenSplit)}
+                >
+                  Even split
+                </Button>
+              </DisabledReason>
             </div>
           </OptionCard>
 

@@ -22,6 +22,7 @@ import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
 import { TradeTable, type ColumnSpec } from "@/components/trade/trade-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { TableRow, type TableSortDirection } from "@/components/ui/table"
 import {
   Tooltip,
@@ -589,6 +590,11 @@ function PositionRow({
             turn it into, no leverage or margin behind it, and no stop or
             target the chain could hold, so those buttons are not offered
             rather than offered and refused. */}
+        <DisabledReason
+          disabled={busy}
+          reason="Waiting on the exchange."
+          className="flex items-center"
+        >
         <span className="flex items-center gap-0.5">
           {/* Turning a real position around in one go is not built yet, so
               the button is not offered rather than offered and refused. */}
@@ -648,6 +654,7 @@ function PositionRow({
               size="icon-sm"
               variant="ghost"
               aria-label={`Change the ${marketSymbol(position.marketKey)} stop and target`}
+              disabled={busy}
               onClick={() => onEdit(position)}
             >
               <SettingsIcon className="size-4" />
@@ -668,6 +675,7 @@ function PositionRow({
             <Trash2Icon className="size-4" />
           </Button>
         </span>
+        </DisabledReason>
       </td>
     </TableRow>
   )

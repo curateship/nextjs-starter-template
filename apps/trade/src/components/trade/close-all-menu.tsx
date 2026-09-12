@@ -283,7 +283,7 @@ export function CloseAllChoices({
         {rows.map((row) => (
           <div
             key={row.key}
-            className="flex h-7 items-center gap-2 rounded-md px-1.5 hover:bg-muted/60"
+            className="flex h-7 items-center gap-2 rounded-md px-2 hover:bg-muted/60"
           >
             <Checkbox
               id={`close-all-${row.key}`}
@@ -313,7 +313,7 @@ export function CloseAllChoices({
         ))}
       </div>
 
-      <div className="mt-2 -mx-2 border-t px-3 pt-2 text-xs text-muted-foreground">
+      <div className="mt-2 -mx-2 border-t px-2 pt-2 text-xs text-muted-foreground">
         {nothing ? (
           <p>Nothing is ticked, so this press would do nothing.</p>
         ) : (

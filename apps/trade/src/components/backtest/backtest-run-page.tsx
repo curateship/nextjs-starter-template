@@ -15,6 +15,7 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getBacktestErrorMessage,
   loadBacktestCoin,
@@ -560,13 +561,15 @@ export function BacktestRunPage({
     // Narrow screens stack the three rather than squeezing them into a width
     // none of them fits in. The chart leads, because it is the thing you came
     // to look at.
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+    <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
       <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
         {chartPanel}
       </WorkspacePanel>
       <WorkspacePanel className="flex flex-col">{marketsPanel}</WorkspacePanel>
       <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
-    </div>
+      </div>
+    </ScrollArea>
   )
 
   return (

@@ -3,7 +3,7 @@ import { EyeIcon } from "lucide-react"
 
 import type { ChartOptionsControl } from "@/components/trade/use-chart-options"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
@@ -58,10 +58,10 @@ function ToggleRows({
           htmlFor={`chart-option-${key}`}
           className="flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-muted/60"
         >
-          <Checkbox
+          <Switch
             id={`chart-option-${key}`}
             checked={values[key]}
-            onCheckedChange={(checked) => onChange(key, checked === true)}
+            onCheckedChange={(checked) => onChange(key, checked)}
           />
           {label}
         </label>

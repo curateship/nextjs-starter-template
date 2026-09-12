@@ -415,7 +415,8 @@ export default function BacktestCanvasPanel({
               void stopRun(run.id)
             }}
           >
-            {stopping || run.stopRequested ? "Stopping…" : "Stop"}
+            {stopping || run.stopRequested ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+            Stop
           </Button>
         ) : null}
         <Button

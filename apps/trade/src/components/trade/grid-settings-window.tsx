@@ -712,19 +712,30 @@ function StopForm({
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
                     {dollars === null ? "—" : formatUsd(dollars)}
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground"
-                    disabled={
-                      busy || !canReshape || rungs.length <= MIN_GRID_LEVELS
+                  <DisabledReason
+                    disabled={busy || !canReshape || rungs.length <= MIN_GRID_LEVELS}
+                    reason={
+                      busy
+                        ? "Waiting on the exchange."
+                        : rungs.length <= MIN_GRID_LEVELS
+                          ? `A grid needs at least ${MIN_GRID_LEVELS} rungs.`
+                          : "This grid cannot be reshaped while it holds a position."
                     }
-                    aria-label={`Remove rung ${number}`}
-                    onClick={() => removeRung(rung.id)}
                   >
-                    <Trash2Icon className="size-4" />
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground"
+                      disabled={
+                        busy || !canReshape || rungs.length <= MIN_GRID_LEVELS
+                      }
+                      aria-label={`Remove rung ${number}`}
+                      onClick={() => removeRung(rung.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </Button>
+                  </DisabledReason>
                 </div>
               )
             })}
@@ -736,28 +747,50 @@ function StopForm({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="justify-start"
-                disabled={
-                  busy || !canReshape || rungs.length >= MAX_GRID_LEVELS
+              <DisabledReason
+                disabled={busy || !canReshape || rungs.length >= MAX_GRID_LEVELS}
+                reason={
+                  busy
+                    ? "Waiting on the exchange."
+                    : rungs.length >= MAX_GRID_LEVELS
+                      ? `A grid takes at most ${MAX_GRID_LEVELS} rungs.`
+                      : "This grid cannot be reshaped while it holds a position."
                 }
-                onClick={addRung}
               >
-                <PlusIcon className="size-4" />
-                Add rung
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-start"
+                  disabled={
+                    busy || !canReshape || rungs.length >= MAX_GRID_LEVELS
+                  }
+                  onClick={addRung}
+                >
+                  <PlusIcon className="size-4" />
+                  Add rung
+                </Button>
+              </DisabledReason>
+              <DisabledReason
                 disabled={busy || !canReshape || rungs.length < MIN_GRID_LEVELS}
-                onClick={evenSplit}
+                reason={
+                  busy
+                    ? "Waiting on the exchange."
+                    : rungs.length < MIN_GRID_LEVELS
+                      ? `A grid needs at least ${MIN_GRID_LEVELS} rungs.`
+                      : "This grid cannot be reshaped while it holds a position."
+                }
               >
-                Even split
-              </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy || !canReshape || rungs.length < MIN_GRID_LEVELS}
+                  onClick={evenSplit}
+                >
+                  Even split
+                </Button>
+              </DisabledReason>
             </div>
           </OptionCard>
 

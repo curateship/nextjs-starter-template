@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import {
   Collapsible,
@@ -350,10 +351,10 @@ function Setting({
   if (field.kind === "switch") {
     return (
       <div className="flex items-center gap-2">
-        <Checkbox
+        <Switch
           id={id}
           checked={value === true}
-          onCheckedChange={(next) => onSet(next === true)}
+          onCheckedChange={onSet}
         />
         <FieldLabel htmlFor={id} hint={field.hint}>
           {field.label}

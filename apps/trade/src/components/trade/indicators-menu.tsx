@@ -101,12 +101,6 @@ function IndicatorMark({
  * 2px of gap all round, and 20px of travel so the gap on the right when it is
  * on matches the gap on the left when it is off.
  */
-const SMALLER_SWITCH = [
-  "h-5.5 w-10",
-  "[&_[data-slot=switch-thumb]]:size-4.5",
-  "[&_[data-slot=switch-thumb][data-state=checked]]:translate-x-5",
-].join(" ")
-
 const EMA_ROWS = [
   { show: "show20", period: "period20", color: "color20" },
   { show: "show50", period: "period50", color: "color50" },
@@ -377,7 +371,6 @@ export function IndicatorsMenu({
                 >
                   <Switch
                     checked={state.on}
-                    className={SMALLER_SWITCH}
                     onCheckedChange={(next) =>
                       indicators.toggle(module.kind, next)
                     }

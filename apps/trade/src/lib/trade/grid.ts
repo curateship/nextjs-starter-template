@@ -81,14 +81,6 @@ export const GRID_DIRECTIONS = ["long", "short"] as const
 export type GridDirection = (typeof GRID_DIRECTIONS)[number]
 
 /** Reversals keep the market and switch direction, even after the parent leaves the active list. */
-export function gridContinuationLabel(
-  plan: Pick<GridPlan, "direction" | "reversedFrom">,
-  symbol: string
-): string | null {
-  if (!plan.reversedFrom) return null
-  return `Continues ${symbol} ${plan.direction === "short" ? "long" : "short"} grid`
-}
-
 /**
  * What each direction is called in a sentence — the chart's badge, and the
  * running grid's window. A phrase, because those places are explaining rather

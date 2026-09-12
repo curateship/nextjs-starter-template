@@ -248,10 +248,7 @@ async function openSmartOrderDetails(host: HTMLElement, symbol = "XMR") {
     `[aria-label="${symbol} smart order details"]`
   )
   await act(async () => {
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
-    )
-    trigger?.focus()
+    trigger?.click()
   })
 }
 
@@ -585,12 +582,10 @@ describe("the Smart orders panel", () => {
     expect(
       host.querySelector('[data-slot="dashboard-card-header"]')?.className
     ).toContain("min-h-[var(--dashboard-card-header-height)]")
-    // The hover target is the icon and the ticker name together, so the
-    // details trigger holds the icon's letter and the symbol.
-    expect(details?.textContent).toBe("XXMR")
+    expect(details?.getAttribute("aria-label")).toBe("XMR smart order details")
     expect(host.textContent).toContain("$0.00")
     expect(host.querySelector(".lucide-piggy-bank")).toBeNull()
-    expect(host.querySelector(".lucide-ellipsis-vertical")).toBeNull()
+    expect(host.querySelector(".lucide-ellipsis-vertical")).not.toBeNull()
     await act(async () => root.unmount())
     host.remove()
   })
@@ -792,76 +787,11 @@ describe("the Smart orders panel", () => {
 
     expect(document.body.textContent).toContain("3 waiting · 7 completed")
     expect(document.body.textContent).toContain("Held to sell$70.00")
-    const tooltip = document.body.querySelector('[data-slot="tooltip-content"]')
-    expect(tooltip?.className).toContain("bg-popover")
-    expect(tooltip?.className).toContain("[&>span:not([role])]:hidden")
+    const popover = document.body.querySelector('[data-slot="popover-content"]')
+    expect(popover?.className).toContain("bg-popover")
     await act(async () => root.unmount())
     host.remove()
   })
-
-  it.each([
-    ["short", "long"],
-    ["long", "short"],
-  ] as const)(
-    "names the parent of a %s grid without needing the ended order",
-    async (direction, parentDirection) => {
-      ;(
-        globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
-      ).IS_REACT_ACT_ENVIRONMENT = true
-      const reversed = {
-        ...grid,
-        marketKey: "hyperliquid:mainnet:ETH",
-        plan: { ...grid.plan, direction, reversedFrom: "ended-parent" },
-      } as SmartOrder
-      const onSelectMarket = vi.fn()
-      const host = document.createElement("div")
-      const root = createRoot(host)
-      try {
-        await act(async () =>
-          root.render(
-            <SmartOrdersPanel
-              {...shared}
-              smartOrders={[reversed]}
-              settled
-              failed={false}
-              onSelectMarket={onSelectMarket}
-            />
-          )
-        )
-        const continuation = Array.from(
-          host.querySelectorAll("tbody button")
-        ).find(
-          (button) =>
-            button.textContent === `Continues ETH ${parentDirection} grid`
-        )
-        expect(continuation).toBeDefined()
-        await act(async () => (continuation as HTMLButtonElement).click())
-        expect(onSelectMarket).toHaveBeenCalledExactlyOnceWith(
-          reversed.marketKey
-        )
-
-        await act(async () =>
-          root.render(
-            <SmartOrdersPanel
-              {...shared}
-              smartOrders={[
-                {
-                  ...reversed,
-                  plan: { ...reversed.plan, reversedFrom: null },
-                } as SmartOrder,
-                ladder,
-              ]}
-              settled
-              failed={false}
-            />
-          )
-        )
-        expect(host.textContent).not.toContain("Continues")
-      } finally {
-        await act(async () => root.unmount())
-      }
-    }
-  )
 
   it("says a selling grid is holding to BUY BACK, not to sell", async () => {
     ;(

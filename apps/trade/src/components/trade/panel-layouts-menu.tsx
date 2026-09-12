@@ -3,7 +3,6 @@ import { LayoutTemplateIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
@@ -132,27 +131,43 @@ export function PanelLayoutsMenu({
               No saved layouts yet.
             </p>
           ) : (
-            <div className="grid gap-0.5">
+            <div className="grid gap-0.5" role="radiogroup" aria-label="Saved layouts">
               {layouts.map((layout) => (
                 <div
                   key={layout.id}
                   className="group flex h-8 items-center rounded-md focus-within:bg-muted hover:bg-muted"
                 >
-                  <Checkbox
+                  <button
+                    type="button"
                     id={`panel-layout-${layout.id}`}
-                    className="ml-2"
-                    checked={layout.id === activeId}
+                    name="panel-layout"
+                    role="radio"
+                    aria-checked={layout.id === activeId}
+                    data-state={layout.id === activeId ? "checked" : "unchecked"}
+                    className="ml-2 size-4 rounded-full border border-foreground/50 p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     disabled={busy}
                     aria-label={`Use ${layout.name}`}
-                    onCheckedChange={() => void apply(layout.id)}
-                  />
-                  <label
-                    htmlFor={`panel-layout-${layout.id}`}
-                    aria-disabled={busy}
-                    className="flex h-full min-w-0 flex-1 cursor-pointer items-center truncate px-2 text-sm"
+                    onClick={() => void apply(layout.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+                        event.preventDefault()
+                        const next = layouts[(layouts.indexOf(layout) + 1) % layouts.length]
+                        void apply(next.id)
+                        document.getElementById(`panel-layout-${next.id}`)?.focus()
+                      }
+                      if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+                        event.preventDefault()
+                        const next = layouts[(layouts.indexOf(layout) - 1 + layouts.length) % layouts.length]
+                        void apply(next.id)
+                        document.getElementById(`panel-layout-${next.id}`)?.focus()
+                      }
+                    }}
                   >
+                    <span className="sr-only">{layout.name}</span>
+                  </button>
+                  <span className="flex h-full min-w-0 flex-1 items-center truncate px-2 text-sm">
                     {layout.name}
-                  </label>
+                  </span>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button

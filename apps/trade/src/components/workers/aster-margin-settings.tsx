@@ -32,7 +32,7 @@ export function AsterMarginSettings({
   const [wallets, setWallets] = React.useState<AsterMarginModeSetting[] | null>(
     initialWallets ?? null
   )
-  const [loadFailed, setLoadFailed] = React.useState(initialWallets === null)
+  const [loadFailed, setLoadFailed] = React.useState(false)
   const [busyWalletIds, setBusyWalletIds] = React.useState<Set<string>>(
     () => new Set()
   )
