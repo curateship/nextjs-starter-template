@@ -139,9 +139,9 @@ beforeEach(() => {
   )
 })
 it("builds a free route with the switch off and never prepares or signs", async () => {
-  m.gate.mockRejectedValue(new Error("REAL_MONEY_OFF"))
+  m.gate.mockRejectedValue(new Error("LIVE_MAINNET_OFF"))
   await expect(placeBnbOrder("mainnet", auth, params)).rejects.toThrow(
-    "REAL_MONEY_OFF"
+    "LIVE_MAINNET_OFF"
   )
   expect(m.request.mock.calls.map((c) => c[0])).toEqual([
     "routes",
@@ -161,6 +161,36 @@ it("refuses a flagged buy before building or signing", async () => {
   await expect(placeBnbOrder("mainnet", auth, params)).rejects.toThrow("GoPlus")
   expect(m.request).not.toHaveBeenCalled()
   expect(m.sign).not.toHaveBeenCalled()
+})
+it("does not sign when the route expires during transaction preparation", async () => {
+  const now = Date.now()
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now)
+  m.prepare.mockImplementation(async (request) => {
+    clock.mockReturnValue(now + 121_000)
+    return request
+  })
+  try {
+    await expect(placeBnbOrder("mainnet", auth, params)).rejects.toThrow(
+      "route expired"
+    )
+    expect(m.sign).not.toHaveBeenCalled()
+    expect(m.remember).not.toHaveBeenCalled()
+    expect(m.send).not.toHaveBeenCalled()
+  } finally {
+    clock.mockRestore()
+  }
+})
+it("checks real-money permission again after transaction preparation", async () => {
+  m.prepare.mockImplementation(async (request) => {
+    m.gate.mockRejectedValue(new Error("LIVE_MAINNET_OFF"))
+    return request
+  })
+  await expect(placeBnbOrder("mainnet", auth, params)).rejects.toThrow(
+    "LIVE_MAINNET_OFF"
+  )
+  expect(m.sign).not.toHaveBeenCalled()
+  expect(m.remember).not.toHaveBeenCalled()
+  expect(m.send).not.toHaveBeenCalled()
 })
 it("uses sufficient allowance without another approval and saves the hash before sending", async () => {
   const outcome = await placeBnbOrder("mainnet", auth, params)
@@ -213,7 +243,7 @@ it("does not retry an ambiguous broadcast or invent a fill", async () => {
 })
 it("caps a sell to the current balance and never asks the buy scam guard", async () => {
   m.read.mockResolvedValueOnce(3n * 10n ** 18n).mockResolvedValue(maxUint256)
-  m.gate.mockRejectedValue(new Error("REAL_MONEY_OFF"))
+  m.gate.mockRejectedValue(new Error("LIVE_MAINNET_OFF"))
   await expect(
     placeBnbOrder("mainnet", auth, {
       ...params,
@@ -221,7 +251,7 @@ it("caps a sell to the current balance and never asks the buy scam guard", async
       px: 0.5,
       reduceOnly: true,
     })
-  ).rejects.toThrow("REAL_MONEY_OFF")
+  ).rejects.toThrow("LIVE_MAINNET_OFF")
   expect(m.request.mock.calls[0][1].amountIn).toBe(String(3n * 10n ** 18n))
   expect(m.risk).not.toHaveBeenCalled()
 })

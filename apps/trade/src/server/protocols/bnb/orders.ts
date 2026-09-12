@@ -323,6 +323,12 @@ async function executeSwap(
         type: "legacy",
         ...(gas ? { gas } : {}),
       })
+      // Preparing nonce and fees can wait on the node. Check again at signing.
+      await assertRealMoneyAllowed(network)
+      if (Date.now() / 1000 >= deadline)
+        throw bnbRefused(
+          "The route expired before signing. Nothing further was sent. Request a fresh quote."
+        )
       const signed = await writer.signTransaction(prepared)
       const hash = keccak256(signed)
       await rememberBnbSend(owner, {

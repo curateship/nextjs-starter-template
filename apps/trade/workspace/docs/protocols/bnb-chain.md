@@ -412,6 +412,9 @@ requires migration `0172_trade_bnb_swaps.sql` before mainnet can be enabled.
   minimum output, native value, permit and added fees. Partial fills are
   refused. Kyber can round the built minimum down one smallest token unit.
   Mainnet authorization is checked after the free build and before signing.
+  The server checks authorization and the route deadline again after preparing
+  the transaction. A slow nonce or fee read must not carry an expired route
+  into signing. The shared real-money-off error remains readable by the UI.
 - **Approvals:** insufficient allowance causes one unlimited approval to the
   freshly returned router. Confirmation and a sufficient allowance are
   required before the swap. The only extra attempt is one approval following
@@ -503,6 +506,20 @@ Verified locally on 8 Sep 2026 for task 06.
   their recovered receipts. The current mainnet configuration was enabled when
   the migration ran and was left unchanged. No transaction was signed or sent
   by the migration work. Nothing was committed or deployed.
+
+Task 06 was checked again locally on 12 Sep 2026. Both new signing tests
+failed before the correction. They now verify that an expired route or a
+real-money refusal after transaction preparation prevents signing, saving a
+pending hash and broadcasting. All 65 focused order, quote, receipt, recovery,
+ledger and refusal tests passed. Targeted lint passed. The app type check
+reported six diagnostics in unchanged positions-table, use-trading and
+smart-grids test files, with none in the changed files. Funded acceptance
+still requires Tyler's buy and sell. No migration, mainnet setting change or
+deployment was performed during this check.
+The signed-in BNB screen opened on the existing worktree server at port 3014
+without JavaScript errors or failed requests. The order window and live quote
+were not retested during this follow-up. The new signing cases were tested
+with mocked transaction preparation, not funded transactions.
 
 ## Refusals in plain words
 

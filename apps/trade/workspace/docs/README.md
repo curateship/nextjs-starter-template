@@ -193,6 +193,7 @@ always used.
   BNB refusal wording covers provider codes, fee certainty, pending and replaced
   transactions, secret-text removal and controlled failure checks.
   Recovery includes saved approval fees and keeps wallet validation errors separate.
+  Signing rechecks route expiry and real-money permission after transaction preparation.
 
 - `protocol-layer.md` — where the exchange lives in the code, one door per
   venue, and which venues push fills.

@@ -214,7 +214,7 @@ export function explainBnbError(
   // Exact app-owned validation codes contain no provider text.
   if (
     error instanceof Error &&
-    /^(REAL_MONEY_OFF|LIVE_SIZE|LIVE_MARKET|LIVE_WALLET_NOT_FOUND|LIVE_WALLET_ADDRESS|BNB_NETWORK_UNSUPPORTED)$/.test(
+    /^(LIVE_MAINNET_OFF|LIVE_SIZE|LIVE_MARKET|LIVE_WALLET_NOT_FOUND|LIVE_WALLET_ADDRESS|BNB_NETWORK_UNSUPPORTED)$/.test(
       error.message
     )
   )
