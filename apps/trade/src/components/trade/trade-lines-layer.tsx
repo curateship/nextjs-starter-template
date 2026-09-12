@@ -615,6 +615,8 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       label: () =>
         order.taking
           ? `Placing order...${tag}`
+          : order.checking
+            ? `Checking Hyperliquid order...${tag}`
           : spare
             ? `Extra ${spare === "take_profit" ? "Target" : "Stop"} ${formatUsdRounded(
                 orderCostUsd(order)

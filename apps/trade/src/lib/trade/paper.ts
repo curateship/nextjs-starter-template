@@ -225,6 +225,8 @@ export type TradeOrder = {
   watched?: true
   /** The saved watch is submitting an order. Its prices stay visible but locked. */
   taking?: true
+  /** Trade is checking a lost Hyperliquid placement reply by its client id. */
+  checking?: true
   /**
    * A watched price the engine has stopped working after the exchange refused
    * it five times running. Nothing is resting anywhere. The row stays on

@@ -321,6 +321,8 @@ export async function placeLiveOrder(
      * the trade can later be read against the rule it broke.
      */
     overrode?: readonly string[]
+    /** An id the exchange can use to recover this exact order after a lost reply. */
+    clientOrderId?: string | null
   }
 ): Promise<PlaceOrderOutcome> {
   // The stopwatch every real placement reports — one line per order saying
@@ -461,6 +463,7 @@ export async function placeLiveOrder(
       tpPx: input.tpPx,
       slPx: input.slPx,
       slippage: slippageFraction(quickPrefs?.slippagePct),
+      clientOrderId: input.clientOrderId,
     })
     dropEngineExchangeReads(row)
     console.log(

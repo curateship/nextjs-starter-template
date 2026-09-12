@@ -1489,6 +1489,7 @@ export async function placeWatchOrder(
     phase: input.startNow ? "taking" : "waiting",
     // Nothing has been sent for this watch — the whole point of it.
     sent: false,
+    clientOrderId: null,
     orderId: null,
     orderPx: null,
     missingSince: 0,

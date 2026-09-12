@@ -1662,7 +1662,9 @@ export function useTrading(
                 // aside; the × still works and goes the smart-order way.
                 watched: true,
                 ...(order.plan.phase === "taking" && !order.plan.paused
-                  ? { taking: true as const }
+                  ? order.plan.sent && order.plan.orderId === null
+                    ? { checking: true as const }
+                    : { taking: true as const }
                   : {}),
                 ...(order.plan.paused === true
                   ? { paused: true as const }

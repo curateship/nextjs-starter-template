@@ -657,6 +657,8 @@ export type PlaceOrderParams = {
    * Absent means the venue's own default.
    */
   slippage?: number | null
+  /** A venue-specific id chosen before an order leaves Trade. */
+  clientOrderId?: string | null
 }
 
 /**

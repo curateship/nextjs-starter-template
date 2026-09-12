@@ -67,6 +67,9 @@ const place = vi.fn()
 const cancel = vi.fn()
 const close = vi.fn()
 const setBrackets = vi.fn()
+const { recoverHyperliquidClientOrder } = vi.hoisted(() => ({
+  recoverHyperliquidClientOrder: vi.fn(),
+}))
 let marketFloor: number | null = null
 let marketMaxLeverage = 50
 
@@ -81,6 +84,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
   return {
     ...(await importOriginal<object>()),
     getProtocol: (id: string) => ({
+      id,
       label: "Hyperliquid",
       capabilities: { gridStop: gridStops[id] ?? "exchange" },
       markets: {
@@ -126,6 +130,11 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
     }),
   }
 })
+
+vi.mock("@/server/protocols/hyperliquid/orders", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  recoverHyperliquidClientOrder,
+}))
 
 const MARKET = "hyperliquid:testnet:BTC"
 const LIGHTER_MARKET = "lighter:mainnet:BTC"
@@ -377,6 +386,7 @@ beforeEach(async () => {
     cancel,
     close,
     setBrackets,
+    recoverHyperliquidClientOrder,
   ]) {
     mock.mockReset()
   }
@@ -393,6 +403,7 @@ beforeEach(async () => {
   cancel.mockResolvedValue(undefined)
   close.mockResolvedValue({ avgPx: null, filledSz: null })
   setBrackets.mockResolvedValue({ slOrderId: null })
+  recoverHyperliquidClientOrder.mockResolvedValue({ found: false, orderId: null })
 
   userId = (await insertUser(database)).id
   await database.insert(tradeWallets).values({
@@ -2343,11 +2354,49 @@ describe("live Smart orders", () => {
     place.mockRejectedValue(
       Object.assign(new Error("LIVE_ORDER_UNKNOWN"), { name: "TimeoutError" })
     )
+    recoverHyperliquidClientOrder.mockResolvedValue({
+      found: true,
+      orderId: "recovered-order",
+    })
 
     await reconcileLiveLadders(userId, wallet)
 
     const plan = await watchPlanNow()
     expect(plan.sent).toBe(true)
+    expect(plan.clientOrderId).toMatch(/^0x[0-9a-f]{32}$/)
+    expect(recoverHyperliquidClientOrder).toHaveBeenCalledTimes(1)
+    expect(plan.orderId).toBe("recovered-order")
+    expect(place.mock.calls[0][2].clientOrderId).toBe(plan.clientOrderId)
+  })
+
+  it("recovers a watched order when Hyperliquid sees it after the lost reply", async () => {
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      Object.assign(new Error("LIVE_ORDER_UNKNOWN"), { name: "TimeoutError" })
+    )
+    recoverHyperliquidClientOrder
+      .mockResolvedValueOnce({ found: false, orderId: null })
+      .mockResolvedValueOnce({ found: true, orderId: "recovered-later" })
+
+    await reconcileLiveLadders(userId, wallet)
+    expect((await watchPlanNow()).orderId).toBeNull()
+
+    // The placement response was lost. Once the exchange's read catches up,
+    // Trade checks the same client id instead of submitting another buy.
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_000)
+    try {
+      await reconcileLiveLadders(userId, wallet)
+    } finally {
+      clock.mockRestore()
+    }
+
+    const plan = await watchPlanNow()
+    expect(plan.orderId).toBe("recovered-later")
+    expect(place).toHaveBeenCalledTimes(1)
   })
 
   it("does not claim an unrelated manual fill at the same price", async () => {

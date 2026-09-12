@@ -591,6 +591,14 @@ describe("one stop line for the hand-placed orders that share it", () => {
     expect(html).not.toContain("Drag to move")
   })
 
+  it("names a lost Hyperliquid reply as a check, not a placement", () => {
+    const html = renderOrders([
+      { ...watched("taking", 100, 90), checking: true },
+    ])
+    expect(html).toContain("Checking Hyperliquid order...")
+    expect(html).not.toContain("Placing order...")
+  })
+
   it("draws one pill carrying what both orders lose together", () => {
     const html = renderOrders([watched("a", 100, 90), watched("b", 104, 91)])
     const host = document.createElement("div")

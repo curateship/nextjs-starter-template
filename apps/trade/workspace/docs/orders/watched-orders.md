@@ -20,6 +20,13 @@ When a saved watch starts placing its order, the entry bar says "Placing order..
 The stop and exit remain visible. Those three prices cannot be dragged during
 placement. A paused watch returns to its normal controls.
 
+If a Hyperliquid reply is lost, Trade says "Checking Hyperliquid order..."
+instead. New watches carry a unique Hyperliquid client order id before Trade
+sends them. Trade can ask Hyperliquid about that exact id, so another order at
+the same price can never be mistaken for the lost one. A failed check keeps the
+watch protected and never sends a duplicate. Older watches without that id stay
+protected and show the clear checking state until their account result arrives.
+
 An exchange order id alone does not remove the watched bars. The chart waits
 until the matching exchange order or changed position arrives in a wallet read.
 The exchange order keeps the watch's stop and exit prices because exchange

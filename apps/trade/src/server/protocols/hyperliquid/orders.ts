@@ -411,7 +411,7 @@ export async function placeHyperliquidOrder(
           tif: orderTimeInForce(params.kind),
         },
       },
-      c: newCloid(),
+      c: params.clientOrderId ?? newCloid(),
     },
     // The protection legs ride in the same request (`normalTpsl`), each a
     // reduce-only trigger on the CLOSING side, so the entry and its guard
@@ -966,6 +966,44 @@ const orderStatusSchema = z.object({
     })
     .optional(),
 })
+
+const clientOrderStatusSchema = z.union([
+  z.object({
+    status: z.literal("order"),
+    order: z.object({
+      order: z.object({ oid: z.number().int().positive() }),
+    }),
+  }),
+  z.object({ status: z.literal("unknownOid") }),
+])
+
+/**
+ * Reads an order back by the unique client id Trade chose before sending it.
+ * A lost reply is no longer guessed from another order at the same price.
+ */
+export async function recoverHyperliquidClientOrder(
+  network: NetworkId,
+  address: string,
+  clientOrderId: string
+): Promise<{ orderId: string | null; found: boolean }> {
+  if (!/^0x[0-9a-f]{32}$/i.test(clientOrderId)) {
+    return { orderId: null, found: false }
+  }
+  try {
+    const raw = await infoClient(network).orderStatus({
+      user: address.toLowerCase() as `0x${string}`,
+      oid: clientOrderId as `0x${string}`,
+    })
+    const parsed = clientOrderStatusSchema.safeParse(raw)
+    if (!parsed.success || parsed.data.status !== "order") {
+      return { orderId: null, found: false }
+    }
+    return { orderId: String(parsed.data.order.order.oid), found: true }
+  } catch {
+    // A failed recovery read proves nothing. The watch stays protected.
+    return { orderId: null, found: false }
+  }
+}
 
 export async function fetchHyperliquidOrderInfo(
   network: NetworkId,

@@ -42,6 +42,11 @@ export function resetWatchChaseGate(): void {
 
 export type WatchRow = { id: string; marketKey: string; plan: WatchPlan }
 
+function clientOrderId(tempId: string): string | null {
+  const uuid = /^pending:([0-9a-f-]{36})$/i.exec(tempId)?.[1]
+  return uuid ? `0x${uuid.replaceAll("-", "")}` : null
+}
+
 export async function advanceWatch(
   input: LadderAdvanceInput,
   deps: LadderEngineDeps,
@@ -321,6 +326,7 @@ async function moveOrder(
     reduceOnly: plan.reduceOnly,
     now,
   })
+  plan.clientOrderId = clientOrderId(plan.orderId)
   // From this moment money may be on the exchange, and only a proven cancel
   // may say otherwise. The live lane clears it when a cancel really
   // cancelled; a place that provably failed is rolled back to the plan as it

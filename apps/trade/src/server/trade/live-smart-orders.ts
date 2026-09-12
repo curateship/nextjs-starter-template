@@ -74,6 +74,7 @@ import {
   rememberFlowRunOrders,
 } from "@/server/trade/flow-run-orders"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
+import { recoverHyperliquidClientOrder } from "@/server/protocols/hyperliquid/orders"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
   cancelLiveOrder,
@@ -880,6 +881,10 @@ export async function reshapeLiveLadder(
 }
 
 const EXCHANGE_VISIBILITY_GRACE_MS = 2_000
+// A placement whose reply was lost is recovered by its client id. Keep this
+// cadence small enough to catch an eventually-consistent exchange read, but
+// never turn a single lost reply into an every-pass polling loop.
+const UNKNOWN_WATCH_ORDER_CHECK_MS = 2_000
 
 /**
  * How long a paired grid's stop may be missing from the portfolio read
@@ -1822,6 +1827,10 @@ export async function reconcileLiveLaddersOnce(
                 restingOnly: entry.kind !== "watch" || entry.plan.maker,
                 limitOnly: entry.kind === "watch" && !entry.plan.maker,
                 retryPostOnly: entry.kind === "watch" && entry.plan.maker,
+                clientOrderId:
+                  entry.kind === "watch"
+                    ? entry.plan.clientOrderId
+                    : undefined,
               })
               recordSmartOrderSendSuccess(entry.plan)
               // An immediate limit fill, or a venue-reported post-only fill, is
@@ -2060,6 +2069,24 @@ export async function reconcileLiveLaddersOnce(
               !nothingStood(error)
             ) {
               ;(originalPlan as WatchPlan).sent = true
+              ;(originalPlan as WatchPlan).clientOrderId =
+                entry.plan.clientOrderId
+              ;(originalPlan as WatchPlan).uncertainSince = Date.now()
+              if (
+                protocol.id === "hyperliquid" &&
+                wallet.address &&
+                entry.plan.clientOrderId
+              ) {
+                const recovered = await recoverHyperliquidClientOrder(
+                  wallet.network,
+                  wallet.address,
+                  entry.plan.clientOrderId
+                )
+                if (recovered.found && recovered.orderId) {
+                  ;(originalPlan as WatchPlan).orderId = recovered.orderId
+                  ;(originalPlan as WatchPlan).uncertainSince = 0
+                }
+              }
             }
             rememberRefusal(error)
             copySmartOrderPauseState(originalPlan, entry.plan)
@@ -2279,6 +2306,32 @@ export async function reconcileLiveLaddersOnce(
         continue
       const entry = parsed.get(raw.id)
       if (!entry) continue
+      if (
+        entry.kind === "watch" &&
+        protocol.id === "hyperliquid" &&
+        entry.plan.sent &&
+        entry.plan.orderId === null &&
+        entry.plan.clientOrderId &&
+        entry.plan.uncertainSince &&
+        now - entry.plan.uncertainSince >= UNKNOWN_WATCH_ORDER_CHECK_MS
+      ) {
+        const recovered = await recoverHyperliquidClientOrder(
+          wallet.network,
+          wallet.address,
+          entry.plan.clientOrderId
+        )
+        if (recovered.orderId) {
+          entry.plan.orderId = recovered.orderId
+          entry.plan.uncertainSince = 0
+        } else {
+          entry.plan.uncertainSince = now
+        }
+        await saveLadderPlan(userId, raw.id, entry.plan, "active")
+        // A recovery is deliberately its own pass. The next portfolio read
+        // decides whether the found order rests or filled; neither outcome
+        // can cause another placement here.
+        continue
+      }
       let lineStopState: "watching" | undefined
       if (entry.kind === "grid" && (entry.plan as GridPlan).lineStop) {
         const plan = entry.plan as GridPlan

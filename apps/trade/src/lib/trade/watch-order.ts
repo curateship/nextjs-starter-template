@@ -125,6 +125,10 @@ const watchPlanSchema = z.object({
    * a guess.
    */
   sent: z.boolean().default(false),
+  /** Hyperliquid's client id when Trade must recover a lost placement reply. */
+  clientOrderId: z.string().regex(/^0x[0-9a-f]{32}$/i).nullable().optional(),
+  /** When Trade first lost the placement reply. */
+  uncertainSince: z.number().optional(),
   /** The order resting right now, and where it is resting. */
   orderId: z.string().nullable().default(null),
   orderPx: z.number().positive().nullable().default(null),
