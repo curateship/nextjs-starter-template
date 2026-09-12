@@ -6,7 +6,6 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
-import type { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
 import { MarketRowLine } from "@/components/trade/market-list-panel"
@@ -24,7 +23,7 @@ import {
   getMarketFolderErrorMessage,
 } from "@/lib/api/trade/market-folders"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
-import type { MarketFolder } from "@/lib/trade/market-folders"
+import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { compareMarketChange24h } from "@/lib/trade/market-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -45,7 +44,7 @@ export function MarketFoldersMenu({
   marketsPending,
   onRetryMarkets,
 }: {
-  panelRows: React.ComponentProps<typeof MarketFoldersPanel>["panelRows"]
+  panelRows: MarketPanelRows
   marketsError: string | null
   marketsPending: boolean
   onRetryMarkets: () => void

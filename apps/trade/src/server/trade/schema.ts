@@ -158,6 +158,7 @@ export const tradeMarketFolderItems = pgTable(
  * Server-side so the memory follows the account, not the machine.
  */
 export const tradePrefs = pgTable("trade_prefs", {
+  marketScanner: jsonb("market_scanner").$type<import("@/lib/trade/market-scanner").ScannerSettings>(),
   marketExplorer: jsonb("market_explorer").$type<import("@/lib/trade/market-explorer").ExplorerPrefs>(),
   /**
    * The P&L page's AI scores, one per period, each remembering which closed

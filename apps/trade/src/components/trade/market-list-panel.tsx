@@ -1,20 +1,10 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { EyeOffIcon } from "lucide-react"
 
 import { focusRing } from "@/lib/layout/focus-ring"
 
 import { CautionBadge } from "@/components/trade/caution-badge"
-import { useErrorToast } from "@/lib/toast/error-toast"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { LoadingRow } from "@/components/ui/loading-row"
-import { ErrorRow } from "@/components/ui/error-row"
-import { TableSortButton } from "@/components/ui/table"
+
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import {
   MADE_MONEY_SURFACE,
@@ -23,27 +13,7 @@ import {
 } from "@/lib/trade/money-tone"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { MarketRow } from "@/lib/protocols/contracts"
-import { compareMarketChange24h } from "@/lib/trade/market-sort"
-import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { cn } from "@/lib/utils"
-
-/**
- * The market rows and the All markets list.
- *
- * These used to be their own panel with Watched and All tabs, above the
- * Folders panel. The two panels are one now (decided 23 Aug 2026): Watched
- * is the first row of the Folders panel and All markets is its last, so
- * this file keeps the pieces that panel composes — the sorted list of every
- * market, the row both it and the folders draw, and the testnet strip.
- */
-
-type SortKey = "vol" | "change"
-
-/** Which way a column starts when you first click it: biggest first, both. */
-const SORT_STARTS_DESC: Record<SortKey, boolean> = {
-  vol: true,
-  change: true,
-}
 
 /**
  * The one set of columns the header row and every market row are both drawn
@@ -75,192 +45,6 @@ function tickerLabel(symbol: string) {
 }
 
 /**
- * Every market the exchange lists, sorted, under its own sort header row.
- *
- * One section of the Folders panel, so it brings no scroll surface of its
- * own — the panel scrolls everything together. Handed rows and callbacks; it
- * neither knows nor asks which exchange a row came from.
- */
-export function AllMarketsList({
-  catalogs,
-  hiddenKeys,
-  marketsError,
-  marketsPending,
-  selectedKey,
-  onSelect,
-  onHide,
-  onRetry,
-}: {
-  catalogs: readonly FilteredMarketCatalog[]
-  /** Markets hidden by hand through the row's right-click menu. */
-  hiddenKeys: ReadonlySet<string>
-  /** The exchange call failed at load; shown in place of rows. */
-  marketsError: string | null
-  /** The list is still streaming in with the opening answer. */
-  marketsPending: boolean
-  selectedKey: string | null
-  onSelect: (key: string) => void
-  onHide: (row: MarketRow) => void
-  onRetry: () => void
-}) {
-  const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
-    key: "change",
-    desc: true,
-  })
-  // Clicking the sorted column flips it; clicking another column takes over at
-  // the direction that column starts in.
-  const toggleSort = (key: SortKey) =>
-    setSort((current) =>
-      current.key === key
-        ? { ...current, desc: !current.desc }
-        : { key, desc: SORT_STARTS_DESC[key] }
-    )
-
-  const rows = React.useMemo(
-    () =>
-      catalogs
-        .flatMap((catalog) => catalog.rows)
-        .filter((row) => !hiddenKeys.has(row.key)),
-    [catalogs, hiddenKeys]
-  )
-  const hasVolumeHiddenMarkets = catalogs.some(
-    (catalog) => catalog.hiddenByVolumeRows.length > 0
-  )
-  const hasHandHiddenMarkets = catalogs.some((catalog) =>
-    catalog.rows.some((row) => hiddenKeys.has(row.key))
-  )
-  // One menu for the whole list, opened where the right-click landed. The
-  // row only reports the click; the menu is not one per row because a
-  // thousand closed menus would be a thousand portals.
-  const [menu, setMenu] = React.useState<{
-    x: number
-    y: number
-    row: MarketRow
-  } | null>(null)
-  const openMenu = React.useCallback(
-    (row: MarketRow, event: React.MouseEvent) => {
-      event.preventDefault()
-      setMenu({ x: event.clientX, y: event.clientY, row })
-    },
-    []
-  )
-
-  const visible = React.useMemo(() => {
-    const direction = sort.desc ? -1 : 1
-    return [...rows].sort((a, b) => {
-      if (sort.key === "change") {
-        return compareMarketChange24h(a, b, sort.desc)
-      }
-      return (a.volume24hUsd - b.volume24hUsd) * direction
-    })
-  }, [rows, sort])
-
-  // Checked before the error and the empty copy: while the opening answer
-  // is still streaming in, neither claim would be true yet.
-  useErrorToast(!marketsPending ? marketsError : null, onRetry)
-
-  if (marketsPending) {
-    return <LoadingRow label="Loading markets" className="py-4" />
-  }
-
-  if (marketsError) {
-    return <ErrorRow message={marketsError} onRetry={onRetry} />
-  }
-
-  if (visible.length === 0) {
-    return (
-      <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-        {/* Searching lives in the market name at the top of the chart,
-            which opens the whole catalogue with its own search — one search
-            box for markets rather than two that filter different lists. */}
-        {hasHandHiddenMarkets
-          ? "Every market here is hidden by hand. Open the folder cog to show one."
-          : hasVolumeHiddenMarkets
-            ? "No markets meet your daily volume setting."
-            : "The exchange is not listing any markets right now."}
-      </p>
-    )
-  }
-
-  return (
-    <div className="flex flex-col">
-      {/* The sort, drawn as the column headers it sorts — the same sort
-          buttons every dashboard table uses. Each sits over the figure it
-          sorts by: 24h Vol over the volume beside each symbol, 24h Change
-          over the day's-move pills. The headers use the row's own columns —
-          same padding, same gap — so every label sits over the values it
-          names. */}
-      <div
-        className={cn(
-          "sticky top-0 z-10 flex shrink-0 items-center border-b bg-card text-muted-foreground",
-          ROW_COLUMNS
-        )}
-      >
-        {/* Stays at the small size on every screen — the table default steps
-            up to text-sm on wide screens, which overpowers a narrow panel. The
-            label-to-arrow gap is tightened for the same reason. */}
-        <TableSortButton
-          active={sort.key === "vol"}
-          direction={sort.desc ? "desc" : "asc"}
-          onClick={() => toggleSort("vol")}
-          className="flex-1 gap-1 whitespace-nowrap sm:text-xs"
-        >
-          24h Vol
-        </TableSortButton>
-        <TableSortButton
-          active={sort.key === "change"}
-          direction={sort.desc ? "desc" : "asc"}
-          onClick={() => toggleSort("change")}
-          // Reversed so the label sits flush right over the pills and the
-          // arrow points in toward the middle.
-          className={cn(
-            "shrink-0 flex-row-reverse gap-1 whitespace-nowrap sm:text-xs",
-            CHANGE_COLUMN
-          )}
-        >
-          24h Change
-        </TableSortButton>
-      </div>
-      {visible.map((row) => (
-        <MarketRowLine
-          key={row.key}
-          row={row}
-          selected={row.key === selectedKey}
-          onSelect={onSelect}
-          onContextMenu={openMenu}
-        />
-      ))}
-      {menu ? (
-        <DropdownMenu
-          open
-          onOpenChange={(open) => {
-            if (!open) setMenu(null)
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={`${menu.row.symbol} actions`}
-              className="pointer-events-none fixed z-50 size-px opacity-0"
-              style={{ left: menu.x, top: menu.y }}
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            onCloseAutoFocus={(event) => event.preventDefault()}
-          >
-            <DropdownMenuItem onSelect={() => onHide(menu.row)}>
-              <EyeOffIcon />
-              Hide {menu.row.symbol} from All markets
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </div>
-  )
-}
-
-/**
  * The practice network has no switch on screen any more — paper wallets are
  * the everyday practice path, and the rehearsal gate the switch existed for
  * has been passed (decided 9 Aug 2026, in `testnet-mode.md`). The door is
@@ -270,7 +54,12 @@ export function AllMarketsList({
  */
 export function TestnetStrip() {
   return (
-    <div className={cn("flex shrink-0 items-center gap-2 border-t px-3 py-1.5", WARNING_SURFACE)}>
+    <div
+      className={cn(
+        "flex shrink-0 items-center gap-2 border-t px-3 py-1.5",
+        WARNING_SURFACE
+      )}
+    >
       <span className="min-w-0 flex-1 truncate text-xs font-medium">
         Testnet — practice network, pretend money.
       </span>
@@ -305,14 +94,11 @@ export const MarketRowLine = React.memo(function MarketRowLine({
   row,
   selected,
   onSelect,
-  onContextMenu,
   className,
 }: {
   row: MarketRow
   selected: boolean
   onSelect: (key: string) => void
-  /** A right-click, where the list wants one; folder rows pass nothing. */
-  onContextMenu?: (row: MarketRow, event: React.MouseEvent) => void
   className?: string
 }) {
   // Subscribed per row, so a tick repaints exactly the rows whose numbers
@@ -327,9 +113,6 @@ export const MarketRowLine = React.memo(function MarketRowLine({
     <button
       type="button"
       onClick={() => onSelect(row.key)}
-      onContextMenu={
-        onContextMenu ? (event) => onContextMenu(row, event) : undefined
-      }
       aria-current={selected ? "true" : undefined}
       className={cn(
         "flex h-9 min-w-0 items-center border-r-2 text-left",
@@ -371,9 +154,7 @@ export const MarketRowLine = React.memo(function MarketRowLine({
               ? "text-muted-foreground"
               : cn(
                   "rounded-full px-2 py-0.5",
-                  change24h >= 0
-                  ? MADE_MONEY_SURFACE
-                  : LOST_MONEY_SURFACE
+                  change24h >= 0 ? MADE_MONEY_SURFACE : LOST_MONEY_SURFACE
                 )
           )}
         >

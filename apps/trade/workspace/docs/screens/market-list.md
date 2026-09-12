@@ -1,21 +1,9 @@
 # The market list
 
-The left column is **one Folders panel** (decided 23 Aug 2026; the separate
-market list panel above it is gone). Its header reads Folders, with the + that
-creates a folder and the cog that opens the window for renaming,
-drag-to-reorder and deletion. The header's buttons, and every row and market
-line in the body, share the panel's one 12px gutter.
+The left column holds Market scanner. Its cog controls volume and volatility
+conditions. `market-scanner.md` explains the results and candle coverage.
+Saved folders remain in the chart header's folder menu.
 
-- **Every row wears a folder's shape**: the name, a count on the right, and a
-  chevron; pressing the row opens its contents in place, one row open at a
-  time. The open row uses the darker gray, while its list uses a very light gray
-  so the two cannot blur together. The open row has a border above and below.
-  Those are plain theme borders, so the shell's Borders setting controls them.
-  A closed row turns gray under the pointer, so which section is open never
-  depends on the chevron alone. **All markets is the last row**: the whole
-  catalogue under its own 24h Vol / 24h Change sort headers. Watched orders
-  moved to the separate Manual orders panel on the right on 9 Sep 2026.
-  An empty folder points at the star in the market header.
 - **Searching lives in the market picker** — the market name at the top of
   the chart opens the whole catalogue with its own search. The panel has no
   search box of its own. **Picking a market leaves the list open.** The chart
@@ -161,7 +149,7 @@ at a time on the chart, or mixed in with everything else under Open orders.
   the line on the chart, rather than becoming a second place to cancel.
 - **The charted coin's row carries the same gray fill the All tab uses.** On
   both lists the fill runs edge to edge and the first row sits flush under the
-  header line, the way the Folders panel already draws its rows.
+  header line, the way the folder menu draws its rows.
 - **"Reached" is the engine's own rule**, so the list and the engine can never
   disagree about whether a price has arrived: a buy is reached when today's
   price has come down to it, a sell when it has come up. The price is the

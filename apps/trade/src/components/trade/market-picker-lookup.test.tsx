@@ -3,7 +3,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AllMarketsList } from "@/components/trade/market-list-panel"
+import { MarketRowLine } from "@/components/trade/market-list-panel"
 import { MarketPicker } from "@/components/trade/market-picker"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
@@ -172,16 +172,16 @@ describe("the Solana list", () => {
   it("prints the venue's warning beside a flagged coin and nowhere else", async () => {
     await act(async () =>
       root.render(
-        <AllMarketsList
-          catalogs={[{ ...catalog, hiddenByVolumeRows: [] }]}
-          hiddenKeys={new Set()}
-          onHide={() => {}}
-          marketsError={null}
-          marketsPending={false}
-          selectedKey={null}
-          onSelect={() => {}}
-          onRetry={() => {}}
-        />
+        <>
+          {rows.map((row) => (
+            <MarketRowLine
+              key={row.key}
+              row={row}
+              selected={false}
+              onSelect={() => {}}
+            />
+          ))}
+        </>
       )
     )
     const text = bodyText()

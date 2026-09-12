@@ -8,7 +8,7 @@ these as well as an admin, and sees only their own wallets and orders there —
 
 ```
 ┌────────────┬─────────────────────┬────────────┐
-│ Folders    │ MARKET HEADER       │ Smart/Bots │
+│ Scanner    │ MARKET HEADER       │ Smart/Bots │
 │            │ ─────────────────── ├────────────┤
 │            │ Chart               │ Manual     │
 │            │                     │            │
@@ -17,9 +17,9 @@ these as well as an admin, and sees only their own wallets and orders there —
 └───────────────────────────────────────────────┘
 ```
 
-- **Left, one Folders panel.** Every row is market navigation. Saved folders
-  come first and **All markets** comes last with its sort headers. Watched
-  orders no longer appear among folders.
+- **Left, Market scanner.** The cog opens scan settings. Rows show ticker,
+  time since qualifying and signed candle price change. `market-scanner.md`
+  explains volume and volatility matching, coverage and testing.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, a Folders
@@ -38,8 +38,7 @@ these as well as an admin, and sees only their own wallets and orders there —
   a coin there changes the chart and leaves the menu open, so a folder can be
   read one coin at a time; the menu closes when the pointer leaves it, or on
   Escape. Its plus
-  creates a folder there and its cog opens the full manager; the full Folders
-  panel stays in the left column. The bell opens the account's Alert and Fired lists;
+  creates a folder there and its cog opens the full manager. The bell opens the account's Alert and Fired lists;
   a red badge counts fired price and drawing alerts, and each tab can clear all
   of its own rows from the dropdown footer after confirmation. The Folders and
   Alerts buttons have no hover messages. Each outlined control uses the muted gray inside its
@@ -192,7 +191,7 @@ seconds. A failed first read says the bots could not be read and offers Try
 again. A later failure keeps the last answer on screen and says the refresh
 failed. An empty answer says no bot is running on this exchange.
 
-**A smaller window shrinks the chart, never the panels.** The Folders panel,
+**A smaller window shrinks the chart, never the panels.** The Market scanner panel,
 the Smart orders column and the bottom Positions panel keep the pixel size they
 were dragged to when the window changes size; the chart absorbs the whole
 difference, both across and down. Before this every panel gave up its share,

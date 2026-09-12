@@ -5,23 +5,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import {
-  ChevronRightIcon,
-  EyeIcon,
-  EyeOffIcon,
-  FolderIcon,
-  GripVerticalIcon,
-  PlusIcon,
-  SettingsIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { EyeIcon, EyeOffIcon, GripVerticalIcon, Trash2Icon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import {
-  AllMarketsList,
-  MarketRowLine,
-  TestnetStrip,
-} from "@/components/trade/market-list-panel"
 import {
   DRAG_HANDLE_CLASS,
   useNavSensors,
@@ -37,7 +22,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Dialog,
   DialogBody,
@@ -49,7 +33,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Tooltip,
   TooltipContent,
@@ -69,7 +52,6 @@ import {
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
-import { compareMarketChange24h } from "@/lib/trade/market-sort"
 import {
   parseMarketKey,
   type NetworkId,
@@ -91,7 +73,6 @@ type PanelRow = {
   position: number
   hidden: boolean
   folder: MarketFolder | null
-  body: React.ReactNode
 }
 
 function CreateFolderForm({
@@ -140,7 +121,7 @@ function CreateFolderForm({
   )
 }
 
-export function MarketFoldersPanel({
+export function MarketFoldersManager({
   folders,
   panelRows,
   protocol,
@@ -148,13 +129,8 @@ export function MarketFoldersPanel({
   catalogs,
   marketsError,
   marketsPending,
-  expandedId,
-  selectedMarketKey,
   onFoldersChange,
   onPanelRowsChange,
-  onExpandedIdChange,
-  onSelectMarket,
-  onRetryMarkets,
   manageOpen,
   onManageOpenChange,
 }: {
@@ -168,44 +144,25 @@ export function MarketFoldersPanel({
   marketsError: string | null
   /** The list is still streaming in; rows show loading, not empty claims. */
   marketsPending: boolean
-  /** The one row this account left open on this exchange, or null for none. */
-  expandedId: string | null
-  selectedMarketKey: string | null
   onFoldersChange: (folders: MarketFolder[]) => void
   onPanelRowsChange: (rows: MarketPanelRows) => void
-  onExpandedIdChange: (id: string | null) => void
-  onSelectMarket: (marketKey: string) => void
-  onRetryMarkets: () => void
-  /** Lets the header shortcut open this panel's existing management dialog. */
+  /** The chart header folder menu opens this manager. */
   manageOpen?: boolean
   onManageOpenChange?: (open: boolean) => void
 }) {
-  const [creating, setCreating] = React.useState(false)
   const [localManageOpen, setLocalManageOpen] = React.useState(false)
   const managing = manageOpen ?? localManageOpen
   const setManaging = onManageOpenChange ?? setLocalManageOpen
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState<MarketFolder | null>(null)
   const [busy, setBusy] = React.useState(false)
-  const markets = React.useMemo(
-    () =>
-      new Map(
-        catalogs.flatMap((catalog) => catalog.rows).map((row) => [row.key, row])
-      ),
-    [catalogs]
-  )
-  const hiddenByVolume = React.useMemo(
-    () =>
-      new Set(
-        catalogs.flatMap((catalog) =>
-          catalog.hiddenByVolumeRows.map((row) => row.key)
-        )
-      ),
-    [catalogs]
-  )
   const marketRows = React.useMemo(
     () => catalogs.flatMap((catalog) => catalog.rows),
     [catalogs]
+  )
+  const markets = React.useMemo(
+    () => new Map(marketRows.map((row) => [row.key, row])),
+    [marketRows]
   )
   // Markets hidden by hand. Only the All markets row leaves them out; a named
   // folder still lists a market it holds, because the folder is a choice too.
@@ -228,50 +185,14 @@ export function MarketFoldersPanel({
   // stable, so two rows that were given the same number keep this order, which
   // is what puts a folder created after a drag above All markets.
   const rows: PanelRow[] = [
-    ...folders.map((folder) => {
-      const folderMarkets = folder.marketKeys
-        .flatMap((key) => {
-          const market = markets.get(key)
-          return market ? [market] : []
-        })
-        .sort(compareMarketChange24h)
-      return {
-        id: folder.id,
-        name: folder.name,
-        count: `${folder.marketKeys.length} ${
-          folder.marketKeys.length === 1 ? "market" : "markets"
-        }`,
-        position: folder.position,
-        hidden: folder.hidden,
-        folder,
-        body:
-          folderMarkets.length > 0 ? (
-            <div className="flex flex-col">
-              {folderMarkets.map((market) => (
-                <MarketRowLine
-                  key={market.key}
-                  row={market}
-                  selected={market.key === selectedMarketKey}
-                  onSelect={onSelectMarket}
-                />
-              ))}
-            </div>
-          ) : marketsPending && folder.marketKeys.length > 0 ? (
-            // The saved keys are real; their rows are still streaming in.
-            // Saying "not available" before the list has landed would read
-            // as a delisting.
-            <LoadingRow label="Loading markets" className="py-4" />
-          ) : (
-            <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-              {folder.marketKeys.some((key) => hiddenByVolume.has(key))
-                ? `${folder.name}'s markets are hidden by your daily volume setting.`
-                : folder.marketKeys.length > 0
-                  ? `${folder.name}'s saved markets are not available in the current market list.`
-                  : `${folder.name} is empty. Add a coin with the star beside its name.`}
-            </p>
-          ),
-      }
-    }),
+    ...folders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      count: `${folder.marketKeys.length} markets`,
+      position: folder.position,
+      hidden: folder.hidden,
+      folder,
+    })),
     {
       id: ALL_ROW,
       name: "All markets",
@@ -285,29 +206,14 @@ export function MarketFoldersPanel({
       position: panelRows.all.position,
       hidden: panelRows.all.hidden,
       folder: null,
-      body: (
-        <AllMarketsList
-          catalogs={catalogs}
-          hiddenKeys={hiddenByHand}
-          marketsError={marketsError}
-          marketsPending={marketsPending}
-          selectedKey={selectedMarketKey}
-          onSelect={onSelectMarket}
-          onHide={(row) => setMarketHiddenByHand(row.key, true)}
-          onRetry={onRetryMarkets}
-        />
-      ),
     },
   ].sort((left, right) => left.position - right.position)
-
-  const shown = rows.filter((row) => !row.hidden)
 
   async function createNewFolder(name: string) {
     if (busy) return
     setBusy(true)
     try {
       onFoldersChange(await createFolder({ protocol, network, name }))
-      setCreating(false)
     } catch (error) {
       showErrorToast(getMarketFolderErrorMessage(error))
       throw error
@@ -413,7 +319,6 @@ export function MarketFoldersPanel({
 
   function toggleHidden(row: PanelRow) {
     if (busy) return
-    if (!row.hidden && expandedId === row.id) onExpandedIdChange(null)
     saveLayout(
       rows.map((one) => one.id),
       row.hidden
@@ -433,138 +338,36 @@ export function MarketFoldersPanel({
 
   return (
     <>
-      <DashboardCardTitleHeader
-        icon={<FolderIcon />}
-        title="Folders"
-        action={
-          // gap-2, the same 8px the middle header keeps between its
-          // controls — the two headers sit side by side.
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Add folder"
-                  className="bg-muted/60 dark:bg-muted/60"
-                  onClick={() => setCreating((shown) => !shown)}
-                >
-                  <PlusIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Add folder</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Manage folders"
-                  className="bg-muted/60 dark:bg-muted/60"
-                  onClick={() => {
-                    setCreating(false)
-                    setManaging(true)
-                  }}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Manage folders</TooltipContent>
-            </Tooltip>
-          </div>
-        }
-      />
-      {creating ? (
-        <div className="shrink-0 border-b p-2">
-          <CreateFolderForm busy={busy} onCreate={createNewFolder} />
-        </div>
-      ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid">
-          {shown.map((row, index) => {
-            const expanded = expandedId === row.id
-            const followsExpandedSection =
-              index > 0 && expandedId === shown[index - 1]?.id
-            return (
-              <div key={row.id}>
-                <div
-                  className={cn(
-                    "flex h-9 items-center border-b",
-                    expanded && "border-t",
-                    followsExpandedSection && "border-t"
-                  )}
-                >
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    // Open rows keep the same gray fill a selected market
-                    // row wears, so which section is open never depends on
-                    // the chevron alone.
-                    className={cn(
-                      "flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm font-medium",
-                      expanded ? "bg-muted" : "hover:bg-muted"
-                    )}
-                    onClick={() => onExpandedIdChange(expanded ? null : row.id)}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{row.name}</span>
-                    <span className="w-[4.5rem] shrink-0 text-right text-xs font-normal text-muted-foreground tabular-nums">
-                      {row.count}
-                    </span>
-                    <ChevronRightIcon
-                      className={cn(
-                        "size-4 transition-transform",
-                        expanded && "rotate-90"
-                      )}
-                    />
-                  </button>
-                </div>
-                {expanded ? (
-                  <div className="bg-muted/30">{row.body}</div>
-                ) : null}
-              </div>
-            )
-          })}
-          {shown.length === 0 ? (
-            <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-              Every row is switched off. Open the cog above and press an eye to
-              bring one back.
-            </p>
-          ) : null}
-        </div>
-      </ScrollArea>
-      {network === "testnet" ? <TestnetStrip /> : null}
-
       <Dialog open={managing} onOpenChange={setManaging}>
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Manage folders</DialogTitle>
             <DialogDescription>
               Rename a folder, drag any row into the order you want, or press an
-              eye to keep a row out of the panel. Deleting is for folders only.
+              eye to keep a row out of the folder menu. Deleting is for folders
+              only.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>New folder</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  <CreateFolderForm
-                    busy={busy}
-                    onCreate={createNewFolder}
-                    inputId="manage-market-folder-name"
-                  />
-                </CardContent>
-              </Card>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>New folder</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <CreateFolderForm
+                  busy={busy}
+                  onCreate={createNewFolder}
+                  inputId="manage-market-folder-name"
+                />
+              </CardContent>
+            </Card>
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Order</CardTitle>
                 <CardDescription>
-                  Drag to reorder. This is the order rows appear in the panel. A
-                  row with a line through its eye is switched off and keeps
-                  everything it holds.
+                  Drag to reorder. This is the order rows appear in the folder
+                  menu. A row with a line through its eye is switched off and
+                  keeps everything it holds.
                 </CardDescription>
                 <CardAction className="text-xs text-muted-foreground tabular-nums">
                   {folders.length} {folders.length === 1 ? "folder" : "folders"}
@@ -609,9 +412,9 @@ export function MarketFoldersPanel({
               <CardHeader>
                 <CardTitle>Hidden markets</CardTitle>
                 <CardDescription>
-                  Markets you hid by right-clicking them in All markets. Markets
-                  under your daily volume setting are a different list and come
-                  back on their own when the setting changes.
+                  Previously hidden markets. Markets under your daily volume
+                  setting are a different list and come back on their own when
+                  the setting changes.
                 </CardDescription>
                 <CardAction className="text-xs text-muted-foreground tabular-nums">
                   {hiddenByHandRows.length}{" "}
@@ -621,8 +424,7 @@ export function MarketFoldersPanel({
               <CardContent className="grid gap-2">
                 {hiddenByHandRows.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    Nothing is hidden by hand. Right-click a market in All
-                    markets to hide it.
+                    Nothing is hidden by hand.
                   </p>
                 ) : (
                   hiddenByHandRows.map((market) => (
@@ -670,7 +472,6 @@ export function MarketFoldersPanel({
           void deleteFolder(removedId)
             .then((next) => {
               onFoldersChange(next)
-              if (expandedId === removedId) onExpandedIdChange(null)
               setDeleting(null)
             })
             .catch((error) =>

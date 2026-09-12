@@ -458,3 +458,10 @@ export function watchLiveCandle(
   if (!adapter) return () => {}
   return adapter.watchCandle(ref.network, ref.marketId, interval, onBar)
 }
+
+/** A fresh snapshot for scanners evaluating on their own clock. */
+export function liveFiguresOf(key: string, now: number) {
+  const updatedAt = figureTimes.get(key) ?? 0
+  const value = figures.get(key)
+  return value && now - updatedAt <= 30_000 ? { value, updatedAt } : null
+}

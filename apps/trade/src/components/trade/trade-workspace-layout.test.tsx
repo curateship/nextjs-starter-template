@@ -223,8 +223,8 @@ vi.mock("@/components/trade/card-folds", () => ({
 vi.mock("@/components/trade/use-indicators", () => ({
   useChartIndicators: () => ({ settings: {} }),
 }))
-vi.mock("@/components/trade/market-folders-panel", () => ({
-  MarketFoldersPanel: () => null,
+vi.mock("@/components/trade/market-folders-manager", () => ({
+  MarketFoldersManager: () => null,
 }))
 vi.mock("@/components/trade/market-folders-menu", () => ({
   MarketFoldersMenu: () => <button type="button" aria-label="Open folders" />,

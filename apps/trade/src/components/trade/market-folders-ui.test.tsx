@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, useState, type ComponentProps } from "react"
+import { act, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
-import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketKey, MarketRow } from "@/lib/protocols/contracts"
 import {
@@ -109,20 +109,10 @@ const shared = {
   onRetryMarkets: () => {},
 }
 
-function TestMarketFoldersPanel(
-  props: Omit<
-    ComponentProps<typeof MarketFoldersPanel>,
-    "expandedId" | "onExpandedIdChange"
-  >
+function TestMarketFoldersManager(
+  props: ComponentProps<typeof MarketFoldersManager>
 ) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  return (
-    <MarketFoldersPanel
-      {...props}
-      expandedId={expandedId}
-      onExpandedIdChange={setExpandedId}
-    />
-  )
+  return <MarketFoldersManager {...props} manageOpen />
 }
 
 let host: HTMLDivElement
@@ -219,289 +209,6 @@ describe("the market folder controls", () => {
     expect(input.value).toBe("Daily")
   })
 
-  it("keeps folders independent and opens their markets in the one panel", async () => {
-    const savedFav = { ...fav, marketKeys: [btc.key] }
-    const namedFolder: MarketFolder = {
-      id: "00000000-0000-4000-8000-000000000002",
-      name: "Test",
-      isFav: false,
-      position: 1,
-      hidden: false,
-      marketKeys: [],
-    }
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[savedFav, namedFolder]}
-            catalogs={catalogs}
-            selectedMarketKey={btc.key}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const folderPanel = host
-    // Folders lead the panel and All markets closes it out.
-    const toggles = Array.from(
-      folderPanel.querySelectorAll("button[aria-expanded]")
-    )
-    expect(toggles[0]!.textContent).toContain("Fav")
-    expect(toggles.at(-1)!.textContent).toContain("All markets")
-    expect(toggles.at(-1)!.getAttribute("aria-expanded")).toBe("false")
-    const favToggle = toggles.find((one) => one.textContent?.includes("Fav"))!
-    expect(folderPanel.textContent).toContain("Folders")
-    const addFolder = folderPanel.querySelector(
-      'button[aria-label="Add folder"]'
-    )!
-    await act(async () => click(addFolder))
-    expect(folderPanel.querySelector("#new-market-folder-name")).not.toBeNull()
-    const manageFolders = folderPanel.querySelector(
-      'button[aria-label="Manage folders"]'
-    )!
-    await act(async () => click(manageFolders))
-    expect(document.body.textContent).toContain("Manage folders")
-    expect(
-      document.body.querySelector("#manage-market-folder-name")
-    ).not.toBeNull()
-    expect(document.body.textContent).toContain("New folder")
-    expect(document.body.textContent).toContain("Create")
-    expect(document.body.textContent).toContain("Order")
-    // Every row of the panel drags and hides, the two that are not folders
-    // included, and only a named folder can be deleted.
-    for (const name of ["Fav", "Test", "All markets"]) {
-      expect(
-        document.body.querySelector(`button[aria-label="Reorder ${name}"]`)
-      ).not.toBeNull()
-      expect(
-        document.body.querySelector(`button[aria-label="Hide ${name}"]`)
-      ).not.toBeNull()
-    }
-    expect(
-      document.body.querySelector('button[aria-label="Delete Test"]')
-    ).not.toBeNull()
-    expect(
-      document.body.querySelector('button[aria-label="Delete Fav"]')
-    ).toBeNull()
-    expect(
-      document.body.querySelector('input[aria-label="Rename Fav"]')
-    ).toBeNull()
-    expect(favToggle.textContent).toContain("1 market")
-    // The one 12px gutter the whole panel shares, header and body alike.
-    expect(favToggle.className).toContain("px-3")
-    expect(favToggle.getAttribute("aria-expanded")).toBe("false")
-    expect(folderPanel.textContent).not.toContain("BTC")
-
-    await act(async () => click(favToggle))
-    expect(favToggle.getAttribute("aria-expanded")).toBe("true")
-    // The open row takes the darker gray and its list a very light one, so
-    // the two cannot blur into each other. Two different fills is the point,
-    // so they are checked against each other rather than each being pinned
-    // to a shade on its own.
-    const openBody = favToggle.parentElement?.nextElementSibling
-    expect(favToggle.className).toContain("bg-muted")
-    expect(favToggle.className).not.toContain("bg-muted/")
-    expect(openBody?.className).toContain("bg-muted/30")
-    // The open row is fenced off above and below by plain theme borders, so
-    // the shell's Borders setting still controls them.
-    expect(favToggle.parentElement?.className).toContain("border-t")
-    expect(favToggle.parentElement?.className).toContain("border-b")
-    expect(folderPanel.textContent).toContain("BTC")
-    const expandedMarket = Array.from(
-      folderPanel.querySelectorAll("button")
-    ).find((button) => button.textContent?.includes("BTC"))!
-    // Edge to edge: no rounding anywhere on a list row any more, so the fill
-    // reaches the panel's sides.
-    expect(expandedMarket.className).not.toContain("rounded")
-    expect(expandedMarket.className).not.toContain("border-b")
-    expect(expandedMarket.className).toContain("px-3")
-    expect(expandedMarket.className).toContain("border-r-2")
-    expect(expandedMarket.className).toContain("border-r-foreground")
-    const testToggle = Array.from(
-      folderPanel.querySelectorAll('button[aria-expanded="false"]')
-    ).find((button) => button.textContent?.includes("Test"))!
-    expect(testToggle.className).toContain("hover:bg-muted")
-    expect(testToggle.parentElement?.className).toContain("border-t")
-  })
-
-  it("draws the saved open folder and reports when it is closed", async () => {
-    const onExpandedIdChange = vi.fn()
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <MarketFoldersPanel
-            {...shared}
-            folders={[{ ...fav, marketKeys: [btc.key] }]}
-            catalogs={catalogs}
-            expandedId={fav.id}
-            onExpandedIdChange={onExpandedIdChange}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const favToggle = Array.from(
-      host.querySelectorAll('button[aria-expanded="true"]')
-    ).find((button) => button.textContent?.includes("Fav"))!
-    expect(host.textContent).toContain("BTC")
-    await act(async () => click(favToggle))
-    expect(onExpandedIdChange).toHaveBeenCalledWith(null)
-  })
-
-  it("does not put watched orders among market folders", async () => {
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[fav]}
-            catalogs={catalogs}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    expect(host.textContent).not.toContain("Watched")
-  })
-
-  it("orders saved folders and All markets from 24h gain to loss", async () => {
-    const loser: MarketRow = {
-      ...btc,
-      key: "hyperliquid:mainnet:BTC" as MarketKey,
-      marketId: "BTC",
-      symbol: "BTC",
-      change24h: -0.04,
-      volume24hUsd: 3_000_000,
-    }
-    const winner: MarketRow = {
-      ...btc,
-      key: "hyperliquid:mainnet:ETH" as MarketKey,
-      marketId: "ETH",
-      symbol: "ETH",
-      change24h: 0.12,
-      volume24hUsd: 1_000_000,
-    }
-    const unknown: MarketRow = {
-      ...btc,
-      key: "hyperliquid:mainnet:SOL" as MarketKey,
-      marketId: "SOL",
-      symbol: "SOL",
-      change24h: null,
-      volume24hUsd: 2_000_000,
-    }
-    const folder = {
-      ...fav,
-      marketKeys: [loser.key, unknown.key, winner.key],
-    }
-    const sortedCatalogs = [{ ...catalogs[0], rows: [loser, unknown, winner] }]
-
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[folder]}
-            catalogs={sortedCatalogs}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const marketNames = () =>
-      Array.from(host.querySelectorAll<HTMLElement>("button span[title]")).map(
-        (element) => element.title
-      )
-    const folderToggle = Array.from(
-      host.querySelectorAll("button[aria-expanded]")
-    ).find((button) => button.textContent?.includes("Fav"))!
-    await act(async () => click(folderToggle))
-    expect(marketNames()).toEqual(["ETH", "BTC", "SOL"])
-
-    const allToggle = Array.from(
-      host.querySelectorAll("button[aria-expanded]")
-    ).find((button) => button.textContent?.includes("All markets"))!
-    await act(async () => click(allToggle))
-    expect(marketNames()).toEqual(["ETH", "BTC", "SOL"])
-  })
-
-  it("keeps folder ticker labels to nine characters", async () => {
-    const longMarket: MarketRow = {
-      ...btc,
-      key: "hyperliquid:mainnet:xyz:NATGAS" as MarketKey,
-      marketId: "xyz:NATGAS",
-      symbol: "xyz:NATGAS",
-    }
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[{ ...fav, marketKeys: [longMarket.key] }]}
-            catalogs={[{ ...catalogs[0], rows: [longMarket] }]}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const favToggle = Array.from(
-      host.querySelectorAll("button[aria-expanded]")
-    ).find((button) => button.textContent?.includes("Fav"))!
-    await act(async () => click(favToggle))
-
-    const ticker = host.querySelector<HTMLElement>('[title="xyz:NATGAS"]')!
-    const visibleTicker = ticker.querySelector<HTMLElement>("[aria-hidden]")!
-    expect(visibleTicker.textContent).toBe("xyz:NATG…")
-    expect(visibleTicker.textContent).toHaveLength(9)
-    expect(ticker.querySelector(".sr-only")?.textContent).toBe("xyz:NATGAS")
-  })
-
-  it("follows the saved order and leaves a switched-off row out", async () => {
-    const named: MarketFolder = {
-      id: "00000000-0000-4000-8000-000000000002",
-      name: "Daily",
-      isFav: false,
-      position: 1,
-      hidden: true,
-      marketKeys: [],
-    }
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[fav, named]}
-            catalogs={catalogs}
-            // All markets dragged above every saved folder.
-            panelRows={{
-              all: { position: -2, hidden: false },
-              hiddenMarketKeys: [],
-            }}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const toggles = Array.from(host.querySelectorAll("button[aria-expanded]"))
-    expect(toggles.map((one) => one.textContent)).toHaveLength(2)
-    expect(toggles[0]!.textContent).toContain("All markets")
-    expect(toggles[1]!.textContent).toContain("Fav")
-    expect(host.textContent).not.toContain("Watched")
-    expect(host.textContent).not.toContain("Daily")
-
-    // The switched-off folder remains in the cog window.
-    await act(async () =>
-      click(host.querySelector('button[aria-label="Manage folders"]')!)
-    )
-    expect(
-      document.body.querySelector('button[aria-label="Show Watched"]')
-    ).toBeNull()
-    expect(
-      document.body.querySelector('button[aria-label="Show Daily"]')
-    ).not.toBeNull()
-    expect(document.body.textContent).toContain("Hidden")
-  })
-
   it("sends the whole arrangement when an eye is pressed", async () => {
     savePanelLayout.mockClear()
     const named: MarketFolder = {
@@ -515,7 +222,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <TestMarketFoldersPanel
+          <TestMarketFoldersManager
             {...shared}
             folders={[fav, named]}
             catalogs={catalogs}
@@ -524,9 +231,6 @@ describe("the market folder controls", () => {
       )
     })
 
-    await act(async () =>
-      click(host.querySelector('button[aria-label="Manage folders"]')!)
-    )
     await act(async () =>
       click(document.body.querySelector('button[aria-label="Hide Daily"]')!)
     )
@@ -543,7 +247,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <TestMarketFoldersPanel
+          <TestMarketFoldersManager
             {...shared}
             folders={[fav]}
             catalogs={catalogs}
@@ -552,9 +256,6 @@ describe("the market folder controls", () => {
       )
     })
 
-    await act(async () =>
-      click(host.querySelector('button[aria-label="Manage folders"]')!)
-    )
     // Inside the window, not the panel behind it: both list a row called Fav.
     const dialog = document.body.querySelector('[role="dialog"]')!
     const favRow = Array.from(dialog.querySelectorAll("button")).find(
@@ -564,120 +265,5 @@ describe("the market folder controls", () => {
     expect(
       document.body.querySelector('input[aria-label="Rename Fav"]')
     ).not.toBeNull()
-  })
-
-  it("does not call a volume-hidden folder empty", async () => {
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[{ ...fav, marketKeys: [btc.key] }]}
-            catalogs={[
-              {
-                ...catalogs[0],
-                rows: [],
-                hiddenByVolumeRows: [btc],
-              },
-            ]}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const favToggle = host.querySelector('button[aria-expanded="false"]')!
-    await act(async () => click(favToggle))
-    expect(host.textContent).toContain(
-      "Fav's markets are hidden by your daily volume setting."
-    )
-    expect(host.textContent).not.toContain("Fav is empty")
-  })
-
-  it("hides a coin from All markets by right-click and leaves the folder alone", async () => {
-    setHiddenMarket.mockClear()
-    const eth: MarketRow = {
-      ...btc,
-      key: "hyperliquid:mainnet:ETH" as MarketKey,
-      marketId: "ETH",
-      symbol: "ETH",
-    }
-    const onPanelRowsChange = vi.fn()
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TestMarketFoldersPanel
-            {...shared}
-            folders={[{ ...fav, marketKeys: [eth.key] }]}
-            catalogs={[{ ...catalogs[0], rows: [btc, eth] }]}
-            panelRows={{
-              ...DEFAULT_MARKET_PANEL_ROWS,
-              hiddenMarketKeys: [eth.key],
-            }}
-            onPanelRowsChange={onPanelRowsChange}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    const marketNames = () =>
-      Array.from(host.querySelectorAll<HTMLElement>("button span[title]")).map(
-        (element) => element.title
-      )
-    const toggle = (name: string) =>
-      Array.from(host.querySelectorAll("button[aria-expanded]")).find(
-        (button) => button.textContent?.includes(name)
-      )!
-    // The folder still lists ETH; All markets does not, and its count
-    // leaves ETH out.
-    await act(async () => click(toggle("Fav")))
-    expect(marketNames()).toEqual(["ETH"])
-    await act(async () => click(toggle("All markets")))
-    expect(marketNames()).toEqual(["BTC"])
-    expect(toggle("All markets").textContent).toContain("1 market")
-
-    // Right-click BTC and pick Hide: the screen answers first, then the save.
-    const btcRow = host
-      .querySelector<HTMLElement>('button span[title="BTC"]')!
-      .closest("button")!
-    await act(async () =>
-      btcRow.dispatchEvent(
-        new MouseEvent("contextmenu", { bubbles: true, clientX: 5, clientY: 5 })
-      )
-    )
-    const hideItem = Array.from(
-      document.body.querySelectorAll('[role="menuitem"]')
-    ).find((item) => item.textContent?.includes("Hide BTC"))!
-    expect(hideItem).toBeTruthy()
-    await act(async () => (hideItem as HTMLElement).click())
-    expect(onPanelRowsChange).toHaveBeenCalledWith({
-      ...DEFAULT_MARKET_PANEL_ROWS,
-      hiddenMarketKeys: [eth.key, btc.key],
-    })
-    expect(setHiddenMarket).toHaveBeenCalledWith({
-      protocol: "hyperliquid",
-      network: "mainnet",
-      marketKey: btc.key,
-      hidden: true,
-    })
-
-    // The cog lists the hidden market and Show sends it back.
-    await act(async () =>
-      click(host.querySelector('button[aria-label="Manage folders"]')!)
-    )
-    expect(document.body.textContent).toContain("Hidden markets")
-    const showEth = document.body.querySelector<HTMLElement>(
-      'button[aria-label="Show ETH"]'
-    )!
-    expect(showEth).toBeTruthy()
-    await act(async () => click(showEth))
-    expect(setHiddenMarket).toHaveBeenLastCalledWith({
-      protocol: "hyperliquid",
-      network: "mainnet",
-      marketKey: eth.key,
-      hidden: false,
-    })
-    expect(onPanelRowsChange).toHaveBeenLastCalledWith(
-      DEFAULT_MARKET_PANEL_ROWS
-    )
   })
 })

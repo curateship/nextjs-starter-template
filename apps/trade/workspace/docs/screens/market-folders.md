@@ -22,43 +22,39 @@ most 100 named folders plus Fav.
 
 The market picker uses the same control. Its Favorites view reads Fav only.
 
-## The left column
+## Opening folders
 
-The left column is one Folders panel. Watched, saved folders and All markets
-share the panel. Its header has the create button and the folder management cog.
-Each row expands its contents in place, with one row open at a time.
-Expanded market rows have no dividers between them. The next folder row has
-its own border. The cog holds create, rename, reorder, hide and delete controls.
-The management window ends with a primary Done button.
+The chart header's folder menu holds saved folders and All markets. The left
+column now holds Market scanner, described in `market-scanner.md`. Folder data
+is preserved. The menu's cog opens create, rename, reorder, hide and delete
+controls. The management window ends with a primary Done button.
 
 Markets inside an open folder run from the largest reported 24-hour gain to
 the largest loss. A market whose exchange did not report a 24-hour change sits
-after every known move. All markets opens in the same order, though its column
-headings can still switch to volume or reverse the change order.
+after every known move. All markets opens in the same order.
 
 The market open on the chart keeps its gray row fill and has a border on its
 right edge. The border follows the theme's text color, so it is black in the
-light theme and white in the dark theme. The same marker appears in Watched,
-saved folders and All markets.
+light theme and white in the dark theme. The same marker appears in saved
+folders and All markets.
 
 ## The cog window
 
-The Order card lists every row the panel can draw: Watched, Fav, each named
-folder, and All markets. All four kinds of row behave the same way there.
+The Order card lists Fav, each named folder, and All markets.
 
 - Drag any row by its handle to put it where you want it. Nothing is pinned,
-  Watched and All markets included.
-- Press a row's name to rename it. Fav can be renamed; Watched and All markets
-  cannot, because neither is a folder. A name another folder on that exchange
+  All markets included.
+- Press a row's name to rename it. Fav can be renamed; All markets cannot,
+  because it is not a folder. A name another folder on that exchange
   already has is refused before anything is written, and the row keeps its old
   name.
-- Press the eye to keep a row out of the panel. The eye gains a line through
+- Press the eye to keep a row out of the folder menu. The eye gains a line through
   it, the row's count is replaced by the word Hidden, and the row disappears
-  from the panel. Nothing is deleted: a hidden folder keeps its coins, still
+  from the menu. Nothing is deleted: a hidden folder keeps its coins, still
   takes coins from the star, and still runs in a flow.
 - The bin deletes, and only named folders have one.
 
-Hiding every row leaves the panel saying so and pointing back at the cog.
+The chart header's cog remains available when folders are hidden.
 
 The Hidden markets card under Order lists every market hidden by hand from All
 markets on this exchange, with a Show button beside each. Show puts the market

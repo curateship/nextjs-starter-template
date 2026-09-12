@@ -42,7 +42,8 @@ import {
 import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
-import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { MarketScannerPanel } from "@/components/trade/market-scanner-panel"
+import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
 import { MarketFoldersMenu } from "@/components/trade/market-folders-menu"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { useLineAlerts } from "@/components/trade/use-line-alerts"
@@ -901,26 +902,28 @@ export function TradeWorkspace({
       onDoubleClick={marketsDoubleClick}
       className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
     >
-      <MarketFoldersPanel
-        folders={folders}
-        protocol={protocol}
-        network={network}
+      <MarketScannerPanel
+        accountId={user.id}
+        key={user.id}
         catalogs={catalogs}
-        marketsError={marketsError}
-        marketsPending={marketsPending}
-        expandedId={expandedMarketRowId}
         selectedMarketKey={selectedKey}
-        panelRows={panelRows}
-        onFoldersChange={setFolders}
-        onPanelRowsChange={setPanelRows}
-        onExpandedIdChange={(id) =>
-          panelLayouts.rememberOpenMarketRow(marketPanelScope, id)
-        }
         onSelectMarket={onSelectMarket}
-        onRetryMarkets={onRetryMarkets}
-        manageOpen={folderManagerOpen}
-        onManageOpenChange={setFolderManagerOpen}
       />
+      {folderManagerOpen ? (
+        <MarketFoldersManager
+          folders={folders}
+          protocol={protocol}
+          network={network}
+          catalogs={catalogs}
+          marketsError={marketsError}
+          marketsPending={marketsPending}
+          panelRows={panelRows}
+          onFoldersChange={setFolders}
+          onPanelRowsChange={setPanelRows}
+          manageOpen={folderManagerOpen}
+          onManageOpenChange={setFolderManagerOpen}
+        />
+      ) : null}
     </WorkspacePanel>
   )
 

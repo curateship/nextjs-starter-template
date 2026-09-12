@@ -1,6 +1,7 @@
 # Trade docs
 
 - `polish-scroll-controls-and-states.md` — scroll surfaces, loading and error states, busy controls, disabled reasons, popovers and keyboard behavior.
+- `orders/watched-orders.md` — watched order handoff and Hyperliquid reply recovery.
 
 This folder belongs to the Trade app. Nothing in it comes from Custom Shell, so
 nothing in it ever conflicts when the shell is merged in. Everything true of
@@ -40,6 +41,7 @@ screen: anything not written there has not been agreed yet.
   wallets or a fixed amount, what the header button says, what counts as money
   made today, and how often the exchanges are asked.
 
+- `market-scanner.md` — the chart's left scanner panel, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,
   pins, map, first-seen migration verification, audit coverage and the Moving now widget.
