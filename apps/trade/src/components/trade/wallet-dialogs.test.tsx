@@ -3,8 +3,11 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { WalletSettingsDialog } from "@/components/trade/wallet-dialogs"
-import { updateWallet } from "@/lib/api/trade/wallets"
+import {
+  AddWalletDialog,
+  WalletSettingsDialog,
+} from "@/components/trade/wallet-dialogs"
+import { createWallet, updateWallet } from "@/lib/api/trade/wallets"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { TradeWallet } from "@/lib/trade/wallets"
 
@@ -14,7 +17,37 @@ vi.mock("@/lib/api/trade/wallets", () => ({
   updateWallet: vi.fn(),
   getWalletErrorMessage: () => "Could not save wallet",
 }))
-vi.mock("@/lib/api/trade/protocols", () => ({ loadProtocolsOnce: vi.fn() }))
+vi.mock("@/lib/api/trade/protocols", () => ({
+  loadProtocolsOnce: async () => ({
+    protocols: [
+      {
+        id: "kucoin",
+        networks: ["mainnet"],
+        credentialForm: {
+          addressLabel: "API key",
+          addressHint: "Key id",
+          addressPattern: ".+",
+          secretLabel: "API secret",
+          secretIsAgentKey: false,
+          needsPassphrase: false,
+          keyHelp: "Use a trading key.",
+        },
+      },
+      {
+        id: "hyperliquid",
+        networks: ["mainnet", "testnet"],
+        credentialForm: {
+          addressLabel: "Account",
+          addressPattern: ".+",
+          secretLabel: "Trading key",
+          secretIsAgentKey: true,
+          needsPassphrase: false,
+          keyHelp: "Use an agent key.",
+        },
+      },
+    ],
+  }),
+}))
 vi.mock("@/lib/toast/error-toast", () => ({
   dismissErrorToast: vi.fn(),
   showErrorToast: vi.fn(),
@@ -41,6 +74,7 @@ beforeEach(() => {
   ;(
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true
+  vi.mocked(updateWallet).mockResolvedValue({ wallet })
   host = document.createElement("div")
   document.body.append(host)
   root = createRoot(host)
@@ -137,3 +171,83 @@ it("preserves the fields and keeps the window open after a failed save", async (
   ).toBe("50")
   expect(onClose).not.toHaveBeenCalled()
 })
+
+it("keeps the withdrawal warning visible after replacing a key, without exposing or resaving it", async () => {
+  const live: TradeWallet = {
+    ...wallet,
+    id: "live",
+    kind: "live",
+    hasKey: true,
+    address: "0xaccount",
+    keyPermission: "trade-only",
+  }
+  vi.mocked(updateWallet).mockResolvedValue({
+    wallet: { ...live, keyPermission: "can-withdraw" },
+  })
+  await render(live)
+  await enter("wallet-edit-secret", "ab".repeat(32))
+  await save()
+  expect(document.body.textContent).toContain("Wallet saved")
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "This key can withdraw money"
+  )
+  expect(document.body.textContent).toContain(
+    "Replace this key with a trade-only key"
+  )
+  expect(document.body.textContent).toContain("Trading is still allowed")
+  expect(document.getElementById("wallet-edit-secret")).toBeNull()
+  expect(onClose).not.toHaveBeenCalled()
+  const done = [...document.querySelectorAll("button")].find(
+    (button) => button.textContent === "Done"
+  )!
+  await act(async () => done.click())
+  expect(onClose).toHaveBeenCalledOnce()
+  expect(updateWallet).toHaveBeenCalledOnce()
+})
+
+it.each(["can-withdraw", "unknown"] as const)(
+  "shows the saved %s result in the add dialog",
+  async (keyPermission) => {
+    const added = vi.fn()
+    vi.mocked(createWallet).mockResolvedValue({
+      wallet: {
+        ...wallet,
+        id: "new",
+        kind: "live",
+        protocol: "kucoin",
+        keyPermission,
+      },
+    })
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <AddWalletDialog
+            protocol="kucoin"
+            open
+            onClose={onClose}
+            onAdded={added}
+          />
+        </TooltipProvider>
+      )
+    )
+    const real = [...document.querySelectorAll("button")].find(
+      (button) =>
+        button.getAttribute("role") === "radio" &&
+        button.textContent?.startsWith("Real KuCoin")
+    )!
+    await act(async () => real.click())
+    await enter("wallet-address", "fixture-id")
+    await enter("wallet-secret", "fixture-secret")
+    await save()
+    expect(added).toHaveBeenCalledOnce()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain("Wallet saved")
+    expect(document.body.textContent).toContain(
+      keyPermission === "can-withdraw"
+        ? "This key can withdraw money"
+        : "Could not check what this key may do"
+    )
+    expect(document.getElementById("wallet-secret")).toBeNull()
+    expect(createWallet).toHaveBeenCalledOnce()
+  }
+)

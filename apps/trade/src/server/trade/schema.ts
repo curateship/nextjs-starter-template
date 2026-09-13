@@ -349,6 +349,12 @@ export const tradeWallets = pgTable(
     // 64 is the cap the wallet API enforces on the way in.
     address: varchar("address", { length: 64 }),
     agentKeyEncrypted: text("agent_key_encrypted"),
+    keyPermission: varchar("key_permission", { length: 16 }).$type<
+      "trade-only" | "can-withdraw" | "unknown"
+    >(),
+    keyPermissionCheckedAt: timestamp("key_permission_checked_at", {
+      withTimezone: true,
+    }),
     liquidationWarnUsd: doublePrecision("liquidation_warn_usd"),
     liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
     // When the exchange says the trading key's approval runs out, recorded at
@@ -452,7 +458,7 @@ export const tradeLiveJournal = pgTable(
     ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
-    // What was done: fill | placed | cancelled | close | brackets | refused.
+    // Trading actions and key-permission reads share this account record.
     action: varchar("action", { length: 16 })
       .$type<LiveJournalAction>()
       .notNull(),

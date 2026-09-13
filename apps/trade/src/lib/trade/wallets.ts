@@ -22,6 +22,8 @@ const WALLET_PROFIT_TIMEZONE = "America/Toronto"
  * trade with.
  */
 export type WalletKind = "paper" | "live"
+export type KeyPermission = "trade-only" | "can-withdraw" | "unknown"
+
 export type WalletStatus = "active" | "inactive"
 
 export type TradeWallet = {
@@ -42,6 +44,8 @@ export type TradeWallet = {
    * at save time. Null on paper wallets and on approvals with no expiry.
    */
   keyValidUntil: number | null
+  keyPermission?: KeyPermission | null
+  keyPermissionCheckedAt?: number | null
   /** Saved exchange mode. Missing or null means the mode has not been read. */
   positionMode?: "one-way" | "two-sided" | null
   /** Each blank distance inherits the account setting. */

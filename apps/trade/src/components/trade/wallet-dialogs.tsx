@@ -2,6 +2,7 @@ import * as React from "react"
 import { CheckIcon, CopyIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { KeyPermissionNotice } from "@/components/trade/key-permission-notice"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -314,10 +315,8 @@ export function AddWalletDialog({
    * its address to copy instead of closing, because the address is the one
    * thing the person needs next and nowhere else prints it whole.
    */
-  const [made, setMade] = React.useState<{
-    label: string
-    address: string
-  } | null>(null)
+  const [saved, setSaved] = React.useState<TradeWallet | null>(null)
+  const [made, setMade] = React.useState<TradeWallet | null>(null)
 
   // A fresh window each time it opens, not the leftovers of the last add.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -333,6 +332,7 @@ export function AddWalletDialog({
       setSecret("")
       setPassphrase("")
       setMade(null)
+      setSaved(null)
     }
   }
 
@@ -350,11 +350,11 @@ export function AddWalletDialog({
   const dirty =
     made === null &&
     (labelTouched ||
-    kind !== "paper" ||
-    startingBalance !== "10000" ||
-    address !== "" ||
-    secret !== "" ||
-    passphrase !== "")
+      kind !== "paper" ||
+      startingBalance !== "10000" ||
+      address !== "" ||
+      secret !== "" ||
+      passphrase !== "")
 
   const balanceNumber = Number(startingBalance)
   const refusal =
@@ -408,7 +408,11 @@ export function AddWalletDialog({
       )
       toast.success(`Added "${wallet.label}".`)
       onAdded(wallet)
-      onClose()
+      setSecret("")
+      setPassphrase("")
+      if (wallet.kind === "live" && wallet.keyPermission !== "trade-only")
+        setSaved(wallet)
+      else onClose()
     } catch (error) {
       showErrorToast(getWalletErrorMessage(error))
     } finally {
@@ -439,7 +443,7 @@ export function AddWalletDialog({
       toast.success(`Added "${wallet.label}".`)
       onAdded(wallet)
       if (wallet.address) {
-        setMade({ label: wallet.label, address: wallet.address })
+        setMade(wallet)
       } else {
         onClose()
       }
@@ -450,6 +454,9 @@ export function AddWalletDialog({
     }
   }
 
+  if (saved)
+    return <SavedWalletDialog wallet={saved} open={open} onClose={onClose} />
+
   if (made) {
     return (
       <FormDialog open={open} dirty={false} busy={false} onClose={onClose}>
@@ -459,13 +466,14 @@ export function AddWalletDialog({
               <DialogTitle>Your new {venue} wallet</DialogTitle>
               <DialogDescription>
                 "{made.label}" is saved. Send the coins you mean to trade to
-                this address. The secret key was made on the server, is
-                stored encrypted, and is never shown.
+                this address. The secret key was made on the server, is stored
+                encrypted, and is never shown.
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
               <Card size="sm">
                 <CardContent className="grid gap-4">
+                  <KeyPermissionNotice wallet={made} />
                   <div className="grid gap-2">
                     <Label htmlFor="wallet-made-address">
                       {form?.addressLabel ?? "Wallet address"}
@@ -474,11 +482,11 @@ export function AddWalletDialog({
                       <Input
                         id="wallet-made-address"
                         readOnly
-                        value={made.address}
+                        value={made.address ?? ""}
                         className="font-mono"
                         onFocus={(event) => event.currentTarget.select()}
                       />
-                      <CopyButton value={made.address} what="address" />
+                      <CopyButton value={made.address ?? ""} what="address" />
                     </div>
                   </div>
                 </CardContent>
@@ -620,9 +628,9 @@ export function AddWalletDialog({
                         // small card's 12px padding and the inset restored.
                         <div className="-mx-3 grid gap-2 border-t px-3 pt-4">
                           <p className="text-xs text-muted-foreground">
-                            Or let Trade make a wallet for you. Only the
-                            address is shown; the secret key is made on the
-                            server and stored encrypted there.
+                            Or let Trade make a wallet for you. Only the address
+                            is shown; the secret key is made on the server and
+                            stored encrypted there.
                           </p>
                           <Button
                             type="button"
@@ -742,6 +750,7 @@ function WalletSettingsWindow({
   // the form, not a separate action that fires as you touch it.
   const [makeActive, setMakeActive] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [saved, setSaved] = React.useState<TradeWallet | null>(null)
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
 
@@ -794,6 +803,7 @@ function WalletSettingsWindow({
     dismissErrorToast()
     setSaving(true)
     try {
+      let updated: TradeWallet | undefined
       if (
         label !== wallet.label ||
         balanceDirty ||
@@ -801,7 +811,7 @@ function WalletSettingsWindow({
         replacingKey ||
         status !== wallet.status
       ) {
-        await updateWallet({
+        const result = await updateWallet({
           id: wallet.id,
           ...(warningDirty ? { liquidationWarning: warning } : {}),
           ...(label !== wallet.label ? { label: label.trim() } : {}),
@@ -811,11 +821,16 @@ function WalletSettingsWindow({
             : {}),
           ...(status !== wallet.status ? { status } : {}),
         })
+        updated = result.wallet
       }
       if (makeActive && status === "active") onUse(wallet.id)
       toast.success("Wallet saved.")
       onChanged()
-      onClose()
+      setSecret("")
+      setPassphrase("")
+      if (updated?.kind === "live" && updated.keyPermission !== "trade-only")
+        setSaved(updated)
+      else onClose()
     } catch (error) {
       showErrorToast(getWalletErrorMessage(error))
     } finally {
@@ -838,6 +853,8 @@ function WalletSettingsWindow({
       setDeleting(false)
     }
   }
+
+  if (saved) return <SavedWalletDialog wallet={saved} open onClose={onClose} />
 
   return (
     <>
@@ -954,6 +971,7 @@ function WalletSettingsWindow({
                     ) : (
                       <>
                         <div className="grid gap-2">
+                          <KeyPermissionNotice wallet={wallet} />
                           <Label>{form?.addressLabel ?? "Account"}</Label>
                           <p
                             className="text-sm text-muted-foreground"
@@ -1077,5 +1095,43 @@ function WalletSettingsWindow({
         onConfirm={() => void handleDelete()}
       />
     </>
+  )
+}
+
+function SavedWalletDialog({
+  wallet,
+  open,
+  onClose,
+}: {
+  wallet: TradeWallet
+  open: boolean
+  onClose: () => void
+}) {
+  return (
+    <FormDialog open={open} dirty={false} busy={false} onClose={onClose}>
+      {() => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Wallet saved</DialogTitle>
+            <DialogDescription>
+              "{wallet.label}" is saved. Review the key permissions below.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Key permissions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <KeyPermissionNotice wallet={wallet} />
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={onClose}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }

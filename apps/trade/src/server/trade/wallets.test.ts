@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { tradeLiveFills, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeLiveFills,
+  tradeLiveJournal,
+  tradeWallets,
+} from "@/server/trade/schema"
 import { saveLiquidationWarning } from "@/server/trade/prefs"
 import { walletProfitWindowStart } from "@/lib/trade/wallets"
 import {
@@ -24,6 +28,7 @@ import {
 // and the key check answers approved unless a test says otherwise.
 const fetchAccount = vi.fn()
 const verifyAgent = vi.fn()
+const readPermissions = vi.fn()
 /**
  * What shape the mock exchange takes. `account` off is a venue that cannot
  * read holdings yet (Solana before its holdings task); `make` on is one whose
@@ -47,7 +52,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
     networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
     account: shape.account ? { fetch: fetchAccount } : undefined,
-    agent: { verify: verifyAgent },
+    agent: { verify: verifyAgent, permissions: readPermissions },
     credentials: {
       form: {
         addressLabel: "Account address",
@@ -92,6 +97,8 @@ beforeEach(async () => {
     inTrades: 4_000,
     openProfit: 150,
   })
+  readPermissions.mockReset()
+  readPermissions.mockResolvedValue("trade-only")
   verifyAgent.mockReset()
   verifyAgent.mockResolvedValue({ validUntil: null })
   shape.account = true
@@ -263,7 +270,11 @@ describe("adding wallets", () => {
     expect(wallet.hasKey).toBe(true)
     // The made secret is proved and encrypted like a pasted one, and the
     // answer never carries it.
-    expect(verifyAgent).toHaveBeenCalledWith("mainnet", MADE_ADDRESS, MADE_SECRET)
+    expect(verifyAgent).toHaveBeenCalledWith(
+      "mainnet",
+      MADE_ADDRESS,
+      MADE_SECRET
+    )
     const rows = await database
       .select()
       .from(tradeWallets)
@@ -708,3 +719,146 @@ it.each(["one-way", "two-sided", null] as const)(
     expect(await findWallet(await person(), wallet.id)).toBeNull()
   }
 )
+
+describe("key permissions", () => {
+  it("saves a withdrawing key without blocking trading and journals no secrets", async () => {
+    const userId = await person()
+    readPermissions.mockResolvedValue("can-withdraw")
+    const wallet = await createWallet(userId, liveInput())
+    expect(wallet.keyPermission).toBe("can-withdraw")
+    expect(wallet.keyPermissionCheckedAt).toEqual(expect.any(Number))
+    expect((await findTradingWallet(userId, wallet.id))?.id).toBe(wallet.id)
+    const journal = await database.select().from(tradeLiveJournal)
+    expect(journal).toHaveLength(1)
+    expect(journal[0].action).toBe("key-permissions")
+    expect(journal[0].note).toBe("Key permissions: can-withdraw.")
+    expect(JSON.stringify(journal)).not.toContain(KEY)
+    readPermissions.mockResolvedValue("trade-only")
+    const replaced = await updateWallet(userId, {
+      id: wallet.id,
+      agentKey: "cd".repeat(32),
+    })
+    expect(replaced.keyPermission).toBe("trade-only")
+    expect((await findWallet(userId, wallet.id))?.keyPermission).toBe(
+      "trade-only"
+    )
+  })
+
+  it("stores refused checks as unknown and does not repeat them on each poll", async () => {
+    const userId = await person()
+    readPermissions.mockRejectedValue(new Error(KEY))
+    const wallet = await createWallet(userId, liveInput())
+    expect(wallet.keyPermission).toBe("unknown")
+    await loadWalletSummaries(userId)
+    await loadWalletSummaries(userId)
+    expect(readPermissions).toHaveBeenCalledTimes(1)
+    expect(
+      JSON.stringify(await database.select().from(tradeLiveJournal))
+    ).not.toContain(KEY)
+  })
+
+  it("checks existing wallets and refreshes changed permissions after five minutes", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    await database
+      .update(tradeWallets)
+      .set({ keyPermission: null, keyPermissionCheckedAt: null })
+      .where(eq(tradeWallets.id, wallet.id))
+    readPermissions.mockResolvedValue("can-withdraw")
+    const first = await loadWalletSummaries(userId)
+    expect(first.wallets[0].keyPermission).toBe("can-withdraw")
+    await database
+      .update(tradeWallets)
+      .set({ keyPermissionCheckedAt: new Date(Date.now() - 300_001) })
+      .where(eq(tradeWallets.id, wallet.id))
+    readPermissions.mockRejectedValue(new Error("refused"))
+    expect((await loadWalletSummaries(userId)).wallets[0].keyPermission).toBe(
+      "can-withdraw"
+    )
+  })
+
+  it("does not let an old in-flight check overwrite a replacement key", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    await database
+      .update(tradeWallets)
+      .set({ keyPermissionCheckedAt: null })
+      .where(eq(tradeWallets.id, wallet.id))
+    let finish!: (permission: string) => void
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    readPermissions.mockImplementationOnce(() => {
+      started()
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    })
+    const pending = loadWalletSummaries(userId)
+    await ready
+    readPermissions.mockResolvedValue("can-withdraw")
+    await updateWallet(userId, { id: wallet.id, agentKey: "cd".repeat(32) })
+    finish("trade-only")
+    expect((await pending).wallets[0].keyPermission).toBe("can-withdraw")
+    expect((await findWallet(userId, wallet.id))?.keyPermission).toBe(
+      "can-withdraw"
+    )
+  })
+
+  it("keeps a newer permission result written by another process for the same key", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    await database
+      .update(tradeWallets)
+      .set({ keyPermissionCheckedAt: null })
+      .where(eq(tradeWallets.id, wallet.id))
+    let finish!: (permission: string) => void
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    readPermissions.mockImplementationOnce(() => {
+      started()
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    })
+    const pending = loadWalletSummaries(userId)
+    await ready
+    await database
+      .update(tradeWallets)
+      .set({
+        keyPermission: "can-withdraw",
+        keyPermissionCheckedAt: new Date(),
+      })
+      .where(eq(tradeWallets.id, wallet.id))
+    finish("unknown")
+    expect((await pending).wallets[0].keyPermission).toBe("can-withdraw")
+    expect((await findWallet(userId, wallet.id))?.keyPermission).toBe(
+      "can-withdraw"
+    )
+  })
+
+  it("checks inactive keys without reading balances, and skips practice and other protocols", async () => {
+    const userId = await person()
+    await createWallet(userId, paperInput())
+    const wallet = await createWallet(userId, liveInput())
+    await database
+      .update(tradeWallets)
+      .set({ status: "inactive", keyPermissionCheckedAt: null })
+      .where(eq(tradeWallets.id, wallet.id))
+    readPermissions.mockClear()
+    fetchAccount.mockClear()
+    await loadWalletSummaries(userId)
+    expect(readPermissions).toHaveBeenCalledOnce()
+    expect(fetchAccount).not.toHaveBeenCalled()
+    readPermissions.mockClear()
+    await database
+      .update(tradeWallets)
+      .set({ status: "active", keyPermissionCheckedAt: null })
+      .where(eq(tradeWallets.id, wallet.id))
+    await loadWalletSummaries(userId, "phemex")
+    expect(readPermissions).not.toHaveBeenCalled()
+  })
+})

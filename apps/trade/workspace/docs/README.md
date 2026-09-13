@@ -166,6 +166,8 @@ screen: anything not written there has not been agreed yet.
   the measured twenty-position bulk actions, and why worker orders do not use
   them.
 
+- `key-permissions.md` explains withdrawal warnings, exchange permission readers, saved checks, refreshes, privacy, and testing.
+
 ## wallets/ — money and margin
 
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what

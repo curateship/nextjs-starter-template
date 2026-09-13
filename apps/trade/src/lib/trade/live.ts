@@ -27,6 +27,7 @@ import type { SmartOrder } from "@/lib/trade/smart-plan"
  * is the record you go digging through when a real order has gone wrong.
  */
 export type LiveJournalAction =
+  | "key-permissions"
   /** An order that filled straight away — a real fill at a real price. */
   | "fill"
   /** An order left resting in the book. */

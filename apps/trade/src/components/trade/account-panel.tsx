@@ -12,6 +12,7 @@ import {
   ListXIcon,
 } from "lucide-react"
 
+import { KeyPermissionNotice } from "@/components/trade/key-permission-notice"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { ErrorRow } from "@/components/ui/error-row"
 import { PnlAmount } from "@/components/trade/pnl-amount"
@@ -299,6 +300,7 @@ function ActiveWalletRow({
     <div
       className={cn(
         walletRowFrameClassName,
+        wallet.kind === "live" && "flex-wrap",
         selected ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
       )}
     >
@@ -345,6 +347,11 @@ function ActiveWalletRow({
           <EllipsisVerticalIcon className="size-4" />
         </Button>
       </DisabledReason>
+      {wallet.kind === "live" ? (
+        <div className="basis-full">
+          <KeyPermissionNotice wallet={wallet} />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -369,6 +376,7 @@ function WalletCard({
     <div
       className={cn(
         walletRowFrameClassName,
+        wallet.kind === "live" && "flex-wrap",
         active ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
       )}
     >
@@ -405,6 +413,11 @@ function WalletCard({
           <EllipsisVerticalIcon className="size-4" />
         </Button>
       </DisabledReason>
+      {wallet.kind === "live" ? (
+        <div className="basis-full">
+          <KeyPermissionNotice wallet={wallet} />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -544,6 +557,7 @@ export function WalletDetailsDialog({
               <p className="text-sm text-muted-foreground">
                 {walletPositionModeLabel(wallet.positionMode)}
               </p>
+              <KeyPermissionNotice wallet={wallet} />
               {wallet.status === "active" ? (
                 <KeyExpiryNotice wallet={wallet} />
               ) : null}

@@ -146,8 +146,9 @@ the resting-order read in each folder's `orders.ts`.
 Every wallet has a status: **active** or **inactive**. The sweep reads the
 whole list — the panel needs it for its tabs — but asks the exchange **only
 about the active ones**. An inactive wallet answers `state: "inactive"`
-without a single request being sent, and its practice equivalent is not
-settled either.
+without a balance request being sent, and its practice equivalent is not
+settled either. Stored live keys still receive the permission checks described
+in `../key-permissions.md`, including on inactive wallets.
 
 **This was not always true, and it was expensive.** Every live wallet costs the
 exchange's own allowance each time it is read, and the exchange counts every

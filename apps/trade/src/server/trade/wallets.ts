@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, asc, eq, gte, inArray, or, sql } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm"
 
 import type {
   NetworkId,
@@ -35,6 +35,7 @@ import { paperWalletFigures } from "@/server/trade/paper"
 import { credentialFor } from "@/server/trade/wallet-auth"
 import {
   tradeLiveFills,
+  tradeLiveJournal,
   tradePaperJournal,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -74,6 +75,8 @@ type WalletFields = Pick<
   | "agentKeyEncrypted"
   | "agentValidUntil"
   | "positionMode"
+  | "keyPermission"
+  | "keyPermissionCheckedAt"
   | "liquidationWarnUsd"
   | "liquidationWarnPct"
 >
@@ -91,6 +94,8 @@ function toWallet(row: WalletFields): TradeWallet {
     hasKey: row.agentKeyEncrypted !== null,
     keyValidUntil: row.agentValidUntil?.getTime() ?? null,
     positionMode: row.positionMode,
+    keyPermission: row.keyPermission,
+    keyPermissionCheckedAt: row.keyPermissionCheckedAt?.getTime() ?? null,
     liquidationWarning: {
       usd: row.liquidationWarnUsd,
       pct: row.liquidationWarnPct,
@@ -111,6 +116,8 @@ const publicWalletSelection = {
   hasKey: sql<boolean>`${tradeWallets.agentKeyEncrypted} is not null`,
   keyValidUntil: tradeWallets.agentValidUntil,
   positionMode: tradeWallets.positionMode,
+  keyPermission: tradeWallets.keyPermission,
+  keyPermissionCheckedAt: tradeWallets.keyPermissionCheckedAt,
   liquidationWarnUsd: tradeWallets.liquidationWarnUsd,
   liquidationWarnPct: tradeWallets.liquidationWarnPct,
 }
@@ -127,6 +134,8 @@ function selectedWallet(row: {
   hasKey: boolean
   keyValidUntil: Date | null
   positionMode: WalletRow["positionMode"]
+  keyPermission: WalletRow["keyPermission"]
+  keyPermissionCheckedAt: Date | null
   liquidationWarnUsd: number | null
   liquidationWarnPct: number | null
 }): TradeWallet {
@@ -142,6 +151,8 @@ function selectedWallet(row: {
     hasKey: row.hasKey,
     keyValidUntil: row.keyValidUntil?.getTime() ?? null,
     positionMode: row.positionMode,
+    keyPermission: row.keyPermission,
+    keyPermissionCheckedAt: row.keyPermissionCheckedAt?.getTime() ?? null,
     liquidationWarning: {
       usd: row.liquidationWarnUsd,
       pct: row.liquidationWarnPct,
@@ -170,6 +181,7 @@ export async function listWalletsWithCredentials(userId: string): Promise<{
     .from(tradeWallets)
     .where(eq(tradeWallets.userId, userId))
     .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
+  await Promise.all(rows.map(refreshKeyPermission))
   const credentials = new Map<string, () => string | null>()
   for (const row of rows) credentials.set(row.id, () => credentialFor(row))
   return { wallets: rows.map(toWallet), credentials }
@@ -267,7 +279,10 @@ export async function createWallet(
     makeWallet?: boolean
   }
 ): Promise<TradeWallet> {
-  const existing = await listWallets(userId)
+  const existing = await db
+    .select({ id: tradeWallets.id })
+    .from(tradeWallets)
+    .where(eq(tradeWallets.userId, userId))
   if (existing.length >= MAX_WALLETS) throw new Error("WALLET_LIMIT")
 
   const entry = getProtocol(input.protocol)
@@ -281,6 +296,8 @@ export async function createWallet(
   let address: string | null = null
   let agentKeyEncrypted: string | null = null
   let agentValidUntil: Date | null = null
+  let keyPermission: WalletRow["keyPermission"] = null
+  let keyPermissionCheckedAt: Date | null = null
   let positionMode: "one-way" | "two-sided" | null = null
 
   if (input.kind === "paper") {
@@ -325,6 +342,13 @@ export async function createWallet(
     agentValidUntil =
       verified.validUntil !== null ? new Date(verified.validUntil) : null
     positionMode = verified.positionMode ?? null
+    keyPermission = await checkKeyPermission(
+      entry,
+      input.network,
+      address,
+      () => blob
+    )
+    keyPermissionCheckedAt = new Date()
     if (entry.account) {
       // Reading the account proves it is reachable and records the fixed
       // sizing baseline used when compounding is off. An account the
@@ -357,8 +381,11 @@ export async function createWallet(
     liquidationWarnUsd: null,
     liquidationWarnPct: null,
     positionMode,
+    keyPermission,
+    keyPermissionCheckedAt,
   }
   await db.insert(tradeWallets).values(row)
+  if (keyPermission) await journalKeyPermission(userId, row.id, keyPermission)
   return toWallet(row)
 }
 
@@ -425,6 +452,13 @@ export async function updateWallet(
       row.address ?? "",
       blob
     )
+    set.keyPermission = await checkKeyPermission(
+      entry,
+      row.network,
+      row.address ?? "",
+      () => blob
+    )
+    set.keyPermissionCheckedAt = new Date()
     set.agentKeyEncrypted = encryptSecret(blob)
     set.agentValidUntil =
       verified.validUntil !== null ? new Date(verified.validUntil) : null
@@ -437,6 +471,8 @@ export async function updateWallet(
     .update(tradeWallets)
     .set(set)
     .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, input.id)))
+  if (set.keyPermission)
+    await journalKeyPermission(userId, row.id, set.keyPermission)
   return toWallet({ ...row, ...set } as WalletRow)
 }
 
@@ -477,6 +513,11 @@ export async function loadWalletSummaries(
     loadLiquidationWarning(userId),
   ])
 
+  await Promise.all(
+    rows
+      .filter((row) => protocol === undefined || row.protocol === protocol)
+      .map(refreshKeyPermission)
+  )
   const wallets = rows.map((row) => {
     const wallet = toWallet(row)
     const warning = resolveLiquidationWarning(
@@ -644,4 +685,114 @@ export async function loadWalletSummaries(
     })
   )
   return { wallets, summaries }
+}
+
+/** Permission failures never stop trading or repeat as error toasts. */
+async function checkKeyPermission(
+  entry: ReturnType<typeof getProtocol>,
+  network: NetworkId,
+  address: string,
+  credential: () => string | null
+): Promise<NonNullable<WalletRow["keyPermission"]>> {
+  try {
+    return (
+      (await entry.agent?.permissions?.(network, address, credential)) ??
+      "unknown"
+    )
+  } catch {
+    // Never persist an exchange payload or error that may echo a credential.
+    return "unknown"
+  }
+}
+
+async function journalKeyPermission(
+  userId: string,
+  walletId: string,
+  permission: NonNullable<WalletRow["keyPermission"]>
+) {
+  try {
+    await db.insert(tradeLiveJournal).values({
+      userId,
+      walletId,
+      id: randomUUID(),
+      marketKey: "",
+      action: "key-permissions",
+      note: `Key permissions: ${permission}.`,
+    })
+  } catch (error) {
+    recordEngineError("wallets", "Key permission journal write failed", error)
+  }
+}
+
+/** Refresh on wallet reads, at most once per five minutes per unchanged key. */
+const KEY_PERMISSION_REFRESH_MS = 5 * 60_000
+const permissionReads = new Map<string, Promise<void>>()
+async function refreshKeyPermission(row: WalletRow): Promise<void> {
+  if (row.kind !== "live" || !row.agentKeyEncrypted || !row.address) return
+  if (
+    row.keyPermissionCheckedAt &&
+    Date.now() - row.keyPermissionCheckedAt.getTime() <
+      KEY_PERMISSION_REFRESH_MS
+  )
+    return
+  const key = `${row.userId}:${row.id}`
+  const existing = permissionReads.get(key)
+  if (existing) {
+    await existing
+    const current = await findWallet(row.userId, row.id)
+    row.keyPermission = current?.keyPermission ?? null
+    row.keyPermissionCheckedAt = current?.keyPermissionCheckedAt
+      ? new Date(current.keyPermissionCheckedAt)
+      : null
+    return
+  }
+  const read = (async () => {
+    const answer = await checkKeyPermission(
+      getProtocol(row.protocol),
+      row.network,
+      row.address!,
+      () => credentialFor(row)
+    )
+    // A refused read cannot erase a withdrawal permission already observed.
+    const permission =
+      row.keyPermission === "can-withdraw" && answer === "unknown"
+        ? row.keyPermission
+        : answer
+    const checkedAt = new Date()
+    const changed = await db
+      .update(tradeWallets)
+      .set({ keyPermission: permission, keyPermissionCheckedAt: checkedAt })
+      .where(
+        and(
+          eq(tradeWallets.userId, row.userId),
+          eq(tradeWallets.id, row.id),
+          eq(tradeWallets.agentKeyEncrypted, row.agentKeyEncrypted!),
+          row.keyPermissionCheckedAt
+            ? eq(
+                tradeWallets.keyPermissionCheckedAt,
+                row.keyPermissionCheckedAt
+              )
+            : isNull(tradeWallets.keyPermissionCheckedAt)
+        )
+      )
+      .returning({ id: tradeWallets.id })
+    if (changed.length) {
+      row.keyPermission = permission
+      row.keyPermissionCheckedAt = checkedAt
+      await journalKeyPermission(row.userId, row.id, answer)
+    } else {
+      // A replacement or a newer check won the race. Return its status.
+      const current = await findWallet(row.userId, row.id)
+      row.keyPermission = current?.keyPermission ?? null
+      row.keyPermissionCheckedAt = current?.keyPermissionCheckedAt
+        ? new Date(current.keyPermissionCheckedAt)
+        : null
+    }
+  })()
+  permissionReads.set(key, read)
+  try {
+    await read
+  } finally {
+    if (permissionReads.get(key) === read) permissionReads.delete(key)
+  }
 }

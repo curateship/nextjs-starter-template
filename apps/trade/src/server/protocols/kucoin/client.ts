@@ -43,6 +43,12 @@ function restBase(network: NetworkId): string {
   return "https://api-futures.kucoin.com"
 }
 
+/** Account management is on KuCoin's spot host, also for Futures keys. */
+function accountRestBase(network: NetworkId): string {
+  if (network !== "mainnet") throw new Error("KUCOIN_NETWORK_UNSUPPORTED")
+  return "https://api.kucoin.com"
+}
+
 export type KucoinCredential = {
   keyId: string
   secret: string
@@ -218,7 +224,10 @@ export async function kucoinSigned(
     // The socket's own ticket is the exception: it is a POST that changes
     // nothing, and counting it would have every reconnect ring its own bell.
     const ringsBell = acting && path !== "/api/v1/bullet-private"
-    const response = await fetch(`${restBase(network)}${endpoint}`, {
+    const base = path === "/api/v1/user/api-key"
+      ? accountRestBase(network)
+      : restBase(network)
+    const response = await fetch(`${base}${endpoint}`, {
       signal: requestSignal(acting ? ACT_TIMEOUT_MS : READ_TIMEOUT_MS),
       method,
       headers: {

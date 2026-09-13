@@ -1,3 +1,9 @@
+import { readLighterKeyPermission } from "@/server/protocols/lighter/permissions"
+import { readAsterKeyPermission } from "@/server/protocols/aster/permissions"
+import { readKucoinKeyPermission } from "@/server/protocols/kucoin/permissions"
+import { readPhemexKeyPermission } from "@/server/protocols/phemex/permissions"
+import { readHyperliquidKeyPermission } from "@/server/protocols/hyperliquid/permissions"
+import type { KeyPermission } from "@/lib/trade/wallets"
 import {
   placeBnbOrder,
   quoteBnbSwap,
@@ -493,6 +499,11 @@ export type ProtocolEntry = {
    * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
    */
   agent?: {
+    permissions?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<KeyPermission>
     /**
      * Proves a pasted credential before it is stored. On Hyperliquid:
      * refuses the account's own key outright, and asks the exchange whether
@@ -759,6 +770,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       profitPerSale: true,
     },
     agent: {
+      permissions: readHyperliquidKeyPermission,
       verify: verifyHyperliquidAgentKey,
     },
     credentials: {
@@ -837,6 +849,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       profitPerSale: true,
     },
     agent: {
+      permissions: readPhemexKeyPermission,
       verify: verifyPhemexAgentKey,
     },
     credentials: {
@@ -905,6 +918,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       profitPerSale: false,
     },
     agent: {
+      permissions: readKucoinKeyPermission,
       verify: verifyKucoinAgentKey,
     },
     credentials: {
@@ -955,7 +969,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchAsterPortfolio,
       profitPerSale: true,
     },
-    agent: { verify: verifyAsterAgentKey },
+    agent: { permissions: readAsterKeyPermission, verify: verifyAsterAgentKey },
     credentials: {
       form: protocolDescription("aster").credentialForm!,
       pack: packAsterCredential,
@@ -1034,7 +1048,10 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       // trading as flat.
       profitPerSale: false,
     },
-    agent: { verify: verifyLighterAgentKey },
+    agent: {
+      permissions: readLighterKeyPermission,
+      verify: verifyLighterAgentKey,
+    },
     orders: {
       fixedSizeStops: true,
       place: placeLighterOrder,

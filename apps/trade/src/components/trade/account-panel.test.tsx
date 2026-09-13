@@ -136,7 +136,11 @@ describe("the active wallet picker", () => {
     const mainRow = host
       .querySelector('[aria-label="Main is the wallet in use"]')
       ?.closest("label")
-    expect(mainRow?.textContent).toContain("MainConnected$5,100.00+$75.00")
+    expect(mainRow?.textContent).toContain("Main")
+    expect(mainRow?.parentElement?.textContent).toContain(
+      "Could not check what this key may do"
+    )
+    expect(mainRow?.textContent).toContain("Connected$5,100.00+$75.00")
     expect(mainRow?.parentElement?.className).toContain("min-h-12")
     expect(mainRow?.parentElement?.className).not.toContain("rounded")
     expect(mainRow?.parentElement?.className).toContain("bg-muted/60")
