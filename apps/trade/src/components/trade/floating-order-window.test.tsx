@@ -137,6 +137,20 @@ describe("the floating order window", () => {
     expect(panel?.style.maxHeight).toBe("260px")
   })
 
+  it("keeps the order window open when another dialog has handled Escape", async () => {
+    const onClose = vi.fn()
+    await renderWindow({ onClose })
+    const escape = new KeyboardEvent("keydown", {
+      key: "Escape",
+      cancelable: true,
+    })
+    escape.preventDefault()
+    await act(async () => {
+      document.dispatchEvent(escape)
+    })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it("closes on Escape and a press outside", async () => {
     const onClose = vi.fn()
     const panel = await renderWindow({ onClose })

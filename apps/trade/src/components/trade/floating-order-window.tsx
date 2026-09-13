@@ -112,7 +112,7 @@ export function FloatingOrderWindow({
     if (!wide) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape" && !event.defaultPrevented) onClose()
     }
     document.addEventListener("keydown", onKeyDown)
     return () => document.removeEventListener("keydown", onKeyDown)

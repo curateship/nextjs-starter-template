@@ -4,6 +4,7 @@ import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -176,6 +177,8 @@ export function ChartQuickOrder({
   onRemember: (prefs: QuickOrderPrefs) => void
   onClose: () => void
 }) {
+  const [confirming, setConfirming] = React.useState(false)
+  const sent = React.useRef(false)
   const maxLeverage = Math.max(1, Math.floor(market.maxLeverage ?? 1))
 
   // Long and Short use the clicked level. Checking Market uses the live mark,
@@ -424,12 +427,19 @@ export function ChartQuickOrder({
                 : `That size does not work out to any ${market.symbol}.`
             : null
 
-  const submit = () => {
+  const submit = (confirmed = false) => {
+    if (sent.current) return
     if (!ready) {
       setShowValidation(true)
       if (refusal) showErrorToast(refusal)
       return
     }
+    if (marketOrder && !confirmed) {
+      setConfirming(true)
+      return
+    }
+    sent.current = true
+    setConfirming(false)
     // Sent and let go of. The window shuts on the press rather than sitting
     // there spinning through a round trip to the exchange — the order is
     // already on the chart, and a refusal arrives as a toast if one comes.
@@ -494,7 +504,7 @@ export function ChartQuickOrder({
       titleClassName={buy ? undefined : LOST_MONEY}
       wallet={wallet}
       free={free}
-      onClose={onClose}
+      onClose={confirming ? () => setConfirming(false) : onClose}
     >
       <ScrollArea className="h-full">
         <div className="grid gap-4 p-3">
@@ -879,7 +889,7 @@ export function ChartQuickOrder({
         </OrderRefusal>
         <Button
           type="button"
-          onClick={submit}
+          onClick={() => submit()}
           aria-describedby={
             showValidation && refusal ? "quick-order-refusal" : undefined
           }
@@ -894,6 +904,24 @@ export function ChartQuickOrder({
               : `${sideWord} ${market.symbol}`}
         </Button>
       </div>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Confirm market order"
+        description={`${addingNow ? `Add to ${sideWord.toLowerCase()}` : sideWord} ${market.symbol} in ${wallet}: ${sizeCoin.toLocaleString("en-US", { maximumFractionDigits: 8 })} ${market.symbol}, approximately ${formatUsd(sizeCoin * entryPx)}. The order executes at market; the final fill price may change.`}
+        confirmLabel="Place market order"
+        destructive={false}
+        disabled={!ready}
+        onConfirm={() => submit(true)}
+      >
+        {!swaps ? (
+          <p className="text-sm">
+            Leverage: {leverage}×.{" "}
+            {reduceOnly ? "Only reduce the existing position." : ""}
+          </p>
+        ) : null}
+        {refusal ? <OrderRefusal>{refusal}</OrderRefusal> : null}
+      </ConfirmDialog>
     </FloatingOrderWindow>
   )
 }

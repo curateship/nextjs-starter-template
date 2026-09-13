@@ -422,3 +422,21 @@ Manual, grid and DCA forms share a floating frame. Each form stays inside
 the frame's width, including a long wallet name and the available dollars.
 The manual size input shrinks beside its unit selector. Stop and exit fields
 and the submit button remain inside the same frame on desktop and mobile.
+
+## Manual market confirmation
+
+Pressing a manual market-order button or Enter first opens Confirm market
+order. The review names the wallet, market, direction, coin amount and estimated
+dollar value. It also shows leverage and whether the order only reduces a
+position. Estimates follow the current price; the final fill price can change.
+Adding to an existing position and immediate swaps use the same confirmation.
+
+Cancel or Escape returns to the order form with its values intact. Only Place
+market order sends the order and remembers its settings. Validation runs again
+before sending, and repeated confirmation clicks cannot send a second order.
+Watched and resting orders keep their existing submission behavior.
+
+To check in a practice wallet, choose Market in the manual order window.
+Press the order button, read the summary, and cancel. Repeat with Enter and
+Escape. Then confirm once and check that only one order appears. Repeat at
+phone width and when adding to a position.

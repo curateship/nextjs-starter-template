@@ -126,6 +126,7 @@ screen: anything not written there has not been agreed yet.
   floating frame, synchronized DCA entry and exit dragging, the draggable
   ladder summary, red DCA exit lines and labels, the DCA exit choices and draggable exit gap, the base stop,
   and the grid window.
+  Manual market orders require confirmation before submission.
 - `rules-before-an-entry.md` — the three rules Tyler sets for himself before a
   real-money Long, Short, DCA or Grid, the one warning window that names what
   is unmet and asks him to confirm or go back, and the "Overrode" note the

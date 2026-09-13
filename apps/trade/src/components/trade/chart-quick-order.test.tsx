@@ -108,6 +108,7 @@ async function draw({
 }) {
   const onPlace = vi.fn()
   const onRemember = vi.fn()
+  const onClose = vi.fn()
   await act(async () =>
     root.render(
       <TooltipProvider>
@@ -128,12 +129,12 @@ async function draw({
           prefs={initialPrefs}
           onPlace={onPlace}
           onRemember={onRemember}
-          onClose={() => {}}
+          onClose={onClose}
         />
       </TooltipProvider>
     )
   )
-  return { onPlace, onRemember }
+  return { onPlace, onRemember, onClose }
 }
 
 async function type(selector: string, value: string) {
@@ -162,13 +163,78 @@ async function choose(id: string) {
   })
 }
 
-async function place() {
+async function place(confirm = true) {
   await act(async () => {
     host.querySelector<HTMLButtonElement>("button.w-full")?.click()
+  })
+  if (confirm) await confirmationButton("Place market order")
+}
+
+async function confirmationButton(label: string) {
+  await act(async () => {
+    const button = [...document.querySelectorAll("button")].find(
+      (one) => one.textContent === label
+    )
+    button?.click()
   })
 }
 
 describe("the chart's Long, Short and Market window", () => {
+  it("confirms a market order before placing or remembering it, and lets Cancel keep editing", async () => {
+    const { onPlace, onRemember, onClose } = await draw({
+      initialPrefs: { ...prefs, entryStyle: "market" },
+    })
+    await place(false)
+    expect(document.body.textContent).toContain("Confirm market order")
+    expect(document.body.textContent).toContain(
+      "Long BTC in Practice: 1 BTC, approximately $100.00"
+    )
+    expect(onPlace).not.toHaveBeenCalled()
+    expect(onRemember).not.toHaveBeenCalled()
+    await confirmationButton("Cancel")
+    expect(onClose).not.toHaveBeenCalled()
+    expect(host.querySelector<HTMLInputElement>("#quick-size")?.value).toBe(
+      "100"
+    )
+    await place(false)
+    const confirm = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Place market order"
+    )!
+    await act(async () => {
+      confirm.click()
+      confirm.click()
+    })
+    expect(onPlace).toHaveBeenCalledTimes(1)
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ market: true, sz: 1, side: "buy" })
+    )
+    expect(onRemember).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("opens confirmation on Enter and Escape cancels without closing the order form", async () => {
+    const { onPlace, onClose } = await draw({
+      initialPrefs: { ...prefs, entryStyle: "market" },
+    })
+    await act(async () =>
+      host
+        .querySelector("#quick-size")!
+        .dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+    )
+    expect(document.body.textContent).toContain("Confirm market order")
+    expect(onPlace).not.toHaveBeenCalled()
+    await act(async () =>
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    )
+    expect(document.body.textContent).not.toContain("Confirm market order")
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onPlace).not.toHaveBeenCalled()
+  })
+
   it("keeps a Long at the clicked level even when it starts above the market", async () => {
     const { onPlace } = await draw({})
 
