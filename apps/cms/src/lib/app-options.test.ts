@@ -8,9 +8,10 @@ import {
   appCanvasHeaderStatus,
   appCanvasPanel,
   appHeaderLeftContentForRole,
-  appHeaderRightAction,
-  appHeaderRightActionForRole,
+  appHeaderRightActions,
+  appHeaderRightActionsForRole,
   appNotificationLinks,
+  appQuickSettingsForRole,
   appShowsRunButton,
   appOffersMemberTest,
   appPaletteGroups,
@@ -71,7 +72,7 @@ describe("an option nobody set means what the shell always did", () => {
   })
 
   it("adds no app-owned control to the signed-in header", () => {
-    expect(appHeaderRightAction({})).toBeNull()
+    expect(appHeaderRightActions({})).toEqual([])
   })
 
   it("keeps the shell's own front page", () => {
@@ -112,21 +113,83 @@ describe("an app's answer wins", () => {
     })
   })
 
-  it("hands over the signed-in header's app-owned control", () => {
-    const rightAction = {
+  it("hands over the signed-in header's app-owned controls for this role", () => {
+    const adminsOnly = {
       id: "app-status",
       label: "App status",
       icon: () => null,
       roles: ["admin"],
       component: async () => ({ default: () => null }),
     }
-    expect(appHeaderRightAction({ header: { rightAction } })).toBe(rightAction)
+    const everybody = {
+      id: "goal",
+      label: "Goal",
+      icon: () => null,
+      component: async () => ({ default: () => null }),
+    }
+    const rightActions = [adminsOnly, everybody]
+
+    expect(appHeaderRightActions({ header: { rightActions } })).toEqual(
+      rightActions
+    )
     expect(
-      appHeaderRightActionForRole("admin", { header: { rightAction } })
-    ).toBe(rightAction)
+      appHeaderRightActionsForRole("admin", { header: { rightActions } })
+    ).toEqual(rightActions)
     expect(
-      appHeaderRightActionForRole("member", { header: { rightAction } })
-    ).toBeNull()
+      appHeaderRightActionsForRole("member", { header: { rightActions } })
+    ).toEqual([everybody])
+  })
+
+  it("refuses two header controls that share an id", () => {
+    const twice = [
+      {
+        id: "goal",
+        label: "Goal",
+        icon: () => null,
+        component: async () => ({ default: () => null }),
+      },
+      {
+        id: "goal",
+        label: "Goal again",
+        icon: () => null,
+        component: async () => ({ default: () => null }),
+      },
+    ]
+
+    expect(() =>
+      appHeaderRightActionsForRole("admin", { header: { rightActions: twice } })
+    ).toThrow(/goal/)
+  })
+
+  it("hands over the app's settings-menu rows for this role only", () => {
+    const mine = {
+      id: "hide-pnl",
+      component: async () => ({ default: () => null }),
+    }
+    const admins = {
+      id: "engine",
+      roles: ["admin"],
+      component: async () => ({ default: () => null }),
+    }
+    const quickSettings = [mine, admins]
+
+    expect(
+      appQuickSettingsForRole("admin", { header: { quickSettings } })
+    ).toEqual([mine, admins])
+    expect(
+      appQuickSettingsForRole("member", { header: { quickSettings } })
+    ).toEqual([mine])
+  })
+
+  it("refuses two quick settings that share an id", () => {
+    const twice = [
+      { id: "hide-pnl", component: async () => ({ default: () => null }) },
+      { id: "hide-pnl", component: async () => ({ default: () => null }) },
+    ]
+
+    expect(() =>
+      appQuickSettingsForRole("admin", { header: { quickSettings: twice } })
+    ).toThrow(/hide-pnl/)
   })
 
   it("sends a notice where the app says it came from", async () => {

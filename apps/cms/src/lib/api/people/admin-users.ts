@@ -28,6 +28,7 @@ import {
   type CancelSubscriptionMode,
 } from "@/server/billing/stripe"
 import { listPlans } from "@/server/billing/plans"
+import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { MEMBER_TAG_LIMIT, MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
@@ -98,6 +99,8 @@ const getBaseAdminUserErrorMessage = createErrorMessage(
       "That account was deleted too long ago to bring back.",
     MEMBER_TAG_LIMIT: `An account can have up to ${MEMBER_TAG_LIMIT} tags.`,
     MEMBER_TAG_TOO_LONG: `Keep each tag to ${MEMBER_TAG_MAX_LENGTH} characters or fewer.`,
+    PASSWORD_BREACHED:
+      "That password has shown up in a known data breach. Please pick a different one.",
   },
   "We could not update that account. Please try again."
 )
@@ -167,16 +170,24 @@ const createAccountFn = createServerFn({ method: "POST" })
       email: z.string().trim().toLowerCase().min(3).max(255).email(),
       name: z.string().trim().min(1).max(255),
       role: z.enum(["admin", "member"]),
+      // Absent when the admin leaves the field empty, which is the emailed
+      // set-password link the shell has always sent. The rules match the ones
+      // the sign-up and reset forms enforce.
+      password: z.string().min(8).max(128).optional(),
     })
   )
   .handler(async ({ data, context }) => {
+    if (data.password) {
+      await enforcePasswordNotBreached(data.password)
+    }
     const workspaceId = await workspaceIdForRequest(context.user.id)
     return createAccountByAdmin(
       data.email,
       data.name,
       data.role,
       db,
-      await getAuthLinkContext(db, workspaceId)
+      await getAuthLinkContext(db, workspaceId),
+      data.password
     )
   })
 
@@ -302,9 +313,10 @@ export function listAdminAccounts(query: AccountListQueryInput) {
 export function createAccountAsAdmin(
   email: string,
   name: string,
-  role: "admin" | "member"
+  role: "admin" | "member",
+  password?: string
 ) {
-  return createAccountFn({ data: { email, name, role } })
+  return createAccountFn({ data: { email, name, role, password } })
 }
 
 export function updateAccountRole(userId: string, role: "admin" | "member") {

@@ -36,8 +36,14 @@ import type {
 } from "@/lib/api/people/workspaces"
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
-import { capitalise, workspaceWord } from "@/lib/app-options"
+import {
+  appUsesSiteBranding,
+  capitalise,
+  whoMayHaveWorkspaces,
+  workspaceWord,
+} from "@/lib/app-options"
 import { workspaceListedAddress } from "@/lib/workspaces/addresses"
+import { cn } from "@/lib/utils"
 
 const subscribeToBrowserOrigin = () => () => {}
 
@@ -55,11 +61,26 @@ export function WorkspaceSwitcher({
   workspaces,
   baseDomain = "",
   copyChoices = [],
+  brand,
 }: {
   workspaces: WorkspaceItem[]
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
   copyChoices?: WorkspaceCopyChoice[]
+  /**
+   * Who this site is, for somebody with no list to choose from.
+   *
+   * A member owns no workspace, so `workspaces` reaches them empty and this
+   * whole block used to render nothing — the top of their sidebar was blank
+   * while an admin's named the site. They get the same logo and name, and no
+   * chevron, because there is nothing they may switch to.
+   */
+  brand?: {
+    name: string
+    favicon: string
+    logo: string
+    logoDark: string
+  } | null
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const activeWorkspace =
@@ -99,16 +120,47 @@ export function WorkspaceSwitcher({
   // dashboard does the same thing and the two must not drift apart.
   const { switchToWorkspace, busyWorkspaceId } = useSwitchWorkspace()
 
-  if (!activeWorkspace) {
+  // Nothing to switch between and nothing to name: draw no header at all.
+  if (!activeWorkspace && !brand?.name) {
     return null
   }
+
+  // The name and logo come from the workspace when there is one, and from the
+  // site's own settings when there is not.
+  const brandName = activeWorkspace ? activeWorkspaceName : brand!.name
+  // A site's own picture counts only where an app builds distinct sites, which
+  // is the same gate `readBranding` puts on the public pictures. Everywhere
+  // else the one uploaded logo stands in, so the sidebar, the signed-out pages
+  // and the browser tab are the same picture rather than three choices. Both
+  // sources meet here — the config for somebody in no site, the workspaces list
+  // for an admin who owns one — so the rule is written once, here.
+  // Only the fallback gets a dark twin: a site's own picture has none.
+  const siteBranding = appUsesSiteBranding()
+  const siteFavicon = siteBranding
+    ? activeWorkspace
+      ? activeFavicon
+      : brand!.favicon
+    : ""
+  const brandFavicon = siteFavicon || brand?.logo || ""
+  const brandFaviconDark = siteFavicon ? "" : (brand?.logoDark ?? "")
+
+  /**
+   * Whether there is a menu at all.
+   *
+   * Two ways to have none. An app that is one site says so in its options, and
+   * then nobody switches, admin included — the endpoints refuse it too. And a
+   * member owns no workspace, so their list is empty and there is nothing to
+   * put in a menu. Either way the name and logo above still draw: this block
+   * is who the site is first and a switcher second.
+   */
+  const maySwitch = Boolean(activeWorkspace) && whoMayHaveWorkspaces() !== "off"
 
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false)
   }
   const handleSwitch = async (workspaceId: string) => {
     closeMobileSidebar()
-    if (workspaceId === activeWorkspace.id) return
+    if (!activeWorkspace || workspaceId === activeWorkspace.id) return
     await switchToWorkspace(workspaceId)
   }
 
@@ -123,9 +175,10 @@ export function WorkspaceSwitcher({
               className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center"
             >
               <WorkspaceLogo
-                favicon={activeFavicon}
-                icon={activeWorkspace.icon}
-                name={activeWorkspaceName}
+                favicon={brandFavicon}
+                darkFavicon={brandFaviconDark}
+                icon={activeWorkspace?.icon}
+                name={brandName}
               />
             </Link>
             <div className="flex min-w-0 flex-1 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
@@ -134,65 +187,76 @@ export function WorkspaceSwitcher({
                 onClick={closeMobileSidebar}
                 className="grid min-w-0 flex-1 text-left text-sm leading-tight"
               >
-                <span className="truncate font-medium">
-                  {activeWorkspaceName}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {addressOf(activeWorkspace)}
-                </span>
+                <span className="truncate font-medium">{brandName}</span>
+                {/* The address is what tells two sites apart, so it is drawn
+                    only where there are two to tell apart: not on an app that
+                    is one site, and not for a member who reaches one. */}
+                {maySwitch ? (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {addressOf(activeWorkspace)}
+                  </span>
+                ) : null}
               </Link>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  {/* The shared Button already draws the app's focus ring and
-                      shades itself while the menu is open (`aria-expanded`). */}
-                  <Button variant="ghost" size="icon-sm">
-                    <ChevronsUpDownIcon />
-                    <span className="sr-only">Change {word.one}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="w-72 rounded-lg"
-                  align="start"
-                  side={isMobile ? "bottom" : "right"}
-                  sideOffset={4}
-                >
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    {capitalise(word.many)}
-                  </DropdownMenuLabel>
-                  {workspaces.map((workspace) => {
-                    const displayName = workspace.name
-                    const workspaceFavicon = workspace.active
-                      ? activeFavicon
-                      : workspace.favicon
-                    const busy = busyWorkspaceId === workspace.id
+              {maySwitch ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    {/* The shared Button already draws the app's focus ring and
+                        shades itself while the menu is open (`aria-expanded`). */}
+                    <Button variant="ghost" size="icon-sm">
+                      <ChevronsUpDownIcon />
+                      <span className="sr-only">Change {word.one}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-72 rounded-lg"
+                    align="start"
+                    side={isMobile ? "bottom" : "right"}
+                    sideOffset={4}
+                  >
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      {capitalise(word.many)}
+                    </DropdownMenuLabel>
+                    {workspaces.map((workspace) => {
+                      const displayName = workspace.name
+                      // Gated like the header above. The rows do NOT fall
+                      // back to the app logo, though: a row answers "which
+                      // site", and the same logo on every row answers nothing.
+                      // The site editor's chosen shape is what tells them
+                      // apart.
+                      const workspaceFavicon = siteBranding
+                        ? workspace.active
+                          ? activeFavicon
+                          : workspace.favicon
+                        : ""
+                      const busy = busyWorkspaceId === workspace.id
 
-                    return (
-                      <div key={workspace.id} className="flex items-center">
-                        <DropdownMenuItem
-                          disabled={Boolean(busyWorkspaceId)}
-                          onSelect={() => void handleSwitch(workspace.id)}
-                          className="min-w-0 flex-1 gap-2 p-2"
-                        >
-                          <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
-                            <WorkspaceLogo
-                              favicon={workspaceFavicon}
-                              icon={workspace.icon}
-                              name={displayName}
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium">
-                              {displayName}
+                      return (
+                        <div key={workspace.id} className="flex items-center">
+                          <DropdownMenuItem
+                            disabled={Boolean(busyWorkspaceId)}
+                            onSelect={() => void handleSwitch(workspace.id)}
+                            className="min-w-0 flex-1 gap-2 p-2"
+                          >
+                            <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
+                              <WorkspaceLogo
+                                favicon={workspaceFavicon}
+                                icon={workspace.icon}
+                                name={displayName}
+                              />
                             </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {addressOf(workspace)}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium">
+                                {displayName}
+                              </div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {addressOf(workspace)}
+                              </div>
                             </div>
-                          </div>
-                          {busy ? (
-                            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                          ) : workspace.active ? (
-                            <CheckIcon className="size-4 text-muted-foreground" />
-                          ) : null}
+                            {busy ? (
+                              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                            ) : workspace.active ? (
+                              <CheckIcon className="size-4 text-muted-foreground" />
+              ) : null}
                         </DropdownMenuItem>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -247,6 +311,7 @@ export function WorkspaceSwitcher({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              ) : null}
             </div>
           </div>
         </SidebarMenuItem>
@@ -265,22 +330,58 @@ export function WorkspaceSwitcher({
 
 function WorkspaceLogo({
   favicon,
+  darkFavicon = "",
   icon,
   name,
 }: {
   favicon: string
+  /** The dark-sidebar twin, when this picture is the app's own logo. */
+  darkFavicon?: string
   icon: WorkspaceItem["icon"]
   name: string
 }) {
-  if (favicon) {
-    return (
-      <img
-        src={favicon}
-        alt={`${name || "Workspace"} favicon`}
-        className="size-full rounded-md object-cover"
-      />
-    )
-  }
+  if (!favicon) return renderShellIcon(icon)
+  if (!darkFavicon) return <FaviconImage src={favicon} name={name} />
 
-  return renderShellIcon(icon)
+  // Both are drawn and CSS hides one, the same way `BrandLogo` does it on the
+  // signed-out pages. Choosing in JavaScript after load would flash the wrong
+  // picture on a hard reload.
+  return (
+    <>
+      <FaviconImage src={favicon} name={name} className="dark:hidden" />
+      <FaviconImage
+        src={darkFavicon}
+        name={name}
+        className="hidden dark:block"
+      />
+    </>
+  )
+}
+
+function FaviconImage({
+  src,
+  name,
+  className,
+}: {
+  src: string
+  name: string
+  className?: string
+}) {
+  // The file behind this can be deleted from the media library without warning,
+  // and the sidebar names the site on its own — so nothing is better than a
+  // broken-image glyph sitting at the top of every page. `BrandLogo` does the
+  // same on the signed-out pages, and for the same reason.
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null)
+  if (failedSrc === src) return null
+
+  return (
+    <img
+      src={src}
+      alt={`${name || "Workspace"} logo`}
+      // Contained rather than cropped: a square site icon looks the same either
+      // way, and a logo that is wider than it is tall must not lose its ends.
+      className={cn("size-full rounded-md object-contain", className)}
+      onError={() => setFailedSrc(src)}
+    />
+  )
 }

@@ -259,7 +259,7 @@ export function WorkspaceFormDialog({
                     <div className="grid gap-2">
                       <FieldLabel
                         htmlFor={iconId}
-                        hint="Sits next to the name in the sidebar switcher. A favicon, once one is uploaded, shows instead."
+                        hint="Sits next to the name in the sidebar switcher. The logo from Settings → General shows instead, once one is uploaded."
                       >
                         Icon
                       </FieldLabel>

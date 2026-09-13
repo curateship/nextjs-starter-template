@@ -1,5 +1,10 @@
 import * as React from "react"
-import { ExternalLinkIcon, Loader2Icon, PauseIcon, PlayIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  Loader2Icon,
+  PauseIcon,
+  PlayIcon,
+} from "lucide-react"
 
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -9,6 +14,7 @@ import { AccountMeteredUsageCard } from "@/components/account/account-metered-us
 import { EmptyRow } from "@/components/shared/feed-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
+import { PlanChangeConfirmation } from "@/components/shared/plan-change-confirmation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -49,6 +55,7 @@ import {
   type BillingOverview,
   type CardExpiryWarning,
   type PlanOption,
+  type PlanChangePreview,
   type MemberUsageSummary,
 } from "@/lib/api/billing/billing"
 import {
@@ -103,29 +110,27 @@ export function AccountBillingPage({
     overview.interval ?? "monthly"
   )
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
+  const [preview, setPreview] = React.useState<PlanChangePreview | null>(null)
+  const selecting = React.useRef(false)
   const [openingPortal, setOpeningPortal] = React.useState(false)
   const [confirmingPause, setConfirmingPause] = React.useState(false)
-  const [cancelStep, setCancelStep] = React.useState<"survey" | "confirm" | null>(
-    null
-  )
-  const [cancelReason, setCancelReason] = React.useState<CancellationReason | null>(
-    null
-  )
+  const [cancelStep, setCancelStep] = React.useState<
+    "survey" | "confirm" | null
+  >(null)
+  const [cancelReason, setCancelReason] =
+    React.useState<CancellationReason | null>(null)
   const [cancelFeedback, setCancelFeedback] = React.useState("")
-  const [cancelledEndsAt, setCancelledEndsAt] = React.useState<string | null>(null)
+  const [cancelledEndsAt, setCancelledEndsAt] = React.useState<string | null>(
+    null
+  )
   const [runPause, pausing] = useAsyncAction(getBillingErrorMessage)
   const [runCancel, cancelling] = useAsyncAction(getBillingErrorMessage)
   // Why pausing is not on offer, if it is not. The button is shown either way
   // and answers the click with this, because a button that is simply missing
   // leaves somebody looking at their own plan with no way to find out why.
   const pauseRefusal = pauseRefusalCode(overview)
-  // Someone who already has a subscription changes plan or period in the
-  // portal, never through a second checkout — see `openPlanChange`; sending a
-  // paused subscriber through checkout would leave them paying for two at once.
-  // The same flag names the button, so what it says and where it goes stay in
-  // step.
-  const manageInStripe =
-    (overview.isPaid || overview.paused) && overview.hasStripeCustomer
+  const changingPlan =
+    overview.source === "stripe" && overview.hasStripeCustomer
 
   const handlePause = React.useCallback(
     async (paused: boolean) => {
@@ -145,20 +150,21 @@ export function AccountBillingPage({
 
   const handleSelect = React.useCallback(
     async (plan: PlanOption, selectedInterval: BillingInterval) => {
+      if (selecting.current) return
+      selecting.current = true
       setBusyPlanSlug(plan.slug)
       try {
-        const { url } = await openPlanChange(
-          manageInStripe,
-          plan.slug,
-          selectedInterval
-        )
-        window.location.href = url
+        const result = await openPlanChange(plan.slug, selectedInterval)
+        if ("preview" in result) setPreview(result.preview)
+        else window.location.href = result.url
       } catch (checkoutError) {
         showErrorToast(getBillingErrorMessage(checkoutError))
+      } finally {
+        selecting.current = false
         setBusyPlanSlug(null)
       }
     },
-    [manageInStripe]
+    []
   )
 
   const handlePortal = React.useCallback(async () => {
@@ -236,7 +242,10 @@ export function AccountBillingPage({
               </Button>
             ) : null}
             {overview.paused ? (
-              <Button onClick={() => void handlePause(false)} disabled={pausing}>
+              <Button
+                onClick={() => void handlePause(false)}
+                disabled={pausing}
+              >
                 {pausing ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
@@ -336,7 +345,12 @@ export function AccountBillingPage({
 
       <AccountAiUsageCard />
 
-      {!overview.billingEnabled ? (
+      {preview ? (
+        <PlanChangeConfirmation
+          preview={preview}
+          onCancel={() => setPreview(null)}
+        />
+      ) : !overview.billingEnabled ? (
         <PaymentsOffCard />
       ) : (
         <PricingTable
@@ -348,7 +362,8 @@ export function AccountBillingPage({
           onSelect={handleSelect}
           busyPlanSlug={busyPlanSlug}
           trialUsed={overview.trialUsed}
-          actionLabel={manageInStripe ? "Change in Stripe" : "Upgrade"}
+          changingPlan={changingPlan}
+          actionLabel={changingPlan ? "Change plan" : "Upgrade"}
         />
       )}
 
@@ -575,11 +590,10 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
               <TableBody>
                 {invoices.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                    >
+                    <TableCell colSpan={5}>
                       <EmptyRow>
-                        No invoices yet. They appear here after your first payment.
+                        No invoices yet. They appear here after your first
+                        payment.
                       </EmptyRow>
                     </TableCell>
                   </TableRow>

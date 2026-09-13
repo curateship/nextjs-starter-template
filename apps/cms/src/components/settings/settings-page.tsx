@@ -17,13 +17,14 @@ import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StorageSettings } from "@/components/settings/storage-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
 import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
 import { CardGroup } from "@/components/ui/card"
-import { appHeaderRightActionForRole, appSettingsTabs } from "@/lib/app-options"
+import { appHeaderRightActionsForRole, appSettingsTabs } from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -45,6 +46,7 @@ const settingsTabs = [
   { id: "notifications", label: "Notifications" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
+  { id: "storage", label: "Storage" },
   { id: "ai", label: "AI" },
 ] as const
 
@@ -115,8 +117,10 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
-  const adminHeaderAction = appHeaderRightActionForRole("admin")
-  const memberHeaderAction = appHeaderRightActionForRole("member")
+  const adminHeaderActions = appHeaderRightActionsForRole("admin")
+  const memberHeaderActions = appHeaderRightActionsForRole("member")
+  const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
+  const memberHeaderActionIds = memberHeaderActions.map((action) => action.id)
 
   return (
     <div
@@ -254,7 +258,7 @@ export function SettingsPage({
               reset={{
                 label: "Reset all to defaults",
                 description:
-                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
+                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
                 onReset: () => onConfigChange(createDefaultShellConfig()),
               }}
             />
@@ -264,7 +268,7 @@ export function SettingsPage({
                 onConfigChange({ ...config, topRightNavigation })
               }
               onSaveConfig={onSaveConfig}
-              appAction={adminHeaderAction}
+              appActions={adminHeaderActions}
               card={{
                 storageId: "top-right",
                 title: "Your top right menu",
@@ -279,7 +283,7 @@ export function SettingsPage({
                   onConfigChange({
                     ...config,
                     topRightNavigation: createDefaultTopRightNavigation(
-                      adminHeaderAction ? [adminHeaderAction.id] : []
+                      adminHeaderActionIds
                     ),
                   }),
               }}
@@ -299,7 +303,7 @@ export function SettingsPage({
                 onConfigChange({ ...config, memberTopRightNavigation })
               }
               onSaveConfig={onSaveConfig}
-              appAction={memberHeaderAction}
+              appActions={memberHeaderActions}
               card={{
                 storageId: "member-top-right",
                 title: "Member top right menu",
@@ -314,7 +318,7 @@ export function SettingsPage({
                   onConfigChange({
                     ...config,
                     memberTopRightNavigation: createDefaultTopRightNavigation(
-                      memberHeaderAction ? [memberHeaderAction.id] : []
+                      memberHeaderActionIds
                     ),
                   }),
               }}
@@ -347,6 +351,7 @@ export function SettingsPage({
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
+        {activeTab === "storage" ? <StorageSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
         <AppSettingsPanel activeTab={activeTab} />
       </div>

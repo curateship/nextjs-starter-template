@@ -72,11 +72,12 @@ const recipientUsers = alias(customShellUsers, "recipient_users")
 
 /**
  * The free text a row shows and searches on: the update's title for a changelog
- * notice, the broadcast's own title for an announcement, and the feedback it is
- * about for the rest. Mirrors `notificationSubject` on the page.
+ * notice, the broadcast's own title for an announcement, the notice's own words
+ * for one an app wrote, and the feedback it is about for the rest. Mirrors
+ * `notificationSubject` on the page.
  */
 const subjectExpression = sql<string>`case
-  when ${customShellNotifications.type} in ('account_update', 'system_email_failed') then coalesce(${customShellNotifications.message}, '')
+  when ${customShellNotifications.type} in ('account_update', 'system_email_failed', 'app_activity') then coalesce(${customShellNotifications.message}, '')
   when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
   when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
   when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')

@@ -20,15 +20,19 @@ import {
   type BillingInvoice,
   type CardExpiryWarning,
 } from "@/server/billing/stripe"
-import { loadEntitlements } from "@/server/billing/entitlements"
+import { findSubscription, loadEntitlements } from "@/server/billing/entitlements"
 import { listMemberSubscriptionEvents } from "@/server/billing/subscription-events"
-import { loadMemberUsage, type MemberUsageSummary } from "@/server/billing/usage"
+import {
+  loadMemberUsage,
+  type MemberUsageSummary,
+} from "@/server/billing/usage"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/billing/plans"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 import { userGet, userPost } from "@/server/guards"
+import { changePlan, previewPlanChange } from "@/server/billing/plan-change"
 
 export type PlanOption = {
   id: string
@@ -80,6 +84,20 @@ const billingErrorMessages = {
   PLAN_NOT_FOUND: "That plan is no longer available.",
   PLAN_NOT_PURCHASABLE: "That plan cannot be bought right now.",
   PLAN_PRICE_MISSING: "That billing period is not available for this plan.",
+  PLAN_PREVIEW_EXPIRED:
+    "Your billing details changed or this preview expired. Choose the plan again for a fresh preview.",
+  PLAN_ALREADY_CURRENT:
+    "You already have that plan and billing period. Refresh Billing to see your current plan.",
+  PLAN_CHANGE_UNAVAILABLE:
+    "Resume your plan or resolve its scheduled changes in Manage in Stripe before switching plans.",
+  PLAN_CHANGE_UNPAID:
+    "Settle your outstanding invoice in Manage in Stripe before switching plans.",
+  PLAN_CHANGE_UNSUPPORTED:
+    "This subscription needs to be changed through Manage in Stripe. In-app changes support fixed-price tiers in the same currency.",
+  PLAN_CHANGE_PAYMENT_FAILED:
+    "Stripe could not collect the payment. Your plan was not changed. Update your payment method or complete the change in Manage in Stripe.",
+  PLAN_CHANGE_FAILED:
+    "Stripe could not confirm the change. Refresh Billing to check your plan before trying again.",
   CHECKOUT_FAILED: "Stripe could not start the checkout. Please try again.",
   SUBSCRIPTION_NOT_FOUND: "There is no subscription to manage yet.",
   ALREADY_PAUSED: "Your plan is already paused.",
@@ -174,7 +192,7 @@ const loadPublicPricingFn = createServerFn({ method: "GET" }).handler(
   }
 )
 
-const startCheckoutFn = createServerFn({ method: "POST" })
+const openPlanChangeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     z.object({
@@ -194,7 +212,26 @@ const startCheckoutFn = createServerFn({ method: "POST" })
       throw new Error("PLAN_NOT_FOUND")
     }
 
+    const subscription = await findSubscription(context.user.id)
+    if (
+      subscription?.source === "stripe" &&
+      subscription.stripeSubscriptionId &&
+      !["canceled", "incomplete_expired"].includes(subscription.status)
+    ) {
+      return { preview: await previewPlanChange(context.user.id, data) }
+    }
     return createCheckoutSession(context.user, plan, data.interval)
+  })
+
+const changePlanFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ token: z.string().min(1).max(4096) }))
+  .handler(async ({ data, context }) => {
+    await enforceRateLimit(`plan-change:${context.user.id}`, {
+      maxAttempts: 10,
+      windowSeconds: 15 * 60,
+    })
+    return changePlan(context.user.id, data.token)
   })
 
 const openBillingPortalFn = createServerFn({ method: "POST" })
@@ -268,19 +305,18 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
     }> => {
       // No account id comes from the browser. The session supplies the only id
       // used for this history read, so another member's events are unreachable.
-      const [{ overview, subscription }, billingHistory, usage] = await Promise.all([
-        buildBillingOverview(context.user),
-        listMemberSubscriptionEvents(context.user.id),
-        loadMemberUsage(context.user.id),
-      ])
+      const [{ overview, subscription }, billingHistory, usage] =
+        await Promise.all([
+          buildBillingOverview(context.user),
+          listMemberSubscriptionEvents(context.user.id),
+          loadMemberUsage(context.user.id),
+        ])
 
       // Both of these are calls out to Stripe, so make them at the same time
       // rather than leaving the reader waiting through one and then the other.
       const [invoices, cardWarning] = await Promise.all([
         // Invoices live in Stripe, so only ask when there is a customer.
-        overview.hasStripeCustomer
-          ? listCustomerInvoices(context.user.id)
-          : [],
+        overview.hasStripeCustomer ? listCustomerInvoices(context.user.id) : [],
         // With payments switched off there is no card to update and no portal
         // to send anyone to, so there is nothing useful to warn about.
         subscription && overview.billingEnabled
@@ -315,27 +351,19 @@ export function cancelOwnSubscription(
   return cancelOwnSubscriptionFn({ data: { reason, feedback } })
 }
 
-/**
- * Where clicking a plan card sends someone, and the one place that rule lives.
- *
- * Checkout starts a subscription. Someone who already has one must never be put
- * through it again — that leaves them paying for two at once. Stripe's own
- * portal is what moves an existing subscription to another plan or billing
- * period, so that is where they go until the in-app switch with proration
- * (`workspace/tasks/features/billing/in-app-plan-switch-proration.md`) exists.
- *
- * Both plan surfaces call this, so the label they show and the place the click
- * lands cannot drift apart.
- */
+/** The server decides between a new checkout and an existing plan's preview. */
 export function openPlanChange(
-  hasSubscription: boolean,
   planSlug: string,
   interval: "monthly" | "yearly"
 ) {
-  return hasSubscription
-    ? openBillingPortalFn()
-    : startCheckoutFn({ data: { planSlug, interval } })
+  return openPlanChangeFn({ data: { planSlug, interval } })
 }
+
+export function confirmPlanChange(token: string) {
+  return changePlanFn({ data: { token } })
+}
+
+export type { PlanChangePreview } from "@/server/billing/plan-change"
 
 export function loadBillingPage() {
   return loadBillingPageFn()

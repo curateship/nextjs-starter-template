@@ -31,7 +31,11 @@ import {
 import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
-import type { PublicFaviconSet } from "@/lib/favicon"
+import {
+  DEFAULT_FAVICON_MODE,
+  type FaviconMode,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -63,7 +67,6 @@ import {
   ShieldCheckIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
-  SunMoonIcon,
   TagIcon,
   TypeIcon,
   UsersIcon,
@@ -343,7 +346,7 @@ export type ShellSection = {
 
 export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
   "feedback",
-  "theme",
+  "settings",
   "notifications",
 ] as const
 
@@ -402,7 +405,7 @@ export const topRightBuiltInMeta: Record<
   { label: string; icon: LucideIcon }
 > = {
   feedback: { label: "Feedback", icon: MessageSquarePlusIcon },
-  theme: { label: "Theme", icon: SunMoonIcon },
+  settings: { label: "Settings", icon: SettingsIcon },
   notifications: { label: "Notifications", icon: BellIcon },
 }
 
@@ -443,6 +446,8 @@ export type ShellConfig = {
   faviconDark: string
   /** Server-generated PNG sizes for the selected favicon images. */
   faviconSet: PublicFaviconSet | null
+  /** Which of the two versions of the logo the browser tab shows. */
+  faviconMode: FaviconMode
   /**
    * App-wide brand image drawn above the signed-out pages (sign in, register,
    * reset, pricing). A media-library URL, empty for no logo. It is app-wide for
@@ -1050,6 +1055,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceShareImage: "",
     faviconDark: "",
     faviconSet: null,
+    faviconMode: DEFAULT_FAVICON_MODE,
     logo: "",
     logoDark: "",
     shareImage: "",
@@ -1159,24 +1165,30 @@ export function normalizeTopRightNavigation(
   for (const raw of items) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue
     const item = raw as Partial<ShellTopRightLink> & { visible?: unknown }
-    if (typeof item.id !== "string" || !item.id || seenIds.has(item.id)) continue
+    if (typeof item.id !== "string" || !item.id) continue
+    // The colour-mode button became the Settings cog, which holds colour mode
+    // and the app's own switches. A row saved as `theme` is that same control
+    // under its old name, so it keeps the place and the on-or-off it was left
+    // in rather than being dropped and added again at the end.
+    const id = item.id === "theme" ? "settings" : item.id
+    if (seenIds.has(id)) continue
 
-    if (builtInIds.has(item.id)) {
-      seenIds.add(item.id)
+    if (builtInIds.has(id)) {
+      seenIds.add(id)
       kept.push({
         type: "builtIn",
-        id: item.id as ShellTopRightNavigationItemId,
+        id: id as ShellTopRightNavigationItemId,
         // Missing reads as shown: hiding is a deliberate saved `false`.
         visible: item.visible !== false,
       })
       continue
     }
 
-    if (appIds.has(item.id)) {
-      seenIds.add(item.id)
+    if (appIds.has(id)) {
+      seenIds.add(id)
       kept.push({
         type: "app",
-        id: item.id,
+        id,
         visible: item.visible !== false,
       })
       continue
@@ -1188,10 +1200,10 @@ export function normalizeTopRightNavigation(
       typeof item.href === "string" &&
       typeof item.icon === "string"
     ) {
-      seenIds.add(item.id)
+      seenIds.add(id)
       kept.push({
         type: "link",
-        id: item.id,
+        id,
         label: item.label,
         href: item.href,
         icon: item.icon,

@@ -1871,6 +1871,39 @@ describe("admin account management", () => {
     }
   })
 
+  it("creates an account that can sign in at once when the admin sets the password", async () => {
+    const result = await createAccountByAdmin(
+      "handed@example.test",
+      "Handed Person",
+      "member",
+      database,
+      undefined,
+      "a good long password"
+    )
+    // Nothing was emailed, because there is no link left to send.
+    expect(result.delivered).toBe(false)
+
+    const [created] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, result.id))
+
+    expect(created.status).toBe("active")
+    // Sign in refuses an unverified address, so the admin's word stands in for
+    // the link that would otherwise have proved it.
+    expect(created.emailVerifiedAt).not.toBeNull()
+    const hash = created.passwordHash
+    expect(await verifyPassword(hash, "a good long password")).toBe(true)
+    expect(await verifyPassword(hash, "something else")).toBe(false)
+
+    // No set-password link exists for an account that already has one.
+    const tokens = await database
+      .select()
+      .from(customShellAuthTokens)
+      .where(eq(customShellAuthTokens.userId, created.id))
+    expect(tokens).toHaveLength(0)
+  })
+
   it("refuses to invite an email that already has an account", async () => {
     await createUser({ email: "taken@example.test" })
 

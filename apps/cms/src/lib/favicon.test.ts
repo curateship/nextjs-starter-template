@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  DEFAULT_FAVICON_MODE,
   isGeneratedFaviconStoragePath,
   normalizePublicFaviconSet,
   publicFaviconLinks,
@@ -29,7 +30,8 @@ describe("public favicons", () => {
     ).toBe(false)
   })
 
-  it("emits every generated size and the optional dark set", () => {
+  it("serves the dark mark alone by default, with no colour-scheme query", () => {
+    expect(DEFAULT_FAVICON_MODE).toBe("dark")
     expect(
       publicFaviconLinks({
         favicon: light.source,
@@ -37,14 +39,42 @@ describe("public favicons", () => {
         faviconSet: { light, dark },
       })
     ).toEqual([
+      link(dark.icon16, "icon", 16),
+      link(dark.icon32, "icon", 32),
+      link(dark.appleTouchIcon, "apple-touch-icon", 180),
+      link(dark.icon512, "icon", 512),
+    ])
+  })
+
+  it("serves the uploaded mark alone when the admin picks light", () => {
+    expect(
+      publicFaviconLinks({
+        favicon: light.source,
+        faviconDark: dark.source,
+        faviconSet: { light, dark },
+        faviconMode: "light",
+      })
+    ).toEqual([
       link(light.icon16, "icon", 16),
       link(light.icon32, "icon", 32),
       link(light.appleTouchIcon, "apple-touch-icon", 180),
       link(light.icon512, "icon", 512),
-      link(dark.icon16, "icon", 16, true),
-      link(dark.icon32, "icon", 32, true),
-      link(dark.appleTouchIcon, "apple-touch-icon", 180, true),
-      link(dark.icon512, "icon", 512, true),
+    ])
+  })
+
+  it("falls back to the other version when the chosen one has nothing", () => {
+    expect(
+      publicFaviconLinks({
+        favicon: light.source,
+        faviconDark: "",
+        faviconSet: { light },
+        faviconMode: "dark",
+      })
+    ).toEqual([
+      link(light.icon16, "icon", 16),
+      link(light.icon32, "icon", 32),
+      link(light.appleTouchIcon, "apple-touch-icon", 180),
+      link(light.icon512, "icon", 512),
     ])
   })
 
@@ -88,17 +118,6 @@ function faviconVariant(name: string): PublicFaviconVariant {
   }
 }
 
-function link(
-  href: string,
-  rel: "icon" | "apple-touch-icon",
-  size: number,
-  darkMode = false
-) {
-  return {
-    rel,
-    href,
-    type: "image/png",
-    sizes: `${size}x${size}`,
-    ...(darkMode ? { media: "(prefers-color-scheme: dark)" } : {}),
-  }
+function link(href: string, rel: "icon" | "apple-touch-icon", size: number) {
+  return { rel, href, type: "image/png", sizes: `${size}x${size}` }
 }

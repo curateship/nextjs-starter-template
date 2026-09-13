@@ -264,8 +264,9 @@ export function StickyHeaderLeftNav({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
+              className="bg-muted/60"
               aria-label={
                 overflowLinks.length === 1
                   ? "1 more link"

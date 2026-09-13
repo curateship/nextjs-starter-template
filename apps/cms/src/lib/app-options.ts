@@ -91,14 +91,50 @@ export type AppHeaderAction = {
   }>
 }
 
+/** What the shell hands one app-owned row inside the quick settings menu. */
+export type AppQuickSettingProps = { role: string }
+
+/**
+ * One app-owned row in the header's settings menu.
+ *
+ * The menu itself belongs to the shell: the cog, its place in the Top right
+ * menu, the panel and the row spacing are the same on every app. What differs
+ * is which switches sit under colour mode, and that is all this describes.
+ *
+ * The row draws itself, because only the app can read and write its own
+ * setting — Trade's "Hide profit and loss" is kept in Trade's own preferences
+ * and the shell has no business knowing it exists. `QuickSettingSwitch` is the
+ * shared control those rows are built from, so an app supplies the behaviour
+ * and still cannot invent its own look.
+ *
+ * The component sits behind a pointer for the same reason a header action
+ * does: an app reads its own APIs from inside it, and that code has no place
+ * in the bundle of an app with no such row.
+ */
+export type AppQuickSetting = {
+  id: string
+  /** Unset means admins and members may both see it. */
+  roles?: readonly string[]
+  component: () => Promise<{
+    default: ComponentType<AppQuickSettingProps>
+  }>
+}
+
 type HeaderOptions = {
   /** App-owned left navigation. Render the supplied fallback when empty. */
   leftContent?: AppHeaderLeftContent
   /**
-   * A single app-owned control in the draggable top-right menu. Unset leaves
-   * the signed-in header and its settings exactly as they were.
+   * The app's own controls in the draggable top-right menu, in the order they
+   * are written. Unset leaves the signed-in header and its settings exactly as
+   * they were.
    */
-  rightAction?: AppHeaderAction
+  rightActions?: readonly AppHeaderAction[]
+  /**
+   * The app's own switches inside the header's settings menu, in the order
+   * they are written. Unset leaves the menu holding colour mode alone, which
+   * is what every app starts with.
+   */
+  quickSettings?: readonly AppQuickSetting[]
 }
 
 /**
@@ -185,23 +221,36 @@ type WorkspaceOptions = {
   /**
    * Who may have a workspace at all.
    *
-   * - **`"off"`** — nobody. No switcher is drawn and a second workspace is
-   *   refused. For an app that is one site and always will be, like Trade and
-   *   Video. Hiding the control while leaving the door open is worse than
-   *   either, which is why this closes the door too.
-   * - **`"admins"`** — the default. Admins have and switch sites; members have
-   *   none and reach none. What this shell and cms want.
+   * **This is a decision the app makes in code, not a switch an admin flips.**
+   * "This app is one site" is a fact about the app rather than a preference
+   * that changes on a Tuesday, and there is nowhere honest to save it as a
+   * setting: settings are saved per workspace, so a per-workspace switch
+   * governing how many workspaces you may have is circular.
+   *
+   * - **`"off"`** — the default. One site for the whole deployment, and
+   *   everybody signing in is put in it. No switcher is drawn, the
+   *   `/workspaces` page refuses, and every create, copy, delete and switch
+   *   call is refused for everybody including admins. Hiding the control while
+   *   leaving the door open is worse than either, which is why this closes the
+   *   door too.
+   * - **`"admins"`** — admins have and switch sites; members have none and
+   *   reach none. What CMS wants, and it says so.
    * - **`"everyone"`** — an app that genuinely gives each member a workspace of
    *   their own says so deliberately.
    *
-   * **This is the one option whose default is not today's behaviour, and that
-   * is a decision rather than an oversight.** Today every signed-in person was
-   * given a workspace on sign-in and every workspace endpoint was open to any
-   * member, so a member could make and delete workspaces on any app built on
-   * this shell. Nobody noticed because members are never shown the switcher.
-   * Defaulting to `"everyone"` would keep that door open to satisfy a
-   * convention about defaults, and no app can tell the difference because no
-   * app ever showed members the control.
+   * **`"off"` still means exactly one workspace, never none.** Content is
+   * scoped to a workspace throughout the shell — announcements, media,
+   * contacts, the site's own styling and sidebar — and a deployment with no
+   * workspace at all cannot write any of it. So sign-in still puts a person in
+   * the deployment's single site, and creates that site only when none exists
+   * yet. It is created owned by nobody, because with one site there is nobody
+   * for it to belong to.
+   *
+   * **The default was `"admins"` until 10 Sep 2026.** Before this option
+   * existed every signed-in person was given a workspace on sign-in and every
+   * workspace endpoint was open to any member, so the shell's own database
+   * collected seven empty rows called "My project" and Trade collected four.
+   * Multi-site is the exception, so the exception is the thing an app types.
    */
   whoMayHave?: WhoMayHaveWorkspaces
 }
@@ -477,21 +526,72 @@ export function appHeaderLeftContentForRole(
   return action
 }
 
-/** The app's one control on the signed-in header, or none. */
-export function appHeaderRightAction(
+/**
+ * The app's controls on the signed-in header, in the order the app wrote them.
+ *
+ * Two controls sharing an id would draw one of them twice under one key and
+ * would both answer to the same saved row in the Top right menu, so that is
+ * said out loud on the first read rather than shipped as a header that
+ * misbehaves. The quick settings rows below are checked the same way.
+ */
+export function appHeaderRightActions(
   options: AppOptions = appOptions
-): AppHeaderAction | null {
-  return options.header?.rightAction ?? null
+): readonly AppHeaderAction[] {
+  const actions = options.header?.rightActions ?? []
+
+  const seen = new Set<string>()
+  for (const action of actions) {
+    if (seen.has(action.id)) {
+      throw new Error(
+        `Two header controls both call themselves "${action.id}". Each one needs its own id.`
+      )
+    }
+    seen.add(action.id)
+  }
+
+  return actions
 }
 
-/** The app-owned header item for this role, or none. */
-export function appHeaderRightActionForRole(
+/** The app-owned header items for this role, in the app's order. */
+export function appHeaderRightActionsForRole(
   role: string,
   options: AppOptions = appOptions
-): AppHeaderAction | null {
-  const action = appHeaderRightAction(options)
-  if (!action || (action.roles && !action.roles.includes(role))) return null
-  return action
+): readonly AppHeaderAction[] {
+  return appHeaderRightActions(options).filter(
+    (action) => !action.roles || action.roles.includes(role)
+  )
+}
+
+/**
+ * The app's rows for the header's settings menu, in the order the app wrote
+ * them and filtered to who is looking.
+ *
+ * Two rows sharing an id would draw one of them twice under one key, so that
+ * is said out loud on the first read rather than shipped as a menu that
+ * misbehaves. The role filter is the header action's: a row about somebody's
+ * own screen is for everybody, a row about how the app runs is usually an
+ * admin's, and the app says which by naming roles.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means a menu of colour mode alone.
+ */
+export function appQuickSettingsForRole(
+  role: string,
+  options: AppOptions = appOptions
+): readonly AppQuickSetting[] {
+  const rows = options.header?.quickSettings ?? []
+
+  const seen = new Set<string>()
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      throw new Error(
+        `Two quick settings both call themselves "${row.id}". Each one needs its own id.`
+      )
+    }
+    seen.add(row.id)
+  }
+
+  return rows.filter((row) => !row.roles || row.roles.includes(role))
 }
 
 /**

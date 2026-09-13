@@ -40,10 +40,13 @@ export async function protectSentEmailLogos(
 ) {
   const storagePaths = Array.from(
     new Set(
-      blocks
-        .filter((block) => block.kind === "header")
-        .map((block) => storagePathForUrl(block.content.logoUrl))
-        .filter((path): path is string => Boolean(path))
+      (
+        await Promise.all(
+          blocks
+            .filter((block) => block.kind === "header")
+            .map((block) => storagePathForUrl(block.content.logoUrl))
+        )
+      ).filter((path): path is string => Boolean(path))
     )
   )
   if (!storagePaths.length) return 0

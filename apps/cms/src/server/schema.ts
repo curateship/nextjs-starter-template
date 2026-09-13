@@ -394,7 +394,10 @@ export const customShellNotifications = pgTable(
       { onDelete: "cascade" }
     ),
     type: varchar("type", { length: 50 }).notNull(),
-    /** The notice's own words when it is about the recipient's account. */
+    /**
+     * The notice's own words when it is about the recipient's account, or when
+     * an app wrote it about that person's own activity.
+     */
     message: text("message"),
     detail: text("detail"),
     feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
@@ -435,7 +438,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -1397,6 +1400,26 @@ export const customShellChangelogEntries = pgTable(
 export const customShellAiProviderKeys = pgTable("ai_provider_keys", {
   provider: varchar("provider", { length: 20 }).primaryKey(),
   apiKey: text("api_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * Where uploaded files are kept, app-wide. One row, always id "r2", so the
+ * bucket can be set up from Settings instead of from the server's environment.
+ *
+ * `secretAccessKey` is never the secret as typed: it is the AES-256-GCM output
+ * of `encryptSecret` (`src/server/auth/encryption.ts`), the same treatment the
+ * AI keys get. `accountId`, `accessKeyId`, `bucketName` and `publicUrl` are
+ * plain, because none of them opens the bucket without the secret.
+ */
+export const customShellStorageSettings = pgTable("storage_settings", {
+  id: varchar("id", { length: 20 }).primaryKey(),
+  accountId: text("account_id"),
+  accessKeyId: text("access_key_id"),
+  secretAccessKey: text("secret_access_key"),
+  bucketName: text("bucket_name"),
+  publicUrl: text("public_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })

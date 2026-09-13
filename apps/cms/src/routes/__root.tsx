@@ -20,7 +20,9 @@ import { loadBranding } from "@/lib/api/shell"
 import { resolveAppName, usePublicTheme } from "@/lib/branding"
 import { focusRing } from "@/lib/layout/focus-ring"
 import {
+  DEFAULT_FAVICON_MODE,
   publicFaviconLinks,
+  type FaviconMode,
   type PublicFaviconSet,
 } from "@/lib/favicon"
 import {
@@ -143,6 +145,7 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
       favicon={branding?.favicon}
       faviconDark={branding?.faviconDark}
       faviconSet={branding?.faviconSet}
+      faviconMode={branding?.faviconMode}
       publicFont={branding?.publicFont}
     >
       <ThemeProvider
@@ -232,6 +235,7 @@ function RootComponent() {
     favicon,
     faviconDark,
     faviconSet,
+    faviconMode,
     publicFont,
     publicOrigin,
     hostIsUnknown,
@@ -243,6 +247,7 @@ function RootComponent() {
       favicon={favicon}
       faviconDark={faviconDark}
       faviconSet={faviconSet}
+      faviconMode={faviconMode}
       publicFont={publicFont}
       structuredData={
         hostIsUnknown
@@ -306,6 +311,7 @@ function RootDocument({
   favicon = "",
   faviconDark = "",
   faviconSet = null,
+  faviconMode = DEFAULT_FAVICON_MODE,
   publicFont = null,
   structuredData = null,
 }: Readonly<{
@@ -314,6 +320,7 @@ function RootDocument({
   favicon?: string
   faviconDark?: string
   faviconSet?: PublicFaviconSet | null
+  faviconMode?: FaviconMode
   publicFont?: PublicFontAsset | null
   structuredData?: {
     organization: PublicStructuredDataInput["organization"]
@@ -331,6 +338,7 @@ function RootDocument({
     favicon,
     faviconDark,
     faviconSet,
+    faviconMode,
   })
   const structuredDataText = usePublicStructuredDataText(structuredData)
 
@@ -391,7 +399,7 @@ function RootDocument({
         <script dangerouslySetInnerHTML={{ __html: noFlashCollapseScript }} />
         {faviconLinks.map((link) => (
           <link
-            key={`${link.rel}-${link.sizes ?? "original"}-${link.media ?? "all"}`}
+            key={`${link.rel}-${link.sizes ?? "original"}`}
             {...link}
             data-custom-shell-favicon="true"
           />

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
+  ActivityIcon,
   BellIcon,
   CircleAlertIcon,
   GaugeIcon,
@@ -95,7 +96,11 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
-  if (item.type === "account_update" || item.type === "system_email_failed") {
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
     return item.message ?? "The app needs attention"
   }
   // An AI-allowance notice carries its own words — there is no thing it is
@@ -125,7 +130,11 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
-  if (item.type === "account_update" || item.type === "system_email_failed") {
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
     return item.detail ? `${subject}\n\n${item.detail}` : subject
   }
   if (isAiLimitNotification(item.type)) {
@@ -144,8 +153,25 @@ function notificationSubjectDetail(item: NotificationItem) {
 }
 
 /** Who caused it. An update or a broadcast has nobody behind it. */
+/**
+ * The line under the subject.
+ *
+ * A notice somebody set off names that person. A notice the app wrote about the
+ * reader's own doing has nobody to name, so it shows its own second sentence
+ * instead — the fill's dollars, the line the price crossed. A dash there says
+ * nothing and wastes the row's most readable line.
+ */
 function notificationActor(item: NotificationItem) {
-  return item.actor_name ?? "—"
+  if (item.actor_name) return item.actor_name
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
+    return item.detail ?? "—"
+  }
+  if (item.type === "announcement") return item.announcement_body || "—"
+  return "—"
 }
 
 /**
@@ -511,6 +537,8 @@ export function NotificationsPage({
                     <CircleAlertIcon className="size-4 text-destructive" />
                   ) : item.type === "system_email_failed" ? (
                     <MailWarningIcon className="size-4 text-destructive" />
+                  ) : item.type === "app_activity" ? (
+                    <ActivityIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_merged" ? (
                     <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (

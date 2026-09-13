@@ -100,7 +100,12 @@ export function StickyHeader({
       )}
     >
       <div className="flex h-full min-w-0 flex-1 items-center justify-between px-4">
-        <div className="flex min-w-0 items-center gap-2">
+        {/* This half takes every pixel the right-hand controls leave, so an
+            app that wants part of its own header content at the far right can
+            push it there with `ml-auto`. Its children are packed left, so a
+            header that asks for nothing of the sort is drawn exactly as it
+            always was. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {isMobile ? (
             <Button
               type="button"

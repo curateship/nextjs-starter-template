@@ -87,7 +87,12 @@ describe("Navigation settings", () => {
     }
     try {
       await act(async () => root.render(<Example />))
-      expect(host.querySelector('[aria-label="1 more link"]')).not.toBeNull()
+      const overflowButton = host.querySelector<HTMLButtonElement>(
+        '[aria-label="1 more link"]'
+      )
+      expect(overflowButton).not.toBeNull()
+      expect(overflowButton?.className).toContain("bg-muted/60")
+      expect(overflowButton?.className).toContain("border")
       const trigger = host.querySelector<HTMLButtonElement>(
         "#top-left-nav-limit"
       )!

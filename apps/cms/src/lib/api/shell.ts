@@ -5,7 +5,11 @@ import { loadEntitlements } from "@/server/billing/entitlements"
 import { countUnreadNotifications } from "@/server/notifications/inbox"
 import { findSessionContext } from "@/server/auth/security"
 import { readBranding, readShellSettings } from "@/server/shell-settings"
-import type { PublicFaviconSet } from "@/lib/favicon"
+import {
+  DEFAULT_FAVICON_MODE,
+  type FaviconMode,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
 import { readWorkspaceList } from "@/server/people/workspaces"
 
 import type { UserAnnouncement } from "@/lib/announcement"
@@ -171,6 +175,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     favicon: string
     faviconDark: string
     faviconSet: PublicFaviconSet | null
+    faviconMode: FaviconMode
     logo: string
     logoDark: string
     shareImage: string
@@ -202,6 +207,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         favicon: "",
         faviconDark: "",
         faviconSet: null,
+        faviconMode: DEFAULT_FAVICON_MODE,
         logo: "",
         logoDark: "",
         shareImage: "",

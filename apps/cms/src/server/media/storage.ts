@@ -6,36 +6,63 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3"
 
+import {
+  getStorageConfig,
+  STORAGE_FIELD_LABEL,
+  type StorageConfig,
+  type StorageField,
+} from "@/server/media/storage-settings"
+
 export class R2StorageNotConfiguredError extends Error {}
 
-function getR2Setting(name: string) {
-  const value = process.env[name]
-  if (value) {
-    return value
+/**
+ * One setting, or a refusal naming what is missing and where to put it.
+ *
+ * The message says Settings first and the environment variable second, because
+ * Settings → Storage is now where this is filled in and the variables are only
+ * still read so an older deployment keeps working.
+ */
+function requireSetting(config: StorageConfig, field: StorageField) {
+  const entry = config[field]
+  if (entry.value) return entry.value
+  if (entry.unreadable) {
+    throw new R2StorageNotConfiguredError(
+      `The storage ${STORAGE_FIELD_LABEL[field]} can't be read back. Paste it again in Settings → Storage.`
+    )
   }
-  throw new R2StorageNotConfiguredError(`${name} is not configured`)
+  throw new R2StorageNotConfiguredError(
+    `The storage ${STORAGE_FIELD_LABEL[field]} is not set. Add it in Settings → Storage.`
+  )
 }
 
-function getBucketName() {
-  return getR2Setting("CUSTOM_SHELL_R2_BUCKET_NAME")
-}
-
-export function getPublicMediaUrl(storagePath: string) {
-  const baseUrl = getR2Setting("CUSTOM_SHELL_R2_PUBLIC_URL").replace(/\/+$/, "")
+/**
+ * The address a browser fetches this file from. Async because the bucket's
+ * details live in the database now, not in the process's environment.
+ */
+export async function getPublicMediaUrl(storagePath: string) {
+  const config = await getStorageConfig()
+  const baseUrl = requireSetting(config, "publicUrl").replace(/\/+$/, "")
   const key = storagePath.replace(/^\/+/, "")
   return `${baseUrl}/${key}`
 }
 
-function getR2Client() {
-  const accountId = getR2Setting("CUSTOM_SHELL_R2_ACCOUNT_ID")
-  return new S3Client({
+/**
+ * The client and the bucket together, from one read of the settings. Every
+ * operation needs both, and asking twice invites the two halves to disagree if
+ * a save lands between them.
+ */
+async function openBucket() {
+  const config = await getStorageConfig()
+  const accountId = requireSetting(config, "accountId")
+  const client = new S3Client({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: {
-      accessKeyId: getR2Setting("CUSTOM_SHELL_R2_ACCESS_KEY_ID"),
-      secretAccessKey: getR2Setting("CUSTOM_SHELL_R2_SECRET_ACCESS_KEY"),
+      accessKeyId: requireSetting(config, "accessKeyId"),
+      secretAccessKey: requireSetting(config, "secretAccessKey"),
     },
   })
+  return { client, bucket: requireSetting(config, "bucketName") }
 }
 
 export async function uploadToR2(
@@ -43,9 +70,10 @@ export async function uploadToR2(
   data: Uint8Array,
   contentType: string
 ) {
-  await getR2Client().send(
+  const { client, bucket } = await openBucket()
+  await client.send(
     new PutObjectCommand({
-      Bucket: getBucketName(),
+      Bucket: bucket,
       Key: storagePath,
       Body: data,
       ContentType: contentType,
@@ -55,9 +83,10 @@ export async function uploadToR2(
 }
 
 export async function deleteFromR2(storagePath: string) {
-  await getR2Client().send(
+  const { client, bucket } = await openBucket()
+  await client.send(
     new DeleteObjectCommand({
-      Bucket: getBucketName(),
+      Bucket: bucket,
       Key: storagePath,
     })
   )
@@ -71,8 +100,7 @@ export type R2ObjectSummary = { key: string; size: number }
  * this list as proof the file is gone.
  */
 export async function listR2Objects(maxKeys: number) {
-  const client = getR2Client()
-  const bucket = getBucketName()
+  const { client, bucket } = await openBucket()
   const objects: R2ObjectSummary[] = []
   let continuationToken: string | undefined
   let more = false
@@ -107,11 +135,38 @@ export async function listR2Objects(maxKeys: number) {
 }
 
 export async function getFromR2(storagePath: string, range?: string | null) {
-  return getR2Client().send(
+  const { client, bucket } = await openBucket()
+  return client.send(
     new GetObjectCommand({
-      Bucket: getBucketName(),
+      Bucket: bucket,
       Key: storagePath,
       Range: range || undefined,
     })
+  )
+}
+
+/**
+ * Asks the bucket to list one object. Proves the account, the keys and the
+ * bucket name together, and changes nothing.
+ *
+ * The values being checked ride in rather than being read from the row, so a
+ * bucket can be tested before it is saved.
+ */
+export async function testR2Bucket(candidate: {
+  accountId: string
+  accessKeyId: string
+  secretAccessKey: string
+  bucketName: string
+}) {
+  const client = new S3Client({
+    region: "auto",
+    endpoint: `https://${candidate.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: candidate.accessKeyId,
+      secretAccessKey: candidate.secretAccessKey,
+    },
+  })
+  await client.send(
+    new ListObjectsV2Command({ Bucket: candidate.bucketName, MaxKeys: 1 })
   )
 }

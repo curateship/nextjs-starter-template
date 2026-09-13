@@ -117,7 +117,7 @@ export async function createCheckoutSession(
 ) {
   requireBilling()
 
-  if (!plan.active || !isPaidPlan(plan)) {
+  if (!plan.active || !plan.isPublic || !isPaidPlan(plan)) {
     throw new Error("PLAN_NOT_PURCHASABLE")
   }
 
@@ -127,6 +127,14 @@ export async function createCheckoutSession(
   }
 
   const subscription = await findSubscription(user.id, database)
+  if (subscription?.stripeSubscriptionId) {
+    const existing = await (await stripe()).subscriptions.retrieve(
+      subscription.stripeSubscriptionId
+    )
+    if (!["canceled", "incomplete_expired"].includes(existing.status)) {
+      throw new Error("PLAN_CHANGE_UNAVAILABLE")
+    }
+  }
   const trialDays = trialDaysFor(user, plan)
   const session = await (
     await stripe()

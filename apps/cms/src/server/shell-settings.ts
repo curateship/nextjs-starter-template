@@ -36,7 +36,9 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  normalizeFaviconMode,
   normalizePublicFaviconSet,
+  type FaviconMode,
   type PublicFaviconSet,
 } from "@/lib/favicon"
 import {
@@ -63,11 +65,11 @@ import {
   DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
+import { isAdmin } from "@/server/auth/security"
 import {
   clampSidebarWidth,
   DEFAULT_SIDEBAR_WIDTH,
 } from "@/lib/layout/sidebar-width"
-import { isAdmin } from "@/server/auth/security"
 import {
   currentWorkspace,
   parseWorkspaceSettings,
@@ -77,7 +79,10 @@ import {
   currentPublicOrigin,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
-import { visitorWorkspaceId } from "@/server/workspaces/for-request"
+import {
+  visitorWorkspaceId,
+  workspaceRowForRequest,
+} from "@/server/workspaces/for-request"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb = db) {
@@ -124,6 +129,7 @@ export async function readBranding(
   favicon: string
   faviconDark: string
   faviconSet: PublicFaviconSet | null
+  faviconMode: FaviconMode
   logo: string
   logoDark: string
   shareImage: string
@@ -167,6 +173,7 @@ export async function readBranding(
       favicon: globals.favicon,
       faviconDark: globals.faviconDark,
       faviconSet: globals.faviconSet,
+      faviconMode: globals.faviconMode,
       logo: globals.logo,
       logoDark: globals.logoDark,
       shareImage: versionedShareImage(
@@ -211,6 +218,7 @@ export async function readBranding(
     favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
     faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
     faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    faviconMode: globals.faviconMode,
     logo: (siteBranding && workspaceSettings.logo) || globals.logo,
     logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
     shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
@@ -286,9 +294,19 @@ export async function readShellSettings(
   const globals = await readShellGlobals(database)
   // Reads never make a workspace. This runs on every signed-in page load,
   // including a member's, and the old read created one when it missed — which
-  // is how members ended up owning workspaces they never saw. Nobody in a
-  // workspace yet simply gets the app-wide defaults.
-  const workspace = await currentWorkspace(user.id, database)
+  // is how members ended up owning workspaces they never saw.
+  //
+  // **Whose workspace, then?** The one this person is IN, when they are in
+  // one: an admin who picked Beta in the switcher while sitting on Alpha's
+  // domain means Beta, and that has to keep winning. A member is in none, and
+  // used to fall through to the built-in defaults — so the site's saved
+  // gutter, card borders, logo and sidebar width reached every admin and no
+  // member, and the same page was spaced two different ways depending on who
+  // opened it. The site they are ON is the honest answer for them, and it is
+  // the same row the admin is editing.
+  const workspace =
+    (await currentWorkspace(user.id, database)) ??
+    (await workspaceRowForRequest(user.id, database))
   const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
   const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
   const publicTheme = workspaceDomainsEnabled
@@ -357,6 +375,7 @@ export function parseShellGlobals(value: unknown) {
         ? settings.faviconDark
         : fallback.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -461,6 +480,7 @@ export function pickShellGlobals(
     | "favicon"
     | "faviconDark"
     | "faviconSet"
+    | "faviconMode"
     | "logo"
     | "logoDark"
     | "shareImage"
@@ -496,6 +516,7 @@ export function pickShellGlobals(
     favicon: settings.favicon,
     faviconDark: settings.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
     logo: settings.logo,
     logoDark: settings.logoDark,
     shareImage: normalizeShareImage(settings.shareImage),

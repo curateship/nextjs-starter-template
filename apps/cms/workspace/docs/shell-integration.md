@@ -39,10 +39,20 @@ scripts and dependencies. Regenerate the route tree from CMS's combined routes.
 Run the full test suite after a shell merge, then the app and Node TypeScript
 checks. Validate the existing CMS server on port 3015 in a browser.
 
+CMS also inherits the shell's Storage settings, generated brand images,
+plan-change confirmations and header quick settings. CMS keeps its own site
+identity panel and directory settings. Sidebar width belongs to each person.
+
 The current shell includes database migrations through
-`0076_custom_shell_single_site_public_navigation.sql`. Apply pending migrations
+`0079_custom_shell_storage_settings.sql`. The new migrations allow app activity
+notices, move sidebar widths to each person's settings and add the storage
+settings table. Apply pending migrations
 with `npm run db:migrate` against the intended CMS database before running the
 updated app. Supply `CUSTOM_SHELL_DATABASE_URL` explicitly; the migration
 command does not load a local environment file. The background worker has its own build and start commands,
 `npm run build:worker` and `npm run worker`. Production releases must run that
 worker for scheduled shell and directory work.
+
+CMS retains its earlier `0077_custom_shell_sidebar_width_per_person.sql`.
+The shell's `0078` migration repeats that operation safely. Migration tracking
+uses the full filename, so the two `0077` filenames do not conflict.

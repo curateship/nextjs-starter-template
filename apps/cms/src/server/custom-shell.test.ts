@@ -43,6 +43,7 @@ import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
+import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { loadMemberHome } from "@/server/people/member-home"
 import {
   createAnnouncement,
@@ -4558,6 +4559,36 @@ describe("member sidebar", () => {
     expect(emptied.sections).toEqual([])
   })
 
+  it("gives each person their own sidebar width, not the site's", async () => {
+    // It used to be saved on the workspace, so everybody in it shared one
+    // width — and on an app that is one site, that is everybody. A member
+    // dragging their rail resized the admin's.
+    const { adminId, memberId } = await seedPeople()
+    const testDb = database as unknown as CustomShellDb
+
+    // Nobody has dragged anything yet.
+    const untouched = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(untouched.sidebarWidth).toBe(DEFAULT_SIDEBAR_WIDTH)
+
+    await database
+      .update(customShellUsers)
+      .set({ sidebarWidth: 300 })
+      .where(eq(customShellUsers.id, memberId))
+
+    const dragged = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(dragged.sidebarWidth).toBe(300)
+
+    // The admin beside them is untouched by it.
+    const admin = await readShellSettings({ id: adminId, role: "admin" }, testDb)
+    expect(admin.sidebarWidth).toBe(DEFAULT_SIDEBAR_WIDTH)
+  })
+
   it("carries the member sidebar through a save and back", () => {
     // The settings page saves the whole config, and only the fields
     // `pickShellGlobals` names reach the app-wide row. Forget one and the
@@ -4695,6 +4726,23 @@ describe("member sidebar", () => {
       faviconDark: "",
       faviconSet: null,
     })
+  })
+
+  it("carries the browser tab icon choice through a save and back", () => {
+    expect(
+      parseShellGlobals(
+        pickShellGlobals({
+          ...createDefaultShellConfig(),
+          faviconMode: "light",
+        })
+      ).faviconMode
+    ).toBe("light")
+    // Anything else means the dark version, which is what a row saved before
+    // this setting existed holds: nothing at all.
+    expect(parseShellGlobals({}).faviconMode).toBe("dark")
+    expect(parseShellGlobals({ faviconMode: "sideways" }).faviconMode).toBe(
+      "dark"
+    )
   })
 
   it("carries app-wide SEO, social cards, and public system copy through a save", () => {
@@ -4876,7 +4924,7 @@ describe("top right menu", () => {
     ])
 
     expect(normalized).toEqual([
-      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "settings", visible: false },
       { type: "builtIn", id: "feedback", visible: true },
       // Never saved, so it is appended rather than lost.
       { type: "builtIn", id: "notifications", visible: true },
@@ -4905,7 +4953,7 @@ describe("top right menu", () => {
     expect(normalized).toEqual([
       { type: "builtIn", id: "feedback", visible: true },
       link,
-      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "settings", visible: true },
       { type: "builtIn", id: "notifications", visible: true },
     ])
   })
@@ -4914,14 +4962,14 @@ describe("top right menu", () => {
     expect(
       normalizeTopRightNavigation(
         [
-          { id: "theme", visible: true },
+          { id: "settings", visible: true },
           { type: "app", id: "app-status", visible: false },
           { id: "feedback", visible: true },
         ],
         ["app-status"]
       )
     ).toEqual([
-      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "settings", visible: true },
       { type: "app", id: "app-status", visible: false },
       { type: "builtIn", id: "feedback", visible: true },
       { type: "builtIn", id: "notifications", visible: true },
@@ -4939,7 +4987,7 @@ describe("top right menu", () => {
     const testDb = database as unknown as CustomShellDb
 
     const memberMenu = [
-      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "settings", visible: true },
       { type: "builtIn", id: "feedback", visible: false },
       { type: "builtIn", id: "notifications", visible: true },
       {
@@ -4979,7 +5027,7 @@ describe("top right menu", () => {
     // rule the member sidebar follows.
     const allOff = [
       { type: "builtIn", id: "feedback", visible: false },
-      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "settings", visible: false },
       { type: "builtIn", id: "notifications", visible: false },
     ]
     expect(

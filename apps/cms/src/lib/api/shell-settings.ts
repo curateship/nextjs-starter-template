@@ -8,6 +8,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   SHELL_ROLES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
+  TOP_RIGHT_NAVIGATION_ITEM_IDS,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import {
@@ -20,11 +21,11 @@ import {
   normalizeShareImage,
 } from "@/lib/pages/public-metadata"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
-import type {
-  PublicFaviconSet,
-  PublicFaviconVariant,
-} from "@/lib/favicon"
-import type { PublicFontAsset } from "@/lib/public-font"
+import {
+  brandImagesAreCurrent,
+  type BrandImages,
+} from "@/lib/brand-image"
+import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
@@ -92,6 +93,7 @@ import {
   isOwnedImageUrl,
 } from "@/server/media/library"
 import {
+  createDarkBrandVariant,
   createFaviconVariant,
   deleteReplacedFaviconFiles,
 } from "@/server/media/favicon"
@@ -162,7 +164,9 @@ const shellSectionSchema = z.object({
 const shellTopRightItemSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("builtIn"),
-    id: z.enum(["feedback", "theme", "notifications"]),
+    // The one list, so a built-in renamed in `custom-shell.tsx` cannot be
+    // refused here by a copy of the names nobody remembered to change.
+    id: z.enum(TOP_RIGHT_NAVIGATION_ITEM_IDS),
     visible: z.boolean(),
   }),
   z.object({
@@ -400,10 +404,14 @@ const shellConfigSchema = z.object({
   workspaceLogo: z.string().trim().max(2048),
   workspaceLogoDark: z.string().trim().max(2048),
   workspaceShareImage: z.string().trim().max(2048),
-  favicon: faviconSourceSchema,
-  faviconDark: faviconSourceSchema,
-  logo: z.string(),
-  logoDark: z.string(),
+  // The one brand image. It is the signed-out logo and the browser-tab icon,
+  // and its dark-mode twin is made on the way in — so the dark logo, the dark
+  // tab icon and every generated tab size are the server's to write, never the
+  // client's to send.
+  logo: z.string().trim().max(2048),
+  // Which of the two generated versions the browser tab shows. An admin choice,
+  // unlike the pictures above it, because both versions already exist.
+  faviconMode: z.enum(FAVICON_MODES),
   shareImage: z.string().trim().max(2048),
   // Carried by the client for the full config shape. The handler always takes
   // the saved version or writes a fresh timestamp instead of trusting this.
@@ -481,33 +489,41 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       throw new Error("Workspace name is required")
     }
 
-    let previousFaviconSet: PublicFaviconSet | null = null
-    let savedFaviconSet: PublicFaviconSet | null = null
-    let savedPublicFont: PublicFontAsset | null = null
     const generatedFaviconSet: PublicFaviconSet = {}
     const startingGlobals = await readShellGlobals()
+    const logo = data.logo.trim()
 
-    try {
-      generatedFaviconSet.light = await generateFaviconVariantForSave({
-        source: data.favicon,
-        saved: startingGlobals.faviconSet?.light,
-        mode: "light",
-        userId: context.user.id,
-      })
-      generatedFaviconSet.dark = await generateFaviconVariantForSave({
-        source: data.faviconDark,
-        saved: startingGlobals.faviconSet?.dark,
-        mode: "dark",
-        userId: context.user.id,
-      })
-    } catch (error) {
-      await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
-        () => undefined
-      )
-      throw error
+    // Nothing is drawn when the saved pictures already match this logo, which
+    // is every save that is not a logo change — a rename, a colour, a menu
+    // edit. The check is against the whole chain rather than the logo alone, so
+    // an install still carrying a separately chosen favicon rebuilds once and
+    // is then in step.
+    if (logo && !brandImagesAreCurrent(logo, startingGlobals)) {
+      const media = await findOwnedImageByUrl(context.user.id, logo)
+      if (!media) {
+        throw new Error(
+          "That logo is no longer in your media library. Pick another one."
+        )
+      }
+
+      try {
+        generatedFaviconSet.light = await createFaviconVariant(media, "light")
+        generatedFaviconSet.dark = await createDarkBrandVariant(media)
+      } catch (error) {
+        await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+          () => undefined
+        )
+        console.error("The brand image could not be converted", error)
+        throw new Error(
+          "The dark version of that logo could not be made. Try a PNG or an SVG."
+        )
+      }
     }
 
-    await db.transaction(async (tx) => {
+    // The transaction hands its findings back rather than writing them into
+    // variables declared above it, so what the answer carries is what the row
+    // actually holds.
+    const saved = await db.transaction(async (tx) => {
       await tx
         .update(customShellWorkspaces)
         .set({
@@ -560,28 +576,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // same reason — their one writer each is lib/api/auth/session-policy.ts
       // and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
-      previousFaviconSet = existingGlobals.faviconSet
-      savedPublicFont = existingGlobals.publicFont
-
-      // The logos are drawn on the signed-out pages, so what gets stored has to
-      // be a picture somebody here really uploaded — not any address a browser
-      // felt like sending. Only a changed logo is checked: the settings page
-      // saves the whole config, so a second admin renaming the app must not be
-      // refused because the picture was uploaded from another account.
-      for (const [next, saved] of [
-        [data.logo, existingGlobals.logo],
-        [data.logoDark, existingGlobals.logoDark],
-      ]) {
-        if (
-          next &&
-          next !== saved &&
-          !(await isOwnedImageUrl(context.user.id, next, tx))
-        ) {
-          throw new Error(
-            "That logo is no longer in your media library. Pick another one."
-          )
-        }
-      }
 
       if (
         data.shareImage &&
@@ -607,22 +601,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         }
       }
 
-      const light = faviconVariantForLockedSave(
-        data.favicon,
-        existingGlobals.faviconSet?.light,
-        generatedFaviconSet.light
+      const brand = brandImagesForLockedSave(
+        logo,
+        existingGlobals,
+        generatedFaviconSet
       )
-      const dark = faviconVariantForLockedSave(
-        data.faviconDark,
-        existingGlobals.faviconSet?.dark,
-        generatedFaviconSet.dark
-      )
-      savedFaviconSet = light || dark
-        ? {
-            ...(light ? { light } : {}),
-            ...(dark ? { dark } : {}),
-          }
-        : null
 
       const nextPublicTheme = publicThemeForAppWideSave(
         data.publicTheme,
@@ -636,7 +619,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
-          faviconSet: savedFaviconSet,
+          ...brand,
           // One-site apps have one public menu and footer regardless of which
           // workspace an admin is viewing. Multisite apps keep these choices
           // on the workspace named by the domain.
@@ -681,6 +664,12 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           updatedAt,
         })
       }
+
+      return {
+        brand,
+        previousFaviconSet: existingGlobals.faviconSet,
+        publicFont: existingGlobals.publicFont,
+      }
     }).catch(async (error) => {
       await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
         () => undefined
@@ -688,8 +677,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       throw error
     })
 
+    const savedFaviconSet = saved.brand.faviconSet
     await deleteReplacedFaviconFiles(
-      previousFaviconSet,
+      saved.previousFaviconSet,
       savedFaviconSet
     ).catch((error) => {
       console.error("Replaced favicon files could not be removed", error)
@@ -708,66 +698,84 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     // not throw away a cache that still matches the database.
     dropWorkspaceCache()
 
-    return { faviconSet: savedFaviconSet, publicFont: savedPublicFont }
+    // The derived pictures go back to the settings page so the tab icon and
+    // the dark logo change on screen the moment the save lands, instead of
+    // waiting for a reload.
+    return { brand: saved.brand, publicFont: saved.publicFont }
   })
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
 }
 
-async function generateFaviconVariantForSave({
-  source,
-  saved,
-  mode,
-  userId,
-}: {
-  source: string
-  saved: PublicFaviconVariant | undefined
-  mode: "light" | "dark"
-  userId: string
-}): Promise<PublicFaviconVariant | undefined> {
-  if (!source || saved?.source === source) return undefined
+/**
+ * What the four stored pictures become, decided inside the locked read so two
+ * admins saving at once cannot leave the tab icon pointing at one logo and the
+ * signed-out page at another.
+ *
+ * Exported for its test. The one thing worth pinning is that it answers with
+ * five fields and never with the row it was handed.
+ */
+export function brandImagesForLockedSave(
+  logo: string,
+  existing: BrandImages,
+  generated: PublicFaviconSet
+): BrandImages {
+  if (!logo) {
+    return {
+      logo: "",
+      logoDark: "",
+      favicon: "",
+      faviconDark: "",
+      faviconSet: null,
+    }
+  }
 
-  const media = await findOwnedImageByUrl(userId, source)
-  if (!media) {
+  // Field by field, never `{ ...existing }`. What arrives here is the whole
+  // saved globals row, which structurally satisfies `BrandImages`, so spreading
+  // it would carry every other global back out and `pickShellGlobals` would
+  // then lay the saved app name, tab-icon choice and public settings back over
+  // the ones being saved. Every edit made in the same breath as an unchanged
+  // logo would silently revert.
+  if (brandImagesAreCurrent(logo, existing)) {
+    return {
+      logo,
+      logoDark: existing.logoDark,
+      favicon: existing.favicon,
+      faviconDark: existing.faviconDark,
+      faviconSet: existing.faviconSet,
+    }
+  }
+
+  const { light, dark } = generated
+  if (light?.source !== logo || !dark) {
     throw new Error(
-      "That favicon is no longer in your media library. Pick another one."
+      "The logo changed while these settings were saving. Try again."
     )
   }
 
-  try {
-    return await createFaviconVariant(media, mode)
-  } catch {
-    throw new Error(
-      "The favicon sizes could not be created. Try another image."
-    )
+  return {
+    logo,
+    logoDark: dark.source,
+    favicon: logo,
+    faviconDark: dark.source,
+    faviconSet: { light, dark },
   }
 }
 
-function faviconVariantForLockedSave(
-  source: string,
-  saved: PublicFaviconVariant | undefined,
-  generated: PublicFaviconVariant | undefined
-) {
-  if (!source) return undefined
-  if (saved?.source === source) return saved
-  if (generated?.source === source) return generated
-
-  throw new Error(
-    "The favicon changed while these settings were saving. Try again."
-  )
-}
-
-// Lightweight, per-user save for the draggable sidebar width. Unlike the full
-// shell save this is not admin-gated — any signed-in user can persist their own
-// workspace's sidebar width by dragging the rail.
-//
-// No `dropWorkspaceCache()` here, on purpose. This writes the same `settings`
-// column the save above does, but the only thing the host cache serves out of
-// it is what a signed-out visitor sees — the site's name, its public menu and
-// its footer. Nothing reads `sidebarWidth` through the cache, and dropping it
-// on every drag of the rail would rebuild it dozens of times a minute for no
-// visible difference.
+/**
+ * The draggable sidebar width, saved on the PERSON who dragged it.
+ *
+ * Not admin-gated, because it is nobody else's business how wide somebody
+ * likes their own rail. It used to write the width into the workspace's
+ * settings, which made it one width for the whole site: on an app that is one
+ * site everybody is in the same workspace, so a member dragging their rail
+ * resized the admin's. Their own row is the only thing this touches now, so
+ * the question of who may write it does not arise.
+ *
+ * A row of their own also means no `dropWorkspaceCache()` to think about: the
+ * host cache is built from workspace settings, and this no longer writes any.
+ */
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
