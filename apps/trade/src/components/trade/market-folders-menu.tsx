@@ -247,7 +247,7 @@ export function MarketFoldersMenu({
                           />
                         ))
                       ) : marketsPending && folder.marketKeys.length > 0 ? (
-                        <LoadingRow label="Loading markets" />
+                        <LoadingRow label="Reading the market list" />
                       ) : (
                         <p className="px-3 py-4 text-center text-xs text-muted-foreground">
                           {folder.marketKeys.length > 0
@@ -274,7 +274,7 @@ export function MarketFoldersMenu({
                 }
               >
                 {marketsPending ? (
-                  <LoadingRow label="Loading markets" />
+                  <LoadingRow label="Reading the market list" />
                 ) : marketsError ? (
                   <ErrorRow message={marketsError} onRetry={onRetryMarkets} className="p-3" />
                 ) : allMarkets.length === 0 ? (

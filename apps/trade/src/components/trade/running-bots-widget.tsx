@@ -111,7 +111,7 @@ export function RunningBotsWidget({
       rows={rows}
       loading={false}
       failed={false}
-      loadingLabel="Loading running bots"
+      loadingLabel="Reading running bots"
       failedWords="Running bots could not be loaded."
       emptyWords={
         <div className="flex flex-col items-center justify-center gap-3">

@@ -994,12 +994,12 @@ export function TradeWorkspace({
   const orderPanels = (
     <div
       data-order-panels
-      className="grid h-full min-h-0 grid-rows-[fit-content(60%)_minmax(0,1fr)] gap-(--shell-gutter)"
+      className="flex h-full min-h-0 flex-col gap-(--shell-gutter)"
     >
       <WorkspacePanel className="flex h-auto min-h-0 flex-col">
         {smartOrdersPanel}
       </WorkspacePanel>
-      <WorkspacePanel className="flex h-auto min-h-0 flex-col">
+      <WorkspacePanel className="flex h-auto min-h-0 flex-auto flex-col">
         {manualOrdersPanel}
       </WorkspacePanel>
     </div>

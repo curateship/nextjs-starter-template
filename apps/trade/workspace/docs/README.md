@@ -57,14 +57,14 @@ screen: anything not written there has not been agreed yet.
   stays admin-only.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, Long/Short badge columns, and where the navigation lives.
-- `trading-overview.md`: the signed-in home page and its Active trades menu,
+- `trading-overview.md`: visible profit date labels and empty-history explanations; the signed-in home page and its Active trades menu,
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
   Panels size to content, with bottom panels filling spare space and no draggable dividers.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, search toolbar and the Manual orders panel.
-- `panels-and-loading.md` — content-sized Smart orders and a Manual orders panel that fills the remaining height, how panels behave, narrow screens, stand-in
+- `panels-and-loading.md` — shared Reading labels and spinners; content-based order-panel sizing without a percentage cap, with Manual orders filling the remaining height, how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
@@ -121,7 +121,7 @@ screen: anything not written there has not been agreed yet.
   looks, how repeated failures are counted, how a DCA ladder sells back up its
   mirrored exits, how one extra gap moves those exits together, and what a
   backtest does differently.
-- `smart-order-windows.md` — floating form width and long wallet labels; percentage stops below the last DCA rung, combined stop-loss dollars and chart dragging, the separate Rung 1 exit % for market buys and
+- `smart-order-windows.md` — 32px secondary buttons, floating form width and long wallet labels; percentage stops below the last DCA rung, combined stop-loss dollars and chart dragging, the separate Rung 1 exit % for market buys and
   the windows a smart order is placed from: the
   floating frame, synchronized DCA entry and exit dragging, the draggable
   ladder summary, red DCA exit lines and labels, the DCA exit choices and draggable exit gap, the base stop,
@@ -232,7 +232,7 @@ always used.
 
 ## backtests/
 
-- `backtest-screens.md` — the results, candle history and funding screens,
+- `backtest-screens.md` — background refreshes without table dimming; the results, candle history and funding screens,
   plus multi-size backtest starts, elapsed time in the sortable Took column, skipped and failed coin reasons,
   and the run header links to those reasons.
 - `backtest-speed.md`: the one-pass base and cascade scans, one-statement saved-run
@@ -254,7 +254,7 @@ always used.
 
 ## recipes/
 
-- `dashboard.md` explains the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
+- `dashboard.md` explains DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
   Switch on run, the live-run deletion rule, and how saved Trade drawings move
   out of Automations.
 

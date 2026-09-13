@@ -665,7 +665,6 @@ export function ChartQuickOrder({
                 <Button
                   key={share}
                   type="button"
-                  size="sm"
                   variant="outline"
                   className="flex-1 px-0"
                   onClick={() => {

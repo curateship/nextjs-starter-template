@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input"
 export function TradeNumberField({
   id,
   label,
+  hideLabel = false,
   hint,
   value,
   min,
@@ -31,6 +32,8 @@ export function TradeNumberField({
 }: {
   id: string
   label: React.ReactNode
+  /** A visible column heading already labels this field's purpose. */
+  hideLabel?: boolean
   hint?: React.ReactNode
   value: number
   min: number
@@ -70,7 +73,11 @@ export function TradeNumberField({
 
   return (
     <div className="grid gap-1.5">
-      <FieldLabel htmlFor={id} className="text-xs" hint={hint}>
+      <FieldLabel
+        htmlFor={id}
+        className={hideLabel ? "sr-only" : "text-xs"}
+        hint={hint}
+      >
         {label}
       </FieldLabel>
       <div className="flex items-center gap-2">
@@ -80,6 +87,7 @@ export function TradeNumberField({
           step={step}
           value={text}
           aria-invalid={!valid}
+          aria-describedby={!valid ? `${id}-error` : undefined}
           onChange={(event) => {
             setText(event.target.value)
             const next = Number(event.target.value.trim())
@@ -101,7 +109,7 @@ export function TradeNumberField({
           the hint behind the little icon, which is not where somebody is
           looking while they type. */}
       {valid ? null : (
-        <p className="text-xs text-destructive">
+        <p id={`${id}-error`} className="text-xs text-destructive">
           {text.trim() === ""
             ? "This needs a number."
             : integer && Number.isFinite(parsed) && !Number.isInteger(parsed)

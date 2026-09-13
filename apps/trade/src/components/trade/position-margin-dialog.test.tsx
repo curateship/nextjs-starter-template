@@ -53,7 +53,9 @@ async function open(
   position: TradePosition,
   maxLeverage: number | null = 20,
   /** What the exchange answers to each change. */
-  took = true
+  took = true,
+  allowed = true,
+  unavailable: string | null = null
 ) {
   const host = document.createElement("div")
   document.body.append(host)
@@ -66,10 +68,10 @@ async function open(
           position={position}
           maxLeverage={maxLeverage}
           walletName="Main"
-          canChangeLeverage={true}
-          leverageRefusal={null}
-          canAdjustMargin={true}
-          marginRefusal={null}
+          canChangeLeverage={allowed}
+          leverageRefusal={unavailable}
+          canAdjustMargin={allowed}
+          marginRefusal={unavailable}
           busy={false}
           onSetLeverage={async (_one, leverage) => {
             pressed.leverage.push(leverage)
@@ -124,6 +126,29 @@ async function open(
 }
 
 describe("changing leverage and margin on an open position", () => {
+  it("shows shared waiting spinners, but does not call a refusal loading", async () => {
+    const pending = await open(live(), 20, true, false)
+    const statuses = [...document.querySelectorAll('[role="status"]')]
+    expect(statuses).toHaveLength(2)
+    for (const status of statuses) {
+      expect(status.textContent).toBe("Reading what this exchange allows")
+      expect(status.querySelector("svg.animate-spin")).not.toBeNull()
+    }
+    await pending.close()
+    const refused = await open(
+      live(),
+      20,
+      true,
+      false,
+      "This exchange does not allow changes"
+    )
+    expect(document.querySelector('[role="status"]')).toBeNull()
+    expect(document.body.textContent).toContain(
+      "This exchange does not allow changes"
+    )
+    await refused.close()
+  })
+
   it("reads Done and only closes when nothing was changed", async () => {
     const window = await open(live())
     expect(

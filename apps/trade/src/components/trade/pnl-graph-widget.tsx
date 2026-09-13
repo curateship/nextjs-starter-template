@@ -26,6 +26,8 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { DatePicker } from "@/components/ui/date-picker"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -350,7 +352,7 @@ function ProfitRangeControls({
         value={range.preset}
         onValueChange={(value) => choosePreset(value as RangePreset)}
       >
-        <TabsList className="h-8" aria-label="Profit date range">
+        <TabsList aria-label="Profit date range">
           {RANGE_PRESETS.map((preset) => (
             <TabsTrigger key={preset} value={preset} className="px-2 text-xs">
               {RANGE_LABELS[preset]}
@@ -358,33 +360,41 @@ function ProfitRangeControls({
           ))}
         </TabsList>
       </Tabs>
-      <span className="sr-only">
-        <label htmlFor="pnl-from-date">From date</label>
-      </span>
-      <DatePicker
-        id="pnl-from-date"
-        value={dates.from === undefined ? undefined : new Date(dates.from)}
-        onChange={chooseFrom}
-        disabled={data.length === 0}
-        placeholder="From"
-        className="h-8 w-auto text-xs"
-      />
-      <span className="sr-only">
-        <label htmlFor="pnl-to-date">To date</label>
-      </span>
-      <DatePicker
-        id="pnl-to-date"
-        value={dates.to === undefined ? undefined : new Date(dates.to)}
-        onChange={chooseTo}
-        disabled={data.length === 0}
-        placeholder="To"
-        className="h-8 w-auto text-xs"
-      />
+      <div className="flex items-center gap-2">
+        <Label htmlFor="pnl-from-date">From</Label>
+        <DisabledReason
+          disabled={data.length === 0}
+          reason="No profit history to pick a range from yet"
+        >
+          <DatePicker
+            id="pnl-from-date"
+            value={dates.from === undefined ? undefined : new Date(dates.from)}
+            onChange={chooseFrom}
+            disabled={data.length === 0}
+            placeholder="From"
+            className="w-auto text-xs"
+          />
+        </DisabledReason>
+      </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor="pnl-to-date">To</Label>
+        <DisabledReason
+          disabled={data.length === 0}
+          reason="No profit history to pick a range from yet"
+        >
+          <DatePicker
+            id="pnl-to-date"
+            value={dates.to === undefined ? undefined : new Date(dates.to)}
+            onChange={chooseTo}
+            disabled={data.length === 0}
+            placeholder="To"
+            className="w-auto text-xs"
+          />
+        </DisabledReason>
+      </div>
       <Button
         type="button"
         variant="outline"
-        size="sm"
-        className="h-8"
         onClick={() => choosePreset("all")}
       >
         Reset

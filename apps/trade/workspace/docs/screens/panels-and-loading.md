@@ -7,10 +7,11 @@ fixed in one is fixed in both.
 
 - The divider between Smart orders and Manual orders is gone. The
   Smart orders panel sizes to its contents. Manual orders fills the remaining
-  height to the bottom edge of the right column. Smart orders uses at most
-  60% of the column height so Manual orders remains usable on shorter screens.
-  Long lists scroll inside their own panel
-  when the right column runs out of room. Switching to Bots sizes the top
+  height to the bottom edge of the right column. Neither panel has a percentage
+  height cap. Each panel starts with the height its contents need. If both fit,
+  neither list scrolls and Manual orders takes any leftover space. If their
+  combined contents exceed the column height, both panels shrink and their
+  lists scroll inside their own frames. Switching to Bots sizes the top
   panel to that tab's contents. The old 60/40 split is no longer saved or read.
 - The dividers beside the chart and above Positions still drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
@@ -205,6 +206,14 @@ exchange is not listing any markets right now." The middle panel adds no second
 header for the same failure.
 
 ## Still reading
+
+Waiting labels use Reading with no trailing dots. Market-folder menus,
+the scanner and market explorer say "Reading the market list". The Fired
+alerts tab says "Reading fired alerts". Settings and account readouts name
+what they are reading. Each waiting surface uses the shared spinner.
+The margin window says "Reading what this exchange allows" with a spinner
+in each pending section. A refusal keeps its explanation instead of spinning.
+The chart keeps its documented loading exception.
 
 **"Nothing here" and "I have not looked yet" are different answers**, and on a
 screen listing money only one of them is safe to act on. Every panel that

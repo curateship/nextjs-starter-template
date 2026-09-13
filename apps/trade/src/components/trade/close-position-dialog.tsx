@@ -258,7 +258,6 @@ function CloseForm({
                   <Button
                     key={share}
                     type="button"
-                    size="sm"
                     variant="outline"
                     disabled={busy}
                     onClick={() => setShare(share)}

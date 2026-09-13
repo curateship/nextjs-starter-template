@@ -244,7 +244,7 @@ function WatchingOrdersTable({
       rows={orders}
       loading={false}
       failed={false}
-      loadingLabel="Loading watched orders"
+      loadingLabel="Reading watched orders"
       failedWords="Watched orders could not be loaded."
       emptyWords={emptyWords}
       stateClassName="flex min-h-24 items-center justify-center text-sm"

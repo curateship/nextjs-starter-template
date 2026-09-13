@@ -15,7 +15,7 @@ vi.mock("@/lib/trade/live-market", () => ({
   retainMarketHistory: () => () => {},
   startLiveMarketData: () => () => {},
   useLiveFiguresMap: () => new Map(),
-  marketHistory: { window: mocks.window },
+  marketHistory: { window: mocks.window, quiet: () => false },
 }))
 import { MovingNowWidget } from "./moving-now-widget"
 

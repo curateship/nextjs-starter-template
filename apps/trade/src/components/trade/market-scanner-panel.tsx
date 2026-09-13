@@ -1,5 +1,6 @@
 import * as React from "react"
-import { Loader2Icon, RadarIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { RadarIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   DashboardCardHeader,
   dashboardCardHeadingClassName,
@@ -83,10 +84,7 @@ export function MarketScannerPanel(props: Props) {
               </Button>
             </>
           ) : (
-            <Loader2Icon
-              className="size-4 animate-spin"
-              aria-label="Loading scanner settings"
-            />
+            <LoadingRow label="Reading scanner settings" />
           )}
         </div>
       )}
@@ -144,16 +142,26 @@ function ScannerResults({
         return (left < 0 ? Infinity : left) - (right < 0 ? Infinity : right)
       })
     : snapshot.rows
+  const readingMarkets =
+    settings.enabled && !snapshot.loaded && snapshot.errors.length === 0
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className="p-3 text-xs text-muted-foreground" role="status">
-        {!settings.enabled
-          ? "Scanner paused. Enable scanning in settings."
-          : !snapshot.loaded && snapshot.errors.length === 0
-            ? "Loading markets…"
-            : settings.mode === "price"
-              ? `Watching for a ${settings.priceIncreasePct}% rise in ${settings.priceWindowSeconds / 60} minute${settings.priceWindowSeconds === 60 ? "" : "s"}. Matches stay until you delete them. ${snapshot.warming ? "Collecting price history…" : ""}`
-              : `Scanning ${snapshot.total - snapshot.unavailable} markets. Matches stay until you delete them. ${snapshot.unavailable} unavailable or reconnecting.`}
+      <div
+        className="p-3 text-xs text-muted-foreground"
+        role={readingMarkets ? undefined : "status"}
+      >
+        {!settings.enabled ? (
+          "Scanner paused. Enable scanning in settings."
+        ) : readingMarkets ? (
+          <LoadingRow
+            label="Reading the market list"
+            className="py-0 text-xs"
+          />
+        ) : settings.mode === "price" ? (
+          `Watching for a ${settings.priceIncreasePct}% rise in ${settings.priceWindowSeconds / 60} minute${settings.priceWindowSeconds === 60 ? "" : "s"}. Matches stay until you delete them. ${snapshot.warming ? "Collecting price history…" : ""}`
+        ) : (
+          `Scanning ${snapshot.total - snapshot.unavailable} markets. Matches stay until you delete them. ${snapshot.unavailable} unavailable or reconnecting.`
+        )}
       </div>
       {snapshot.errors.length > 0 ? (
         <div className="grid gap-2 p-3 text-xs" role="alert">

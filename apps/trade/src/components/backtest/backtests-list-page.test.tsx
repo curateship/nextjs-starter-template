@@ -93,6 +93,46 @@ async function sortTook() {
 }
 
 describe("backtest elapsed time", () => {
+  it("keeps polls undimmed and preserves a manual retry's busy state", async () => {
+    const active = run("Active", 10_000, { finishedAt: null })
+    await renderList([active])
+    let rejectPoll!: (error: Error) => void
+    loadBacktests.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectPoll = reject
+      })
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(host.querySelector("tbody")?.classList.contains("opacity-50")).toBe(
+      false
+    )
+    expect(host.textContent).toContain("Active")
+    await act(async () => rejectPoll(new Error("Unavailable")))
+
+    let finishRetry!: (value: { runs: BacktestListRow[] }) => void
+    loadBacktests.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishRetry = resolve
+      })
+    )
+    const retry = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Try again"
+    )!
+    expect(retry).toBeDefined()
+    await act(async () => retry.click())
+    expect(host.querySelector("tbody")?.getAttribute("aria-busy")).toBe("true")
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(host.querySelector("tbody")?.getAttribute("aria-busy")).toBe("true")
+    await act(async () =>
+      finishRetry({ runs: [{ ...active, finishedAt: NOW + 4000 }] })
+    )
+    expect(host.querySelector("tbody")?.getAttribute("aria-busy")).toBeNull()
+    expect(host.querySelector("tbody")?.classList.contains("opacity-50")).toBe(
+      false
+    )
+    expect(host.textContent).toContain("Took 14s")
+  })
+
   it("sorts numeric durations both ways while keeping pinned runs first", async () => {
     await renderList([
       run("Long", 120_000),

@@ -199,7 +199,6 @@ export function IndicatorRow({
           <Button
             type="button"
             variant="outline"
-            size="sm"
             className="justify-self-start"
             onClick={onReset}
           >

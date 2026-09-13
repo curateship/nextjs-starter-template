@@ -1,5 +1,13 @@
 # Backtest screens
 
+## Refreshing the list
+
+While a backtest runs, the list refreshes every two seconds without dimming
+the rows or toolbar. Changing which runs are shown or pressing Try again
+after a failed read still shows the table's busy state. A background read
+finishing cannot clear that state while the requested refresh is still pending.
+The existing error message and retry action remain available after a failure.
+
 ## How long a run took
 
 The Backtests list has a sortable Took column. A finished run says "Took 4m".

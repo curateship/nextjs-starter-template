@@ -15,6 +15,7 @@ import {
 } from "@dnd-kit/sortable"
 import { GripVerticalIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
+import { LoadingRow } from "@/components/ui/loading-row"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
   DRAG_HANDLE_CLASS,
@@ -153,7 +154,7 @@ export default function TradingDashboardWidgetSettings() {
         </Card>
       )
     }
-    return <p className="text-sm text-muted-foreground">Loading widgets…</p>
+    return <LoadingRow label="Reading widgets" />
   }
 
   return <WidgetEditor layout={layout} onLayoutChange={changeLayout} />

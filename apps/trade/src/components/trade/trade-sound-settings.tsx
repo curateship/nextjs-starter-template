@@ -2,6 +2,7 @@ import { DiscoverySoundSettings } from "./market-explorer/discovery-sound-settin
 import * as React from "react"
 import { toast } from "sonner"
 
+import { LoadingRow } from "@/components/ui/loading-row"
 import { useTradePageTitle } from "@/app/page-title"
 import { LineAlertSettings } from "@/components/trade/line-alert-settings"
 import { useRememberedTradeSoundSetting } from "@/components/trade/trade-sounds"
@@ -133,11 +134,13 @@ function TradeSoundSettingsCard() {
       <CardContent>
         {!loaded ? (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {loadFailed
-                ? "The sound setting could not be loaded."
-                : "Loading sound settings…"}
-            </p>
+            {loadFailed ? (
+              <p className="text-sm text-muted-foreground">
+                The sound setting could not be loaded.
+              </p>
+            ) : (
+              <LoadingRow label="Reading sound settings" />
+            )}
             {loadFailed ? (
               <Button
                 type="button"

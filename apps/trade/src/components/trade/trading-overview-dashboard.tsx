@@ -322,7 +322,7 @@ function TradesTable({
       rows={visible}
       loading={false}
       failed={false}
-      loadingLabel="Loading trades"
+      loadingLabel="Reading trades"
       failedWords="Trades could not be loaded."
       emptyWords={
         venues || walletIds

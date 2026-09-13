@@ -82,8 +82,8 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
   const { sort, direction, toggleSort } = useTableSort<Column>("ran", "desc")
 
   const refresh = React.useCallback(
-    async (includeArchived: boolean) => {
-      setBusy(true)
+    async (includeArchived: boolean, quiet = false) => {
+      if (!quiet) setBusy(true)
       try {
         const { runs: next } = await loadBacktests({ includeArchived })
         setRuns(next)
@@ -91,7 +91,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
       } catch (loadError) {
         setError(getBacktestErrorMessage(loadError))
       } finally {
-        setBusy(false)
+        if (!quiet) setBusy(false)
       }
     },
     []
@@ -103,7 +103,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
   const now = useBacktestClock(anyRunning)
   React.useEffect(() => {
     if (!anyRunning) return
-    const timer = setInterval(() => void refresh(showArchived), 2_000)
+    const timer = setInterval(() => void refresh(showArchived, true), 2_000)
     return () => clearInterval(timer)
   }, [anyRunning, refresh, showArchived])
 

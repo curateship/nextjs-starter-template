@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act, useState } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
@@ -127,6 +130,74 @@ function draw(node: AutomationNode, graph?: AutomationGraph): string {
 }
 
 describe("what each buy spends", () => {
+  it("keeps empty and invalid rung text until a valid number is entered", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const changed = vi.fn()
+    function Panel() {
+      const [node, setNode] = useState(() =>
+        dcaNode({ rungs: [{ deviation: 5 }, { deviation: 2.5 }] })
+      )
+      return (
+        <TooltipProvider>
+          <TradeDcaFields
+            node={node}
+            graph={graphWith(10000, node)}
+            onChange={(next) => {
+              changed(next)
+              setNode(next)
+            }}
+          />
+        </TooltipProvider>
+      )
+    }
+    try {
+      await act(async () => root.render(<Panel />))
+      const input = host.querySelector<HTMLInputElement>("#dca-dca-1-rung-1")!
+      expect(input).not.toBeNull()
+      const type = async (text: string) =>
+        act(async () => {
+          Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value"
+          )!.set!.call(input, text)
+          input.dispatchEvent(new Event("input", { bubbles: true }))
+        })
+      await type("")
+      expect(input.value).toBe("")
+      expect(input.getAttribute("aria-invalid")).toBe("true")
+      expect(changed).not.toHaveBeenCalled()
+      await type("150")
+      expect(input.value).toBe("150")
+      expect(
+        host.querySelector(`#${input.getAttribute("aria-describedby")}`)
+          ?.textContent
+      ).toContain("Between 0.01 and 99 %")
+      expect(changed).not.toHaveBeenCalled()
+      await type("2.5")
+      expect(input.value).toBe("2.5")
+      expect(input.getAttribute("aria-invalid")).toBe("false")
+      expect(
+        changed.mock.calls.at(-1)?.[0].settings.params.rungs[0].deviation
+      ).toBe(2.5)
+      await type("150")
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>('[aria-label="Remove rung 1"]')!
+          .click()
+      )
+      const remaining =
+        host.querySelector<HTMLInputElement>("#dca-dca-1-rung-1")!
+      expect(remaining.value).toBe("2.5")
+      expect(remaining.getAttribute("aria-invalid")).toBe("false")
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  })
+
   it("shows the money, not a share of a share", () => {
     // Nine rungs, 3% of a $10,000 pot, each buy twice the one above: the shares
     // run from 0.01% to 3%, which nobody can read as money in their head.

@@ -19,6 +19,14 @@ The sidebar is stored in the database. Add an admin-only link to
 
 ## The canvas
 
+Each DCA rung percentage keeps the text being typed. Clearing the field leaves
+it empty so a replacement can be entered. Values below 0.01 or above 99 remain
+visible with an error explaining the range. Only valid values update the step.
+The last valid setting remains saved while the field is invalid. The error is
+linked to the field for screen readers, and the buy-size column stays beside it.
+Adding or removing rungs resets their unsaved text so a draft cannot move onto
+a different rung.
+
 The middle header has **Canvas** and **Results** tabs. Canvas returns from a
 result to the recipe. Results opens the newest finished backtest for that
 recipe. A recipe with no result keeps Results muted and unavailable.

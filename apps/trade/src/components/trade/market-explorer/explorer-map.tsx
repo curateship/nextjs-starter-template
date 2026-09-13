@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { LoadingRow } from "@/components/ui/loading-row"
 import * as React from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -74,9 +75,9 @@ export function ExplorerMap({
             volume. Colour shows the chosen price move.
           </p>
           {!markets.length && (
-            <div role="status">
+            <div role={pending ? undefined : "status"}>
               {pending ? (
-                "Loading markets…"
+                <LoadingRow label="Reading the market list" />
               ) : failed ? (
                 <>
                   The exchanges did not answer.{" "}

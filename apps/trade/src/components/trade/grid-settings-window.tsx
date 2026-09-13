@@ -760,7 +760,6 @@ function StopForm({
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   className="justify-start"
                   disabled={
                     busy || !canReshape || rungs.length >= MAX_GRID_LEVELS
@@ -784,8 +783,9 @@ function StopForm({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  disabled={busy || !canReshape || rungs.length < MIN_GRID_LEVELS}
+                  disabled={
+                    busy || !canReshape || rungs.length < MIN_GRID_LEVELS
+                  }
                   onClick={evenSplit}
                 >
                   Even split

@@ -116,7 +116,7 @@ describe("Markets table", () => {
       change = vi.fn()
     await draw([], { pending: true })
     expect(host.querySelector("table")?.textContent).toContain(
-      "Loading markets"
+      "Reading the market list"
     )
     await draw([], { failed: true, retry })
     const button = [...host.querySelectorAll("button")].find(

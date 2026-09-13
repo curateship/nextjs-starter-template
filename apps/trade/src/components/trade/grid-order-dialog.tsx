@@ -1349,7 +1349,6 @@ export function GridOrderDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   className="justify-start"
                   disabled={busy || rungs.length >= MAX_GRID_LEVELS}
                   onClick={touched(addRung)}
@@ -1369,7 +1368,6 @@ export function GridOrderDialog({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   disabled={busy || rungs.length < MIN_GRID_LEVELS}
                   onClick={touched(evenSplit)}
                 >

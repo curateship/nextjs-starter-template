@@ -168,7 +168,6 @@ export function DcaSettingsFields({
           <Button
             type="button"
             variant="outline"
-            size="sm"
             className="justify-start"
             disabled={busy || form.rungs.length >= 20}
             onClick={addRung}

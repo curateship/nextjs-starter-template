@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Input } from "@/components/ui/input"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
@@ -392,10 +393,15 @@ function MarginForm({
                           }. This app's estimate. The row shows the exchange's own figure once it answers.`}
                     </p>
                   </>
-                ) : (
+                ) : leverageRefusal ? (
                   <p className="text-xs text-muted-foreground">
-                    {leverageRefusal ?? "Reading what this exchange allows…"}
+                    {leverageRefusal}
                   </p>
+                ) : (
+                  <LoadingRow
+                    label="Reading what this exchange allows"
+                    className="py-3 text-xs"
+                  />
                 )}
               </CardContent>
             </Card>
@@ -446,10 +452,15 @@ function MarginForm({
                             }. This app's estimate. The row shows the exchange's own figure once it answers.`}
                     </p>
                   </>
-                ) : (
+                ) : marginRefusal ? (
                   <p className="text-xs text-muted-foreground">
-                    {marginRefusal ?? "Reading what this exchange allows…"}
+                    {marginRefusal}
                   </p>
+                ) : (
+                  <LoadingRow
+                    label="Reading what this exchange allows"
+                    className="py-3 text-xs"
+                  />
                 )}
               </CardContent>
             </Card>

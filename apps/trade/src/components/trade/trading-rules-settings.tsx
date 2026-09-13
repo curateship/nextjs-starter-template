@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { LoadingRow } from "@/components/ui/loading-row"
 import { useTradePageTitle } from "@/app/page-title"
 import { useTradeSettingsBootstrap } from "@/components/trade/trade-settings-context"
 import { useTradingRules } from "@/components/trade/use-trading-rules"
@@ -76,11 +77,13 @@ export default function TradingRulesSettings() {
     return (
       <Card>
         <CardContent className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {loadFailed
-              ? "Your trading rules could not be loaded."
-              : "Loading your trading rules…"}
-          </p>
+          {loadFailed ? (
+            <p className="text-sm text-muted-foreground">
+              Your trading rules could not be loaded.
+            </p>
+          ) : (
+            <LoadingRow label="Reading your trading rules" />
+          )}
           {loadFailed ? (
             <Button
               type="button"

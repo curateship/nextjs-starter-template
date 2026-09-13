@@ -63,8 +63,12 @@ The graph records results from midnight on 20 August 2026 in Toronto through
 the latest account read. Controls in the card's top-right space show today, one
 week, one month, three months, six months, or all recorded results. Today means
 the current calendar day from midnight, not the last 24 hours. The two calendar
-fields set an exact start and end date, and Reset returns to All. Every wallet
-line changes together. Filtering crops the graph without changing the current
+fields set an exact start and end date, and Reset returns to All. Each
+date picker has a visible From or To label. With no profit history, hovering
+or focusing either disabled picker's wrapper explains that there is no history
+to choose a range from yet. The pickers, presets and Reset use their standard
+32px controls. Keyboard focus moves through From, To and Reset.
+Every wallet line changes together. Filtering crops the graph without changing the current
 account and wallet figures. Dates outside recorded history show that no results
 fall inside the range. The graph does not carry the last known result into days
 the app has not read.

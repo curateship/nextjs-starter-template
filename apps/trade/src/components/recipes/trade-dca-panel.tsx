@@ -20,7 +20,6 @@ import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -55,7 +54,7 @@ import {
 
 /** The four columns, on the header and every rung, so they line up. */
 const RUNG_GRID =
-  "grid grid-cols-[1rem_minmax(0,1fr)_minmax(0,1fr)_1.75rem] items-center gap-2"
+  "grid grid-cols-[1rem_minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-2"
 
 /**
  * The ladder to test — the same settings as the right-click window on the
@@ -198,17 +197,22 @@ export default function TradeDcaFields({
         </div>
 
         {params.rungs.map((rung, index) => (
-          <div key={index} className={RUNG_GRID}>
-            <span className="text-right text-xs text-muted-foreground">
+          <div
+            key={`${node.id}-${params.rungs.length}-${index}`}
+            className={cn(RUNG_GRID, "items-start")}
+          >
+            <span className="flex h-8 items-center justify-end text-xs text-muted-foreground">
               {index + 1}
             </span>
-            <Input
-              inputMode="decimal"
-              value={String(rung.deviation)}
-              aria-label={`Rung ${index + 1}, percent below the buy above`}
-              onChange={(event) => {
-                const next = Number(event.target.value.trim())
-                if (!Number.isFinite(next) || next <= 0 || next > 99) return
+            <TradeNumberField
+              id={`dca-${node.id}-rung-${index + 1}`}
+              label={`Rung ${index + 1}, percent below the buy above`}
+              hideLabel
+              value={rung.deviation}
+              min={0.01}
+              max={99}
+              suffix="%"
+              onChange={(next) => {
                 setParams({
                   rungs: params.rungs.map((one, at) =>
                     at === index ? { deviation: next } : one
@@ -231,7 +235,7 @@ export default function TradeDcaFields({
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               disabled={params.rungs.length <= 1}
               aria-label={`Remove rung ${index + 1}`}
               onClick={() =>
@@ -247,7 +251,6 @@ export default function TradeDcaFields({
         <Button
           type="button"
           variant="outline"
-          size="sm"
           className="justify-self-start"
           disabled={params.rungs.length >= MAX_DCA_RUNGS}
           onClick={() =>

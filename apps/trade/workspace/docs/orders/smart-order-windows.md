@@ -440,3 +440,10 @@ To check in a practice wallet, choose Market in the manual order window.
 Press the order button, read the summary, and cancel. Repeat with Enter and
 Escape. Then confirm once and check that only one order appears. Repeat at
 phone width and when adding to a position.
+
+## Button height
+
+Standard secondary buttons use 32px, matching the fields beside them. This
+includes size presets in manual, exit and close forms, Add rung and Even split
+in grid forms, Add rung in DCA settings, and the indicator defaults button.
+Full modal footer buttons remain 36px. Margin changes already use that footer.

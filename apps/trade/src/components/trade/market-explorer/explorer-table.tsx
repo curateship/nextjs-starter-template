@@ -470,7 +470,7 @@ export function ExplorerTable({
                   span={columns.length + 4}
                   loading={pending}
                   failed={failed}
-                  loadingLabel="Loading markets…"
+                  loadingLabel="Reading the market list"
                   onRetry={retry}
                   empty={
                     <>

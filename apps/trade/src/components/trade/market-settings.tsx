@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Button } from "@/components/ui/button"
 import { Loader2Icon } from "lucide-react"
 import { useTradeSettingsBootstrap } from "@/components/trade/trade-settings-context"
@@ -97,11 +98,13 @@ export default function MarketSettings() {
     return (
       <Card>
         <CardContent className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {loadFailed
-              ? "The market setting could not be loaded."
-              : "Loading market settings…"}
-          </p>
+          {loadFailed ? (
+            <p className="text-sm text-muted-foreground">
+              The market setting could not be loaded.
+            </p>
+          ) : (
+            <LoadingRow label="Reading market settings" />
+          )}
           {loadFailed ? (
             <Button
               type="button"

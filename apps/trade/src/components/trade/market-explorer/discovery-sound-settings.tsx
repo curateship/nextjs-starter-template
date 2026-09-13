@@ -1,4 +1,5 @@
 import * as React from "react"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
@@ -66,7 +67,7 @@ export function DiscoverySoundSettings() {
             Retry discovery sound settings
           </Button>
         ) : enabled === null ? (
-          <span>Loading discovery sound settings…</span>
+          <LoadingRow label="Reading discovery sound settings" />
         ) : (
           <label className="flex items-center gap-2 text-sm">
             <Switch

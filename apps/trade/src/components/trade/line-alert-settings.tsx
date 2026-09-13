@@ -1,6 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -84,11 +85,13 @@ export function LineAlertSettings() {
       <CardContent>
         {paused === null ? (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {loadFailed
-                ? "The line alerts setting could not be loaded."
-                : "Loading the line alerts setting…"}
-            </p>
+            {loadFailed ? (
+              <p className="text-sm text-muted-foreground">
+                The line alerts setting could not be loaded.
+              </p>
+            ) : (
+              <LoadingRow label="Reading the line alerts setting" />
+            )}
             {loadFailed ? (
               <Button
                 type="button"

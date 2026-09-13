@@ -397,7 +397,7 @@ function FiredAlertsView({
   useErrorToast(busy && !known ? null : error, onRetry)
 
   if (busy && !known) {
-    return <LoadingRow label="Loading fired alerts..." className="min-h-32" />
+    return <LoadingRow label="Reading fired alerts" className="min-h-32" />
   }
   if (error && !known) {
     return <ErrorRow message={error} onRetry={onRetry} />

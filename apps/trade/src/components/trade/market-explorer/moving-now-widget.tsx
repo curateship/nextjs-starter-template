@@ -67,7 +67,7 @@ export function MovingNowWidget({ className }: { className?: string }) {
               </Button>
             </p>
           ) : (
-            <LoadingRow label="Loading markets…" />
+            <LoadingRow label="Reading the market list" />
           )}
         </div>
       </ScrollArea>
@@ -116,11 +116,11 @@ function MovingNowList({ opening }: { opening: ExplorerOpening }) {
             </li>
           ))}
         </ol>
+      ) : pending ? (
+        <LoadingRow label="Reading the market list" />
       ) : (
         <p className="text-sm text-muted-foreground">
-          {pending
-            ? "Loading markets…"
-            : "Waiting for one uninterrupted minute of live figures."}
+          Waiting for one uninterrupted minute of live figures.
         </p>
       )}
       {venues
