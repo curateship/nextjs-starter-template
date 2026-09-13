@@ -364,6 +364,7 @@ export function RecipeEditor({
       title={name}
       action={
         <div className="flex items-center gap-2">
+          <FlowStatusHeader automationId={initial.id} beforeRun={saveNow} />
           <Tabs value="canvas">
             <TabsList aria-label="Recipe view">
               <TabsTrigger value="canvas">Canvas</TabsTrigger>
@@ -382,7 +383,6 @@ export function RecipeEditor({
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <FlowStatusHeader automationId={initial.id} beforeRun={saveNow} />
         </div>
       }
     />

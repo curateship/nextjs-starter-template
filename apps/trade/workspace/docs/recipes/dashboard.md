@@ -27,7 +27,8 @@ linked to the field for screen readers, and the buy-size column stays beside it.
 Adding or removing rungs resets their unsaved text so a draft cannot move onto
 a different rung.
 
-The middle header has **Canvas** and **Results** tabs. Canvas returns from a
+The trading status sits immediately before the **Canvas** and **Results** tabs
+in the middle header. Canvas returns from a
 result to the recipe. Results opens the newest finished backtest for that
 recipe. A recipe with no result keeps Results muted and unavailable.
 

@@ -254,7 +254,7 @@ always used.
 
 ## recipes/
 
-- `dashboard.md` explains DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
+- `dashboard.md` explains trading status before the canvas tabs, DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
   Switch on run, the live-run deletion rule, and how saved Trade drawings move
   out of Automations.
 
