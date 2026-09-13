@@ -23,6 +23,7 @@ import {
   reshapeLiveGrid,
   setLiveGridFollow,
   updateLiveGridEnd,
+  updateLiveGridStop,
 } from "@/server/trade/live-grid-orders"
 import {
   createPlanPostgresDatabase,
@@ -3095,6 +3096,38 @@ describe("changing a live grid while it is flat", () => {
       protectionOrderIds: [],
     }
   }
+
+  it("removes a live grid stop only after the exchange accepts removal", async () => {
+    await restingGrid()
+    portfolio.mockResolvedValue({ positions: [{ ...lighterPosition(), slPx: 76, slOrderId: "stop-1" }], orders: [] })
+    setBrackets.mockImplementation(async (_network, _auth, input) => {
+      if (input.slPx === null) throw new Error("exchange refused removal")
+      return { slOrderId: "stop-1" }
+    })
+    await expect(updateLiveGridStop(userId, wallet, { gridId: "grid-1", stopLoss: null })).rejects.toThrow()
+    expect((await gridPlan()).stopLoss).not.toBeNull()
+    setBrackets.mockResolvedValue({ slOrderId: null })
+    await updateLiveGridStop(userId, wallet, { gridId: "grid-1", stopLoss: null })
+    expect(setBrackets).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ slPx: null }))
+    expect((await gridPlan()).stopLoss).toBeNull()
+    expect((await gridPlan()).reverseWhenStopped).toBe(false)
+    expect(close).not.toHaveBeenCalled()
+  })
+
+  it("removes a short grid's exchange stop", async () => {
+    await restingGrid()
+    const plan = await gridPlan()
+    plan.direction = "short"
+    plan.paused = true
+    plan.stopLoss = { mode: "fixed", px: 110, underPct: 5, base: null }
+    plan.aimedSlPx = 110
+    await database.update(tradeSmartLadders).set({ plan }).where(eq(tradeSmartLadders.id, "grid-1"))
+    portfolio.mockResolvedValue({ positions: [{ ...lighterPosition(), szi: -1, slPx: 110, slOrderId: "old-stop" }], orders: [] })
+    await updateLiveGridStop(userId, wallet, { gridId: "grid-1", stopLoss: null })
+    expect(setBrackets).toHaveBeenCalledWith("testnet", expect.anything(), expect.objectContaining({ slPx: null, position: expect.objectContaining({ szi: -1 }) }))
+    expect((await gridPlan()).stopLoss).toBeNull()
+    expect(close).not.toHaveBeenCalled()
+  })
 
   it("keeps End Grid when upward following is switched on", async () => {
     await restingGrid(110)

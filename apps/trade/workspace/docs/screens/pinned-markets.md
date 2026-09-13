@@ -33,7 +33,7 @@ still in the exchange catalogue. Malformed keys, unknown exchanges, unsupported
 chart destinations and duplicate keys are removed when reading saved values.
 
 A click updates the chart button and header immediately. A failed save restores
-the previous list and explains the failure in an error toast. A failed initial
+the previous list and keeps its figures, then explains the failure in an error toast. A failed initial
 read leaves the usual navigation visible with a Retry header pins button. The
 pin control waits until the saved list has loaded.
 
@@ -86,8 +86,9 @@ visible hole between the two. What holds the row steady is `tabular-nums`:
 every digit is the same width, so a figure ticking from -2.15% to -2.17% moves
 nothing beside it.
 
-The header refreshes every 15 seconds while the tab is visible. Receiving a
-saved pin list does not restart the timer or cause a second immediate read. The server
+The header refreshes every 15 seconds while the tab is visible. Removing a pin does not restart the timer, clear other figures, or ask for
+another price read. Adding a pin reads its figure immediately without clearing
+existing figures. Receiving a saved pin list leaves the timer running. The server
 reuses the shared market price reads, grouped by exchange and network, and the
 shared market catalogue. The previous day's reference price comes from the
 catalogue; today's change is recalculated against the current price.

@@ -426,7 +426,7 @@ export async function updateLiveGridStop(
   wallet: TradeWallet,
   input: {
     gridId: string
-    stopLoss: GridStop
+    stopLoss: GridStop | null
     reverseWhenStopped?: boolean
     lineStop?: GridLineStop | null
   }
@@ -476,9 +476,10 @@ export async function updateLiveGridStop(
         await movePairedGridStop(userId, wallet.id, grid.marketKey, plan, slPx)
       }
     } else if (
-      ordersOf(protocol).fixedSizeStops
-        ? (await heldOnExchange(userId, wallet, grid.marketKey)) !== 0
-        : (await heldOnExchange(userId, wallet, grid.marketKey)) > 0
+      holdsEntry(
+        plan.direction,
+        await heldOnExchange(userId, wallet, grid.marketKey)
+      )
     ) {
       // Only onto the exchange when there is something to protect. Flat, the
       // plan is the whole record, and `advanceGrid` writes the stop onto the

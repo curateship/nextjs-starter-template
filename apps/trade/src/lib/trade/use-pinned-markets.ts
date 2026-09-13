@@ -92,8 +92,9 @@ function createStore() {
         const answer = await saveHeaderPinnedMarket(key, pinned)
         publish({ ...state, pins: answer.pins, busy: false })
         if (answer.error) showErrorToast(answer.error)
+        if (pinned && answer.pins.includes(key)) void this.refresh()
       } catch {
-        publish({ ...before, quotes: withoutPrices(before.quotes), busy: false })
+        publish({ ...before, busy: false })
         showErrorToast("The header pin could not be saved. Try again.")
       }
     },

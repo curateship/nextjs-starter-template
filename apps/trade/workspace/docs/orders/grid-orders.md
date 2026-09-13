@@ -738,9 +738,9 @@ finished, so nothing was changed."
 
 ## The stop
 
-Every grid has a stop. The placement window asks where it sits, but has no
-switch that can remove it. The running grid window can move or change the stop,
-but cannot remove it either.
+New grids require a stop when placed. The running grid window changes or
+restores the stop. The SL bar's × removes the ordinary stop while leaving the
+grid running. See Removing the chart stop below for the save and refusal rules.
 
 The stop hangs off the **losing end of the range** — below the bottom on a
 buying grid, above the top on a selling one.
@@ -1067,3 +1067,39 @@ The app only exposes Lighter mainnet. No database migration is needed. Productio
 requires the web, engine and worker to receive the same build when deployment
 is explicitly authorized. Existing ordinary Lighter grids acquire their stop
 on the next successful engine pass after that build starts.
+
+
+## Removing the chart stop
+
+The ordinary SL bar has an × button. Removing the stop keeps the grid and
+its position open. Automatic reversal switches off because there is no stop
+left to reach. The stop bar stays above entry bars and grid controls.
+
+The button stays disabled while removal is pending. An exchange refusal keeps
+the saved stop and shows the existing error toast. The button then allows a
+retry. A grid sharing the coin with a DCA ladder refuses removal before any
+exchange change, because the stop separates the two orders.
+
+Practice removal clears the position's stop and the grid's remembered stop.
+Live removal uses the existing bracket action to remove exchange protection
+where the exchange supports a resting stop. The server saves the changed plan
+only after that action succeeds. Removal handles both long and short positions
+and leaves an opposite-direction position alone. Watched stops change the grid's plan.
+New grids still require a stop when placed. Grid settings can restore a stop.
+
+No database migration is needed. The saved grid already accepts an empty stop.
+The web and engine code need the normal release before production has the new
+removal action. Local implementation does not deploy that release.
+
+### Checking the chart controls
+
+1. On a practice grid, drag the SL line away from its label. The bar and dollar
+   figure should follow. Release, then reload to check the saved price.
+2. Move the stop close to an entry or grid-control bar. The SL bar and its ×
+   should stay on top. The overlapped bar should not take the click.
+3. Click ×. The stop should disappear after saving while the grid and position
+   remain open. Reload, then restore a stop through grid settings.
+4. Use Tab to focus × and Enter to remove the stop. Cancel a drag and confirm
+   the price remains unchanged.
+5. Use the focused server tests for exchange refusals and successful removal.
+   Real exchange stop removal needs a separate check with an authorized trade.

@@ -666,7 +666,7 @@ const gridStopUpdateSchema = z.object({
   lineStop: gridLineStopSchema.nullable().optional(),
   walletId: z.string().max(36),
   gridId: z.string().max(36),
-  stopLoss: placeGridParamsSchema.shape.stopLoss,
+  stopLoss: placeGridParamsSchema.shape.stopLoss.nullable(),
   /** The reverse-when-stopped switch, only when the window changed it. */
   reverseWhenStopped: z.boolean().optional(),
 })

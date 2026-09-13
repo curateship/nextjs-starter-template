@@ -23,6 +23,7 @@ import {
   type StopMerge,
 } from "@/lib/trade/order-line-groups"
 import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
+import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 
 /**
@@ -587,6 +588,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
 
   for (const order of waiting) {
     const tag = whose(order.walletId)
+    const protocol = parseMarketKey(order.marketKey)?.protocol
     // An order still on its way to the server has no id anything could act on,
     // so it is drawn and nothing more. It says so rather than looking stuck.
     const settled = !order.placing && !order.taking
@@ -616,7 +618,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         order.taking
           ? `Placing order...${tag}`
           : order.checking
-            ? `Checking Hyperliquid order...${tag}`
+            ? `Checking ${protocol ? `${protocolLabel(protocol)} ` : ""}order...${tag}`
           : spare
             ? `Extra ${spare === "take_profit" ? "Target" : "Stop"} ${formatUsdRounded(
                 orderCostUsd(order)

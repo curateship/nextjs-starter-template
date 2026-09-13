@@ -561,13 +561,14 @@ describe("one stop line for the hand-placed orders that share it", () => {
 
   function renderOrders(
     orders: readonly TradeOrder[],
-    onMergeStops?: (merges: readonly { orderId: string; price: number }[]) => void
+    onMergeStops?: (merges: readonly { orderId: string; price: number }[]) => void,
+    marketKey = MARKET
   ): string {
     return renderToStaticMarkup(
       <TradeLinesLayer
         surface={surface}
         colors={colors}
-        marketKey={MARKET}
+        marketKey={marketKey}
         currentPx={100}
         positions={[]}
         orders={orders}
@@ -597,6 +598,15 @@ describe("one stop line for the hand-placed orders that share it", () => {
     ])
     expect(html).toContain("Checking Hyperliquid order...")
     expect(html).not.toContain("Placing order...")
+  })
+
+  it("names KuCoin when checking a KuCoin order", () => {
+    const marketKey = "kucoin:mainnet:XBTUSDTM"
+    const html = renderOrders([
+      { ...watched("checking", 100, 90), marketKey, checking: true },
+    ], undefined, marketKey)
+    expect(html).toContain("Checking KuCoin order...")
+    expect(html).not.toContain("Hyperliquid")
   })
 
   it("draws one pill carrying what both orders lose together", () => {

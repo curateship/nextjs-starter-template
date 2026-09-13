@@ -1403,6 +1403,12 @@ export function ChartPanel({
     [tradingMoveGridExit]
   )
 
+  const tradingSetGridStop = trading.setGridStop
+  const onRemoveGridStop = React.useCallback(
+    (one: SmartGrid) => tradingSetGridStop(one.walletId, one.id, null, false, null),
+    [tradingSetGridStop]
+  )
+
   // The candles on screen right now: an answer whose tag does not match what
   // is wanted belongs to a market that was switched away from, and is not one.
   //
@@ -1867,15 +1873,13 @@ export function ChartPanel({
           onOpenSettings={openGridSettings}
           onMoveRange={onMoveGridRange}
           onMoveExit={onMoveGridExit}
+          onRemoveStop={onRemoveGridStop}
         />
         {/* Over the orders and under the ruler: a finished trade is history,
             so it must never hide a stop that is live right now, and
             Shift-dragging across it still measures. */}
-        {/* AFTER the smart-order layers, so a position's pills paint over
-            their chips. A grid level at the entry price used to stamp its
-            money chip on top of the Entry pill's words — and the pills are
-            the lines that carry the ×, the gear and the drag, so they are
-            the ones a hand must always be able to find. */}
+        {/* Position pills cover ordinary grid chips. The grid stop has a
+            higher stacking order so its controls remain visible. */}
         <TradeLinesLayer
           surface={surface}
           colors={colors}
@@ -2017,6 +2021,7 @@ export function ChartPanel({
       onCancelGridLevel,
       onMoveGridRange,
       onMoveGridExit,
+      onRemoveGridStop,
       onCancelLadder,
       openGridSettings,
       openLadderSettings,

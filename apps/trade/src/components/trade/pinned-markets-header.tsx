@@ -50,7 +50,7 @@ export default function PinnedMarketsHeader({
       document.removeEventListener("visibilitychange", visibility)
       store.clearPrices()
     }
-  }, [store, busy])
+  }, [store])
 
   /*
     Pins sit BESIDE the normal navigation, never instead of it, and at the far

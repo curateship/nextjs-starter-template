@@ -327,11 +327,18 @@ behind it.
 
 ## Which chart line wins an overlap
 
-The position's pill does. Entry, LIQUIDATION and the targets stay on the far
-right of the plot and never slide inwards to make room for a grid (Tyler,
-3 Sep 2026). A grid rung at the entry price has its money chip under the Entry
-pill; the pill is painted last and is what you see. The grid used to hand the
-trade-lines layer a map of its chips so the pills could slide left of them,
-and an Entry pill inside a grid ended up well inside the plot. That hand-off is
-gone. Two pills from the trade-lines layer itself still move apart from each
-other as before.
+The grid stop-loss bar stays above entries, grid summaries, and rung labels.
+The stop keeps its own row even when its price matches a range boundary.
+The stop's × removes the stop without closing the grid or its position.
+
+Other position pills stay on the far right of the plot and cover grid money
+chips at the same price. Two pills from the trade-lines layer still move apart
+from each other.
+
+Grid lines with drag handles also accept dragging along the line itself.
+A drawing tool disables grid-stop dragging. Cancelling a pointer drag saves
+nothing. The stop's × never starts a drag.
+
+A waiting order's checking message names the exchange in that order's market
+key. KuCoin orders say "Checking KuCoin order...". Hyperliquid orders keep
+"Checking Hyperliquid order...". The message does not change order routing.

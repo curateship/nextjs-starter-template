@@ -338,8 +338,11 @@ add up to.
   selling one. The average moves as the grid recycles, so a stop following it
   would drift into the range and close the grid on an ordinary swing, which is
   the exact move a grid exists to trade.
-- Tyler, 27 Aug 2026: **A grid smart order always has a stop loss.** The stop
-  cannot be switched off when the grid is placed or while it is running.
+- A newly placed grid requires a stop loss. Tyler, 13 Sep 2026: **There should
+  be an "x" icon to close stoploss.** The running grid's ordinary stop can be
+  removed from its chart bar. Removal keeps the grid trading and switches off
+  automatic reversal. A grid sharing its coin with a DCA ladder still requires
+  its stop because the stop separates the two orders.
 - **A selling grid whose stop sits past the exchange's close-out price is
   refused.** A coin you bought at $100 can only fall to zero, so a buying
   grid's worst case is bounded. A coin you sold at $100 has no ceiling, and

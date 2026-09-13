@@ -35,7 +35,7 @@ screen: anything not written there has not been agreed yet.
 - `hiding-profit-and-loss.md` — the one switch in the header's settings cog
   that blurs every figure saying what you made or lost, what it deliberately
   leaves readable, and how it is remembered.
-- `pinned-markets.md` — fixed member links, saved header pins, price refreshes,
+- `pinned-markets.md` — stable figures during pin removal, fixed member links, saved header pins, price refreshes,
   the five-market limit, narrow screens and the pending member-access decision.
 - `daily-goal.md` — positive-profit button colour and the daily goal: how the target is set as a percent of the
   wallets or a fixed amount, what the header button says, what counts as money
@@ -99,7 +99,7 @@ screen: anything not written there has not been agreed yet.
   whether it waits for a touch or a candle's close, the above-average volume
   the breaking candle has to carry, and the master switch that pauses the lot.
 - `indicators.md` — the indicator list and how each one draws.
-- `orders-on-the-chart.md` — the cursor + menu and its clearance around manual, grid and DCA ladder controls, disabled duplicate smart orders, dragging orders on the chart, the one stop and one
+- `orders-on-the-chart.md` — exchange-specific checking messages, grid line dragging and stop priority; the cursor + menu and its clearance around manual, grid and DCA ladder controls, disabled duplicate smart orders, dragging orders on the chart, the one stop and one
   exit the hand-placed orders share, buying more, selling part, leverage, the
   one rule for the money beside each grid line, and which chart line wins an
   overlap.
@@ -133,7 +133,7 @@ screen: anything not written there has not been agreed yet.
   real-money Long, Short, DCA or Grid, the one warning window that names what
   is unmet and asks him to confirm or go back, and the "Overrode" note the
   Journal keeps.
-- `grid-orders.md` — Lighter resting stops, size reconciliation and the live testing roadmap; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
+- `grid-orders.md` — chart stop removal, pending and refused saves, testing steps; Lighter resting stops, size reconciliation and the live testing roadmap; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, and what following price up and down does.
 - `grid-rung-gap.md` — typing the percent gap between rungs instead of a

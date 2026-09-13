@@ -698,7 +698,7 @@ export async function cancelGridRest(
 export async function updateGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean; lineStop?: GridLineStop | null }
+  input: { gridId: string; stopLoss: GridStop | null; reverseWhenStopped?: boolean; lineStop?: GridLineStop | null }
 ): Promise<void> {
   if (!hasWalletPlanWrite(userId, wallet.id)) {
     return await withWalletPlanWrite(userId, wallet.id, () =>

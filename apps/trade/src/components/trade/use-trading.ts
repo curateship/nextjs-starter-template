@@ -564,7 +564,7 @@ export type Trading = {
   setGridStop: (
     walletId: string,
     gridId: string,
-    stopLoss: GridStop,
+    stopLoss: GridStop | null,
     reverseWhenStopped?: boolean,
     lineStop?: GridLineStop | null
   ) => Promise<boolean>

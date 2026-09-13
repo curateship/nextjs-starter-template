@@ -903,6 +903,23 @@ describe("the stop", () => {
     expect(await positions()).toHaveLength(0)
   })
 
+  it("removes a running grid stop without closing the position or restoring the stop", async () => {
+    await place({ stopLoss: { underPct: 5, base: null }, reverseWhenStopped: true })
+    await priceTo(109)
+    const before = await onlyGrid()
+    expect((await positions())[0].slPx).toBeCloseTo(76, 9)
+    await updateGridStop(userId, wallet, { gridId: before.id, stopLoss: null })
+    const changed = await onlyGrid()
+    expect(changed.plan.stopLoss).toBeNull()
+    expect(changed.plan.aimedSlPx).toBeNull()
+    expect(changed.plan.reverseWhenStopped).toBe(false)
+    expect(changed.status).toBe("active")
+    expect((await positions())[0].slPx).toBeNull()
+    await priceTo(75)
+    expect((await onlyGrid()).status).toBe("active")
+    expect((await positions())[0].slPx).toBeNull()
+  })
+
   it("fades a level under the stop and brings it back when the stop moves down", async () => {
     // A stop ON the bottom kills the level sitting there: price cannot reach
     // it without the stop firing first.

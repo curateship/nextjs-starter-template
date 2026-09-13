@@ -94,6 +94,20 @@ describe("header market pins", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
     expect(api.load).toHaveBeenCalledTimes(2)
   })
+  it("keeps other pins and their figures while removing a pin", async () => {
+    pins = [key("BTC"), key("ETH")]
+    await mount()
+    const eth = host.querySelector('a[aria-label^="Open ETH"]')
+    let finish!: (value: { pins: string[]; error: null }) => void
+    api.save.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    await click("Unpin BTC, hyperliquid, mainnet from header")
+    expect(host.querySelector('a[aria-label^="Open ETH"]')).toBe(eth)
+    expect(eth?.textContent).toContain("+1.20%")
+    expect(api.load).toHaveBeenCalledTimes(1)
+    await act(async () => { finish({ pins: [key("ETH")], error: null }) })
+    expect(eth?.textContent).toContain("+1.20%")
+    expect(api.load).toHaveBeenCalledTimes(1)
+  })
   it("does not restore a removed pin when an older read finishes", async () => {
     pins = [key("BTC")]
     await mount()

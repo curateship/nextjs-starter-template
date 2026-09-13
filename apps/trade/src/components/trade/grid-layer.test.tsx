@@ -142,9 +142,11 @@ function layer(
   onMoveRange: (
     grid: SmartGrid,
     move: { end: "top" | "bottom" | "whole"; px: number }
-  ) => Promise<boolean> = async () => true
+  ) => Promise<boolean> = async () => true,
+  onRemoveStop?: (grid: SmartGrid) => Promise<boolean>
 ) {
   return (
+    <TooltipProvider>
     <GridLayer
       surface={surface}
       colors={colors}
@@ -162,7 +164,9 @@ function layer(
       onOpenSettings={() => undefined}
       onMoveRange={onMoveRange}
       onMoveExit={onMoveExit}
+      onRemoveStop={onRemoveStop}
     />
+    </TooltipProvider>
   )
 }
 
@@ -303,6 +307,69 @@ describe("the grid stop-loss line", () => {
       )
     )
     expect(html).toContain("SL —")
+  })
+
+  it("drags the stop from the line away from its label", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveExit = vi.fn(async () => true)
+    try {
+      await act(async () => root.render(layer(grid("long"), onMoveExit)))
+      const line = host.querySelector('[data-chart-line-drag="SL -$70.00"]')
+      expect(line).not.toBeNull()
+      await act(async () => {
+        line!.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 120 }))
+        window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientY: 130 }))
+      })
+      expect(onMoveExit).toHaveBeenCalledWith(expect.objectContaining({ id: "grid" }), "stopLoss", 70)
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it("does not save a cancelled stop-line drag", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveExit = vi.fn(async () => true)
+    try {
+      await act(async () => root.render(layer(grid("long"), onMoveExit)))
+      const line = host.querySelector('[data-chart-line-drag^="SL"]')!
+      await act(async () => {
+        line.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 120 }))
+        window.dispatchEvent(new MouseEvent("pointercancel", { bubbles: true }))
+        window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientY: 130 }))
+      })
+      expect(onMoveExit).not.toHaveBeenCalled()
+      expect(host.textContent).toContain("SL -$70.00")
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it("keeps a refused stop removal visible and allows retry without dragging", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onMoveExit = vi.fn(async () => true)
+    let finish!: (ok: boolean) => void
+    const onRemoveStop = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve }))
+    try {
+      await act(async () => root.render(layer(grid("long"), onMoveExit, undefined, undefined, onRemoveStop)))
+      const close = host.querySelector<HTMLButtonElement>('[aria-label="Remove grid stop loss"]')!
+      expect(close).not.toBeNull()
+      await act(async () => {
+        close.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 120 }))
+        close.click()
+        window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientY: 130 }))
+      })
+      expect(onRemoveStop).toHaveBeenCalledTimes(1)
+      expect(onMoveExit).not.toHaveBeenCalled()
+      expect(close.disabled).toBe(true)
+      await act(async () => { finish(false) })
+      expect(close.disabled).toBe(false)
+      expect(host.textContent).toContain("SL -$70.00")
+    } finally {
+      await act(async () => root.unmount())
+    }
   })
 
   it("recalculates the amount when the stop moves", async () => {
@@ -739,19 +806,16 @@ describe("two named lines on one price", () => {
     return [...(span?.parentElement?.children ?? [])]
   }
 
-  it("draws a stop sitting on the bottom rung's price on that rung's row, to the left of its name", () => {
-    // The stop 0% under the bottom of the range is the bottom rung's own
-    // price. Two bars on one pixel hid half of each other.
+  it("keeps an overlapping stop on its own topmost row", () => {
     const one = grid("long", false)
     one.plan.stopLoss = { mode: "fixed", underPct: 0, px: 90, base: null }
-    const html = render(one)
-    const texts = rowOf(html, "LOWER PRICE").map((c) => c.textContent)
-    expect(texts[0]).toContain("SL")
-    expect(
-      texts.findIndex((one) => one?.includes("LOWER PRICE"))
-    ).toBeGreaterThan(0)
-    // The stop bar appears once, not once on each line.
-    expect(html.match(/SL/g)?.length).toBe(1)
+    const box = document.createElement("div")
+    box.innerHTML = render(one)
+    const stop = box.querySelector('[data-chart-stop]')
+    expect(stop).not.toBeNull()
+    expect(stop?.textContent).toContain("SL")
+    expect(stop?.textContent).not.toContain("LOWER PRICE")
+    expect((stop as HTMLElement).style.zIndex).toBe("20")
   })
 
   it("keeps a stop clear of the range on its own line", () => {

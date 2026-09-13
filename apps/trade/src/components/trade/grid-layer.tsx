@@ -40,6 +40,7 @@ import {
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { cn } from "@/lib/utils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 /**
  * A placed grid, drawn over the candles — and, while the placement window is
@@ -82,6 +83,7 @@ export const GridLayer = React.memo(function GridLayer({
   reverseDisabledReason,
   onMoveRange,
   onMoveExit,
+  onRemoveStop,
 }: {
   surface: ChartSurface
   colors: ChartColors
@@ -105,6 +107,7 @@ export const GridLayer = React.memo(function GridLayer({
   /** Why this grid cannot be reversed right now, or null when it can. */
   reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (grid: SmartGrid, move: GridRangeMove) => Promise<boolean>
+  onRemoveStop?: (grid: SmartGrid) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
     which: "takeProfit" | "stopLoss",
@@ -200,6 +203,7 @@ export const GridLayer = React.memo(function GridLayer({
   const startPreviewDrag =
     (index: number, kind: GridPreviewDragKind, from: number) =>
     (event: React.PointerEvent) => {
+      if (tool || event.button !== 0) return
       event.preventDefault()
       event.stopPropagation()
       // Measured once per drag, the same rule the placed grid's drag follows.
@@ -429,6 +433,7 @@ export const GridLayer = React.memo(function GridLayer({
           <ChartLine
             key={`grid-preview-${index}`}
             y={y}
+            priority={line.kind === "stopLoss"}
             usdSlot={previewUsdSlot}
             usd={line.usd}
             colour={look.colour}
@@ -480,6 +485,7 @@ export const GridLayer = React.memo(function GridLayer({
           reverseDisabledReason={reverseDisabledReason}
           onMoveRange={onMoveRange}
           onMoveExit={onMoveExit}
+          onRemoveStop={onRemoveStop}
           // Split in two so a drag measures the layer's box ONCE, when it
           // starts, instead of asking the browser to lay out on every pixel
           // of movement. The box cannot move mid-drag — nothing scrolls or
@@ -770,6 +776,7 @@ function GridLines({
   reverseDisabledReason,
   onMoveRange,
   onMoveExit,
+  onRemoveStop,
   measureTop,
   priceFrom,
 }: {
@@ -791,6 +798,7 @@ function GridLines({
   /** Why this grid cannot be reversed right now, or null when it can. */
   reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (grid: SmartGrid, move: GridRangeMove) => Promise<boolean>
+  onRemoveStop?: (grid: SmartGrid) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
     which: "takeProfit" | "stopLoss",
@@ -802,6 +810,9 @@ function GridLines({
   priceFrom: (clientY: number, top: number) => number | null
 }) {
   const plan = grid.plan
+  const [removingStop, setRemovingStop] = React.useState(false)
+  const dragCleanup = React.useRef<() => void>(() => undefined)
+  React.useEffect(() => () => dragCleanup.current(), [])
   const direction = plan.direction
   const levelCount = plan.levels.length
   // Green where the grid buys, red where it sells — whichever half of the
@@ -850,73 +861,88 @@ function GridLines({
    * server when it is let go — a grid re-prices every level on a move, so doing
    * that on every pixel would be a hundred round trips per drag.
    */
-  const startDrag =
-    (which: DragEnd, from: number, toEdge?: (px: number) => number | null) =>
-    (event: React.PointerEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      // Measured once, here. The box cannot move mid-drag, and asking the
-      // browser for it on every pixel forced a layout per mouse move.
-      const top = measureTop()
-      if (top === null) return
-      const pointerFrom = priceFrom(event.clientY, top)
-      if (pointerFrom === null) return
-      // The price under the pointer, as the price the dragged line means. The
-      // whole-grid grip moves by offset; a label sitting on a rung hands back
-      // the range EDGE that puts the rung under the hand, via `toEdge`.
-      const pxAt = (clientY: number): number | null => {
-        const pointedPx = priceFrom(clientY, top)
-        if (pointedPx === null) return null
-        if (which === "whole") return from + pointedPx - pointerFrom
-        return toEdge ? toEdge(pointedPx) : pointedPx
-      }
-      // Pointer moves arrive faster than the screen repaints, so they are
-      // coalesced onto one animation frame — the same rule the chart's own
-      // surface uses. The line still lands on every frame; it just stops
-      // being asked to land between them.
-      let frame = 0
-      let lastY = event.clientY
-      const onMove = (move: PointerEvent) => {
-        lastY = move.clientY
-        if (frame) return
-        frame = requestAnimationFrame(() => {
-          frame = 0
-          const px = pxAt(lastY)
-          if (px !== null && px > 0) setDragging({ end: which, px })
-        })
-      }
-      const onUp = (up: PointerEvent) => {
-        window.removeEventListener("pointermove", onMove)
-        window.removeEventListener("pointerup", onUp)
-        if (frame) cancelAnimationFrame(frame)
-        const pointedPx = priceFrom(up.clientY, top)
-        const px = pxAt(up.clientY)
-        setDragging(null)
-        if (px === null || !(px > 0)) return
-        // A drag that ends where it started is a click, not a move.
-        if (pointedPx !== null && Math.abs(pointerFrom - pointedPx) < 1e-9) {
-          return
-        }
-        const rangeMove =
-          which === "top" || which === "bottom" || which === "whole"
-        if (rangeMove && !gridRangeAfterMove(plan, { end: which, px })) return
-        // Shown where it was dropped from this moment on, so letting go looks
-        // like the end of the move rather than the start of a wait.
-        setPending({ end: which, px, was: savedFor(which) })
-        const settled = rangeMove
-          ? onMoveRange(grid, { end: which, px })
-          : onMoveExit(grid, which, px)
-        // A refused move never changes the plan, so nothing would clear the
-        // held price and the line would sit at a price it never reached.
-        if (!settled) setPending(null)
-        else
-          void settled.then((ok) => {
-            if (!ok) setPending(null)
-          })
-      }
-      window.addEventListener("pointermove", onMove)
-      window.addEventListener("pointerup", onUp)
+  const startDrag = (
+    event: React.PointerEvent,
+    which: DragEnd,
+    from: number,
+    toEdge?: (px: number) => number | null
+  ) => {
+    if (tool || event.button !== 0 || removingStop) return
+    event.preventDefault()
+    event.stopPropagation()
+    // Measured once, here. The box cannot move mid-drag, and asking the
+    // browser for it on every pixel forced a layout per mouse move.
+    const top = measureTop()
+    if (top === null) return
+    const pointerFrom = priceFrom(event.clientY, top)
+    if (pointerFrom === null) return
+    // The price under the pointer, as the price the dragged line means. The
+    // whole-grid grip moves by offset; a label sitting on a rung hands back
+    // the range EDGE that puts the rung under the hand, via `toEdge`.
+    const pxAt = (clientY: number): number | null => {
+      const pointedPx = priceFrom(clientY, top)
+      if (pointedPx === null) return null
+      if (which === "whole") return from + pointedPx - pointerFrom
+      return toEdge ? toEdge(pointedPx) : pointedPx
     }
+    // Pointer moves arrive faster than the screen repaints, so they are
+    // coalesced onto one animation frame — the same rule the chart's own
+    // surface uses. The line still lands on every frame; it just stops
+    // being asked to land between them.
+    let frame = 0
+    let lastY = event.clientY
+    const onMove = (move: PointerEvent) => {
+      lastY = move.clientY
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const px = pxAt(lastY)
+        if (px !== null && px > 0) setDragging({ end: which, px })
+      })
+    }
+    const cleanup = () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+      window.removeEventListener("pointercancel", onCancel)
+      if (frame) cancelAnimationFrame(frame)
+      dragCleanup.current = () => undefined
+    }
+    const onCancel = () => {
+      cleanup()
+      setDragging(null)
+    }
+    const onUp = (up: PointerEvent) => {
+      cleanup()
+      const pointedPx = priceFrom(up.clientY, top)
+      const px = pxAt(up.clientY)
+      setDragging(null)
+      if (px === null || !(px > 0)) return
+      // A drag that ends where it started is a click, not a move.
+      if (pointedPx !== null && Math.abs(pointerFrom - pointedPx) < 1e-9) {
+        return
+      }
+      const rangeMove =
+        which === "top" || which === "bottom" || which === "whole"
+      if (rangeMove && !gridRangeAfterMove(plan, { end: which, px })) return
+      // Shown where it was dropped from this moment on, so letting go looks
+      // like the end of the move rather than the start of a wait.
+      setPending({ end: which, px, was: savedFor(which) })
+      const settled = rangeMove
+        ? onMoveRange(grid, { end: which, px })
+        : onMoveExit(grid, which, px)
+      // A refused move never changes the plan, so nothing would clear the
+      // held price and the line would sit at a price it never reached.
+      if (!settled) setPending(null)
+      else
+        void settled.then((ok) => {
+          if (!ok) setPending(null)
+        })
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    window.addEventListener("pointercancel", onCancel)
+    dragCleanup.current = cleanup
+  }
 
   // While a drag is in flight the band follows the pointer, so the range is
   // shown where it is being put rather than where it still is.
@@ -1156,14 +1182,10 @@ function GridLines({
     })
     return range === null ? null : winEdge(direction, range)
   }
-  const upperDrag =
-    direction === "long"
-      ? startDrag("top", plan.topPx, nearToEdge)
-      : startDrag("top", plan.topPx)
-  const lowerDrag =
-    direction === "long"
-      ? startDrag("bottom", plan.bottomPx)
-      : startDrag("bottom", plan.bottomPx, nearToEdge)
+  const upperDrag = (event: React.PointerEvent) =>
+    startDrag(event, "top", plan.topPx, direction === "long" ? nearToEdge : undefined)
+  const lowerDrag = (event: React.PointerEvent) =>
+    startDrag(event, "bottom", plan.bottomPx, direction === "short" ? nearToEdge : undefined)
   // Green when the grid buys the dips, red when it shorts the rallies. Every
   // line the grid owns — the range, its names, its badge — says which at a
   // glance.
@@ -1208,33 +1230,18 @@ function GridLines({
     direction === "long" && !drawRungOneExit ? upperY : bandTop
   const drawnBandBottom =
     direction === "short" && !drawRungOneExit ? lowerY : bandBottom
-  const stopOnRow = sharesRow(stopY, lowerY)
-    ? "lower"
-    : sharesRow(stopY, upperY)
-      ? "upper"
-      : null
   const endOnRow = sharesRow(targetY, upperY)
     ? "upper"
     : sharesRow(targetY, lowerY)
       ? "lower"
       : null
-  const stopChip =
-    stop !== null && stopName !== null ? (
-      <NameChip
-        colour={colors.down}
-        name={stopName}
-        grip
-        onGripDown={startDrag("stopLoss", stop)}
-        title={stopTitle}
-      />
-    ) : null
   const endChip =
     target !== null ? (
       <NameChip
         colour={colors.warning}
         name="END GRID"
         grip
-        onGripDown={startDrag("takeProfit", target)}
+        onGripDown={(event) => startDrag(event, "takeProfit", target)}
         title={endTitle}
       />
     ) : null
@@ -1243,12 +1250,8 @@ function GridLines({
   // range moves, so the column keeps one width from the first pixel of a drag
   // to the last.
   const usdSlot = Math.max(0, ...prices.map((at) => usdChipWidth(at.usd)))
-  const sharedChips = (row: "upper" | "lower") => (
-    <>
-      {endOnRow === row ? endChip : null}
-      {stopOnRow === row ? stopChip : null}
-    </>
-  )
+  const sharedChips = (row: "upper" | "lower") =>
+    endOnRow === row ? endChip : null
 
   /**
    * The rungs drawn as plain lines while the range is moving: the ones between
@@ -1308,7 +1311,7 @@ function GridLines({
       <GridMoveKnob
         tone="badge"
         disabled={!wholeMovable}
-        onPointerDown={startDrag("whole", (plan.topPx + plan.bottomPx) / 2)}
+        onPointerDown={(event) => startDrag(event, "whole", (plan.topPx + plan.bottomPx) / 2)}
         onKeyDown={moveWholeGridFromKey}
         title={
           wholeMovable
@@ -1534,10 +1537,8 @@ function GridLines({
         />
       ) : null}
 
-      {/* The two ways out. Orange ends the grid and red is the loss limit,
-          whichever side of the range each one sits. A way out sitting on a
-          named rung's price has already lent that row its bar; only its
-          line is drawn here. */}
+      {/* End Grid may share a range row. The stop always has its own row,
+          above the entry pills and grid controls. */}
       {targetY !== null && target !== null ? (
         <ChartLine
           y={targetY}
@@ -1546,7 +1547,7 @@ function GridLines({
           name={endOnRow ? null : "END GRID"}
           dashed={false}
           grip
-          onGripDown={startDrag("takeProfit", target)}
+          onGripDown={(event) => startDrag(event, "takeProfit", target)}
           title={endTitle}
         />
       ) : null}
@@ -1555,10 +1556,23 @@ function GridLines({
           y={stopY}
           usdSlot={usdSlot}
           colour={colors.down}
-          name={stopOnRow ? null : stopName}
+          name={stopName}
+          priority
+          remove={
+            onRemoveStop
+              ? {
+                  busy: removingStop,
+                  onClick: () => {
+                    if (removingStop) return
+                    setRemovingStop(true)
+                    void onRemoveStop(grid).finally(() => setRemovingStop(false))
+                  },
+                }
+              : undefined
+          }
           dashed={false}
-          grip
-          onGripDown={startDrag("stopLoss", stop)}
+          grip={!tool && !removingStop}
+          onGripDown={(event) => startDrag(event, "stopLoss", stop)}
           title={stopTitle}
         />
       ) : null}
@@ -1657,7 +1671,11 @@ function ChartLine({
   nameNode,
   rung,
   rungSlot = false,
+  priority = false,
+  remove,
 }: {
+  priority?: boolean
+  remove?: { busy: boolean; onClick: () => void }
   y: number
   /** What this level puts in, when it is a level rather than a boundary. */
   usd?: number
@@ -1693,8 +1711,18 @@ function ChartLine({
   return (
     <div
       className={cn("absolute inset-x-0", faded && "opacity-60")}
-      style={{ top: y }}
+      data-chart-stop={priority || undefined}
+      style={{ top: y, zIndex: priority ? 20 : undefined }}
     >
+      {grip && onGripDown ? (
+        <div
+          data-chart-line-drag={name ?? "Grid line"}
+          className="absolute inset-x-0 -top-2 h-4 cursor-ns-resize"
+          style={{ pointerEvents: "auto", touchAction: "none" }}
+          onPointerDown={onGripDown}
+          aria-hidden="true"
+        />
+      ) : null}
       <div
         className={dashed ? "border-t border-dashed" : "border-t"}
         style={{ borderColor: colour }}
@@ -1732,6 +1760,7 @@ function ChartLine({
             grip={grip}
             onGripDown={onGripDown}
             title={title}
+            remove={remove}
           />
         ) : (
           // A line with no bar keeps a bar's worth of room, so its money
@@ -1768,7 +1797,9 @@ function NameChip({
   grip,
   onGripDown,
   title,
+  remove,
 }: {
+  remove?: { busy: boolean; onClick: () => void }
   colour: string
   name: string
   className?: string
@@ -1803,7 +1834,26 @@ function NameChip({
       {grip ? (
         <GripVerticalIcon className="size-3 shrink-0 opacity-70" />
       ) : null}
-      <span className="min-w-0 truncate">{name}</span>
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {remove ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Remove grid stop loss"
+              disabled={remove.busy}
+              className="shrink-0 rounded hover:bg-muted focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={remove.onClick}
+            >
+              <XIcon className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {remove.busy ? "Removing stop loss" : "Remove grid stop loss"}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
     </span>
   )
 }
