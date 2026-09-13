@@ -126,11 +126,12 @@ export function FloatingOrderWindow({
       wide={wide}
       desktopClassName={cn(
         "fixed z-50 overflow-hidden rounded-xl border bg-card shadow-lg",
-        longForm && "grid grid-rows-[auto_minmax(0,1fr)_auto]"
+        longForm &&
+          "grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto]"
       )}
       sheetClassName={
         longForm
-          ? "grid h-[min(680px,calc(100dvh-8px))] grid-rows-[auto_minmax(0,1fr)_auto]"
+          ? "grid h-[min(680px,calc(100dvh-8px))] grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto]"
           : "h-[min(520px,calc(100dvh-8px))]"
       }
       desktopStyle={{

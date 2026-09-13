@@ -398,9 +398,7 @@ function MockPanelGroup(props: {
         aria-label={`Resize ${groupName} group`}
         onClick={() => {
           let next: Record<string, number>
-          if (groupName === "orders") {
-            next = { "managed-orders": 50, "manual-orders": 50 }
-          } else if (orientation === "horizontal") {
+          if (orientation === "horizontal") {
             next = { markets: 25, chart: 50, "smart-orders": 25 }
           } else {
             next = { workspace: 60, activity: 40 }
@@ -526,23 +524,14 @@ describe("the trade workspace chart full screen", () => {
       "smart-orders": 22,
     })
     expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
-    expect(layoutOf("orders")).toEqual({
-      "managed-orders": 60,
-      "manual-orders": 40,
-    })
-    expect(host.querySelector('[data-panel="manual-orders"]')).not.toBeNull()
+    expect(host.querySelector('[data-panel-group="orders"]')).toBeNull()
+    expect(host.querySelector("[data-order-panels]")?.children).toHaveLength(2)
     expect(
       host.querySelector('[data-testid="manual-orders-panel"]')
     ).not.toBeNull()
     expect(
-      host.querySelector('[data-panel-group="orders"]')?.parentElement
-        ?.className
+      host.querySelector("[data-order-panels]")?.parentElement?.className
     ).toContain("h-full")
-    await act(async () => clickButton("Resize orders group"))
-    expect(rememberedLayouts).toHaveBeenCalledWith(
-      "trade-workspace-orders-vertical",
-      { "managed-orders": 50, "manual-orders": 50 }
-    )
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Open alerts"]'
@@ -681,7 +670,7 @@ describe("the trade workspace chart full screen", () => {
   })
 })
 
-function layoutOf(group: "horizontal" | "vertical" | "orders") {
+function layoutOf(group: "horizontal" | "vertical") {
   const value = host
     .querySelector(`[data-panel-group="${group}"]`)
     ?.getAttribute("data-layout")

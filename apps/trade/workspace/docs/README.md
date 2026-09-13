@@ -63,7 +63,7 @@ screen: anything not written there has not been agreed yet.
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, search toolbar and the Manual orders panel.
-- `panels-and-loading.md` — how panels behave, narrow screens, stand-in
+- `panels-and-loading.md` — content-sized Smart orders and a Manual orders panel that fills the remaining height, how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
@@ -75,7 +75,7 @@ screen: anything not written there has not been agreed yet.
   for missing position stops and watched stops.
 - `market-folders.md` — the folder dropdown visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
-- `notices.md` — the bell notices: one per order with total dollars and weighted
+- `notices.md` — stable stop and target notices across split fills and recovery; one per order with total dollars and weighted
   average price, how pushed fills and recovery avoid repeats, what a flow says when it stops or goes quiet on its own, and
   where clicking one takes you.
 - `sounds.md` — the separate optional sounds for fills and stops, and for price
@@ -120,7 +120,7 @@ screen: anything not written there has not been agreed yet.
   looks, how repeated failures are counted, how a DCA ladder sells back up its
   mirrored exits, how one extra gap moves those exits together, and what a
   backtest does differently.
-- `smart-order-windows.md` — percentage stops below the last DCA rung, combined stop-loss dollars and chart dragging, the separate Rung 1 exit % for market buys and
+- `smart-order-windows.md` — floating form width and long wallet labels; percentage stops below the last DCA rung, combined stop-loss dollars and chart dragging, the separate Rung 1 exit % for market buys and
   the windows a smart order is placed from: the
   floating frame, synchronized DCA entry and exit dragging, the draggable
   ladder summary, red DCA exit lines and labels, the DCA exit choices and draggable exit gap, the base stop,

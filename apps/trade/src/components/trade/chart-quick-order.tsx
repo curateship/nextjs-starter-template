@@ -590,7 +590,7 @@ export function ChartQuickOrder({
                   the answer belongs where the question is being typed rather
                   than on a line under it. Only when the box is not already in
                   dollars, and never through the typing. */}
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <Input
                   id="quick-size"
                   inputMode="decimal"

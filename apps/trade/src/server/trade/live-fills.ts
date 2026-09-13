@@ -567,6 +567,7 @@ async function announceFills(
             href: marketChartHref(key),
             soundKind: "stop",
             database: noticeTx,
+            noticeKey: JSON.stringify(["trigger", wallet.id, fill.orderId]),
             ...triggerNoticeWords({
               kind: known.kind,
               marketKey: key,
@@ -854,6 +855,7 @@ async function resolveClosingOrders(
         userId,
         href: marketChartHref(made[0].marketKey),
         soundKind: "stop",
+        noticeKey: JSON.stringify(["trigger", wallet.id, one.orderId]),
         ...triggerNoticeWords({
           kind: one.kind,
           marketKey: made[0].marketKey,

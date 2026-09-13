@@ -14,8 +14,6 @@ export const tradePanelLayoutKey = {
   workspaceHorizontal: "trade-workspace-horizontal",
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
-  /** Smart orders and bots above, hand-placed orders below. */
-  workspaceOrdersVertical: "trade-workspace-orders-vertical",
   /** A backtest run: settings | chart | summary, across the workspace. */
   backtestHorizontal: "trade-backtest-horizontal",
   /** The backtest workspace above, its coins and trades below. */
@@ -44,10 +42,6 @@ export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
     "smart-orders",
   ],
   [tradePanelLayoutKey.workspaceVertical]: ["workspace", "activity"],
-  [tradePanelLayoutKey.workspaceOrdersVertical]: [
-    "managed-orders",
-    "manual-orders",
-  ],
   [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
   [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
   [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],

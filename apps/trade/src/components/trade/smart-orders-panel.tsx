@@ -214,7 +214,7 @@ export function SmartOrdersPanel({
         "min-h-0 gap-0 overflow-hidden bg-card",
         compact
           ? "max-h-[var(--radix-popover-content-available-height)]"
-          : "h-full flex-1"
+          : "flex-1"
       )}
     >
       <DashboardCardTabsHeader>

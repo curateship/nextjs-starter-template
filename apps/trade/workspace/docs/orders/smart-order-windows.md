@@ -415,3 +415,10 @@ Two rules decide what appears in the opened sale list.
   closed rather than per fill, and a grid selling part of what it holds never
   closes a position, so its sales arrive unpriced. The panel lists them, leaves
   the figure blank, and says underneath how many the total is short of.
+
+## Floating window width
+
+Manual, grid and DCA forms share a floating frame. Each form stays inside
+the frame's width, including a long wallet name and the available dollars.
+The manual size input shrinks beside its unit selector. Stop and exit fields
+and the submit button remain inside the same frame on desktop and mobile.

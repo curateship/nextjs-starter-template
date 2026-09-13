@@ -554,7 +554,6 @@ export function TradeWorkspace({
     : ALL_ROW
   const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
   const verticalKey = tradePanelLayoutKey.workspaceVertical
-  const ordersVerticalKey = tradePanelLayoutKey.workspaceOrdersVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
     tradePanelIds[horizontalKey],
     panelLayouts.layouts.current[horizontalKey],
@@ -564,11 +563,6 @@ export function TradeWorkspace({
     tradePanelIds[verticalKey],
     panelLayouts.layouts.current[verticalKey],
     (layout) => panelLayouts.remember(verticalKey, layout)
-  )
-  const ordersVerticalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[ordersVerticalKey],
-    panelLayouts.layouts.current[ordersVerticalKey],
-    (layout) => panelLayouts.remember(ordersVerticalKey, layout)
   )
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayouts = React.useRef<{
@@ -998,25 +992,17 @@ export function TradeWorkspace({
   )
 
   const orderPanels = (
-    <ResizablePanelGroup
-      data-panel-group="orders"
-      groupRef={ordersVerticalLayout.groupRef}
-      orientation="vertical"
-      className="min-h-0 flex-1"
-      onLayoutChanged={ordersVerticalLayout.onLayoutChanged}
+    <div
+      data-order-panels
+      className="grid h-full min-h-0 grid-rows-[fit-content(60%)_minmax(0,1fr)] gap-(--shell-gutter)"
     >
-      <ResizablePanel id="managed-orders" defaultSize="60%" minSize="25%">
-        <WorkspacePanel className="flex min-h-0 flex-1 flex-col">
-          {smartOrdersPanel}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap className={NO_RING} />
-      <ResizablePanel id="manual-orders" defaultSize="40%" minSize="25%">
-        <WorkspacePanel className="flex min-h-0 flex-1 flex-col">
-          {manualOrdersPanel}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      <WorkspacePanel className="flex h-auto min-h-0 flex-col">
+        {smartOrdersPanel}
+      </WorkspacePanel>
+      <WorkspacePanel className="flex h-auto min-h-0 flex-col">
+        {manualOrdersPanel}
+      </WorkspacePanel>
+    </div>
   )
 
   const middle = (

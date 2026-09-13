@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import { customShellNotifications } from "@/server/schema"
 import { writeTradeNotice } from "@/server/trade/notices"
 import {
   hideLiveTrade,
@@ -615,9 +616,37 @@ describe("live fill storage", () => {
     expect(protocolMocks.orderInfo).toHaveBeenCalledTimes(2)
     expect(writeTradeNotice).toHaveBeenCalledTimes(2)
     expect(await liveHistoryStamp(user.id, [wallet.id])).not.toBe(before)
+
+    const learntStop = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice)
+      .find((notice) => notice.title.startsWith("Stop hit"))!
+    expect(learntStop.noticeKey).toBeDefined()
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "learnt-fill-later",
+        orderId: "learnt-order-1",
+        marketId: "BTC",
+        side: "sell",
+        px: 80,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -20,
+        fee: 0,
+        dir: "Close long",
+        liquidation: false,
+      },
+    ])
+    expect(vi.mocked(writeTradeNotice).mock.calls.at(-1)![0].noticeKey).toBe(
+      learntStop.noticeKey
+    )
   })
 
   it("reads known triggers once before announcing a batch", async () => {
+    const actual = await vi.importActual<
+      typeof import("@/server/trade/notices")
+    >("@/server/trade/notices")
+    vi.mocked(writeTradeNotice).mockImplementation(actual.writeTradeNotice)
     const user = await insertUser(database)
     const wallet: TradeWallet = {
       id: crypto.randomUUID(),
@@ -695,6 +724,38 @@ describe("live fill storage", () => {
     expect(
       vi.mocked(writeTradeNotice).mock.calls.map(([notice]) => notice.soundKind)
     ).toEqual(["fill", "stop", "fill", "stop"])
+
+    const firstStops = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice)
+      .filter((notice) => notice.soundKind === "stop")
+    expect(firstStops[0].noticeKey).toBeDefined()
+    expect(firstStops[1].noticeKey).not.toBe(firstStops[0].noticeKey)
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "fill-stop-second-piece",
+        orderId: "stop-order",
+        marketId: "BTC",
+        side: "sell",
+        px: 80,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -20,
+        fee: 0.1,
+        dir: "Close long",
+        liquidation: false,
+      },
+    ])
+    const updated = vi.mocked(writeTradeNotice).mock.calls.at(-1)![0]
+    expect(updated.noticeKey).toBe(firstStops[0].noticeKey)
+    expect(updated.title).toContain("$85")
+    expect(updated.title).toContain("$30.00")
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices).toHaveLength(4)
+    expect(
+      notices.filter((notice) => notice.message?.startsWith("Stop hit"))
+    ).toHaveLength(1)
   })
 
   it("chunks a large trigger lookup instead of asking once per fill", async () => {

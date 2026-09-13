@@ -98,6 +98,12 @@ A stale or missing price writes nothing and leaves the alert waiting.
 
 ## When an order fills
 
+Stop and target notices also keep one identity per wallet and exchange order.
+Later pieces update the same notice with the combined money and price.
+Learning that an order was a stop after its fill uses that same identity.
+The normal exit notice and the stop explanation remain separate notices.
+Existing duplicate notices are historical rows and are not deleted by this change.
+
 One order makes one entry or exit notice. An exchange may split that order
 into several fill rows as the order meets several prices. The first piece
 creates the notice. Later pieces update its total dollars and average price,

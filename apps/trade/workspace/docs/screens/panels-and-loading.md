@@ -5,7 +5,14 @@
 The same panel parts as the Automation Canvas, not a second system. Anything
 fixed in one is fixed in both.
 
-- Every visible divider drags.
+- The divider between Smart orders and Manual orders is gone. The
+  Smart orders panel sizes to its contents. Manual orders fills the remaining
+  height to the bottom edge of the right column. Smart orders uses at most
+  60% of the column height so Manual orders remains usable on shorter screens.
+  Long lists scroll inside their own panel
+  when the right column runs out of room. Switching to Bots sizes the top
+  panel to that tab's contents. The old 60/40 split is no longer saved or read.
+- The dividers beside the chart and above Positions still drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back. **Both
   edges have one.** On the trade workspace the orders panel had only the menu
