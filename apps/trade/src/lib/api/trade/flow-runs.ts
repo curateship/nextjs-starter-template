@@ -30,11 +30,9 @@ import { createErrorMessage } from "../error-message"
  * The doors onto live runs: the list of every flow that has been switched on,
  * and one run in full.
  *
- * **Read-only, and user-scoped.** Switching a flow on and off belongs to the
- * canvas, where the drawing is — `flow-trading.ts` owns those, and a second set
- * of buttons here would be a second answer about somebody's money. What this
- * screen is about is the reader's own wallets, so it is scoped the way the
- * backtest screens are: to the person, not to the workspace.
+ * Reports are user-scoped because each run trades its owner's wallet.
+ * Run-page controls use the guarded actions in `flow-trading.ts` and
+ * `recipes.ts`; these report reads never change a run.
  */
 
 const runSchema = z.object({ runId: z.string().max(36) })

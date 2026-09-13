@@ -1,3 +1,7 @@
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { stopRunCoin } from "@/lib/api/trade/flow-trading"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import * as React from "react"
 import { CoinsIcon, ListOrderedIcon } from "lucide-react"
 
@@ -49,11 +53,19 @@ export function FlowRunCoinsPanel({
   report,
   openCoin,
   onOpenCoin,
+  onRefresh,
 }: {
   report: FlowRunReport
   openCoin: string | null
+  onRefresh?: () => Promise<void>
   onOpenCoin: (marketKey: string) => void
 }) {
+  const [stopping, setStopping] = React.useState<
+    FlowRunReport["coins"][number] | null
+  >(null)
+  const [busy, setBusy] = React.useState(false)
+  const [requested, setRequested] = React.useState(new Set<string>())
+  const pending = React.useRef(false)
   const [tab, setTab] = React.useState<Tab>("coins")
   const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
 
@@ -88,13 +100,21 @@ export function FlowRunCoinsPanel({
     )
   }, [report.coins, heldBy])
 
-  const head = (label: string, column: Column, width: string, right = false) => (
+  const head = (
+    label: string,
+    column: Column,
+    width: string,
+    right = false
+  ) => (
     <TableHead column="meta" className={cn(width, right && "text-right")}>
       <TableSortButton
         active={sort === column}
         direction={direction}
         onClick={() => toggleSort(column)}
-        className={cn("gap-1 text-xs sm:text-xs", right && "ml-auto flex-row-reverse")}
+        className={cn(
+          "gap-1 text-xs sm:text-xs",
+          right && "ml-auto flex-row-reverse"
+        )}
       >
         {label}
       </TableSortButton>
@@ -123,24 +143,37 @@ export function FlowRunCoinsPanel({
       </DashboardCardTabsHeader>
 
       <TabsContent value="coins" className="flex min-h-0 flex-1 flex-col">
-        <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="[&>div]:block!"
+        >
           <Table className={TABLE_CLASS}>
             <TableHeader>
               <TableRow>
-                <TableHead column="meta" className="w-[30%]">
+                <TableHead column="meta" className="w-[24%]">
                   Market
                 </TableHead>
-                <TableHead column="meta" className="w-[45%]">
+                <TableHead column="meta" className="w-[36%]">
                   What it is doing
                 </TableHead>
-                <TableHead column="meta" className="w-[25%] text-right">
+                <TableHead column="meta" className="w-[24%] text-right">
                   Holding
+                </TableHead>
+                <TableHead column="meta" className="w-[16%]">
+                  Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {coins.map((coin) => {
                 const held = heldBy.get(coin.marketKey) ?? null
+                const stoppedByUser =
+                  report.spec.stoppedMarkets?.[coin.marketKey] !== undefined
+                const stopWords = stoppedByUser
+                  ? coin.words
+                  : requested.has(coin.marketKey)
+                    ? "Stopping"
+                    : null
                 return (
                   <TableRow
                     key={coin.marketKey}
@@ -180,17 +213,19 @@ export function FlowRunCoinsPanel({
                         {/* Never colour alone: every state says which it is in
                             words too, so the row still reads in black and
                             white. */}
-                        {held
-                          ? `Bought at ${formatPrice(held.entryPx)}${
-                              held.stopPx === null
-                                ? ""
-                                : `, stop ${formatPrice(held.stopPx)}`
-                            }`
-                          : coin.working
-                            ? "Rungs placed"
-                            : coin.problem
-                              ? `Needs you — ${lowerFirst(coin.words ?? "something is wrong")}`
-                              : (coin.words ?? "Not looked at yet")}
+                        {stopWords !== null
+                          ? stopWords
+                          : held
+                            ? `Bought at ${formatPrice(held.entryPx)}${
+                                held.stopPx === null
+                                  ? ""
+                                  : `, stop ${formatPrice(held.stopPx)}`
+                              }`
+                            : coin.working
+                              ? "Rungs placed"
+                              : coin.problem
+                                ? `Needs you — ${lowerFirst(coin.words ?? "something is wrong")}`
+                                : (coin.words ?? "Not looked at yet")}
                       </span>
                     </TableCell>
                     <TableCell
@@ -213,6 +248,24 @@ export function FlowRunCoinsPanel({
                         </>
                       )}
                     </TableCell>
+                    <TableCell column="actions">
+                      {report.head.status === "running" &&
+                      report.spec.stoppedMarkets?.[coin.marketKey] ===
+                        undefined &&
+                      !requested.has(coin.marketKey) ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Stop ${coin.coin}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setStopping(coin)
+                          }}
+                        >
+                          Stop
+                        </Button>
+                      ) : null}
+                    </TableCell>
                   </TableRow>
                 )
               })}
@@ -227,7 +280,10 @@ export function FlowRunCoinsPanel({
             No coin has finished a trade yet.
           </p>
         ) : (
-          <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+          <ScrollArea
+            className="min-h-0 flex-1"
+            viewportClassName="[&>div]:block!"
+          >
             <Table className={TABLE_CLASS}>
               <TableHeader>
                 <TableRow>
@@ -240,19 +296,30 @@ export function FlowRunCoinsPanel({
                 {results.map((coin) => (
                   <TableRow
                     key={coin.marketKey}
-                    data-state={coin.marketKey === openCoin ? "selected" : undefined}
+                    data-state={
+                      coin.marketKey === openCoin ? "selected" : undefined
+                    }
                     rowAction={() => onOpenCoin(coin.marketKey)}
                   >
-                    <TableCell column="meta" className="whitespace-nowrap font-medium">
+                    <TableCell
+                      column="meta"
+                      className="font-medium whitespace-nowrap"
+                    >
                       {coin.coin}
                     </TableCell>
                     <TableCell
                       column="meta"
-                      className={cn("text-right tabular-nums", toneClass(coin.netUsd))}
+                      className={cn(
+                        "text-right tabular-nums",
+                        toneClass(coin.netUsd)
+                      )}
                     >
                       {signedUsd(coin.netUsd)}
                     </TableCell>
-                    <TableCell column="meta" className="text-right tabular-nums">
+                    <TableCell
+                      column="meta"
+                      className="text-right tabular-nums"
+                    >
                       {coin.trades}
                     </TableCell>
                   </TableRow>
@@ -268,12 +335,46 @@ export function FlowRunCoinsPanel({
           <p className="shrink-0 border-t px-5 py-2 text-[11px] text-muted-foreground">
             {report.notMine} finished{" "}
             {report.notMine === 1 ? "trade" : "trades"} on{" "}
-            {report.head.walletLabel} {report.notMine === 1 ? "was" : "were"} not
-            this run&rsquo;s, and {report.notMine === 1 ? "is" : "are"} left out
-            of every figure here.
+            {report.head.walletLabel} {report.notMine === 1 ? "was" : "were"}{" "}
+            not this run&rsquo;s, and {report.notMine === 1 ? "is" : "are"} left
+            out of every figure here.
           </p>
         ) : null}
       </TabsContent>
+      <ConfirmDialog
+        open={stopping !== null}
+        onOpenChange={(open) => {
+          if (!open) setStopping(null)
+        }}
+        title={`Stop ${stopping?.coin ?? "this coin"}?`}
+        description={`${stopping?.coin ?? "This coin"} will stay stopped for this run. Only this run's waiting orders for this coin will be cancelled. ${stopping && heldBy.has(stopping.marketKey) ? `${heldBy.get(stopping.marketKey)!.sz} ${stopping.coin} stays held. Its existing stop and target stay in place. Nothing is sold.` : "Nothing is sold. Any position filled before cancellation keeps its protection."}`}
+        confirmLabel="Stop coin"
+        destructive={false}
+        loading={busy}
+        onConfirm={() => {
+          if (!stopping || pending.current) return
+          const coin = stopping
+          pending.current = true
+          setBusy(true)
+          void stopRunCoin(report.head.id, coin.marketKey)
+            .then(async () => {
+              setRequested((old) => new Set(old).add(coin.marketKey))
+              setStopping(null)
+              await onRefresh?.()
+            })
+            .catch((error: unknown) =>
+              showErrorToast(
+                error instanceof Error
+                  ? error.message
+                  : "Could not stop this coin. Try again."
+              )
+            )
+            .finally(() => {
+              pending.current = false
+              setBusy(false)
+            })
+        }}
+      />
     </Tabs>
   )
 }

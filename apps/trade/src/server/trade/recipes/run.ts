@@ -12,18 +12,20 @@ import { flowStartProblem } from "@/lib/trade/flow-words"
 import { db, type CustomShellDb } from "@/server/db"
 import { startBacktestForRecipe } from "@/server/trade/backtest/start"
 import { startFlowRun, type FlowNodes } from "@/server/trade/flow-run"
-import { tradeRecipes } from "@/server/trade/schema"
+import { tradeFlowRuns, tradeRecipes } from "@/server/trade/schema"
 
 export type RecipeRunOutcome = {
   started: boolean
   mode: "backtest" | "trades"
   summary: string
+  runId?: string
 }
 
 type RecipeRunInput = {
   workspaceId: string
   recipeId: string
   pressId: string
+  restartRunId?: string
   intervals?: CandleInterval[]
   now: number
 }
@@ -161,6 +163,32 @@ async function runLockedWorkspaceRecipe(
   }
 
   const nodes = flowNodesOf(compiled.data)
+  if (input.restartRunId) {
+    const [previous] = await database
+      .select()
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.id, input.restartRunId),
+          eq(tradeFlowRuns.userId, userId),
+          eq(tradeFlowRuns.automationId, input.recipeId),
+          eq(tradeFlowRuns.status, "stopped")
+        )
+      )
+      .limit(1)
+    if (!previous) throw new Error("That stopped run no longer exists.")
+    if (!nodes)
+      return {
+        started: false,
+        mode: "trades",
+        summary: "Complete the recipe's trading steps before running again.",
+      }
+    nodes.wallet = {
+      ...nodes.wallet,
+      walletId: previous.walletId,
+      walletLabel: previous.spec.walletLabel,
+    }
+  }
   const namedWallet = nodes ? chosenWallet(nodes.wallet) : null
   if (!nodes || !namedWallet) {
     const outcome = await startBacktestForRecipe(
@@ -211,6 +239,7 @@ async function runLockedWorkspaceRecipe(
     return {
       started: true,
       mode: "trades",
+      runId: started.id,
       summary: `Switched on. It is watching ${coins} ${plural(coins, "coin", "coins")} on ${started.spec.walletLabel} with ${started.spec.real ? "real" : "practice"} money.`,
     }
   } catch (error) {

@@ -219,6 +219,7 @@ async function syncRunningFlowsToFolder(
       )
       .limit(1)
     if (!run || run.spec.folderId !== input.folderId) continue
+    if (run.spec.stoppedMarkets?.[input.marketKey] !== undefined) continue
 
     const hadMarket = run.spec.marketKeys.includes(input.marketKey)
     const marketKeys = input.saved

@@ -66,3 +66,27 @@ with at least one waiting rung. An order placed by hand, an older run's ladder,
 a grid on the same coin, or a row whose rungs are all cancelled never supplies
 that label. The chart reads the same exact rows, so the label cannot claim more
 ladders than the chart can draw.
+
+## Stopping one coin
+
+Stop coin records a permanent exclusion inside this run's saved specification,
+then removes the coin from its watched list. The write takes the wallet lock
+used by placement, and requires the current user to own a running run. A
+repeated request does not create another cancellation. A stopped run or a coin
+outside the run is refused.
+
+The existing removed-market queue cancels only active orders stamped with this
+exact run ID and coin. Orders from an older run, another coin or a hand-placed
+order do not match. DCA cancellation removes the remaining waiting rungs even
+when earlier rungs bought coin. Existing held positions and their protective
+stops stay in place. No sell is requested. Signal and Grid orders use their
+existing remaining-order cancellation functions.
+
+Cancellation refusals keep the queue entry and show the problem on the coin
+row. The engine retries and sends the existing failure notice. Only successful
+completion clears the queue entry. The permanent exclusion survives completion
+and later folder removal or addition. Run again creates a new run from today's
+recipe, so the earlier run's manual exclusions do not carry over.
+
+Whole-run Stop also finishes any coin cancellation already queued. The run stays
+Stopping through a refusal, including waiting rungs on a partially bought ladder.

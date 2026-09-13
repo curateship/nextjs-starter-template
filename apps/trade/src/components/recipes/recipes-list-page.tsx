@@ -50,7 +50,7 @@ import {
   type RecipesPage,
 } from "@/lib/api/trade/recipes"
 import { describeBulkResult } from "@/lib/format/bulk-result"
-import { formatDate } from "@/lib/format/format-time"
+import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -60,10 +60,11 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
-type SortColumn = "name" | "steps" | "updated"
+type SortColumn = "name" | "steps" | "updated" | "status"
 
 const RECIPE_COLUMNS = [
   { key: "name", label: "Name", column: "main" },
+  { key: "status", label: "Status", column: "meta" },
   { key: "steps", label: "Steps", column: "meta" },
   {
     key: "updated",
@@ -83,8 +84,8 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
   const { config } = useShellRuntime()
   const [recipes, setRecipes] = React.useState(initial.recipes)
   const { sort, direction, toggleSort } = useTableSort<SortColumn>(
-    "updated",
-    "desc",
+    "status",
+    "asc",
     (column) => (column === "updated" ? "desc" : "asc")
   )
   const [search, setSearch] = React.useState("")
@@ -123,6 +124,16 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
           recipe.summary.toLowerCase().includes(query)
       )
       .sort((left, right) => {
+        if (sort === "status") {
+          const rank = (recipe: RecipeListItem) =>
+            ({ Running: 0, Paused: 1, Stopping: 2, Stopped: 3 })[
+              recipe.run?.status ?? "Stopped"
+            ] + (recipe.run ? 0 : 1)
+          return (
+            factor *
+            (rank(left) - rank(right) || left.name.localeCompare(right.name))
+          )
+        }
         if (sort === "name") return factor * left.name.localeCompare(right.name)
         if (sort === "steps") {
           return (
@@ -209,7 +220,9 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
       const saved = await renameRecipe(renameTarget.id, renameName)
       setRecipes((current) =>
         current.map((recipe) =>
-          recipe.id === saved.id ? toRecipeListItem(saved) : recipe
+          recipe.id === saved.id
+            ? { ...toRecipeListItem(saved), run: recipe.run }
+            : recipe
         )
       )
       toast.success(`Renamed recipe to "${saved.name}".`)
@@ -309,7 +322,7 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
             ? "No recipes match that search."
             : "No recipes yet. Create the first one."
         }
-        emptyColSpan={5}
+        emptyColSpan={6}
         footer={footer}
       >
         {visible.map((recipe) => (
@@ -334,6 +347,29 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
               >
                 {recipe.name}
               </Link>
+            </TableCell>
+            <TableCell column="meta">
+              {recipe.run && recipe.run.status !== "Stopped" ? (
+                <Link
+                  to="/flow-runs/$runId"
+                  params={{ runId: recipe.run.id }}
+                  className="underline underline-offset-2"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {recipe.run.activeCount > 1
+                    ? `${recipe.run.status} on ${recipe.run.activeCount} wallets`
+                    : `${recipe.run.status} · ${recipe.run.walletLabel}`}
+                </Link>
+              ) : recipe.run ? (
+                <span>
+                  Stopped
+                  {recipe.run.stoppedAt
+                    ? ` · ${formatDateTime(new Date(recipe.run.stoppedAt))}`
+                    : ""}
+                </span>
+              ) : (
+                "Never run"
+              )}
             </TableCell>
             <TableCell column="meta">{recipe.summary}</TableCell>
             <TableCell column="mutedMeta" className="hidden sm:table-cell">

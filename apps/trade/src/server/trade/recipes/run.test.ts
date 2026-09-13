@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -400,6 +401,37 @@ describe("reading the Grid strategy from a flow", () => {
 
     expect(outcome).toMatchObject({ started: true, mode: "trades" })
     expect(await database.select().from(tradeFlowRuns)).toHaveLength(1)
+    await database
+      .update(tradeFlowRuns)
+      .set({ status: "stopped", stoppedAt: new Date(NOW + 1) })
+      .where(eq(tradeFlowRuns.id, outcome.runId!))
+    config.nodes.markets.settings = {
+      ...(config.nodes.markets.settings as object),
+      marketKeys: ["hyperliquid:mainnet:ETH"],
+    }
+    config.nodes.wallet.settings = tradeWalletNode.createSettings()
+    await database
+      .update(tradeRecipes)
+      .set({ compiledConfig: config })
+      .where(eq(tradeRecipes.id, "practice-recipe"))
+    const restartInput = {
+      workspaceId: workspace.id,
+      recipeId: "practice-recipe",
+      pressId: "00000000-0000-4000-8000-000000000005",
+      restartRunId: outcome.runId,
+      now: NOW + 2,
+    }
+    const restarted = await runWorkspaceRecipe(user.id, restartInput, database)
+    expect(restarted).toMatchObject({ started: true, mode: "trades" })
+    const [fresh] = await database
+      .select()
+      .from(tradeFlowRuns)
+      .where(eq(tradeFlowRuns.id, restarted.runId!))
+    expect(fresh.walletId).toBe("practice-wallet")
+    expect(fresh.spec.marketKeys).toEqual(["hyperliquid:mainnet:ETH"])
+    const refused = await runWorkspaceRecipe(user.id, restartInput, database)
+    expect(refused.started).toBe(false)
+    expect(await database.select().from(tradeFlowRuns)).toHaveLength(2)
   })
 
   it("does not run a recipe from another workspace", async () => {

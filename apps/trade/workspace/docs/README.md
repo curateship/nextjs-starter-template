@@ -161,7 +161,7 @@ screen: anything not written there has not been agreed yet.
   waiting price, progress notices, and what happens to the stop on the rest.
 - `stopping-flow-ladders.md` — how Stop finds every ladder a flow owns, cancels
   real exchange orders, blocks a coin hunt already in flight, and reports a
-  coin the exchange would not cancel.
+  coin the exchange would not cancel. It also covers permanent single-coin stopping.
 - `rate-limits.md` — the separate signed-in caps for orders and cancellations,
   the measured twenty-position bulk actions, and why worker orders do not use
   them.
@@ -257,7 +257,7 @@ always used.
 
 ## recipes/
 
-- `dashboard.md` explains trading status before the canvas tabs, recipe name cards and independent duplicate buttons, plus DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
+- `dashboard.md` explains run-page Pause, Resume and Run again, the recipe Status column, trading status before the canvas tabs, recipe name cards and independent duplicate buttons, plus DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
   Switch on run, the live-run deletion rule, and how saved Trade drawings move
   out of Automations.
 

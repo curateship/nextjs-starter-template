@@ -1,3 +1,4 @@
+import { FlowRunControls } from "@/components/flow-run/flow-run-controls"
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
@@ -131,6 +132,7 @@ export function FlowRunPage({
   if (read.from !== initial) {
     setRead({ from: initial, report: initial })
   }
+  const actionPending = React.useRef(false)
   const report = read.report
   // The server's own clock, sent with the answer. The head of the money line is
   // drawn at that moment, so reading the browser's would put the last point
@@ -147,7 +149,8 @@ export function FlowRunPage({
     const tick = () => {
       void loadFlowRun(report.head.id)
         .then((fresh) => {
-          if (live) setRead((was) => ({ from: was.from, report: fresh }))
+          if (live && !actionPending.current)
+            setRead((was) => ({ from: was.from, report: fresh }))
         })
         // A failed read leaves the last answer on screen rather than blanking
         // the page — the same rule the canvas chip follows.
@@ -296,13 +299,38 @@ export function FlowRunPage({
   )
   const coinsPanel = (
     <FlowRunCoinsPanel
+      key={report.head.id}
       report={report}
       openCoin={activeCoin}
       onOpenCoin={openCoinInChart}
+      onRefresh={async () => {
+        const fresh = await loadFlowRun(report.head.id)
+        setRead((was) => ({ from: was.from, report: fresh }))
+      }}
+    />
+  )
+  const runControls = (
+    <FlowRunControls
+      key={report.head.id}
+      onWorking={(working) => {
+        actionPending.current = working
+      }}
+      head={report.head}
+      onPaused={(paused) =>
+        setRead((was) => ({
+          ...was,
+          report: { ...was.report, head: { ...was.report.head, paused } },
+        }))
+      }
+      onRefresh={async () => {
+        const fresh = await loadFlowRun(report.head.id)
+        setRead((was) => ({ from: was.from, report: fresh }))
+      }}
     />
   )
   const chartPanel = (
     <FlowRunChartPanel
+      runControls={runControls}
       spec={report.spec}
       openCoin={activeCoin}
       coinLabel={
@@ -397,11 +425,11 @@ export function FlowRunPage({
   ) : (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
-        {chartPanel}
-      </WorkspacePanel>
-      <WorkspacePanel className="flex flex-col">{coinsPanel}</WorkspacePanel>
-      <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
+        <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
+          {chartPanel}
+        </WorkspacePanel>
+        <WorkspacePanel className="flex flex-col">{coinsPanel}</WorkspacePanel>
+        <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
       </div>
     </ScrollArea>
   )

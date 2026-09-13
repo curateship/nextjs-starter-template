@@ -3,11 +3,17 @@ import { tradeDcaNode } from "@/lib/recipes/trade-dca"
 import { tradeMarketsNode } from "@/lib/recipes/trade-markets"
 import { tradeWalletNode } from "@/lib/recipes/trade-wallet"
 
-import { act } from "react"
+import { act, type ComponentProps } from "react"
 import { createRoot } from "react-dom/client"
 import { describe, expect, it, vi } from "vitest"
 
-import BacktestCanvasPanel from "@/components/recipes/backtest-canvas-panel"
+import { loadFlowTrading, type FlowTrading } from "@/lib/api/trade/flow-trading"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import BacktestPanel from "@/components/recipes/backtest-canvas-panel"
+
+function BacktestCanvasPanel(props: ComponentProps<typeof BacktestPanel>) {
+  return <TooltipProvider><BacktestPanel {...props} /></TooltipProvider>
+}
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -200,10 +206,49 @@ describe("the backtest canvas panel", () => {
       expect.stringMatching(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
       ),
-      undefined
+      ["4h"]
     )
 
     await act(async () => root.unmount())
     host.remove()
   })
+})
+
+it("keeps the Backtest window visible while loading and for a saved wallet", async () => {
+  let resolve!: (value: FlowTrading) => void
+  vi.mocked(loadFlowTrading).mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    })
+  )
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () =>
+      root.render(
+        <BacktestCanvasPanel
+          automationId="saved-wallet"
+          runId={null}
+          onClose={() => {}}
+        />
+      )
+    )
+    expect(host.textContent).toContain("Backtest")
+    expect(host.textContent).toContain("Reading trading status")
+    await act(async () =>
+      resolve({ mode: "trades", drawnIsBacktest: false } as FlowTrading)
+    )
+    expect(host.textContent).toContain("Backtest")
+    expect(host.textContent).toContain(
+      "Choose pretend money in the Wallet step"
+    )
+    const button = [...host.querySelectorAll("button")].find(
+      (one) => one.textContent?.trim() === "Backtest"
+    )!
+    expect(button.disabled).toBe(true)
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
 })

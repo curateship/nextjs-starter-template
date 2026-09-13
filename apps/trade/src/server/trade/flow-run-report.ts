@@ -671,17 +671,33 @@ export async function readFlowRun(
   }
   const wordsFor = new Map(waiting.map((one) => [one.marketKey, one]))
 
-  const coins: FlowRunCoin[] = row.spec.marketKeys.map((marketKey) => {
-    const wait = wordsFor.get(marketKey) ?? null
+  const coins: FlowRunCoin[] = [
+    ...new Set([
+      ...row.spec.marketKeys,
+      ...Object.keys(row.spec.stoppedMarkets ?? {}),
+    ]),
+  ].map((marketKey) => {
+    const wait =
+      wordsFor.get(marketKey) ??
+      (row.waiting[marketKey]
+        ? describeFlowWait(marketKey, row.waiting[marketKey])
+        : null)
     const money = netByCoin.get(marketKey) ?? { net: 0, trades: 0 }
     const working = workingCoins.has(marketKey)
     return {
       marketKey,
       coin: coinOf(marketKey),
       working,
-      words: working
-        ? null
-        : (wait?.words ?? (row.status === "stopped" ? "Stopped" : null)),
+      words:
+        row.spec.stoppedMarkets?.[marketKey] !== undefined
+          ? row.marketCancels[marketKey]
+            ? wait?.problem
+              ? wait.words
+              : "Stopping"
+            : "Stopped by you"
+          : working
+            ? null
+            : (wait?.words ?? (row.status === "stopped" ? "Stopped" : null)),
       problem: !working && (wait?.problem ?? false),
       netUsd: money.net,
       trades: money.trades,

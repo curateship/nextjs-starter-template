@@ -672,3 +672,39 @@ describe("listFlowRuns", () => {
     expect(rows[0].automationName).toBe("Ladder every coin")
   })
 })
+
+it("keeps manually stopped coins visible and reports a cancellation refusal", async () => {
+  await db
+    .update(tradeFlowRuns)
+    .set({
+      status: "running",
+      stoppedAt: null,
+      spec: { ...spec(), marketKeys: [ETH], stoppedMarkets: { [BTC]: NOW } },
+      marketCancels: { [BTC]: "manual-token" },
+      waiting: {},
+    })
+    .where(eq(tradeFlowRuns.id, "run-1"))
+  expect(
+    (await readFlowRun(userId, "run-1", NOW))?.coins.find(
+      (coin) => coin.marketKey === BTC
+    )
+  ).toMatchObject({ words: "Stopping", working: false })
+  await db
+    .update(tradeFlowRuns)
+    .set({ waiting: { [BTC]: { code: "FLOW_CANCEL_FAILED", at: NOW } } })
+    .where(eq(tradeFlowRuns.id, "run-1"))
+  expect(
+    (await readFlowRun(userId, "run-1", NOW))?.coins.find(
+      (coin) => coin.marketKey === BTC
+    )
+  ).toMatchObject({ problem: true })
+  await db
+    .update(tradeFlowRuns)
+    .set({ marketCancels: {}, waiting: {} })
+    .where(eq(tradeFlowRuns.id, "run-1"))
+  expect(
+    (await readFlowRun(userId, "run-1", NOW))?.coins.find(
+      (coin) => coin.marketKey === BTC
+    )
+  ).toMatchObject({ words: "Stopped by you", problem: false })
+})

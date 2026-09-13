@@ -6,7 +6,7 @@ now contains only the general email, audience, billing and timing steps.
 
 ## The dashboard
 
-The table lists each recipe's name, step count and last update. An admin can
+The table lists each recipe's name, status, step count and last update. An admin can
 search, sort, create, rename, copy or delete a recipe. A recipe with a live run
 cannot be deleted. A bulk deletion also stops if any selected recipe has a
 live run, so the admin can stop that recipe and make the choice again.
@@ -42,7 +42,10 @@ Recipe drafts save after an edit. The server checks the whole drawing again
 before it saves the copy used for a run. A half-filled or unsupported step stays
 visible on the draft, but it cannot run until the red problem is fixed.
 
-The Backtest panel and trading status sit on the recipe canvas. Recipes do not
+The Backtest panel and trading status sit on the recipe canvas. The Backtest
+window stays visible while trading status loads and when a saved wallet is
+selected. Existing results remain readable. Starting a backtest requires
+pretend money on the Wallet step; the window explains that requirement. Recipes do not
 have schedules, member tests, templates or the shell's run history.
 
 ## What the buttons run
@@ -80,3 +83,42 @@ keep the form window's unsaved-change handling and validation.
 Duplicating a recipe disables only that row's Duplicate button and shows its
 spinner. Other recipes can be duplicated while the first request runs. Each
 button becomes available when its own request finishes or fails.
+
+## Status in the list
+
+Status sorts running recipes first, followed by paused, stopping, stopped and
+never-run recipes. Running and paused rows name the wallet and link to its run.
+Stopping stays visible until cancellation finishes. Stopped rows show when the
+last run stopped. A recipe without a run says Never run.
+
+The recipe query also reads the current user's runs in one database statement.
+Workspace admins can see shared recipes, but never another user's wallet name
+or run link. If multiple active wallets become supported, the column says
+Running on 2 wallets and links to the first running run, newest first. Paused
+and stopping runs follow running runs. Renaming a recipe preserves its status.
+Reload the list to read changes made from another screen.
+
+## Controls on a run page
+
+The run page has no separate recipe-name header or divider. Run controls sit
+immediately before Chart and Canvas in the chart header.
+
+Pause and Resume use the same button and server action as the Bots tab. Pause
+stops the search for new coins and leaves placed orders alone. The button
+changes immediately and returns to its previous state if the server refuses.
+The run page reads again every five seconds while running or paused, so a
+change from Bots reaches this page too.
+
+Stop keeps the existing whole-run cancellation behavior. A stopped run offers
+Run again immediately before Chart and Canvas in the chart header, on its original wallet. The confirmation says that today's saved
+recipe runs, and shows the recipe's last change time if edited after the stop.
+The server reads the current recipe under its recipe lock, takes the wallet ID
+from the owner's stopped run, and runs the normal start checks. A busy wallet
+refuses the restart. The saved recipe's wallet choice is not changed. A
+successful restart opens the newly created run page.
+
+Each coin has Stop while its run is running or paused. Confirmation names the
+coin and explains what happens to a held position. Stopping remains visible
+until the engine confirms cancellation, then becomes Stopped by you. The coin
+stays visible in this run's report and cannot be restored by editing its folder.
+See `../orders/stopping-flow-ladders.md` for order ownership and cancellation.

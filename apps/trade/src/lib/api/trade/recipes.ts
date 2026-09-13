@@ -23,6 +23,7 @@ import {
   renameWorkspaceRecipe,
   saveWorkspaceRecipe,
   type TradeRecipe,
+  type RecipeRunStatus,
 } from "@/server/trade/recipes"
 import {
   runWorkspaceRecipe,
@@ -37,6 +38,7 @@ export type RecipeListItem = {
   isValid: boolean
   nodeCount: number
   updated_at: string
+  run: RecipeRunStatus | null
 }
 
 export type RecipeDetail = {
@@ -65,6 +67,7 @@ export function toRecipeListItem(recipe: RecipeDetail): RecipeListItem {
     isValid,
     nodeCount,
     updated_at: recipe.updated_at,
+    run: null,
   }
 }
 
@@ -82,6 +85,7 @@ const saveSchema = recipeIdSchema.extend({
 const renameSchema = recipeIdSchema.extend({ name: nameSchema })
 const runSchema = recipeIdSchema.extend({
   pressId: z.string().uuid(),
+  restartRunId: z.string().min(1).max(36).optional(),
   intervals: z
     .array(z.enum(CANDLE_INTERVALS))
     .min(1)
@@ -111,7 +115,10 @@ const loadRecipesPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<RecipesPage> => ({
     recipes: (
-      await listWorkspaceRecipes(await workspaceIdForRequest(context.user.id))
+      await listWorkspaceRecipes(
+        await workspaceIdForRequest(context.user.id),
+        context.user.id
+      )
     ).map((row) => ({
       id: row.id,
       name: row.name,
@@ -119,6 +126,7 @@ const loadRecipesPageFn = createServerFn({ method: "GET" })
       isValid: row.isValid,
       nodeCount: row.nodeCount,
       updated_at: row.updatedAt.toISOString(),
+      run: row.run,
     })),
   }))
 
@@ -203,6 +211,7 @@ const runRecipeFn = createServerFn({ method: "POST" })
       workspaceId: await workspaceIdForRequest(context.user.id),
       recipeId: data.recipeId,
       pressId: data.pressId,
+      restartRunId: data.restartRunId,
       intervals: data.intervals,
       now: Date.now(),
     })
@@ -243,9 +252,10 @@ export function deleteRecipes(recipeIds: string[]) {
 export function runRecipe(
   recipeId: string,
   pressId: string,
-  intervals?: CandleInterval[]
+  intervals?: CandleInterval[],
+  restartRunId?: string
 ) {
-  return runRecipeFn({ data: { recipeId, pressId, intervals } })
+  return runRecipeFn({ data: { recipeId, pressId, intervals, restartRunId } })
 }
 
 function serializeRecipe(row: TradeRecipe): RecipeDetail {

@@ -40,6 +40,7 @@ describe("the Recipes dashboard", () => {
               isValid: true,
               nodeCount: 3,
               updated_at: "2026-09-01T12:00:00.000Z",
+              run: null,
             },
           ],
         }}
@@ -65,6 +66,7 @@ it("keeps duplicate requests independent and releases only the completed row", a
     isValid: true,
     nodeCount: 3,
     updated_at: "2026-09-01T12:00:00.000Z",
+    run: null,
   }))
   let finishA!: (value: unknown) => void
   let finishB!: (value: unknown) => void
@@ -103,4 +105,48 @@ it("keeps duplicate requests independent and releases only the completed row", a
     await act(async () => root.unmount())
     host.remove()
   }
+})
+
+it("shows the four statuses and sorts active recipes first", () => {
+  const row = (
+    name: string,
+    status: "Running" | "Paused" | "Stopped" | null
+  ) => ({
+    id: name,
+    name,
+    summary: "3 steps",
+    nodeCount: 3,
+    isValid: true,
+    updated_at: "2026-09-13T12:00:00Z",
+    run: status
+      ? {
+          id: `${name}-run`,
+          status,
+          walletLabel: "Practice",
+          stoppedAt: status === "Stopped" ? "2026-09-12T12:00:00Z" : null,
+          activeCount: status === "Stopped" ? 0 : 1,
+        }
+      : null,
+  })
+  const html = renderToStaticMarkup(
+    <RecipesListPage
+      initial={{
+        recipes: [
+          row("Never", null),
+          row("Finished", "Stopped"),
+          row("Paused recipe", "Paused"),
+          row("Active recipe", "Running"),
+        ],
+      }}
+    />
+  )
+  expect(html).toContain("Never run")
+  expect(html).toContain("Running · Practice")
+  expect(html).toContain("Paused · Practice")
+  expect(html).toContain("Stopped")
+  expect(html.indexOf("Active recipe")).toBeLessThan(
+    html.indexOf("Paused recipe")
+  )
+  expect(html.indexOf("Paused recipe")).toBeLessThan(html.indexOf("Finished"))
+  expect(html).toContain("/flow-runs/$runId")
 })

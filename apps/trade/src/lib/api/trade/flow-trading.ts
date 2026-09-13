@@ -31,6 +31,7 @@ import {
   pauseFlowRun,
   retryFlowRunNow,
   stopFlowRun,
+  stopFlowCoin,
 } from "@/server/trade/flow-run"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { and, eq, inArray } from "drizzle-orm"
@@ -434,6 +435,22 @@ const stopFlowFn = createServerFn({ method: "POST" })
     return { summary: describeFlowStop(outcome) }
   })
 
+const stopCoinFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      runId: z.string().min(1).max(36),
+      marketKey: z.string().min(1).max(120),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    await stopFlowCoin(context.user.id, { ...data, now: Date.now() })
+  })
+
+export function stopRunCoin(runId: string, marketKey: string) {
+  return stopCoinFn({ data: { runId, marketKey } })
+}
+
 const pauseFlowFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(flowSchema.extend({ paused: z.boolean() }))
@@ -443,7 +460,7 @@ const pauseFlowFn = createServerFn({ method: "POST" })
       paused: data.paused,
       now: Date.now(),
     })
-    if (!changed) return { summary: "That flow was not switched on." }
+    if (!changed) throw new Error("That flow was not switched on.")
     return {
       summary: data.paused
         ? "Paused. Nothing already placed has been touched."

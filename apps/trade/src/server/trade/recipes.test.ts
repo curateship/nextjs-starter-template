@@ -93,7 +93,9 @@ describe("recipe storage", () => {
       database
     )
     expect(saved?.compiledConfig).not.toBeNull()
-    await expect(listWorkspaceRecipes(workspaceId, database)).resolves.toEqual([
+    await expect(
+      listWorkspaceRecipes(workspaceId, userId, database)
+    ).resolves.toEqual([
       expect.objectContaining({
         id: created.id,
         summary: "3 steps",
@@ -189,5 +191,70 @@ describe("recipe storage", () => {
         .from(tradeRecipes)
         .where(eq(tradeRecipes.id, recipe.id))
     ).toHaveLength(1)
+  })
+})
+
+it("reads the latest run state with recipes without exposing another owner's runs", async () => {
+  const recipe = await createWorkspaceRecipe(
+    workspaceId,
+    userId,
+    "Status recipe",
+    database
+  )
+  expect(
+    (await listWorkspaceRecipes(workspaceId, userId, database))[0].run
+  ).toBeNull()
+  await database
+    .insert(tradeWallets)
+    .values({
+      userId,
+      id: "status-wallet",
+      label: "Renamed wallet",
+      kind: "paper",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 100,
+    })
+  await database
+    .insert(tradeFlowRuns)
+    .values({
+      userId,
+      walletId: "status-wallet",
+      id: "status-run",
+      automationId: recipe.id,
+      status: "running",
+      spec: { walletLabel: "Old wallet" } as never,
+      startedAt: new Date(),
+      updatedAt: new Date(),
+    })
+  expect(
+    (await listWorkspaceRecipes(workspaceId, userId, database))[0].run
+  ).toMatchObject({
+    status: "Running",
+    walletLabel: "Renamed wallet",
+    id: "status-run",
+    activeCount: 1,
+  })
+  expect(
+    (await listWorkspaceRecipes(workspaceId, "another-user", database))[0].run
+  ).toBeNull()
+  await database
+    .update(tradeFlowRuns)
+    .set({ pausedAt: new Date() })
+    .where(eq(tradeFlowRuns.id, "status-run"))
+  expect(
+    (await listWorkspaceRecipes(workspaceId, userId, database))[0].run?.status
+  ).toBe("Paused")
+  await database
+    .update(tradeFlowRuns)
+    .set({ status: "stopped", stoppedAt: new Date() })
+    .where(eq(tradeFlowRuns.id, "status-run"))
+  expect(
+    (await listWorkspaceRecipes(workspaceId, userId, database))[0].run
+  ).toMatchObject({
+    status: "Stopped",
+    activeCount: 0,
+    stoppedAt: expect.any(String),
   })
 })

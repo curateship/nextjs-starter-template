@@ -68,6 +68,8 @@ export type TradeFlowRunSpec = {
   folderId: string | null
   /** The coins this flow watches, as full market keys. */
   marketKeys: string[]
+  /** Coins stopped by the owner stay excluded for this entire run. */
+  stoppedMarkets?: Record<string, number>
   /** What it does about them. */
   strategy: TradeFlowStrategy
   /**

@@ -1,3 +1,4 @@
+import { FlowPauseButton } from "@/components/flow-run/flow-pause-button"
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { toast } from "sonner"
@@ -6,7 +7,6 @@ import {
   EllipsisVerticalIcon,
   Grid2x2Icon,
   Loader2Icon,
-  PauseIcon,
   PlayIcon,
   SquareIcon,
 } from "lucide-react"
@@ -476,23 +476,15 @@ function BotRow({
             </div>
             {bot.stopping ? null : (
               <div className="flex gap-2 border-t p-3">
-                <Button
-                  type="button"
-                  variant="outline"
+                <FlowPauseButton
+                  paused={bot.paused}
+                  busy={busy}
                   className="flex-1"
-                  disabled={busy}
                   onClick={() => {
                     setOpen(false)
                     onPause()
                   }}
-                >
-                  {bot.paused ? (
-                    <PlayIcon className="size-4" />
-                  ) : (
-                    <PauseIcon className="size-4" />
-                  )}
-                  {bot.paused ? "Resume" : "Pause"}
-                </Button>
+                />
                 <Button
                   type="button"
                   variant="outline"

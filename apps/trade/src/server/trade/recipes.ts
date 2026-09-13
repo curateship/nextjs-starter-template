@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, sql, getTableColumns } from "drizzle-orm"
 
 import {
   automationGraphSchema,
@@ -27,6 +27,14 @@ export type InspectedRecipe = {
   readable: boolean
 }
 
+export type RecipeRunStatus = {
+  id: string
+  status: "Running" | "Paused" | "Stopping" | "Stopped"
+  walletLabel: string
+  stoppedAt: string | null
+  activeCount: number
+}
+
 export type RecipeListRow = {
   id: string
   name: string
@@ -34,6 +42,7 @@ export type RecipeListRow = {
   isValid: boolean
   nodeCount: number
   updatedAt: Date
+  run: RecipeRunStatus | null
 }
 
 export function inspectRecipe(row: TradeRecipe): InspectedRecipe {
@@ -75,10 +84,26 @@ function recipeSummary(inspected: InspectedRecipe): string {
 
 export async function listWorkspaceRecipes(
   workspaceId: string,
+  userId: string,
   database: CustomShellDb = db
 ): Promise<RecipeListRow[]> {
   const rows = await database
-    .select()
+    .select({
+      ...getTableColumns(tradeRecipes),
+      run: sql<RecipeRunStatus | null>`(
+        select jsonb_build_object(
+          'id', r.id,
+          'status', case when r.status = 'stopping' then 'Stopping' when r.status = 'stopped' then 'Stopped' when r.paused_at is not null then 'Paused' else 'Running' end,
+          'walletLabel', coalesce(w.label, r.spec->>'walletLabel'),
+          'stoppedAt', r.stopped_at,
+          'activeCount', (select count(*) from trade_flow_runs a where a.automation_id = "trade_recipes"."id" and a.user_id = ${userId} and a.status in ('running', 'stopping'))
+        ) from trade_flow_runs r
+        left join trade_wallets w on w.id = r.wallet_id and w.user_id = r.user_id
+        where r.automation_id = "trade_recipes"."id" and r.user_id = ${userId}
+        order by case when r.status = 'running' and r.paused_at is null then 0 when r.status = 'running' then 1 when r.status = 'stopping' then 2 else 3 end, r.started_at desc, r.id
+        limit 1
+      )`,
+    })
     .from(tradeRecipes)
     .where(eq(tradeRecipes.workspaceId, workspaceId))
     .orderBy(desc(tradeRecipes.updatedAt))
@@ -93,6 +118,7 @@ export async function listWorkspaceRecipes(
         Boolean(inspected.compiledConfig) && inspected.errors.length === 0,
       nodeCount: inspected.graph.nodes.length,
       updatedAt: row.updatedAt,
+      run: row.run,
     }
   })
 }

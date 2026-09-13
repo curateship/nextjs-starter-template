@@ -71,6 +71,7 @@ export function FlowRunChartPanel({
   error,
   walletLabel,
   automationId,
+  runControls,
   chartToolbarPosition,
   onChartToolbarPositionChange,
   onRetry,
@@ -104,6 +105,7 @@ export function FlowRunChartPanel({
   /** The wallet's name, for the ladder tag's tooltip. */
   walletLabel: string
   automationId: string
+  runControls?: React.ReactNode
   chartToolbarPosition?: ChartToolbarPosition | null
   onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
@@ -147,6 +149,7 @@ export function FlowRunChartPanel({
         }
         action={
           <div className="flex items-center gap-2">
+            {runControls}
             {hasGraph ? (
               <Button type="button" variant="outline" onClick={onSwapView}>
                 {showGraph ? (

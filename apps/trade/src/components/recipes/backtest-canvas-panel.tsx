@@ -15,6 +15,7 @@ import { FlaskConicalIcon, Loader2Icon, XIcon } from "lucide-react"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -153,14 +154,7 @@ export default function BacktestCanvasPanel({
   const [runProblem, setRunProblem] = React.useState<string | null>(null)
   /** Bumped to read the list again now, instead of waiting out the timer. */
   const [readNow, setReadNow] = React.useState(0)
-  /**
-   * Whether the first read of what this flow is has come back, either way.
-   *
-   * **Nothing is drawn before it has.** This panel decides whether it should
-   * exist at all from that answer, and it was drawing itself first and
-   * withdrawing about half a second later — a card that opens and shuts itself
-   * on every visit. Waiting is invisible; flashing is not.
-   */
+  /** The window stays visible while the first trading-status read settles. */
   const [flowSettled, setFlowSettled] = React.useState(false)
 
   React.useEffect(() => {
@@ -329,18 +323,13 @@ export default function BacktestCanvasPanel({
   const startingOnly = starting && (run === null || run.finishedAt !== null)
   const trades = flow?.mode === "trades" ? flow : null
 
-  // A flow is the header's business, not this panel's.
-  //
-  // Switching one on lives on the button in the header, where the two-press
-  // confirm is a proper window; saying one is running lives on the chip beside
-  // it. This panel is for what a run produced, so a canvas that is a flow
-  // rather than a backtest has nothing for it to show. It carried both for a
-  // build and ended up meaning three things at once, with a second way to
-  // start a flow that asked its question worse.
-  // Nothing until the answer that decides this has landed. Drawing first and
-  // withdrawing after is the flash somebody sees on every visit.
-  if (!flowSettled) return null
-  if (trades && !trades.drawnIsBacktest) return null
+  const startBlocked =
+    !flowSettled || flow === null || Boolean(trades && !trades.drawnIsBacktest)
+  const startReason = !flowSettled
+    ? "Reading trading status…"
+    : flow === null
+      ? "Could not read trading status. Retrying…"
+      : "Choose pretend money in the Wallet step to start a backtest."
 
   return (
     // The whole card opens the run.
@@ -419,7 +408,9 @@ export default function BacktestCanvasPanel({
               void stopRun(run.id)
             }}
           >
-            {stopping || run.stopRequested ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+            {stopping || run.stopRequested ? (
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+            ) : null}
             Stop
           </Button>
         ) : null}
@@ -624,6 +615,11 @@ export default function BacktestCanvasPanel({
               button, and no spinner standing in for it. A disabled button with
               a spinner on it is still a button asking to be pressed, and the
               figures above already change as the run goes. */}
+          {!running && startBlocked ? (
+            <p role="status" className="mt-2 text-xs text-muted-foreground">
+              {startReason}
+            </p>
+          ) : null}
           <div className="mt-2 flex items-center justify-between gap-3">
             <p className="text-[11px] leading-4 text-muted-foreground">
               {/* Left off while a press is on its way: it is the previous
@@ -634,70 +630,72 @@ export default function BacktestCanvasPanel({
                 : ""}
             </p>
             {running ? null : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={starting}
-                onClick={(event) => {
-                  // The card itself opens the full run page when clicked, and a
-                  // button inside it must not do both.
-                  event.stopPropagation()
-                  if (pressPending.current) return
-                  if (intervals?.length === 0) {
-                    showErrorToast("Choose at least one candle size.")
-                    return
-                  }
-                  pressPending.current = true
-                  // Remembered before the request goes out, so the next read can
-                  // tell a new run from the one already on screen.
-                  runIdWhenPressed.current = run?.id ?? null
-                  setStarting(true)
-                  setRunProblem(null)
-                  void (async () => {
-                    try {
-                      if (beforeRun && !(await beforeRun())) {
-                        setStarting(false)
-                        return
-                      }
-                      const signature = JSON.stringify([
-                        automationId,
-                        compiledConfig,
-                        intervals,
-                      ])
-                      if (retryPress.current?.signature !== signature)
-                        retryPress.current = {
-                          signature,
-                          id: crypto.randomUUID(),
-                        }
-                      const outcome = await runRecipe(
-                        automationId,
-                        retryPress.current.id,
-                        intervals
-                      )
-                      retryPress.current = null
-                      if (!outcome.started) {
-                        setStarting(false)
-                        setRunProblem(outcome.summary)
-                        return
-                      }
-                      setReadNow((n) => n + 1)
-                    } catch (error) {
-                      setStarting(false)
-                      showErrorToast(getRecipeErrorMessage(error))
-                    } finally {
-                      pressPending.current = false
+              <DisabledReason disabled={startBlocked} reason={startReason}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={starting || startBlocked}
+                  onClick={(event) => {
+                    // The card itself opens the full run page when clicked, and a
+                    // button inside it must not do both.
+                    event.stopPropagation()
+                    if (pressPending.current) return
+                    if (intervals?.length === 0) {
+                      showErrorToast("Choose at least one candle size.")
+                      return
                     }
-                  })()
-                }}
-              >
-                {starting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <FlaskConicalIcon className="size-4" />
-                )}
-                Backtest
-              </Button>
+                    pressPending.current = true
+                    // Remembered before the request goes out, so the next read can
+                    // tell a new run from the one already on screen.
+                    runIdWhenPressed.current = run?.id ?? null
+                    setStarting(true)
+                    setRunProblem(null)
+                    void (async () => {
+                      try {
+                        if (beforeRun && !(await beforeRun())) {
+                          setStarting(false)
+                          return
+                        }
+                        const signature = JSON.stringify([
+                          automationId,
+                          compiledConfig,
+                          intervals,
+                        ])
+                        if (retryPress.current?.signature !== signature)
+                          retryPress.current = {
+                            signature,
+                            id: crypto.randomUUID(),
+                          }
+                        const outcome = await runRecipe(
+                          automationId,
+                          retryPress.current.id,
+                          intervals ?? ["4h"]
+                        )
+                        retryPress.current = null
+                        if (!outcome.started) {
+                          setStarting(false)
+                          setRunProblem(outcome.summary)
+                          return
+                        }
+                        setReadNow((n) => n + 1)
+                      } catch (error) {
+                        setStarting(false)
+                        showErrorToast(getRecipeErrorMessage(error))
+                      } finally {
+                        pressPending.current = false
+                      }
+                    })()
+                  }}
+                >
+                  {starting ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <FlaskConicalIcon className="size-4" />
+                  )}
+                  Backtest
+                </Button>
+              </DisabledReason>
             )}
           </div>
         </div>

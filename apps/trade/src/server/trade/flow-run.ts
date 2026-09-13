@@ -608,7 +608,8 @@ async function finishStoppingFlow(
       and(
         eq(tradeFlowRuns.userId, run.userId),
         eq(tradeFlowRuns.id, run.id),
-        eq(tradeFlowRuns.status, "stopping")
+        eq(tradeFlowRuns.status, "stopping"),
+        sql`${tradeFlowRuns.marketCancels} = '{}'::jsonb`
       )
     )
     .returning({ id: tradeFlowRuns.id })
@@ -634,6 +635,21 @@ async function advanceStoppingFlow(
   database: CustomShellDb,
   passWallets?: ReadonlyMap<string, TradeWallet | null>
 ): Promise<void> {
+  // A whole-run Stop must finish any single-coin request already queued,
+  // including waiting rungs on a partially bought ladder.
+  const [pending] = await database
+    .select({ marketCancels: tradeFlowRuns.marketCancels })
+    .from(tradeFlowRuns)
+    .where(
+      and(eq(tradeFlowRuns.userId, run.userId), eq(tradeFlowRuns.id, run.id))
+    )
+    .limit(1)
+  if (pending && Object.keys(pending.marketCancels).length > 0) {
+    await advanceRemovedFlowLadders(now, database, {
+      runs: [{ ...run, marketCancels: pending.marketCancels }],
+      wallets: passWallets ?? new Map(),
+    })
+  }
   const rows = await flowStopRows(run.userId, run.automationId, database)
   const wallets = new Map<string, TradeWallet | null>()
   const waiting = { ...run.waiting }
@@ -811,6 +827,71 @@ export async function advanceStoppingFlows(
   }
 }
 
+/** Persist the exclusion under the same wallet lock used by placement. */
+export async function stopFlowCoin(
+  userId: string,
+  input: { runId: string; marketKey: string; now: number },
+  database: CustomShellDb = db
+): Promise<void> {
+  await database.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ walletId: tradeFlowRuns.walletId })
+      .from(tradeFlowRuns)
+      .where(
+        and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, input.runId))
+      )
+      .limit(1)
+    if (!owner) throw new Error("That run no longer exists.")
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(
+          eq(tradeWallets.userId, userId),
+          eq(tradeWallets.id, owner.walletId)
+        )
+      )
+      .for("update")
+    const [run] = await tx
+      .select()
+      .from(tradeFlowRuns)
+      .where(
+        and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, input.runId))
+      )
+      .limit(1)
+    if (!run || run.status !== "running")
+      throw new Error("That run is no longer running.")
+    if (run.spec.stoppedMarkets?.[input.marketKey] !== undefined) return
+    if (!run.spec.marketKeys.includes(input.marketKey))
+      throw new Error("That coin is not in this run.")
+    const waiting = { ...run.waiting }
+    delete waiting[input.marketKey]
+    await tx
+      .update(tradeFlowRuns)
+      .set({
+        spec: {
+          ...run.spec,
+          marketKeys: run.spec.marketKeys.filter(
+            (key) => key !== input.marketKey
+          ),
+          stoppedMarkets: {
+            ...run.spec.stoppedMarkets,
+            [input.marketKey]: input.now,
+          },
+        },
+        waiting,
+        marketCancels: {
+          ...run.marketCancels,
+          [input.marketKey]: randomUUID(),
+        },
+        updatedAt: new Date(input.now),
+      })
+      .where(
+        and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, input.runId))
+      )
+  })
+}
+
 async function markRemovedMarketCancelFailed(
   run: RemovedFlowPassRow,
   marketKey: string,
@@ -839,7 +920,7 @@ async function markRemovedMarketCancelFailed(
         and(
           eq(tradeFlowRuns.userId, run.userId),
           eq(tradeFlowRuns.id, run.id),
-          eq(tradeFlowRuns.status, "running")
+          inArray(tradeFlowRuns.status, ["running", "stopping"])
         )
       )
       .limit(1)
@@ -858,7 +939,7 @@ async function markRemovedMarketCancelFailed(
         and(
           eq(tradeFlowRuns.userId, run.userId),
           eq(tradeFlowRuns.id, run.id),
-          eq(tradeFlowRuns.status, "running")
+          inArray(tradeFlowRuns.status, ["running", "stopping"])
         )
       )
     return true
@@ -893,7 +974,7 @@ async function finishRemovedMarketCancel(
         and(
           eq(tradeFlowRuns.userId, run.userId),
           eq(tradeFlowRuns.id, run.id),
-          eq(tradeFlowRuns.status, "running")
+          inArray(tradeFlowRuns.status, ["running", "stopping"])
         )
       )
       .limit(1)
@@ -912,7 +993,7 @@ async function finishRemovedMarketCancel(
         and(
           eq(tradeFlowRuns.userId, run.userId),
           eq(tradeFlowRuns.id, run.id),
-          eq(tradeFlowRuns.status, "running")
+          inArray(tradeFlowRuns.status, ["running", "stopping"])
         )
       )
   })

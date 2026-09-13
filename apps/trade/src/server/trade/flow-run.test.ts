@@ -116,6 +116,7 @@ vi.mock("@/server/trade/grid-orders", async (importOriginal) => ({
 
 const {
   advanceRemovedFlowLadders,
+  stopFlowCoin,
   advanceRunningFlows,
   advanceStoppingFlows,
   flowRunSpec,
@@ -1675,5 +1676,133 @@ describe("who is told about a stop", () => {
     )
 
     expect(await db.select().from(customShellNotifications)).toHaveLength(0)
+  })
+})
+
+describe("stopping one coin by hand", () => {
+  it("keeps folder edits from restoring it and cancels only this run's coin", async () => {
+    const marketKey = "hyperliquid:mainnet:BTC"
+    const other = "hyperliquid:mainnet:ETH"
+    const folders = await createMarketFolder(
+      userId,
+      { name: "Manual stop", protocol: "hyperliquid", network: "mainnet" },
+      db
+    )
+    const folder = folders.find((one) => one.name === "Manual stop")!
+    for (const key of [marketKey, other])
+      await setMarketInFolder(
+        userId,
+        { folderId: folder.id, marketKey: key, saved: true },
+        db
+      )
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({ markets: { folderId: folder.id } }),
+        now: NOW,
+      },
+      db
+    )
+    for (const [id, key, owner] of [
+      ["own", marketKey, started.id],
+      ["hand", marketKey, null],
+      ["other-coin", other, started.id],
+    ]) {
+      await db.insert(tradeSmartLadders).values({
+        userId,
+        walletId: "w1",
+        id: id!,
+        marketKey: key!,
+        flowRunId: owner,
+        kind: "dca",
+        status: "active",
+        plan: {
+          rungs: [{ status: "filled" }, { status: "waiting" }],
+        } as never,
+      })
+    }
+    await expect(
+      stopFlowCoin("other-user", { runId: started.id, marketKey, now: NOW }, db)
+    ).rejects.toThrow("no longer exists")
+    await stopFlowCoin(userId, { runId: started.id, marketKey, now: NOW }, db)
+    await setMarketInFolder(
+      userId,
+      { folderId: folder.id, marketKey, saved: false },
+      db
+    )
+    await setMarketInFolder(
+      userId,
+      { folderId: folder.id, marketKey, saved: true },
+      db
+    )
+    const [run] = await db.select().from(tradeFlowRuns)
+    expect(run.spec.marketKeys).toEqual([other])
+    expect(run.spec.stoppedMarkets).toEqual({ [marketKey]: NOW })
+    await expect(
+      assertFlowRunAcceptingPlacements(db, userId, started.id, marketKey)
+    ).rejects.toThrow("FLOW_NOT_ACCEPTING_PLACEMENTS")
+    paperRemainderCancel.mockRejectedValueOnce(new Error("Exchange refused"))
+    await advanceRemovedFlowLadders(NOW + 1, db)
+    expect(
+      (await db.select().from(tradeFlowRuns))[0].waiting[marketKey].code
+    ).toBe("FLOW_CANCEL_FAILED")
+    expect(
+      (await db.select().from(tradeFlowRuns))[0].marketCancels[marketKey]
+    ).toBeTruthy()
+    await advanceRemovedFlowLadders(NOW + 2, db)
+    expect(paperRemainderCancel).toHaveBeenCalledTimes(2)
+    expect(paperRemainderCancel).toHaveBeenNthCalledWith(1, userId, walletRow, {
+      ladderId: "own",
+    })
+    expect(paperRemainderCancel).toHaveBeenNthCalledWith(2, userId, walletRow, {
+      ladderId: "own",
+    })
+    expect((await db.select().from(tradeFlowRuns))[0].marketCancels).toEqual({})
+    expect(
+      (await db.select().from(tradeFlowRuns))[0].spec.stoppedMarkets
+    ).toEqual({ [marketKey]: NOW })
+  })
+})
+
+it("finishes a pending manual coin stop after the whole run is stopped", async () => {
+  const marketKey = "hyperliquid:mainnet:BTC"
+  const started = await startFlowRun(
+    userId,
+    { automationId: "flow-1", nodes: nodes(), now: NOW },
+    db
+  )
+  await db
+    .insert(tradeSmartLadders)
+    .values({
+      userId,
+      walletId: "w1",
+      id: "partial-manual",
+      marketKey,
+      flowRunId: started.id,
+      kind: "dca",
+      status: "active",
+      plan: { rungs: [{ status: "filled" }, { status: "waiting" }] } as never,
+    })
+  await stopFlowCoin(userId, { runId: started.id, marketKey, now: NOW }, db)
+  await stopFlowRun(
+    userId,
+    {
+      automationId: "flow-1",
+      now: NOW + 1,
+      reason: "Switched off by hand.",
+      byHand: true,
+    },
+    db
+  )
+  expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopping")
+  paperRemainderCancel.mockRejectedValueOnce(new Error("Refused"))
+  await advanceStoppingFlows(NOW + 2, db)
+  expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopping")
+  await advanceStoppingFlows(NOW + 3, db)
+  expect(paperRemainderCancel).toHaveBeenCalledTimes(2)
+  expect((await db.select().from(tradeFlowRuns))[0]).toMatchObject({
+    status: "stopped",
+    marketCancels: {},
   })
 })
