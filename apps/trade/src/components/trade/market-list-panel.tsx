@@ -60,10 +60,10 @@ export function TestnetStrip() {
         WARNING_SURFACE
       )}
     >
-      <span className="min-w-0 flex-1 truncate text-xs font-medium">
+      <span className="min-w-0 flex-1 text-xs font-medium">
         Testnet — practice network, pretend money.
       </span>
-      {/* The way back, and only here.
+      {/* The way back, also available in the market header.
 
           There is deliberately no network switch on this screen (decided
           9 Aug 2026): flipping spends the exchange's request allowance and

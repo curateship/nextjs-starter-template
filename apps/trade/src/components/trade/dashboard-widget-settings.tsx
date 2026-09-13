@@ -154,7 +154,15 @@ export default function TradingDashboardWidgetSettings() {
         </Card>
       )
     }
-    return <LoadingRow label="Reading widgets" />
+    return (
+      <CollapsibleSettingsCard
+        storageId="trading-widgets"
+        title="Trading dashboard widgets"
+        description="Which cards the trading overview shows, and where each one sits. The platform Overview has its own Widgets tab and its own arrangement."
+      >
+        <LoadingRow label="Reading widgets" />
+      </CollapsibleSettingsCard>
+    )
   }
 
   return <WidgetEditor layout={layout} onLayoutChange={changeLayout} />
@@ -288,18 +296,17 @@ function WidgetEditor({
             <WidgetSlot container="available" ids={available} />
           </div>
         </DndContext>
+        <div className="-mx-4 mt-4 flex justify-end border-t px-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setResetOpen(true)}
+          >
+            <RotateCcwIcon className="size-4" />
+            Reset dashboard
+          </Button>
+        </div>
       </CollapsibleSettingsCard>
-
-      <div className="mt-3 flex justify-end">
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={() => setResetOpen(true)}
-        >
-          <RotateCcwIcon className="size-4" />
-          Reset dashboard
-        </Button>
-      </div>
 
       <ConfirmDialog
         open={resetOpen}

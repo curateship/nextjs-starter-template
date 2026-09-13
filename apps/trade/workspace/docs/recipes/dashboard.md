@@ -71,3 +71,12 @@ cannot manage the seven moved recipes. The rest of the trading dashboard keeps
 using its existing tables, and no recipe was running or stopping during the
 cutover. Deploy the web app before the worker so both start against the new
 table, then add the admin-only Recipes sidebar link.
+
+## Recipe windows and duplication
+
+Create and rename put the name field in the shared small card section. Both
+keep the form window's unsaved-change handling and validation.
+
+Duplicating a recipe disables only that row's Duplicate button and shows its
+spinner. Other recipes can be duplicated while the first request runs. Each
+button becomes available when its own request finishes or fails.

@@ -245,5 +245,8 @@ and hidden lists per account in `trade_prefs`. The platform Widgets tab sits in
 the "Platform" card and saves the platform Overview arrangement in the shell
 settings. Moving or resetting a card in one tab never changes the other.
 The trading Widgets route arrives with its saved arrangement, and the Markets
-route arrives with its saved daily-volume cutoff. Neither app settings panel
-shows loading copy while a browser request catches up after mounting.
+route arrives with its saved daily-volume cutoff. When Widgets needs a browser
+read, its titled card stays visible with the shared loading row inside.
+Reset dashboard is an outline action inside the collapsible card. Folding the
+card hides Reset too. Reset opens the existing confirmation before changing
+the arrangement.

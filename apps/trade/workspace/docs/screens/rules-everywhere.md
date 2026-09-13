@@ -1,5 +1,8 @@
 # Rules that hold on every screen
 
+- **Testnet stays labelled on narrow screens.** The market header repeats the
+  pretend-money warning and Back to Mainnet link from the Markets panel.
+
 - **Every action shows its answer at once, and the exchange is told
   afterwards.** Opening, closing, cancelling, and dragging a price, a stop or
   a target all change the screen on the press. Nothing waits on a round trip
@@ -80,4 +83,3 @@ lost: those two figures added together. It does not use the wallet's opening
 balance, so older profit, deposits, and withdrawals cannot move either profit
 row. When KuCoin has not stated the profit for a partial sale, an info mark
 beside Settled says that both totals are short and names the missing trades.
-

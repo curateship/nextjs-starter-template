@@ -22,6 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Meter } from "@/components/ui/meter"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -91,6 +92,7 @@ export function BacktestStatsPanel({
   onWindow,
   coinsTotal,
   running,
+  progress = 0,
   stopRequested,
   onStop,
 }: {
@@ -109,6 +111,8 @@ export function BacktestStatsPanel({
   onWindow: (next: GraphWindow) => void
   /** How much the run borrows — see the tooltip in the graph. */
   coinsTotal: number
+  /** Average progress across the run's coins, from zero to one. */
+  progress?: number
   /** The run has not finished, so these figures are still moving. */
   running: boolean
   /** True once a stop has been asked for, so the button says so. */
@@ -177,12 +181,26 @@ export function BacktestStatsPanel({
               disabled={stopRequested}
               onClick={onStop}
             >
-              {stopRequested ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+              {stopRequested ? (
+                <Loader2Icon className="animate-spin" aria-hidden="true" />
+              ) : null}
               Stop
             </Button>
           ) : null
         }
       />
+      {running ? (
+        <div className="grid gap-2 border-b px-5 py-3">
+          <span className="text-xs tabular-nums">
+            {Math.round(progress * 100)}% through
+          </span>
+          <Meter
+            value={Math.round(progress * 100)}
+            label="Backtest progress"
+            valueText={`${Math.round(progress * 100)}% through`}
+          />
+        </div>
+      ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 px-5 py-4">
           {!summary ? (

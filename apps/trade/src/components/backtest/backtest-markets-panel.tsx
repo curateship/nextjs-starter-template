@@ -291,7 +291,11 @@ export function BacktestMarketsPanel({
                           className="ml-2 text-[10px] text-muted-foreground"
                           title={coin.skipReason ?? coin.error ?? undefined}
                         >
-                          {BACKTEST_STATUS_LABELS[coin.status]}
+                          {(coin.status === "waiting" ||
+                            coin.status === "running") &&
+                          coin.progressNote
+                            ? coin.progressNote
+                            : BACKTEST_STATUS_LABELS[coin.status]}
                         </span>
                       )}
                       {/* A coin the run walked and never traded. Without this it is

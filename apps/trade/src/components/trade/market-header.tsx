@@ -1,6 +1,7 @@
 import * as React from "react"
 import { BotIcon, InfoIcon, ListIcon } from "lucide-react"
 
+import { TestnetStrip } from "@/components/trade/market-list-panel"
 import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
@@ -125,38 +126,43 @@ export function MarketHeader({
     ) : undefined
 
   return (
-    <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
-      <MarketFolderStar
-        symbol={selection.row.symbol}
-        marketKey={selection.row.key}
-        folders={folders}
-        busy={folderActions.busy}
-        onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
-        onToggle={(folderId, saved) =>
-          folderActions.toggle(selection.row.key, folderId, saved)
-        }
-        onCreate={(name) => folderActions.create(selection.row.key, name)}
-      />
-      <PinnedMarketButton marketKey={selection.row.key} />
-      <div className="flex h-8 min-w-0 items-center rounded-lg border bg-muted/60">
-        <MarketPicker
-          key={parseMarketKey(selection.row.key)?.protocol}
-          rows={markets}
-          selected={selection.row}
-          capabilities={selection.picker}
+    <>
+      <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
+        <MarketFolderStar
+          symbol={selection.row.symbol}
+          marketKey={selection.row.key}
           folders={folders}
-          folderActions={folderActions}
-          onSelect={onSelectMarket}
-          venueLabel={selection.protocolLabel}
-          onSearchBeyond={onSearchBeyond}
+          busy={folderActions.busy}
+          onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
+          onToggle={(folderId, saved) =>
+            folderActions.toggle(selection.row.key, folderId, saved)
+          }
+          onCreate={(name) => folderActions.create(selection.row.key, name)}
         />
-        <span className="flex h-full shrink-0 items-center border-l">
-          <MarketInfo selection={selection} />
-        </span>
-      </div>
-      {marketAction}
-      {action ? <div className="ml-auto shrink-0">{action}</div> : null}
-    </DashboardCardHeader>
+        <PinnedMarketButton marketKey={selection.row.key} />
+        <div className="flex h-8 min-w-0 items-center rounded-lg border bg-muted/60">
+          <MarketPicker
+            key={parseMarketKey(selection.row.key)?.protocol}
+            rows={markets}
+            selected={selection.row}
+            capabilities={selection.picker}
+            folders={folders}
+            folderActions={folderActions}
+            onSelect={onSelectMarket}
+            venueLabel={selection.protocolLabel}
+            onSearchBeyond={onSearchBeyond}
+          />
+          <span className="flex h-full shrink-0 items-center border-l">
+            <MarketInfo selection={selection} />
+          </span>
+        </div>
+        {marketAction}
+        {action ? <div className="ml-auto shrink-0">{action}</div> : null}
+      </DashboardCardHeader>
+      {parseMarketKey(selection.row.key)?.network === "testnet" ? (
+        <TestnetStrip />
+      ) : null}
+    </>
   )
 }
 

@@ -325,3 +325,13 @@ from the exchange name or an empty positions list.
 `src/server/trade/wallets.ts` includes `positionMode` in wallet responses.
 `src/components/trade/account-panel.tsx` draws the sentence in wallet details.
 The sentence adds no mode switch and changes no order behavior.
+
+## Cached wallet controls
+
+Wallet rows from the previous visit keep their figures while the current read
+is pending. Their Trade with checkbox and details button are disabled. Hovering
+or focusing either control's wrapper explains that the rows are from last visit.
+The controls become available when the current wallet read succeeds.
+
+A failed read keeps cached controls disabled and shows the panel's retry
+message. The All and Inactive tabs also disable cached details buttons.

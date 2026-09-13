@@ -26,7 +26,8 @@ Saved folders remain in the chart header's folder menu.
   Search narrows the combined results. The filter menu stays open while checking
   several choices, and the market dropdown stays open while its filter is used.
   On narrow screens, the chart header wraps its controls so the market selector stays clickable.
-  Search opens a field below the toolbar. Closing search clears its filter.
+  Search opens a shared input below the toolbar with a visible Search markets
+  label. The label is linked to the input. Closing search clears its filter.
   The picker is 28rem wide, 448 pixels at the default text size, and capped to
   the viewport. The table scrolls horizontally on narrow screens. The columns are Market,
   24h change and Volume. Last price, Funding and Open interest are omitted.
@@ -44,8 +45,10 @@ Saved folders remain in the chart header's folder menu.
   the picker. The coin is never hidden, because "all of Solana" was the
   point, but it never looks like a vetted one either. Hovering the word says
   what it means.
-- **On testnet, the amber strip sits at the panel's foot** with the Back to
-  Mainnet link, exactly as it did on the old market list panel.
+- **On testnet, the amber strip sits at the panel's foot and beneath the
+  market header controls.** Both say the money is pretend and offer Back to
+  Mainnet. The header warning stays visible on narrow screens with Markets
+  closed. Mainnet draws neither warning.
 - **Both side panels open at their smallest useful width.** Folders starts at
   12% of the workspace and Smart orders starts at 18.5rem. The chart takes
   the space left between them. Either width is still yours to drag and is

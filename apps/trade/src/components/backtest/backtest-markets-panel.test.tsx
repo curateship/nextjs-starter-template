@@ -67,3 +67,40 @@ it("shows each saved skip and failure reason, without duplicate coins", async ()
     host.remove()
   }
 })
+
+it("shows changing progress notes for unfinished coins", async () => {
+  const coin: BacktestCoinRow = {
+    id: "btc",
+    marketKey: "hyperliquid:mainnet:BTC",
+    symbol: "BTC",
+    status: "running",
+    progress: 0.42,
+    progressNote: "Reading candles",
+    skipReason: null,
+    error: null,
+    summary: null,
+  }
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const render = (progressNote: string) => (
+    <BacktestMarketsPanel
+      coins={[{ ...coin, progressNote }]}
+      skipped={[]}
+      openCoin={null}
+      onOpenCoin={() => {}}
+      tab="results"
+      onTabChange={() => {}}
+    />
+  )
+  try {
+    await act(async () => root.render(render("Reading candles")))
+    expect(host.textContent).toContain("Reading candles")
+    await act(async () => root.render(render("Running strategy")))
+    expect(host.textContent).toContain("Running strategy")
+    expect(host.textContent).not.toContain("Reading candles")
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})

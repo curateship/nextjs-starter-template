@@ -445,6 +445,11 @@ export function BacktestRunPage({
       window={window}
       onWindow={setWindow}
       coinsTotal={coins.length}
+      progress={
+        coins.length
+          ? coins.reduce((sum, coin) => sum + coin.progress, 0) / coins.length
+          : 0
+      }
       running={!done}
       stopRequested={run.stopRequested || stopping}
       onStop={askToStop}
@@ -563,11 +568,13 @@ export function BacktestRunPage({
     // to look at.
     <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
-        {chartPanel}
-      </WorkspacePanel>
-      <WorkspacePanel className="flex flex-col">{marketsPanel}</WorkspacePanel>
-      <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
+        <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
+          {chartPanel}
+        </WorkspacePanel>
+        <WorkspacePanel className="flex flex-col">
+          {marketsPanel}
+        </WorkspacePanel>
+        <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
       </div>
     </ScrollArea>
   )

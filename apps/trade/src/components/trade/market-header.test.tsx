@@ -31,6 +31,16 @@ vi.mock("@/lib/trade/use-pinned-markets", () => ({
   }),
 }))
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    search,
+  }: {
+    children: React.ReactNode
+    search: { network: string }
+  }) => <a href={`?network=${search.network}`}>{children}</a>,
+}))
+
 const key = "hyperliquid:mainnet:BTC" as MarketKey
 
 const row: MarketRow = {
@@ -226,9 +236,7 @@ describe("the market header's star", () => {
     expect(
       draw(market, [key]).match(/lucide-star[^>]*fill-amber-500/)
     ).not.toBeNull()
-    expect(
-      draw(market, []).match(/lucide-star[^>]*fill-amber-500/)
-    ).toBeNull()
+    expect(draw(market, []).match(/lucide-star[^>]*fill-amber-500/)).toBeNull()
   })
 
   it("leads the header row: the star, then the market's art, then its name", () => {
@@ -240,4 +248,17 @@ describe("the market header's star", () => {
     expect(star).toBeLessThan(art)
     expect(art).toBeLessThan(name)
   })
+})
+
+it("labels testnet in the market header and keeps mainnet clear", () => {
+  const testnet: MarketSelection = {
+    ...market,
+    networkLabel: "Testnet",
+    row: { ...row, key: "hyperliquid:testnet:BTC" as MarketKey },
+  }
+  const markup = draw(testnet, [])
+  expect(markup).toContain("pretend money")
+  expect(markup).toContain("Back to Mainnet")
+  expect(markup).toContain('href="?network=mainnet"')
+  expect(draw(market, [])).not.toContain("Back to Mainnet")
 })

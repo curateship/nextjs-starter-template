@@ -24,6 +24,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -99,7 +100,10 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
   const [renameTouched, setRenameTouched] = React.useState(false)
   const [renameAttempted, setRenameAttempted] = React.useState(false)
   const [runRename, renaming] = useAsyncAction(getRecipeErrorMessage)
-  const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
+  const [duplicatingIds, setDuplicatingIds] = React.useState<Set<string>>(
+    new Set()
+  )
+  const pendingDuplicates = React.useRef(new Set<string>())
   const [deleteTargets, setDeleteTargets] = React.useState<
     RecipeListItem[] | null
   >(null)
@@ -214,8 +218,9 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
   }
 
   const handleDuplicate = async (recipe: RecipeListItem) => {
-    if (duplicatingId) return
-    setDuplicatingId(recipe.id)
+    if (pendingDuplicates.current.has(recipe.id)) return
+    pendingDuplicates.current.add(recipe.id)
+    setDuplicatingIds(new Set(pendingDuplicates.current))
     dismissErrorToast()
     try {
       const copied = await duplicateRecipe(recipe.id)
@@ -224,7 +229,8 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
     } catch (error) {
       showErrorToast(getRecipeErrorMessage(error))
     } finally {
-      setDuplicatingId(null)
+      pendingDuplicates.current.delete(recipe.id)
+      setDuplicatingIds(new Set(pendingDuplicates.current))
     }
   }
 
@@ -339,10 +345,10 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
                 variant="ghost"
                 size="icon"
                 aria-label={`Duplicate ${recipe.name}`}
-                disabled={duplicatingId !== null}
+                disabled={duplicatingIds.has(recipe.id)}
                 onClick={() => void handleDuplicate(recipe)}
               >
-                {duplicatingId === recipe.id ? (
+                {duplicatingIds.has(recipe.id) ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
                   <CopyIcon className="size-4" />
@@ -392,21 +398,30 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
                 void handleCreate()
               }}
             >
-              <DialogBody className="grid gap-2">
-                <Label htmlFor="recipe-name">Name</Label>
-                <Input
-                  id="recipe-name"
-                  value={createName}
-                  maxLength={80}
-                  placeholder="DCA on watched coins"
-                  onChange={(event) => setCreateName(event.target.value)}
-                  onBlur={() => setCreateTouched(true)}
-                  aria-invalid={
-                    (!createName.trim() &&
-                      (createTouched || createAttempted)) ||
-                    undefined
-                  }
-                />
+              <DialogBody>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Recipe name</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="recipe-name">Name</Label>
+                      <Input
+                        id="recipe-name"
+                        value={createName}
+                        maxLength={80}
+                        placeholder="DCA on watched coins"
+                        onChange={(event) => setCreateName(event.target.value)}
+                        onBlur={() => setCreateTouched(true)}
+                        aria-invalid={
+                          (!createName.trim() &&
+                            (createTouched || createAttempted)) ||
+                          undefined
+                        }
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </DialogBody>
               <DialogFooter>
                 <Button
@@ -450,21 +465,30 @@ export function RecipesListPage({ initial }: { initial: RecipesPage }) {
                 void handleRename()
               }}
             >
-              <DialogBody className="grid gap-2">
-                <Label htmlFor="rename-recipe-name">Name</Label>
-                <Input
-                  id="rename-recipe-name"
-                  value={renameName}
-                  maxLength={80}
-                  placeholder="DCA on watched coins"
-                  onChange={(event) => setRenameName(event.target.value)}
-                  onBlur={() => setRenameTouched(true)}
-                  aria-invalid={
-                    (!renameName.trim() &&
-                      (renameTouched || renameAttempted)) ||
-                    undefined
-                  }
-                />
+              <DialogBody>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Recipe name</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="rename-recipe-name">Name</Label>
+                      <Input
+                        id="rename-recipe-name"
+                        value={renameName}
+                        maxLength={80}
+                        placeholder="DCA on watched coins"
+                        onChange={(event) => setRenameName(event.target.value)}
+                        onBlur={() => setRenameTouched(true)}
+                        aria-invalid={
+                          (!renameName.trim() &&
+                            (renameTouched || renameAttempted)) ||
+                          undefined
+                        }
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </DialogBody>
               <DialogFooter>
                 <Button

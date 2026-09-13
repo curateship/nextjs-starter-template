@@ -212,10 +212,21 @@ describe("backtest elapsed time", () => {
       onWindow: () => {},
       coinsTotal: 1,
       running: true,
+      progress: 0.42,
     }
     await act(async () => root.render(<BacktestStatsPanel {...props} />))
     await act(async () => vi.advanceTimersByTimeAsync(1000))
     expect(host.querySelector("h2")?.textContent).toContain("Running for 11s")
+    expect(host.textContent).toContain("42% through")
+    expect(
+      host
+        .querySelector('[aria-label="Backtest progress"]')
+        ?.getAttribute("aria-valuenow")
+    ).toBe("42")
+    await act(async () =>
+      root.render(<BacktestStatsPanel {...props} progress={0.75} />)
+    )
+    expect(host.textContent).toContain("75% through")
     await act(async () =>
       root.render(
         <BacktestStatsPanel
@@ -227,6 +238,7 @@ describe("backtest elapsed time", () => {
     )
     await act(async () => vi.advanceTimersByTimeAsync(60_000))
     expect(host.querySelector("h2")?.textContent).toContain("Took 11s")
+    expect(host.querySelector('[aria-label="Backtest progress"]')).toBeNull()
     expect(loadBacktests).not.toHaveBeenCalled()
   })
 

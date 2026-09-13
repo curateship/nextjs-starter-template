@@ -167,3 +167,12 @@ press Backtest once. Follow View all backtests and check the three names.
 Reload the list and open each result to check its candle size. Then choose
 an oversized small-candle window and confirm that the refusal names the size
 and creates no rows. Clear all checkboxes to check the empty-selection error.
+
+## Progress on a running backtest
+
+The full run page shows percent through and the shared meter beneath the stats
+header. The value averages every coin's progress, matching the canvas card's
+calculation. A run with no coin rows starts at zero. Finished runs hide the meter.
+
+An unfinished coin shows its latest progress note in Results, such as reading
+candles or running the strategy. A coin without a note keeps its status wording.

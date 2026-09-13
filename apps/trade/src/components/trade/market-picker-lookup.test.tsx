@@ -100,6 +100,7 @@ function type(text: string) {
   const input = document.querySelector<HTMLInputElement>(
     'input[aria-label="Search markets"]'
   )!
+  expect(input.labels?.[0]?.textContent).toBe("Search markets")
   const setter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
     "value"

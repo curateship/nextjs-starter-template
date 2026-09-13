@@ -80,3 +80,10 @@ be out this second, and it works across every wallet rather than one. See
 `../screens/workspace.md` for the list it opens. Plain watched orders are not cancelled by
 emptying a wallet; they are a hand-placed level rather than a strategy, and each
 has its own × on the chart and in Open orders. Close all can take them off.
+
+## Wallet details actions
+
+The details window ends with Empty wallet on the left, then Edit wallet and
+Done on the right. Empty wallet uses a crossed-list icon because the action
+closes positions and cancels orders. Empty wallet does not delete the wallet.
+Edit wallet is an outline button. Done closes the details window.

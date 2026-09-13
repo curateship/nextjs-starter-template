@@ -386,6 +386,7 @@ export function TradeWorkspace({
   // own table rather than decided here, which the protocol fence forbids.
   const abilities = useProtocolAbilities(protocol)
   const [addingWallet, setAddingWallet] = React.useState(false)
+  const walletButtonRef = React.useRef<HTMLButtonElement>(null)
   const [walletDetailsId, setWalletDetailsId] = React.useState<string | null>(
     null
   )
@@ -939,6 +940,7 @@ export function TradeWorkspace({
 
   const walletManagement = (
     <WalletManagement
+      walletButtonRef={walletButtonRef}
       account={account}
       cacheScope={dashboardCacheScope}
       detailsOpen={walletDetails !== null}
@@ -1379,6 +1381,7 @@ export function TradeWorkspace({
           onDismiss={() => setFlatteningId(null)}
         />
         <WalletDetailsDialog
+          walletButtonRef={walletButtonRef}
           wallet={walletDetails}
           summary={walletDetails ? account.summaryOf(walletDetails.id) : null}
           positions={trading.positions}

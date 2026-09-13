@@ -60,13 +60,15 @@ screen: anything not written there has not been agreed yet.
 - `trading-overview.md`: visible profit date labels and empty-history explanations; the signed-in home page and its Active trades menu,
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
   Panels size to content, with bottom panels filling spare space and no draggable dividers.
+  Widgets retains its loading card and collapses Reset with the body.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
-  checkbox filters, search toolbar and the Manual orders panel.
+  checkbox filters, labelled search input, narrow-screen Testnet warning and the Manual orders panel.
 - `panels-and-loading.md` — shared Reading labels and spinners; content-based order-panel sizing without a percentage cap, with Manual orders filling the remaining height, how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
+  The Testnet warning remains in the market header.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
   every number, the text scale, the small badge every table shares, and what an
   open position has cost in fees.
@@ -168,9 +170,10 @@ screen: anything not written there has not been agreed yet.
 
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what
   a failed answer does to the details window, plus the saved position mode in wallet details.
+  Cached controls stay disabled with keyboard-accessible explanations and failed-read retry.
 - `flatten-wallet.md` — Empty wallet: why the waiting orders come off before
   anything is sold, what a refused cancel stops, and how it differs from Close
-  all.
+  all. The details footer includes Done and a separate Empty wallet action.
 - `position-margin.md` — changing leverage and the cash behind an open
   position, Lighter signed changes and testing steps, exchange limits,
   withdrawal refusals and the estimated liquidation figure.
@@ -232,7 +235,7 @@ always used.
 
 ## backtests/
 
-- `backtest-screens.md` — background refreshes without table dimming; the results, candle history and funding screens,
+- `backtest-screens.md` — live run progress and per-coin notes, background refreshes without table dimming; the results, candle history and funding screens,
   plus multi-size backtest starts, elapsed time in the sortable Took column, skipped and failed coin reasons,
   and the run header links to those reasons.
 - `backtest-speed.md`: the one-pass base and cascade scans, one-statement saved-run
@@ -254,7 +257,7 @@ always used.
 
 ## recipes/
 
-- `dashboard.md` explains trading status before the canvas tabs, DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
+- `dashboard.md` explains trading status before the canvas tabs, recipe name cards and independent duplicate buttons, plus DCA rung text retention and validation; the admin Recipes table and canvas, its Canvas and Results tabs, what Backtest and
   Switch on run, the live-run deletion rule, and how saved Trade drawings move
   out of Automations.
 

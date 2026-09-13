@@ -9,7 +9,7 @@ import {
   LayersIcon,
   PlusIcon,
   SettingsIcon,
-  Trash2Icon,
+  ListXIcon,
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
@@ -17,6 +17,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import type { useTradeAccount } from "@/components/trade/use-trade-account"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -278,11 +279,13 @@ function WalletStatusDot({
 
 function ActiveWalletRow({
   wallet,
+  usingCache = false,
   summary,
   selected,
   onSelect,
   onOpenDetails,
 }: {
+  usingCache?: boolean
   wallet: TradeWallet
   summary: WalletAccountSummary | null
   selected: boolean
@@ -306,40 +309,54 @@ function ActiveWalletRow({
           state={state}
           showKindBadge
           selector={
-            <Checkbox
-              checked={selected}
-              onCheckedChange={() => {
-                if (!selected) onSelect()
-              }}
-              aria-label={
-                selected
-                  ? `${wallet.label} is the wallet in use`
-                  : `Trade with ${wallet.label}`
-              }
-              className="rounded-full"
-            />
+            <DisabledReason
+              disabled={usingCache}
+              reason="These wallets are from last visit. Waiting for a successful read."
+            >
+              <Checkbox
+                disabled={usingCache}
+                checked={selected}
+                onCheckedChange={() => {
+                  if (!selected) onSelect()
+                }}
+                aria-label={
+                  selected
+                    ? `${wallet.label} is the wallet in use`
+                    : `Trade with ${wallet.label}`
+                }
+                className="rounded-full"
+              />
+            </DisabledReason>
           }
         />
       </label>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        aria-label={`Open ${wallet.label} wallet details`}
-        onClick={onOpenDetails}
+      <DisabledReason
+        disabled={usingCache}
+        reason="These wallets are from last visit. Waiting for a successful read."
       >
-        <EllipsisVerticalIcon className="size-4" />
-      </Button>
+        <Button
+          disabled={usingCache}
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Open ${wallet.label} wallet details`}
+          onClick={onOpenDetails}
+        >
+          <EllipsisVerticalIcon className="size-4" />
+        </Button>
+      </DisabledReason>
     </div>
   )
 }
 
 function WalletCard({
   wallet,
+  usingCache = false,
   summary,
   active,
   onOpenDetails,
 }: {
+  usingCache?: boolean
   wallet: TradeWallet
   summary: WalletAccountSummary | null
   /** This is the wallet being traded with — the card says so. */
@@ -373,26 +390,34 @@ function WalletCard({
           }
         />
       </div>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        aria-label={`Open ${wallet.label} wallet details`}
-        onClick={onOpenDetails}
+      <DisabledReason
+        disabled={usingCache}
+        reason="These wallets are from last visit. Waiting for a successful read."
       >
-        <EllipsisVerticalIcon className="size-4" />
-      </Button>
+        <Button
+          disabled={usingCache}
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Open ${wallet.label} wallet details`}
+          onClick={onOpenDetails}
+        >
+          <EllipsisVerticalIcon className="size-4" />
+        </Button>
+      </DisabledReason>
     </div>
   )
 }
 
 export function ActiveWalletsView({
   wallets,
+  usingCache = false,
   summaryOf,
   activeWalletId,
   onUseWallet,
   onOpenWalletDetails,
 }: {
+  usingCache?: boolean
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
   activeWalletId: string | null
@@ -404,6 +429,7 @@ export function ActiveWalletsView({
       {wallets.map((wallet) => (
         <ActiveWalletRow
           key={wallet.id}
+          usingCache={usingCache}
           wallet={wallet}
           summary={summaryOf(wallet.id)}
           selected={wallet.id === activeWalletId}
@@ -417,10 +443,12 @@ export function ActiveWalletsView({
 
 export function AllWalletsView({
   wallets,
+  usingCache = false,
   summaryOf,
   activeWalletId,
   onOpenWalletDetails,
 }: {
+  usingCache?: boolean
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
   activeWalletId: string | null
@@ -441,6 +469,7 @@ export function AllWalletsView({
         .map((wallet) => (
           <WalletCard
             key={wallet.id}
+            usingCache={usingCache}
             wallet={wallet}
             summary={summaryOf(wallet.id)}
             active={wallet.id === activeWalletId}
@@ -460,6 +489,7 @@ export function WalletDetailsDialog({
   onOpenWallet,
   onFlattenWallet,
   onRetry,
+  walletButtonRef,
 }: {
   wallet: TradeWallet | null
   summary: WalletAccountSummary | null
@@ -469,7 +499,9 @@ export function WalletDetailsDialog({
   onOpenWallet: (wallet: TradeWallet) => void
   onFlattenWallet: (wallet: TradeWallet) => void
   onRetry: () => void
+  walletButtonRef?: React.RefObject<HTMLButtonElement | null>
 }) {
+  const donePressed = React.useRef(false)
   const walletPositions = wallet
     ? positions.filter((position) => position.walletId === wallet.id)
     : []
@@ -486,7 +518,17 @@ export function WalletDetailsDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent variant="admin" className="sm:max-w-lg">
+      <DialogContent
+        variant="admin"
+        className="sm:max-w-lg"
+        onCloseAutoFocus={(event) => {
+          if (donePressed.current && walletButtonRef?.current) {
+            event.preventDefault()
+            walletButtonRef.current.focus()
+          }
+          donePressed.current = false
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="truncate">{wallet.label}</span>
@@ -623,11 +665,12 @@ export function WalletDetailsDialog({
               onFlattenWallet(wallet)
             }}
           >
-            <Trash2Icon className="size-4" />
+            <ListXIcon className="size-4" />
             Empty wallet
           </Button>
           <Button
             type="button"
+            variant="outline"
             onClick={() => {
               onClose()
               onOpenWallet(wallet)
@@ -635,6 +678,15 @@ export function WalletDetailsDialog({
           >
             <SettingsIcon className="size-4" />
             Edit wallet
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              donePressed.current = true
+              onClose()
+            }}
+          >
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -651,9 +703,13 @@ type WalletMenuContentProps = {
 
 type WalletManagementProps = WalletMenuContentProps & {
   detailsOpen: boolean
+  walletButtonRef?: React.RefObject<HTMLButtonElement | null>
 }
 
-export function WalletManagement(props: WalletManagementProps) {
+export function WalletManagement({
+  walletButtonRef,
+  ...props
+}: WalletManagementProps) {
   const [open, setOpen] = React.useState(false)
   const { account } = props
   const activeWallet = account.activeWallet
@@ -672,6 +728,7 @@ export function WalletManagement(props: WalletManagementProps) {
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button
+              ref={walletButtonRef}
               type="button"
               variant="outline"
               aria-label={
@@ -799,6 +856,9 @@ export function WalletMenuContent({
           label="Inactive"
         />
       </DashboardCardTabsHeader>
+      {failed && usingCache ? (
+        <LoadFailed onRetry={() => void refresh()} />
+      ) : null}
 
       <TabsContent value="active" className="min-h-0 flex-1">
         <ScrollArea className="max-h-80" viewportClassName="max-h-80">
@@ -811,8 +871,9 @@ export function WalletMenuContent({
               wallets={activeWallets}
               summaryOf={shownSummaryOf}
               activeWalletId={shownActiveWalletId}
-              onUseWallet={usingCache ? () => {} : account.switchWallet}
-              onOpenWalletDetails={usingCache ? () => {} : onOpenWalletDetails}
+              usingCache={usingCache}
+              onUseWallet={account.switchWallet}
+              onOpenWalletDetails={onOpenWalletDetails}
             />
           ) : (
             <NoActiveWallets hasWallets={shownWallets.length > 0} />
@@ -828,10 +889,11 @@ export function WalletMenuContent({
             <LoadFailed onRetry={() => void refresh()} />
           ) : inactiveWallets.length > 0 ? (
             <AllWalletsView
+              usingCache={usingCache}
               wallets={inactiveWallets}
               summaryOf={shownSummaryOf}
               activeWalletId={null}
-              onOpenWalletDetails={usingCache ? () => {} : onOpenWalletDetails}
+              onOpenWalletDetails={onOpenWalletDetails}
             />
           ) : (
             <PanelPlaceholder
@@ -853,10 +915,11 @@ export function WalletMenuContent({
             <LoadFailed onRetry={() => void refresh()} />
           ) : shownWallets.length > 0 ? (
             <AllWalletsView
+              usingCache={usingCache}
               wallets={shownWallets}
               summaryOf={shownSummaryOf}
               activeWalletId={shownActiveWalletId}
-              onOpenWalletDetails={usingCache ? () => {} : onOpenWalletDetails}
+              onOpenWalletDetails={onOpenWalletDetails}
             />
           ) : (
             <NoWalletsYet />
@@ -881,7 +944,9 @@ function PanelLoading() {
 }
 
 function LoadFailed({ onRetry }: { onRetry: () => void }) {
-  return <ErrorRow message="The wallets could not be loaded." onRetry={onRetry} />
+  return (
+    <ErrorRow message="The wallets could not be loaded." onRetry={onRetry} />
+  )
 }
 
 function NoWalletsYet() {

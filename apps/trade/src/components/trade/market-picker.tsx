@@ -21,6 +21,7 @@ import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { Button } from "@/components/ui/button"
 
+import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
@@ -143,6 +144,7 @@ export function MarketPicker({
     x: number
     y: number
   } | null>(null)
+  const searchId = React.useId()
   const [searchShown, setSearchShown] = React.useState(false)
   const drag = React.useRef<{ x: number; y: number } | null>(null)
   const anchor = React.useMemo(
@@ -629,8 +631,10 @@ export function MarketPicker({
         </div>
 
         {searchShown ? (
-          <div className="border-b p-3">
+          <div className="grid gap-2 border-b p-3">
+            <Label htmlFor={searchId}>Search markets</Label>
             <Input
+              id={searchId}
               ref={searchRef}
               autoFocus
               type="search"

@@ -16,6 +16,8 @@ import TradingDashboardWidgetSettings from "@/components/trade/dashboard-widget-
 import { TradeSettingsProvider } from "@/components/trade/trade-settings-bootstrap"
 import { loadTradingOverviewLayout } from "@/lib/api/trade/trading-overview"
 
+import { createDefaultTradingDashboardWidgets } from "@/lib/trade/dashboard/widgets"
+
 let host: HTMLDivElement
 let root: Root
 
@@ -58,4 +60,44 @@ describe("trading dashboard widget settings", () => {
     expect(host.textContent).not.toContain("Loading widgets")
     expect(loadTradingOverviewLayout).not.toHaveBeenCalled()
   })
+})
+
+it("keeps the titled loading card and hides Reset when folded", async () => {
+  window.localStorage.clear()
+  let finish!: (value: {
+    layout: ReturnType<typeof createDefaultTradingDashboardWidgets>
+  }) => void
+  vi.mocked(loadTradingOverviewLayout).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  await act(async () => root.render(<TradingDashboardWidgetSettings />))
+  expect(host.textContent).toContain("Trading dashboard widgets")
+  expect(host.querySelector('[role="status"]')).not.toBeNull()
+  expect(host.textContent).not.toContain("Reset dashboard")
+  await act(async () =>
+    finish({ layout: createDefaultTradingDashboardWidgets() })
+  )
+  const reset = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Reset dashboard")
+  )!
+  expect(reset.getAttribute("data-variant")).toBe("outline")
+  await act(async () => reset.click())
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    "Reset the trading dashboard?"
+  )
+  const cancel = [
+    ...document.querySelectorAll<HTMLButtonElement>("button"),
+  ].find((button) => button.textContent === "Cancel")!
+  await act(async () => cancel.click())
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="Trading dashboard widgets"]'
+      )!
+      .click()
+  )
+  expect(host.textContent).not.toContain("Reset dashboard")
 })
