@@ -24,8 +24,6 @@ export type TradingDashboardWidget = {
   label: string
   description: string
   icon: LucideIcon
-  size: number
-  minSize: string
 }
 
 const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
@@ -34,24 +32,18 @@ const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
     label: "Moving now",
     description: "The ten markets with the most estimated trading in the last minute.",
     icon: ChartNoAxesCombinedIcon,
-    size: 10,
-    minSize: "28%",
   },
   {
     id: "equity",
     label: "PnL Graph",
     description: "The account result, every real wallet, and money over time.",
     icon: ChartNoAxesCombinedIcon,
-    size: 10,
-    minSize: "40%",
   },
   {
     id: "active-trades",
     label: "Active Trades",
     description: "Every open trade across all protocols and wallets.",
     icon: ListChecksIcon,
-    size: 10,
-    minSize: "28%",
   },
   {
     id: "running-bots",
@@ -59,16 +51,12 @@ const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
     description:
       "Every live or practice flow still working or needing attention.",
     icon: BotIcon,
-    size: 10,
-    minSize: "28%",
   },
   {
     id: "trades",
     label: "All trades",
     description: "Every recorded real fill, newest first, with its exchange.",
     icon: ListIcon,
-    size: 10,
-    minSize: "28%",
   },
 ]
 

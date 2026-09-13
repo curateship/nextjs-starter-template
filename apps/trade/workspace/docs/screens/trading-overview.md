@@ -16,6 +16,17 @@ old headline figures, Wallets card, and Money over time card are gone too. Their
 answers now share this one card, so a wallet and the line it produced can be
 read together. The age does not repeat under the result.
 
+Overview panels size themselves to their contents. There are no draggable
+panel dividers or saved panel sizes. Populated tables grow with their rows;
+the bottom panel in each column expands to fill any remaining space. Panels
+above it keep their content height. On narrow screens, only the final panel
+fills the space below the stacked content. Long content scrolls with the page,
+while wide tables keep their horizontal scrollbars. The profit graph keeps
+its own minimum drawing space, and the wallet list grows with its rows.
+The two lower columns use a fixed 55/45 split on wide screens and stack below
+1280px. A single occupied column uses the full width. Widget placement and
+ordering are still managed in dashboard settings.
+
 The left side starts with All wallets and then lists each real mainnet wallet.
 Every answered row has the wallet's balance, Made or lost, and a small line over
 time. The graph pane stays clear for the money-over-time chart. Switched-off

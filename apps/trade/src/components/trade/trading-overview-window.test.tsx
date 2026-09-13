@@ -107,7 +107,10 @@ describe("what the widgets say about when they started", () => {
     expect(
       host.querySelector('[class*="bg-emerald-500/10"]')?.className
     ).toContain("text-xl")
-    expect(host.querySelector("p.font-mono")?.className).toContain("text-xl")
+    expect(
+      host.querySelector('[aria-label="Current made or lost"] > .font-mono')
+        ?.className
+    ).toContain("text-xl")
     const chart = host.querySelector(
       'section[aria-label="4 days ago profit history"]'
     )

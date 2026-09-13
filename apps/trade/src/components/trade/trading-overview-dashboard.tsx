@@ -4,10 +4,6 @@ import { Link } from "@tanstack/react-router"
 import { InfoIcon, LayoutDashboardIcon, ListIcon } from "lucide-react"
 
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
-import {
-  DashboardPanels,
-  type DashboardBlock,
-} from "@/components/shared/dashboard/dashboard-panels"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
@@ -40,7 +36,6 @@ import {
   type TradingOverviewFill,
 } from "@/lib/trade/dashboard/overview"
 import {
-  findTradingDashboardWidget,
   isTradingDashboardEmpty,
   type TradingDashboardWidgetId,
   type TradingDashboardWidgetLayout,
@@ -63,46 +58,51 @@ export function TradingOverviewDashboard({
 }) {
   const current = useCurrentOverview(overview, layout)
 
-  const blocksIn = (slot: TradingDashboardWidgetSlot): DashboardBlock[] =>
-    layout[slot].flatMap((id) => {
-      const widget = findTradingDashboardWidget(id)
-      if (!widget) return []
-      return [
-        {
+  const widgetsIn = (slot: TradingDashboardWidgetSlot) =>
+    layout[slot].map((id, index) => (
+      <React.Fragment key={id}>
+        {renderWidget(
           id,
-          size: widget.size,
-          minSize: widget.minSize,
-          stackedClassName: id === "running-bots" ? "h-72" : undefined,
-          render: (className: string) => renderWidget(id, current, className),
-        },
-      ]
-    })
+          current,
+          cn(
+            "h-auto min-w-0 shrink-0",
+            index === layout[slot].length - 1 &&
+              (slot !== "top" || (!layout.left.length && !layout.right.length)) &&
+              "grow"
+          )
+        )}
+      </React.Fragment>
+    ))
 
   if (isTradingDashboardEmpty(layout)) {
     return <EmptyBoard />
   }
 
-  const left = blocksIn("left")
-  const right = blocksIn("right")
+  const hasLeft = layout.left.length > 0
+  const hasRight = layout.right.length > 0
   return (
     <>
-      {layout.top.map((id) => (
-        <React.Fragment key={id}>
-          {renderWidget(
-            id,
-            current,
-            id === "equity"
-              ? "min-h-[38rem] shrink-0 lg:h-[38rem]"
-              : id === "active-trades"
-                ? "shrink-0 max-h-[34rem]"
-                : id === "running-bots"
-                  ? "h-72 shrink-0"
-                  : "shrink-0 max-h-72"
+      {widgetsIn("top")}
+      {hasLeft || hasRight ? (
+        <div
+          className={cn(
+            "grid grow shrink-0 gap-(--shell-gutter)",
+            hasLeft &&
+              hasRight &&
+              "grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] xl:grid-rows-1"
           )}
-        </React.Fragment>
-      ))}
-      {left.length || right.length ? (
-        <DashboardPanels page="trading-overview" left={left} right={right} />
+        >
+          {(["left", "right"] as const).map((slot) =>
+            layout[slot].length ? (
+              <div
+                key={slot}
+                className="flex min-w-0 flex-col gap-(--shell-gutter)"
+              >
+                {widgetsIn(slot)}
+              </div>
+            ) : null
+          )}
+        </div>
       ) : null}
     </>
   )

@@ -59,6 +59,7 @@ screen: anything not written there has not been agreed yet.
   all, Long/Short badge columns, and where the navigation lives.
 - `trading-overview.md`: the signed-in home page and its Active trades menu,
   including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
+  Panels size to content, with bottom panels filling spare space and no draggable dividers.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,

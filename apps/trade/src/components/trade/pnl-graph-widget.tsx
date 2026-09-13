@@ -479,7 +479,7 @@ function WalletList({
       </div>
       <ScrollArea
         className="min-h-0 flex-1"
-        viewportClassName="max-h-72 lg:h-full lg:max-h-none"
+        viewportClassName="h-auto"
       >
         <WalletResultRow
           label="All wallets"
