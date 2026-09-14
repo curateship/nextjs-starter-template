@@ -626,6 +626,7 @@ export const PaintLayer = React.memo(function PaintLayer({
     rules: {
       closeInterval: CandleInterval | null
       volumeMultiple: number | null
+      retest?: boolean
     }
   ) => void
   /** The alert window is opening: a chance to read the lines again. */
@@ -926,6 +927,19 @@ export const PaintLayer = React.memo(function PaintLayer({
       readLiveCandle()?.close ?? candles.at(-1)?.close ?? null,
     [readLiveCandle, candles]
   )
+
+  const watchingRetest = Boolean(
+    alertOpen && drawings.some((drawing) =>
+      drawing.id === alertOpen.id &&
+      drawing.alert?.retest &&
+      drawing.alert.firedAt === null
+    )
+  )
+  React.useEffect(() => {
+    if (!watchingRetest || !onAlertOpen) return
+    const timer = window.setInterval(onAlertOpen, 2_000)
+    return () => window.clearInterval(timer)
+  }, [watchingRetest, onAlertOpen])
 
   const openAlert = React.useCallback(
     (id: string, autoFocus: boolean) => {

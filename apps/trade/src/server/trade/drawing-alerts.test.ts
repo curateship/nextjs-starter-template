@@ -30,6 +30,130 @@ import { saveLineAlertsPaused } from "@/server/trade/prefs"
 
 const BTC = "hyperliquid:mainnet:BTC"
 
+describe("break then retest", () => {
+  async function setup(currentPrice = 59_900) {
+    const userId = await person()
+    const id = uuid()
+    await saveChartDrawing(userId, BTC, { id, shape: { kind: "level", price: 60_000 } })
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice, buffer: 50 / 60_000 * 100 }, 1_000)
+    await setChartDrawingAlertRules(userId, { id, retest: true, closeInterval: null, volumeMultiple: null })
+    const step = (mark: number | undefined, time = 2_000) => checkDrawingAlerts({
+      database, checkedAt: new Date(time),
+      pushedMarks: () => ({ marks: mark === undefined ? new Map() : new Map([[BTC, mark]]), missing: [] }),
+    })
+    const read = async () => (await loadChartDrawings(userId, BTC))[0]!.alert!
+    return { userId, id, step, read }
+  }
+
+  it("persists the break, waits through missing prices, then sends exactly one retest notice", async () => {
+    const { step, read } = await setup()
+    expect(await step(60_040)).toBe(0)
+    expect((await read()).retest).toBe("waiting-break")
+    expect(await step(60_100)).toBe(0)
+    expect((await read()).retest).toBe("waiting-return")
+    expect(await step(undefined)).toBe(0)
+    expect((await read()).retest).toBe("waiting-return")
+    expect(await step(60_100)).toBe(0)
+    expect(await step(60_040)).toBe(1)
+    expect(await step(60_040)).toBe(0)
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices).toHaveLength(1)
+    expect(notices[0]!.message).toContain("retested your level")
+  })
+
+  it("resets when the return crosses through the line and requires a new break", async () => {
+    const { step, read } = await setup()
+    await step(60_100)
+    expect(await step(59_900)).toBe(0)
+    expect((await read()).retest).toBe("waiting-break")
+    expect(await step(60_040)).toBe(0)
+    expect(await step(60_100)).toBe(0)
+    expect(await step(60_000)).toBe(1)
+  })
+
+  it("mirrors the two stages below the line", async () => {
+    const { step, read } = await setup(60_100)
+    expect(await step(59_900)).toBe(0)
+    expect((await read()).retest).toBe("waiting-return")
+    expect(await step(59_960)).toBe(1)
+  })
+
+  it("reads a sloping line at the return time", async () => {
+    const { userId, id, step, read } = await setup()
+    await saveChartDrawing(userId, BTC, { id, shape: {
+      kind: "trendline", from: { time: 2_000, price: 60_000 }, to: { time: 3_000, price: 60_100 },
+    } })
+    expect(await step(60_100, 2_000)).toBe(0)
+    expect(await step(60_140, 3_000)).toBe(1)
+    expect((await read()).firedPrice).toBe(60_100)
+  })
+
+  it("requires a real break with no buffer and accepts an exact return", async () => {
+    const { userId, id, step, read } = await setup()
+    await setChartDrawingAlertBuffer(userId, { id, buffer: null })
+    expect(await step(60_000)).toBe(0)
+    expect((await read()).retest).toBe("waiting-break")
+    expect(await step(60_001)).toBe(0)
+    expect(await step(60_000)).toBe(1)
+  })
+
+  it("keeps a pending retest when only the description changes", async () => {
+    const { userId, id, step, read } = await setup()
+    await step(60_100)
+    await saveChartDrawing(userId, BTC, {
+      id, shape: { kind: "level", price: 60_000, name: "Retest level" },
+    }, 60_100, 2_000)
+    expect((await read()).retest).toBe("waiting-return")
+    expect((await read()).direction).toBe("above")
+    expect(await step(60_040)).toBe(1)
+  })
+
+  it("resets the stage and direction together when a retest line moves", async () => {
+    const { userId, id, step, read } = await setup()
+    await step(60_100)
+    await saveChartDrawing(userId, BTC, {
+      id, shape: { kind: "level", price: 59_900 },
+    }, 60_100, 2_000)
+    expect((await read()).retest).toBe("waiting-break")
+    expect((await read()).direction).toBe("below")
+    expect(await step(59_880)).toBe(0)
+    expect(await step(59_800)).toBe(0)
+    expect(await step(59_880)).toBe(1)
+  })
+
+  it("resets after changing the buffer, moving the line, and re-enabling", async () => {
+    const { userId, id, step, read } = await setup()
+    await step(60_100)
+    await setChartDrawingAlertBuffer(userId, { id, buffer: 0.1 })
+    expect((await read()).retest).toBe("waiting-break")
+    await step(60_100)
+    await saveChartDrawing(userId, BTC, { id, shape: { kind: "level", price: 60_010 } })
+    expect((await read()).retest).toBe("waiting-break")
+    await step(60_100)
+    await setChartDrawingAlert(userId, { id, on: true, currentPrice: 59_900 })
+    expect((await read()).retest).toBe("waiting-break")
+  })
+
+  it("discards a pending return while paused and expires silently", async () => {
+    const { userId, id, step, read } = await setup()
+    await step(60_100)
+    await saveLineAlertsPaused(userId, true)
+    expect(await step(60_040)).toBe(0)
+    expect((await read()).retest).toBe("waiting-break")
+    await setChartDrawingAlertExpiry(userId, { id, expiry: { mode: "days", days: 1 } }, 2_000)
+    expect(await step(60_040, 86_402_000)).toBe(0)
+    expect(await read()).toBeNull()
+    expect(await database.select().from(customShellNotifications)).toHaveLength(0)
+  })
+
+  it("rejects candle-close rules combined with live retests", async () => {
+    const { userId, id } = await setup()
+    await expect(setChartDrawingAlertRules(userId, {
+      id, retest: true, closeInterval: "1h", volumeMultiple: null,
+    })).rejects.toThrow("DRAWING_ALERT_RETEST_CLOSE")
+  })
+})
+
 /** From $100 at time 0 rising $10 a second: at 2 seconds the line is at $120. */
 const rising = {
   kind: "trendline" as const,

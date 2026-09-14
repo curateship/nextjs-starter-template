@@ -18,6 +18,7 @@ import {
   alertFirePrice,
   drawingAlertArmed,
   drawingAlertExpired,
+  drawingRetestStep,
   DRAWING_VOLUME_LOOKBACK,
   priceAtTime,
   readDrawingAlert,
@@ -340,8 +341,16 @@ export async function checkDrawingAlerts({
     const broke = interval
       ? closeBroke(row, candles.get(`${row.marketKey}@${interval}`) ?? [])
       : touchBroke(row, marks.get(row.marketKey), now)
-    if (!broke) continue
-    const { linePrice, firePrice, at } = broke
+    const retestPrice = row.alert.retest ? marks.get(row.marketKey) : undefined
+    const retestLine = row.alert.retest ? priceAtTime(row.shape, now) : null
+    const retestStep = retestPrice !== undefined && retestLine !== null
+      ? drawingRetestStep(row.alert, retestLine, retestPrice)
+      : null
+    if (row.alert.retest ? retestStep === null : !broke) continue
+    if (retestStep === "wait" && row.alert.retest === "waiting-break") continue
+    const linePrice = retestLine ?? broke!.linePrice
+    const firePrice = row.alert.retest ? linePrice : broke!.firePrice
+    const at = retestPrice ?? broke!.at
 
     // The same guarded write either way, so a line moved or switched off
     // after the read is never touched.
@@ -357,8 +366,17 @@ export async function checkDrawingAlerts({
       const [prefs] = await tx.select({ paused: tradePrefs.lineAlertsPaused }).from(tradePrefs).where(eq(tradePrefs.userId, row.userId))
       if (prefs?.paused) {
         const direction = priceAlertDirection(linePrice, at)
-        if (direction !== row.alert.direction) {
-          await tx.update(tradeChartDrawings).set({ alert: { ...row.alert, direction } }).where(claim)
+        if (direction !== row.alert.direction || row.alert.retest === "waiting-return") {
+          await tx.update(tradeChartDrawings).set({ alert: { ...row.alert, direction, ...(row.alert.retest ? { retest: "waiting-break" as const } : {}) } }).where(claim)
+        }
+        return
+      }
+
+      if (retestStep && retestStep !== "fire") {
+        if (retestStep === "break" || retestStep === "reset") {
+          await tx.update(tradeChartDrawings).set({
+            alert: { ...row.alert, retest: retestStep === "break" ? "waiting-return" : "waiting-break" },
+          }).where(claim)
         }
         return
       }
@@ -376,6 +394,7 @@ export async function checkDrawingAlerts({
         price: linePrice,
         direction: row.alert.direction,
         name: row.shape.name ?? null,
+        retest: row.alert.retest !== undefined,
         buffer: row.alert.buffer ?? null,
         closeInterval: row.alert.closeInterval ?? null,
         volumeMultiple: row.alert.volumeMultiple ?? null,

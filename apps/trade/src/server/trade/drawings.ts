@@ -114,6 +114,15 @@ export async function saveChartDrawing(
     }
   }
 
+  const linePrice = currentPrice === null ? null : priceAtTime(drawing.shape, now)
+  const direction = linePrice === null || currentPrice === null
+    ? null
+    : priceAlertDirection(linePrice, currentPrice)
+  const resetRetest = sql`jsonb_set(${tradeChartDrawings.alert}, '{retest}', '"waiting-break"'::jsonb)`
+  const movedRetest = direction === null
+    ? resetRetest
+    : sql`jsonb_set(${resetRetest}, '{direction}', ${JSON.stringify(direction)}::jsonb)`
+
   await db
     .insert(tradeChartDrawings)
     .values({
@@ -127,15 +136,19 @@ export async function saveChartDrawing(
       target: [tradeChartDrawings.userId, tradeChartDrawings.id],
       set: {
         shape: drawing.shape,
-        ...(drawing.shape.kind === "fib" ? { alert: null } : {}),
+        alert: drawing.shape.kind === "fib" ? null : sql`case
+          when ${tradeChartDrawings.alert}->>'firedAt' is null
+            and ${tradeChartDrawings.alert} ? 'retest'
+            and (${tradeChartDrawings.shape} - 'name' - 'extendRight') <> (${JSON.stringify(drawing.shape)}::jsonb - 'name' - 'extendRight')
+          then ${movedRetest}
+          else ${tradeChartDrawings.alert} end`,
         updatedAt: new Date(),
       },
     })
 
-  if (currentPrice === null) return
-  const linePrice = priceAtTime(drawing.shape, now)
-  if (linePrice === null) return
-  const direction = priceAlertDirection(linePrice, currentPrice)
+  // Retests change direction only with their geometry, in the same write above.
+  // A description edit must not discard a break the engine already observed.
+  if (direction === null) return
   await db
     .update(tradeChartDrawings)
     .set({
@@ -146,6 +159,7 @@ export async function saveChartDrawing(
         eq(tradeChartDrawings.userId, userId),
         eq(tradeChartDrawings.id, drawing.id),
         isNotNull(tradeChartDrawings.alert),
+        sql`not (${tradeChartDrawings.alert} ? 'retest')`,
         sql`${tradeChartDrawings.alert}->>'firedAt' IS NULL`
       )
     )
@@ -303,44 +317,60 @@ export async function setChartDrawingAlertRules(
     id: string
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
+    retest?: boolean
   }
 ): Promise<Drawing> {
-  const [row] = await db
-    .select({
-      id: tradeChartDrawings.id,
-      shape: tradeChartDrawings.shape,
-      alert: tradeChartDrawings.alert,
-    })
-    .from(tradeChartDrawings)
-    .where(
-      and(
-        eq(tradeChartDrawings.userId, userId),
-        eq(tradeChartDrawings.id, input.id)
+  return db.transaction(async (tx) => {
+    await lockGridLineStops(userId, tx)
+    const [row] = await tx
+      .select({
+        id: tradeChartDrawings.id,
+        shape: tradeChartDrawings.shape,
+        alert: tradeChartDrawings.alert,
+      })
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id)
+        )
       )
-    )
-    .limit(1)
-  const shape = row ? readDrawingShape(row.shape) : null
-  if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+      .limit(1)
+    const shape = row ? readDrawingShape(row.shape) : null
+    if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
 
-  const alert = readDrawingAlert(row.alert)
-  if (!drawingAlertArmed(alert) || !alert) {
-    throw new Error(DRAWING_ALERT_NOT_ARMED)
-  }
+    const alert = readDrawingAlert(row.alert)
+    if (!drawingAlertArmed(alert) || !alert) {
+      throw new Error(DRAWING_ALERT_NOT_ARMED)
+    }
 
-  const saved = ruledAlert(alert, input)
-  const updated = await db
-    .update(tradeChartDrawings)
-    .set({ alert: saved, updatedAt: new Date() })
-    .where(
-      and(
-        eq(tradeChartDrawings.userId, userId),
-        eq(tradeChartDrawings.id, input.id),
-        eq(tradeChartDrawings.alert, row.alert!)
+    const saved = ruledAlert(alert, input)
+    if (saved.retest && (saved.closeInterval || saved.volumeMultiple)) {
+      throw new Error("DRAWING_ALERT_RETEST_CLOSE")
+    }
+    if (saved.retest) {
+      const [linked] = await tx.select({ id: tradeGridLineStops.gridId })
+        .from(tradeGridLineStops).where(and(
+          eq(tradeGridLineStops.userId, userId),
+          eq(tradeGridLineStops.drawingId, input.id),
+          sql`${tradeGridLineStops.state} in ('watching', 'pending')`
+        )).limit(1)
+      if (linked) throw new Error("DRAWING_ALERT_RETEST_LINKED")
+    }
+    const updated = await tx
+      .update(tradeChartDrawings)
+      .set({ alert: saved, updatedAt: new Date() })
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id),
+          eq(tradeChartDrawings.alert, row.alert!)
+        )
       )
-    )
-    .returning({ id: tradeChartDrawings.id })
-  if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
-  return { id: row.id, shape, alert: saved }
+      .returning({ id: tradeChartDrawings.id })
+    if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
+    return { id: row.id, shape, alert: saved }
+  })
 }
 
 /** Remove one, and say whether there was one to remove. */

@@ -16,6 +16,7 @@ import {
   saveChartDrawing,
   setChartDrawingAlert,
   setChartDrawingAlertExpiry,
+  setChartDrawingAlertRules,
   deleteChartDrawing,
   clearChartDrawings,
 } from "./drawings"
@@ -362,4 +363,20 @@ it("refuses expiry on a linked grid stop and refuses linking an expiring alert",
       2_000
     )
   ).rejects.toThrow("DRAWING_ALERT_EXPIRY_LINKED")
+})
+
+it("refuses retests on linked grid stops and refuses linking a retest alert", async () => {
+  await setChartDrawingAlertRules(userId, {
+    id: drawingId, retest: true, closeInterval: null, volumeMultiple: null,
+  })
+  await expect(database.transaction((tx) =>
+    validateGridLineStop(userId, marketKey, { drawingId, armedAt }, tx)
+  )).rejects.toThrow("SMART_GRID_LINE_STOP_UNAVAILABLE")
+  await setChartDrawingAlertRules(userId, {
+    id: drawingId, retest: false, closeInterval: null, volumeMultiple: null,
+  })
+  await attach()
+  await expect(setChartDrawingAlertRules(userId, {
+    id: drawingId, retest: true, closeInterval: null, volumeMultiple: null,
+  })).rejects.toThrow("DRAWING_ALERT_RETEST_LINKED")
 })

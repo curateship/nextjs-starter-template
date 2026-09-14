@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from "react"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -97,6 +98,7 @@ async function draw({
   >(),
   onSetAlert,
   onSetBuffer,
+  onAlertOpen,
   extendNewLines,
   onExtendPreference,
 }: {
@@ -115,12 +117,13 @@ async function draw({
   ) => void
   onSetAlert?: (id: string, on: boolean, currentPrice: number | null) => void
   onSetBuffer?: (id: string, buffer: number | null) => void
+  onAlertOpen?: () => void
   extendNewLines?: boolean
   onExtendPreference?: (on: boolean) => void
 }) {
   await act(async () => {
     root.render(
-      <PaintLayer
+      <TooltipProvider><PaintLayer
         surface={surface}
         candles={candles}
         watchLiveBars={watchLiveBars}
@@ -134,11 +137,12 @@ async function draw({
         onDelete={() => undefined}
         onSetAlert={onSetAlert}
         onSetBuffer={onSetBuffer}
+        onAlertOpen={onAlertOpen}
         wide={wide}
         lineAlertsPaused={lineAlertsPaused}
         extendNewLines={extendNewLines}
         onExtendPreference={onExtendPreference}
-      />
+      /></TooltipProvider>
     )
   })
   const svg = host.querySelector("svg")!
@@ -175,6 +179,34 @@ function preparePointerTarget(element: Element) {
 }
 
 describe("the chart paint layer", () => {
+  it("refreshes the saved retest stage while its window is open", async () => {
+    vi.useFakeTimers()
+    const onAlertOpen = vi.fn()
+    await draw({
+      tool: null,
+      drawings: [{
+        id: "retest",
+        shape: { kind: "level", price: 100 },
+        alert: { direction: "above", armedAt: 1, firedAt: null, retest: "waiting-return" },
+      }],
+      selectedId: "retest",
+      onSetAlert: vi.fn(),
+      onAlertOpen,
+    })
+    await act(async () => {
+      host.querySelector('[data-drawing-id="retest"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    })
+    expect(document.body.textContent).toContain("Waiting for the retest from above the level")
+    expect(onAlertOpen).toHaveBeenCalledTimes(1)
+    await act(async () => vi.advanceTimersByTime(2_000))
+    expect(onAlertOpen).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    const calls = onAlertOpen.mock.calls.length
+    await act(async () => vi.advanceTimersByTime(4_000))
+    expect(onAlertOpen).toHaveBeenCalledTimes(calls)
+  })
   it("snaps both trendline ends to candle highs and shows the active tip", async () => {
     const onCreate = vi.fn()
     const { svg } = await draw({ tool: "trendline", onCreate })

@@ -381,6 +381,42 @@ translating and a description the person typed does not. The alert then
 switches itself off and the line stays on the chart. Opening the window again
 says when it fired, and the switch can go on again for one more.
 
+## Break then retest
+
+**Break then retest sends one notice when price returns to a line after breaking past its buffer.**
+
+- **Where to choose:** Open a level or trendline's settings. With Alert on, choose Break then retest under Alert mode.
+- **First stage:** The window says Waiting for the break. Price must go past the buffer on the alert's chosen side.
+- **Second stage:** The window says Waiting for the retest. Price must return within the buffer while staying on the new side.
+- **A failed return:** Crossing through the line resets to Waiting for the break without a notice. Another break is required.
+- **At the line:** An exact touch counts as a return. With no buffer, only an exact touch counts after a break.
+- **Buffer units:** Break buffer remains a percentage. At $60,000, a buffer of 0.08333333333333333% represents $50.
+- **Example:** Starting below $60,000, price reaches $60,100 and the alert waits for a return. At $60,040, one notice fires.
+- **Reset example:** Starting below $60,000, price reaches $60,100 then $59,900. The alert starts over silently.
+- **Falling prices:** The same rule works below the line. A break to $59,900 followed by $59,960 sends one notice.
+- **Live prices:** Retest mode uses live prices only. Selecting the mode clears candle-close and volume rules.
+- **Sloping lines:** Each engine pass measures the line at the current time. The return uses the line's current position.
+- **Storage:** Both stages live in the drawing's existing alert JSON. Reloading the chart or restarting the engine preserves the saved stage.
+- **Open settings:** While a retest alert's settings are open, the chart reads its saved stage every two seconds.
+- **Descriptions:** Editing a description preserves the retest stage and direction. Only a changed line position resets the saved break.
+- **Changes:** Moving the line or changing its buffer or rules starts the break stage again. Re-enabling also starts fresh.
+- **Pause:** A checked price while Line alerts is paused clears a pending return and points the alert toward the price again.
+- **Missing prices:** The alert waits with its saved stage intact. Expiry still switches the alert off silently.
+- **Grid stops:** Retest alerts cannot protect grids. A linked grid-stop alert must be released before switching to retest mode.
+- **Notice:** The notice says the price retested the line. The alert switches off after one notice and keeps the drawing.
+- **Release:** Web and trading engine both need the code. No database migration is required.
+
+### Testing retest alerts
+
+1. Draw a level away from the current price and open the level's settings. Keep Alert on.
+2. Select Break then retest. Expect Waiting for the break and no Wait for a close card.
+3. Set a small Break buffer. Reload and reopen the level to check that the mode and buffer remain saved.
+4. Wait for price to pass the buffer. Expect Waiting for the retest within the next chart refresh.
+5. Wait for price to return within the buffer from the new side. Expect one retest notice and Alert off.
+6. Repeat with a new alert. If price crosses through the line on the return, expect Waiting for the break and no notice.
+7. Use the focused drawing-alert tests for the exact $60,000 examples without waiting for market prices.
+8. Check the settings on a narrow screen and with the keyboard. The mode control and stage should remain readable.
+
 ## Alert expiry
 
 A line alert can switch itself off after a number of days or at a trendline's second point.

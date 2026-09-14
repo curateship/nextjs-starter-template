@@ -105,6 +105,7 @@ const setBufferSchema = z.object({
 // Bounded the same way the stored record is, so a hand-made request cannot
 // write a number the reader would later refuse.
 const setRulesSchema = z.object({
+  retest: z.boolean().optional(),
   id: drawingIdSchema,
   closeInterval: z.enum(CANDLE_INTERVALS).nullable(),
   volumeMultiple: z
@@ -237,6 +238,7 @@ export async function setDrawingAlertRules(
   rules: {
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
+    retest?: boolean
   }
 ) {
   const answer = await setChartDrawingAlertRulesFn({ data: { id, ...rules } })
@@ -274,6 +276,8 @@ export const getDrawingAlertErrorMessage = withLinkedGridStopMessage(createError
     ...GRID_LINE_STOP_ERRORS,
     [DRAWING_ALERT_NO_PRICE]:
       "There is no live price to set the alert from yet. Try again in a moment.",
+    DRAWING_ALERT_RETEST_CLOSE: "Break then retest uses live prices. Turn off Wait for a close first.",
+    DRAWING_ALERT_RETEST_LINKED: "A running grid needs this alert. Replace its stop or close the grid before choosing Break then retest.",
     DRAWING_ALERT_INVALID_EXPIRY: "That expiry date is too far away. Enter fewer days so the date is before 2100.",
     DRAWING_ALERT_LINE_END_PAST: "This line ends in the past. Choose a number of days, or move the line's second point to a future date.",
     DRAWING_ALERT_LINE_END_UNAVAILABLE: "At line end is only available for trendlines. Choose a number of days instead.",

@@ -113,6 +113,7 @@ export function LineAlertPopover({
   onSetRules: (rules: {
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
+    retest?: boolean
   }) => void
 }) {
   /*
@@ -280,6 +281,7 @@ function LineAlertBody({
   onSetRules: (rules: {
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
+    retest?: boolean
   }) => void
 }) {
   const armed = drawingAlertArmed(drawing.alert)
@@ -338,6 +340,34 @@ function LineAlertBody({
           one of these rules is kept on. Fire on comes first: it decides
           whether the volume condition below it means anything at all. */}
       {supportsAlert && armed && drawing.alert ? (
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor={`line-mode-${drawing.id}`}
+            hint="Break then retest watches live prices. The price must pass the break buffer, then return within the buffer from the new side. Crossing back through the line starts over."
+          >
+            Alert mode
+          </FieldLabel>
+          <Select
+            value={drawing.alert.retest ? "retest" : "cross"}
+            onValueChange={(mode) =>
+              onSetRules({
+                retest: mode === "retest",
+                closeInterval: null,
+                volumeMultiple: null,
+              })
+            }
+          >
+            <SelectTrigger id={`line-mode-${drawing.id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cross">Cross the line</SelectItem>
+              <SelectItem value="retest">Break then retest</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {supportsAlert && armed && drawing.alert && !drawing.alert.retest ? (
         <CloseRuleCard
           id={firesOnId}
           noun={noun}
@@ -373,7 +403,7 @@ function LineAlertBody({
           carry a sentence explaining what the switch above it would do, which
           is what the switch itself says. */}
       {supportsAlert && armed ? (
-        <p className="text-xs text-muted-foreground">
+        <p role="status" className="text-xs text-muted-foreground">
           {waitingWords(drawing.alert, noun)}
         </p>
       ) : supportsAlert && fired !== null ? (
@@ -427,6 +457,11 @@ function LineAlertBody({
  * volume that candle has to carry.
  */
 function waitingWords(alert: Drawing["alert"], noun: string): string {
+  if (alert?.retest) {
+    return alert.retest === "waiting-break"
+      ? `Waiting for the break ${alert.direction} the ${noun}, past the buffer.`
+      : `Waiting for the retest from ${alert.direction} the ${noun}. Fires once on the return, then switches off.`
+  }
   const crossing = alert?.direction === "above" ? "up through" : "down through"
   if (!alert || alert.closeInterval === undefined) {
     return `Fires once when the price crosses ${crossing} the ${noun}, then switches itself off.`
@@ -466,6 +501,7 @@ function CloseRuleCard({
   onSetRules: (rules: {
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
+    retest?: boolean
   }) => void
 }) {
   const on = drawingAlertFiresOn(alert) === "close"

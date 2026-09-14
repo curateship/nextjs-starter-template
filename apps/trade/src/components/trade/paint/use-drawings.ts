@@ -488,6 +488,7 @@ export function useChartDrawings(
       rules: {
         closeInterval: CandleInterval | null
         volumeMultiple: number | null
+        retest?: boolean
       }
     ) => {
       if (!marketKey) return

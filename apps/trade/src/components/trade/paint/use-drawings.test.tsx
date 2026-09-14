@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   toast: vi.fn(),
   setAlert: vi.fn(),
   setBuffer: vi.fn(),
+  setRules: vi.fn(),
 }))
 
 vi.mock("@/lib/api/trade/drawings", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/lib/api/trade/drawings", () => ({
   saveDrawing: api.save,
   setDrawingAlert: api.setAlert,
   setDrawingAlertBuffer: api.setBuffer,
+  setDrawingAlertRules: api.setRules,
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn(), dismissErrorToast: vi.fn() }))
 vi.mock("sonner", () => ({ toast: { success: api.toast } }))
@@ -48,6 +50,49 @@ const initial = {
   ],
   error: null,
 }
+
+it("shows each retest stage and restores the mode after a refused save", async () => {
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  })
+  document.body.appendChild(host)
+  const row = {
+    id: "retest-ui",
+    shape: { kind: "level" as const, price: 60_000 },
+    alert: { direction: "above" as const, armedAt: 1, firedAt: null, buffer: 0.1 },
+  }
+  const savedInitial = { marketKey: firstMarket, rows: [row], error: null }
+  function Controls() {
+    const paint = useChartDrawings(firstMarket, savedInitial)
+    latest = paint
+    const svg = React.useRef<SVGSVGElement>(null)
+    return <><svg ref={svg} /><LineAlertPopover
+      drawing={paint.drawings[0]!} linePrice={60_000} currentPrice={59_900}
+      svg={svg} at={{ x: 0, y: 0 }} open wide autoFocus={false} paused={false}
+      onOpenChange={() => undefined} onSetAlert={() => undefined}
+      onSetExtend={() => undefined} onSetName={() => undefined}
+      onSetBuffer={() => undefined} onSetExpiry={async () => true}
+      onSetRules={(rules) => paint.setRules(row.id, rules)}
+    /></>
+  }
+  await act(async () => root.render(<TooltipProvider><Controls /></TooltipProvider>))
+  const rules = { retest: true, closeInterval: null, volumeMultiple: null }
+  api.setRules.mockResolvedValueOnce({ ...row, alert: { ...row.alert, retest: "waiting-break" } })
+  await act(async () => latest!.setRules(row.id, rules))
+  expect(document.body.textContent).toContain("Break then retest")
+  expect(document.body.textContent).toContain("Waiting for the break above the level")
+  expect(document.body.textContent).not.toContain("Wait for a close")
+  api.load.mockResolvedValueOnce({ drawings: [{ ...row, alert: { ...row.alert, retest: "waiting-return" } }] })
+  await act(async () => latest!.refresh())
+  expect(document.body.textContent).toContain("Waiting for the retest from above the level")
+  api.setRules.mockRejectedValueOnce(new Error("save refused"))
+  await act(async () => latest!.setRules(row.id, { ...rules, retest: false }))
+  expect(document.body.textContent).toContain("Break then retest")
+  expect(document.body.textContent).toContain("Waiting for the retest from above the level")
+  expect(showErrorToast).toHaveBeenCalled()
+})
 
 type Paint = ReturnType<typeof useChartDrawings>
 let latest: Paint | null = null

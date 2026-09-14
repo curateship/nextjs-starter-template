@@ -87,6 +87,7 @@ export const DRAWING_VOLUME_LOOKBACK = 20
  * switch reads as off. Switching it off by hand removes the record.
  */
 export type DrawingAlert = {
+  retest?: "waiting-break" | "waiting-return"
   direction: "above" | "below"
   armedAt: number
   firedAt: number | null
@@ -278,6 +279,7 @@ export function readDrawingShape(value: unknown): DrawingShape | null {
 }
 
 export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
+  retest: z.enum(["waiting-break", "waiting-return"]).optional(),
   direction: z.enum(["above", "below"]),
   armedAt: z.number().int().min(0).max(MAX_TIME_MS),
   firedAt: z.number().int().min(0).max(MAX_TIME_MS).nullable(),
@@ -292,7 +294,7 @@ export const drawingAlertSchema: z.ZodType<DrawingAlert> = z.object({
     .positive()
     .max(MAX_DRAWING_VOLUME_MULTIPLE)
     .optional(),
-})
+}).refine((alert) => !alert.retest || (!alert.closeInterval && !alert.volumeMultiple))
 
 /**
  * A stored alert, or null when there is none or it cannot be read. An alert
@@ -351,8 +353,9 @@ export function bufferedAlert(
   alert: DrawingAlert,
   buffer: number | null
 ): DrawingAlert {
+  if ((alert.buffer ?? null) === buffer) return alert
+  alert = resetDrawingRetest(alert)
   if (buffer !== null) return { ...alert, buffer }
-  if (alert.buffer === undefined) return alert
   const without = { ...alert }
   delete without.buffer
   return without
@@ -397,9 +400,12 @@ export function ruledAlert(
   rules: {
     closeInterval: CandleInterval | null
     volumeMultiple: number | null
+    retest?: boolean
   }
 ): DrawingAlert {
-  const next = { ...alert }
+  const next = resetDrawingRetest(alert)
+  if (rules.retest === true) next.retest = "waiting-break"
+  if (rules.retest === false) delete next.retest
   if (rules.closeInterval === null) delete next.closeInterval
   else next.closeInterval = rules.closeInterval
   if (rules.volumeMultiple === null) delete next.volumeMultiple
@@ -427,6 +433,7 @@ export function rearmedAlert(
     previous ? (previous.buffer ?? null) : fallbackBuffer
   )
   return ruledAlert(buffered, {
+    retest: previous?.retest !== undefined,
     closeInterval: previous?.closeInterval ?? null,
     volumeMultiple: previous?.volumeMultiple ?? null,
   })
@@ -563,4 +570,25 @@ export function fibLevels(shape: Extract<DrawingShape, { kind: "fib" }>) {
     price:
       shape.from.price * (1 - percent / 100) + shape.to.price * (percent / 100),
   }))
+}
+
+/** A changed line or rule must observe a fresh break before a return counts. */
+function resetDrawingRetest(alert: DrawingAlert): DrawingAlert {
+  return alert.retest ? { ...alert, retest: "waiting-break" } : { ...alert }
+}
+
+/** A return must stay on the broken side. Passing through the line cancels it. */
+export function drawingRetestStep(
+  alert: DrawingAlert,
+  linePrice: number,
+  mark: number
+): "wait" | "break" | "reset" | "fire" {
+  if (!Number.isFinite(mark) || !Number.isFinite(linePrice)) return "wait"
+  const distance = (mark - linePrice) * (alert.direction === "above" ? 1 : -1)
+  const buffer = Math.abs(linePrice) * ((alert.buffer ?? 0) / 100)
+  if (alert.retest === "waiting-break") {
+    return distance > buffer ? "break" : "wait"
+  }
+  if (distance < 0) return "reset"
+  return distance <= buffer ? "fire" : "wait"
 }

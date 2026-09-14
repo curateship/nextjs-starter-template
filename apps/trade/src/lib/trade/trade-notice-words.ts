@@ -36,6 +36,7 @@ export function priceAlertNoticeWords(input: {
  * person typed needs no translating; the price then moves to the body.
  */
 export function drawingAlertNoticeWords(input: {
+  retest?: boolean
   marketKey: string
   kind: "level" | "trendline"
   /** Where the line was at the moment of the cross. */
@@ -66,16 +67,18 @@ export function drawingAlertNoticeWords(input: {
   const volume = input.volumeMultiple
     ? `Its volume was at least ${input.volumeMultiple}x the average of the ${DRAWING_VOLUME_LOOKBACK} candles before it. `
     : ""
-  const rest = `${closed}${volume}${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
+  const returned = input.retest ? `The price broke ${input.direction} the ${input.kind}, then returned to it from that side. ` : ""
+  const verb = input.retest ? "retested" : "crossed"
+  const rest = `${returned}${closed}${volume}${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
   if (input.name) {
     return {
-      title: `${coin} crossed ${input.name} (was ${movement})`,
+      title: `${coin} ${verb} ${input.name} (was ${movement})`,
       body: `${input.name} was at ${formatPrice(input.price)}. ${rest}`,
       level: "info",
     }
   }
   return {
-    title: `${coin} crossed your ${input.kind} at ${formatPrice(input.price)} (was ${movement})`,
+    title: `${coin} ${verb} your ${input.kind} at ${formatPrice(input.price)} (was ${movement})`,
     body: rest,
     level: "info",
   }
