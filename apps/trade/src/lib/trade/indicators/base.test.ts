@@ -6,6 +6,8 @@ import {
   baseInForce,
   baseLevelsInForce,
   baseDashes,
+  baseWaitNote,
+  baseWindow,
   cappedHold,
 } from "@/lib/trade/indicators/base"
 import { readIndicatorParams } from "@/lib/trade/indicators/contract"
@@ -50,46 +52,45 @@ function settings(over: Record<string, number | boolean> = {}) {
   }
 }
 
-/** The old window-by-window scan, kept here as the independent comparison. */
+/**
+ * The plain window-by-window scan, kept here as the independent comparison.
+ *
+ * It reads the rule the way a person would: for every candle, look at the
+ * `half` candles on each side and ask whether this one is the lowest of them.
+ * Slow on purpose. The fast pass in the indicator has a sliding window and a
+ * queue of candidates, and the only way to trust that is to check it against
+ * something with no cleverness in it at all.
+ */
 function slowLevelsInForce(
   candles: readonly IndicatorCandle[],
   params: ReturnType<typeof settings>,
   side: "up" | "down"
 ): Array<number | null> {
-  const searchBars = params.searchBars as number
-  const hold = cappedHold(searchBars, params.holdBars as number)
+  const { half, wait } = baseWindow(
+    params.searchBars as number,
+    params.holdBars as number
+  )
   const floor = side === "up"
   const prices = candles.map((bar) => (floor ? bar.low : bar.high))
-  const extreme = new Array<number>(candles.length).fill(Number.NaN)
-
-  for (let i = searchBars - 1; i < candles.length; i += 1) {
-    let best = prices[i]
-    for (let j = i - searchBars + 1; j < i; j += 1) {
-      best = floor ? Math.min(best, prices[j]) : Math.max(best, prices[j])
-    }
-    extreme[i] = best
-  }
 
   const confirmed = new Array<boolean>(candles.length).fill(false)
   const levels = new Array<number>(candles.length).fill(Number.NaN)
-  let current = Number.NaN
-  for (let i = 0; i < candles.length; i += 1) {
-    if (i - hold - 1 >= 0) {
-      const before = extreme[i - hold - 1]
-      const set = extreme[i - hold]
-      const now = extreme[i]
-      if (
-        !Number.isNaN(before) &&
-        !Number.isNaN(set) &&
-        !Number.isNaN(now) &&
-        (floor ? before > set : before < set) &&
-        set === now
-      ) {
-        current = now
-        confirmed[i] = true
-      }
+  for (let at = 0; at < candles.length; at += 1) {
+    const from = at - half
+    const to = at + half
+    if (from < 0 || to >= candles.length) continue
+    if (at + wait >= candles.length) continue
+    // Ties go to the earliest candle, so a flat double bottom marks its first
+    // dip and not its second. That is why `best` starts at the window's left
+    // edge and only moves on a strictly better price.
+    let best = from
+    for (let j = from + 1; j <= to; j += 1) {
+      const better = floor ? prices[j] < prices[best] : prices[j] > prices[best]
+      if (better) best = j
     }
-    levels[i] = current
+    if (best !== at) continue
+    confirmed[at + wait] = true
+    levels[at + wait] = prices[at]
   }
 
   const answer: Array<number | null> = new Array(candles.length).fill(null)
@@ -116,21 +117,22 @@ function slowLevelsInForce(
   return answer
 }
 
-// One dip to 5 at candle 4. The window is 4 candles and the wait is 1, so the
-// level is confirmed at candle 5 — one candle after the low held.
+// One dip to 5 at candle 4. The window is 4 candles wide, so a low has to beat
+// the 2 candles on each side of it, and the level is announced 2 candles after
+// the low — candle 6.
 const ONE_BASE = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10]
 
-// The same again, then a deeper dip to 4 at candle 10, confirmed at candle 11.
+// The same again, then a deeper dip to 4 at candle 10, announced at candle 12.
 const TWO_BASES = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10, 4, 5, 6, 7, 8, 9]
 
 describe("the base indicator", () => {
   it("marks a floor on the candle its wait finishes on", () => {
     const paint = baseIndicator.compute(bars(ONE_BASE), settings(), CHART)
 
-    // At candle 5's own close — the candle the wait finished on, which sits
+    // At candle 6's own close — the candle the wait finished on, which sits
     // well above the level itself. Timing an entry near a level is a different
     // job; this only says the level is now there.
-    expect(paint.marks).toEqual([{ time: 5 * HOUR, price: 6.5, side: "up" }])
+    expect(paint.marks).toEqual([{ time: 6 * HOUR, price: 7.5, side: "up" }])
     // The dash sits on the candles that made the level, not across the chart:
     // the low was candle 4, and it reaches two candles either side of it.
     expect(paint.dashes).toEqual([
@@ -150,11 +152,51 @@ describe("the base indicator", () => {
     )
 
     expect(paint.marks).toEqual([
-      { time: 5 * HOUR, price: -90.5, side: "down" },
+      { time: 6 * HOUR, price: -91.5, side: "down" },
     ])
     expect(paint.dashes).toEqual([
       { fromTime: 2 * HOUR, toTime: 6 * HOUR, price: 10, side: "down" },
     ])
+  })
+
+  /**
+   * **Both sides, in every kind of market.**
+   *
+   * Until 14 Sep 2026 a base had to be the lowest low of the 36 candles BEFORE
+   * it and only the 8 after it. In a rising market no pullback low is ever the
+   * lowest of the previous 36 candles, so bases stopped appearing and the chart
+   * showed nothing but ceilings; a falling market showed nothing but bases.
+   * Tyler sent a screenshot of exactly that and asked for both.
+   */
+  it("finds both floors and ceilings whichever way the market is going", () => {
+    // A drift with a swing of its own riding on it, so there are real
+    // pullbacks to find rather than one unbroken line.
+    const shaped = (drift: number) =>
+      bars(
+        Array.from({ length: 400 }, (_, i) => {
+          const mid = 100 + i * drift + Math.sin(i / 6.4) * 9
+          return mid - 0.4
+        }),
+        Array.from({ length: 400 }, (_, i) => {
+          const mid = 100 + i * drift + Math.sin(i / 6.4) * 9
+          return mid + 0.4
+        })
+      )
+    const both = settings({
+      searchBars: 36,
+      holdBars: 8,
+      minBarsApart: 20,
+      showBases: true,
+      showCeilings: true,
+    })
+
+    for (const drift of [0.35, -0.35, 0]) {
+      const paint = baseIndicator.compute(shaped(drift), both, CHART)
+      const floors = paint.dashes.filter((dash) => dash.side === "up")
+      const ceilings = paint.dashes.filter((dash) => dash.side === "down")
+      expect(floors.length).toBeGreaterThan(3)
+      expect(ceilings.length).toBeGreaterThan(3)
+    }
   })
 
   it("draws nothing at all for a side that is switched off", () => {
@@ -169,7 +211,7 @@ describe("the base indicator", () => {
   it("keeps the dash but drops the arrow on a floor that is lower than the last", () => {
     const candles = bars(TWO_BASES)
     const both = baseIndicator.compute(candles, settings(), CHART)
-    expect(both.marks.map((mark) => mark.time)).toEqual([5 * HOUR, 11 * HOUR])
+    expect(both.marks.map((mark) => mark.time)).toEqual([6 * HOUR, 12 * HOUR])
 
     const withTrend = baseIndicator.compute(
       candles,
@@ -177,7 +219,7 @@ describe("the base indicator", () => {
       CHART
     )
     // The second floor is at 4, below the first at 5 — no arrow.
-    expect(withTrend.marks.map((mark) => mark.time)).toEqual([5 * HOUR])
+    expect(withTrend.marks.map((mark) => mark.time)).toEqual([6 * HOUR])
     // But it is still a level, and it still shows as one.
     expect(withTrend.dashes).toEqual(both.dashes)
     expect(both.dashes.map((dash) => dash.price)).toEqual([5, 4])
@@ -191,7 +233,7 @@ describe("the base indicator", () => {
       settings({ minBarsApart: 10 }),
       CHART
     )
-    expect(spaced.marks.map((mark) => mark.time)).toEqual([5 * HOUR])
+    expect(spaced.marks.map((mark) => mark.time)).toEqual([6 * HOUR])
     // Spacing thins the arrows and never the dashes.
     expect(spaced.dashes).toHaveLength(2)
   })
@@ -212,7 +254,7 @@ describe("the base indicator", () => {
     const candles = bars(ONE_BASE)
     expect(
       baseIndicator.signals?.(candles, settings({ showLongArrows: false }))
-    ).toEqual([{ time: 5 * HOUR, side: "buy" }])
+    ).toEqual([{ time: 6 * HOUR, side: "buy" }])
   })
 
   it("says nothing about a chart with less history than the search needs", () => {
@@ -245,6 +287,24 @@ describe("the base indicator", () => {
     expect(cappedHold(36, 8)).toBe(8)
     expect(cappedHold(36, 36)).toBe(35)
     expect(cappedHold(36, 400)).toBe(35)
+  })
+
+  /**
+   * The chart's settings panel and the DCA step's inspector both print this,
+   * and both read it from here. They used to write it out separately, which is
+   * how the two would have started disagreeing the moment the rule changed.
+   */
+  it("says out loud when the wait it uses is not the wait that was typed", () => {
+    // 36 and 8: a level has to beat 18 candles each side, so the wait is 18.
+    expect(baseWaitNote(36, 8)).toBe(
+      "A level has to beat the 18 candles on each side of it, so the wait cannot be shorter than 18 candles. It is acting as 18."
+    )
+    // Typed longer than the search: capped under it, and said differently.
+    expect(baseWaitNote(36, 400)).toBe(
+      "The wait has to be shorter than the search, so it is acting as 35 candles."
+    )
+    // Nothing to say when the wait asked for is the wait used.
+    expect(baseWaitNote(36, 18)).toBeNull()
   })
 })
 
@@ -505,11 +565,13 @@ describe("the bases a backtest chart draws", () => {
   })
 
   it("stays a mark on a spot, never a line across the chart", () => {
-    // Nine candles wide at these settings — the same span the trading chart's
-    // own dashes use, so the two draw one level the same way.
+    // The dash reaches `wait` candles either side of the low, the same span
+    // the trading chart's own dashes use, so the two draw one level the same
+    // way. At these settings that is 4 each side: nine candles, eight gaps.
+    const { wait } = baseWindow(8, 3)
     for (const dash of baseDashes(candles, withApart(20))) {
       const wide = (dash.toTime - dash.fromTime) / HOUR
-      expect(wide).toBeLessThanOrEqual(2 * 3 + 1)
+      expect(wide).toBeLessThanOrEqual(2 * wait)
     }
   })
 })

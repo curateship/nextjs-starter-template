@@ -76,3 +76,21 @@ Two of its settings only thin out the arrows and never the dashes, which is the
 answer to "why does that level have a dash but no arrow": **Only mark levels
 going the right way** (a base has to be above the base before it) and **Fewest
 candles between arrows**.
+
+**A level is measured around itself, not behind itself.** A low counts as a
+base when it is the lowest of the candles on BOTH sides of it — half the
+"Candles a level must beat" setting on each side. It used to have to be the
+lowest of all 36 candles before it and only the 8 after, and that lopsidedness
+decided which half of the market you were shown: in a rising market no pullback
+low is ever the lowest of the previous 36 candles, so bases stopped being drawn
+altogether and the chart carried nothing but ceilings. A falling market did the
+mirror image. Measured on test histories: a rise gave 0 bases and 9 ceilings, a
+fall 8 bases and 0 ceilings. Both now give 9 and 9. Tyler asked for both sides
+everywhere on 14 Sep 2026.
+
+**The wait can never be shorter than half that stretch.** The candles after a
+low are half of what decides whether it is a base, so a level announced before
+they have arrived would be a guess. Set "Candles it must hold" below that and
+the settings panel says out loud what it is acting as. The arrow, the dash and
+the level a grid's stop rides all move together, because they all come out of
+this one pass.

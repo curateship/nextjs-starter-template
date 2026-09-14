@@ -29,6 +29,7 @@ const api = vi.hoisted(() => ({
   cancelGridRest: vi.fn(),
   placeGridOrder: vi.fn(),
   editWatch: vi.fn(),
+  setLiveBrackets: vi.fn(),
   moveGridRange: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
   showErrorToast: vi.fn(),
@@ -59,7 +60,7 @@ vi.mock("@/lib/api/trade/live", () => ({
   loadLiveTrading: api.loadLiveTrading,
   moveLiveOrder: api.moveLiveOrder,
   placeLiveOrder: api.placeLiveOrder,
-  setLiveBrackets: vi.fn(),
+  setLiveBrackets: api.setLiveBrackets,
 }))
 
 vi.mock("@/lib/api/trade/paper", () => ({
@@ -206,6 +207,7 @@ beforeEach(() => {
   api.cancelGridRest.mockReset()
   api.placeGridOrder.mockReset()
   api.editWatch.mockReset().mockResolvedValue({ saved: true })
+  api.setLiveBrackets.mockReset().mockResolvedValue(undefined)
   api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
   api.showErrorToast.mockReset()
@@ -815,6 +817,60 @@ describe("bulk safety actions", () => {
 
     expect(api.flattenWalletApi).toHaveBeenCalledOnce()
     expect(api.flattenWalletApi).toHaveBeenCalledWith({ walletId: wallet.id })
+  })
+})
+
+/**
+ * A stop refused by the exchange.
+ *
+ * **The drawn stop is let go the moment the save is refused.** Until 14 Sep
+ * 2026 the optimistic copy stood for half a minute, which made the position
+ * look protected — and the right-click Stop loss row only appears on a
+ * position with no stop, so the one way to try again went with it.
+ */
+describe("a refused stop", () => {
+  const coin = "hyperliquid:mainnet:SOL"
+
+  it("puts the position back as it was and says what was not saved", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [{ ...livePosition(coin), slPx: null }],
+    })
+    api.setLiveBrackets.mockRejectedValue(
+      new Error("That did not go through. Try it again.")
+    )
+    await finishFirstRead()
+    const position = latest?.positions.find((one) => one.marketKey === coin)
+    expect(position?.slPx).toBe(null)
+
+    await act(async () => {
+      await latest?.dragBrackets(position!, { targets: [], slPx: 90 })
+    })
+
+    expect(latest?.positions.find((one) => one.marketKey === coin)?.slPx).toBe(
+      null
+    )
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "The stop was not saved, so the position is as it was. That did not go through. Try it again."
+    )
+  })
+
+  it("holds the stop on screen while a save that works is still going", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [{ ...livePosition(coin), slPx: null }],
+    })
+    await finishFirstRead()
+    const position = latest?.positions.find((one) => one.marketKey === coin)
+
+    await act(async () => {
+      await latest?.dragBrackets(position!, { targets: [], slPx: 90 })
+    })
+
+    expect(latest?.positions.find((one) => one.marketKey === coin)?.slPx).toBe(
+      90
+    )
+    expect(api.showErrorToast).not.toHaveBeenCalled()
   })
 })
 
@@ -1684,37 +1740,73 @@ describe("a watched level the engine has finished with", () => {
   })
 })
 
-
 describe("flipping live positions", () => {
   const held = {
-    id: "flip-position", walletId: wallet.id, marketKey: "hyperliquid:mainnet:BTC",
-    szi: 2, entryPx: 100, leverage: 2, maxLeverage: 10, targets: [], tpPx: null,
-    slPx: null, feesPaid: 0, updatedAt: 1,
-    live: { marginUsed: 100, liquidationPx: 50, tpOrderId: null, slOrderId: null },
+    id: "flip-position",
+    walletId: wallet.id,
+    marketKey: "hyperliquid:mainnet:BTC",
+    szi: 2,
+    entryPx: 100,
+    leverage: 2,
+    maxLeverage: 10,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: 1,
+    live: {
+      marginUsed: 100,
+      liquidationPx: 50,
+      tpOrderId: null,
+      slOrderId: null,
+    },
   }
 
   it("uses the live endpoint and reports success only after a complete flip", async () => {
-    api.loadLiveTrading.mockResolvedValue({ ...emptyLiveAnswer, positions: [held] })
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [held],
+    })
     await finishFirstRead()
-    await act(async () => { await latest!.flip(wallet.id, held.marketKey, 2) })
-    expect(api.flipLivePosition).toHaveBeenCalledExactlyOnceWith(wallet.id, held.marketKey, 2)
+    await act(async () => {
+      await latest!.flip(wallet.id, held.marketKey, 2)
+    })
+    expect(api.flipLivePosition).toHaveBeenCalledExactlyOnceWith(
+      wallet.id,
+      held.marketKey,
+      2
+    )
     expect(api.toastSuccess).toHaveBeenCalledWith("Position flipped in Main.")
   })
 
   it("does not turn a stale long confirmation into a short-to-long flip", async () => {
-    api.loadLiveTrading.mockResolvedValue({ ...emptyLiveAnswer, positions: [{ ...held, szi: -2 }] })
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [{ ...held, szi: -2 }],
+    })
     await finishFirstRead()
-    await act(async () => { await latest!.flip(wallet.id, held.marketKey, 2) })
+    await act(async () => {
+      await latest!.flip(wallet.id, held.marketKey, 2)
+    })
     expect(api.flipLivePosition).not.toHaveBeenCalled()
-    expect(api.showErrorToast).toHaveBeenCalledWith(expect.stringContaining("position changed"))
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      expect.stringContaining("position changed")
+    )
   })
 
   it("shows an incomplete-entry warning and clears busy state without a success toast", async () => {
-    api.loadLiveTrading.mockResolvedValue({ ...emptyLiveAnswer, positions: [held] })
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [held],
+    })
     api.flipLivePosition.mockResolvedValue({ complete: false })
     await finishFirstRead()
-    await act(async () => { await latest!.flip(wallet.id, held.marketKey, 2) })
-    expect(api.showErrorToast).toHaveBeenCalledWith(expect.stringContaining("full opposite entry is not confirmed"))
+    await act(async () => {
+      await latest!.flip(wallet.id, held.marketKey, 2)
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      expect.stringContaining("full opposite entry is not confirmed")
+    )
     expect(api.toastSuccess).not.toHaveBeenCalled()
     expect(latest!.busy).toBe(false)
   })

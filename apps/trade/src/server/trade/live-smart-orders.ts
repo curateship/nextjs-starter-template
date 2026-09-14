@@ -885,6 +885,23 @@ const EXCHANGE_VISIBILITY_GRACE_MS = 2_000
 // cadence small enough to catch an eventually-consistent exchange read, but
 // never turn a single lost reply into an every-pass polling loop.
 const UNKNOWN_WATCH_ORDER_CHECK_MS = 2_000
+/**
+ * How long Trade keeps asking before it stops and asks the person instead.
+ *
+ * **Checking cannot go on for ever.** Hyperliquid answers `unknownOid` for a
+ * client id it has no record of, and it stops mapping old ones at all, so a
+ * watch whose reply was lost long enough ago is never going to get an answer
+ * — and until 14 Sep 2026 the line sat on "Checking Hyperliquid order..."
+ * with nothing to press and no end to it.
+ *
+ * The watch is PAUSED rather than sent back to waiting. Trade cannot prove
+ * what became of the order, and an unproven "nothing stood" is how one $50
+ * watch bought $150 of coin — see `sent` on the watch plan. Paused, the money
+ * is safe, the reason is on the row, and Resume or the × is a press away.
+ */
+const UNKNOWN_WATCH_ORDER_GIVE_UP_MS = 5 * 60_000
+const UNKNOWN_WATCH_ORDER_NOTE =
+  "Trade sent this order to Hyperliquid and never learned what became of it. The exchange has no record of it five minutes on. Check Hyperliquid for a position or a resting order on this coin before resuming or calling this off."
 
 /**
  * How long a paired grid's stop may be missing from the portfolio read
@@ -2339,18 +2356,46 @@ export async function reconcileLiveLaddersOnce(
         entry.plan.orderId === null &&
         entry.plan.clientOrderId &&
         entry.plan.uncertainSince &&
-        now - entry.plan.uncertainSince >= UNKNOWN_WATCH_ORDER_CHECK_MS
+        !entry.plan.paused &&
+        now - (entry.plan.uncertainCheckedAt ?? entry.plan.uncertainSince) >=
+          UNKNOWN_WATCH_ORDER_CHECK_MS
       ) {
         const recovered = await recoverHyperliquidClientOrder(
           wallet.network,
           wallet.address,
           entry.plan.clientOrderId
         )
+        entry.plan.uncertainCheckedAt = now
         if (recovered.orderId) {
           entry.plan.orderId = recovered.orderId
           entry.plan.uncertainSince = 0
-        } else {
-          entry.plan.uncertainSince = now
+          entry.plan.uncertainCheckedAt = 0
+        } else if (
+          now - entry.plan.uncertainSince >=
+          UNKNOWN_WATCH_ORDER_GIVE_UP_MS
+        ) {
+          // Asking has run out of road. The row stops saying "checking" and
+          // starts saying what Trade does not know — see the note above.
+          entry.plan.paused = true
+          entry.plan.pauseReason = UNKNOWN_WATCH_ORDER_NOTE
+          // Announced like every other pause: the engine works with nobody
+          // watching, so a pause nothing tells you about is a watch that
+          // silently stopped.
+          try {
+            await writeTradeNotice({
+              userId,
+              title: `${marketSymbol(raw.marketKey)} watched order paused`,
+              body: `${UNKNOWN_WATCH_ORDER_NOTE} The watched order will send nothing else until you resume it.`,
+              level: "warning",
+              href: marketChartHref(raw.marketKey),
+            })
+          } catch (error) {
+            recordEngineError(
+              "live-smart-orders",
+              "trade engine: could not write lost-reply pause notice",
+              error
+            )
+          }
         }
         await saveLadderPlan(userId, raw.id, entry.plan, "active")
         // A recovery is deliberately its own pass. The next portfolio read

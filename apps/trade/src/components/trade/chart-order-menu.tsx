@@ -46,6 +46,31 @@ export type SmartOrderPreset = "dca" | "grid"
 
 /** How close to the window's edge the menu may sit. */
 const EDGE = 8
+
+/**
+ * A gap between two prices in plain percent, with no more decimals than it
+ * needs: 0.05 reads "5%", 0.0521 reads "5.21%", 0.0005 reads "0.05%".
+ *
+ * Trailing zeros are cut because these sit inside a sentence rather than in a
+ * column — "5.00% above price" is a figure lined up with nothing.
+ */
+function percentGap(fraction: number): string {
+  const percent = Math.abs(fraction) * 100
+  const digits = percent >= 10 ? 1 : 2
+  return `${Number(percent.toFixed(digits))}%`
+}
+
+/**
+ * The percent a row names, or null when it rounds away to nothing.
+ *
+ * A price a hair off the one the market is at would read "0% above price",
+ * which says less than the price itself does. Those rows keep the price.
+ */
+function namedGap(fraction: number | null | undefined): string | null {
+  if (fraction === null || fraction === undefined) return null
+  const named = percentGap(fraction)
+  return named === "0%" ? null : named
+}
 const MAX_RECENT_ORDER_TYPES = 2
 
 /** Which fold-out row is open: plain Long and Short, or the smart presets. */
@@ -61,6 +86,9 @@ export function ChartOrderMenu({
   recentOrderTypes,
   hasGrid = false,
   hasLadder = false,
+  alertGap = null,
+  exitGap = null,
+  stopGap = null,
   onPick,
   onPickSmart,
   onPickTakeProfit,
@@ -80,6 +108,19 @@ export function ChartOrderMenu({
   recentOrderTypes: readonly RecentOrderType[]
   hasGrid?: boolean
   hasLadder?: boolean
+  /**
+   * How far the clicked price sits from the price the market is at now, as a
+   * share of it. Positive is above. Null when nothing has quoted a price.
+   */
+  alertGap?: number | null
+  /**
+   * What the Exit row would be worth, as a share of the price the trade got
+   * in at: 0.06 means the price has to move 6% the trade's way. Negative when
+   * the click is on the losing side. Null when there is no exit row.
+   */
+  exitGap?: number | null
+  /** The same for the Stop loss row, and always negative — a stop is a loss. */
+  stopGap?: number | null
   onPick: (side: TradeSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
   /**
@@ -100,9 +141,10 @@ export function ChartOrderMenu({
   const previousFocusRef = React.useRef<HTMLElement | null>(null)
 
   React.useEffect(() => {
-    previousFocusRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
     boxRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -122,7 +164,8 @@ export function ChartOrderMenu({
           ? 0
           : event.key === "End"
             ? items.length - 1
-            : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length
+            : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) %
+              items.length
       event.preventDefault()
       items[next]?.focus()
     }
@@ -164,7 +207,34 @@ export function ChartOrderMenu({
     recentOrderTypes.length,
     onPickTakeProfit,
     onPickStopLoss,
+    // The rows carry a percent now, so the menu's width changes with it.
+    alertGap,
+    exitGap,
+    stopGap,
   ])
+
+  /**
+   * The three rows that name a level say what the level MEANS, not only what
+   * it costs (Tyler, 14 Sep 2026).
+   *
+   * A price on its own is a number to compare against another number on the
+   * axis. "Exit at 6%" is the answer already worked out. The price is kept
+   * only where the percent would round to nothing, and on the alert row,
+   * because picking that one saves the exact line without asking again.
+   */
+  const exitNamed = namedGap(exitGap)
+  const exitLabel =
+    exitNamed === null
+      ? "Exit"
+      : `Exit at ${exitGap! < 0 ? "-" : ""}${exitNamed}`
+  const stopNamed = namedGap(stopGap)
+  const stopLabel =
+    stopNamed === null ? "Stop loss" : `Stop loss at -${stopNamed}`
+  const alertNamed = namedGap(alertGap)
+  const alertLabel =
+    alertNamed === null
+      ? `Alert at ${formatPrice(menu.price)}`
+      : `Alert ${alertNamed} ${alertGap! > 0 ? "above" : "below"} price`
 
   const recent = orders
     ? recentOrderTypes
@@ -193,14 +263,14 @@ export function ChartOrderMenu({
     >
       {orders && onPickTakeProfit ? (
         <IconRow
-          label="Exit"
+          label={exitLabel}
           icon={<TargetIcon className={cn("size-4", MADE_MONEY)} />}
           onPick={onPickTakeProfit}
         />
       ) : null}
       {orders && onPickStopLoss ? (
         <IconRow
-          label="Stop loss"
+          label={stopLabel}
           icon={<ShieldAlertIcon className={cn("size-4", LOST_MONEY)} />}
           onPick={onPickStopLoss}
         />
@@ -273,7 +343,7 @@ export function ChartOrderMenu({
       ) : null}
       {orders ? <div role="presentation" className="my-1 border-t" /> : null}
       <IconRow
-        label={`Alert at ${formatPrice(menu.price)}`}
+        label={alertLabel}
         icon={<BellRingIcon className="size-4 text-muted-foreground" />}
         onPick={onPickAlert}
       />

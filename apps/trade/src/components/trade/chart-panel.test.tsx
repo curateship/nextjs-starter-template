@@ -134,7 +134,11 @@ vi.mock("@/components/trade/trade-lines-layer", async () => {
       React.useLayoutEffect(() => onSurface?.(surface), [surface, onSurface])
       return (
         <>
-          {orders.map((order) => <span key={order.id} data-testid="drawn-order">{order.id}</span>)}
+          {orders.map((order) => (
+            <span key={order.id} data-testid="drawn-order">
+              {order.id}
+            </span>
+          ))}
           {positions.map((position) => {
             const badge = entryBadge?.(position)
             return badge?.onRemove ? (
@@ -329,10 +333,14 @@ describe("the chart candle request", () => {
       answer: Awaited<ReturnType<typeof loadOlderCandlesFor>>
     ) => void
     vi.mocked(loadOlderCandlesFor).mockReturnValue(
-      new Promise((resolve) => { finish = resolve })
+      new Promise((resolve) => {
+        finish = resolve
+      })
     )
     await act(async () =>
-      root.render(chart("bnb:mainnet:0x1111111111111111111111111111111111111111"))
+      root.render(
+        chart("bnb:mainnet:0x1111111111111111111111111111111111111111")
+      )
     )
     await act(async () => vi.advanceTimersByTimeAsync(1000))
     expect(loadOlderCandlesFor).toHaveBeenCalledOnce()
@@ -640,11 +648,16 @@ describe("the chart paint tools", () => {
       )
     })
     const items = Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
-    expect(items.map((item) => item.textContent)).toContain("Alert at $90")
+    // 90 against a mark of 105: the row names the gap, not the price.
+    expect(items.map((item) => item.textContent)).toContain(
+      "Alert 14.3% below price"
+    )
     expect(items.map((item) => item.textContent)).not.toContain("Buy limit")
 
     await act(async () =>
-      items.find((item) => item.textContent === "Alert at $90")?.click()
+      items
+        .find((item) => item.textContent === "Alert 14.3% below price")
+        ?.click()
     )
     expect(createAlert).toHaveBeenCalledWith({
       marketKey,
@@ -830,7 +843,7 @@ describe("the chart stop-loss shortcut", () => {
       )
     })
     const stop = Array.from(host.querySelectorAll("button")).find(
-      (button) => button.textContent === "Stop loss"
+      (button) => button.textContent?.startsWith("Stop loss") ?? false
     )
     expect(stop).toBeDefined()
     await act(async () => stop?.click())
@@ -988,7 +1001,7 @@ describe("the chart stop-loss shortcut", () => {
       )
     })
     const stop = Array.from(host.querySelectorAll("button")).find(
-      (button) => button.textContent === "Stop loss"
+      (button) => button.textContent?.startsWith("Stop loss") ?? false
     )
     expect(stop).toBeDefined()
     await act(async () => stop?.click())
@@ -1077,7 +1090,7 @@ describe("the chart stop-loss shortcut", () => {
       )
     })
     const exit = Array.from(host.querySelectorAll("button")).find(
-      (button) => button.textContent === "Exit"
+      (button) => button.textContent?.startsWith("Exit") ?? false
     )
     expect(exit).toBeDefined()
     await act(async () => exit?.click())
@@ -1094,114 +1107,117 @@ describe("the chart stop-loss shortcut", () => {
     })
   })
 
-  it.each([null, 85])("prioritizes the position before the waiting order when its stop is %s", async (positionStop) => {
-    vi.useFakeTimers()
-    vi.mocked(loadCandles).mockResolvedValue({
-      candles: [
-        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
-      ],
-    })
-    const editOrder = vi.fn(async () => true)
-    const dragBrackets = vi.fn(async () => undefined)
-    const watched = {
-      id: "watch-1",
-      walletId: "wallet-1",
-      marketKey: "hyperliquid:BTC",
-      side: "buy" as const,
-      px: 100,
-      sz: 2,
-      leverage: 1,
-      maxLeverage: 50,
-      reduceOnly: false,
-      tpPx: 120,
-      slPx: null,
-      createdAt: 1,
-      updatedAt: 1,
-      watched: true as const,
-    }
-    const oneTrading = {
-      ...trading,
-      wallet: { id: "wallet-1" },
-      positions: [
-        {
-          id: "another-position",
-          walletId: "wallet-1",
-          marketKey: "hyperliquid:BTC",
-          szi: 1,
-          entryPx: 100,
-          leverage: 1,
-          maxLeverage: 50,
-          targets: [],
-          tpPx: null,
-          tpSz: null,
-          slPx: positionStop,
-          feesPaid: 0,
-          updatedAt: 1,
-        },
-      ],
-      watchOrders: [watched],
-      walletNames: new Map([["wallet-1", "Practice"]]),
-      editOrder,
-      dragBrackets,
-    } as unknown as Trading
-
-    await act(async () =>
-      root.render(
-        <ChartPanel
-          selectedKey="hyperliquid:BTC"
-          interval="15m"
-          initialChartView={null}
-          initialChart={null}
-          initialDrawings={{ marketKey: null, rows: [], error: null }}
-          initialQuickOrder={DEFAULT_QUICK_ORDER}
-          options={DEFAULT_CHART_OPTIONS}
-          tradingRules={DEFAULT_TRADING_RULES}
-          indicators={{}}
-          market={{ key: "hyperliquid:BTC" } as never}
-          trading={oneTrading}
-          free={1000}
-          equity={1000}
-          shownTrade={null}
-          addTo={null}
-          onAddOpened={() => {}}
-        />
-      )
-    )
-    await act(async () => vi.advanceTimersByTimeAsync(0))
-
-    const plot = host.firstElementChild
-    await act(async () => {
-      plot?.dispatchEvent(
-        new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          clientX: 40,
-          clientY: 100,
-        })
-      )
-    })
-    const stop = Array.from(host.querySelectorAll("button")).find(
-      (button) => button.textContent === "Stop loss"
-    )
-    expect(stop).toBeDefined()
-    await act(async () => stop?.click())
-
-    if (positionStop === null) {
-      expect(dragBrackets).toHaveBeenCalledWith(oneTrading.positions[0], {
-        targets: [],
-        slPx: 90,
+  it.each([null, 85])(
+    "prioritizes the position before the waiting order when its stop is %s",
+    async (positionStop) => {
+      vi.useFakeTimers()
+      vi.mocked(loadCandles).mockResolvedValue({
+        candles: [
+          { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+        ],
       })
-      expect(editOrder).not.toHaveBeenCalled()
-    } else {
-      expect(editOrder).toHaveBeenCalledWith("wallet-1", "watch-1", {
+      const editOrder = vi.fn(async () => true)
+      const dragBrackets = vi.fn(async () => undefined)
+      const watched = {
+        id: "watch-1",
+        walletId: "wallet-1",
+        marketKey: "hyperliquid:BTC",
+        side: "buy" as const,
+        px: 100,
         sz: 2,
         leverage: 1,
+        maxLeverage: 50,
+        reduceOnly: false,
         tpPx: 120,
-        slPx: 90,
+        slPx: null,
+        createdAt: 1,
+        updatedAt: 1,
+        watched: true as const,
+      }
+      const oneTrading = {
+        ...trading,
+        wallet: { id: "wallet-1" },
+        positions: [
+          {
+            id: "another-position",
+            walletId: "wallet-1",
+            marketKey: "hyperliquid:BTC",
+            szi: 1,
+            entryPx: 100,
+            leverage: 1,
+            maxLeverage: 50,
+            targets: [],
+            tpPx: null,
+            tpSz: null,
+            slPx: positionStop,
+            feesPaid: 0,
+            updatedAt: 1,
+          },
+        ],
+        watchOrders: [watched],
+        walletNames: new Map([["wallet-1", "Practice"]]),
+        editOrder,
+        dragBrackets,
+      } as unknown as Trading
+
+      await act(async () =>
+        root.render(
+          <ChartPanel
+            selectedKey="hyperliquid:BTC"
+            interval="15m"
+            initialChartView={null}
+            initialChart={null}
+            initialDrawings={{ marketKey: null, rows: [], error: null }}
+            initialQuickOrder={DEFAULT_QUICK_ORDER}
+            options={DEFAULT_CHART_OPTIONS}
+            tradingRules={DEFAULT_TRADING_RULES}
+            indicators={{}}
+            market={{ key: "hyperliquid:BTC" } as never}
+            trading={oneTrading}
+            free={1000}
+            equity={1000}
+            shownTrade={null}
+            addTo={null}
+            onAddOpened={() => {}}
+          />
+        )
+      )
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+
+      const plot = host.firstElementChild
+      await act(async () => {
+        plot?.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: 40,
+            clientY: 100,
+          })
+        )
       })
-      expect(dragBrackets).not.toHaveBeenCalled()
+      const stop = Array.from(host.querySelectorAll("button")).find(
+        (button) => button.textContent?.startsWith("Stop loss") ?? false
+      )
+      expect(stop).toBeDefined()
+      await act(async () => stop?.click())
+
+      if (positionStop === null) {
+        expect(dragBrackets).toHaveBeenCalledWith(oneTrading.positions[0], {
+          targets: [],
+          slPx: 90,
+        })
+        expect(editOrder).not.toHaveBeenCalled()
+      } else {
+        expect(editOrder).toHaveBeenCalledWith("wallet-1", "watch-1", {
+          sz: 2,
+          leverage: 1,
+          tpPx: 120,
+          slPx: 90,
+        })
+        expect(dragBrackets).not.toHaveBeenCalled()
+      }
     }
-  })
+  )
 })
 
 describe("the chart take-profit shortcut", () => {
@@ -1637,21 +1653,59 @@ describe("removing a DCA ladder from the chart", () => {
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
     const ladder = ladderWithStatuses([])
     const order: TradeOrder = {
-      id: "exchange-watch", walletId: ladder.walletId, marketKey: ladder.marketKey,
-      side: "buy", px: 100, sz: 1, leverage: 1, maxLeverage: 50,
-      reduceOnly: false, tpPx: 120, slPx: 90, live: true, createdAt: 1, updatedAt: 2,
+      id: "exchange-watch",
+      walletId: ladder.walletId,
+      marketKey: ladder.marketKey,
+      side: "buy",
+      px: 100,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+      tpPx: 120,
+      slPx: 90,
+      live: true,
+      createdAt: 1,
+      updatedAt: 2,
     }
     const plan = readWatchPlan({
-      triggerPx: 100, side: "buy", sz: 1, leverage: 1, maxLeverage: 50,
-      sizeDecimals: 3, tpPx: 120, slPx: 90, phase: "taking", orderId: order.id,
+      triggerPx: 100,
+      side: "buy",
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: 120,
+      slPx: 90,
+      phase: "taking",
+      orderId: order.id,
     })!
-    await act(async () => root.render(chartWithLadder(ladder, async () => {}, undefined, {
-      ladders: [], orders: [order], smartOrders: [{
-        id: "watch", walletId: ladder.walletId, marketKey: ladder.marketKey,
-        kind: "watch", status: "active", flowRunId: null, createdAt: 1, updatedAt: 2, plan,
-      }],
-    })))
-    expect([...host.querySelectorAll('[data-testid="drawn-order"]')].map((one) => one.textContent)).toEqual(["exchange-watch"])
+    await act(async () =>
+      root.render(
+        chartWithLadder(ladder, async () => {}, undefined, {
+          ladders: [],
+          orders: [order],
+          smartOrders: [
+            {
+              id: "watch",
+              walletId: ladder.walletId,
+              marketKey: ladder.marketKey,
+              kind: "watch",
+              status: "active",
+              flowRunId: null,
+              createdAt: 1,
+              updatedAt: 2,
+              plan,
+            },
+          ],
+        })
+      )
+    )
+    expect(
+      [...host.querySelectorAll('[data-testid="drawn-order"]')].map(
+        (one) => one.textContent
+      )
+    ).toEqual(["exchange-watch"])
   })
 
   it("disables another DCA ladder on the chart while leaving Grid available", async () => {

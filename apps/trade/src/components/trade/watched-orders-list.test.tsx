@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
@@ -204,15 +207,14 @@ describe("the Manual orders list", () => {
     expect(rows).not.toContain("$80")
   })
 
-  it("marks every selected market with a theme-sensitive right border", () => {
+  it("marks the row whose market is on the chart as the selected one", () => {
     const rows = draw({
       orders: [waitingLevel],
       settled: true,
       failed: false,
       selectedKey: waitingLevel.marketKey,
     })
-    expect(rows).toContain("border-r-2")
-    expect(rows).toContain("border-r-foreground")
+    expect(rows).toContain('data-state="selected"')
   })
 
   it("draws the levels the landed half brought, without waiting for the other", () => {
@@ -245,6 +247,8 @@ describe("the Manual orders list", () => {
   })
 
   it("puts what you hold above what you are waiting for, with its profit", () => {
+    // PnL sorts the list by default, and a waiting level has none, so it sits
+    // below every holding whichever way the column points.
     const rows = draw({
       orders: [waitingLevel],
       positions: [heldCoin],
@@ -258,8 +262,9 @@ describe("the Manual orders list", () => {
     // Worth 4 × $100 today.
     expect(rows).toContain("$400")
     expect(rows.indexOf(">SOL<")).toBeLessThan(rows.indexOf(">XMR<"))
-    expect(rows).toContain(">Waiting orders<")
-    expect(rows).toContain("bg-muted/60")
+    // Type is what tells a holding from a level now that both are one table.
+    expect(rows).toContain(">Long<")
+    expect(rows).toContain(">Buy<")
   })
 
   it("says a losing holding in red and a winning one in green", () => {
@@ -353,4 +358,104 @@ describe("the Manual orders list", () => {
       draw({ orders: [waitingLevel], settled: true, failed: false, refusals })
     ).toContain(note)
   })
+})
+
+/**
+ * The panel is the Smart orders panel's twin, one panel down. Tyler asked on
+ * 14 Sep 2026 for the rows to read the same way: the side as a toned badge,
+ * Held quiet, and no pill on a level the price has already come to.
+ */
+it("wears the Smart orders row: a toned side badge, a quiet Held, no reached pill", () => {
+  const rows = draw({
+    orders: [waitingLevel],
+    positions: [heldCoin],
+    markets: [xmrMarket, solMarket],
+    settled: true,
+    failed: false,
+  })
+
+  // Long is green and Buy is green, each in the shared badge shape.
+  expect(rows).toContain("rounded-md px-1.5 py-0.5 text-xs font-medium")
+  expect(rows.match(/emerald/g)?.length).toBeGreaterThan(1)
+  // Held sits in the muted colour, PnL keeps the money colour.
+  expect(rows).toContain('<span class="text-muted-foreground">$400</span>')
+})
+
+it("draws no distance on a level the price has already reached", () => {
+  // The mark sits at the buy level, so the old pill would have read "reached".
+  const rows = draw({
+    orders: [waitingLevel],
+    markets: [{ ...xmrMarket, price: waitingLevel.px }],
+    settled: true,
+    failed: false,
+  })
+
+  expect(rows).not.toContain("reached")
+  expect(rows).toContain(">XMR<")
+})
+
+/**
+ * Where a waiting level's distance lives, and where its row sits.
+ *
+ * Tyler asked on 14 Sep 2026 for the distance to move into the PnL column in
+ * a light grey, so it reads as "not a profit" at a glance, and for waiting
+ * levels to stay under the holdings no matter which column is sorted.
+ */
+it("puts the distance in the PnL column, muted, never in the money colours", () => {
+  const rows = draw({
+    orders: [waitingLevel],
+    positions: [heldCoin],
+    markets: [xmrMarket, solMarket],
+    settled: true,
+    failed: false,
+  })
+
+  // The distance sits in the last cell of its row, muted and a size smaller
+  // than the money around it.
+  expect(rows).toContain(
+    '<span class="text-[10px] text-muted-foreground">11.11% away</span>'
+  )
+  // And it is not wearing the old green pill any more.
+  expect(rows).not.toContain("11.11% away</span></span>")
+})
+
+it("keeps waiting levels under the holdings whichever column is sorted", () => {
+  ;(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  act(() =>
+    root.render(
+      <WatchedOrdersList
+        {...shared}
+        orders={[waitingLevel]}
+        positions={[heldCoin]}
+        markets={[xmrMarket, solMarket]}
+        settled
+        failed={false}
+      />
+    )
+  )
+
+  // XMR is the waiting level and SOL the holding. Sorting by Ticker would put
+  // SOL after XMR on its own, and by Held would put XMR first on value.
+  for (const column of ["Ticker", "Type", "Value", "PnL"]) {
+    for (const press of [1, 2]) {
+      const heading = [...host.querySelectorAll("button")].find((node) =>
+        node.textContent?.startsWith(column)
+      )!
+      act(() => heading.click())
+      // The ticker's own cell, past the coin art's fallback letter.
+      const order = [...host.querySelectorAll("tbody tr")].map(
+        (row) =>
+          row.querySelector("td")?.querySelector("span.truncate")
+            ?.textContent ?? ""
+      )
+      expect(order, `${column} press ${press}`).toEqual(["SOL", "XMR"])
+    }
+  }
+  act(() => root.unmount())
+  host.remove()
 })

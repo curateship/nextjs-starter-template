@@ -12,11 +12,17 @@ function draw({
   stop = false,
   recentOrderTypes = [],
   smartOrders = false,
+  alertGap = null,
+  exitGap = null,
+  stopGap = null,
 }: {
   target?: boolean
   stop?: boolean
   recentOrderTypes?: Array<"buy" | "sell" | "dca" | "grid">
   smartOrders?: boolean
+  alertGap?: number | null
+  exitGap?: number | null
+  stopGap?: number | null
 } = {}): string {
   return renderToStaticMarkup(
     <ChartOrderMenu
@@ -24,6 +30,9 @@ function draw({
       orders
       smartOrders={smartOrders}
       recentOrderTypes={recentOrderTypes}
+      alertGap={alertGap}
+      exitGap={exitGap}
+      stopGap={stopGap}
       onPick={() => {}}
       onPickSmart={() => {}}
       onPickTakeProfit={target ? () => {} : null}
@@ -33,6 +42,46 @@ function draw({
     />
   )
 }
+
+/**
+ * The three rows that name a level say what it means rather than only what it
+ * costs (Tyler, 14 Sep 2026). A price on its own has to be compared against
+ * another price on the axis before it says anything.
+ */
+describe("the chart order menu's percentages", () => {
+  it("names what the exit and the stop are worth against the entry", () => {
+    const html = draw({
+      target: true,
+      stop: true,
+      exitGap: 0.06,
+      stopGap: -0.02,
+    })
+
+    expect(html).toContain("Exit at 6%")
+    expect(html).toContain("Stop loss at -2%")
+  })
+
+  it("says an exit dropped on the losing side is a loss", () => {
+    expect(draw({ target: true, exitGap: -0.031 })).toContain("Exit at -3.1%")
+  })
+
+  it("cuts trailing zeros and keeps two places on a small gap", () => {
+    expect(draw({ alertGap: 0.05 })).toContain("Alert 5% above price")
+    expect(draw({ alertGap: -0.0521 })).toContain("Alert 5.21% below price")
+    expect(draw({ alertGap: 0.1428 })).toContain("Alert 14.3% above price")
+  })
+
+  it("keeps the price on a row whose percent rounds away to nothing", () => {
+    // "Alert 0% above price" says less than the price itself does.
+    expect(draw({ alertGap: 0.00001 })).toContain("Alert at $100")
+    expect(draw({ stop: true, stopGap: 0 })).toContain("Stop loss")
+    expect(draw({ stop: true, stopGap: 0 })).not.toContain("Stop loss at")
+  })
+
+  it("falls back to the plain words when nothing has quoted a price", () => {
+    expect(draw({ target: true, stop: true })).toContain("Alert at $100")
+  })
+})
 
 describe("the chart order menu's position exits", () => {
   it("keeps the alert row when no wallet can place an order", () => {

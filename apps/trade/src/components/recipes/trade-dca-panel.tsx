@@ -9,7 +9,7 @@ import { TradeNumberField } from "@/components/recipes/trade-number-field"
 import { defaultCascade } from "@/lib/trade/cascade"
 import { defaultEntryLimit } from "@/lib/trade/entry-limit"
 import { formatUsdRounded } from "@/lib/trade/format"
-import { cappedHold } from "@/lib/trade/indicators/base"
+import { baseWaitNote } from "@/lib/trade/indicators/base"
 import {
   DEFAULT_BACKTEST_START_USD,
   tradeWalletNode,
@@ -405,22 +405,20 @@ export default function TradeDcaFields({
           </span>
         </label>
         <InspectorNote>
-          {/* The same sentence the Base indicator's own panel shows, from the
-              same function — a wait longer than the search is a question with
-              no answer, and the run quietly shortens it. Saying so in one place
-              and not the other is how the chart and the strategy start
-              disagreeing without anybody noticing. */}
-          {cappedHold(
+          {/* The same sentence the Base indicator's own panel shows, out of the
+              same function — the wait a run actually uses is not always the one
+              typed here. Saying so in one place and not the other is how the
+              chart and the strategy start disagreeing without anybody
+              noticing. */}
+          {baseWaitNote(
             params.baseDetection.searchBars,
             params.baseDetection.holdBars
-          ) !== params.baseDetection.holdBars ? (
+          ) ? (
             <p className="mb-1.5 text-foreground">
-              The wait has to be shorter than the search, so it is acting as{" "}
-              {cappedHold(
+              {baseWaitNote(
                 params.baseDetection.searchBars,
                 params.baseDetection.holdBars
-              )}{" "}
-              candles.
+              )}
             </p>
           ) : null}
           These are the Base indicator&rsquo;s own two settings, kept here so a

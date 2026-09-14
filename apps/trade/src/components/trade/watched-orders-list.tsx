@@ -1,7 +1,19 @@
 import * as React from "react"
 
-import { OrderDistanceBadge } from "@/components/trade/order-distance-badge"
+import { MarketIcon } from "@/components/trade/market-icon"
 import { PnlAmount } from "@/components/trade/pnl-amount"
+import { TradeBadge } from "@/components/trade/trade-badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { stickyPanelTableHeaderClassName } from "@/lib/layout/panel-section-bar"
 import { orderDistance, orderDistanceLabel } from "@/lib/trade/order-distance"
 
 import { InfoIcon, TriangleAlertIcon } from "lucide-react"
@@ -9,7 +21,6 @@ import { InfoIcon, TriangleAlertIcon } from "lucide-react"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
-import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import {
   formatPrice,
@@ -18,7 +29,7 @@ import {
 } from "@/lib/trade/format"
 import { refusalForWatchedOrder, type LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import { moneyToneSurface } from "@/lib/trade/money-tone"
+import { moneyTone } from "@/lib/trade/money-tone"
 import {
   positionProfit,
   positionValue,
@@ -58,6 +69,16 @@ import { cn } from "@/lib/utils"
  * read that REFUSES is the one case that still speaks up, because then
  * nothing is coming to correct them.
  */
+/** The four columns, the same set the Smart orders panel sorts by. */
+type ManualOrderColumn = "ticker" | "type" | "held" | "pnl"
+
+/** Money columns start biggest-first; words start A to Z. */
+function defaultManualOrderDirection(column: ManualOrderColumn) {
+  return column === "pnl" || column === "held"
+    ? ("desc" as const)
+    : ("asc" as const)
+}
+
 export function WatchedOrdersList({
   orders,
   positions,
@@ -182,6 +203,13 @@ export function WatchedOrdersList({
     return out
   }, [markets, live])
 
+  // The coin art each row draws beside its ticker, the same as the Smart
+  // orders panel above it. The catalogue is the only place it lives.
+  const iconUrls = React.useMemo(
+    () => new Map(markets.map((market) => [market.key, market.iconUrl])),
+    [markets]
+  )
+
   // One market gets one row. Several watched prices can belong to the same
   // market, but the list is for choosing a chart rather than managing orders.
   // The row therefore shows whichever waiting price is closest to today's
@@ -196,11 +224,122 @@ export function WatchedOrdersList({
   // The panel is a couple of hundred pixels wide, and with every level in the
   // same wallet its name is the same word on every row — it pushes the level
   // and the distance into an ellipsis to say nothing.
+  const { sort, direction, toggleSort } = useTableSort<ManualOrderColumn>(
+    "pnl",
+    "desc",
+    defaultManualOrderDirection
+  )
+
   const severalWallets =
     new Set([
       ...held.map((position) => position.walletId),
       ...shownRows.map((row) => row.walletId),
     ]).size > 1
+
+  /**
+   * One row per thing, holdings and waiting levels in the same list.
+   *
+   * **The two used to be two lists under two headings**, which meant a column
+   * could not be sorted across both — and the question the panel is for,
+   * "where is my money and what is it doing", spans both (Tyler, 14 Sep 2026).
+   * Type is what tells them apart now: a holding reads Long or Short, a
+   * waiting level reads Buy or Sell and carries the distance pill under its
+   * ticker.
+   *
+   * Held is the money in the market for a holding and the money the order
+   * will spend for a waiting level. PnL belongs to holdings alone: a level
+   * nothing has filled has made and lost nothing, so it sorts last rather
+   * than sitting at zero among trades that really are flat.
+   */
+  const tableRows = React.useMemo(() => {
+    const heldRows = held.map((position) => {
+      const mark = marks.get(position.marketKey) ?? null
+      return {
+        id: position.id,
+        marketKey: position.marketKey,
+        symbol: marketSymbol(position.marketKey),
+        iconUrl: iconUrls.get(position.marketKey) ?? null,
+        waiting: false as const,
+        type: position.szi > 0 ? "Long" : "Short",
+        winningSide: position.szi > 0,
+        money: mark === null ? null : positionValue(position, mark),
+        profit: openProfit(position, mark),
+        distance: null,
+        refusal: null,
+        title: `${marketSymbol(position.marketKey)} · ${position.szi > 0 ? "Long" : "Short"} ${Math.abs(position.szi)} from ${formatPrice(position.entryPx)}${severalWallets ? ` · ${walletName(position.walletId)}` : ""}`,
+      }
+    })
+    const waitingRows = shownRows.map((level) => {
+      const mark = marks.get(level.marketKey) ?? null
+      return {
+        id: level.id,
+        marketKey: level.marketKey,
+        symbol: marketSymbol(level.marketKey),
+        iconUrl: iconUrls.get(level.marketKey) ?? null,
+        waiting: true as const,
+        type: level.side === "buy" ? "Buy" : "Sell",
+        winningSide: level.side === "buy",
+        money: level.px * level.sz,
+        profit: null,
+        // **No "reached".** A level the price has come to is a level about to
+        // become a position, and the word sat where a figure belongs (Tyler,
+        // 14 Sep 2026). Nothing is drawn until there is a distance to draw.
+        distance: orderDistance({ ...level, watched: true }, mark) || null,
+        refusal: refusalForWatchedOrder(refusals, level),
+        title: `${marketSymbol(level.marketKey)} · ${level.side === "buy" ? "Buy" : "Sell"} at ${formatPrice(level.px)}${severalWallets ? ` · ${walletName(level.walletId)}` : ""}`,
+      }
+    })
+    const all = [...heldRows, ...waitingRows]
+    const value = (row: (typeof all)[number]) =>
+      sort === "held" ? row.money : row.profit
+    return all.sort((left, right) => {
+      // **Waiting levels are always under the holdings, in every sort**
+      // (Tyler, 14 Sep 2026). Coins you are already in are the ones with money
+      // moving on them, and a column that shuffled a level up between two
+      // holdings made the panel a list of two unlike things. Sorting then
+      // happens inside each half.
+      if (left.waiting !== right.waiting) return left.waiting ? 1 : -1
+      if (sort === "held" || sort === "pnl") {
+        const leftValue = value(left)
+        const rightValue = value(right)
+        // A row with no figure sits at the bottom of its own half whichever
+        // way the column points, so flipping the sort never buries the rows
+        // that have one.
+        if (leftValue === null) return rightValue === null ? 0 : 1
+        if (rightValue === null) return -1
+        const result = leftValue - rightValue
+        if (result !== 0) return direction === "asc" ? result : -result
+        return left.symbol.localeCompare(right.symbol)
+      }
+      const result =
+        sort === "type"
+          ? left.type.localeCompare(right.type)
+          : left.symbol.localeCompare(right.symbol)
+      if (result !== 0) return direction === "asc" ? result : -result
+      return left.symbol.localeCompare(right.symbol)
+    })
+  }, [
+    direction,
+    held,
+    iconUrls,
+    marks,
+    refusals,
+    severalWallets,
+    shownRows,
+    sort,
+    walletName,
+  ])
+
+  const heading = (column: ManualOrderColumn, label: string) => (
+    <TableSortButton
+      active={sort === column}
+      direction={direction}
+      onClick={() => toggleSort(column)}
+      className="gap-0.5 whitespace-nowrap sm:text-xs"
+    >
+      {label}
+    </TableSortButton>
+  )
 
   return (
     // ManualOrdersPanel owns the scrollbar so the header stays fixed.
@@ -213,7 +352,7 @@ export function WatchedOrdersList({
           onRetry={onRetry}
           className="py-8 text-xs"
         />
-      ) : !answered && !standingIn && rows.length === 0 && held.length === 0 ? (
+      ) : !answered && !standingIn && tableRows.length === 0 ? (
         // Only when there is genuinely nothing to draw. A half-landed read
         // that DID bring levels draws them at once — the spinner is what
         // stands between somebody and their own levels, and this tab was
@@ -230,51 +369,107 @@ export function WatchedOrdersList({
           {standingIn && failed ? (
             <StaleAfterFailureNote onRetry={onRetry} />
           ) : null}
-          {/* What you are already in, above what you are waiting for. A
-              holding is the thing being watched hardest, and its row answers
-              a different question from a waiting level: not "how far away" but
-              "how much is it up or down". */}
-          {held.length > 0 ? (
-            <div className="flex flex-col">
-              {held.map((position) => (
-                <HeldRow
-                  key={position.id}
-                  position={position}
-                  wallet={severalWallets ? walletName(position.walletId) : null}
-                  mark={marks.get(position.marketKey) ?? null}
-                  selected={position.marketKey === selectedKey}
-                  onSelect={() => onSelectMarket(position.marketKey)}
-                />
-              ))}
-            </div>
-          ) : null}
-          {shownRows.length === 0 ? (
-            held.length > 0 ? null : (
-              <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                Nothing is waiting at a price. Right-click the chart where you
-                want to buy or sell. The order waits here until the market
-                reaches it.
-              </p>
-            )
+          {tableRows.length === 0 ? (
+            <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+              Nothing is waiting at a price. Right-click the chart where you
+              want to buy or sell. The order waits here until the market reaches
+              it.
+            </p>
           ) : (
-            <div className="flex flex-col">
-              {held.length > 0 ? (
-                <h3 className="border-y bg-muted/60 px-3 py-2 text-xs font-medium text-muted-foreground">
-                  Waiting orders
-                </h3>
-              ) : null}
-              {shownRows.map((row) => (
-                <WatchedRow
-                  key={row.id}
-                  level={row}
-                  wallet={severalWallets ? walletName(row.walletId) : null}
-                  mark={marks.get(row.marketKey) ?? null}
-                  refusal={refusalForWatchedOrder(refusals, row)}
-                  selected={row.marketKey === selectedKey}
-                  onSelect={() => onSelectMarket(row.marketKey)}
-                />
-              ))}
-            </div>
+            <Table
+              className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
+              containerClassName={cn(
+                "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+                stickyPanelTableHeaderClassName
+              )}
+            >
+              <TableHeader>
+                <TableRow>
+                  {/* The same four widths the Smart orders panel above uses,
+                      so the two panels line up when they sit one over the
+                      other. */}
+                  <TableHead className="w-[34%] px-1">
+                    {heading("ticker", "Ticker")}
+                  </TableHead>
+                  <TableHead className="w-[22%] px-1">
+                    {heading("type", "Type")}
+                  </TableHead>
+                  <TableHead className="w-[20%] px-1">
+                    {heading("held", "Value")}
+                  </TableHead>
+                  <TableHead className="w-[24%] px-1">
+                    {heading("pnl", "PnL")}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tableRows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    title={row.title}
+                    rowAction={() => onSelectMarket(row.marketKey)}
+                    data-state={
+                      row.marketKey === selectedKey ? "selected" : undefined
+                    }
+                  >
+                    {/* Cell for cell, the Smart orders row above: coin art
+                        then ticker, the side as a toned badge, Held quiet in
+                        mono, PnL in the money colours (Tyler, 14 Sep 2026). */}
+                    <TableCell className="py-2 pr-2 pl-1">
+                      <div className="grid min-w-0 gap-1">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <MarketIcon
+                            symbol={row.symbol}
+                            iconUrl={row.iconUrl}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm">
+                            {row.symbol}
+                          </span>
+                        </div>
+                        {row.refusal ? (
+                          <RefusalNote refusal={row.refusal} />
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-1 py-2">
+                      <TradeBadge tone={row.winningSide ? "made" : "lost"}>
+                        {row.type}
+                      </TradeBadge>
+                    </TableCell>
+                    <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                      <span className="text-muted-foreground">
+                        {row.money === null ? "—" : formatWholeUsd(row.money)}
+                      </span>
+                    </TableCell>
+                    {/* **A waiting level borrows the PnL column for its
+                        distance** (Tyler, 14 Sep 2026). It is not a profit and
+                        must never read as one, so it takes the muted colour
+                        every other "nothing here" in this table wears, while a
+                        real profit keeps the money colour and the weight. */}
+                    <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                      {row.profit !== null ? (
+                        <PnlAmount
+                          className={cn("font-medium", moneyTone(row.profit))}
+                        >
+                          {formatSignedUsd(row.profit)}
+                        </PnlAmount>
+                      ) : (
+                        // Smaller than the figures around it (Tyler, 14 Sep
+                        // 2026), so the eye reads the column as money first
+                        // and the distance as the aside it is. 10px is as
+                        // small as a whole phrase goes here — half of 12px
+                        // would be 6px, which nobody can read.
+                        <span className="text-[10px] text-muted-foreground">
+                          {row.distance === null
+                            ? "—"
+                            : orderDistanceLabel(row.distance)}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
       )}
@@ -400,147 +595,6 @@ function StaleAfterFailureNote({ onRetry }: { onRetry: () => void }) {
 }
 
 /**
- * One waiting price: the coin, the level, how far the market is from it, and
- * what it will spend when it fires.
- *
- * **One line, shaped like a market row.** The panel is a couple of hundred
- * pixels wide, so the coin gives way to an ellipsis first; the stake and the
- * distance pill never do. Which way and at what price are on the tooltip.
- *
- * The whole row is the one button and it charts the coin, the same press the
- * market rows above it answer to. Cancelling stays where it already is — the
- * × in Open orders and the line on the chart — rather than becoming a second
- * place to call the same order off.
- */
-function WatchedRow({
-  level,
-  wallet,
-  mark,
-  refusal,
-  selected,
-  onSelect,
-}: {
-  level: WatchedLevel
-  /** Named only when the list spans several wallets; null when it does not. */
-  wallet: string | null
-  /** Today's price, or null when the feed has not said one yet. */
-  mark: number | null
-  /** The last thing the exchange said no to on this market, if anything. */
-  refusal: LiveRefusal | null
-  /**
-   * This level's market is the one on the chart. The same `bg-muted` the All
-   * tab's rows use, and every level on that market carries it — they all
-   * belong to the chart being shown.
-   */
-  selected: boolean
-  onSelect: () => void
-}) {
-  const symbol = marketSymbol(level.marketKey)
-  const line = watchedLevelLine(level, mark)
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected ? "true" : undefined}
-      title={`${symbol} · ${level.side === "buy" ? "Buy" : "Sell"} ${line.at}${wallet ? ` · ${wallet}` : ""}`}
-      className={cn(
-        "flex min-w-0 flex-col justify-center border-r-2 px-3 py-1.5 text-left",
-        selected
-          ? "border-r-foreground bg-muted"
-          : "border-r-transparent hover:bg-muted/50",
-        focusRing
-      )}
-    >
-      {/* The same shape as a market row on Fav and All: the name and a quiet
-          figure on the left, a pill on the right. Here the figure is what the
-          order will spend and the pill is how far the price has to travel,
-          green because a level waiting is a level still safe. Which way, at
-          what price and from which wallet sit on the row's tooltip — the list
-          is for scanning; the chart the press opens shows the level itself. */}
-      <span className="flex h-6 min-w-0 items-center gap-2">
-        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-          <span className="min-w-0 truncate text-sm font-medium">{symbol}</span>
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {formatWholeUsd(level.px * level.sz)}
-          </span>
-        </span>
-        {line.away ? (
-          <OrderDistanceBadge
-            distance={orderDistance({ ...level, watched: true }, mark)}
-          />
-        ) : null}
-      </span>
-      {refusal ? <RefusalNote refusal={refusal} /> : null}
-    </button>
-  )
-}
-
-/**
- * One coin you are already in: the ticker, what it is worth now, and what it
- * is up or down.
- *
- * **The same shape as the waiting row under it**, so the two read as one list.
- * The pill is the only difference, and it is the difference that matters: a
- * waiting level shows how far the price still has to travel, while a holding
- * shows the money. Green and red carry the sign as well as the colour, per the
- * standard's rule against saying anything in colour alone.
- */
-function HeldRow({
-  position,
-  wallet,
-  mark,
-  selected,
-  onSelect,
-}: {
-  position: TradePosition
-  /** Named only when the list spans several wallets; null when it does not. */
-  wallet: string | null
-  /** Today's price, or null when the feed has not said one yet. */
-  mark: number | null
-  selected: boolean
-  onSelect: () => void
-}) {
-  const symbol = marketSymbol(position.marketKey)
-  const long = position.szi > 0
-  const profit = openProfit(position, mark)
-  const worth = mark === null ? null : positionValue(position, mark)
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected ? "true" : undefined}
-      title={`${symbol} · ${long ? "Long" : "Short"} ${Math.abs(position.szi)} from ${formatPrice(position.entryPx)}${wallet ? ` · ${wallet}` : ""}`}
-      className={cn(
-        "flex min-w-0 flex-col justify-center border-r-2 px-3 py-1.5 text-left",
-        selected
-          ? "border-r-foreground bg-muted"
-          : "border-r-transparent hover:bg-muted/50",
-        focusRing
-      )}
-    >
-      <span className="flex h-6 min-w-0 items-center gap-2">
-        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-          <span className="min-w-0 truncate text-sm font-medium">{symbol}</span>
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {worth === null ? "—" : formatWholeUsd(worth)}
-          </span>
-        </span>
-        {profit === null ? null : (
-          <PnlAmount
-            className={cn(
-              "shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums",
-              moneyToneSurface(profit) ?? "bg-muted"
-            )}
-          >
-            {formatSignedUsd(profit)}
-          </PnlAmount>
-        )}
-      </span>
-    </button>
-  )
-}
-
-/**
  * Why this level has not fired, under the level it belongs to.
  *
  * **A refused level is indistinguishable from a patient one without it.** The
@@ -578,24 +632,4 @@ function RefusalNote({ refusal }: { refusal: LiveRefusal }) {
       </span>
     </span>
   )
-}
-
-/**
- * The level a watch is waiting at, and how far today's price is from it, as
- * the row's two columns.
- *
- * "Reached" uses the same rule the engine does, so the list and the engine can
- * never disagree about whether a price has arrived. Without a live price the
- * distance column is empty — a distance from a price nobody has quoted would
- * be made up, and a dash there would read as zero.
- */
-export function watchedLevelLine(
-  level: Pick<WatchedLevel, "side" | "px" | "triggerDirection">,
-  mark: number | null
-): { at: string; away: string } {
-  const at = `at ${formatPrice(level.px)}`
-  return {
-    at,
-    away: orderDistanceLabel(orderDistance({ ...level, watched: true }, mark)),
-  }
 }

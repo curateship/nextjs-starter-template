@@ -14,7 +14,8 @@ Saved folders remain in the chart header's folder menu.
   pinned picker, or focus the grip and use arrow keys. Movement stops at the
   screen edges. Unpin returns the picker beneath the market name. Escape closes
   either mode. Pin and position last only while that picker remains mounted.
-  The toolbar has grip, pin and search icons beside a checkbox filter dropdown.
+  The toolbar has a grip icon, a pin icon, a search field and a checkbox
+  filter dropdown.
   Several checked groups combine, so Crypto and TradFi show markets from either.
   All markets clears the choices; clearing the last choice also shows all markets.
   The browser remembers the checked filters and TradFi categories after closing
@@ -26,13 +27,19 @@ Saved folders remain in the chart header's folder menu.
   Search narrows the combined results. The filter menu stays open while checking
   several choices, and the market dropdown stays open while its filter is used.
   On narrow screens, the chart header wraps its controls so the market selector stays clickable.
-  Search opens a shared input below the toolbar with a visible Search markets
-  label. The label is linked to the input. Closing search clears its filter.
+  The search box sits in the toolbar itself, always there. It is the shared
+  toolbar search field, with the magnifier drawn inside it and an × to clear
+  it once something is typed. Closing the picker clears what was typed.
   The picker is 28rem wide, 448 pixels at the default text size, and capped to
   the viewport. The table scrolls horizontally on narrow screens. The columns are Market,
   24h change and Volume. Last price, Funding and Open interest are omitted.
   The remaining columns keep sorting and live figures.
   The list uses the themed ScrollArea and its heading stays visible while scrolling.
+  **The bar under the list counts the markets by kind** — "95 crypto and 44
+  stock markets", or "95 crypto, 44 stock and 7 FX markets" with three kinds
+  in view. Kinds keep the catalogue's own order, crypto first, so the sentence
+  does not reshuffle as prices move a market in or out of the list. One kind
+  on its own drops the "and"; a single market reads "1 stock market".
 - **A search that matches nothing can ask the venue itself**, on an exchange
   that says it can (Solana, where anyone can mint a coin and no list holds
   them all). Under "No matching markets." the picker offers one button, "Find

@@ -204,6 +204,24 @@ Stop loss and take profit travel with the watch and are applied when the
 position opens. A timeout is not proof of refusal: Trade keeps the order marked
 sent until its result is known, preventing a duplicate submission.
 
+### A lost placement reply is checked, then given up on
+
+When a Hyperliquid order is sent and the reply is lost, Trade asks Hyperliquid
+what became of it by the client id it chose before sending. It asks every two
+seconds while the line reads "Checking Hyperliquid order...".
+
+**It stops asking after five minutes and pauses the watch.** Hyperliquid stops
+mapping an old client id, so a reply lost long enough ago is never going to get
+an answer, and the line used to sit on "Checking Hyperliquid order..." for good
+with nothing to press (Tyler, 14 Sep 2026). The paused row carries the reason,
+a notice is written, and Resume or the × is one press away.
+
+**It is paused, not sent back to waiting.** Trade cannot prove what became of
+the order, and an unproven "nothing of mine stands" is how one $50 watch bought
+$150 of coin — the reason the `sent` flag exists at all. Paused, the money is
+safe and the next move is a person's. The reason says to check Hyperliquid for
+a position or a resting order on that coin before resuming.
+
 ### Adding to a position uses market orders
 
 The position row's + button opens an addition at the current market price.
@@ -368,32 +386,50 @@ built in `use-trading.ts`, so they can never disagree.
   orders wait on the same market, the row shows the order nearest today's
   price. `../screens/rules-everywhere.md` has the rest of its rules.
 
-### What you are holding sits above what you are waiting for
+### One sortable table, holdings and waiting prices together
 
-The panel opens with the coins you are already in, then a line, then the prices
-still waiting. Both halves are one list of the same rows, and pressing any of
-them charts that coin.
+The panel is a table with the same four columns the Smart orders panel above it
+uses, and the same four widths, so the two line up when they sit one over the
+other. Every column sorts. Pressing a row charts that coin.
 
-- **A holding shows money, a waiting price shows distance.** The green or red
-  pill on a holding is what it is up or down right now, in dollars: today's
-  price less the entry, times the coins held, less the fees it has paid. It is
-  the same figure the Smart orders panel shows beside a strategy's name, and it
-  comes off `positionProfit` in `paper.ts` like every other profit on the
-  screen. A waiting price keeps its "% away" pill,
-  because a level that has not fired has no profit to report.
-- **The quiet figure changes meaning with the row.** On a holding it is what
-  the coins are worth at today's price. On a waiting price it is what the
-  order will spend when it fires.
+- **It wears the Smart orders row, cell for cell** (Tyler, 14 Sep 2026): coin
+  art then the ticker, the side as a toned badge, Value quiet in mono, PnL in
+  the money colours. The two panels sit one above the other, so a row that was
+  shaped differently read as a different kind of thing.
+- **Ticker, Type, Value, PnL.** Type is what tells a holding from a waiting
+  price: a holding reads Long or Short and a waiting price reads Buy or Sell.
+  Value is what the coins are worth at today's price on a holding, and what the
+  order will spend when it fires on a waiting price. The column was called Held
+  until 14 Sep 2026, in both this panel and Smart orders. PnL is what a holding
+  is up or down right now, in dollars:
+  today's price less the entry, times the coins held, less the fees it has
+  paid. It is the same figure the Smart orders panel shows beside a strategy's
+  name, and it comes off `positionProfit` in `paper.ts` like every other profit
+  on the screen.
+- **A waiting price shows how far away it is, in the PnL column, in grey and a
+  size smaller.** It has no profit to report, so the column carries "0.30%
+  away" instead — 10px, in the muted colour every other "nothing here" in this
+  table wears, never in the money colours, so it can never be misread as a
+  profit (Tyler, 14 Sep 2026). 10px is as small as a whole phrase goes here.
+- **Waiting prices always sit under the holdings, in every sort.** Pressing any
+  of the four headings sorts inside each half and never mixes them. Coins you
+  are already in are the ones with money moving on them, and a column that
+  shuffled a waiting level up between two holdings made the panel a list of two
+  unlike things.
+- **Two lists became one because a column could not sort across a heading.**
+  The panel used to be holdings, then a "Waiting orders" line, then the
+  levels — and the question the panel answers, where the money is and what it
+  is doing, spans both (Tyler, 14 Sep 2026).
 - **A coin a strategy is running is not here.** A ladder, a grid or a signal
   already has its own row with its own money in the Smart orders panel above,
   so repeating it would put one position on the screen twice. A coin whose only
   smart order is a watch is still yours, because a watch IS a hand-placed
   order. The rule lives in `positionsYouOpenedByHand`.
-- **Sorted by what was put in, biggest first.** Sorting by profit would
-  reshuffle the list under the pointer every time a price ticked, which is the
-  same reason the waiting half is sorted by age.
-- **A Solana holding with no recorded entry price shows no profit pill**,
-  rather than a made-up zero that would read as breaking even.
+- **Nothing is shown for a level the price has already come to.** It is about
+  to become a position, and the word "reached" sat where a figure belongs.
+- **A Solana holding with no recorded entry price shows a dash for PnL**,
+  rather than a made-up zero that would read as breaking even. The same goes
+  for Value when nothing has quoted a price.
 
 It does not share the Smart orders tab or its card. Smart orders is for a
 ladder or grid. Manual orders is for a plain order waiting at a price.

@@ -2402,6 +2402,43 @@ describe("live Smart orders", () => {
     expect(place).toHaveBeenCalledTimes(1)
   })
 
+  it("stops checking a lost Hyperliquid reply and pauses the watch", async () => {
+    // **Checking cannot go on for ever.** Hyperliquid stops mapping an old
+    // client id, so a watch whose reply was lost long enough ago never gets an
+    // answer — and the chart line sat on "Checking Hyperliquid order..." with
+    // nothing to press (Tyler, 14 Sep 2026). It pauses instead, so the reason
+    // is readable and Resume is one press away.
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      Object.assign(new Error("LIVE_ORDER_UNKNOWN"), { name: "TimeoutError" })
+    )
+    recoverHyperliquidClientOrder.mockResolvedValue({
+      found: false,
+      orderId: null,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+    expect((await watchPlanNow()).paused ?? false).toBe(false)
+
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 6 * 60_000)
+    try {
+      await reconcileLiveLadders(userId, wallet)
+    } finally {
+      clock.mockRestore()
+    }
+
+    const plan = await watchPlanNow()
+    expect(plan.paused).toBe(true)
+    expect(plan.pauseReason).toContain("never learned what became of it")
+    // Nothing was placed again: Trade still cannot prove the order is gone.
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(plan.sent).toBe(true)
+  })
+
   it("does not claim an unrelated manual fill at the same price", async () => {
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,

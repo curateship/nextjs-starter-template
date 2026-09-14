@@ -251,7 +251,7 @@ describe("asking the library for signals", () => {
     })
     expect(signalIndicatorsOn(settings)).toBe(1)
     const called = indicatorSignals(settings, CANDLES)
-    expect(called).toEqual([{ time: 5 * HOUR, side: "buy" }])
+    expect(called).toEqual([{ time: 6 * HOUR, side: "buy" }])
   })
 
   it("answers an empty list rather than throwing on no candles", () => {

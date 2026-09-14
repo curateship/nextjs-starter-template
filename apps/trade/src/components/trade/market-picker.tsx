@@ -21,8 +21,7 @@ import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { Button } from "@/components/ui/button"
 
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
   Popover,
   PopoverContent,
@@ -46,10 +45,11 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type {
-  MarketCategory,
-  MarketPickerCapabilities,
-  MarketRow,
+import {
+  MARKET_CATEGORIES,
+  type MarketCategory,
+  type MarketPickerCapabilities,
+  type MarketRow,
 } from "@/lib/protocols/contracts"
 import {
   marketPickerViews,
@@ -144,8 +144,6 @@ export function MarketPicker({
     x: number
     y: number
   } | null>(null)
-  const searchId = React.useId()
-  const [searchShown, setSearchShown] = React.useState(false)
   const drag = React.useRef<{ x: number; y: number } | null>(null)
   const anchor = React.useMemo(
     () => ({
@@ -382,7 +380,6 @@ export function MarketPicker({
             if (!open || !openedByHover.current) return
             event.preventDefault()
             openedByHover.current = false
-            setSearchShown(true)
             searchRef.current?.focus()
           }}
           className={cn(
@@ -525,23 +522,19 @@ export function MarketPicker({
               {pinnedAt ? "Unpin markets" : "Pin markets"}
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Search markets"
-                aria-expanded={searchShown}
-                onClick={() => {
-                  if (searchShown) setQuery("")
-                  setSearchShown((shown) => !shown)
-                }}
-              >
-                <SearchIcon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Search markets</TooltipContent>
-          </Tooltip>
+          {/* The box itself, not a magnifier that reveals one. Typing was the
+              commonest thing done here and it cost a press to reach, with the
+              field then taking a row of its own under the toolbar (Tyler,
+              14 Sep 2026). */}
+          <DashboardToolbarSearch
+            ref={searchRef}
+            className="sm:flex-1"
+            inputClassName="sm:w-full lg:w-full"
+            value={query}
+            placeholder="Search markets"
+            aria-label="Search markets"
+            onChange={(event) => setQuery(event.target.value)}
+          />
           <DropdownMenu
             modal={false}
             open={filtersOpen}
@@ -630,21 +623,6 @@ export function MarketPicker({
           </DropdownMenu>
         </div>
 
-        {searchShown ? (
-          <div className="grid gap-2 border-b p-3">
-            <Label htmlFor={searchId}>Search markets</Label>
-            <Input
-              id={searchId}
-              ref={searchRef}
-              autoFocus
-              type="search"
-              value={query}
-              placeholder="Search markets"
-              aria-label="Search markets"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-        ) : null}
         {/*
          * The `ScrollArea` viewport is the one box that scrolls both ways, so
          * the sticky heading sticks to it. `Table`'s own sideways-scrolling
@@ -745,11 +723,46 @@ export function MarketPicker({
         ) : null}
 
         <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-          {visible.length} market{visible.length === 1 ? "" : "s"}
+          {marketsCounted(visible)}
         </div>
       </PopoverContent>
     </Popover>
   )
+}
+
+/** What each kind of market is called when the footer counts it. */
+const CATEGORY_WORDS: Record<MarketCategory, string> = {
+  crypto: "crypto",
+  stocks: "stock",
+  indices: "index",
+  commodities: "commodity",
+  forex: "FX",
+  other: "other",
+}
+
+/**
+ * The footer's count, broken down by what the markets are: "95 crypto and 44
+ * stock markets".
+ *
+ * **One number could not answer the question it was asked.** A list filtered
+ * to stocks and a list of everything both said "96 markets", so the line said
+ * how long the list was and nothing about what was in it (Tyler, 14 Sep 2026).
+ *
+ * Kinds keep the catalogue's own order — crypto first — so the sentence does
+ * not reshuffle itself as prices move a market in or out.
+ */
+export function marketsCounted(rows: readonly MarketRow[]): string {
+  const counts = new Map<MarketCategory, number>()
+  for (const row of rows) {
+    counts.set(row.category, (counts.get(row.category) ?? 0) + 1)
+  }
+  const word = rows.length === 1 ? "market" : "markets"
+  const parts = MARKET_CATEGORIES.filter((category) =>
+    counts.get(category)
+  ).map((category) => `${counts.get(category)} ${CATEGORY_WORDS[category]}`)
+  if (parts.length === 0) return `0 ${word}`
+  if (parts.length === 1) return `${parts[0]} ${word}`
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]} ${word}`
 }
 
 function PickerTableHead({

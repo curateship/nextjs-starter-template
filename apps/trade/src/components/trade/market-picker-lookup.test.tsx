@@ -89,18 +89,12 @@ async function openPicker(
       .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
       .click()
   })
-  await act(async () =>
-    document
-      .querySelector<HTMLButtonElement>('button[aria-label="Search markets"]')!
-      .click()
-  )
 }
 
 function type(text: string) {
   const input = document.querySelector<HTMLInputElement>(
     'input[aria-label="Search markets"]'
   )!
-  expect(input.labels?.[0]?.textContent).toBe("Search markets")
   const setter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
     "value"
@@ -374,13 +368,6 @@ describe("the Solana list", () => {
         .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
         .click()
     })
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Search markets"]'
-        )!
-        .click()
-    )
     await act(async () => type("WIF"))
     expect(bodyText()).toContain("No matching markets.")
     expect(bodyText()).not.toContain("Find ")

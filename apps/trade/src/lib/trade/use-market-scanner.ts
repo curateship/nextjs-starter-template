@@ -141,6 +141,27 @@ export function useMarketScanner(
     setDetections(next)
     persist(next)
   }
+  /**
+   * Clears every match at once.
+   *
+   * **Every cleared market goes on the dismissed list**, exactly as deleting
+   * one at a time does. Without that the next scanner pass would put the same
+   * markets straight back, and the button would look broken.
+   */
+  const dismissAll = () => {
+    const next = {
+      rows: [],
+      dismissed: [
+        ...new Set([
+          ...detectionsRef.current.dismissed,
+          ...detectionsRef.current.rows.map((row) => row.market.key),
+        ]),
+      ],
+    }
+    detectionsRef.current = next
+    setDetections(next)
+    persist(next)
+  }
   const [retry, setRetry] = React.useState(0)
   const workspaceVenues = workspaceCatalogs
     .map((c) => `${c.protocol}:${c.network}`)
@@ -369,6 +390,7 @@ export function useMarketScanner(
       errors: [...snapshot.errors, ...(storageError ? [storageError] : [])],
     },
     dismiss,
+    dismissAll,
     retry: () => setRetry((value) => value + 1),
   }
 }

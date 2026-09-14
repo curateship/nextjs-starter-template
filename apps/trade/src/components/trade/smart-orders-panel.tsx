@@ -685,7 +685,7 @@ function SmartOrdersView({
 
   // Every column reads from the left, headings and figures alike (Tyler,
   // 13 Sep 2026). PnL and Banked used to hug the right edge, which left a hole
-  // between Held and PnL once Held was moved to the left.
+  // between Value and PnL once Value was moved to the left.
   const heading = (column: SmartOrderColumn, label: React.ReactNode) => (
     <TableSortButton
       active={sort === column}
@@ -734,7 +734,7 @@ function SmartOrdersView({
               <TableRow>
                 {/* Four columns since Banked left, and the width it freed is
                     shared out rather than all going to the ticker (Tyler,
-                    13 Sep 2026). Held stays the narrow one because its
+                    13 Sep 2026). Value stays the narrow one because its
                     figures are the shortest, which keeps PnL beside it. */}
                 <TableHead className="w-[34%] px-1">
                   {heading("ticker", "Ticker")}
@@ -743,7 +743,7 @@ function SmartOrdersView({
                   {heading("type", "Type")}
                 </TableHead>
                 <TableHead className="w-[20%] px-1">
-                  {heading("held", "Held")}
+                  {heading("held", "Value")}
                 </TableHead>
                 <TableHead className="w-[24%] px-1">
                   {heading("pnl", "PnL")}

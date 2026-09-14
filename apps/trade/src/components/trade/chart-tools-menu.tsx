@@ -91,6 +91,10 @@ export function ChartToolsMenu({
               variant="ghost"
               size="icon"
               aria-label="Chart menu"
+              // The same muted pill the timeframe control beside it sits in,
+              // so the two chart controls read as one pair. A bare ghost
+              // button showed nothing at all until the pointer was on it.
+              className="rounded-lg bg-muted/60"
             >
               <EllipsisVerticalIcon className="size-4" />
             </Button>

@@ -300,9 +300,21 @@ describe("what counts as a base", () => {
     expect(html).toContain("acting as 9 candles")
   })
 
-  it("stays quiet when the wait fits", () => {
+  it("says so when a level's own window is longer than the wait", () => {
+    // A level has to beat the candles on both sides of it, so at a search of
+    // 36 the wait cannot be shorter than 18 however short it is typed. The
+    // chart's own settings panel says the same thing in the same words.
     const html = draw(
       dcaNode({ baseDetection: { searchBars: 36, holdBars: 8 } })
+    )
+
+    expect(html).toContain("18 candles on each side")
+    expect(html).toContain("It is acting as 18.")
+  })
+
+  it("stays quiet when the wait fits", () => {
+    const html = draw(
+      dcaNode({ baseDetection: { searchBars: 36, holdBars: 18 } })
     )
 
     expect(html).not.toContain("acting as")

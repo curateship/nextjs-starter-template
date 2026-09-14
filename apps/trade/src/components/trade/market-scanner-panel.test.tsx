@@ -363,3 +363,95 @@ it("closes untouched older saved settings without asking to discard", async () =
   expect(document.querySelector('[role="dialog"]')).toBeNull()
   expect(mocks.save).not.toHaveBeenCalled()
 })
+
+/**
+ * **Clearing every match used to need one right-click per row.** Matches stay
+ * until they are deleted, so a busy scanner left a list only patience could
+ * empty (Tyler, 14 Sep 2026).
+ */
+it("asks before it sweeps, and offers no broom with nothing to clear", async () => {
+  const dismissAll = vi.fn()
+  const rows = [
+    {
+      market,
+      since: Date.now(),
+      updated: Date.now(),
+      change: 0.02,
+      rule: "volume matched",
+      pace: 5,
+      traded: 50_000,
+    },
+  ]
+  const snapshot = {
+    loaded: true,
+    total: 1,
+    candles: 1,
+    warming: 0,
+    unavailable: 0,
+    errors: [],
+    rows,
+  }
+  mocks.scan.mockReturnValue({
+    snapshot,
+    retry: mocks.retry,
+    dismiss: vi.fn(),
+    dismissAll,
+  })
+  await act(async () =>
+    root.render(
+      <TooltipProvider>
+        <MarketScannerPanel
+          accountId="test-account"
+          catalogs={[catalog]}
+          selectedMarketKey={null}
+          onSelectMarket={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+  )
+  const clear = host.querySelector<HTMLButtonElement>(
+    '[aria-label="Clear all scanner matches"]'
+  )!
+  expect(clear).not.toBeNull()
+  // A broom, not a bin: the bin on one result's menu deletes that match.
+  expect(clear.querySelector("svg")?.getAttribute("class")).toContain(
+    "lucide-brush-cleaning"
+  )
+  // The broom asks first: a list of matches has no undo.
+  await act(async () => clear.click())
+  expect(dismissAll).not.toHaveBeenCalled()
+  const cancel = [...document.querySelectorAll("button")].find(
+    (node) => node.textContent === "Cancel"
+  )!
+  await act(async () => cancel.click())
+  expect(dismissAll).not.toHaveBeenCalled()
+
+  await act(async () => clear.click())
+  const confirm = [...document.querySelectorAll("button")].find(
+    (node) => node.textContent === "Clear all"
+  )!
+  await act(async () => confirm.click())
+  expect(dismissAll).toHaveBeenCalledTimes(1)
+
+  mocks.scan.mockReturnValue({
+    snapshot: { ...snapshot, rows: [] },
+    retry: mocks.retry,
+    dismiss: vi.fn(),
+    dismissAll,
+  })
+  await act(async () =>
+    root.render(
+      <TooltipProvider>
+        <MarketScannerPanel
+          accountId="test-account"
+          catalogs={[catalog]}
+          selectedMarketKey={null}
+          onSelectMarket={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+  )
+  expect(
+    host.querySelector('[aria-label="Clear all scanner matches"]')
+  ).toBeNull()
+})

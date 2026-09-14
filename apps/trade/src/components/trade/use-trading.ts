@@ -268,6 +268,25 @@ function getTradingSmartOrderError(error: unknown): string {
 }
 
 /** One list, so a poll that finds nothing does not hand the panel a new array. */
+/**
+ * The opening of a refused stop or exit: what was being put on the position,
+ * and that the position is as it was.
+ *
+ * Without it the toast was the exchange's reason on its own, and the plainest
+ * of those is "That did not go through. Try it again." — which does not say
+ * what did not go through, nor whether the trade is protected now.
+ */
+function bracketsNamed(brackets: {
+  targets: Array<{ px: number; sz: number | null }>
+  slPx: number | null
+}): string {
+  const stop = brackets.slPx !== null
+  const exit = brackets.targets.length > 0
+  const what =
+    stop && exit ? "stop and exit" : stop ? "stop" : exit ? "exit" : "change"
+  return `The ${what} was not saved, so the position is as it was.`
+}
+
 const EMPTY_TRADES: LiveTrade[] = []
 const EMPTY_REFUSALS: LiveRefusal[] = []
 const EMPTY_FILLS: LiveFill[] = []
@@ -453,7 +472,11 @@ export type Trading = {
     position: TradePosition,
     ask: { unit: "coins" | "usd"; amount: number }
   ) => Promise<void>
-  flip: (walletId: string, marketKey: string, expectedSzi: number) => Promise<void>
+  flip: (
+    walletId: string,
+    marketKey: string,
+    expectedSzi: number
+  ) => Promise<void>
   closeAll: () => Promise<void>
   /**
    * The bin on a Journal row and the Remove button over ticked rows — one
@@ -720,7 +743,9 @@ export function useTrading(
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
   const [olderTrades, setOlderTrades] = React.useState<LiveTrade[]>([])
-  const [olderJournalFills, setOlderJournalFills] = React.useState<LiveFill[]>([])
+  const [olderJournalFills, setOlderJournalFills] = React.useState<LiveFill[]>(
+    []
+  )
   const [paperBefore, setPaperBefore] = React.useState<number | null>()
   const [liveBefore, setLiveBefore] = React.useState<number | null>()
   const [olderTradesBusy, setOlderTradesBusy] = React.useState(false)
@@ -2169,10 +2194,22 @@ export function useTrading(
           await setPaperBrackets({ walletId, marketKey, ...brackets })
         }
       } catch (error) {
+        // **The hold is let go the moment the save is refused.** It was what
+        // made the position look as though it had a stop, and a position that
+        // looks protected hides the right-click Stop loss row that would put
+        // one on — so a refusal took away both the stop and the way to try
+        // again, for the half-minute the hold lasts (Tyler, 14 Sep 2026).
+        setDroppedBrackets((held) => {
+          const next = new Map(held)
+          next.delete(key)
+          return next
+        })
         // A refusal still has to be said out loud — a stop dragged to the
         // wrong side of the trade would otherwise just spring back unexplained.
+        // It names what was being set and that nothing changed, because the
+        // exchange's own reason is sometimes only "that did not go through".
         showErrorToast(
-          live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
+          `${bracketsNamed(brackets)} ${live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)}`
         )
       } finally {
         // Held until a position comes back carrying these levels — same
@@ -2259,14 +2296,22 @@ export function useTrading(
     async (walletId, marketKey, expectedSzi) => {
       const position = findPosition(walletId, marketKey)
       if (!position || position.szi !== expectedSzi) {
-        showErrorToast("The position changed. Refresh and check its direction and size before flipping again.")
+        showErrorToast(
+          "The position changed. Refresh and check its direction and size before flipping again."
+        )
         return
       }
       if (position.live) {
         await runWith(getLiveErrorMessage, async () => {
-          const result = await flipLivePosition(walletId, marketKey, expectedSzi)
+          const result = await flipLivePosition(
+            walletId,
+            marketKey,
+            expectedSzi
+          )
           if (!result.complete) {
-            showErrorToast("The original position closed, but the full opposite entry is not confirmed. Check the position and orders before placing anything else. The old stop and targets were cleared.")
+            showErrorToast(
+              "The original position closed, but the full opposite entry is not confirmed. Check the position and orders before placing anything else. The old stop and targets were cleared."
+            )
             return
           }
           toast.success(`Position flipped in ${nameOf(walletId)}.`)
@@ -2541,7 +2586,13 @@ export function useTrading(
       return await runWith(
         getTradingSmartOrderError,
         () =>
-          updateGridStop({ walletId, gridId, stopLoss, reverseWhenStopped, lineStop }),
+          updateGridStop({
+            walletId,
+            gridId,
+            stopLoss,
+            reverseWhenStopped,
+            lineStop,
+          }),
         "Stop changed."
       )
     },

@@ -51,6 +51,18 @@ capture the selected candle's change. New detections appear first.
 Right-click a result and choose Delete. There is no inline trash button.
 Keyboard users can focus the result and press Shift+F10 or the menu key.
 Deleting removes only the scanner result and does not open its chart.
+
+**Clear all empties the list.** A broom button sits in the panel's title row,
+after the cog, and it appears only while there is something to clear. A broom
+rather than a bin, because the bin on a single result's menu deletes that one
+match and two bins would have said the same thing about different jobs.
+
+**It asks first**, through the shared confirmation window, and names how many
+markets are about to go. There is no undo, the list can be an hour of matches,
+and a broom beside a cog is an easy thing to hit by mistake. The window says
+the scanner keeps watching and a market comes back only if it meets the
+conditions again. Every market it clears goes on the same dismissed list one-by-one
+deletion uses, so the next pass does not put them all straight back.
 The same ongoing
 match is suppressed until fresh data shows the condition is no longer met. A later
 qualifying event may then appear again. Missing data never counts as a reset.

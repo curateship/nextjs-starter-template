@@ -126,9 +126,23 @@ const watchPlanSchema = z.object({
    */
   sent: z.boolean().default(false),
   /** Hyperliquid's client id when Trade must recover a lost placement reply. */
-  clientOrderId: z.string().regex(/^0x[0-9a-f]{32}$/i).nullable().optional(),
+  clientOrderId: z
+    .string()
+    .regex(/^0x[0-9a-f]{32}$/i)
+    .nullable()
+    .optional(),
   /** When Trade first lost the placement reply. */
   uncertainSince: z.number().optional(),
+  /**
+   * When Trade last asked the exchange what became of that lost reply.
+   *
+   * Kept apart from `uncertainSince` so the two can answer two questions: how
+   * long this has gone on, and when it is due another ask. They used to be one
+   * number, which meant every ask pushed the clock forward and the watch could
+   * check for ever. One sat on "Checking Hyperliquid order..." with no end to
+   * it (Tyler, 14 Sep 2026).
+   */
+  uncertainCheckedAt: z.number().optional(),
   /** The order resting right now, and where it is resting. */
   orderId: z.string().nullable().default(null),
   orderPx: z.number().positive().nullable().default(null),

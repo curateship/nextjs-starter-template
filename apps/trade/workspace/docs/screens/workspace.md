@@ -25,7 +25,9 @@ these as well as an admin, and sees only their own wallets and orders there —
   with a first-letter circle when an exchange has no art), its name, a Folders
   button, an Alerts bell, and on the right the timeframe control (1m to 1d, remembered per browser, 4h the
   default) and a vertical three-dot chart menu before the wallet. The chart
-  menu replaces the divider and holds labeled rows for Indicators, View options
+  menu sits in the same muted pill the timeframe control does, so the two read
+  as one pair rather than one control beside an unmarked patch of header. It
+  replaces the divider and holds labeled rows for Indicators, View options
   and Saved layouts. A star beside each
   timeframe keeps that choice in the header as a shortcut. The browser
   remembers the stars. The timeframe menu arrow has its own fixed spot at the

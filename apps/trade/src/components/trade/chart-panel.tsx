@@ -1078,7 +1078,9 @@ export function ChartPanel({
     })
     if (suited.length === 0) return []
     const nearest = suited.reduce((best, one) =>
-      Math.abs(one.px - menu.price) < Math.abs(best.px - menu.price) ? one : best
+      Math.abs(one.px - menu.price) < Math.abs(best.px - menu.price)
+        ? one
+        : best
     )
     return suited.filter((one) => one.side === nearest.side)
   }
@@ -1115,6 +1117,56 @@ export function ChartPanel({
   // Protect coins already held before adding a stop to a waiting entry.
   // The watched order's own line still opens its exact edit window.
   const stopLossShortcut = positionStopShortcut ?? watchedStopShortcut
+
+  /**
+   * What each menu row is worth in percent, so the row can say "Exit at 6%"
+   * rather than leaving the price to be compared against the axis.
+   *
+   * Measured from where the trade got in — a position's entry, or the price a
+   * waiting order will fill at — which is the same thing the order settings
+   * window means by its Exit % and Stop loss % boxes. Signed the way the
+   * trade makes money, so a short above its entry reads as a loss.
+   */
+  const gapFromEntry = (entryPx: number, long: boolean, price: number) =>
+    entryPx > 0 ? ((price - entryPx) / entryPx) * (long ? 1 : -1) : null
+  /** The waiting order a shortcut would act on first: the one nearest the click. */
+  const nearestTo = (orders: readonly TradeOrder[], price: number) =>
+    orders.length === 0
+      ? null
+      : orders.reduce((best, one) =>
+          Math.abs(one.px - price) < Math.abs(best.px - price) ? one : best
+        )
+  const exitGap = !menu
+    ? null
+    : targetablePosition && menu.price > 0
+      ? gapFromEntry(
+          targetablePosition.entryPx,
+          targetablePosition.szi > 0,
+          menu.price
+        )
+      : (() => {
+          const order = nearestTo(watchedExitTargets, menu.price)
+          return order
+            ? gapFromEntry(order.px, order.side === "buy", menu.price)
+            : null
+        })()
+  const stopGap = !menu
+    ? null
+    : positionStopShortcut && bareStop
+      ? gapFromEntry(bareStop.entryPx, bareStop.szi > 0, menu.price)
+      : (() => {
+          const order = nearestTo(watchedStopTargets, menu.price)
+          return order
+            ? gapFromEntry(order.px, order.side === "buy", menu.price)
+            : null
+        })()
+  // The alert is measured from the price the market is at now, because that is
+  // what "5% above price" means to somebody reading the row.
+  const alertNowPx = market ? (liveMarkOf(market.key) ?? market.price) : null
+  const alertGap =
+    menu && alertNowPx !== null && alertNowPx > 0
+      ? (menu.price - alertNowPx) / alertNowPx
+      : null
 
   const looseOrders = React.useMemo(
     () => [
@@ -1405,7 +1457,8 @@ export function ChartPanel({
 
   const tradingSetGridStop = trading.setGridStop
   const onRemoveGridStop = React.useCallback(
-    (one: SmartGrid) => tradingSetGridStop(one.walletId, one.id, null, false, null),
+    (one: SmartGrid) =>
+      tradingSetGridStop(one.walletId, one.id, null, false, null),
     [tradingSetGridStop]
   )
   const tradingSetGridEnd = trading.setGridEnd
@@ -1823,7 +1876,18 @@ export function ChartPanel({
             candles={current?.candles ?? []}
             watchLiveBars={liveBars}
             drawings={paint.drawings}
-            gridStopDrawingIds={new Set(trading.grids.filter((grid) => grid.status === "active" && grid.marketKey === selectedKey).flatMap((grid) => grid.plan.lineStop ? [grid.plan.lineStop.drawingId] : []))}
+            gridStopDrawingIds={
+              new Set(
+                trading.grids
+                  .filter(
+                    (grid) =>
+                      grid.status === "active" && grid.marketKey === selectedKey
+                  )
+                  .flatMap((grid) =>
+                    grid.plan.lineStop ? [grid.plan.lineStop.drawingId] : []
+                  )
+              )
+            }
             tool={paintTool}
             selectedId={paint.selectedId}
             onSelect={paint.setSelectedId}
@@ -2067,7 +2131,7 @@ export function ChartPanel({
 
   useErrorToast(
     selectedKey && current && !waitingForBorrowedBars ? current.error : null,
-    () => setAttempt((count) => count + 1),
+    () => setAttempt((count) => count + 1)
   )
   useErrorToast(
     selectedKey &&
@@ -2078,7 +2142,7 @@ export function ChartPanel({
       orbCurrent?.error
       ? "The opening range could not load the 15m candles it needs. The chart is still working. Try again in a moment."
       : null,
-    () => setOrbAttempt((count) => count + 1),
+    () => setOrbAttempt((count) => count + 1)
   )
 
   if (!selectedKey) {
@@ -2174,6 +2238,9 @@ export function ChartPanel({
           hasLadder={trading.ladders.some(
             (one) => one.marketKey === selectedKey && one.status === "active"
           )}
+          alertGap={alertGap}
+          exitGap={exitGap}
+          stopGap={stopGap}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
@@ -2503,7 +2570,9 @@ export function ChartPanel({
         }}
       />
       <GridSettingsWindow
-        drawings={settingsFor?.marketKey === market?.key ? paint.drawings : undefined}
+        drawings={
+          settingsFor?.marketKey === market?.key ? paint.drawings : undefined
+        }
         lineAlertsPaused={lineAlertsPaused}
         grid={settingsFor}
         anchor={settingsAnchor}

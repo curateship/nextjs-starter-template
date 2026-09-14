@@ -540,7 +540,7 @@ describe("the Smart orders panel", () => {
 
     const headerButtons = Array.from(host.querySelectorAll("thead button"))
     const headers = headerButtons.map((button) => button.textContent)
-    expect(headers).toEqual(["Ticker", "Type", "Held", "PnL"])
+    expect(headers).toEqual(["Ticker", "Type", "Value", "PnL"])
     expect(
       Array.from(host.querySelectorAll("thead th")).map((heading) =>
         heading.className.match(/w-\[\d+%\]/)?.[0]

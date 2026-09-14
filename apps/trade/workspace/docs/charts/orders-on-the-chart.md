@@ -68,6 +68,26 @@ puts a stop on every waiting order the clicked price suits, Exit puts an exit
 on every one that has none, and each acts on one side only. See
 `../orders/watched-orders.md`.
 
+**The three rows that name a level say what the level means, not what it
+costs.** The exit reads "Exit at 6%" and the stop reads "Stop loss at -2%",
+measured from where the trade got in — a position's entry price, or the price
+a waiting order will fill at. That is the same thing the order settings window
+means by its Exit % and Stop loss % boxes. An exit dropped on the losing side
+of the entry says so: "Exit at -3.1%". The alert row reads "Alert 5% above
+price", measured from the price the market is at right now. Percentages carry
+no more decimals than they need, so 0.05 reads "5%" and 0.0521 reads "5.21%".
+A row whose percentage would round to nothing keeps the price instead —
+"Alert at $0.28666" — because "0% above price" says less than the price does,
+and so does a row with no price quoted for it yet.
+
+**A refused stop does not leave a stop drawn.** Trade draws the new stop the
+moment it is picked and tells the wallet behind it. If the save is refused, the
+drawn stop goes at once rather than standing for half a minute — a position
+that looks protected hides the Stop loss row, which was the one way to try
+again. The toast names what was not saved and says the position is as it was:
+"The stop was not saved, so the position is as it was." followed by whatever
+reason the exchange gave.
+
 A watched level that has already become a position is not drawn a second time
 as a waiting order, and a second order on the same coin and side is refused
 while the first is being placed. Both rules are in

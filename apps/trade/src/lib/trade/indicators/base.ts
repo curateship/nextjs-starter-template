@@ -13,8 +13,8 @@ import {
 /**
  * Base: where price keeps stopping.
  *
- * A **base** is a floor — the lowest low of the last so many candles, once it
- * has stood for a while without being broken. A **ceiling** is the same thing
+ * A **base** is a floor — a low that is the lowest of the candles on either
+ * side of it, once it has stood for a while without being broken. A **ceiling** is the same thing
  * upside down: a high price has been turned away from. Both are found in one
  * pass, because they are the same rule mirrored, and each gets its own switch.
  *
@@ -43,12 +43,12 @@ import {
 export const BASE_FIELDS: IndicatorField[] = [
   {
     key: "searchBars",
-    label: "Candles to search back",
+    label: "Candles a level must beat",
     kind: "number",
     min: 4,
     max: 500,
     fallback: 36,
-    hint: "How far back to look for the lowest low that makes a base. Bigger means fewer bases, and the ones it finds matter more.",
+    hint: "How wide a stretch of chart a low has to be the lowest of, counted around it — half the candles on each side. Bigger means fewer bases, and the ones it finds matter more.",
   },
   {
     key: "holdBars",
@@ -57,7 +57,7 @@ export const BASE_FIELDS: IndicatorField[] = [
     min: 1,
     max: 499,
     fallback: 8,
-    hint: "How long that new low has to stand without being broken before it counts. The arrow prints on the candle that finishes the wait, which is usually well away from the level itself.",
+    hint: "How long that low has to stand before the level is announced. The arrow prints on the candle that finishes the wait, which is usually well away from the level itself. It can never be shorter than half the stretch above, because the far half is not known before then.",
   },
   {
     key: "withTrendOnly",
@@ -155,11 +155,61 @@ type Levels = {
 }
 
 /**
+ * How many candles either side of a low must be worse than it, and how long
+ * after it the level is announced.
+ *
+ * **The window is centred on the low, not hung backwards off it.** Until
+ * 14 Sep 2026 a base had to be the lowest low of the 36 candles BEFORE it and
+ * only the 8 after, and that asymmetry decided which side of the market you
+ * were shown: in a rising market no pullback low is ever the lowest of the
+ * previous 36 candles, so bases stopped appearing entirely and only ceilings
+ * were drawn. A falling market did the mirror image. Measured on synthetic
+ * trends: a rise gave 0 bases and 9 ceilings, a fall 8 bases and 0 ceilings.
+ * Tyler asked for both sides, everywhere.
+ *
+ * `searchBars` is now the whole neighbourhood the low has to beat, so it takes
+ * half of it on each side. `holdBars` still says how long the low must stand
+ * before the level is announced, and the announcement can never come before
+ * the window's far half is known — a level declared on candles nobody has seen
+ * yet is a guess.
+ */
+export function baseWindow(
+  searchBars: number,
+  holdBars: number
+): { half: number; wait: number } {
+  const half = Math.max(2, Math.floor(searchBars / 2))
+  return { half, wait: Math.max(cappedHold(searchBars, holdBars), half) }
+}
+
+/**
+ * What to say when the wait asked for is not the wait being used, or null when
+ * the two agree.
+ *
+ * **One sentence, in one place.** The Base indicator's settings panel and the
+ * DCA step's inspector both show it, and they are both looking at the same two
+ * numbers — saying it in one and not the other is how the chart and the
+ * strategy start disagreeing without anybody noticing.
+ */
+export function baseWaitNote(
+  searchBars: number,
+  holdBars: number
+): string | null {
+  const { half, wait } = baseWindow(searchBars, holdBars)
+  if (wait === holdBars) return null
+  // Two different reasons the wait moves, and the reader needs to know which
+  // one it was: the search is shorter than the wait asked for, or the window's
+  // far half is not known yet.
+  return wait === half
+    ? `A level has to beat the ${half} candles on each side of it, so the wait cannot be shorter than ${half} candles. It is acting as ${wait}.`
+    : `The wait has to be shorter than the search, so it is acting as ${wait} candles.`
+}
+
+/**
  * Every base (or every ceiling) in one pass.
  *
- * A level is confirmed at candle `i` when the extreme of the trailing window
- * moved `hold` candles ago and has not moved since — that is, price set a new
- * low (or high) back then and nothing has beaten it in the candles since.
+ * A candle is a base when its low is the lowest of the `half` candles either
+ * side of it. The level is announced `wait` candles later — see `baseWindow`
+ * for what decides both numbers.
  */
 function levelsOf(
   candles: readonly IndicatorCandle[],
@@ -173,19 +223,21 @@ function levelsOf(
   const confirmed = new Array<boolean>(count).fill(false)
   if (count === 0 || searchBars < 4) return { level, dash, confirmed }
 
-  const hold = cappedHold(searchBars, holdBars)
+  const { half, wait } = baseWindow(searchBars, holdBars)
+  const span = half * 2 + 1
   const floor = side === "up"
   const prices = candles.map((bar) => (floor ? bar.low : bar.high))
 
-  // The lowest low — or highest high — of the trailing window, per candle.
-  // NaN until there are enough candles behind it to fill one.
-  const extreme = new Array<number>(count).fill(Number.NaN)
+  // Which candle holds the lowest low — or highest high — of the window
+  // ending at each candle, or -1 before there are enough candles to fill one.
+  // The window is `span` long, so the candle at its middle is `i - half`.
+  const extremeAt = new Array<number>(count).fill(-1)
   const candidates = new Array<number>(count)
   let firstCandidate = 0
   let afterLastCandidate = 0
   let nanInWindow = 0
   for (let i = 0; i < count; i += 1) {
-    const leaving = i - searchBars
+    const leaving = i - span
     if (leaving >= 0 && Number.isNaN(prices[leaving])) nanInWindow -= 1
     while (
       firstCandidate < afterLastCandidate &&
@@ -199,8 +251,8 @@ function levelsOf(
       nanInWindow += 1
     } else {
       // Keep equal prices in their original order. The older one stays in
-      // charge until it leaves the window, which preserves the old scan's tie
-      // behavior while still doing one comparison per candidate.
+      // charge until it leaves the window, so a flat stretch marks its first
+      // candle rather than its last.
       while (firstCandidate < afterLastCandidate) {
         const last = candidates[afterLastCandidate - 1]
         const beaten = floor ? prices[last] > price : prices[last] < price
@@ -211,34 +263,39 @@ function levelsOf(
       afterLastCandidate += 1
     }
 
-    if (i >= searchBars - 1 && nanInWindow === 0) {
-      extreme[i] = prices[candidates[firstCandidate]]
+    if (i >= span - 1 && nanInWindow === 0) {
+      extremeAt[i] = candidates[firstCandidate]
     }
   }
 
   // The dash spans a few candles either side of the one that made the level,
   // so it reads as a mark on that spot rather than a line across the chart.
-  const halfSpan = Math.max(2, Math.round(hold))
+  const halfSpan = Math.max(2, Math.round(wait))
   let current = Number.NaN
+  for (let at = 0; at < count; at += 1) {
+    // The window centred on `at` is only complete once the candle `half`
+    // later has arrived, and the level is announced `wait` after `at`.
+    const filled = at + half
+    const announceAt = at + wait
+    if (
+      filled < count &&
+      announceAt < count &&
+      extremeAt[filled] === at &&
+      !Number.isNaN(prices[at])
+    ) {
+      const found = prices[at]
+      confirmed[announceAt] = true
+      const from = Math.max(0, at - halfSpan)
+      const to = Math.min(count - 1, at + halfSpan)
+      for (let k = from; k <= to; k += 1) dash[k] = found
+    }
+  }
+  // The level in force at each candle: the newest one announced by then.
   for (let i = 0; i < count; i += 1) {
-    if (i - hold - 1 >= 0) {
-      const before = extreme[i - hold - 1]
-      const set = extreme[i - hold]
-      const now = extreme[i]
-      const fresh =
-        !Number.isNaN(before) &&
-        !Number.isNaN(set) &&
-        !Number.isNaN(now) &&
-        (floor ? before > set : before < set) &&
-        set === now
-      if (fresh) {
-        current = now
-        confirmed[i] = true
-        const at = i - hold
-        const from = Math.max(0, at - halfSpan)
-        const to = Math.min(count - 1, at + halfSpan)
-        for (let k = from; k <= to; k += 1) dash[k] = now
-      }
+    if (confirmed[i]) {
+      // The level's own price, read back off the candle that made it.
+      const at = i - wait
+      current = prices[at]
     }
     level[i] = current
   }
@@ -366,10 +423,10 @@ export function baseDashes(
   params: IndicatorParams
 ): IndicatorDash[] {
   const settings = baseSettings(params)
-  const hold = cappedHold(settings.searchBars, settings.holdBars)
+  const { wait } = baseWindow(settings.searchBars, settings.holdBars)
   // The same span the indicator's own dashes use, so the two chart the same
   // level the same way.
-  const halfSpan = Math.max(2, Math.round(hold))
+  const halfSpan = Math.max(2, Math.round(wait))
 
   const levels = baseLevelsInForce(candles, params)
   const dashes: IndicatorDash[] = []
@@ -380,10 +437,10 @@ export function baseDashes(
       continue
     }
     previous = level
-    // The level was MADE `hold` candles before it was confirmed, and that is
+    // The level was MADE `wait` candles before it was announced, and that is
     // where the mark belongs — on the low itself, not on the candle that
     // finished the wait.
-    const at = index - hold
+    const at = index - wait
     dashes.push({
       fromTime: candles[Math.max(0, at - halfSpan)].openTime,
       toTime: candles[Math.min(candles.length - 1, at + halfSpan)].openTime,
@@ -523,10 +580,7 @@ export const baseIndicator: IndicatorModule = {
   // good answer — it is only being silent about it that would be wrong.
   note: (params) => {
     const settings = baseSettings(params)
-    const held = cappedHold(settings.searchBars, settings.holdBars)
-    return held === settings.holdBars
-      ? null
-      : `The wait has to be shorter than the search, so it is acting as ${held} candles.`
+    return baseWaitNote(settings.searchBars, settings.holdBars)
   },
   /**
    * What the chart draws — everything `basePaint` found, minus whichever
@@ -554,17 +608,16 @@ export const baseIndicator: IndicatorModule = {
    * The search window plus the wait — the first candle that could possibly
    * confirm a level.
    *
-   * Not a guess: `levelsOf` looks `searchBars` back to find an extreme and then
-   * needs `hold` more candles to see it stand, so nothing before that can be
-   * anything. The wait is read through `cappedHold` for the same reason the
-   * maths does, or a setting the run quietly shortens would ask for history it
-   * never uses.
+   * Not a guess: a low has to beat the `half` candles before it, and the level
+   * is only announced `wait` candles after the low, so nothing before those two
+   * added together can be anything. Both come from `baseWindow` for the same
+   * reason the maths does, or a setting the run quietly adjusts would ask for
+   * history it never uses.
    */
   warmupBars: (params) => {
     const settings = baseSettings(params)
-    return (
-      settings.searchBars + cappedHold(settings.searchBars, settings.holdBars)
-    )
+    const { half, wait } = baseWindow(settings.searchBars, settings.holdBars)
+    return half + wait
   },
   /**
    * Every arrow, read as an instruction: a confirmed base is a buy and a
