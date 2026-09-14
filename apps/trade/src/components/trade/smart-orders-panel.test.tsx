@@ -540,20 +540,18 @@ describe("the Smart orders panel", () => {
 
     const headerButtons = Array.from(host.querySelectorAll("thead button"))
     const headers = headerButtons.map((button) => button.textContent)
-    expect(headers).toEqual(["Ticker", "Type", "PnL", "Banked"])
+    expect(headers).toEqual(["Ticker", "Type", "Held", "PnL"])
     expect(
       Array.from(host.querySelectorAll("thead th")).map((heading) =>
         heading.className.match(/w-\[\d+%\]/)?.[0]
       )
-    ).toEqual(["w-[35%]", "w-[20%]", "w-[20%]", "w-[25%]"])
+    ).toEqual(["w-[34%]", "w-[22%]", "w-[20%]", "w-[24%]"])
+    // One rule for every column: headings and figures read from the left.
     expect(
-      headerButtons
-        .slice(2)
-        .every((button) => button.className.includes("justify-end"))
+      headerButtons.every(
+        (button) => !button.className.includes("justify-end")
+      )
     ).toBe(true)
-    expect(headerButtons[3]?.className).toContain(
-      "[&>span:first-child]:order-2"
-    )
     expect(host.querySelector("table")?.className).toContain(
       "[&_td:last-child]:pr-4"
     )
@@ -565,13 +563,18 @@ describe("the Smart orders panel", () => {
         row.querySelector(".font-semibold")?.textContent?.trim()
       )
     expect(rowTickers()).toEqual(["XMR", "BTC"])
-    expect(headerButtons[2]?.querySelector(".lucide-arrow-down")).not.toBeNull()
+    // PnL is the last column, and the one the list opens sorted by.
+    expect(headerButtons[3]?.querySelector(".lucide-arrow-down")).not.toBeNull()
     const firstRowCells = host
       .querySelectorAll("tbody tr")[0]
       ?.querySelectorAll("td")
     expect(firstRowCells?.[0]?.className).not.toContain("text-right")
     expect(firstRowCells?.[1]?.textContent).toContain("Long")
-    expect(firstRowCells?.[2]?.className).toContain("text-right")
+    expect(
+      Array.from(firstRowCells ?? []).every(
+        (cell) => !cell.className.includes("text-right")
+      )
+    ).toBe(true)
     await act(async () => {
       host.querySelector<HTMLButtonElement>("thead button")?.click()
     })
@@ -583,7 +586,9 @@ describe("the Smart orders panel", () => {
       host.querySelector('[data-slot="dashboard-card-header"]')?.className
     ).toContain("min-h-[var(--dashboard-card-header-height)]")
     expect(details?.getAttribute("aria-label")).toBe("XMR smart order details")
-    expect(host.textContent).toContain("$0.00")
+    // The $0.00 before a first sale left with the Banked column; what an
+    // order has sold is read in its details card now.
+    expect(host.textContent).not.toContain("$0.00")
     expect(host.querySelector(".lucide-piggy-bank")).toBeNull()
     expect(host.querySelector(".lucide-ellipsis-vertical")).not.toBeNull()
     await act(async () => root.unmount())
@@ -762,7 +767,7 @@ describe("the Smart orders panel", () => {
     host.remove()
   })
 
-  it("moves grid progress and held funds into the ticker tooltip", async () => {
+  it("gives held funds their own column and keeps progress in the tooltip", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -781,7 +786,8 @@ describe("the Smart orders panel", () => {
       )
     })
     expect(host.textContent).not.toContain("3 waiting · 7 completed")
-    expect(host.textContent).not.toContain("$70.00")
+    // The Held column carries the dollars the grid still has to close.
+    expect(host.textContent).toContain("$70")
 
     await openSmartOrderDetails(host)
 
@@ -789,6 +795,42 @@ describe("the Smart orders panel", () => {
     expect(document.body.textContent).toContain("Held to sell$70.00")
     const popover = document.body.querySelector('[data-slot="popover-content"]')
     expect(popover?.className).toContain("bg-popover")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("shows a ladder's bought rungs in the Held column", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    // One rung bought 2 coins at $95, so the ladder holds $190 to sell.
+    const bought: SmartOrder = {
+      ...ladder,
+      plan: {
+        ...ladder.plan,
+        rungs: [
+          { ...ladder.plan.rungs[0], px: 95, sz: 2, status: "filled" as const },
+          { ...ladder.plan.rungs[0], px: 85, sz: 2, status: "waiting" as const },
+        ],
+      },
+    } as SmartOrder
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[bought]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    const cells = host.querySelectorAll("tbody tr")[0]?.querySelectorAll("td")
+    // Whole dollars in the column; the tooltip keeps the cents.
+    expect(cells?.[2]?.textContent).toBe("$190")
     await act(async () => root.unmount())
     host.remove()
   })

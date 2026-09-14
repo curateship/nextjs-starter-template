@@ -143,7 +143,8 @@ function layer(
     grid: SmartGrid,
     move: { end: "top" | "bottom" | "whole"; px: number }
   ) => Promise<boolean> = async () => true,
-  onRemoveStop?: (grid: SmartGrid) => Promise<boolean>
+  onRemoveStop?: (grid: SmartGrid) => Promise<boolean>,
+  onRemoveEnd?: (grid: SmartGrid) => Promise<boolean>
 ) {
   return (
     <TooltipProvider>
@@ -165,6 +166,7 @@ function layer(
       onMoveRange={onMoveRange}
       onMoveExit={onMoveExit}
       onRemoveStop={onRemoveStop}
+      onRemoveEnd={onRemoveEnd}
     />
     </TooltipProvider>
   )
@@ -367,6 +369,66 @@ describe("the grid stop-loss line", () => {
       await act(async () => { finish(false) })
       expect(close.disabled).toBe(false)
       expect(host.textContent).toContain("SL -$70.00")
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it("switches End Grid off from the × on its line", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const ending = grid("long")
+    ending.plan.takeProfitPx = 130
+    let finish!: (ok: boolean) => void
+    const onRemoveEnd = vi.fn(
+      () => new Promise<boolean>((resolve) => (finish = resolve))
+    )
+    const onMoveExit = vi.fn(async () => true)
+    try {
+      await act(async () =>
+        root.render(
+          layer(ending, onMoveExit, undefined, undefined, undefined, onRemoveEnd)
+        )
+      )
+      const close = host.querySelector<HTMLButtonElement>(
+        '[aria-label="Remove End Grid"]'
+      )!
+      expect(close).not.toBeNull()
+      await act(async () => {
+        close.dispatchEvent(
+          new MouseEvent("pointerdown", { bubbles: true, clientY: 70 })
+        )
+        close.click()
+        window.dispatchEvent(
+          new MouseEvent("pointerup", { bubbles: true, clientY: 90 })
+        )
+      })
+      // Pressing the × must never read as a drag of the line it sits on.
+      expect(onRemoveEnd).toHaveBeenCalledTimes(1)
+      expect(onMoveExit).not.toHaveBeenCalled()
+      expect(close.disabled).toBe(true)
+      // A refusal leaves the line and its × exactly where they were.
+      await act(async () => {
+        finish(false)
+      })
+      expect(close.disabled).toBe(false)
+      expect(host.textContent).toContain("END GRID")
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it("draws no × on End Grid when nothing can switch it off", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const ending = grid("long")
+    ending.plan.takeProfitPx = 130
+    try {
+      await act(async () => root.render(layer(ending)))
+      expect(host.textContent).toContain("END GRID")
+      expect(
+        host.querySelector('[aria-label="Remove End Grid"]')
+      ).toBeNull()
     } finally {
       await act(async () => root.unmount())
     }

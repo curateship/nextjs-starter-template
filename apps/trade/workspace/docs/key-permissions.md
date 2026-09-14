@@ -5,6 +5,7 @@ Trade checks whether a saved trading key can withdraw money and warns without st
 - **Saving a key:** Adding or replacing a key checks permissions before storing the result. Credential verification still runs separately.
 - **Withdrawal warning:** The wallet row and details show an amber warning asking for a trade-only replacement. The save dialog stays open with the warning and a Done button.
 - **Trade-only:** The exchange must report trading permission and no withdrawal permission. A missing field never proves either permission.
+- **Where the safe answer is said:** "Trade-only key" appears in the wallet windows only — the add, edit, details and key-permission dialogs. The account panel's wallet rows say nothing when a key is safe (Tyler, 13 Sep 2026), so a clean list stays clean. The withdrawal warning and the "could not check" notice still appear on those rows, because both ask for something to be done.
 - **Unknown:** Unsupported, malformed, refused, or unavailable reads show "Could not check what this key may do". Unknown checks produce no repeated error toast.
 - **Refresh:** Existing wallets get their first check on the next wallet list or panel read. Panel reads check only the selected protocol. Results refresh after five minutes on the next read.
 - **Inactive wallets:** Their stored keys receive permission checks too. Balance reads and trading remain off.
@@ -27,7 +28,7 @@ Trade checks whether a saved trading key can withdraw money and warns without st
 
 - **Focused checks:** Run the permission tests under the Aster, KuCoin and Hyperliquid folders, `server/trade/wallets.test.ts`, and both wallet UI test files with `vitest run --config vitest.app.config.ts`.
 - **Risky key:** Add an exchange test key whose permission answer includes withdrawals. Expect "Wallet saved", the withdrawal warning, and Done. Closing the dialog must leave the warning on the wallet row and details.
-- **Replacement:** Replace the key with a verified trade-only key. Expect the old warning to clear and the row to say "Trade-only key".
+- **Replacement:** Replace the key with a verified trade-only key. Expect the old warning to clear, the wallet row to fall silent, and the wallet window to say "Trade-only key".
 - **Unknown check:** Refuse the permission read while allowing credential verification and balance reads. Expect the wallet to save with the unknown message, without repeated toasts.
 - **Existing wallet:** Open a protocol containing an unchecked wallet. Expect its result to persist and survive reloading.
 - **Refresh:** Change permissions on the exchange. After five minutes, the next wallet read should update the stored result. A failed refresh must preserve a known withdrawal warning.

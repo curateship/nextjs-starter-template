@@ -41,6 +41,17 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+/** Fired is the open tab, so a test about armed alerts presses Alert first. */
+async function openTab(host: HTMLElement, label: "Alert" | "Fired") {
+  const tab = Array.from(
+    host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  ).find((button) => button.textContent?.includes(label))
+  await act(async () => {
+    tab?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+  })
+  return tab
+}
+
 describe("the Alerts panel", () => {
   beforeEach(() => {
     ;(
@@ -79,12 +90,12 @@ describe("the Alerts panel", () => {
       )
     })
 
-    const alertTab = host.querySelector<HTMLButtonElement>(
-      '[data-slot="tabs-trigger"][data-state="active"]'
-    )
-    const firedTab = host.querySelector<HTMLButtonElement>(
-      '[data-slot="tabs-trigger"][data-state="inactive"]'
-    )
+    // Fired opens first; this test is about the armed list.
+    const alertTab = await openTab(host, "Alert")
+    const firedTab = Array.from(
+      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).find((button) => button.textContent?.includes("Fired"))
+    expect(alertTab?.dataset.state).toBe("active")
     expect(alertTab?.textContent).toContain("Alert")
     expect(alertTab?.textContent).toContain("1")
     expect(firedTab?.textContent).toContain("Fired")
@@ -170,13 +181,16 @@ describe("the Alerts panel", () => {
     })
 
     // Both counts include the lines: one price and one line armed, one
-    // line fired.
+    // line fired. Fired is the first tab, Alert the second.
     const tabs = Array.from(
       host.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')
     )
-    expect(tabs[0]?.textContent).toContain("2")
-    expect(tabs[1]?.textContent).toContain("1")
+    expect(tabs[0]?.textContent).toContain("Fired")
+    expect(tabs[0]?.textContent).toContain("1")
+    expect(tabs[1]?.textContent).toContain("Alert")
+    expect(tabs[1]?.textContent).toContain("2")
 
+    await openTab(host, "Alert")
     // The line row is older, so it sits first, and it says what it is.
     const rows = Array.from(host.querySelectorAll("button")).filter((button) =>
       /ETH|BTC/.test(button.textContent ?? "")
@@ -195,7 +209,7 @@ describe("the Alerts panel", () => {
     expect(switchOff).toHaveBeenCalledWith("line-1")
 
     await act(async () => {
-      tabs[1]?.dispatchEvent(
+      tabs[0]?.dispatchEvent(
         new MouseEvent("mousedown", { bubbles: true, button: 0 })
       )
     })
@@ -249,15 +263,12 @@ describe("the Alerts panel", () => {
       )
     })
 
+    // Fired is the open tab from the first render, so the list is read once
+    // on mount and the panel needs no press to show it.
     const firedTab = Array.from(
       host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     ).find((button) => button.textContent?.includes("Fired"))
-    await act(async () => {
-      firedTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
-    expect(api.loadFired).toHaveBeenCalledTimes(2)
+    expect(api.loadFired).toHaveBeenCalledTimes(1)
     expect(firedTab?.dataset.state).toBe("active")
     expect(firedTab?.textContent).toContain("Fired")
     expect(firedTab?.textContent).toContain("1")
@@ -316,14 +327,10 @@ describe("the Alerts panel", () => {
       )
     })
 
-    const firedTab = Array.from(
-      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    ).find((button) => button.textContent?.includes("Fired"))
-    await act(async () => {
-      firedTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
+    // Leaving Fired and coming back is what starts the overlapping refresh;
+    // Fired is already open when the panel mounts.
+    await openTab(host, "Alert")
+    await openTab(host, "Fired")
     const remove = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Delete fired SOL alert"]'
     )
@@ -369,14 +376,6 @@ describe("the Alerts panel", () => {
       )
     })
 
-    const firedTab = Array.from(
-      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    ).find((button) => button.textContent?.includes("Fired"))
-    await act(async () => {
-      firedTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
     const remove = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Delete fired DOGE alert"]'
     )
@@ -421,29 +420,11 @@ describe("the Alerts panel", () => {
       )
     })
 
-    const firedTab = Array.from(
-      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    ).find((button) => button.textContent?.includes("Fired"))
-    await act(async () => {
-      firedTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
-    const alertTab = Array.from(
-      host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    ).find((button) => button.textContent?.includes("Alert"))
-    await act(async () => {
-      alertTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
+    await openTab(host, "Alert")
     api.loadFired.mockRejectedValueOnce(new Error("database unavailable"))
-    await act(async () => {
-      firedTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
-    expect(api.loadFired).toHaveBeenCalledTimes(3)
+    await openTab(host, "Fired")
+    // Once on mount, once on the way back to Fired.
+    expect(api.loadFired).toHaveBeenCalledTimes(2)
 
     await vi.waitFor(() => {
       expect(host.textContent).toContain("XRP")

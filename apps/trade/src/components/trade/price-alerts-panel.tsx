@@ -179,7 +179,10 @@ export function PriceAlertsPanelContent({
   onClear?: (kind: "active" | "fired") => void
   clearing?: boolean
 }) {
-  const [tab, setTab] = React.useState<"alerts" | "fired">("alerts")
+  // Fired opens first and is the tab on screen (Tyler, 13 Sep 2026). The hook
+  // loads the fired list on mount and every two seconds, so the open tab has
+  // its rows without waiting for a switch.
+  const [tab, setTab] = React.useState<"alerts" | "fired">("fired")
 
   return (
     <Tabs
@@ -193,18 +196,18 @@ export function PriceAlertsPanelContent({
     >
       <DashboardCardTabsHeader>
         <DashboardCardTab
-          value="alerts"
-          icon={<BellRingIcon className="size-4" />}
-          label="Alert"
-          count={alerts.length + lines.armed.length}
-        />
-        <DashboardCardTab
           value="fired"
           icon={<HistoryIcon className="size-4" />}
           label="Fired"
           count={
             fired.known ? fired.alerts.length + lines.fired.length : undefined
           }
+        />
+        <DashboardCardTab
+          value="alerts"
+          icon={<BellRingIcon className="size-4" />}
+          label="Alert"
+          count={alerts.length + lines.armed.length}
         />
       </DashboardCardTabsHeader>
 

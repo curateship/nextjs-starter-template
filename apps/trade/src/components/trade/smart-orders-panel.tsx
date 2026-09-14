@@ -55,7 +55,12 @@ import {
   formatTimeAgo,
 } from "@/lib/format/format-time"
 import { PnlAmount } from "@/components/trade/pnl-amount"
-import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatUsd,
+  formatWholeUsd,
+} from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import {
@@ -110,7 +115,7 @@ const KIND_LABELS: Record<SmartOrderKind, string> = {
   watch: "Watched price",
 }
 
-type SmartOrderColumn = "ticker" | "type" | "pnl" | "banked"
+type SmartOrderColumn = "ticker" | "type" | "held" | "pnl"
 
 function smartOrderType(order: SmartOrder): "long" | "short" {
   return order.kind === "grid" && order.plan.direction === "short"
@@ -119,9 +124,17 @@ function smartOrderType(order: SmartOrder): "long" | "short" {
 }
 
 function defaultSmartOrderDirection(column: SmartOrderColumn) {
-  return column === "pnl" || column === "banked"
+  return column === "pnl" || column === "held"
     ? ("desc" as const)
     : ("asc" as const)
+}
+
+/** The number a money column sorts on, or null when the row has none. */
+function sortedValue(
+  row: { openProfit: number | null; held: number | null },
+  column: SmartOrderColumn
+): number | null {
+  return column === "held" ? row.held : row.openProfit
 }
 
 /** A running bot can stop on its own, so the open tab checks again. */
@@ -619,18 +632,14 @@ function SmartOrdersView({
         position && mark !== null
           ? (mark - position.entryPx) * position.szi - position.feesPaid
           : null
-      const banked = bankedBy(order, fills, trades)
-      const bankedValue =
-        banked.sells.length > 0 && banked.unpriced === banked.sells.length
-          ? null
-          : banked.total
       return {
         order,
         symbol,
         position,
         openProfit,
-        banked,
-        bankedValue,
+        held: heldUsd(order),
+        // What it has sold lives in the details card, not in a column.
+        banked: bankedBy(order, fills, trades),
         keyExpired: expiredWallets.has(order.walletId),
       }
     })
@@ -646,15 +655,15 @@ function SmartOrdersView({
           smartOrderType(right.order)
         )
       }
-      const leftValue = sort === "pnl" ? left.openProfit : left.bankedValue
-      const rightValue = sort === "pnl" ? right.openProfit : right.bankedValue
+      const leftValue = sortedValue(left, sort)
+      const rightValue = sortedValue(right, sort)
       if (leftValue === null || rightValue === null) return 0
       return leftValue - rightValue
     }
     return unsorted.sort((left, right) => {
-      if (sort === "pnl" || sort === "banked") {
-        const leftValue = sort === "pnl" ? left.openProfit : left.bankedValue
-        const rightValue = sort === "pnl" ? right.openProfit : right.bankedValue
+      if (sort === "pnl" || sort === "held") {
+        const leftValue = sortedValue(left, sort)
+        const rightValue = sortedValue(right, sort)
         if (leftValue === null) return rightValue === null ? 0 : 1
         if (rightValue === null) return -1
       }
@@ -674,22 +683,15 @@ function SmartOrdersView({
     trades,
   ])
 
-  const heading = (
-    column: SmartOrderColumn,
-    label: React.ReactNode,
-    align: "left" | "right" = "left",
-    labelAtEdge = false
-  ) => (
+  // Every column reads from the left, headings and figures alike (Tyler,
+  // 13 Sep 2026). PnL and Banked used to hug the right edge, which left a hole
+  // between Held and PnL once Held was moved to the left.
+  const heading = (column: SmartOrderColumn, label: React.ReactNode) => (
     <TableSortButton
       active={sort === column}
       direction={direction}
       onClick={() => toggleSort(column)}
-      className={cn(
-        "gap-0.5 whitespace-nowrap sm:text-xs",
-        align === "right" && "w-full justify-end",
-        labelAtEdge &&
-          "[&>span:first-child]:order-2 [&>span:last-child]:order-1"
-      )}
+      className="gap-0.5 whitespace-nowrap sm:text-xs"
     >
       {label}
     </TableSortButton>
@@ -730,17 +732,21 @@ function SmartOrdersView({
           >
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[35%] px-1">
+                {/* Four columns since Banked left, and the width it freed is
+                    shared out rather than all going to the ticker (Tyler,
+                    13 Sep 2026). Held stays the narrow one because its
+                    figures are the shortest, which keeps PnL beside it. */}
+                <TableHead className="w-[34%] px-1">
                   {heading("ticker", "Ticker")}
                 </TableHead>
-                <TableHead className="w-[20%] px-1">
+                <TableHead className="w-[22%] px-1">
                   {heading("type", "Type")}
                 </TableHead>
                 <TableHead className="w-[20%] px-1">
-                  {heading("pnl", "PnL", "right")}
+                  {heading("held", "Held")}
                 </TableHead>
-                <TableHead className="w-[25%] px-1">
-                  {heading("banked", "Banked", "right", true)}
+                <TableHead className="w-[24%] px-1">
+                  {heading("pnl", "PnL")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -751,18 +757,19 @@ function SmartOrdersView({
                   symbol,
                   position,
                   openProfit,
+                  held: heldMoney,
                   banked,
-                  bankedValue,
                   keyExpired,
                 }) => {
                   const selected = order.marketKey === selectedMarketKey
                   return (
                     <TableRow
                       key={order.id}
+                      className="group"
                       rowAction={() => onSelectMarket(order.marketKey)}
                       data-state={selected ? "selected" : undefined}
                     >
-                      <TableCell className="px-1 py-2">
+                      <TableCell className="py-2 pl-1 pr-2">
                         <div className="grid min-w-0 gap-1">
                           <div className="flex min-w-0 items-center gap-1">
                             <SmartOrderDetailsPopover
@@ -828,7 +835,14 @@ function SmartOrdersView({
                           {smartOrderType(order) === "long" ? "Long" : "Short"}
                         </TradeBadge>
                       </TableCell>
-                      <TableCell className="px-1 py-2 text-right font-mono text-xs tabular-nums">
+                      <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                        <span className="text-muted-foreground">
+                          {heldMoney === null
+                            ? "—"
+                            : formatWholeUsd(heldMoney)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
                         {openProfit === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -838,13 +852,6 @@ function SmartOrdersView({
                             {formatSignedUsd(openProfit)}
                           </PnlAmount>
                         )}
-                      </TableCell>
-                      <TableCell className="px-1 py-2 text-right font-mono text-xs tabular-nums">
-                        <span className="text-muted-foreground">
-                          {bankedValue === null
-                            ? "—"
-                            : formatSignedUsd(bankedValue)}
-                        </span>
                       </TableCell>
                     </TableRow>
                   )
@@ -931,6 +938,10 @@ function SmartOrderDetailsPopover({
             title={`Show ${symbol} smart order details`}
             className={cn(
               "ml-auto shrink-0 rounded-sm p-1 text-muted-foreground/40 hover:bg-muted hover:text-foreground",
+              // Out of sight until the row is pointed at (Tyler, 13 Sep 2026).
+              // It keeps its space, so no ticker jumps sideways on hover, and
+              // it comes back for the keyboard and while its card is open.
+              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
               focusRing
             )}
           >
@@ -1103,6 +1114,26 @@ function whereItHasGot(
   if (phase === "selling") return "Selling out"
   if (phase === "stopping") return "Getting out"
   return position ? `Holding from ${formatPrice(position.entryPx)}` : "Holding"
+}
+
+/**
+ * Dollars this smart order is still holding: coins it has bought and not sold,
+ * or a short it has sold and not bought back, counted at what it paid.
+ *
+ * Null for the kinds that hold nothing of their own. A watched price has not
+ * bought anything until it fires, and a signal trade's position belongs to the
+ * flow that placed it, not to a row on this panel.
+ */
+function heldUsd(order: SmartOrder): number | null {
+  if (order.kind === "grid") return gridHeldToSell(order)
+  if (order.kind === "dca") {
+    return order.plan.rungs.reduce(
+      (total, rung) =>
+        rung.status === "filled" ? total + rung.sz * rung.px : total,
+      0
+    )
+  }
+  return null
 }
 
 /**

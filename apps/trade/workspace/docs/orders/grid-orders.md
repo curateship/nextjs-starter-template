@@ -1091,6 +1091,27 @@ No database migration is needed. The saved grid already accepts an empty stop.
 The web and engine code need the normal release before production has the new
 removal action. Local implementation does not deploy that release.
 
+## Removing the End Grid line
+
+The END GRID bar has an × beside its name, the same button the SL bar has
+(Tyler, 13 Sep 2026). Pressing it switches End Grid off and leaves the grid
+running: the range keeps trading, the stop stays where it is, and nothing is
+bought or sold. The line simply leaves the chart, and the grid then ends only
+at its stop, from the grid window, or by hand.
+
+An upward-following grid with End Grid switched off runs until following is
+switched off or the stop is hit. That rule is in "End Grid is a fixed ceiling
+while the range follows up" above, and the × is now a second way to reach it.
+
+The × is the same action as clearing End Grid in the grid window, so a refusal
+reads the same way: the button stays disabled while the save is in flight, and
+a refused save keeps the line and shows the existing error toast. Grid settings
+put End Grid back.
+
+When End Grid and a range edge land on one price, the END GRID bar is drawn on
+that edge's row and carries its × there. A paint tool in hand takes the pointer,
+so neither the grip nor the × answers while a tool is held.
+
 ### Checking the chart controls
 
 1. On a practice grid, drag the SL line away from its label. The bar and dollar

@@ -5,9 +5,11 @@ chart and choose **Alert at $X**. The alert works with or without a wallet
 selected. The wallet only decides whether the menu also offers order actions.
 
 The purple line and its row under the header's bell appear immediately. Its
-dropdown has the same raised tab style as Smart orders. **Alert** holds lines
-that are still waiting, and **Fired** holds the 100 most recent lines that
-already went off. Each label has the same rounded count badge used by the
+dropdown has the same raised tab style as Smart orders. **Fired** is the first
+tab, it is the tab the dropdown opens on, and it holds the 100 most recent
+lines that already went off (Tyler, 13 Sep 2026). **Alert** is the second tab
+and holds the lines that are still waiting. Fired needs no press to fill: the
+fired list is read when the screen loads and again every two seconds. Each label has the same rounded count badge used by the
 Positions tab. The bell itself gets a red count badge whenever fired price or
 drawing alerts are waiting in Fired.
 Selecting a row in either tab opens that market and leaves the dropdown open.

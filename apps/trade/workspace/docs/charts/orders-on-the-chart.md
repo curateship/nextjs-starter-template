@@ -329,7 +329,9 @@ behind it.
 
 The grid stop-loss bar stays above entries, grid summaries, and rung labels.
 The stop keeps its own row even when its price matches a range boundary.
-The stop's × removes the stop without closing the grid or its position.
+The stop's × removes the stop without closing the grid or its position. The
+END GRID bar carries the same × and switches End Grid off, which leaves the
+grid running with no line to end it.
 
 Other position pills stay on the far right of the plot and cover grid money
 chips at the same price. Two pills from the trade-lines layer still move apart

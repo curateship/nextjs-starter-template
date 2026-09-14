@@ -84,6 +84,7 @@ export const GridLayer = React.memo(function GridLayer({
   onMoveRange,
   onMoveExit,
   onRemoveStop,
+  onRemoveEnd,
 }: {
   surface: ChartSurface
   colors: ChartColors
@@ -108,6 +109,8 @@ export const GridLayer = React.memo(function GridLayer({
   reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (grid: SmartGrid, move: GridRangeMove) => Promise<boolean>
   onRemoveStop?: (grid: SmartGrid) => Promise<boolean>
+  /** Switches End Grid off, leaving the grid running with no end line. */
+  onRemoveEnd?: (grid: SmartGrid) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
     which: "takeProfit" | "stopLoss",
@@ -486,6 +489,7 @@ export const GridLayer = React.memo(function GridLayer({
           onMoveRange={onMoveRange}
           onMoveExit={onMoveExit}
           onRemoveStop={onRemoveStop}
+          onRemoveEnd={onRemoveEnd}
           // Split in two so a drag measures the layer's box ONCE, when it
           // starts, instead of asking the browser to lay out on every pixel
           // of movement. The box cannot move mid-drag — nothing scrolls or
@@ -777,6 +781,7 @@ function GridLines({
   onMoveRange,
   onMoveExit,
   onRemoveStop,
+  onRemoveEnd,
   measureTop,
   priceFrom,
 }: {
@@ -799,6 +804,7 @@ function GridLines({
   reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (grid: SmartGrid, move: GridRangeMove) => Promise<boolean>
   onRemoveStop?: (grid: SmartGrid) => Promise<boolean>
+  onRemoveEnd?: (grid: SmartGrid) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
     which: "takeProfit" | "stopLoss",
@@ -811,6 +817,7 @@ function GridLines({
 }) {
   const plan = grid.plan
   const [removingStop, setRemovingStop] = React.useState(false)
+  const [removingEnd, setRemovingEnd] = React.useState(false)
   const dragCleanup = React.useRef<() => void>(() => undefined)
   React.useEffect(() => () => dragCleanup.current(), [])
   const direction = plan.direction
@@ -1235,6 +1242,20 @@ function GridLines({
     : sharesRow(targetY, lowerY)
       ? "lower"
       : null
+  // The × switches End Grid off: the line goes and the grid keeps running,
+  // with nothing to end it but its stop or your hand (Tyler, 13 Sep 2026).
+  const removeEnd =
+    onRemoveEnd && target !== null
+      ? {
+          busy: removingEnd,
+          label: "End Grid",
+          onClick: () => {
+            if (removingEnd) return
+            setRemovingEnd(true)
+            void onRemoveEnd(grid).finally(() => setRemovingEnd(false))
+          },
+        }
+      : undefined
   const endChip =
     target !== null ? (
       <NameChip
@@ -1243,6 +1264,7 @@ function GridLines({
         grip
         onGripDown={(event) => startDrag(event, "takeProfit", target)}
         title={endTitle}
+        remove={removeEnd}
       />
     ) : null
   // One money column for the whole grid, as wide as its widest chip. Every
@@ -1546,9 +1568,10 @@ function GridLines({
           colour={colors.warning}
           name={endOnRow ? null : "END GRID"}
           dashed={false}
-          grip
+          grip={!tool && !removingEnd}
           onGripDown={(event) => startDrag(event, "takeProfit", target)}
           title={endTitle}
+          remove={removeEnd}
         />
       ) : null}
       {stopY !== null && stop !== null && stopName !== null ? (
@@ -1562,6 +1585,7 @@ function GridLines({
             onRemoveStop
               ? {
                   busy: removingStop,
+                  label: "grid stop loss",
                   onClick: () => {
                     if (removingStop) return
                     setRemovingStop(true)
@@ -1675,7 +1699,7 @@ function ChartLine({
   remove,
 }: {
   priority?: boolean
-  remove?: { busy: boolean; onClick: () => void }
+  remove?: RemoveControl
   y: number
   /** What this level puts in, when it is a level rather than a boundary. */
   usd?: number
@@ -1773,6 +1797,14 @@ function ChartLine({
   )
 }
 
+/** The × on a name bar: what it takes off, and whether it is working. */
+type RemoveControl = {
+  busy: boolean
+  /** Named in the button's label and its tooltip: "Remove grid stop loss". */
+  label: string
+  onClick: () => void
+}
+
 /**
  * How wide a money chip is, for the shared column. On the generous side on
  * purpose: the chip is right-aligned inside the slot, so a slot a little too
@@ -1799,7 +1831,7 @@ function NameChip({
   title,
   remove,
 }: {
-  remove?: { busy: boolean; onClick: () => void }
+  remove?: RemoveControl
   colour: string
   name: string
   className?: string
@@ -1840,7 +1872,7 @@ function NameChip({
           <TooltipTrigger asChild>
             <button
               type="button"
-              aria-label="Remove grid stop loss"
+              aria-label={`Remove ${remove.label}`}
               disabled={remove.busy}
               className="shrink-0 rounded hover:bg-muted focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
               onPointerDown={(event) => event.stopPropagation()}
@@ -1850,7 +1882,9 @@ function NameChip({
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            {remove.busy ? "Removing stop loss" : "Remove grid stop loss"}
+            {remove.busy
+              ? `Removing ${remove.label}`
+              : `Remove ${remove.label}`}
           </TooltipContent>
         </Tooltip>
       ) : null}

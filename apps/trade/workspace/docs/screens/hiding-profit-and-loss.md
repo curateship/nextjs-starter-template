@@ -21,9 +21,12 @@ Active trades dropdown is gone; there is one switch now, not two.
   stopped and Journal results, the P&L page's day squares and its cards.
 - **Readable: money you have and money already taken.** Balances, free cash,
   what a position is worth, order sizes and coin prices all stay, because
-  somebody hiding their profit still has to be able to trade. **Banked stays
-  readable too** — Tyler, 10 Sep 2026 — it is money already taken rather than
-  what a position is doing now.
+  somebody hiding their profit still has to be able to trade. The Smart orders
+  Held column is one of these: it is what an order paid for what it still
+  holds, not what that holding is doing. **Banked stays readable too** —
+  Tyler, 10 Sep 2026 — it is money already taken rather than what a position is
+  doing now. Banked left the panel's columns on 13 Sep 2026 and is read in an
+  order's details card.
 - **Readable: the chart's own lines, except Entry.** An Exit or a Stop Loss
   label says what WOULD happen at a price nothing has reached, and those are
   the figures a line is dragged by. The Entry line's figure is the position's

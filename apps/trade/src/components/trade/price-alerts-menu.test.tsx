@@ -177,6 +177,16 @@ describe("the alerts menu", () => {
     expect(document.body.textContent).toContain("Alert")
     expect(document.body.textContent).toContain("Fired")
 
+    // The menu opens on Fired, so the armed list is one press away.
+    const alertTab = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).find((candidate) => candidate.textContent?.includes("Alert"))
+    await act(async () => {
+      alertTab?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, button: 0 })
+      )
+    })
+
     // A row puts its market on the chart and leaves the menu up, so a list of
     // alerts is walked down one row at a time.
     await act(async () => buttonStartingWith("BTC").click())

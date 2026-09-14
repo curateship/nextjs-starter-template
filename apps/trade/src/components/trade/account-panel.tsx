@@ -347,11 +347,14 @@ function ActiveWalletRow({
           <EllipsisVerticalIcon className="size-4" />
         </Button>
       </DisabledReason>
-      {wallet.kind === "live" ? (
-        <div className="basis-full">
-          <KeyPermissionNotice wallet={wallet} />
-        </div>
-      ) : null}
+      {/* A safe key says nothing on a row; only a key that can withdraw
+          money, or one nobody could check, speaks up here. The wallet window
+          states the safe answer. */}
+      <KeyPermissionNotice
+        wallet={wallet}
+        sayWhenSafe={false}
+        className="basis-full"
+      />
     </div>
   )
 }
@@ -413,11 +416,14 @@ function WalletCard({
           <EllipsisVerticalIcon className="size-4" />
         </Button>
       </DisabledReason>
-      {wallet.kind === "live" ? (
-        <div className="basis-full">
-          <KeyPermissionNotice wallet={wallet} />
-        </div>
-      ) : null}
+      {/* A safe key says nothing on a row; only a key that can withdraw
+          money, or one nobody could check, speaks up here. The wallet window
+          states the safe answer. */}
+      <KeyPermissionNotice
+        wallet={wallet}
+        sayWhenSafe={false}
+        className="basis-full"
+      />
     </div>
   )
 }

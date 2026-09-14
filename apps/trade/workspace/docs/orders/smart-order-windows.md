@@ -366,21 +366,43 @@ that banked. Each sale says how long ago it happened, its clock time, and the
 gross dollars sold. The exact date and time stays in the hover text. The market
 price no longer takes the sold amount's place.
 
-The list is a sortable table with four columns: Ticker, Type, PnL, and Banked.
+The list is a sortable table with four columns: Ticker, Type, Held and PnL.
 Type is Long or Short and uses the same green and red badge as Active Trades.
 Pressing Type sorts long and short smart orders. The strategy, such as a DCA
 ladder or grid, remains in the details tooltip. There is no Exchange column.
-The favicon stays beside the ticker. Ticker takes the spare width, using 35% of
-the table. Type and PnL each use 20%, and Banked uses 25%. PnL and Banked align
-to the right edge of their columns. Banked puts its sort mark before the label
-so the word and figures end together. Cell content keeps a 16px gutter from
+The favicon stays beside the ticker. Ticker uses 34% of the table, Type 22%,
+Held 20% and PnL 24%. Tyler set those on 13 Sep 2026. There was a Banked column
+until that day, and the width it freed was shared out rather than all handed to
+the ticker. Held stays the narrowest because its figures are the shortest,
+which keeps PnL beside it. Measured in the running app that is 100, 65, 59 and
+71 pixels, and a long ticker such as VIRTUAL now clears the Long or Short
+badge. Every column reads from the left, headings and
+figures alike. PnL and Banked used to hug the right edge, with Banked's sort
+mark before its label, which left a hole between Held and PnL once Held moved
+to the left. Cell content keeps a 16px gutter from
 both panel edges while row backgrounds remain full width. The ticker is the
 coin name from the market list, not the exchange's contract ID. Aster drops
 USDT, KuCoin drops USDTM, and Hyperliquid drops the xyz: prefix. The full ID
 still opens the right chart.
-PnL is the profit or loss on what the smart order still holds. Banked is the
-money from sales that have finished. Banked has no icon, and $0.00 stays visible
-before the first sale.
+Held is what the smart order is still holding, in whole dollars at what it
+paid, read from the left of its column (Tyler, 13 Sep 2026): coins a buying grid or ladder has bought and not sold, or a short a
+selling grid has sold and not bought back. It is the same figure the details
+tooltip calls "Held to sell" or "Held to buy back", rounded, and it was added
+to the table on 13 Sep 2026 at Tyler's ask. A watched price and a signal trade
+show a dash, because neither holds anything of its own. Pressing Held sorts by
+the largest amount held.
+PnL is the profit or loss on what the smart order still holds, and it is the
+column the list opens sorted by, largest first.
+
+**What an order has banked is read in its details card, not in a column.**
+Banked was a fifth column until 13 Sep 2026, when Tyler had it taken out. The
+card still lists every sale, what each one banked, and the total, and that is
+the one place the figure lives now.
+
+The three vertical dots beside a ticker are invisible until the pointer is on
+that row (Tyler, 13 Sep 2026). They keep their space while hidden, so no ticker
+jumps sideways, and they come back for keyboard focus and while their card is
+open.
 
 Pointing at the ticker icon or the ticker name opens the smart order's
 details — the hover target is the whole icon-and-name pair. Keyboard focus
@@ -399,8 +421,8 @@ row (`watched-orders.md`).
 
 Pressing a row opens its market on the chart and keeps the whole row light gray
 while that market is selected. Pressing a heading sorts that column. PnL is the
-opening sort, with the largest profit first. Ticker starts A to Z when pressed.
-Banked starts with the largest figure. Figures the exchange has not
+opening sort, with the largest profit first. Ticker starts A to Z when pressed,
+and Held starts with the largest amount held. Figures the exchange has not
 stated stay at the end in either direction.
 A long Smart orders list scrolls inside the panel beneath its tabs. The panel
 keeps its own height instead of growing the list past the bottom edge.

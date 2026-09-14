@@ -1408,6 +1408,12 @@ export function ChartPanel({
     (one: SmartGrid) => tradingSetGridStop(one.walletId, one.id, null, false, null),
     [tradingSetGridStop]
   )
+  const tradingSetGridEnd = trading.setGridEnd
+  // Switching End Grid off leaves the grid running without an end line.
+  const onRemoveGridEnd = React.useCallback(
+    (one: SmartGrid) => tradingSetGridEnd(one.walletId, one.id, null),
+    [tradingSetGridEnd]
+  )
 
   // The candles on screen right now: an answer whose tag does not match what
   // is wanted belongs to a market that was switched away from, and is not one.
@@ -1874,6 +1880,7 @@ export function ChartPanel({
           onMoveRange={onMoveGridRange}
           onMoveExit={onMoveGridExit}
           onRemoveStop={onRemoveGridStop}
+          onRemoveEnd={onRemoveGridEnd}
         />
         {/* Over the orders and under the ruler: a finished trade is history,
             so it must never hide a stop that is live right now, and
@@ -2022,6 +2029,7 @@ export function ChartPanel({
       onMoveGridRange,
       onMoveGridExit,
       onRemoveGridStop,
+      onRemoveGridEnd,
       onCancelLadder,
       openGridSettings,
       openLadderSettings,

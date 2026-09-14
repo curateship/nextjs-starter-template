@@ -3,11 +3,28 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { WARNING_SURFACE } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
-export function KeyPermissionNotice({ wallet }: { wallet: TradeWallet }) {
+/**
+ * What a live wallet's trading key may do.
+ *
+ * A key that can withdraw money is always said, wherever the wallet is drawn.
+ * The safe answer, "Trade-only key", is only said where there is room to read
+ * it: the wallet windows. The account panel's rows pass `sayWhenSafe={false}`
+ * so a safe key adds no second line under every wallet (Tyler, 13 Sep 2026).
+ */
+export function KeyPermissionNotice({
+  wallet,
+  sayWhenSafe = true,
+  className,
+}: {
+  wallet: TradeWallet
+  sayWhenSafe?: boolean
+  className?: string
+}) {
   if (wallet.kind !== "live") return null
   if (wallet.keyPermission === "trade-only") {
+    if (!sayWhenSafe) return null
     return (
-      <span className="block text-xs text-muted-foreground">
+      <span className={cn("block text-xs text-muted-foreground", className)}>
         Trade-only key
       </span>
     )
@@ -18,7 +35,8 @@ export function KeyPermissionNotice({ wallet }: { wallet: TradeWallet }) {
       role={withdraws ? "alert" : "status"}
       className={cn(
         "flex items-start gap-2 rounded-md p-2 text-xs",
-        WARNING_SURFACE
+        WARNING_SURFACE,
+        className
       )}
     >
       <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
