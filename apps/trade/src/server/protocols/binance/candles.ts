@@ -1,5 +1,9 @@
 import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 import { binanceSymbolFor } from "@/lib/protocols/binance/translate"
+import {
+  READ_TIMEOUT_MS,
+  requestSignal,
+} from "@/server/protocols/request-timeout"
 
 /**
  * Binance USDT-perp klines — the Binance protocol's history source.
@@ -93,7 +97,11 @@ async function fetchRange(
     for (let attempt = 0; ; attempt += 1) {
       let status = 0
       try {
-        const response = await fetch(url)
+        // A page that never answers is retried like a dropped socket, rather
+        // than holding a backtest at "Loading market history" for ever.
+        const response = await fetch(url, {
+          signal: requestSignal(READ_TIMEOUT_MS),
+        })
         status = response.status
         if (response.ok) {
           rows = (await response.json()) as unknown[]

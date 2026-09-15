@@ -25,6 +25,24 @@ describe("Binance networks", () => {
   })
 })
 
+describe("Binance requests that never answer", () => {
+  it("gives every market list and candle request a time limit", async () => {
+    const fetchSpy = vi.fn(
+      async (_url: unknown, _init?: RequestInit) =>
+        new Response(null, { status: 400 })
+    )
+    vi.stubGlobal("fetch", fetchSpy)
+
+    await fetchBinanceCandleHistory("mainnet", "DELISTED", "4h", 0, 1)
+    await fetchBinanceMarkets("mainnet").catch(() => {})
+
+    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(3)
+    for (const [, init] of fetchSpy.mock.calls) {
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+    }
+  })
+})
+
 describe("Binance history", () => {
   it("treats a delisted saved market as missing history", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 400 })))

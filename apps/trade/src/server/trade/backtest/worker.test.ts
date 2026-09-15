@@ -8,7 +8,12 @@ import { defaultDcaParams } from "@/lib/trade/dca"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { createBacktest } from "@/server/trade/backtest/store"
-import { backtestTick, peakInPlay } from "@/server/trade/backtest/worker"
+import {
+  BACKTEST_STALL_MS,
+  backtestTick,
+  peakInPlay,
+  stillMakingProgress,
+} from "@/server/trade/backtest/worker"
 import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
 
 /**
@@ -981,6 +986,19 @@ describe("a run the worker picks up", () => {
 
   it("does nothing at all when there is nothing waiting", async () => {
     await expect(backtestTick(START)).resolves.toBeUndefined()
+  })
+})
+
+describe("a pass that stops making progress", () => {
+  // The heartbeat is its own timer, so without this rule a pass waiting on a
+  // request that never answers keeps its claim fresh for ever and the run
+  // sits at 0% with nothing able to take it back.
+  it("keeps beating while progress is recent", () => {
+    expect(stillMakingProgress(0, BACKTEST_STALL_MS - 1)).toBe(true)
+  })
+
+  it("stops beating once nothing has been written for the stall window", () => {
+    expect(stillMakingProgress(0, BACKTEST_STALL_MS)).toBe(false)
   })
 })
 

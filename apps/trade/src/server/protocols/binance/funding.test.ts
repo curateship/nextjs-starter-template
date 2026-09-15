@@ -45,6 +45,18 @@ describe("Binance funding rates", () => {
     ).toEqual([])
   })
 
+  it("gives a funding request a time limit", async () => {
+    const fetchSpy = vi.fn(
+      async (_url: unknown, _init?: RequestInit) =>
+        new Response(null, { status: 400 })
+    )
+    vi.stubGlobal("fetch", fetchSpy)
+
+    await fetchBinanceFunding("mainnet", "DELISTED", 0, 1)
+
+    expect(fetchSpy.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+  })
+
   it("treats a delisted saved market as missing funding", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 400 })))
 

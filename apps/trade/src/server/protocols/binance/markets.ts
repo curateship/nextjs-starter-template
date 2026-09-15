@@ -11,6 +11,10 @@ import {
   fetchBinanceCandleRange,
   isNotListedOnBinance,
 } from "@/server/protocols/binance/candles"
+import {
+  READ_TIMEOUT_MS,
+  requestSignal,
+} from "@/server/protocols/request-timeout"
 
 /**
  * Binance's USDT perpetuals, in the app's own words.
@@ -138,10 +142,21 @@ export async function fetchBinanceMarkets(
   const cached = scope.__binanceMarketCache
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.catalog
 
-  const [infoResponse, tickerResponse] = await Promise.all([
-    fetch(`${FAPI}/exchangeInfo`),
-    fetch(`${FAPI}/ticker/24hr`),
-  ])
+  // Both calls give up after the read limit. Measured 15 Sep 2026: a list
+  // request with no limit left a 314-coin backtest at "Loading market
+  // history" for ten minutes, because every Aster stock coin checks this
+  // list before it loads anything.
+  let responses: [Response, Response]
+  try {
+    responses = await Promise.all([
+      fetch(`${FAPI}/exchangeInfo`, { signal: requestSignal(READ_TIMEOUT_MS) }),
+      fetch(`${FAPI}/ticker/24hr`, { signal: requestSignal(READ_TIMEOUT_MS) }),
+    ])
+  } catch (error) {
+    if (cached) return cached.catalog
+    throw error
+  }
+  const [infoResponse, tickerResponse] = responses
   if (!infoResponse.ok) {
     // A stale list beats no list while the exchange is briefly unavailable.
     if (cached) return cached.catalog

@@ -176,3 +176,20 @@ calculation. A run with no coin rows starts at zero. Finished runs hide the mete
 
 An unfinished coin shows its latest progress note in Results, such as reading
 candles or running the strategy. A coin without a note keeps its status wording.
+
+## A run that stops moving
+
+The worker holding a run beats once a minute to keep its claim. A second
+worker takes the run back only after five minutes with no beat, and a run
+taken back three times fails with "This run stopped part way through".
+
+- The beat stops once the run has saved no progress for ten minutes. Progress
+  means a coin's note, a coin marked ready or skipped, a coin prepared for the
+  walk, or a step of the walk.
+  A run waiting on a request that never answers is then taken back, instead
+  of sitting at 0% for ever behind a fresh-looking beat.
+- Every Binance request gives up after 15 seconds, the same limit as Aster's.
+  Binance candle and funding pages retry a timeout like a dropped connection.
+  The Binance market list falls back to its last saved copy when one exists.
+- Aster stock coins check Binance's market list before loading anything, so
+  that list is on the path of every Aster run.

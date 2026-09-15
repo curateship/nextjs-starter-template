@@ -3,6 +3,10 @@ import { z } from "zod"
 import { binanceSymbolFor } from "@/lib/protocols/binance/translate"
 import type { FundingRate, NetworkId } from "@/lib/protocols/contracts"
 import { isNotListedOnBinance } from "@/server/protocols/binance/candles"
+import {
+  READ_TIMEOUT_MS,
+  requestSignal,
+} from "@/server/protocols/request-timeout"
 
 const BINANCE_FUNDING = "https://fapi.binance.com/fapi/v1/fundingRate"
 const PAGE_LIMIT = 1000
@@ -71,7 +75,9 @@ async function fundingPage(
     await waitForRequestSlot()
     let status = 0
     try {
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        signal: requestSignal(READ_TIMEOUT_MS),
+      })
       status = response.status
       if (response.ok) return fundingSchema.parse(await response.json())
       await response.body?.cancel().catch(() => {})

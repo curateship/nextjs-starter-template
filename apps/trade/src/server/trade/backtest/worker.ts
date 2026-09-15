@@ -105,6 +105,34 @@ const PREPARE_AT_ONCE = 2
 const WARNING_COINS_AT_ONCE = 5
 const HEARTBEAT_MS = 60_000
 
+/**
+ * How long a pass may go without writing any progress before its heartbeat
+ * stops.
+ *
+ * The heartbeat is a timer of its own, so it keeps beating even when the work
+ * underneath it is waiting on a request that will never answer. On 15 Sep
+ * 2026 a 314-coin run sat on its first six coins that way, and the orphan rule
+ * never took it back because the claim looked fresh. A pass that has written
+ * nothing for this long stops beating, the orphan window takes the run back,
+ * and three such passes fail it out loud.
+ *
+ * Ten minutes is well past the slowest honest gap: one coin's Dukascopy
+ * download waiting out its full retries.
+ */
+export const BACKTEST_STALL_MS = 10 * 60_000
+
+/** When each claimed run last wrote progress, by group id. */
+const lastProgressAt = new Map<string, number>()
+
+function markProgress(groupId: string): void {
+  lastProgressAt.set(groupId, Date.now())
+}
+
+/** Whether a pass that last wrote progress at `lastAt` should still beat. */
+export function stillMakingProgress(lastAt: number, now: number): boolean {
+  return now - lastAt < BACKTEST_STALL_MS
+}
+
 async function mapInBatches<Input, Output>(
   values: readonly Input[],
   batchSize: number,
@@ -163,11 +191,20 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
   if (!claimed) return
 
   const { userId, groupId } = claimed
+  markProgress(groupId)
   let heartbeatFailure: unknown = null
   let heartbeatTail: Promise<void> = Promise.resolve()
   const heartbeat = setInterval(() => {
     heartbeatTail = heartbeatTail.then(async () => {
       if (heartbeatFailure) return
+      const lastAt = lastProgressAt.get(groupId) ?? 0
+      if (!stillMakingProgress(lastAt, Date.now())) {
+        console.error(
+          `Backtest ${groupId}: no progress for ${BACKTEST_STALL_MS / 60_000} minutes, letting the claim go stale`
+        )
+        clearInterval(heartbeat)
+        return
+      }
       try {
         await heartbeatBacktestGroup(userId, groupId, claimed.attempts)
       } catch (error) {
@@ -240,6 +277,7 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
   } finally {
     clearInterval(heartbeat)
     await heartbeatTail
+    lastProgressAt.delete(groupId)
   }
   if (heartbeatFailure) throw heartbeatFailure
 }
@@ -351,6 +389,7 @@ async function loadOneCoin(
   // which is true of real money too, and is why the window it actually got is
   // recorded below rather than left to be guessed at.
 
+  markProgress(groupId)
   await db
     .update(tradeBacktests)
     .set({
@@ -488,7 +527,12 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
         })
       }
     },
-    sampleHeap
+    () => {
+      sampleHeap()
+      // Preparing hundreds of coins writes nothing to the database, so each
+      // finished coin counts as progress or a busy run would look stalled.
+      markProgress(groupId)
+    }
   )
   sampleHeap()
 
@@ -1048,6 +1092,7 @@ async function skipCoin(
   marketKey: string,
   reason: string
 ): Promise<void> {
+  markProgress(groupId)
   await db
     .update(tradeBacktests)
     .set({
@@ -1072,6 +1117,7 @@ async function note(
   progress: number,
   progressNote: string
 ): Promise<void> {
+  markProgress(groupId)
   await db
     .update(tradeBacktests)
     .set({ status: "running", progress, progressNote })
@@ -1090,6 +1136,7 @@ async function noteAll(
   progress: number,
   progressNote: string
 ): Promise<void> {
+  markProgress(groupId)
   await db
     .update(tradeBacktests)
     .set({ progress, progressNote })
