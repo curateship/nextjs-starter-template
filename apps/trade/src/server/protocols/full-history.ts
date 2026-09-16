@@ -40,12 +40,36 @@ export const PAGES_AT_ONCE = 6
 let inFlight = 0
 const waiting: (() => void)[] = []
 
+/**
+ * The longest a page may wait for a slot before it fails.
+ *
+ * Every page read carries its own time limit, so a slot always comes free in
+ * seconds. This is the backstop for the one that does not: on 15 Sep 2026 a
+ * Dukascopy download with no limit held its slot for twelve hours and every
+ * history load in the process queued behind it with no end. Failing out loud
+ * lets a backtest count a try and a chart show an error.
+ */
+export const SLOT_WAIT_LIMIT_MS = 5 * 60_000
+
 async function takeSlot(): Promise<void> {
   if (inFlight < PAGES_AT_ONCE) {
     inFlight += 1
     return
   }
-  await new Promise<void>((resolve) => waiting.push(resolve))
+  await new Promise<void>((resolve, reject) => {
+    const turn = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      const at = waiting.indexOf(turn)
+      if (at >= 0) waiting.splice(at, 1)
+      reject(
+        new Error("Market history is jammed: no request slot came free in five minutes.")
+      )
+    }, SLOT_WAIT_LIMIT_MS)
+    waiting.push(turn)
+  })
   inFlight += 1
 }
 

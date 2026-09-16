@@ -93,6 +93,7 @@ export function BacktestStatsPanel({
   coinsTotal,
   running,
   progress = 0,
+  progressText = `${Math.round(progress * 100)}% through`,
   stopRequested,
   onStop,
 }: {
@@ -111,8 +112,10 @@ export function BacktestStatsPanel({
   onWindow: (next: GraphWindow) => void
   /** How much the run borrows — see the tooltip in the graph. */
   coinsTotal: number
-  /** Average progress across the run's coins, from zero to one. */
+  /** How far the run has got, from zero to one. */
   progress?: number
+  /** The bar's words, from `backtestMeter`. */
+  progressText?: string
   /** The run has not finished, so these figures are still moving. */
   running: boolean
   /** True once a stop has been asked for, so the button says so. */
@@ -191,13 +194,11 @@ export function BacktestStatsPanel({
       />
       {running ? (
         <div className="grid gap-2 border-b px-5 py-3">
-          <span className="text-xs tabular-nums">
-            {Math.round(progress * 100)}% through
-          </span>
+          <span className="text-xs tabular-nums">{progressText}</span>
           <Meter
             value={Math.round(progress * 100)}
             label="Backtest progress"
-            valueText={`${Math.round(progress * 100)}% through`}
+            valueText={progressText}
           />
         </div>
       ) : null}

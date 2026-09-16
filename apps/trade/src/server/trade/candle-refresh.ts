@@ -38,6 +38,17 @@ import { tradeCandleCoverage } from "@/server/trade/schema"
  */
 export const REQUESTS_PER_PASS = 20
 
+/**
+ * How long a pair whose top-up failed is left alone.
+ *
+ * On 15 Sep 2026 Dukascopy refused SMH's newest 4-hour window every time.
+ * SMH stayed the most-behind pair, so every pass asked for it first, each
+ * refusal took about 54 seconds, and the tries piled up in Dukascopy's
+ * one-at-a-time line in front of a backtest. A failed pair now rests, and the
+ * pass carries on with the next one.
+ */
+export const FAILED_PAIR_REST_MS = 30 * 60_000
+
 /** Whatever a source states as its page, or the store's default. */
 const DEFAULT_PAGE_BARS = 1_000
 
@@ -46,9 +57,34 @@ export type CandleRefreshOutcome = {
   requests: number
 }
 
+/** Pairs that failed, by `marketKey interval`, and when they may be asked again. */
+const restingUntil = new Map<string, number>()
+
+/**
+ * The pass still running, if any.
+ *
+ * The dev server's ticker starts a pass every fifteen seconds whether or not
+ * the last one finished. Without this, a slow source gets a new pass's asks
+ * queued behind the old ones every tick.
+ */
+let passInFlight: Promise<CandleRefreshOutcome> | null = null
+
 export async function refreshCandleStore(
   database: CustomShellDb = db,
   now: number = Date.now()
+): Promise<CandleRefreshOutcome> {
+  if (passInFlight) return { toppedUp: 0, requests: 0 }
+  passInFlight = topUpStore(database, now)
+  try {
+    return await passInFlight
+  } finally {
+    passInFlight = null
+  }
+}
+
+async function topUpStore(
+  database: CustomShellDb,
+  now: number
 ): Promise<CandleRefreshOutcome> {
   const covered = await database
     .select({
@@ -65,6 +101,8 @@ export async function refreshCandleStore(
   for (const row of covered) {
     if (requests >= REQUESTS_PER_PASS) break
     if (row.end === null || !isHistorySource(row.marketKey)) continue
+    const pair = `${row.marketKey} ${row.interval}`
+    if ((restingUntil.get(pair) ?? 0) > now) continue
     const ref = parseMarketKey(row.marketKey)
     if (!ref) continue
 
@@ -85,8 +123,19 @@ export async function refreshCandleStore(
     const from = Math.max(row.end, to - room * pageMs)
     const pages = Math.ceil((to - from) / pageMs)
 
-    await ensureCandleCoverage(row.marketKey, row.interval, from, to, database)
+    // Counted before the ask, so a failed pair still spends its share.
     requests += pages
+    try {
+      await ensureCandleCoverage(row.marketKey, row.interval, from, to, database)
+    } catch (error) {
+      restingUntil.set(pair, now + FAILED_PAIR_REST_MS)
+      console.warn(
+        `[candle-refresh] ${pair} failed, left alone for ${FAILED_PAIR_REST_MS / 60_000} minutes: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      continue
+    }
     toppedUp += 1
   }
 

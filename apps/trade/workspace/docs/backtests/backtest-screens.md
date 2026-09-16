@@ -130,6 +130,20 @@ migration or backtest rerun is needed to show durations on saved runs.
 - Download and engine failures retain the existing retry and failure rules.
   A failure that stops the whole run can leave the same error on several coins.
   The screen displays the saved evidence without inventing a separate cause.
+- Stocks are the exception. Tyler, 15 Sep 2026: "run cryptos first and still
+  show results just for crypto if stocks refused". A run loads every crypto
+  coin before any stock, and the stocks one at a time. A stock whose Dukascopy
+  download fails is skipped on that first failure with "Dukascopy would not
+  send this stock's history" and Dukascopy's own words, and is never retried.
+- Inside a backtest a refused Dukascopy file is not retried either, so the
+  refusal arrives in about a second rather than after five retries ten
+  seconds apart. Charts keep the retries.
+- Once one stock is refused, every stock after it in that run is skipped
+  without asking Dukascopy, with "it had already refused another stock in this
+  run". Tyler chose this on 15 Sep 2026 knowing a stock Dukascopy might have
+  sent is lost with them. A pass that takes the run over reads the saved skips
+  and keeps skipping. The run then finishes with results for the coins it
+  could test.
 
 ## Several candle sizes from one press
 
@@ -170,9 +184,20 @@ and creates no rows. Clear all checkboxes to check the empty-selection error.
 
 ## Progress on a running backtest
 
-The full run page shows percent through and the shared meter beneath the stats
-header. The value averages every coin's progress, matching the canvas card's
-calculation. A run with no coin rows starts at zero. Finished runs hide the meter.
+The full run page shows the shared meter beneath the stats header, and the
+canvas card and Backtests list show the same words from `backtestMeter`
+(`src/lib/trade/backtest/progress.ts`). A run with no coin rows starts at zero.
+Finished runs hide the meter.
+
+- While any coin is still waiting or loading its candles, the bar counts
+  coins: "Loaded 290 of 314 coins". Tyler asked for this on 15 Sep 2026, after
+  a run with every crypto coin loaded sat near 30% for an hour while its
+  stocks loaded.
+- That count fills only the first 30% of the bar, which is where a fully
+  loaded run starts. Filled to the plain share, the bar read 98% with 309 of
+  314 coins loaded and would have fallen back to 30% when the walk began.
+- Once every coin is loaded or skipped, the bar goes back to percent through,
+  the average of every coin's progress.
 
 An unfinished coin shows its latest progress note in Results, such as reading
 candles or running the strategy. A coin without a note keeps its status wording.
@@ -188,8 +213,18 @@ taken back three times fails with "This run stopped part way through".
   walk, or a step of the walk.
   A run waiting on a request that never answers is then taken back, instead
   of sitting at 0% for ever behind a fresh-looking beat.
-- Every Binance request gives up after 15 seconds, the same limit as Aster's.
-  Binance candle and funding pages retry a timeout like a dropped connection.
-  The Binance market list falls back to its last saved copy when one exists.
-- Aster stock coins check Binance's market list before loading anything, so
-  that list is on the path of every Aster run.
+- Every exchange request gives up after 15 seconds. Binance candle and funding
+  pages retry a timeout like a dropped connection, and the Binance market list
+  falls back to its last saved copy when one exists.
+- A Dukascopy download gives up after five minutes, and a history page gives
+  up after waiting five minutes for a request slot. Both fail with a plain
+  error, so a run counts the try instead of retrying for ever.
+- A refused stock no longer holds a run up at all. Before 15 Sep 2026 a
+  Dukascopy refusal handed the whole run back untouched, the next pass asked
+  again, and a 314-coin run sat at 157 coins for an hour with its try count
+  never rising. The stock is now skipped on that refusal (see "Why a coin was
+  skipped or failed").
+- On 15 Sep 2026 two General Test DCA runs sat on their first six Aster coins.
+  The same coins loaded in under a second from a fresh process. The server
+  had a Dukascopy download with no time limit that never finished, and the
+  history loads queued behind it held every request slot.

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { isTimeout } from "@/server/protocols/request-timeout"
+import { giveUpAfter, isTimeout } from "@/server/protocols/request-timeout"
 import { fetchKucoinMarkets } from "@/server/protocols/kucoin/markets"
 import { fetchPhemexMarkets } from "@/server/protocols/phemex/markets"
 
@@ -19,6 +19,18 @@ import { fetchPhemexMarkets } from "@/server/protocols/phemex/markets"
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe("a library call that takes no abort signal", () => {
+  it("lets the caller go once the limit passes", async () => {
+    await expect(
+      giveUpAfter(new Promise(() => {}), 5, "no answer")
+    ).rejects.toThrow("no answer")
+  })
+
+  it("answers with the call when it finishes in time", async () => {
+    await expect(giveUpAfter(Promise.resolve(7), 1_000, "no answer")).resolves.toBe(7)
+  })
 })
 
 /** A connection that hangs until its deadline, exactly like a stalled one. */

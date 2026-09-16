@@ -2,6 +2,8 @@ import { and, eq } from "drizzle-orm"
 import { performance } from "node:perf_hooks"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
+import { historySourceFor } from "@/lib/protocols/history-source"
+import { COIN_LOADED_PROGRESS } from "@/lib/trade/backtest/progress"
 import { firstOpenAtOrAfter } from "@/lib/trade/candle-window"
 import {
   BACKTEST_STOPPED_EARLY,
@@ -43,6 +45,7 @@ import {
   listFundingGaps,
   loadStoredFunding,
 } from "@/server/trade/funding-store"
+import { withoutDukascopyRetries } from "@/server/protocols/dukascopy/candles"
 import { replayMarketRules } from "@/server/trade/market-rules"
 import { resolveHistorySource } from "@/server/trade/history-source"
 import { getProtocol } from "@/server/protocols/registry"
@@ -225,6 +228,7 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
         marketKey: tradeBacktests.marketKey,
         status: tradeBacktests.status,
         candlesReady: tradeBacktests.candlesReady,
+        skipReason: tradeBacktests.skipReason,
       })
       .from(tradeBacktests)
       .where(
@@ -237,10 +241,19 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
     const toLoad = pending
       .filter((coin) => !coin.candlesReady && coin.status !== "skipped")
       .map((coin) => coin.marketKey)
-      .sort()
+      .sort(cryptoBeforeStocks)
 
     if (toLoad.length > 0) {
-      await loadSomeCandles(claimed, toLoad)
+      // Read from the saved skips, so a pass that takes over a run already
+      // knows Dukascopy refused it and does not ask again.
+      const dukascopy = {
+        refused: pending.some(
+          (coin) =>
+            coin.status === "skipped" &&
+            coin.skipReason?.startsWith(DUKASCOPY_REFUSED) === true
+        ),
+      }
+      await loadSomeCandles(claimed, toLoad, dukascopy)
       // Straight on into the walk in the same pass. Letting go here and waiting
       // for the next tick is what made a fifty-coin run take minutes: the work
       // is seconds, and the fifteen seconds between ticks was the rest of it.
@@ -293,7 +306,8 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
  */
 async function loadSomeCandles(
   claimed: { userId: string; groupId: string; spec: BacktestSpecSnapshot },
-  marketKeys: readonly string[]
+  marketKeys: readonly string[],
+  dukascopy: DukascopyVerdict
 ): Promise<void> {
   const { userId, groupId, spec } = claimed
   const warmFrom = spec.from - baseWarmupBars(spec) * BASE_STOP_BAR_MS
@@ -301,16 +315,55 @@ async function loadSomeCandles(
   // A few at a time, rather than one after another: each coin is two network
   // reads and nothing else, so waiting for one before starting the next is
   // almost all of the wall-clock for no reason.
-  for (let at = 0; at < marketKeys.length; at += FETCH_AT_ONCE) {
+  //
+  // Stocks go one at a time. Dukascopy downloads one at a time anyway, so a
+  // batch of stocks only queued, and a stock started beside the first refused
+  // one would still have been asked before the refusal was known.
+  const batches: string[][] = []
+  const crypto = marketKeys.filter((key) => !readsDukascopy(key))
+  for (let at = 0; at < crypto.length; at += FETCH_AT_ONCE) {
+    batches.push(crypto.slice(at, at + FETCH_AT_ONCE))
+  }
+  for (const stock of marketKeys.filter(readsDukascopy)) batches.push([stock])
+
+  for (const batch of batches) {
     if (await backtestStopRequested(userId, groupId)) return
     await Promise.all(
-      marketKeys
-        .slice(at, at + FETCH_AT_ONCE)
-        .map((marketKey) =>
-          loadOneCoin(userId, groupId, spec, marketKey, warmFrom)
-        )
+      batch.map((marketKey) =>
+        loadOneCoin(userId, groupId, spec, marketKey, warmFrom, dukascopy)
+      )
     )
   }
+}
+
+/**
+ * How every stock skip for a Dukascopy refusal begins.
+ *
+ * Also how a later pass recognises that this run was already refused, so the
+ * wording is load-bearing: change it and a run taken over mid-way asks again.
+ */
+export const DUKASCOPY_REFUSED = "Dukascopy would not send this stock's history"
+
+/** Whether Dukascopy has refused a stock in this run yet. Shared by one pass. */
+type DukascopyVerdict = { refused: boolean }
+
+/** Whether a market's history comes from Dukascopy, which is where stocks live. */
+function readsDukascopy(marketKey: string): boolean {
+  return (historySourceFor(marketKey) ?? marketKey).startsWith("dukascopy:")
+}
+
+/**
+ * Crypto first, stocks last, and each group in key order.
+ *
+ * Tyler, 15 Sep 2026: "run cryptos first and still show results just for
+ * crypto if stocks refused". Stocks load from Dukascopy, which refuses this
+ * server for minutes at a time; loaded first, they held 125 crypto coins
+ * behind them for an hour.
+ */
+function cryptoBeforeStocks(left: string, right: string): number {
+  const stock = Number(readsDukascopy(left)) - Number(readsDukascopy(right))
+  if (stock !== 0) return stock
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 /**
@@ -325,7 +378,8 @@ async function loadOneCoin(
   groupId: string,
   spec: BacktestSpecSnapshot,
   marketKey: string,
-  warmFrom: number
+  warmFrom: number,
+  dukascopy: DukascopyVerdict
 ): Promise<void> {
   const ref = parseMarketKey(marketKey)
   if (!ref) {
@@ -344,26 +398,65 @@ async function loadOneCoin(
   // store had sources holds venue keys, and mapping them here rather than
   // rewriting the saved spec is what keeps that run rerunnable untouched.
   const source = (await resolveHistorySource(marketKey)) ?? marketKey
-  const window = await ensureCandleCoverage(
-    source,
-    spec.interval,
-    spec.from,
-    spec.to
-  )
-  // The base rule reads the 4h whatever the run walks, and it needs history
-  // from before the window so a level can already be known on day one.
-  await ensureCandleCoverage(source, BASE_STOP_INTERVAL, warmFrom, spec.to)
-  // A signals run needs the same head start at its OWN interval. Its own call
-  // rather than a wider window above, so the "no history for this coin" answer
-  // still comes from exactly the stretch being tested.
-  const signalFrom = signalWarmupFrom(spec)
-  if (signalFrom < spec.from) {
-    await ensureCandleCoverage(source, spec.interval, signalFrom, spec.from)
+  const fromDukascopy = source.startsWith("dukascopy:")
+  // Once Dukascopy has refused one stock in this run, the rest are skipped
+  // without asking. Tyler chose this on 15 Sep 2026 over waiting on each one,
+  // knowing a stock Dukascopy might have sent is lost with them.
+  if (fromDukascopy && dukascopy.refused) {
+    await skipCoin(
+      userId,
+      groupId,
+      marketKey,
+      `${DUKASCOPY_REFUSED}: it had already refused another stock in this run, so this one was not asked.`
+    )
+    return
   }
-  // Stocks have no funding on Dukascopy. The run says so on its result
-  // rather than recording a missing stretch nobody could have filled.
-  if (sourceHasFunding(source)) {
-    await ensureFundingCoverage(source, spec.from, spec.to)
+
+  const loadHistory = async () => {
+    const window = await ensureCandleCoverage(
+      source,
+      spec.interval,
+      spec.from,
+      spec.to
+    )
+    // The base rule reads the 4h whatever the run walks, and it needs history
+    // from before the window so a level can already be known on day one.
+    await ensureCandleCoverage(source, BASE_STOP_INTERVAL, warmFrom, spec.to)
+    // A signals run needs the same head start at its OWN interval. Its own
+    // call rather than a wider window above, so the "no history for this
+    // coin" answer still comes from exactly the stretch being tested.
+    const signalFrom = signalWarmupFrom(spec)
+    if (signalFrom < spec.from) {
+      await ensureCandleCoverage(source, spec.interval, signalFrom, spec.from)
+    }
+    // Stocks have no funding on Dukascopy. The run says so on its result
+    // rather than recording a missing stretch nobody could have filled.
+    if (sourceHasFunding(source)) {
+      await ensureFundingCoverage(source, spec.from, spec.to)
+    }
+    return window
+  }
+
+  let window: Awaited<ReturnType<typeof ensureCandleCoverage>>
+  try {
+    window = fromDukascopy
+      ? await withoutDukascopyRetries(loadHistory)
+      : await loadHistory()
+  } catch (error) {
+    // A stock Dukascopy will not send is skipped on the first refusal, never
+    // retried, so the run finishes with its crypto results. Every other
+    // source keeps the retry rules in `backtestTick`.
+    if (!fromDukascopy) throw error
+    dukascopy.refused = true
+    const said = (error instanceof Error ? error.message : String(error))
+      .replace(/^EXCHANGE_BUSY:/, "")
+    await skipCoin(
+      userId,
+      groupId,
+      marketKey,
+      `${DUKASCOPY_REFUSED}, so the run carried on without it (${said}).`
+    )
+    return
   }
 
   if (window.barCount === 0) {
@@ -395,7 +488,7 @@ async function loadOneCoin(
     .set({
       candlesReady: true,
       status: "running",
-      progress: 0.3,
+      progress: COIN_LOADED_PROGRESS,
       progressNote: "Waiting for the strategy",
     })
     .where(

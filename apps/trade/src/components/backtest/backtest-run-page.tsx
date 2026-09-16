@@ -32,6 +32,7 @@ import {
 } from "@/lib/trade/backtest/graph"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
+import { backtestMeter } from "@/lib/trade/backtest/progress"
 import { resultSummary, stoppedEarly } from "@/lib/trade/backtest/result"
 import type {
   BacktestCoinSummary,
@@ -384,6 +385,7 @@ export function BacktestRunPage({
   const shown = chart?.key === activeCoin ? chart : null
   const shownError = chartError?.key === activeCoin ? chartError.message : null
   const done = run.finishedAt !== null
+  const meter = backtestMeter(coins)
 
   const openCoinInChart = (marketKey: string) => {
     setActiveCoin(marketKey)
@@ -445,11 +447,8 @@ export function BacktestRunPage({
       window={window}
       onWindow={setWindow}
       coinsTotal={coins.length}
-      progress={
-        coins.length
-          ? coins.reduce((sum, coin) => sum + coin.progress, 0) / coins.length
-          : 0
-      }
+      progress={meter.value}
+      progressText={meter.text}
       running={!done}
       stopRequested={run.stopRequested || stopping}
       onStop={askToStop}

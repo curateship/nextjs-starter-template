@@ -458,14 +458,11 @@ export default function BacktestCanvasPanel({
             </p>
           ) : running ? (
             <div className="grid gap-2">
-              <Line
-                label="Progress"
-                value={`${Math.round(run.progress * 100)}% through`}
-              />
+              <Line label="Progress" value={run.progressText} />
               <Meter
                 value={Math.round(run.progress * 100)}
                 label="How far through the backtest is"
-                valueText={`${Math.round(run.progress * 100)}% through`}
+                valueText={run.progressText}
                 size="sm"
               />
             </div>

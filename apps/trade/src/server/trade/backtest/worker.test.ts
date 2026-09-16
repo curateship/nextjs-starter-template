@@ -56,6 +56,10 @@ const permanentFailures = new Set<string>()
 const rateLimitOnce = new Set<string>()
 /** Markets the exchange refuses with "slow down" until this is emptied. */
 const rationed = new Set<string>()
+/** Stocks Dukascopy refuses, with the message its adapter throws. */
+const dukascopyRefuses = new Set<string>()
+/** Every market id the fake exchange was asked for, in order. */
+const historyOrder: string[] = []
 /** Markets omitted from the rules replay, after their stored history loads. */
 const unlistedRules = new Set<string>()
 let rulesInFlight = 0
@@ -95,6 +99,12 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
         from: number,
         to: number
       ) => {
+        historyOrder.push(marketId)
+        if (dukascopyRefuses.has(marketId)) {
+          throw new Error(
+            "EXCHANGE_BUSY:Dukascopy — refused for now; it lets go after a few minutes"
+          )
+        }
         if (permanentFailures.has(marketId)) {
           throw new Error("the exchange said no")
         }
@@ -210,6 +220,8 @@ beforeEach(async () => {
   history = new Map()
   permanentFailures.clear()
   rateLimitOnce.clear()
+  dukascopyRefuses.clear()
+  historyOrder.length = 0
   unlistedRules.clear()
   rulesInFlight = 0
   peakRulesInFlight = 0
@@ -982,6 +994,65 @@ describe("a run the worker picks up", () => {
       .from(tradeBacktests)
       .where(eq(tradeBacktests.groupId, groupId))
     expect(coin.status).toBe("done")
+  })
+
+  it("loads crypto before stocks and finishes with crypto when Dukascopy refuses a stock", async () => {
+    // Tyler, 15 Sep 2026: "run cryptos first and still show results just for
+    // crypto if stocks refused". Six crypto coins fill the first batch, so
+    // the stock can only be asked for once every one of them has been.
+    const crypto = ["A1", "A2", "A3", "A4", "A5", "A6"]
+    for (const coin of crypto) {
+      history.set(coin, shape(START - 600 * FOUR_HOURS, 800))
+    }
+    history.set("tslaususd", shape(START - 600 * FOUR_HOURS, 800))
+    history.set("nvdaususd", shape(START - 600 * FOUR_HOURS, 800))
+    dukascopyRefuses.add("tslaususd")
+    dukascopyRefuses.add("nvdaususd")
+
+    const { groupId } = await createBacktest(
+      userId,
+      {
+        automationId: "flow-1",
+        automationName: "My strategy",
+        spec: specOf([
+          "dukascopy:mainnet:tslaususd",
+          "dukascopy:mainnet:nvdaususd",
+          ...crypto.map((coin) => `hyperliquid:mainnet:${coin}`),
+        ]),
+        now: START,
+      },
+      db
+    )
+
+    expect(await tickUntilDone(groupId)).not.toBeNull()
+
+    const stockAsks = historyOrder.filter((id) => id.endsWith("ususd"))
+    const firstStockAsk = historyOrder.findIndex((id) => id.endsWith("ususd"))
+    for (const coin of crypto) {
+      expect(historyOrder.indexOf(coin)).toBeLessThan(firstStockAsk)
+    }
+    // NVDA sorts first and is refused once; TSLA is then skipped without
+    // Dukascopy being asked at all.
+    expect(stockAsks).toEqual(["nvdaususd"])
+
+    const [group] = await db
+      .select()
+      .from(tradeBacktestGroups)
+      .where(eq(tradeBacktestGroups.id, groupId))
+    expect(group.summary?.coinsTested).toBe(crypto.length)
+
+    const [stock] = await db
+      .select()
+      .from(tradeBacktests)
+      .where(
+        and(
+          eq(tradeBacktests.groupId, groupId),
+          eq(tradeBacktests.marketKey, "dukascopy:mainnet:tslaususd")
+        )
+      )
+    expect(stock.status).toBe("skipped")
+    expect(stock.skipReason).toContain("Dukascopy would not send this stock's history")
+    expect(stock.skipReason).toContain("already refused another stock")
   })
 
   it("does nothing at all when there is nothing waiting", async () => {

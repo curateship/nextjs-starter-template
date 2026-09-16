@@ -618,6 +618,10 @@ describe("the list", () => {
     const [row] = await listBacktests(userId, { automationId: "flow-1" }, db)
     expect(row.id).toBe(groupId)
     expect(row.progressNote).toBe("Loading market history")
+    // One coin's candles are in and one is still loading, so the bar counts.
+    expect(row.progressText).toBe("Loaded 1 of 2 coins")
+    // Half the coins loaded, across the first 30% of the bar.
+    expect(row.progress).toBeCloseTo(0.15)
   })
 
   it("keeps a pinned run from becoming the flow's answer forever", async () => {

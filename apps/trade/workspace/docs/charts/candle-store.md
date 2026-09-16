@@ -144,6 +144,14 @@ one statement.
 - One pass spends at most 20 requests, so it can never crowd the trading engine
   or a backtest out of the shared six-in-flight gate. Binance goes through its
   own back-off and Dukascopy through the library's batch pause under that.
+- A pass never starts while the previous one is still running. The dev
+  server's ticker fires every fifteen seconds regardless, and a slow source
+  would otherwise collect a new pass's asks behind the old ones every tick.
+- A pair whose top-up fails is left alone for 30 minutes, and the pass moves on
+  to the next pair. On 15 Sep 2026 Dukascopy refused SMH's newest 4-hour window
+  every time. SMH stayed the most-behind pair, every pass asked for it first,
+  and those refusals filled Dukascopy's one-at-a-time line in front of a
+  backtest's stocks for over ten minutes.
 - Only the sources are topped up. Rows an older build stored under a venue's
   own key are left alone; they are harmless and the ten-year sweep removes
   them in time.

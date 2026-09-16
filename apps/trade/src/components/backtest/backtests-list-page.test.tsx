@@ -46,6 +46,7 @@ function run(
     stopRequested: false,
     summary: null,
     progress: 1,
+    progressText: "100% through",
     progressNote: "Done",
     coinsDone: 1,
     coinsTotal: 1,
@@ -227,6 +228,22 @@ describe("backtest elapsed time", () => {
       root.render(<BacktestStatsPanel {...props} progress={0.75} />)
     )
     expect(host.textContent).toContain("75% through")
+    // While coins are still loading the bar counts them instead.
+    await act(async () =>
+      root.render(
+        <BacktestStatsPanel
+          {...props}
+          progress={290 / 314}
+          progressText="Loaded 290 of 314 coins"
+        />
+      )
+    )
+    expect(host.textContent).toContain("Loaded 290 of 314 coins")
+    expect(
+      host
+        .querySelector('[aria-label="Backtest progress"]')
+        ?.getAttribute("aria-valuetext")
+    ).toBe("Loaded 290 of 314 coins")
     await act(async () =>
       root.render(
         <BacktestStatsPanel

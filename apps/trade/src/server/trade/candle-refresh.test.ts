@@ -5,6 +5,7 @@ import type { CandleBar } from "@/lib/protocols/contracts"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase } from "@/server/test-support"
 import {
+  FAILED_PAIR_REST_MS,
   refreshCandleStore,
   REQUESTS_PER_PASS,
 } from "@/server/trade/candle-refresh"
@@ -20,6 +21,10 @@ const HOUR = 3_600_000
 const FOUR_HOURS = 4 * HOUR
 
 const asks: Array<{ marketId: string; from: number; to: number }> = []
+/** Markets the source refuses every time, like SMH on 15 Sep 2026. */
+const refused = new Set<string>()
+/** While set, every ask waits for it, so a pass can be caught mid-flight. */
+let holdAsks: Promise<void> | null = null
 
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -34,6 +39,10 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
         to: number
       ) => {
         asks.push({ marketId, from, to })
+        if (holdAsks) await holdAsks
+        if (refused.has(marketId)) {
+          throw new Error("EXCHANGE_BUSY:Dukascopy — refused for now")
+        }
         const step = interval === "1h" ? HOUR : FOUR_HOURS
         const bars: CandleBar[] = []
         for (let at = Math.ceil(from / step) * step; at < to; at += step) {
@@ -56,12 +65,65 @@ let db: CustomShellDb
 beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   asks.length = 0
+  refused.clear()
+  holdAsks = null
   vi.spyOn(console, "info").mockImplementation(() => {})
+  vi.spyOn(console, "warn").mockImplementation(() => {})
 })
 
 afterEach(async () => {
   vi.restoreAllMocks()
   await client.close()
+})
+
+describe("a source that keeps refusing one pair", () => {
+  it("rests the refused pair, still tops up the rest, and asks again later", async () => {
+    // A market name no other test uses: resting pairs are remembered for the
+    // life of the module.
+    const REFUSED = "dukascopy:mainnet:smhususd"
+    await ensureCandleCoverage(REFUSED, "4h", START, START + 90 * FOUR_HOURS, db)
+    await ensureCandleCoverage(BTC, "4h", START, START + 100 * FOUR_HOURS, db)
+    asks.length = 0
+    refused.add("smhususd")
+
+    const now = START + 102 * FOUR_HOURS + 1_000
+    // SMH is furthest behind, so it is asked first; its refusal no longer
+    // ends the pass before BTC.
+    expect(await refreshCandleStore(db, now)).toMatchObject({ toppedUp: 1 })
+    expect(asks.map((ask) => ask.marketId)).toEqual(["smhususd", "BTC"])
+
+    asks.length = 0
+    await refreshCandleStore(db, now + 60_000)
+    expect(asks.map((ask) => ask.marketId)).not.toContain("smhususd")
+
+    asks.length = 0
+    refused.clear()
+    await refreshCandleStore(db, now + FAILED_PAIR_REST_MS + 1)
+    expect(asks.map((ask) => ask.marketId)).toContain("smhususd")
+  })
+})
+
+describe("overlapping passes", () => {
+  it("does nothing while the previous pass is still running", async () => {
+    await ensureCandleCoverage(BTC, "4h", START, START + 100 * FOUR_HOURS, db)
+    asks.length = 0
+    let release = () => {}
+    holdAsks = new Promise<void>((done) => (release = done))
+
+    const now = START + 102 * FOUR_HOURS + 1_000
+    const first = refreshCandleStore(db, now)
+    await vi.waitFor(() => expect(asks).toHaveLength(1))
+
+    await expect(refreshCandleStore(db, now)).resolves.toEqual({
+      toppedUp: 0,
+      requests: 0,
+    })
+    expect(asks).toHaveLength(1)
+
+    holdAsks = null
+    release()
+    await expect(first).resolves.toEqual({ toppedUp: 1, requests: 1 })
+  })
 })
 
 describe("what gets topped up", () => {

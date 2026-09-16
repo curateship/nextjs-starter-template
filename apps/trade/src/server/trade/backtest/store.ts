@@ -17,6 +17,7 @@ import {
 
 import { marketSymbol, parseMarketKey } from "@/lib/protocols/contracts"
 import type { BacktestSpec } from "@/lib/trade/backtest/flow"
+import { backtestMeter } from "@/lib/trade/backtest/progress"
 import type {
   BacktestCoinSummary,
   BacktestResult,
@@ -647,15 +648,14 @@ export async function listBacktests(
     const running = own
       .filter((coin) => coin.status === "running")
       .sort((left, right) => left.progress - right.progress)[0]
+    const meter = backtestMeter(own)
     return {
       ...group,
       createdAt: group.createdAt.getTime(),
       finishedAt: group.finishedAt?.getTime() ?? null,
       failed: own.some((coin) => coin.status === "error"),
-      progress:
-        own.length === 0
-          ? 0
-          : own.reduce((sum, coin) => sum + coin.progress, 0) / own.length,
+      progress: meter.value,
+      progressText: meter.text,
       progressNote: group.finishedAt
         ? "Done"
         : (running?.progressNote ?? own[0]?.progressNote ?? "Waiting to start"),

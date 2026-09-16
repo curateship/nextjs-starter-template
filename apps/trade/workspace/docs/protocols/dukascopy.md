@@ -113,8 +113,23 @@ proved. The measurements came from the `dukascopy-node` package, version
 - Downloads run one at a time across the whole process. A backtest loads
   several coins at once, and five stocks each pulling three files a batch is
   fifteen files a batch against the same feed, which is the pace that drew
-  the 429. Every call also takes one slot in the process-wide six-in-flight
-  gate shared with the other sources.
+  the 429. A call waits for its turn in that line first, then takes one slot
+  in the process-wide six-in-flight gate shared with the other sources, so
+  Dukascopy never holds more than one slot however many stocks are queued.
+- The library fetches its files with no time limit, so each download gives up
+  after five minutes with a plain error. On 15 Sep 2026 one download never
+  finished, and the queued downloads behind it held every slot in the gate.
+  Aster, KuCoin, Phemex and Lighter history on that server then waited for
+  good, and two backtests sat at 0%.
+- A backtest's downloads run inside `withoutDukascopyRetries`, so a refused
+  file fails at once instead of after five retries ten seconds apart. A
+  backtest skips the stock on that refusal anyway, and on 15 Sep 2026 each
+  retried refusal cost about 50 seconds a stock. Charts keep the retries.
+- A call that waits ten minutes in the line without its download starting
+  leaves the line with a plain error, and its download never runs. The same
+  day a backtest's AAPL waited over ten minutes behind refused SMH top-ups
+  that each failed inside the five-minute download limit, so that limit alone
+  never fired.
 - A refusal that reaches the backtest worker is an ordinary failed pass: the
   run is released and retried on a later tick, as any exchange fault is.
 - A second and a half passes between one download finishing and the next

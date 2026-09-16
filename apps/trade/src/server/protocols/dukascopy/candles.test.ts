@@ -5,8 +5,11 @@ import type {
   DukascopyRow,
 } from "@/server/protocols/dukascopy/client"
 import {
+  DUKASCOPY_DOWNLOAD_LIMIT_MS,
+  DUKASCOPY_QUEUE_WAIT_LIMIT_MS,
   fetchDukascopyCandleHistory,
   fetchDukascopyCandles,
+  withoutDukascopyRetries,
 } from "@/server/protocols/dukascopy/candles"
 import { fetchDukascopyMarkets } from "@/server/protocols/dukascopy/markets"
 import week from "./tsla-1h-week.fixture.json"
@@ -20,10 +23,12 @@ import week from "./tsla-1h-week.fixture.json"
 
 const asked: DukascopyHistoryRequest[] = []
 let refuse = false
+let hang = false
 
 vi.mock("@/server/protocols/dukascopy/client", () => ({
   getHistoricalRates: async (request: DukascopyHistoryRequest) => {
     asked.push(request)
+    if (hang) return new Promise<DukascopyRow[]>(() => {})
     if (refuse) throw new Error("Request failed with status 429")
     return (week as DukascopyRow[]).filter(
       (row) =>
@@ -39,6 +44,64 @@ const NEXT_MONDAY = Date.parse("2026-08-31T00:00:00.000Z")
 afterEach(() => {
   asked.length = 0
   refuse = false
+  hang = false
+})
+
+// First in the file on purpose: the download queue is shared by the whole
+// module, and this test must start with nothing waiting in it.
+describe("a download that never finishes", () => {
+  it("fails once the download limit passes, so its queue turn is let go", async () => {
+    vi.useFakeTimers()
+    try {
+      hang = true
+      const outcome = fetchDukascopyCandleHistory(
+        "mainnet",
+        "tslaususd",
+        "1h",
+        MONDAY,
+        NEXT_MONDAY
+      ).then(
+        () => "answered",
+        (error: Error) => error.message
+      )
+      await vi.advanceTimersByTimeAsync(DUKASCOPY_DOWNLOAD_LIMIT_MS)
+      expect(await outcome).toContain("did not answer within five minutes")
+      // Let the queue's pause after the failed call run out under the fake
+      // clock, so the next test's download is not left waiting behind it.
+      await vi.advanceTimersByTimeAsync(2_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("lets a call leave the line once it has waited too long, and never runs it", async () => {
+    vi.useFakeTimers()
+    try {
+      hang = true
+      const ask = () =>
+        fetchDukascopyCandleHistory("mainnet", "tslaususd", "1h", MONDAY, NEXT_MONDAY).then(
+          () => "answered",
+          (error: Error) => error.message
+        )
+      // Two stuck downloads take five minutes each, so the third call is
+      // still waiting in line when its ten minutes run out.
+      const first = ask()
+      const second = ask()
+      const third = ask()
+
+      await vi.advanceTimersByTimeAsync(DUKASCOPY_QUEUE_WAIT_LIMIT_MS)
+      expect(await first).toContain("did not answer within five minutes")
+      expect(await third).toContain("waited ten minutes in line")
+
+      await vi.advanceTimersByTimeAsync(DUKASCOPY_DOWNLOAD_LIMIT_MS)
+      expect(await second).toContain("did not answer within five minutes")
+      // Drain the pauses, then check the third call never asked Dukascopy.
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(asked).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe("a week of Tesla hourly bars", () => {
@@ -138,6 +201,16 @@ describe("what is never asked for", () => {
       Date.parse("2026-08-28T00:00:00.000Z")
     )
     expect(bars).toHaveLength(7)
+  })
+})
+
+describe("retrying a refused file", () => {
+  it("retries for a chart, and not at all inside a backtest's load", async () => {
+    await fetchDukascopyCandleHistory("mainnet", "tslaususd", "4h", MONDAY, NEXT_MONDAY)
+    await withoutDukascopyRetries(() =>
+      fetchDukascopyCandleHistory("mainnet", "tslaususd", "4h", MONDAY, NEXT_MONDAY)
+    )
+    expect(asked.map((request) => request.retryCount)).toEqual([5, 0])
   })
 })
 

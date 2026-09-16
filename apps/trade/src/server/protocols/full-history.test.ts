@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { clearHeldHistory, heldHistory } from "@/server/protocols/full-history"
+import {
+  clearHeldHistory,
+  heldHistory,
+  inBatches,
+  PAGES_AT_ONCE,
+  SLOT_WAIT_LIMIT_MS,
+} from "@/server/protocols/full-history"
 import { clearRationing } from "@/server/protocols/rationing"
 import { fetchKucoinCandles } from "@/server/protocols/kucoin/candles"
 import { fetchPhemexCandles } from "@/server/protocols/phemex/candles"
@@ -63,6 +69,38 @@ function stubExchange(count: number, shape: "phemex" | "kucoin") {
   vi.stubGlobal("fetch", fetcher)
   return { calls: () => calls, atOnce: () => atOnce }
 }
+
+describe("a request slot that never comes free", () => {
+  // On 15 Sep 2026 six stuck downloads held every slot, and each history load
+  // after them waited for good. A page must fail rather than wait for ever.
+  it("fails the waiting page once the wait limit passes, then frees up again", async () => {
+    vi.useFakeTimers()
+    try {
+      const holders: Array<() => void> = []
+      const held = inBatches(
+        Array.from(
+          { length: PAGES_AT_ONCE },
+          () => () => new Promise<void>((done) => holders.push(done))
+        )
+      )
+      const waiter = inBatches([async () => "late"])
+      const outcome = waiter.then(
+        () => "answered",
+        (error: Error) => error.message
+      )
+
+      await vi.advanceTimersByTimeAsync(SLOT_WAIT_LIMIT_MS)
+      expect(await outcome).toContain("no request slot came free")
+
+      for (const done of holders) done()
+      await held
+      // The timed-out page left the queue, so the slots are usable again.
+      await expect(inBatches([async () => "next"])).resolves.toEqual(["next"])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 
 describe("walking back to a coin's listing day", () => {
   it("Phemex: never asks for a window that ends in the future", async () => {

@@ -27,6 +27,25 @@ export function requestSignal(timeoutMs: number): AbortSignal {
 }
 
 /**
+ * Settles with `work`, or fails with `message` once `ms` have passed.
+ *
+ * For a library call that takes no abort signal. The call itself keeps
+ * running in the background, but whoever was waiting on it is let go, along
+ * with any request slot or queue turn it was holding.
+ */
+export function giveUpAfter<T>(
+  work: Promise<T>,
+  ms: number,
+  message: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer))
+}
+
+/**
  * True when this error is a request that ran out of time rather than an
  * answer the exchange gave. `AbortSignal.timeout` raises a `TimeoutError`;
  * an abort raises `AbortError`.

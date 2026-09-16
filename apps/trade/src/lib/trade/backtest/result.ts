@@ -1043,6 +1043,8 @@ export type BacktestListRow = {
   summary: BacktestSummary | null
   /** How far the whole run has got, 0 to 1, and what it is doing. */
   progress: number
+  /** The bar's words: "Loaded 290 of 314 coins", then "42% through". */
+  progressText: string
   progressNote: string
   coinsDone: number
   coinsTotal: number
