@@ -31,15 +31,22 @@ range divided by preceding average true range. Range and ATR also show as a
 share of the latest price. Bollinger width uses 20 closes, a simple mean and
 two population standard deviations on each side. The forming close is included.
 
-Choose Price increase, volume only, volatility only, or both volume and volatility.
-The selected condition controls which fields are shown. Price increase shows only its percentage and rolling window, plus the shared enable and exchange controls. Volume and volatility settings remain saved and return when another condition is selected. The added Price increase fields
-set the required percentage and rolling time window. The preset "Use 5% rise in
+Choose Price move, volume only, volatility only, or both volume and volatility.
+The selected condition controls which fields are shown. Price move shows only its percentage, its direction and its rolling window, plus the shared enable and exchange controls. Volume and volatility settings remain saved and return when another condition is selected. The preset "Use 5% rise in
 1 minute" chooses that rule while preserving volume and volatility settings.
 
+**Price move watches the size of the move first and its direction second.**
+Two tick boxes under it, "Price rises" and "Price falls", say which way counts.
+Both ticked finds either. At 5% with only "Price falls" ticked, a market going
+from $100 to $95 is found and one going to $105 is not. One box always stays
+ticked, because a rule watching for neither direction finds nothing, so the
+last ticked box is greyed out and says why. Settings saved before the
+direction existed watch for a rise, which is all the rule ever did.
+
 The price rule compares the latest fresh price with the price one or five minutes
-earlier. A $100 market reaching $105 qualifies at 5%. This is a rolling window,
+earlier. This is a rolling window,
 independent of candle boundaries, volume and ATR. It needs a full window of price
-history before qualifying. Price mode uses the existing exchange-wide figures
+history before qualifying. Price move uses the existing exchange-wide figures
 feed and opens no candle subscriptions, so the 20-market candle limit does not apply.
 
 Matches are captured once per market and remain until manually deleted. Price

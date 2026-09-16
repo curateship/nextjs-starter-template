@@ -278,7 +278,7 @@ export function useMarketScanner(
             change,
             rule:
               settings.mode === "price"
-                ? `price rose ${(change * 100).toFixed(2)}% over the preceding ${settings.priceWindowSeconds / 60} minute${settings.priceWindowSeconds === 60 ? "" : "s"}`
+                ? `price ${change < 0 ? "fell" : "rose"} ${Math.abs(change * 100).toFixed(2)}% over the preceding ${settings.priceWindowSeconds / 60} minute${settings.priceWindowSeconds === 60 ? "" : "s"}`
                 : `${settings.mode === "both" ? "volume and volatility" : settings.mode} matched; price change ${(change * 100).toFixed(2)}% over ${settings.mode === "volume" ? "the preceding minute" : `the ${settings.interval} candle`}`,
           })
         }

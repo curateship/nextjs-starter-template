@@ -139,6 +139,7 @@ const reshapeLadderSchema = ladderSchema
     anchorPx: z.number().positive().finite().optional(),
     deepestPx: z.number().positive().finite().optional(),
     stopPx: z.number().positive().finite().optional(),
+    clearStop: z.literal(true).optional(),
     exitIndex: z.number().int().min(0).max(19).optional(),
     exitPx: z.number().positive().finite().optional(),
     settings: dcaLadderSettingsSchema.optional(),
@@ -156,17 +157,32 @@ const reshapeLadderSchema = ladderSchema
         input.settings !== undefined && input.greenInterval !== undefined
       const anySettingsField =
         input.settings !== undefined || input.greenInterval !== undefined
+      const stopClear = input.clearStop === true
       const stopMove = input.stopPx !== undefined
+      const anyStopField = stopMove || stopClear
       const anyEntryField =
         input.anchorPx !== undefined || input.deepestPx !== undefined
       return (
-        Number(entryMove && !anyExitField && !anySettingsField && !stopMove) +
-          Number(exitMove && !anyEntryField && !anySettingsField && !stopMove) +
+        Number(entryMove && !anyExitField && !anySettingsField && !anyStopField) +
           Number(
-            settingsChange && !anyEntryField && !anyExitField && !stopMove
+            exitMove && !anyEntryField && !anySettingsField && !anyStopField
           ) +
           Number(
-            stopMove && !anyEntryField && !anyExitField && !anySettingsField
+            settingsChange && !anyEntryField && !anyExitField && !anyStopField
+          ) +
+          Number(
+            stopMove &&
+              !stopClear &&
+              !anyEntryField &&
+              !anyExitField &&
+              !anySettingsField
+          ) +
+          Number(
+            stopClear &&
+              !stopMove &&
+              !anyEntryField &&
+              !anyExitField &&
+              !anySettingsField
           ) ===
         1
       )
@@ -319,17 +335,19 @@ const reshapeLadderFn = createServerFn({ method: "POST" })
             settings: data.settings,
             greenInterval: data.greenInterval,
           }
-        : data.stopPx !== undefined
-          ? { ladderId: data.ladderId, stopPx: data.stopPx }
-          : data.anchorPx !== undefined
-            ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
-            : data.deepestPx !== undefined
-              ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
-              : {
-                  ladderId: data.ladderId,
-                  exitIndex: data.exitIndex as number,
-                  exitPx: data.exitPx as number,
-                }
+        : data.clearStop === true
+          ? { ladderId: data.ladderId, clearStop: true as const }
+          : data.stopPx !== undefined
+            ? { ladderId: data.ladderId, stopPx: data.stopPx }
+            : data.anchorPx !== undefined
+              ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
+              : data.deepestPx !== undefined
+                ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
+                : {
+                    ladderId: data.ladderId,
+                    exitIndex: data.exitIndex as number,
+                    exitPx: data.exitPx as number,
+                  }
     return wallet.kind === "live"
       ? await reshapeLiveLadder(context.user.id, wallet, input)
       : await reshapeLadderRows(context.user.id, wallet, input)

@@ -650,13 +650,13 @@ describe("the chart paint tools", () => {
     const items = Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
     // 90 against a mark of 105: the row names the gap, not the price.
     expect(items.map((item) => item.textContent)).toContain(
-      "Alert 14.3% below price"
+      "Alert 14.3% below"
     )
     expect(items.map((item) => item.textContent)).not.toContain("Buy limit")
 
     await act(async () =>
       items
-        .find((item) => item.textContent === "Alert 14.3% below price")
+        .find((item) => item.textContent === "Alert 14.3% below")
         ?.click()
     )
     expect(createAlert).toHaveBeenCalledWith({

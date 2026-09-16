@@ -60,7 +60,7 @@ databases never inherit it.
 
 ## The screen believes the server's answer
 
-A placed order's "sending" line turns into the real order the moment the
+A placed order's stand-in line turns into the real order the moment the
 answer names it — see `charts/orders-on-the-chart.md`. The full re-read
 still runs and remains the truth.
 

@@ -21,6 +21,13 @@ import type { TradeOrder } from "@/lib/trade/paper"
  * price it buys at, so it is not a stop at all. An order the winning price
  * does not suit keeps its own line, and whatever is left groups among itself.
  *
+ * **An order with no stop of its own joins the line that is there.** Tyler, 16
+ * Sep 2026: "If there is no stop for a second manual order then it joins the
+ * currant position stop." It has no price to merge, so it takes the group's,
+ * and the same save that moves a merged stop writes it. A second $150 buy
+ * placed with nothing filled in is then covered, and the line's figure says
+ * what both orders lose together instead of what one of them does.
+ *
  * **Only orders this app holds are merged.** An order already resting at the
  * exchange cannot be changed in place, so it keeps the single line it has
  * always had. An order still being sent draws no stop or exit line at all
@@ -46,6 +53,36 @@ export type OrderLineGroup = {
 /** A stop below the price for a buy, above it for a sell. */
 function suitsEntry(order: TradeOrder, price: number): boolean {
   return order.side === "buy" ? price < order.px : price > order.px
+}
+
+/** An exit is the other way round: above the price for a buy. */
+function suitsExit(order: TradeOrder, price: number): boolean {
+  return order.side === "buy" ? price > order.px : price < order.px
+}
+
+/**
+ * Whether an order with no stop, or no exit, of its own may join the line its
+ * lane already draws.
+ *
+ * **A reduce-only order is closing a trade, so it has nothing to protect.** A
+ * sell that closes a long is still a sell, and without this it would join the
+ * stop that a short on the same coin drew and be given a stop it was never
+ * meant to have. The same goes for a trigger leg the exchange handed back,
+ * which is protection the position already owns.
+ *
+ * An order still being sent, or one whose exchange reply is still being
+ * chased, has nothing on the server to write to. A resting exchange order
+ * cannot be changed in place at all.
+ */
+function joinsALine(level: "sl" | "tp") {
+  return (order: TradeOrder): boolean =>
+    (level === "sl" ? order.slPx : order.tpPx) === null &&
+    !order.placing &&
+    !order.taking &&
+    !order.checking &&
+    !order.live &&
+    !order.reduceOnly &&
+    !order.trigger
 }
 
 /** Of two stops on the same side, the one that loses less. */
@@ -94,6 +131,7 @@ export function orderStopGroups(
   // it. The order's own bar already says "sending".
   const withStop = orders.filter((one) => one.slPx !== null && !one.placing)
   const groups: OrderLineGroup[] = []
+  const withoutStop = orders.filter(joinsALine("sl"))
 
   for (const order of withStop) {
     if (order.live) groups.push(loneGroup(order, "sl", order.slPx ?? 0, false))
@@ -128,6 +166,21 @@ export function orderStopGroups(
       })
       rest = rest.filter((one) => !takers.includes(one))
     }
+  }
+
+  // The stop-less orders, each on the first group of its own lane whose price
+  // is still a stop for it. First rather than nearest, because the groups came
+  // out of the loop above tightest first, and the tighter line is the one that
+  // loses less.
+  for (const order of withoutStop) {
+    const home = groups.find(
+      (group) =>
+        group.movable &&
+        group.walletId === order.walletId &&
+        group.orders[0].side === order.side &&
+        suitsEntry(order, group.price)
+    )
+    if (home) home.orders = [...home.orders, order]
   }
 
   const place = new Map(withStop.map((one, index) => [one.id, index]))
@@ -165,6 +218,36 @@ export function stopMerges(groups: readonly OrderLineGroup[]): StopMerge[] {
   )
 }
 
+/** One order's exit, set to the price its lane's only exit line sits at. */
+export type TargetMerge = {
+  walletId: string
+  orderId: string
+  price: number
+}
+
+/**
+ * The saves that give a stop-less or exit-less order the line it joined.
+ *
+ * Only the orders that had nothing of their own are here. An order that came
+ * with its own exit is never moved onto somebody else's, which is the rule
+ * `orderTargetGroups` explains.
+ */
+export function targetMerges(
+  groups: readonly OrderLineGroup[]
+): TargetMerge[] {
+  return groups.flatMap((group) =>
+    group.movable
+      ? group.orders
+          .filter((one) => one.tpPx === null)
+          .map((one) => ({
+            walletId: one.walletId,
+            orderId: one.id,
+            price: group.price,
+          }))
+      : []
+  )
+}
+
 /**
  * The exit lines to draw, one per price the waiting orders already share.
  *
@@ -174,6 +257,12 @@ export function stopMerges(groups: readonly OrderLineGroup[]): StopMerge[] {
  * another would quietly give profit away. Two exits at the same price are one
  * line because they are one price, and two at different prices stay two lines.
  *
+ * **An order with no exit of its own is the one thing that does move**, and it
+ * gives nothing away: it had no price to lose. It joins its lane's exit when
+ * the lane has exactly one, because with two there is no such thing as the
+ * exit to join and picking one would put its profit on a line it may never
+ * reach.
+ *
  * The chart's own Exit row sets one price on every order at once, so the
  * ordinary way of getting here already produces one line.
  */
@@ -181,6 +270,7 @@ export function orderTargetGroups(
   orders: readonly TradeOrder[]
 ): OrderLineGroup[] {
   const withTarget = orders.filter((one) => one.tpPx !== null && !one.placing)
+  const withoutTarget = orders.filter(joinsALine("tp"))
   const groups: OrderLineGroup[] = []
   const shared = new Map<string, TradeOrder[]>()
 
@@ -201,6 +291,20 @@ export function orderTargetGroups(
       orders: members,
       movable: members.every((one) => !one.taking),
     })
+  }
+
+  // Only where one exit line is an exit for this order. With two there is no
+  // such thing as the exit to join, and picking one would put its profit on a
+  // line it may never reach.
+  for (const order of withoutTarget) {
+    const lane = groups.filter(
+      (group) =>
+        group.movable &&
+        group.walletId === order.walletId &&
+        group.orders[0].side === order.side &&
+        suitsExit(order, group.price)
+    )
+    if (lane.length === 1) lane[0].orders = [...lane[0].orders, order]
   }
 
   const place = new Map(withTarget.map((one, index) => [one.id, index]))

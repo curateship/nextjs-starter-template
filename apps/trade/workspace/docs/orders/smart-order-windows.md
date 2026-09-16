@@ -216,6 +216,14 @@ and below 100. This choice does not use the confirmed-base rule.
 - **While every rung waits:** The saved ladder keeps its stop handle. A drop must stay
   below the last rung and above zero. A refused save returns the line to its
   saved price. The server rechecks that the ladder has not started buying.
+- **Taking the stop off:** An × sits on the stop line beside its grip, and
+  pressing it leaves the ladder with no stop at all. The rungs stay exactly
+  where they are, and a rung that had been greyed out for sitting under the
+  stop wakes up and buys again, because the line that killed it is gone.
+  Nothing rests at an exchange yet at this point, so there is no stop order to
+  cancel. The × appears only while the ladder still carries a stop and has not
+  bought anything, since after the first buy the position's own stop handle is
+  the place to change it.
 - **After a buy:** The position's existing stop handle moves the actual stop.
   A manual move keeps the chosen price as more rungs buy. The ladder settings
   can put the stop back under the last-rung rule.

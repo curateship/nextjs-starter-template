@@ -509,6 +509,7 @@ export type Trading = {
     ladderId: string,
     shape:
       | { stopPx: number }
+      | { clearStop: true }
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }

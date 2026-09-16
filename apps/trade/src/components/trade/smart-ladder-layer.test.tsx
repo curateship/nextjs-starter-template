@@ -199,6 +199,98 @@ describe("DCA chart ladders", () => {
     )
   })
 
+  it("takes the stop off from the × on the stop line", async () => {
+    const onReshape = vi.fn(async () => true)
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      plan: {
+        anchorPx: 110,
+        steppedDown: 0,
+        reclaim: null,
+        rungs: [100, 90].map((px) => ({
+          px,
+          sz: 1,
+          status: "waiting",
+          orderId: null,
+          sellOrderId: null,
+        })),
+        exitRungs: [],
+        takeProfit: null,
+        stopLoss: { mode: "lastRung", pct: 10, base: null },
+      },
+    } as unknown as SmartLadder
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          preview={null}
+          tool={null}
+          walletName={() => "Wallet"}
+          onReshapeLadder={onReshape}
+        />
+      )
+    )
+
+    const remove = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove the DCA ladder\'s stop loss"]'
+    )!
+    await act(async () => remove.click())
+
+    expect(onReshape).toHaveBeenCalledWith(ladder, { clearStop: true })
+  })
+
+  it("hides the stop's × on a ladder that carries no stop", async () => {
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      plan: {
+        anchorPx: 110,
+        steppedDown: 0,
+        reclaim: null,
+        rungs: [100, 90].map((px) => ({
+          px,
+          sz: 1,
+          status: "waiting",
+          orderId: null,
+          sellOrderId: null,
+        })),
+        exitRungs: [],
+        takeProfit: null,
+        stopLoss: null,
+      },
+    } as unknown as SmartLadder
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          preview={null}
+          tool={null}
+          walletName={() => "Wallet"}
+          onReshapeLadder={vi.fn(async () => true)}
+        />
+      )
+    )
+
+    expect(
+      host.querySelector('button[aria-label="Remove the DCA ladder\'s stop loss"]')
+    ).toBeNull()
+  })
+
   it("shows order dollars instead of coin prices", async () => {
     await act(async () => {
       root.render(

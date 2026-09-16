@@ -94,6 +94,14 @@ export function NotificationCenter({
   const [firstPageLoaded, setFirstPageLoaded] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [markingAll, setMarkingAll] = React.useState(false)
+  // The notices that opening the tray marked read. The bell's red number is
+  // meant to go the moment the tray opens (Tyler, 16 Sep 2026), but a notice
+  // that vanishes from the Unread tab in the same instant is one nobody got to
+  // read. These ids stay in the Unread list until the tray is shut.
+  const [readOnOpen, setReadOnOpen] = React.useState<readonly string[]>([])
+  // Read by `clearUnread`, which opening the tray calls from an effect that
+  // must not be rebuilt on every count change.
+  const unreadCountRef = React.useRef(initialUnreadCount)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
   const requestInFlightRef = React.useRef(false)
@@ -107,8 +115,14 @@ export function NotificationCenter({
 
   const visibleNotifications =
     filter === "unread"
-      ? notifications.filter((item) => !item.read_at)
+      ? notifications.filter(
+          (item) => !item.read_at || readOnOpen.includes(item.id)
+        )
       : notifications
+
+  // What the Unread tab counts: the notices still unread, plus the ones this
+  // opening just marked read and is still showing.
+  const unreadShown = unreadCount + readOnOpen.length
 
   // Where this app's own notices lead, looked up while the tray is being read
   // rather than after a click. Empty in an app that has not set the option.
@@ -119,7 +133,7 @@ export function NotificationCenter({
   // show none. Own up to the gap and offer the pages that close it.
   const hiddenUnreadCount =
     filter === "unread"
-      ? Math.max(0, unreadCount - visibleNotifications.length)
+      ? Math.max(0, unreadShown - visibleNotifications.length)
       : 0
   const canLoadHiddenUnread = hiddenUnreadCount > 0 && nextCursor !== null
 
@@ -173,10 +187,49 @@ export function NotificationCenter({
     }
   }, [])
 
+  /**
+   * Clearing the bell's red number, which is what opening the tray means.
+   *
+   * Tyler, 16 Sep 2026: clicking the bell clears the red number. Having seen
+   * the tray is having been told, so every notice is marked read the moment it
+   * opens rather than one click at a time. The rows themselves stay in the
+   * Unread list until the tray is shut, through `readOnOpen`, so nothing
+   * disappears out from under whoever just opened it.
+   *
+   * **It finishes before the first page is asked for.** Both run on the same
+   * click, and a page fetched beside the write answers with the count as it
+   * was a moment earlier. That put the red number straight back on a bell
+   * that had just cleared.
+   *
+   * A failure here says nothing out loud. The number on the bell is still the
+   * last one that was true, and the next check will say so again.
+   */
+  const clearUnread = React.useCallback(async () => {
+    if (unreadCountRef.current === 0) return
+    try {
+      const result = await markAllNotificationsRead()
+      const readIds = new Set(result.notificationIds)
+      setNotifications((current) =>
+        current.map((item) =>
+          readIds.has(item.id) ? { ...item, read_at: result.readAt } : item
+        )
+      )
+      setReadOnOpen(result.notificationIds)
+      setUnreadCount(0)
+    } catch {
+      // Left as it was on purpose.
+    }
+  }, [])
+
+  React.useEffect(() => {
+    unreadCountRef.current = unreadCount
+  })
+
   React.useEffect(() => {
     if (!open || requestInFlightRef.current) return
     requestInFlightRef.current = true
-    void listNotificationPage({ limit: NOTIFICATION_PAGE_SIZE })
+    void clearUnread()
+      .then(() => listNotificationPage({ limit: NOTIFICATION_PAGE_SIZE }))
       .then((data) => {
         setNotifications(data.notifications)
         setUnreadCount(data.unread_count)
@@ -191,7 +244,7 @@ export function NotificationCenter({
         requestInFlightRef.current = false
         setFirstPageLoaded(true)
       })
-  }, [open])
+  }, [clearUnread, open])
 
   /**
    * What the live connection (and its slow fallback check) asks for.
@@ -368,6 +421,11 @@ export function NotificationCenter({
         if (nextOpen && notifications.length === 0) {
           setFirstPageLoaded(false)
         }
+        if (!nextOpen) {
+          // Shut: the notices it held open go back to being ordinary read
+          // rows, so the next opening starts from what is actually unread.
+          setReadOnOpen([])
+        }
         setOpen(nextOpen)
       }}
     >
@@ -421,7 +479,7 @@ export function NotificationCenter({
             onValueChange={(value) => setFilter(value as NotificationFilter)}
           >
             <TabsList>
-              <TabsTrigger value="unread">Unread ({unreadCount})</TabsTrigger>
+              <TabsTrigger value="unread">Unread ({unreadShown})</TabsTrigger>
               <TabsTrigger value="all">View all</TabsTrigger>
             </TabsList>
           </Tabs>

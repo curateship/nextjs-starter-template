@@ -15,6 +15,7 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Select,
   SelectTrigger,
@@ -30,6 +31,12 @@ import {
   type ScannerSettings,
 } from "@/lib/trade/market-scanner"
 import { showErrorToast } from "@/lib/toast/error-toast"
+
+/** The two boxes under Price move. Both ticked is the both-ways rule. */
+const MOVE_DIRECTIONS = [
+  { id: "up" as const, label: "Price rises" },
+  { id: "down" as const, label: "Price falls" },
+]
 
 export function MarketScannerSettings({
   settings: savedSettings,
@@ -77,7 +84,7 @@ export function MarketScannerSettings({
       setInvalid(parsed.error.issues.map((issue) => String(issue.path[0])))
       showErrorToast(
         draft.mode === "price"
-          ? "Choose at least one exchange and enter a price increase between 0.1% and 1,000%."
+          ? "Choose at least one exchange and enter a price move between 0.1% and 1,000%."
           : "Choose at least one exchange and enter valid positive thresholds. ATR lookback must be 2 to 100 candles."
       )
       return
@@ -170,7 +177,7 @@ export function MarketScannerSettings({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="price">Price increase</SelectItem>
+                      <SelectItem value="price">Price move</SelectItem>
                       <SelectItem value="volume">
                         Unusual trading volume
                       </SelectItem>
@@ -190,6 +197,7 @@ export function MarketScannerSettings({
                       ...draft,
                       enabled: true,
                       mode: "price",
+                      priceDirection: "up",
                       priceWindowSeconds: 60,
                     })
                     setNumbers({ ...numbers, priceIncreasePct: "5" })
@@ -237,16 +245,61 @@ export function MarketScannerSettings({
             {draft.mode === "price" ? (
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Price increase</CardTitle>
+                  <CardTitle>Price move</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   {numberField(
                     "priceIncreasePct",
-                    "Price rises at least (%)",
-                    "5 means a market moving from $100 to $105 qualifies.",
+                    "Price moves at least (%)",
+                    "5 means a market going from $100 to $105, or to $95, qualifies.",
                     0.1,
                     1000
                   )}
+                  {/* Two boxes rather than a third dropdown: both ticked is
+                      the both-ways rule, and it reads as one question. The
+                      last ticked box cannot be unticked, because a rule that
+                      watches for neither direction finds nothing. */}
+                  <fieldset className="grid gap-4">
+                    <legend className="mb-2 text-sm font-medium">
+                      Which way
+                    </legend>
+                    {MOVE_DIRECTIONS.map((option) => {
+                      const checked =
+                        draft.priceDirection === option.id ||
+                        draft.priceDirection === "both"
+                      const onlyOne = checked && draft.priceDirection !== "both"
+                      return (
+                        <div
+                          key={option.id}
+                          className="flex items-center gap-2"
+                        >
+                          <DisabledReason
+                            disabled={onlyOne}
+                            reason="One direction has to stay ticked. Tick the other one first."
+                          >
+                            <Checkbox
+                              id={`scanner-move-${option.id}`}
+                              checked={checked}
+                              disabled={onlyOne}
+                              onCheckedChange={(ticked) =>
+                                setDraft({
+                                  ...draft,
+                                  priceDirection: ticked
+                                    ? "both"
+                                    : option.id === "up"
+                                      ? "down"
+                                      : "up",
+                                })
+                              }
+                            />
+                          </DisabledReason>
+                          <FieldLabel htmlFor={`scanner-move-${option.id}`}>
+                            {option.label}
+                          </FieldLabel>
+                        </div>
+                      )
+                    })}
+                  </fieldset>
                   <div className="grid gap-2">
                     <FieldLabel htmlFor="scanner-price-window">
                       Within the last
@@ -271,7 +324,12 @@ export function MarketScannerSettings({
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Show a market when its price is at least{" "}
-                    {numbers.priceIncreasePct}% higher than{" "}
+                    {numbers.priceIncreasePct}%{" "}
+                    {draft.priceDirection === "up"
+                      ? "higher than"
+                      : draft.priceDirection === "down"
+                        ? "lower than"
+                        : "higher or lower than"}{" "}
                     {draft.priceWindowSeconds / 60} minute
                     {draft.priceWindowSeconds === 60 ? "" : "s"} ago. The
                     percentage shown is saved when the market is found. Scanning

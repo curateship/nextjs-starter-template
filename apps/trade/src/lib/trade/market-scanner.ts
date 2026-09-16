@@ -15,6 +15,11 @@ export const scannerSettingsSchema = z.object({
     .max(KNOWN_PROTOCOLS.length),
   mode: z.enum(["price", "volume", "volatility", "both"]),
   priceIncreasePct: z.number().finite().min(0.1).max(1000).default(5),
+  /**
+   * Which way the move has to go for Price move to match. Saved settings from
+   * before this existed default to "up", which is all the rule ever did.
+   */
+  priceDirection: z.enum(["up", "down", "both"]).default("up"),
   priceWindowSeconds: z.union([z.literal(60), z.literal(300)]).default(60),
   volumeMultiple: z.number().finite().min(0.1).max(1000),
   minimumVolumeUsd: z.number().finite().min(0).max(1e12),
@@ -29,6 +34,7 @@ export function defaultScannerSettings(): ScannerSettings {
     exchanges: ["hyperliquid"],
     mode: "volume",
     priceIncreasePct: 5,
+    priceDirection: "up",
     priceWindowSeconds: 60,
     volumeMultiple: 5,
     minimumVolumeUsd: 10_000,
@@ -137,15 +143,30 @@ export function scannerMatch(
   }
 }
 
-/** Rolling price comparison, independent of candle boundaries and volume. */
+/**
+ * Rolling price comparison, independent of candle boundaries and volume.
+ *
+ * The size of the move is measured first and the direction second, so a
+ * setting of 5% and "down" finds a coin that fell from $100 to $95 and ignores
+ * one that rose to $105. "Both" asks only for the size.
+ */
 export function scannerPriceMatches(
   settings: ScannerSettings,
   window: MarketWindow | null
 ) {
-  return (
-    settings.enabled &&
-    window !== null &&
-    Number.isFinite(window.fraction) &&
-    window.fraction >= settings.priceIncreasePct / 100
-  )
+  if (!settings.enabled || window === null) return false
+  if (!Number.isFinite(window.fraction)) return false
+  if (Math.abs(window.fraction) < settings.priceIncreasePct / 100) return false
+  return settings.priceDirection === "both"
+    ? true
+    : settings.priceDirection === "up"
+      ? window.fraction > 0
+      : window.fraction < 0
+}
+
+/** "rise", "fall" or "move", the word for what the rule is watching for. */
+export function priceMoveWord(
+  direction: ScannerSettings["priceDirection"]
+): "rise" | "fall" | "move" {
+  return direction === "up" ? "rise" : direction === "down" ? "fall" : "move"
 }

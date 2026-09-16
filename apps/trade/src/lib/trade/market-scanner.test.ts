@@ -142,3 +142,26 @@ it("matches a rolling 5% rise without volume or candle conditions", async () => 
     false
   )
 })
+
+it("finds a fall, a rise, or either, depending on the direction ticked", async () => {
+  const { scannerPriceMatches } = await import("./market-scanner")
+  const rose = { fraction: 0.05, move: 5, traded: 0 }
+  const fell = { fraction: -0.05, move: -5, traded: 0 }
+  const small = { fraction: -0.0499, move: -4.99, traded: 0 }
+  const down = { ...defaultScannerSettings(), priceDirection: "down" as const }
+  const both = { ...defaultScannerSettings(), priceDirection: "both" as const }
+
+  expect(scannerPriceMatches(down, fell)).toBe(true)
+  expect(scannerPriceMatches(down, rose)).toBe(false)
+  expect(scannerPriceMatches(both, fell)).toBe(true)
+  expect(scannerPriceMatches(both, rose)).toBe(true)
+  // The size of the move is checked before the direction is.
+  expect(scannerPriceMatches(both, small)).toBe(false)
+})
+
+it("keeps settings saved before the direction existed watching for a rise", async () => {
+  const { scannerSettingsSchema } = await import("./market-scanner")
+  const { priceDirection, ...saved } = defaultScannerSettings()
+  expect(priceDirection).toBe("up")
+  expect(scannerSettingsSchema.parse(saved).priceDirection).toBe("up")
+})

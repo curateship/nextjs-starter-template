@@ -432,6 +432,75 @@ describe("chart bracket lines", () => {
     expect(label.textContent).toBe("Stop Loss -$25.00")
   })
 
+  it("counts a waiting order with no stop of its own in the position's stop", () => {
+    // Tyler, 16 Sep 2026: a second hand-placed order with no stop joins the
+    // stop the position already carries.
+    const held = position("stop")
+    const waiting: TradeOrder = {
+      ...order(95, "waiting-buy"),
+      side: "buy",
+      sz: 2,
+      reduceOnly: false,
+      trigger: undefined,
+      live: undefined,
+    }
+
+    // The position alone loses $10 at its $90 stop. The waiting buy at $95
+    // loses another $10 for its 2 coins, so the one line says -$20.
+    expect(lineLabel(renderLines(held, []), "Stop Loss").textContent).toBe(
+      "Stop Loss -$10.00"
+    )
+    expect(
+      lineLabel(renderLines(held, [waiting]), "Stop Loss").textContent
+    ).toBe("Stop Loss -$20.00")
+  })
+
+  it("keeps a waiting order off an exit that sells a fixed number of coins", () => {
+    // That exit sells the coins the position holds now, so the waiting order's
+    // coins are not sold at it and its profit is not on that line.
+    const held = position("target")
+    held.targets = [{ px: 110, sz: 1, orderId: "bracket-order" }]
+    const waiting: TradeOrder = {
+      ...order(95, "waiting-buy"),
+      side: "buy",
+      sz: 2,
+      reduceOnly: false,
+      trigger: undefined,
+      live: undefined,
+    }
+
+    const label = lineLabel(renderLines(held, [waiting]), "Exit")
+    expect(label.textContent).toBe("Exit $110 +$10.00")
+  })
+
+  it("leaves the position's stop alone for an order carrying its own", () => {
+    const held = position("stop")
+    const withStop: TradeOrder = {
+      ...order(95, "waiting-buy"),
+      side: "buy",
+      sz: 2,
+      reduceOnly: false,
+      trigger: undefined,
+      live: undefined,
+      slPx: 92,
+    }
+    const opposite: TradeOrder = {
+      ...order(95, "waiting-sell"),
+      side: "sell",
+      sz: 2,
+      reduceOnly: false,
+      trigger: undefined,
+      live: undefined,
+    }
+
+    expect(
+      lineLabel(renderLines(held, [withStop]), "Stop Loss").textContent
+    ).toBe("Stop Loss -$10.00")
+    expect(
+      lineLabel(renderLines(held, [opposite]), "Stop Loss").textContent
+    ).toBe("Stop Loss -$10.00")
+  })
+
   it("shows no after-fee amount when the fee history is incomplete", () => {
     const held = position("stop")
     held.live = { ...held.live!, liquidationPx: 70 }
@@ -439,6 +508,26 @@ describe("chart bracket lines", () => {
 
     expect(lineLabel(html, "Stop Loss").textContent).toBe("Stop Loss —")
     expect(lineLabel(html, "LIQUIDATION").textContent).toBe("LIQUIDATION —")
+  })
+
+  it("draws an order still being sent as a plain order bar", () => {
+    // Tyler, 16 Sep 2026: placing is instant on screen and the save happens
+    // behind it. The bar used to read "Buy $150 · sending" for a round trip.
+    const held = position("stop")
+    const sending: TradeOrder = {
+      ...order(95, "placing:1"),
+      side: "buy",
+      sz: 2,
+      px: 95,
+      reduceOnly: false,
+      trigger: undefined,
+      live: undefined,
+      placing: true,
+    }
+    const html = renderLines(held, [sending])
+
+    expect(html).toContain("Buy $190")
+    expect(html).not.toContain("sending")
   })
 
   it("names a spare protection leg for what it is, not as a plain sell", () => {
@@ -607,6 +696,47 @@ describe("one stop line for the hand-placed orders that share it", () => {
     ], undefined, marketKey)
     expect(html).toContain("Checking KuCoin order...")
     expect(html).not.toContain("Hyperliquid")
+  })
+
+  it("offers an × that takes the stop off every order under the line", async () => {
+    // Tyler, 16 Sep 2026: "the stoploss bar does not have an x icon to remove
+    // it." The orders stay; only the stop goes.
+    const cleared: TradeOrder[][] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          currentPx={100}
+          positions={[]}
+          orders={[watched("a", 100, 90), watched("b", 104, 91)]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onMoveOrderStop={() => undefined}
+          onClearOrderStop={(orders) => cleared.push([...orders])}
+          onSetBrackets={() => undefined}
+        />
+      )
+    })
+
+    const remove = host.querySelector<SVGGElement>(
+      '[aria-label^="Remove stop loss"]'
+    )
+    expect(remove).not.toBeNull()
+    await act(async () => {
+      remove?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+
+    expect(cleared).toHaveLength(1)
+    expect(cleared[0].map((one) => one.id)).toEqual(["a", "b"])
+    await act(async () => root.unmount())
   })
 
   it("draws one pill carrying what both orders lose together", () => {

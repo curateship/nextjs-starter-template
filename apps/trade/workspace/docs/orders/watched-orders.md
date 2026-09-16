@@ -37,8 +37,9 @@ Dragging a waiting watch saves its new price in the app. The drag does not
 place or move an exchange order. The engine can place the order separately
 when the watched condition is met.
 
-The chart's temporary "sending" line disappears permanently when the saved
-watch first appears. Moving or removing that watch cannot bring the old line
+The chart's temporary stand-in line disappears permanently when the saved
+watch first appears. The stand-in is drawn as an ordinary order bar and never
+says it is loading. Moving or removing that watch cannot bring the old line
 back. The placeholder previously stayed in memory and was hidden by matching
 its original price, which let a drag make the old line visible again.
 A confirmed exchange order stays available while cancellation is pending, so

@@ -31,7 +31,10 @@ import {
   useMarketScanner,
   type ScannerResult,
 } from "@/lib/trade/use-market-scanner"
-import type { ScannerSettings } from "@/lib/trade/market-scanner"
+import {
+  priceMoveWord,
+  type ScannerSettings,
+} from "@/lib/trade/market-scanner"
 import { MADE_MONEY_SURFACE, LOST_MONEY_SURFACE } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
@@ -249,7 +252,7 @@ function ScannerResults({
               className="py-0 text-xs"
             />
           ) : settings.mode === "price" ? (
-            `Watching for a ${settings.priceIncreasePct}% rise in ${settings.priceWindowSeconds / 60} minute${settings.priceWindowSeconds === 60 ? "" : "s"}. Matches stay until you delete them. ${snapshot.warming ? "Collecting price history…" : ""}`
+            `Watching for a ${settings.priceIncreasePct}% ${priceMoveWord(settings.priceDirection)} in ${settings.priceWindowSeconds / 60} minute${settings.priceWindowSeconds === 60 ? "" : "s"}. Matches stay until you delete them. ${snapshot.warming ? "Collecting price history…" : ""}`
           ) : (
             `Scanning ${snapshot.total - snapshot.unavailable} markets. Matches stay until you delete them. ${snapshot.unavailable} unavailable or reconnecting.`
           )}

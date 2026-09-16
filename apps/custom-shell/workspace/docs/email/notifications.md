@@ -16,9 +16,22 @@ account, and needs nothing else in the database behind it. An app with a notice
 to send writes one of these rather than announcing something nobody announced.
 
 The notification button in the shell shows the unread count and opens the tray.
-A person can mark all notifications read. Clicking one notification opens its
-linked item when it has one and saves the read state in the background. If that
-save fails, the unread dot returns.
+
+**Opening the tray clears the red count.** Tyler, 16 Sep 2026: clicking the
+bell clears the red number. Having seen the tray is having been told, so every
+notice is marked read on the click that opens it rather than one at a time. The
+notices themselves stay in the Unread list for that one opening, so nothing
+disappears out from under the person who just opened it, and the tab still
+counts them. Shutting the tray lets them go back to being ordinary read rows.
+The write runs before the first page is asked for, because a page fetched
+beside the write answers with the count as it was a moment earlier and put the
+red number straight back on a bell that had just cleared. A failed write says
+nothing out loud: the number stands, and the next check says so again.
+
+The footer's "Mark all as read" still does the same thing on demand, which is
+what it is for when notices arrived while the tray was already open. Clicking
+one notification opens its linked item when it has one and saves the read state
+in the background. If that save fails, the unread dot returns.
 
 ## Live updates
 

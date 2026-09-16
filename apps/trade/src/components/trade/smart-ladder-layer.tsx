@@ -121,6 +121,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
     ladder: SmartLadder,
     shape:
       | { stopPx: number }
+      | { clearStop: true }
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }
@@ -198,6 +199,7 @@ function PreviewLines({
   priceFrom,
   placed = false,
   onCancelRung,
+  onClearStop,
   summary,
   chartHeight,
 }: {
@@ -209,6 +211,8 @@ function PreviewLines({
   priceFrom: (clientY: number, top: number) => number | null
   placed?: boolean
   onCancelRung?: (rungIndex: number) => void
+  /** The × on the stop line: takes the stop off and leaves the rungs alone. */
+  onClearStop?: () => void
   /** The placed ladder's whole-ladder controls, drawn after its last rung. */
   summary?: React.ReactNode
   chartHeight?: number
@@ -511,6 +515,17 @@ function PreviewLines({
               <GripVerticalIcon className="size-3" />
               Stop loss · {formatSignedUsd(stopPnl)}
             </button>
+            {placed && onClearStop ? (
+              <button
+                type="button"
+                className={cn("rounded p-0.5 hover:bg-current/15", focusRing)}
+                aria-label="Remove the DCA ladder's stop loss"
+                title="Take the stop off. The rungs stay where they are."
+                onClick={onClearStop}
+              >
+                <XIcon className="size-3" />
+              </button>
+            ) : null}
           </span>
         </div>
       ) : null}
@@ -610,6 +625,7 @@ function LadderLines({
     ladder: SmartLadder,
     shape:
       | { stopPx: number }
+      | { clearStop: true }
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }
@@ -717,6 +733,14 @@ function LadderLines({
           placed
           onCancelRung={(index) =>
             onCancelRung?.(ladder.walletId, ladder.id, index)
+          }
+          // Inside `shapeMoves`, so the ladder is editable and
+          // `onReshapeLadder` is there. The only question left is whether
+          // there is a stop to take off.
+          onClearStop={
+            plan.stopLoss === null
+              ? undefined
+              : () => void onReshapeLadder?.(ladder, { clearStop: true })
           }
           summary={summary}
           chartHeight={chartHeight}

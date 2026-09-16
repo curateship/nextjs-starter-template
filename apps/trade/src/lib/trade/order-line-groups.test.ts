@@ -4,6 +4,7 @@ import {
   orderStopGroups,
   orderTargetGroups,
   stopMerges,
+  targetMerges,
   type OrderLineGroup,
 } from "@/lib/trade/order-line-groups"
 import type { TradeOrder } from "@/lib/trade/paper"
@@ -36,6 +37,90 @@ function order(
 function ids(group: OrderLineGroup): string[] {
   return group.orders.map((one) => one.id)
 }
+
+describe("an order placed with nothing filled in", () => {
+  // Tyler, 16 Sep 2026: a second hand-placed order with no stop joins the stop
+  // already on the chart. He placed a second $150 buy and the red line's
+  // figure did not move.
+  it("joins the stop line its lane already draws", () => {
+    const groups = orderStopGroups([order("a", 100, 90), order("b", 104, null)])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].price).toBe(90)
+    expect(ids(groups[0])).toEqual(["a", "b"])
+    // And the save that makes the line true gives it that stop.
+    expect(stopMerges(groups)).toEqual([
+      { walletId: "wallet", orderId: "b", price: 90 },
+    ])
+  })
+
+  it("joins the exit line its lane already draws", () => {
+    const groups = orderTargetGroups([
+      order("a", 100, null, { tpPx: 120 }),
+      order("b", 104, null),
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(ids(groups[0])).toEqual(["a", "b"])
+    expect(targetMerges(groups)).toEqual([
+      { walletId: "wallet", orderId: "b", price: 120 },
+    ])
+  })
+
+  it("stays off a line that is not a stop for it", () => {
+    // A stop at $90 is above the $85 buy, so it is not a stop for that order.
+    const groups = orderStopGroups([order("a", 100, 90), order("b", 85, null)])
+
+    expect(ids(groups[0])).toEqual(["a"])
+    expect(stopMerges(groups)).toEqual([])
+  })
+
+  it("stays off a second exit, because there is no only exit to join", () => {
+    const groups = orderTargetGroups([
+      order("a", 100, null, { tpPx: 120 }),
+      order("b", 100, null, { tpPx: 130 }),
+      order("c", 104, null),
+    ])
+
+    expect(groups).toHaveLength(2)
+    expect(groups.flatMap(ids)).toEqual(["a", "b"])
+    expect(targetMerges(groups)).toEqual([])
+  })
+
+  it("leaves a resting exchange order and a bracket leg alone", () => {
+    const resting = order("resting", 104, null, { live: true })
+    const leg = order("leg", 104, null, { trigger: true, reduceOnly: true })
+    const groups = orderStopGroups([order("a", 100, 90), resting, leg])
+
+    expect(ids(groups[0])).toEqual(["a"])
+  })
+
+  it("leaves an order that is closing a trade alone", () => {
+    // A sell closing a long is still a sell, and without this it would join
+    // the stop a short on the same coin drew and be given one it never had.
+    const closing = order("closing", 104, null, {
+      side: "sell",
+      reduceOnly: true,
+    })
+    const short = order("short", 100, 110, { side: "sell" })
+    const groups = orderStopGroups([short, closing])
+
+    expect(ids(groups[0])).toEqual(["short"])
+    expect(stopMerges(groups)).toEqual([])
+  })
+
+  it("leaves a watch whose exchange reply is still being chased alone", () => {
+    const chasing = order("chasing", 104, null, { checking: true })
+    const groups = orderStopGroups([order("a", 100, 90), chasing])
+
+    expect(ids(groups[0])).toEqual(["a"])
+  })
+
+  it("draws nothing when no line is there to join", () => {
+    expect(orderStopGroups([order("b", 104, null)])).toEqual([])
+    expect(orderTargetGroups([order("b", 104, null)])).toEqual([])
+  })
+})
 
 describe("orderStopGroups", () => {
   it("puts two buys with stops a hair apart on one line", () => {

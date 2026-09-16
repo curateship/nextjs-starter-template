@@ -324,6 +324,33 @@ describe("ladder plans", () => {
     expect(moved.rungs[0].sz).toBeCloseTo(0.833, 10)
   })
 
+  it("takes the stop off a ladder that has not bought anything yet", () => {
+    const settings = {
+      ...dcaLadderSettingsFromPlan(plan, 1000),
+      stopLoss: { reference: "lastRung" as const, pct: 2, base: null },
+    }
+    const withStop = reshapeLadderSettingsPlan(plan, settings, {
+      anchorPx: 100,
+      equity: 1000,
+      volume24hUsd: null,
+      greenInterval: "1m",
+      roundPx: (px) => px,
+    })
+    withStop.rungs[0].dead = true
+    withStop.aimedSlPx = 80
+
+    const cleared = reshapeLadderPlan(withStop, { clearStop: true }, (px) => px)
+
+    expect(cleared.stopLoss).toBeNull()
+    expect(cleared.aimedSlPx).toBeNull()
+    // A rung the stop had killed is a rung that buys again once it is gone.
+    expect(cleared.rungs.every((rung) => !rung.dead)).toBe(true)
+    // Nothing else about the shape moves.
+    expect(cleared.rungs.map((rung) => rung.px)).toEqual(
+      withStop.rungs.map((rung) => rung.px)
+    )
+  })
+
   it("preserves last-rung stops when settings or the ladder shape change", () => {
     const settings = {
       ...dcaLadderSettingsFromPlan(plan, 1000),

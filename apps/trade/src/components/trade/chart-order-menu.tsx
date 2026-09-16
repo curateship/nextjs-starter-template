@@ -52,7 +52,7 @@ const EDGE = 8
  * needs: 0.05 reads "5%", 0.0521 reads "5.21%", 0.0005 reads "0.05%".
  *
  * Trailing zeros are cut because these sit inside a sentence rather than in a
- * column — "5.00% above price" is a figure lined up with nothing.
+ * column — "5.00% above" is a figure lined up with nothing.
  */
 function percentGap(fraction: number): string {
   const percent = Math.abs(fraction) * 100
@@ -63,7 +63,7 @@ function percentGap(fraction: number): string {
 /**
  * The percent a row names, or null when it rounds away to nothing.
  *
- * A price a hair off the one the market is at would read "0% above price",
+ * A price a hair off the one the market is at would read "0% above",
  * which says less than the price itself does. Those rows keep the price.
  */
 function namedGap(fraction: number | null | undefined): string | null {
@@ -218,7 +218,7 @@ export function ChartOrderMenu({
    * it costs (Tyler, 14 Sep 2026).
    *
    * A price on its own is a number to compare against another number on the
-   * axis. "Exit at 6%" is the answer already worked out. The price is kept
+   * axis. "Exit at +6%" is the answer already worked out. The price is kept
    * only where the percent would round to nothing, and on the alert row,
    * because picking that one saves the exact line without asking again.
    */
@@ -226,7 +226,7 @@ export function ChartOrderMenu({
   const exitLabel =
     exitNamed === null
       ? "Exit"
-      : `Exit at ${exitGap! < 0 ? "-" : ""}${exitNamed}`
+      : `Exit at ${exitGap! < 0 ? "-" : "+"}${exitNamed}`
   const stopNamed = namedGap(stopGap)
   const stopLabel =
     stopNamed === null ? "Stop loss" : `Stop loss at -${stopNamed}`
@@ -234,7 +234,7 @@ export function ChartOrderMenu({
   const alertLabel =
     alertNamed === null
       ? `Alert at ${formatPrice(menu.price)}`
-      : `Alert ${alertNamed} ${alertGap! > 0 ? "above" : "below"} price`
+      : `Alert ${alertNamed} ${alertGap! > 0 ? "above" : "below"}`
 
   const recent = orders
     ? recentOrderTypes

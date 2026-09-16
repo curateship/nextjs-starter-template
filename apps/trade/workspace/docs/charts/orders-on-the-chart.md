@@ -69,16 +69,53 @@ on every one that has none, and each acts on one side only. See
 `../orders/watched-orders.md`.
 
 **The three rows that name a level say what the level means, not what it
-costs.** The exit reads "Exit at 6%" and the stop reads "Stop loss at -2%",
-measured from where the trade got in — a position's entry price, or the price
-a waiting order will fill at. That is the same thing the order settings window
-means by its Exit % and Stop loss % boxes. An exit dropped on the losing side
-of the entry says so: "Exit at -3.1%". The alert row reads "Alert 5% above
-price", measured from the price the market is at right now. Percentages carry
+costs.** The exit reads "Exit at +6%" and the stop reads "Stop loss at -2%",
+measured from where the trade got in, which is a position's entry price or the
+price a waiting order will fill at. That is the same thing the order settings
+window means by its Exit % and Stop loss % boxes. The exit always carries its
+sign, so an exit dropped on the losing side of the entry reads "Exit at -3.1%"
+and one on the winning side reads "Exit at +3.1%". The alert row reads "Alert
+5% above", measured from the price the market is at right now, and it does not
+repeat the word "price" that the chart is already full of. Percentages carry
 no more decimals than they need, so 0.05 reads "5%" and 0.0521 reads "5.21%".
-A row whose percentage would round to nothing keeps the price instead —
-"Alert at $0.28666" — because "0% above price" says less than the price does,
-and so does a row with no price quoted for it yet.
+A row whose percentage would round to nothing keeps the price instead,
+"Alert at $0.28666", because "0% above" says less than the price does, and so
+does a row with no price quoted for it yet.
+
+**A hand-placed order with no stop of its own joins the line that is already
+there.** Tyler, 16 Sep 2026: "If there is no stop for a second manual order then
+it joins the currant position stop." Nothing is merged, because an order with no
+stop never had a price to merge. It takes the price of the line it joins, and
+there are two lines it can join.
+
+- **The waiting orders' own stop and exit.** Place a second $150 buy with
+  nothing filled in and it lands on the red line the first one drew. The line's
+  figure then says what both orders lose together, and the same save that moves
+  a merged stop writes that stop onto the new order, so it is really covered
+  rather than only drawn that way. Its exit works the same, and only when the
+  lane draws exactly one exit line, because with two there is no such thing as
+  the only exit to join. The rules are in `src/lib/trade/order-line-groups.ts`
+  and the saves run from `chart-panel.tsx`.
+- **The position's stop and exit.** With a position open on the coin, its Stop
+  Loss line counts the waiting order too: a line reading -$80 for the coin
+  already held reads -$175 once a $500 buy is waiting under it. Nothing is
+  written here, because an order that fills becomes part of that position and
+  the position's stop already covers all of it. Its Exit line counts the same
+  orders, and only when the position carries exactly one exit.
+  `src/components/trade/trade-lines-layer.tsx`.
+
+**The × on the waiting orders' stop or exit takes that level off every order
+under the line.** The orders themselves stay exactly where they are: it throws
+away the protection, not the trade. It is offered only on lines this app holds,
+because a stop on a resting exchange order cannot be changed in place. With a
+position open on the coin, the orders then ride its stop line instead, which is
+the rule above.
+
+An order that carries its own stop keeps it and is never moved onto somebody
+else's exit. An order going the other way is closing the position rather than
+adding to it. A resting exchange order cannot be given a stop in place, a
+bracket leg is protection the position already owns, and an order still being
+sent joins nothing until the answer lands.
 
 **A refused stop does not leave a stop drawn.** Trade draws the new stop the
 moment it is picked and tells the wallet behind it. If the save is refused, the
@@ -174,10 +211,16 @@ does not close the position immediately.
   header only says Order settings, without repeating a long wallet name. The
   window's leverage slider changes both the saved order and the amount of your
   own cash shown under its size.
-- **Placing an order does not wait for the exchange.** The window shuts on the
-  press and the order is drawn on the chart at once, labelled "sending". A
-  "sending" line has no × and cannot be dragged; there is nothing on the
-  server yet to change. For a real order that rests, the label clears the
+- **Placing an order does not wait for the exchange, and does not say so
+  either.** The window shuts on the press and the order is drawn on the chart
+  at once, as an ordinary order bar. Tyler, 16 Sep 2026: "can you not make it
+  load at all visually. It should be instant and have it load in the background
+  instead." It used to read "Buy $150 · sending" for the length of a round
+  trip, which made a press that had already worked look unfinished. The bar
+  has no × and cannot be dragged for that moment, because there is nothing on
+  the server yet to change, and a press that fails still says so plainly: the
+  bar goes and a toast names the refusal. For a real order that rests, the bar
+  gains its controls the
   moment the exchange's answer names the order — the line then carries the
   real id and can be dragged or cancelled straight away, without waiting for
   the next full read. An order that filled on arrival becomes the position in
@@ -268,7 +311,8 @@ is in view and its stop comes back with it.
 **An order still being sent draws no stop or exit line at all.** Its stop
 cannot join anything yet, because there is nothing on the server to save, so it
 used to appear for a second as a second red line beside the one it was about to
-join. The order's own bar already says "sending".
+join. The bar itself is drawn from the first moment, so nothing looks missing
+while that second passes.
 
 The rules live in `src/lib/trade/order-line-groups.ts` and the lines are drawn
 in `src/components/trade/trade-lines-layer.tsx`.

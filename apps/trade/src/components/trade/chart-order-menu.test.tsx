@@ -57,7 +57,7 @@ describe("the chart order menu's percentages", () => {
       stopGap: -0.02,
     })
 
-    expect(html).toContain("Exit at 6%")
+    expect(html).toContain("Exit at +6%")
     expect(html).toContain("Stop loss at -2%")
   })
 
@@ -66,13 +66,13 @@ describe("the chart order menu's percentages", () => {
   })
 
   it("cuts trailing zeros and keeps two places on a small gap", () => {
-    expect(draw({ alertGap: 0.05 })).toContain("Alert 5% above price")
-    expect(draw({ alertGap: -0.0521 })).toContain("Alert 5.21% below price")
-    expect(draw({ alertGap: 0.1428 })).toContain("Alert 14.3% above price")
+    expect(draw({ alertGap: 0.05 })).toContain("Alert 5% above")
+    expect(draw({ alertGap: -0.0521 })).toContain("Alert 5.21% below")
+    expect(draw({ alertGap: 0.1428 })).toContain("Alert 14.3% above")
   })
 
   it("keeps the price on a row whose percent rounds away to nothing", () => {
-    // "Alert 0% above price" says less than the price itself does.
+    // "Alert 0% above" says less than the price itself does.
     expect(draw({ alertGap: 0.00001 })).toContain("Alert at $100")
     expect(draw({ stop: true, stopGap: 0 })).toContain("Stop loss")
     expect(draw({ stop: true, stopGap: 0 })).not.toContain("Stop loss at")

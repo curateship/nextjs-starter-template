@@ -142,7 +142,7 @@ screen: anything not written there has not been agreed yet.
   coin: a grid working a range above a DCA ladder, the grid's own fixed-size
   stop, and every reason the pairing is refused.
 - `watched-orders.md` — how a plain order works now, why dragging cannot revive
-  a confirmed order's temporary sending line, why
+  a confirmed order's temporary stand-in line, why
   adding to a position uses a market order with visible submission progress,
   and how watched limits allow immediate fills without exceeding the chosen
   price, including moving paused watches that have not submitted an order.

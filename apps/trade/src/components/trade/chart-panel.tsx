@@ -116,7 +116,10 @@ import {
 import { positionFees } from "@/lib/trade/position-fees"
 import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
-import type { StopMerge } from "@/lib/trade/order-line-groups"
+import type {
+  StopMerge,
+  TargetMerge,
+} from "@/lib/trade/order-line-groups"
 import { sizeAfterStopDrag } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import {
@@ -1119,7 +1122,7 @@ export function ChartPanel({
   const stopLossShortcut = positionStopShortcut ?? watchedStopShortcut
 
   /**
-   * What each menu row is worth in percent, so the row can say "Exit at 6%"
+   * What each menu row is worth in percent, so the row can say "Exit at +6%"
    * rather than leaving the price to be compared against the axis.
    *
    * Measured from where the trade got in — a position's entry, or the price a
@@ -1161,7 +1164,7 @@ export function ChartPanel({
             : null
         })()
   // The alert is measured from the price the market is at now, because that is
-  // what "5% above price" means to somebody reading the row.
+  // what "5% above" means to somebody reading the row.
   const alertNowPx = market ? (liveMarkOf(market.key) ?? market.price) : null
   const alertGap =
     menu && alertNowPx !== null && alertNowPx > 0
@@ -1345,24 +1348,99 @@ export function ChartPanel({
    * again on every repaint.
    */
   const mergedStops = React.useRef(new Map<string, number>())
-  const onMergeStops = React.useCallback(
-    (merges: readonly StopMerge[]) => {
-      for (const merge of merges) {
-        if (mergedStops.current.get(merge.orderId) === merge.price) continue
-        const order =
-          tradingOrders.find((one) => one.id === merge.orderId) ??
-          tradingWatchOrders.find((one) => one.id === merge.orderId)
-        if (!order || order.slPx === null) continue
-        mergedStops.current.set(merge.orderId, merge.price)
-        void tradingEditOrder(merge.walletId, merge.orderId, {
+  const mergedTargets = React.useRef(new Map<string, number>())
+  /** The browser's copy of one order, whichever list it is currently in. */
+  const chartOrder = React.useCallback(
+    (orderId: string) =>
+      tradingOrders.find((one) => one.id === orderId) ??
+      tradingWatchOrders.find((one) => one.id === orderId) ??
+      null,
+    [tradingOrders, tradingWatchOrders]
+  )
+  /**
+   * Writes a joined line's price onto the orders under it, or takes that level
+   * off them. One function for the stop and the exit, because the difference
+   * between the two is only which field the price goes in.
+   *
+   * An order placed with nothing filled in is the whole point of the write: it
+   * has no price of its own to compare, and the line's price is the one it
+   * joined.
+   */
+  const saveOrderLevel = React.useCallback(
+    (
+      orders: readonly { walletId: string; orderId: string }[],
+      level: "sl" | "tp",
+      price: number | null,
+      /** The prices already asked for, so a repaint does not ask again. */
+      asked: React.RefObject<Map<string, number>>
+    ) => {
+      for (const { walletId, orderId } of orders) {
+        if (price !== null && asked.current.get(orderId) === price) continue
+        const order = chartOrder(orderId)
+        if (!order) continue
+        if (price === null) asked.current.delete(orderId)
+        else asked.current.set(orderId, price)
+        void tradingEditOrder(walletId, orderId, {
           sz: order.sz,
           leverage: order.leverage,
-          tpPx: order.tpPx,
-          slPx: merge.price,
+          tpPx: level === "tp" ? price : order.tpPx,
+          slPx: level === "sl" ? price : order.slPx,
         })
       }
     },
-    [tradingOrders, tradingWatchOrders, tradingEditOrder]
+    [chartOrder, tradingEditOrder]
+  )
+  const onMergeStops = React.useCallback(
+    (merges: readonly StopMerge[]) => {
+      for (const merge of merges) {
+        saveOrderLevel([merge], "sl", merge.price, mergedStops)
+      }
+    },
+    [saveOrderLevel]
+  )
+  /**
+   * The same save for an order that was placed with no exit of its own, so the
+   * green line's profit counts it instead of describing one of two orders.
+   */
+  const onMergeTargets = React.useCallback(
+    (merges: readonly TargetMerge[]) => {
+      for (const merge of merges) {
+        saveOrderLevel([merge], "tp", merge.price, mergedTargets)
+      }
+    },
+    [saveOrderLevel]
+  )
+  /**
+   * The × on a waiting order's stop or exit line.
+   *
+   * It takes that level off every order the line stands for, and the orders
+   * themselves stay exactly where they are: this throws away the protection,
+   * not the trade. The remembered merge is forgotten at the same time, or an
+   * order given the same price again later would be skipped as already saved.
+   */
+  const onClearOrderStop = React.useCallback(
+    (orders: readonly TradeOrder[]) =>
+      saveOrderLevel(
+        orders
+          .filter((one) => one.slPx !== null)
+          .map((one) => ({ walletId: one.walletId, orderId: one.id })),
+        "sl",
+        null,
+        mergedStops
+      ),
+    [saveOrderLevel]
+  )
+  const onClearOrderTarget = React.useCallback(
+    (orders: readonly TradeOrder[]) =>
+      saveOrderLevel(
+        orders
+          .filter((one) => one.tpPx !== null)
+          .map((one) => ({ walletId: one.walletId, orderId: one.id })),
+        "tp",
+        null,
+        mergedTargets
+      ),
+    [saveOrderLevel]
   )
   const onEditOrder = React.useCallback(
     (orderId: string, anchor: Element) => {
@@ -1430,6 +1508,7 @@ export function ChartPanel({
       ladder: SmartLadder,
       shape:
         | { stopPx: number }
+        | { clearStop: true }
         | { anchorPx: number }
         | { deepestPx: number }
         | { exitIndex: number; exitPx: number }
@@ -1989,6 +2068,9 @@ export function ChartPanel({
           onMoveOrderTarget={onMoveOrderTarget}
           onMoveOrderStop={onMoveOrderStop}
           onMergeStops={onMergeStops}
+          onMergeTargets={onMergeTargets}
+          onClearOrderStop={onClearOrderStop}
+          onClearOrderTarget={onClearOrderTarget}
           onEditOrder={onEditOrder}
           entryBadge={entryBadgeOf}
           onSetBrackets={dragBrackets}
@@ -2077,6 +2159,9 @@ export function ChartPanel({
       onMoveOrderTarget,
       onMoveOrderStop,
       onMergeStops,
+      onMergeTargets,
+      onClearOrderStop,
+      onClearOrderTarget,
       onEditOrder,
       entryBadgeOf,
       dragBrackets,

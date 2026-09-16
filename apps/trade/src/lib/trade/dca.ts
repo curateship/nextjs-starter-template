@@ -994,6 +994,8 @@ export function dcaLadderSettingsFromPlan(
 
 export type LadderShapeChange =
   | { stopPx: number }
+  /** Take the stop off a ladder that has not bought anything yet. */
+  | { clearStop: true }
   | { anchorPx: number; deepestPx?: never }
   | { anchorPx?: never; deepestPx: number }
   | {
@@ -1058,6 +1060,16 @@ export function reshapeLadderPlan(
 ): LadderPlan {
   if ("exitPx" in change) throw new Error("SMART_EXIT_GAP")
   if (!ladderShapeMovable(plan)) throw new Error("SMART_LADDER_STARTED")
+  if ("clearStop" in change) {
+    // Nothing has bought yet, so no stop rests on an exchange to cancel. The
+    // rungs a stop had killed wake back up with the line gone.
+    return {
+      ...plan,
+      stopLoss: null,
+      aimedSlPx: null,
+      rungs: plan.rungs.map((rung) => ({ ...rung, dead: false })),
+    }
+  }
   if ("stopPx" in change) {
     const pct = lastRungStopPct(plan.rungs, roundPx(change.stopPx))
     if (plan.stopLoss?.mode !== "lastRung" || pct === null) {
