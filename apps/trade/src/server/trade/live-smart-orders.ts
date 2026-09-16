@@ -1231,25 +1231,35 @@ export async function reconcileLiveLaddersOnce(
   // oldest stop leg — usually the grid's — as THE position's stop, and the
   // ladder's engine would then read a price it never wrote as a hand-move
   // and stop managing its stop for good. See `reattributePairedStops`.
-  const pairedRefs = new Map<string, PairedStopRef>()
+  //
+  // A hand-placed order holding its own coins on a strategy's coin owns a
+  // stop the same way, and is read back the same way. See `ownStop`.
+  const pairedRefs = new Map<string, PairedStopRef[]>()
   for (const row of rows) {
-    if (row.kind !== "grid") continue
     const entry = parsed.get(row.id)
-    if (!entry || entry.kind !== "grid") continue
-    const gridPlan = entry.plan as GridPlan
-    if (!gridPlan.pairedStop) continue
+    if (!entry) continue
+    const stop =
+      entry.kind === "grid"
+        ? ((entry.plan as GridPlan).pairedStop ?? null)
+        : entry.kind === "watch"
+          ? ((entry.plan as WatchPlan).ownStop ?? null)
+          : null
+    if (!stop) continue
     const marketId = parseMarketKey(row.marketKey)?.marketId
     if (!marketId) continue
     const ladderEntry = parsedByMarket
       .get(row.marketKey)
       ?.find((one) => one.kind === "dca")
-    pairedRefs.set(marketId, {
-      orderId: gridPlan.pairedStop.orderId,
-      px: gridPlan.pairedStop.px,
-      sz: gridPlan.pairedStop.sz,
-      ladderAimedSlPx:
-        ladderEntry?.kind === "dca" ? ladderEntry.plan.aimedSlPx : null,
-    })
+    pairedRefs.set(marketId, [
+      ...(pairedRefs.get(marketId) ?? []),
+      {
+        orderId: stop.orderId,
+        px: stop.px,
+        sz: stop.sz,
+        ladderAimedSlPx:
+          ladderEntry?.kind === "dca" ? ladderEntry.plan.aimedSlPx : null,
+      },
+    ])
   }
   const folio = reattributePairedStops(portfolio, pairedRefs)
 
@@ -2325,6 +2335,87 @@ export async function reconcileLiveLaddersOnce(
     }
   }
 
+  /**
+   * Keeps a hand-placed order's own stop on the exchange in step with the
+   * coins that order bought.
+   *
+   * The mirror of `reconcilePairedGridStop`, and it exists for the same
+   * reason: one position, two owners, so the one that is not the strategy
+   * gets a stop of its own sized to its own coins. It replaces only its own
+   * old order, so the strategy's protection is never touched, and it is
+   * capped at what the position actually holds — a stop for more coins than
+   * exist would sell somebody else's.
+   *
+   * The row finishes here rather than in the engine. Its stop is a real
+   * order, and a row that ended while that order stood would leave a stop
+   * nothing spares and nothing cancels.
+   */
+  const reconcileWatchOwnStop = async (
+    raw: (typeof rows)[number],
+    plan: WatchPlan
+  ): Promise<void> => {
+    if (plan.phase !== "holding" && !plan.ownStop) return
+    try {
+      const roundPx = (px: number) =>
+        protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+      const position = book.positions.get(raw.marketKey) ?? null
+      const positionSz = position && position.szi > 0 ? position.szi : 0
+      const wantedPx = plan.slPx === null ? null : roundPx(plan.slPx)
+      const wantedSz =
+        plan.phase === "holding" && wantedPx !== null
+          ? floorSize(
+              Math.min(plan.ownSz ?? plan.sz, positionSz),
+              plan.sizeDecimals
+            )
+          : 0
+      const have = plan.ownStop
+      const closeEnough = (a: number, b: number) =>
+        Math.abs(a - b) <= Math.max(1e-9, Math.abs(b) * 1e-6)
+      if (wantedSz > 0 && wantedPx !== null) {
+        if (
+          have &&
+          closeEnough(have.px, wantedPx) &&
+          closeEnough(have.sz, wantedSz)
+        ) {
+          return
+        }
+        const placed = await setLiveBrackets(userId, {
+          walletId: wallet.id,
+          marketKey: raw.marketKey,
+          targets: [],
+          slPx: wantedPx,
+          slSz: wantedSz,
+          replaceOrderIds: have ? [have.orderId] : [],
+        })
+        plan.ownStop = placed.slOrderId
+          ? {
+              orderId: placed.slOrderId,
+              px: wantedPx,
+              sz: wantedSz,
+              placedAt: Date.now(),
+            }
+          : null
+        await saveLadderPlan(userId, raw.id, plan, "active")
+        return
+      }
+      // The coins have gone, or this order has been called off. Same rule as
+      // the grid's: a plain cancel, and the record is only forgotten once the
+      // exchange confirms it, so a busy venue cannot leave an orphan behind.
+      if (have) {
+        const cancelled = await rollbackLiveOrder(userId, {
+          walletId: wallet.id,
+          marketKey: raw.marketKey,
+          orderId: have.orderId,
+        })
+        if (!cancelled) return
+        plan.ownStop = null
+      }
+      await saveLadderPlan(userId, raw.id, plan, "done")
+    } catch (error) {
+      await noteRowFailure(userId, wallet.id, raw.marketKey, error)
+    }
+  }
+
   for (const raw of rows) {
     // **One smart order failing must not stop the others.**
     //
@@ -2586,6 +2677,10 @@ export async function reconcileLiveLaddersOnce(
         // then on it is the same single chased order a signal trade has. Same
         // reasoning, same path.
         await advanceRow(raw, entry, advanceWatch)
+        // A watch holding its own coins owns a stop over them. After the
+        // engine, so an order that filled on this pass is covered on this
+        // pass.
+        await reconcileWatchOwnStop(raw, entry.plan)
         continue
       }
 

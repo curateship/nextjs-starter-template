@@ -8,6 +8,7 @@ import {
   type PairedStopRef,
 } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
+import type { WatchPlan } from "@/lib/trade/watch-order"
 import { db, type CustomShellDb } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradeSmartLadders } from "@/server/trade/schema"
@@ -167,18 +168,23 @@ export async function pairedGridPlan(
 }
 
 /**
- * Every paired grid stop these wallets are holding, keyed by wallet and then
- * by the exchange's market id — what a portfolio read needs to hand each
- * stop back to its owner. See `reattributePairedStops`. Wallets with no
- * pairing in play contribute nothing, which is every wallet most of the
- * time.
+ * Every stop these wallets are holding that does not belong to the position,
+ * keyed by wallet and then by the exchange's market id — what a portfolio
+ * read needs to hand each stop back to its owner. See
+ * `reattributePairedStops`. Wallets with nothing of the sort contribute
+ * nothing, which is every wallet most of the time.
+ *
+ * Two owners exist. A paired grid holds one over its own levels, and a
+ * hand-placed order holds one over the coins it bought when a strategy is
+ * already working that coin. Both sit above the strategy's own stop, so the
+ * read treats them alike.
  */
 export async function pairedStopRefs(
   userId: string,
   walletIds: readonly string[],
   tx: CustomShellDb = db
-): Promise<Map<string, Map<string, PairedStopRef>>> {
-  const refs = new Map<string, Map<string, PairedStopRef>>()
+): Promise<Map<string, Map<string, PairedStopRef[]>>> {
+  const refs = new Map<string, Map<string, PairedStopRef[]>>()
   if (walletIds.length === 0) return refs
   const rows = await tx
     .select({
@@ -193,13 +199,19 @@ export async function pairedStopRefs(
         eq(tradeSmartLadders.userId, userId),
         inArray(tradeSmartLadders.walletId, [...walletIds]),
         eq(tradeSmartLadders.status, "active"),
-        inArray(tradeSmartLadders.kind, ["grid", "dca"])
+        inArray(tradeSmartLadders.kind, ["grid", "dca", "watch"])
       )
     )
   for (const row of rows) {
-    if (row.kind !== "grid") continue
-    const plan = readSmartPlan("grid", row.plan) as GridPlan | null
-    if (!plan?.pairedStop) continue
+    const stop =
+      row.kind === "grid"
+        ? ((readSmartPlan("grid", row.plan) as GridPlan | null)?.pairedStop ??
+          null)
+        : row.kind === "watch"
+          ? ((readSmartPlan("watch", row.plan) as WatchPlan | null)?.ownStop ??
+            null)
+          : null
+    if (!stop) continue
     const marketId = parseMarketKey(row.marketKey)?.marketId
     if (!marketId) continue
     const ladderRow = rows.find(
@@ -211,13 +223,17 @@ export async function pairedStopRefs(
     const ladder = ladderRow
       ? (readSmartPlan("dca", ladderRow.plan) as LadderPlan | null)
       : null
-    const forWallet = refs.get(row.walletId) ?? new Map<string, PairedStopRef>()
-    forWallet.set(marketId, {
-      orderId: plan.pairedStop.orderId,
-      px: plan.pairedStop.px,
-      sz: plan.pairedStop.sz,
-      ladderAimedSlPx: ladder?.aimedSlPx ?? null,
-    })
+    const forWallet =
+      refs.get(row.walletId) ?? new Map<string, PairedStopRef[]>()
+    forWallet.set(marketId, [
+      ...(forWallet.get(marketId) ?? []),
+      {
+        orderId: stop.orderId,
+        px: stop.px,
+        sz: stop.sz,
+        ladderAimedSlPx: ladder?.aimedSlPx ?? null,
+      },
+    ])
     refs.set(row.walletId, forWallet)
   }
   return refs

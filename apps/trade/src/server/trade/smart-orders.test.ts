@@ -860,12 +860,13 @@ describe("editing a watched order", () => {
     const [watch] = await listActiveSmartOrders(userId, [wallet.id])
     if (!watch || watch.kind !== "watch") throw new Error("expected watch")
 
-    await editWatchOrder(userId, wallet.id, watch.id, {
-      sz: 1.5,
-      leverage: 3,
-      tpPx: null,
-      slPx: 88,
-    })
+    await editWatchOrder(
+      userId,
+      wallet.id,
+      watch.id,
+      { sz: 1.5, leverage: 3, tpPx: null, slPx: 88 },
+      wallet
+    )
 
     const [edited] = await listActiveSmartOrders(userId, [wallet.id])
     if (!edited || edited.kind !== "watch") throw new Error("expected watch")
@@ -903,12 +904,13 @@ describe("editing a watched order", () => {
     )
 
     await expect(
-      editWatchOrder(userId, wallet.id, watch.id, {
-        sz: 1,
-        leverage: 1,
-        tpPx: null,
-        slPx: 87,
-      })
+      editWatchOrder(
+        userId,
+        wallet.id,
+        watch.id,
+        { sz: 1, leverage: 1, tpPx: null, slPx: 87 },
+        wallet
+      )
     ).rejects.toThrow("SMART_WATCH_TAKING")
   })
 
@@ -927,12 +929,13 @@ describe("editing a watched order", () => {
     if (!watch || watch.kind !== "watch") throw new Error("expected watch")
 
     await expect(
-      editWatchOrder(userId, wallet.id, watch.id, {
-        sz: 1,
-        leverage: 51,
-        tpPx: null,
-        slPx: null,
-      })
+      editWatchOrder(
+        userId,
+        wallet.id,
+        watch.id,
+        { sz: 1, leverage: 51, tpPx: null, slPx: null },
+        wallet
+      )
     ).rejects.toThrow("PAPER_LEVERAGE")
 
     const [unchanged] = await listActiveSmartOrders(userId, [wallet.id])

@@ -27,6 +27,17 @@ const WATCH_PHASES = [
   "taking",
   /** Called off — the next pass takes back anything resting. */
   "stopping",
+  /**
+   * Filled, and guarding its own coins with its own stop.
+   *
+   * Only ever reached on a coin a strategy is already working. The exchange
+   * holds one position per coin and the strategy owns that position's growing
+   * stop, so a hand-placed order sharing the coin cannot put its stop there
+   * without selling the strategy's coins with it. It gets a stop of its own
+   * instead, sized to what this order bought, and this row stays alive to own
+   * it. See `ownStop`.
+   */
+  "holding",
 ] as const
 
 export const WATCH_TRIGGER_DIRECTIONS = ["up", "down"] as const
@@ -161,6 +172,39 @@ const watchPlanSchema = z.object({
    * pass and treat every absent read as a fill.
    */
   heldWhenPlaced: z.number().default(0),
+  /**
+   * The separate stop this order is holding over its own coins.
+   *
+   * The same record a paired grid keeps, for the same reason and read the same
+   * way: the id so nothing else can move or cancel it, the price and size so a
+   * pass can tell whether what stands is still what is wanted, and the moment
+   * it went on so a portfolio read that has not caught up is not mistaken for
+   * the stop having fired.
+   *
+   * Null on every watch that never needed one, which is almost all of them.
+   */
+  /**
+   * The coins this order actually bought, when it is holding a stop over them.
+   *
+   * Not the same as `sz`. A part fill buys less than was asked for, and a stop
+   * sized to the ask would cover coins belonging to the strategy working the
+   * same coin. Measured from the position when the order finished: how much
+   * more is held than was held when the order was sent, never more than the
+   * order asked for — the smaller of the two is the only one that cannot
+   * claim somebody else's coins.
+   *
+   * Null on every watch that holds no stop of its own.
+   */
+  ownSz: z.number().positive().nullable().default(null),
+  ownStop: z
+    .object({
+      orderId: z.string(),
+      px: z.number().positive(),
+      sz: z.number().positive(),
+      placedAt: z.number(),
+    })
+    .nullable()
+    .default(null),
   chasedAt: z.number().default(0),
   chases: z.number().int().min(0).default(0),
   startedAt: z.number().default(0),

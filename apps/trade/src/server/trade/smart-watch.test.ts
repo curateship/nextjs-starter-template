@@ -11,7 +11,10 @@ import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import { loadPaperPortfolio } from "@/server/trade/paper"
-import { resetWatchChaseGate } from "@/server/trade/smart-watch"
+import {
+  resetWatchChaseGate,
+  watchKeepsItsOwnStop,
+} from "@/server/trade/smart-watch"
 import {
   tradePaperOrders,
   tradePaperPositions,
@@ -227,6 +230,40 @@ describe("a price being watched", () => {
     expect(held.szi).toBeCloseTo(1)
     expect(held.entryPx).toBeLessThanOrEqual(105)
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("places nothing once it is holding its own coins", async () => {
+    // Filled, with a stop of its own over the coins it bought. The live pass
+    // owns that stop from here; this row must never buy again.
+    await watchAt({ phase: "holding", slPx: 90 })
+
+    await priceTo(95)
+    await priceTo(90)
+
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).status).toBe("active")
+  })
+
+  it("stays alive when called off while its own stop is still on the exchange", async () => {
+    // Finishing here would leave a stop nothing spares and nothing cancels.
+    await watchAt({
+      phase: "stopping",
+      slPx: 90,
+      ownStop: { orderId: "s-1", px: 90, sz: 1, placedAt: 1 },
+    })
+
+    await settle()
+
+    expect((await row()).status).toBe("active")
+  })
+
+  it("ends when called off with no stop of its own to take off", async () => {
+    await watchAt({ phase: "stopping" })
+
+    await settle()
+
+    expect((await row()).status).toBe("done")
   })
 
   it("ends an old watch whose size rounds below one coin step", async () => {
@@ -530,5 +567,62 @@ describe("a price being watched", () => {
 
     expect(await orders()).toHaveLength(0)
     expect((await row()).status).toBe("done")
+  })
+})
+
+describe("whose stop it is", () => {
+  const live = { kind: "live", protocol: "hyperliquid" }
+
+  const bought = { slPx: 90, side: "buy" as const, reduceOnly: false }
+
+  it("keeps the stop as its own when a strategy shares the coin", () => {
+    expect(watchKeepsItsOwnStop(bought, { paired: true }, live)).toBe(true)
+  })
+
+  it("leaves a sale's stop alone, because a sale holds nothing after it", () => {
+    expect(
+      watchKeepsItsOwnStop(
+        { ...bought, side: "sell" },
+        { paired: true },
+        live
+      )
+    ).toBe(false)
+    expect(
+      watchKeepsItsOwnStop(
+        { ...bought, reduceOnly: true },
+        { paired: true },
+        live
+      )
+    ).toBe(false)
+  })
+
+  it("hands the stop to the position when nothing else works the coin", () => {
+    expect(
+      watchKeepsItsOwnStop(bought, { paired: false }, live)
+    ).toBe(false)
+  })
+
+  it("hands it over on a practice wallet, which holds one stop per position", () => {
+    expect(
+      watchKeepsItsOwnStop(bought, { paired: true }, {
+        kind: "paper",
+        protocol: "hyperliquid",
+      })
+    ).toBe(false)
+  })
+
+  it("hands it over on an exchange that cannot hold two stops", () => {
+    expect(
+      watchKeepsItsOwnStop(bought, { paired: true }, {
+        kind: "live",
+        protocol: "phemex",
+      })
+    ).toBe(false)
+  })
+
+  it("has nothing to keep when the order carries no stop", () => {
+    expect(
+      watchKeepsItsOwnStop({ ...bought, slPx: null }, { paired: true }, live)
+    ).toBe(false)
   })
 })

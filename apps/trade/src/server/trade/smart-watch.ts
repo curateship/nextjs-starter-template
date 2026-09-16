@@ -1,5 +1,6 @@
 import { floorSize } from "@/lib/trade/dca"
 import { minimumOrderUsd } from "@/lib/trade/market-info"
+import { handStopStandsAlone } from "@/lib/trade/pairing"
 import { judgeOrder } from "@/lib/trade/order-presence"
 import { liveOrderIds } from "@/server/trade/paper"
 import {
@@ -40,11 +41,49 @@ export function resetWatchChaseGate(): void {
   walletChasedAt.clear()
 }
 
-export type WatchRow = { id: string; marketKey: string; plan: WatchPlan }
+export type WatchRow = {
+  id: string
+  marketKey: string
+  plan: WatchPlan
+  /**
+   * A ladder or a grid is working this coin too.
+   *
+   * Handed in by the live pass, which is the only place that knows what else
+   * this wallet is running. Undefined on the practice engine, where a
+   * position carries one stop and nothing can hold a second.
+   */
+  paired?: boolean
+}
 
 function clientOrderId(tempId: string): string | null {
   const uuid = /^pending:([0-9a-f-]{36})$/i.exec(tempId)?.[1]
   return uuid ? `0x${uuid.replaceAll("-", "")}` : null
+}
+
+/**
+ * Whether this order's stop stays its own instead of becoming the position's.
+ *
+ * Every condition has to hold. There has to BE a stop. It has to belong to
+ * coins this order bought, so a sale is left alone. A strategy has to be
+ * working the same coin, or there is nothing to share the position with and
+ * the ordinary stop is the right one. And the wallet and the exchange have to
+ * be able to hold two stops at once — see `handStopStandsAlone`.
+ */
+export function watchKeepsItsOwnStop(
+  plan: Pick<WatchPlan, "slPx" | "side" | "reduceOnly">,
+  row: Pick<WatchRow, "paired">,
+  wallet: { kind: string; protocol: string }
+): boolean {
+  return (
+    plan.slPx !== null &&
+    // Coins this order BOUGHT are the only ones it can hold a stop over. A
+    // sale holds nothing afterwards, and a strategy sharing the coin is a
+    // buying plan, so a sale's stop stays what it has always been.
+    plan.side === "buy" &&
+    !plan.reduceOnly &&
+    row.paired === true &&
+    handStopStandsAlone(wallet)
+  )
 }
 
 export async function advanceWatch(
@@ -118,7 +157,24 @@ export async function advanceWatch(
     if (plan.orderId) deps.dropOrder(book, plan.orderId)
     plan.orderId = null
     plan.orderPx = null
+    // A stop of its own is a real order on the exchange, and this row is the
+    // only thing that knows it is there. The row stays alive until the live
+    // pass has taken that stop off; finishing here would leave a stop nobody
+    // owns, which nothing spares and nothing cancels.
+    if (plan.ownStop) {
+      await deps.saveLadder(row, "active", now)
+      return
+    }
     await deps.saveLadder(row, "done", now)
+    return
+  }
+
+  // Filled, and holding nothing but its own stop. The live pass keeps that
+  // stop in step with the coins and ends this row once they have gone. There
+  // is nothing to place here ever again, and falling through to the placing
+  // code below would buy the same thing a second time.
+  if (plan.phase === "holding") {
+    if (changed) await deps.saveLadder(row, "active", now)
     return
   }
 
@@ -134,9 +190,21 @@ export async function advanceWatch(
   // close finished on its very first pass, before anything had been placed.
   // What is left to sell is worked out below instead, off the same position.
   if (!plan.maker && plan.phase === "taking" && position) {
+    /**
+     * **The stop stays this order's own when a strategy is working the coin.**
+     *
+     * The exchange holds one position for the coin and its one stop sells all
+     * of it. Writing this order's stop there would sell the ladder's coins on
+     * a price that was only ever about this trade, and the ladder — holding
+     * nothing afterwards — would cancel every rung still waiting below it.
+     * So the price is not handed to the position at all. This row stays
+     * alive instead and the live pass gives it a stop of its own, sized to
+     * the coins this order bought. See `ownStop`.
+     */
+    const ownsItsStop = watchKeepsItsOwnStop(plan, row, book.wallet)
     if (plan.tpPx !== null) position.tpPx = plan.tpPx
-    if (plan.slPx !== null) position.slPx = plan.slPx
-    if (plan.tpPx !== null || plan.slPx !== null) {
+    if (plan.slPx !== null && !ownsItsStop) position.slPx = plan.slPx
+    if (plan.tpPx !== null || (plan.slPx !== null && !ownsItsStop)) {
       position.updatedAt = now
       book.touchedMarkets.add(row.marketKey)
     }
@@ -145,6 +213,18 @@ export async function advanceWatch(
     // watch is over only once nothing of it is left.
     if (plan.orderId) {
       if (changed) await deps.saveLadder(row, "active", now)
+      return
+    }
+    if (ownsItsStop) {
+      plan.phase = "holding"
+      // What this order really bought, never more than it asked for. See
+      // `ownSz`. A rung the ladder bought in the same few seconds makes the
+      // measured difference the larger of the two, and the ask wins.
+      plan.ownSz = Math.min(
+        plan.sz,
+        Math.max(0, position.szi - plan.heldWhenPlaced)
+      )
+      await deps.saveLadder(row, "active", now)
       return
     }
     await deps.saveLadder(row, "done", now)

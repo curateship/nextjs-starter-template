@@ -504,6 +504,50 @@ too, including after a partial fill whose remaining order is still unaccounted
 for. A cancellation that the exchange has not confirmed never authorizes a
 replacement.
 
+## Your stop stays yours on a coin a strategy is working
+
+A DCA ladder or a grid can be working a coin at the same time as an order you
+placed by hand. The exchange holds one position for that coin, and the position
+carries one stop that sells all of it, so the two cannot share it.
+
+**The strategy keeps the position's stop and your order gets one of its own.**
+Yours is a separate reduce-only order sized to the coins your order bought, and
+its id is written on your order's record, so nothing else can move or cancel
+it. The strategy's stop is the position's ordinary one, which grows by itself as
+the strategy buys. This is the same arrangement `grid-above-ladder.md` describes
+for a grid above a ladder, with the hand in the grid's place.
+
+```
+The ladder holds 3,000 ARB it paid $0.14 for, $420.
+You buy 1,000 ARB yourself at $0.15, $150, with a stop at $0.145.
+
+Before:  price hits $0.145 and the one stop sells all 4,000 ARB, and the
+         ladder, holding nothing, cancels every rung still waiting below.
+Now:     your 1,000 ARB sells for $145, you are out $5, and the ladder keeps
+         its 3,000 ARB and its waiting rungs.
+```
+
+- **Your stop has to sit above where the ladder starts buying**, and it is
+  refused rather than warned about. Below it, the ladder's own stop would have
+  sold everything before yours was reached, so it could never fire. Tyler,
+  16 Sep 2026: "the manual order stop sits above the ladder and I would never
+  place manual orders below ladders."
+- **Live wallets only, on Hyperliquid, Aster and KuCoin.** A practice book holds
+  one stop per position, and a Phemex stop may close the whole position whatever
+  size it carries. Everywhere else your stop is the position's stop, exactly as
+  it always was, and so is every stop on a coin no strategy is working.
+- **Your order's row stays alive after it fills**, because that row is the only
+  thing that knows which stop is yours. It is not drawn as a waiting order any
+  more; it is holding one. The engine keeps the stop at the size your coins
+  come to, capped at the position, and ends the row once the coins have gone.
+- **Calling the order off takes the stop off with it.** The row waits for the
+  exchange to confirm that cancel before it finishes, so a busy venue cannot
+  leave a stop behind that nothing owns.
+- **What it does not cover yet:** the take profit. That is still written to the
+  position, so a target on a shared coin sells everything at the target price.
+  Moving the stop after your order has filled is not wired up either. Both are
+  tracked on the task.
+
 ### A level refused five times running pauses, and stays on its own rows
 
 After five order-specific refusals in a row the engine puts the watch down:

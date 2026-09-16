@@ -30,6 +30,22 @@ const PAIRABLE_PROTOCOLS: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * Whether a hand-placed order sharing a coin with a strategy may hold a stop
+ * of its own, instead of writing the position's one stop.
+ *
+ * The same two conditions the grid pairing has, for the same two reasons: a
+ * practice book holds one stop per position, and a Phemex stop may close the
+ * whole position whatever size it carries. Anywhere else the hand's stop
+ * stays what it has always been, the position's stop.
+ */
+export function handStopStandsAlone(wallet: {
+  kind: string
+  protocol: string
+}): boolean {
+  return wallet.kind === "live" && PAIRABLE_PROTOCOLS.has(wallet.protocol)
+}
+
+/**
  * The price the ladder starts buying at — its highest rung that can still
  * trade or has already traded. Skipped and cancelled rungs are ignored: a
  * rung that will never buy cannot collide with a stop above it.
@@ -115,7 +131,13 @@ export function gridLadderPairingRefusal(input: {
   return null
 }
 
-/** What a re-attribution needs to know about one market's paired grid stop. */
+/**
+ * What a re-attribution needs to know about one stop somebody else owns.
+ *
+ * Two things can own a stop beside the position's own: a paired grid, and a
+ * hand-placed order holding its own coins on a coin a strategy is working.
+ * Both sit ABOVE the strategy's stop and both are read back the same way.
+ */
 export type PairedStopRef = {
   orderId: string
   px: number
@@ -135,57 +157,65 @@ export type PairedStopRef = {
  * stop sitting in the open-orders list as a stray trigger.
  *
  * This swaps them: the position's slot gets the ladder's leg (found below
- * the grid's stop — the pairing's own ordering rule says it is always
- * lower), and the grid's leg becomes an ordinary trigger row, which the
- * chart already hides behind the grid's own STOP LOSS line. Without the
- * swap the ladder's engine reads a stop price it never wrote, concludes a
- * hand moved it, and stops managing its stop for good.
+ * every owned stop — the ordering rule says an owned stop is always higher),
+ * and each owned leg becomes an ordinary trigger row, which the chart already
+ * hides behind the grid's own STOP LOSS line. Without the swap the ladder's
+ * engine reads a stop price it never wrote, concludes a hand moved it, and
+ * stops managing its stop for good.
  *
- * Markets with no paired grid pass through untouched.
+ * A coin can carry more than one owned stop: a grid above a ladder, and a
+ * hand-placed order holding its own coins on the same coin. They arrive as a
+ * list per market for that reason.
+ *
+ * Markets where nobody else owns a stop pass through untouched.
  */
 export function reattributePairedStops(
   portfolio: { positions: WalletPosition[]; orders: WalletOpenOrder[] },
-  pairedByMarketId: ReadonlyMap<string, PairedStopRef>
+  pairedByMarketId: ReadonlyMap<string, readonly PairedStopRef[]>
 ): { positions: WalletPosition[]; orders: WalletOpenOrder[] } {
   if (pairedByMarketId.size === 0) return portfolio
   let orders = portfolio.orders
   const positions = portfolio.positions.map((position) => {
-    const paired = pairedByMarketId.get(position.marketId)
-    if (!paired || position.slOrderId !== paired.orderId || position.szi <= 0) {
-      return position
-    }
+    const owned = pairedByMarketId.get(position.marketId) ?? []
+    const wearingTheSlot = owned.find(
+      (one) => one.orderId === position.slOrderId
+    )
+    if (!wearingTheSlot || position.szi <= 0) return position
     const near = (a: number, b: number | null) =>
       b !== null && Math.abs(a - b) <= Math.max(1e-9, Math.abs(b) * 1e-6)
+    const ownedIds = new Set(owned.map((one) => one.orderId))
+    // Below every owned stop, because each of them sits above the strategy's.
+    // A trigger above one of them is a spare target, not the stop.
+    const floor = Math.min(...owned.map((one) => one.px))
     const candidates = orders.filter(
       (order) =>
         order.marketId === position.marketId &&
         order.trigger &&
         order.reduceOnly &&
         order.side === "sell" &&
-        order.orderId !== paired.orderId &&
-        // The ladder's stop sits below the grid's — that ordering is what
-        // makes the pairing legal at all. A leftover trigger above it is a
-        // spare target, not the stop.
-        order.px < paired.px
+        !ownedIds.has(order.orderId) &&
+        order.px < floor
     )
     const ladderLeg =
-      candidates.find((order) => near(order.px, paired.ladderAimedSlPx)) ??
+      candidates.find((order) =>
+        near(order.px, wearingTheSlot.ladderAimedSlPx)
+      ) ??
       // Oldest first, the same tie-break every adapter read uses.
       [...candidates].sort((a, b) =>
         a.orderId.localeCompare(b.orderId, undefined, { numeric: true })
       )[0] ??
       null
     orders = orders.filter((order) => order !== ladderLeg)
-    // The grid's leg leaves the position's slot and becomes a plain trigger
-    // row, sized off the grid's own record since the read folded it away.
+    // The owned leg leaves the position's slot and becomes a plain trigger
+    // row, sized off its owner's own record since the read folded it away.
     orders = [
       ...orders,
       {
-        orderId: paired.orderId,
+        orderId: wearingTheSlot.orderId,
         marketId: position.marketId,
         side: "sell",
-        px: paired.px,
-        sz: paired.sz,
+        px: wearingTheSlot.px,
+        sz: wearingTheSlot.sz,
         reduceOnly: true,
         trigger: true,
       },

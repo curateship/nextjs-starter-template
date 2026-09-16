@@ -21,6 +21,9 @@ app now does that like this:
   the grid is holding right now. When a grid level buys or sells, the engine
   replaces that stop at the new size on the same pass. The order's id is
   written on the grid's own record, so only the grid can move or cancel it.
+- **An order placed by hand can hold its own stop the same way.** It is not
+  part of this pairing and it is not refused by the one-per-coin rule, because
+  a hand-placed order manages no position. `watched-orders.md` covers it.
 - **The grid's stop must sit above the ladder's first buy.** Price falling
   reaches the grid's stop first, the grid's coins are sold, the grid is over,
   and only then can the ladder's stop ever be reached — by which time closing

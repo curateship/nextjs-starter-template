@@ -3,7 +3,7 @@ import { isHyperliquidPostOnlyRefusal } from "@/server/protocols/hyperliquid/ref
 import { forgetHyperliquidPrice } from "@/server/protocols/hyperliquid/prices"
 import { POST_ONLY_RETRY } from "@/server/trade/smart-order-pause"
 
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 
 import {
   marketKey as marketKeyOf,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { GridPlan } from "@/lib/trade/grid"
+import type { WatchPlan } from "@/lib/trade/watch-order"
 import { reattributePairedStops } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
 import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
@@ -1036,36 +1037,40 @@ export async function liveHeldPositions(
 }
 
 /**
- * The order ids of grid-owned stops on this market — the fixed-size stop a
- * grid places for itself while a DCA ladder shares the coin.
+ * The order ids of stops on this market that belong to somebody else — the
+ * fixed-size stop a grid places for itself while a DCA ladder shares the
+ * coin, and the one a hand-placed order holds over the coins it bought.
  *
  * Read here, inside the bracket replace, rather than passed in by callers:
  * replacing a position's protection cancels every leg the exchange holds, and
  * every caller — the drag on the chart, the ladder's own engine pass, the ×
- * on a pill — must spare the grid's stop without having to know grids exist.
- * A hand moving the position's stop deletes the position's stop, not the
- * grid's.
+ * on a pill — must spare those stops without having to know they exist. A
+ * hand moving the position's stop deletes the position's stop, nobody else's.
  */
-async function pairedGridStopOrderIds(
+async function ownedStopOrderIds(
   userId: string,
   walletId: string,
   marketKey: string
 ): Promise<string[]> {
   const rows = await db
-    .select({ plan: tradeSmartLadders.plan })
+    .select({ kind: tradeSmartLadders.kind, plan: tradeSmartLadders.plan })
     .from(tradeSmartLadders)
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
         eq(tradeSmartLadders.walletId, walletId),
         eq(tradeSmartLadders.marketKey, marketKey),
-        eq(tradeSmartLadders.kind, "grid"),
+        inArray(tradeSmartLadders.kind, ["grid", "watch"]),
         eq(tradeSmartLadders.status, "active")
       )
     )
   return rows.flatMap((row) => {
-    const plan = readSmartPlan("grid", row.plan) as GridPlan | null
-    return plan?.pairedStop ? [plan.pairedStop.orderId] : []
+    if (row.kind === "grid") {
+      const plan = readSmartPlan("grid", row.plan) as GridPlan | null
+      return plan?.pairedStop ? [plan.pairedStop.orderId] : []
+    }
+    const plan = readSmartPlan("watch", row.plan) as WatchPlan | null
+    return plan?.ownStop ? [plan.ownStop.orderId] : []
   })
 }
 
@@ -1111,7 +1116,7 @@ export async function setLiveBrackets(
         ? protocol.markets.prices(row.network, [ref.marketId])
         : null,
       input.replaceOrderIds === undefined
-        ? pairedGridStopOrderIds(userId, input.walletId, input.marketKey)
+        ? ownedStopOrderIds(userId, input.walletId, input.marketKey)
         : null,
     ])
     if (!rules) throw new Error("LIVE_MARKET")

@@ -635,6 +635,8 @@ const LIVE_SENTENCES: Record<string, string> = {
     "To share a coin with a ladder the grid needs a stop — the stop is what hands the coin over to the ladder on the way down.",
   SMART_PAIR_GRID_STOP_BASE:
     "A stop riding the 4h base can move down later, below where the ladder starts buying. Give the grid a plain percent or fixed stop to pair it with a ladder.",
+  SMART_HAND_STOP_BELOW_LADDER:
+    "Your stop has to sit above the price where the ladder on this coin starts buying. Below it, the ladder's own stop would have sold everything first, so yours could never fire.",
   SMART_PAIR_STOP_BELOW_BASE:
     "The grid's stop must sit above the price where the ladder starts buying — that ordering is what makes the pairing safe, so it is refused, not warned about.",
   LIVE_SIZE: "That size is smaller than this market's smallest step.",

@@ -42,11 +42,14 @@ market's legal price step. A chart can produce a price with many decimal
 places, but that raw number never reaches the exchange. The rounded price is
 also the one checked against the position and written to the Journal.
 
-One exception, and it is tracked by order id rather than guessed: on a coin
-running a grid above a DCA ladder, the grid holds its own fixed-size stop, and
-its order id is written on the grid's record. An ordinary replace spares
-exactly that one order, so dragging the position's stop can never silently
-delete the grid's. `grid-above-ladder.md` covers the pairing.
+Two exceptions, both tracked by order id rather than guessed. On a coin running
+a grid above a DCA ladder, the grid holds its own fixed-size stop, and its order
+id is written on the grid's record. An order you placed yourself on a coin a
+strategy is working holds one the same way, sized to the coins that order
+bought, with the id on that order's own record. An ordinary replace spares
+exactly those orders, so dragging the position's stop can never silently delete
+either. `grid-above-ladder.md` covers the pairing and `watched-orders.md` covers
+the hand-placed one.
 
 This is the part that used to be wrong, and it cost real money rather than
 looking untidy. The app knew two leg ids. A third leg was invisible to it, so
@@ -83,6 +86,9 @@ price put back. Four times in one evening.
 - **A grid running above a ladder is left out of it.** The position's one stop
   belongs to the ladder beneath, and the grid's own stop is a separate order.
   `grid-above-ladder.md` covers the pairing.
+- **An order you placed yourself on a strategy's coin is left out of it too.**
+  Its stop covers only the coins that order bought, so a drag on the position's
+  stop is about the strategy's stop and says nothing about yours.
 
 **The engine then leaves that coin's stop alone for fifteen seconds.** The
 readings it holds may still be from before the change, and it cannot tell an

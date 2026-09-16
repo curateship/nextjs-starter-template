@@ -7,6 +7,7 @@ import {
   gridLadderPairingRefusal,
   gridStopRidesBase,
   ladderBaseRungPx,
+  handStopStandsAlone,
   reattributePairedStops,
   type PairedStopRef,
 } from "./pairing"
@@ -261,7 +262,7 @@ describe("handing each stop back to its owner", () => {
   it("swaps the slots when the grid's leg was named the position's stop", () => {
     const out = reattributePairedStops(
       { positions: [position()], orders: [order({})] },
-      new Map([["BTC", grid]])
+      new Map([["BTC", [grid]]])
     )
     expect(out.positions[0].slPx).toBe(80)
     expect(out.positions[0].slOrderId).toBe("22")
@@ -269,6 +270,31 @@ describe("handing each stop back to its owner", () => {
     const gridLeg = out.orders.find((one) => one.orderId === "11")
     expect(gridLeg).toMatchObject({ px: 92, sz: 1, reduceOnly: true })
     expect(out.orders.some((one) => one.orderId === "22")).toBe(false)
+  })
+
+  it("hands back both a grid's stop and a hand-placed order's", () => {
+    // One coin, three stops: the ladder's at 80, the grid's at 92 and the
+    // hand's at 95. Only the ladder's belongs in the position's slot.
+    const hand: PairedStopRef = {
+      orderId: "99",
+      px: 95,
+      sz: 0.5,
+      ladderAimedSlPx: 80,
+    }
+    const out = reattributePairedStops(
+      {
+        positions: [position({ slOrderId: "99", slPx: 95 })],
+        orders: [order({}), order({ orderId: "11", px: 92 })],
+      },
+      new Map([["BTC", [grid, hand]]])
+    )
+
+    expect(out.positions[0].slPx).toBe(80)
+    expect(out.positions[0].slOrderId).toBe("22")
+    expect(out.orders.find((one) => one.orderId === "99")).toMatchObject({
+      px: 95,
+      sz: 0.5,
+    })
   })
 
   it("leaves a market with no paired grid untouched", () => {
@@ -282,7 +308,7 @@ describe("handing each stop back to its owner", () => {
         positions: [position({ slPx: 80, slOrderId: "22" })],
         orders: [order({ orderId: "33", px: 92 })],
       },
-      new Map([["BTC", grid]])
+      new Map([["BTC", [grid]]])
     )
     expect(out.positions[0].slPx).toBe(80)
     expect(out.positions[0].slOrderId).toBe("22")
@@ -291,7 +317,7 @@ describe("handing each stop back to its owner", () => {
   it("empties the slot when the ladder has no stop yet", () => {
     const out = reattributePairedStops(
       { positions: [position({ protectionOrderIds: ["11"] })], orders: [] },
-      new Map([["BTC", { ...grid, ladderAimedSlPx: null }]])
+      new Map([["BTC", [{ ...grid, ladderAimedSlPx: null }]]])
     )
     expect(out.positions[0].slPx).toBeNull()
     expect(out.positions[0].slOrderId).toBeNull()
@@ -304,9 +330,29 @@ describe("handing each stop back to its owner", () => {
         positions: [position()],
         orders: [order({ orderId: "44", px: 120 })],
       },
-      new Map([["BTC", { ...grid, ladderAimedSlPx: null }]])
+      new Map([["BTC", [{ ...grid, ladderAimedSlPx: null }]]])
     )
     expect(out.positions[0].slPx).toBeNull()
     expect(out.orders.some((one) => one.orderId === "44")).toBe(true)
+  })
+})
+
+describe("a hand-placed order's own stop", () => {
+  it("stands alone on a live wallet at an exchange that can hold two stops", () => {
+    expect(
+      handStopStandsAlone({ kind: "live", protocol: "hyperliquid" })
+    ).toBe(true)
+  })
+
+  it("does not on a practice wallet, which holds one stop per position", () => {
+    expect(handStopStandsAlone({ kind: "paper", protocol: "aster" })).toBe(
+      false
+    )
+  })
+
+  it("does not at Phemex, whose stop may close the whole position", () => {
+    expect(handStopStandsAlone({ kind: "live", protocol: "phemex" })).toBe(
+      false
+    )
   })
 })

@@ -52,7 +52,14 @@ import {
   updateLadderExitsPlan,
 } from "@/server/trade/smart-order-actions"
 import { resumeSmartOrderPlan } from "@/server/trade/smart-order-pause"
-import { assertSmartOrderPlacable } from "@/server/trade/smart-pairing"
+import {
+  assertSmartOrderPlacable,
+  pairedLadderPlan,
+} from "@/server/trade/smart-pairing"
+import {
+  handStopStandsAlone,
+  ladderBaseRungPx,
+} from "@/lib/trade/pairing"
 import {
   assertFlowRunAcceptingPlacements,
   flowLadderOrderIds,
@@ -1367,6 +1374,35 @@ export async function listActiveSmartOrders(
 }
 
 /**
+ * A hand-placed stop on a ladder's coin has to sit ABOVE where the ladder
+ * starts buying, and is refused rather than warned about.
+ *
+ * Tyler, 16 Sep 2026: "the manual order stop sits above the ladder and I would
+ * never place manual orders below ladders." That ordering is what makes the
+ * two stops safe together. Price falling reaches the hand's stop first, sells
+ * only the coins that order bought, and the ladder carries on with its own
+ * stop still covering everything it holds. A hand stop UNDER the ladder would
+ * be reached only after the ladder's own stop had already sold everything,
+ * so it would be a stop that can never fire.
+ *
+ * The same rule `gridLadderPairingRefusal` enforces for a grid above a ladder,
+ * and it only applies where the hand's stop can stand alone at all.
+ */
+async function assertHandStopAboveLadder(
+  userId: string,
+  wallet: TradeWallet,
+  marketKey: string,
+  slPx: number | null
+): Promise<void> {
+  if (slPx === null || !handStopStandsAlone(wallet)) return
+  const ladder = await pairedLadderPlan(userId, wallet.id, marketKey)
+  if (!ladder) return
+  const basePx = ladderBaseRungPx(ladder)
+  if (basePx === null || slPx > basePx) return
+  throw new Error("SMART_HAND_STOP_BELOW_LADDER")
+}
+
+/**
  * Sets a price to watch, and what to do when the market reaches it.
  *
  * **Nothing is sent anywhere.** One row is written; the engine's next pass is
@@ -1462,6 +1498,8 @@ export async function placeWatchOrder(
       `LIVE_ORDER_TOO_SMALL:${orderMinimumRefusal(protocol.label, minimum)}`
     )
   }
+
+  await assertHandStopAboveLadder(userId, wallet, input.marketKey, input.slPx)
 
   const now = new Date()
   const plan: WatchPlan = {
@@ -1640,11 +1678,16 @@ export async function editWatchOrder(
     leverage: number
     tpPx: number | null
     slPx: number | null
-  }
+  },
+  /**
+   * The wallet these changes are for, so a stop moved here answers the same
+   * ordering rule a stop set at placement does.
+   */
+  wallet: TradeWallet
 ): Promise<{ saved: true }> {
   if (!hasWalletPlanWrite(userId, walletId)) {
     return await withWalletPlanWrite(userId, walletId, () =>
-      editWatchOrder(userId, walletId, watchId, changes)
+      editWatchOrder(userId, walletId, watchId, changes, wallet)
     )
   }
 
@@ -1670,6 +1713,7 @@ export async function editWatchOrder(
   if (changes.leverage < 1 || changes.leverage > plan.maxLeverage) {
     throw new Error("PAPER_LEVERAGE")
   }
+  await assertHandStopAboveLadder(userId, wallet, row.marketKey, changes.slPx)
   await db
     .update(tradeSmartLadders)
     .set({
