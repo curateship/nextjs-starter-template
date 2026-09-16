@@ -109,7 +109,7 @@ screen: anything not written there has not been agreed yet.
   its own, and why later market choices wait briefly.
 - `candle-store.md` — the one shelf of finished candles every chart and
   backtest reads: the two sources, the 30-day rule, the seam, first use, the
-  refresh job, stock hours and the volume label.
+  refresh job and its 30-second limit, stock hours and the volume label.
 - `opening-range-indicator.md` — what the opening range is, its volume filter
   and settings, and the rules for breaks, gaps and the session in progress.
 - `ema-indicator.md` — the three EMA lines and the 50 / 200 crossover rule.

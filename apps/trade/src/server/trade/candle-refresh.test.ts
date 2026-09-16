@@ -103,6 +103,40 @@ describe("a source that keeps refusing one pair", () => {
   })
 })
 
+describe("a source that never answers", () => {
+  it("ends the pass, rests the pair it was waiting on, and carries on next pass", async () => {
+    // Names no other test uses: resting pairs are remembered for the life of
+    // the module.
+    const STUCK = "dukascopy:mainnet:gascmdusd"
+    const NEXT = "dukascopy:mainnet:fbususd"
+    await ensureCandleCoverage(STUCK, "4h", START, START + 90 * FOUR_HOURS, db)
+    await ensureCandleCoverage(NEXT, "4h", START, START + 95 * FOUR_HOURS, db)
+    asks.length = 0
+    // Held for longer than the pass allows, which is what a jammed Dukascopy
+    // looks like from here.
+    let release = () => {}
+    holdAsks = new Promise<void>((done) => (release = done))
+
+    const now = START + 102 * FOUR_HOURS + 1_000
+    // A 50ms budget stands in for the real thirty seconds.
+    const outcome = await refreshCandleStore(db, now, 50)
+
+    expect(outcome.toppedUp).toBe(0)
+    // The pass ended on the stuck pair rather than waiting for it and then
+    // asking for the next one too.
+    expect(asks.map((ask) => ask.marketId)).toEqual(["gascmdusd"])
+
+    asks.length = 0
+    holdAsks = null
+    // The abandoned ask is let go so it does not sit in the shared gate for
+    // the rest of the file.
+    release()
+
+    await refreshCandleStore(db, now + 60_000)
+    expect(asks.map((ask) => ask.marketId)).toEqual(["fbususd"])
+  })
+})
+
 describe("overlapping passes", () => {
   it("does nothing while the previous pass is still running", async () => {
     await ensureCandleCoverage(BTC, "4h", START, START + 100 * FOUR_HOURS, db)

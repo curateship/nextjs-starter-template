@@ -152,6 +152,18 @@ one statement.
   every time. SMH stayed the most-behind pair, every pass asked for it first,
   and those refusals filled Dukascopy's one-at-a-time line in front of a
   backtest's stocks for over ten minutes.
+- A whole pass stops after 30 seconds, however slow the source is. The pair it
+  was still waiting on is abandoned and rested for the same 30 minutes, because
+  it would be first in line next pass and would run that one out of time too.
+  Nothing is lost: the next pass is fifteen seconds later and starts again with
+  whatever is furthest behind.
+- Why there is a clock on it at all: the worker container calls its own loop
+  stopped when no pass has finished for two minutes. On 16 Sep 2026 a newly
+  deployed worker met five Dukascopy refusals in its first pass, about 54
+  seconds each, so the pass was still running after four and a half minutes,
+  Coolify called the container unhealthy and rolled the deploy back. A restarted
+  container begins with an empty rest list, so it walks into every refusal
+  again, which is why this only showed up on deploy.
 - Only the sources are topped up. Rows an older build stored under a venue's
   own key are left alone; they are harmless and the ten-year sweep removes
   them in time.
