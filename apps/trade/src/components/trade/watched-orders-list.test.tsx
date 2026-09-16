@@ -294,6 +294,8 @@ describe("the Manual orders list", () => {
       walletId: heldCoin.walletId,
       marketKey: heldCoin.marketKey,
       kind: "grid",
+      flowRunId: null,
+      plan: {},
     } as unknown as SmartOrder
 
     const rows = draw({
@@ -309,12 +311,38 @@ describe("the Manual orders list", () => {
     expect(rows).toContain(EMPTY)
   })
 
+  it("keeps a coin an automation is running, which no panel here shows", () => {
+    // A flow's ladder lives on its own run dashboard, not in the Smart orders
+    // panel above, so dropping its coin took it off the screen altogether.
+    const flowLadder = {
+      id: "d1",
+      walletId: heldCoin.walletId,
+      marketKey: heldCoin.marketKey,
+      kind: "dca",
+      flowRunId: "run1",
+      plan: {},
+    } as unknown as SmartOrder
+
+    const rows = draw({
+      orders: [],
+      positions: [heldCoin],
+      smartOrders: [flowLadder],
+      markets: [solMarket],
+      settled: true,
+      failed: false,
+    })
+
+    expect(rows).toContain(">SOL<")
+  })
+
   it("keeps a coin whose only smart order is the watch waiting on it", () => {
     const watch = {
       id: "w9",
       walletId: heldCoin.walletId,
       marketKey: heldCoin.marketKey,
       kind: "watch",
+      flowRunId: null,
+      plan: {},
     } as unknown as SmartOrder
 
     const rows = draw({

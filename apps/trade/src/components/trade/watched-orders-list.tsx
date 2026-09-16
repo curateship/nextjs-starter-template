@@ -36,7 +36,7 @@ import {
   type TradeOrder,
   type TradePosition,
 } from "@/lib/trade/paper"
-import type { SmartOrder } from "@/lib/trade/smart-plan"
+import { smartOrdersYouPlaced, type SmartOrder } from "@/lib/trade/smart-plan"
 import {
   readWatchedCache,
   toWatchedLevel,
@@ -486,6 +486,15 @@ export function WatchedOrdersList({
  * here would put one position on the screen twice. A watch is the exception:
  * a watch IS a hand-placed order, so a coin with one waiting is still yours.
  *
+ * **An automation's coin is not one of those rows, so it stays here.** The
+ * Smart orders panel leaves a flow's orders to that flow's own run dashboard,
+ * which is not this screen. Counting them anyway took the coin off this panel
+ * without putting it anywhere else: ARB, held by an automation on 16 Sep 2026,
+ * was on the Positions tab and nowhere in Manual orders (Tyler). The rule is
+ * now the one `smartOrdersYouPlaced` states, the same one the Positions tab
+ * filters by, so the two lists can never disagree about which coins a
+ * strategy owns.
+ *
  * Sorted by what was put in rather than by what it is worth now, so a row
  * cannot move under the pointer while a price ticks.
  */
@@ -494,9 +503,9 @@ export function positionsYouOpenedByHand(
   smartOrders: readonly SmartOrder[]
 ): TradePosition[] {
   const run = new Set(
-    smartOrders
-      .filter((order) => order.kind !== "watch")
-      .map((order) => `${order.walletId}:${order.marketKey}`)
+    smartOrdersYouPlaced(smartOrders).map(
+      (order) => `${order.walletId}:${order.marketKey}`
+    )
   )
   return positions
     .filter(

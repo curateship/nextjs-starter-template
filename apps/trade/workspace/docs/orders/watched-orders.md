@@ -425,6 +425,14 @@ other. Every column sorts. Pressing a row charts that coin.
   so repeating it would put one position on the screen twice. A coin whose only
   smart order is a watch is still yours, because a watch IS a hand-placed
   order. The rule lives in `positionsYouOpenedByHand`.
+- **A coin an automation is running IS here** (Tyler, 16 Sep 2026). A flow's
+  orders are not listed in the Smart orders panel, which leaves them to that
+  flow's own run dashboard, so leaving the coin out of this panel took it off
+  this screen and left it nowhere but the Positions tab. ARB, held by an
+  automation, was missing from Manual orders for exactly that reason. Both
+  panels now read the same list, `smartOrdersYouPlaced`. A paused flow order
+  is the exception both ways round: it appears in the Smart orders panel, so
+  its coin leaves this one.
 - **Nothing is shown for a level the price has already come to.** It is about
   to become a position, and the word "reached" sat where a figure belongs.
 - **A Solana holding with no recorded entry price shows a dash for PnL**,
