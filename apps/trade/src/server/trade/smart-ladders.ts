@@ -1005,9 +1005,13 @@ function aimBrackets(
 }
 
 /**
- * Where the ladder wants its chosen stop. A base stop returns null until a
- * confirmed base sits below the held position. It never borrows the average
- * buy percentage while it waits.
+ * Where the ladder wants its chosen stop.
+ *
+ * The percentage under the average buy is the furthest a ladder may fall, base
+ * or no base. With the base rule on, the stop rests under a confirmed base
+ * when that is the closer of the two, and the percentage fires when there is
+ * no base yet or the base sits deeper than it. 100 is no percentage stop, so a
+ * base plan saved with 100 waits for its base exactly as before.
  */
 export function wantedStopPx(
   plan: Pick<LadderPlan, "rungs" | "stopLoss" | "baseWatch">,
@@ -1020,12 +1024,16 @@ export function wantedStopPx(
     const px = lastRungStopPx(plan.rungs, sl.pct ?? 0)
     return px === null ? null : roundPx(px)
   }
-  const level = baseStopPx(plan, plan.baseWatch?.levelPx ?? null)
-  if (level !== null) return roundPx(level)
-  if (sl.base) return null
   const pct = sl.pct ?? 0
-  if (!(pct > 0) || pct >= 100) return null
-  return roundPx(entryPx * (1 - pct / 100))
+  const maxStop = pct > 0 && pct < 100 ? entryPx * (1 - pct / 100) : null
+  const level = baseStopPx(plan, plan.baseWatch?.levelPx ?? null)
+  const px =
+    level === null
+      ? maxStop
+      : maxStop === null
+        ? level
+        : Math.max(level, maxStop)
+  return px === null ? null : roundPx(px)
 }
 
 /**

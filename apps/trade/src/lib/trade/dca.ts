@@ -364,8 +364,8 @@ export const dcaParamsSchema = z.object({
       /**
        * Percent below the average buy price, re-aimed as the average moves.
        *
-       * 100 remains valid for older base-stop plans. A base stop never reads
-       * this percentage while its base is missing.
+       * With a base stop this is the furthest the stop may sit: it holds
+       * until a closer base confirms. 100 means no percentage stop.
        */
       pct: z.number().positive().max(100),
       reference: z.enum(["average", "lastRung"]).optional(),

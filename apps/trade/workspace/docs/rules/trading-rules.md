@@ -250,10 +250,13 @@ add up to.
   the web app and engine together.
 - **The base stop steps the ladder down.** Selling at the stop and re-buying
   at the next rung is one motion of the same ladder, not a new ladder.
-- Tyler, 9 Sep 2026: **"If there is no base then there is no stop from the
-  average buy. Only the hardstop."** Choosing the base as the stop position
-  places no DCA stop until a confirmed base exists below the held position.
-  The base rule never falls back to a percentage under the average buy.
+- Tyler, 17 Sep 2026: **"stop at 33% is the max stop. It will trigger if
+  there is no base to stop it."** The stop-loss percentage under the average
+  buy is the furthest a ladder may fall, with or without "Stop under the base".
+  The stop rests under a confirmed base when that is closer, and at the
+  percentage when no base is below or the base is deeper. A percentage of 100
+  means no percentage stop, so the ladder waits for its base. This replaces the
+  9 Sep rule that a base stop never used the percentage.
 - **A rung is never written off for money or price.** Dropped for cash, it
   goes back to waiting. Passed by the price while it was held back, it fires
   at the market the moment the wallet's rules allow — today's price, taker

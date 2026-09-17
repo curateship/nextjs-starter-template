@@ -208,9 +208,9 @@ export function inspectDcaSettingsForm(
           stopLoss: form.slOn
             ? form.slReference === "base"
               ? {
-                  // Older plans require this field. The engine ignores it for
-                  // a base stop, so no average-buy stop exists while the base
-                  // is missing.
+                  // 100 is no percentage stop. This window has no box for the
+                  // furthest stop, so a base ladder saved here waits for its
+                  // base with no stop.
                   pct: 100,
                   base: {
                     underPct: baseUnderPct as number,

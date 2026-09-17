@@ -247,10 +247,11 @@ automation from the old app rather than anything new.
 - **The base's own two numbers are frozen when the ladder is placed**, so
   nudging the indicator on the chart changes the chart and leaves every live
   stop exactly where it is.
-- **There is no average-buy fallback.** Until a base confirms below what the
-  ladder holds, the base rule places no DCA stop. Only the separate hard stop
-  remains. An older saved plan may still carry an average-buy percentage, but
-  the engine ignores it whenever the base rule is selected.
+- **The percentage is the furthest stop.** A plan that carries a stop
+  percentage under 100 keeps it as a ceiling on the loss: the stop sits at that
+  percentage under the average buy until a base confirms closer, and stays
+  there if the base is deeper. The placement window saves 100 with the base
+  rule, so a ladder placed there has no stop until its base confirms.
 - **A level above what is held is refused.** That is a place to take profit, not
   a place to give up, and a stop there would close winners as losses.
 - **Being stopped is one rung failing, not the ladder failing.** Everything

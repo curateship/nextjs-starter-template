@@ -2231,18 +2231,37 @@ function baseStop(over: Partial<NonNullable<DcaParams["stopLoss"]>> = {}) {
 }
 
 describe("a stop that rests under the base", () => {
-  it("leaves no stop at all until a base confirms below what is held", async () => {
-    await place({ stopLoss: baseStop({ pct: 5 }) })
+  it("leaves no stop at all until a base confirms when the percent is 100", async () => {
+    await place({ stopLoss: baseStop() })
     await backdate()
 
     await dipTo(95)
 
     // The base in force is 100 — above the buy at 95, so it is a place to take
-    // profit rather than one to give up. A base stop never falls back to the
-    // old average-buy percentage, even when an older saved plan still carries
-    // one. The separate hard stop is the only protection until a lower base
-    // confirms.
+    // profit rather than one to give up. 100 is no percentage stop.
     expect((await positions())[0].slPx).toBeNull()
+  })
+
+  it("holds the percent as the furthest stop while no base is below", async () => {
+    await place({ stopLoss: baseStop({ pct: 5 }) })
+    await backdate()
+
+    await dipTo(95)
+
+    // No base under the buy at 95 yet, so the 5% max stop stands: 90.25.
+    expect((await positions())[0].slPx).toBeCloseTo(90.25, 9)
+  })
+
+  it("keeps the percent when the base is deeper than it", async () => {
+    await place({ stopLoss: baseStop({ pct: 2 }) })
+    await backdate()
+    await dipTo(95)
+    candles = tapeWithBase(90)
+    await settle()
+
+    // A base at 90 is further than 2% under the buy at 95 (93.10), so the
+    // 2% wins. The stop never sits further away than the percent.
+    expect((await positions())[0].slPx).toBeCloseTo(93.1, 9)
   })
 
   it("rests on the base itself, not on a percent from the entry", async () => {
