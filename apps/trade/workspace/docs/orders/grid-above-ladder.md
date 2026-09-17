@@ -92,6 +92,12 @@ grid deliberately share it.
 - When the grid's stop order disappears from the exchange, the grid treats
   that as its stop having fired: it closes itself and the ladder carries on
   untouched. A short grace covers a slow read.
+- **One read never closes the grid.** The stop has to be missing for 15
+  seconds, from reads that still show the position. While it waits, the grid
+  places and sells nothing. A read that cannot see the position proves
+  nothing, because it cannot see the stop either. On 17 Sep 2026 the INTC and
+  TSLA grids closed in the same second while Hyperliquid still had both stops
+  open, and their coins were left showing as Manual.
 - The ladder's take profit is sized to the ladder's own coins while paired,
   so it cannot sell the grid's. The grid never writes a take profit at all.
   Its End Grid line sells only the grid's holdings if price jumps past it.

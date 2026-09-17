@@ -4184,3 +4184,85 @@ describe("a watched order's own stop", () => {
     expect(plan.stopLoss).toEqual(before.stopLoss)
   })
 })
+
+describe("a grid's own stop going missing", () => {
+  const position = (protectionOrderIds: string[]): WalletPosition => ({
+    marketId: "BTC", szi: 2, entryPx: 85, leverage: 1, marginUsed: 170,
+    liquidationPx: null, targets: [], tpPx: null, tpSz: null, tpOrderId: null,
+    slPx: 76, slOrderId: protectionOrderIds[0] ?? null, protectionOrderIds,
+  })
+
+  async function gridWithStop(missingSince?: number): Promise<void> {
+    await database.insert(tradeSmartLadders).values({
+      userId, id: "grid-1", walletId: "live-1", marketKey: MARKET,
+      kind: "grid", status: "active",
+      plan: gridState({
+        entered: true,
+        pairedStop: {
+          orderId: "grid-stop", px: 76, sz: 1,
+          placedAt: Date.now() - 60_000, missingSince,
+        },
+      }),
+      createdAt: new Date(Date.now() - 120_000),
+      updatedAt: new Date(Date.now() - 60_000),
+    })
+    prices.mockResolvedValue(new Map([["BTC", 88]]))
+  }
+
+  async function gridRow() {
+    const [row] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    return { ...row, plan: row.plan as GridPlan }
+  }
+
+  it("does not close on one read that misses the stop", async () => {
+    // On 17 Sep 2026 the INTC and TSLA grids closed in the same second while
+    // Hyperliquid still had both stops open.
+    await gridWithStop()
+    portfolio.mockResolvedValue({ positions: [position([])], orders: [] })
+
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+
+    const row = await gridRow()
+    expect(row.status).toBe("active")
+    expect(row.plan.closedReason).toBeNull()
+    expect(row.plan.pairedStop?.missingSince).toBeGreaterThan(0)
+  })
+
+  it("closes once the stop has been missing for 15 seconds", async () => {
+    await gridWithStop(Date.now() - 16_000)
+    portfolio.mockResolvedValue({ positions: [position([])], orders: [] })
+
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+
+    const row = await gridRow()
+    expect(row.status).toBe("done")
+    expect(row.plan.closedReason).toBe("stop")
+  })
+
+  it("proves nothing from a read that cannot see the position", async () => {
+    await gridWithStop(Date.now() - 16_000)
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+
+    const row = await gridRow()
+    expect(row.plan.closedReason).toBeNull()
+  })
+
+  it("forgets the wait once the stop is listed again", async () => {
+    await gridWithStop(Date.now() - 5_000)
+    portfolio.mockResolvedValue({
+      positions: [position(["grid-stop"])],
+      orders: [],
+    })
+
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+
+    const row = await gridRow()
+    expect(row.status).toBe("active")
+    expect(row.plan.pairedStop?.missingSince).toBeUndefined()
+  })
+})

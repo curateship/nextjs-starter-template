@@ -2613,26 +2613,56 @@ export async function reconcileLiveLaddersOnce(
         )
         // The grid's own stop no longer standing on the exchange means it
         // fired, and the grid's coins are already sold — the ladder carries
-        // the fall from here. Close the grid now, before its engine runs,
-        // or it would keep believing in levels whose coins are gone and
-        // sell the ladder's instead. The grace covers a stop the exchange
-        // has accepted but not yet shown back.
+        // the fall from here. Close the grid, before its engine runs, or it
+        // would keep believing in levels whose coins are gone and sell the
+        // ladder's instead. The grace covers a stop the exchange has accepted
+        // but not yet shown back.
+        //
+        // **Never decided by one read.** This used to close the grid the
+        // first time a read did not list the stop. On 17 Sep 2026 at
+        // 15:12:41 the INTC and TSLA grids both closed in the same second
+        // while Hyperliquid still had both stops open, and on 15 Sep four
+        // stock grids did the same. A read that cannot see the position
+        // cannot see its stop either, so it proves nothing. A read that sees
+        // the position but not the stop starts a 15-second wait
+        // (`order-presence.ts`), and the grid does nothing until that ends.
         const stop = plan.pairedStop
-        if (
-          stop &&
-          now - stop.placedAt >= PAIRED_STOP_VISIBILITY_GRACE_MS &&
-          !folio.positions.some((one) =>
-            one.protectionOrderIds.includes(stop.orderId)
-          ) &&
-          !folio.orders.some((one) => one.orderId === stop.orderId)
-        ) {
-          for (const level of plan.levels) {
-            if (level.status === "waiting") level.status = "cancelled"
+        if (stop && now - stop.placedAt >= PAIRED_STOP_VISIBILITY_GRACE_MS) {
+          const stopMarketId = parseMarketKey(raw.marketKey)?.marketId
+          const positionSeen = folio.positions.some(
+            (one) => one.marketId === stopMarketId
+          )
+          const stopListed =
+            folio.positions.some((one) =>
+              one.protectionOrderIds.includes(stop.orderId)
+            ) || folio.orders.some((one) => one.orderId === stop.orderId)
+          if (stopListed) {
+            if (stop.missingSince !== undefined) {
+              plan.pairedStop = { ...stop, missingSince: undefined }
+              await saveLadderPlan(userId, raw.id, plan, "active")
+            }
+          } else if (positionSeen) {
+            const judged = judgeOrder({
+              seenOnTheBook: false,
+              accountShowsItDone: false,
+              missingSince: stop.missingSince ?? 0,
+              now,
+            })
+            if (judged.presence === "gone") {
+              for (const level of plan.levels) {
+                if (level.status === "waiting") level.status = "cancelled"
+              }
+              if (!plan.closedReason) plan.closedReason = "stop"
+              plan.pairedStop = null
+              await saveLadderPlan(userId, raw.id, plan, "done")
+              continue
+            }
+            if (stop.missingSince !== judged.missingSince) {
+              plan.pairedStop = { ...stop, missingSince: judged.missingSince }
+              await saveLadderPlan(userId, raw.id, plan, "active")
+            }
+            continue
           }
-          if (!plan.closedReason) plan.closedReason = "stop"
-          plan.pairedStop = null
-          await saveLadderPlan(userId, raw.id, plan, "done")
-          continue
         }
         // A grid has no orders on the exchange to match fills against: its
         // levels are watched prices and it buys when one is reached.

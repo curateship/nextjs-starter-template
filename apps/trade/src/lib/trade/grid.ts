@@ -1405,6 +1405,12 @@ const gridPlanSchema = z.object({
       px: z.number().positive(),
       sz: z.number().positive(),
       placedAt: z.number(),
+      /**
+       * When a read that still showed the position first stopped listing this
+       * stop, or absent while it is listed. See the fired-stop check in
+       * `live-smart-orders.ts`.
+       */
+      missingSince: z.number().optional(),
     })
     .nullable()
     .default(null),
