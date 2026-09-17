@@ -4010,3 +4010,174 @@ describe.runIf(!!process.env.TRADE_TEST_POSTGRES_URL)("live grids linked to draw
   })
 
 })
+
+describe("a watched order's own stop", () => {
+  const ownStop = { orderId: "own-stop", px: 90, sz: 1, placedAt: 1 }
+  const heldPosition = (protectionOrderIds: string[]): WalletPosition => ({
+    marketId: "BTC", szi: 3, entryPx: 100, leverage: 1, marginUsed: 300,
+    liquidationPx: null, targets: [], tpPx: null, tpSz: null, tpOrderId: null,
+    slPx: 90, slOrderId: protectionOrderIds[0] ?? null, protectionOrderIds,
+  })
+
+  async function holdingWatch(over: Partial<WatchPlan> = {}): Promise<void> {
+    const plan: WatchPlan = {
+      triggerPx: 100, side: "buy", sz: 1, leverage: 1, maxLeverage: 50,
+      sizeDecimals: 3, minOrderSize: null, minOrderValueUsd: null,
+      priceTick: null, tpPx: null, slPx: 90, reduceOnly: false,
+      riskSized: false, maker: false, heldAtStart: 0, chaseGiveUp: 0,
+      phase: "holding", sent: true, orderId: null, orderPx: null,
+      missingSince: 0, heldWhenPlaced: 0, chasedAt: 0, chases: 0,
+      startedAt: Date.now() - 120_000, ownSz: 1, ownStop,
+      ...over,
+    }
+    await database.insert(tradeSmartLadders).values({
+      userId, id: "watch-1", walletId: "live-1", marketKey: MARKET,
+      kind: "watch", status: "active", plan,
+      createdAt: new Date(Date.now() - 120_000),
+      updatedAt: new Date(Date.now() - 60_000),
+    })
+    prices.mockResolvedValue(new Map([["BTC", 100]]))
+  }
+
+  async function watchRow() {
+    const [row] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    return row
+  }
+
+  it("keeps a stop the exchange still lists", async () => {
+    await holdingWatch()
+    portfolio.mockResolvedValue({
+      positions: [heldPosition(["own-stop"])],
+      orders: [],
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    const row = await watchRow()
+    expect(row.status).toBe("active")
+    expect((row.plan as WatchPlan).ownStop).toEqual(ownStop)
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
+  it("waits 15 seconds, then ends a row whose stop has gone", async () => {
+    // On 17 Sep 2026 a DASH row believed in a stop cancelled by hand for 75
+    // minutes, then retried cancelling it every two seconds for twelve hours.
+    await holdingWatch()
+    portfolio.mockResolvedValue({ positions: [heldPosition([])], orders: [] })
+
+    await reconcileLiveLadders(userId, wallet)
+    const first = await watchRow()
+    expect(first.status).toBe("active")
+    expect((first.plan as WatchPlan).ownStop?.missingSince).toBeGreaterThan(0)
+
+    // Missing for longer than an exchange's list can lag.
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: {
+          ...(first.plan as WatchPlan),
+          ownStop: { ...ownStop, missingSince: Date.now() - 16_000 },
+        },
+        updatedAt: new Date(Date.now() - 60_000),
+      })
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    dropEngineExchangeReads(wallet)
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+
+    const after = await watchRow()
+    expect(after.status).toBe("done")
+    expect((after.plan as WatchPlan).ownStop).toBeNull()
+    // Never put back: a stop that fired would sell coins already sold.
+    expect(setBrackets).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it("forgets its stop and its stop price when the stop is cancelled by hand", async () => {
+    await holdingWatch()
+
+    await cancelLiveOrder(userId, {
+      walletId: "live-1",
+      marketKey: MARKET,
+      orderId: "own-stop",
+    })
+
+    const plan = (await watchRow()).plan as WatchPlan
+    expect(plan.ownStop).toBeNull()
+    expect(plan.slPx).toBeNull()
+    expect(plan.phase).toBe("holding")
+
+    // The coins are still held, and the next pass finishes the row without
+    // placing a new stop.
+    portfolio.mockResolvedValue({ positions: [heldPosition([])], orders: [] })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 60_000) })
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    dropEngineExchangeReads(wallet)
+    await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+    expect((await watchRow()).status).toBe("done")
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
+  it("forgets its stop when the exchange says it was already gone", async () => {
+    await holdingWatch()
+    cancel.mockRejectedValue(
+      new Error(
+        "LIVE_EXCHANGE:Hyperliquid says this order is no longer open. Refresh the account before trying another change."
+      )
+    )
+
+    await expect(
+      cancelLiveOrder(userId, {
+        walletId: "live-1",
+        marketKey: MARKET,
+        orderId: "own-stop",
+      })
+    ).rejects.toThrow("no longer open")
+
+    expect(((await watchRow()).plan as WatchPlan).ownStop).toBeNull()
+  })
+
+  it("leaves the record alone when a different order is cancelled", async () => {
+    await holdingWatch()
+
+    await cancelLiveOrder(userId, {
+      walletId: "live-1",
+      marketKey: MARKET,
+      orderId: "someone-else",
+    })
+
+    expect(((await watchRow()).plan as WatchPlan).ownStop).toEqual(ownStop)
+  })
+
+  it("forgets a grid's stop but keeps its stop price", async () => {
+    await database.insert(tradeSmartLadders).values({
+      userId, id: "grid-own", walletId: "live-1", marketKey: MARKET,
+      kind: "grid", status: "active",
+      plan: gridState({ pairedStop: { ...ownStop, orderId: "grid-stop" } }),
+    })
+    const before = (
+      await database
+        .select()
+        .from(tradeSmartLadders)
+        .where(eq(tradeSmartLadders.id, "grid-own"))
+    )[0].plan as GridPlan
+
+    await cancelLiveOrder(userId, {
+      walletId: "live-1",
+      marketKey: MARKET,
+      orderId: "grid-stop",
+    })
+
+    const [row] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-own"))
+    const plan = row.plan as GridPlan
+    expect(plan.pairedStop).toBeNull()
+    expect(plan.stopLoss).toEqual(before.stopLoss)
+  })
+})

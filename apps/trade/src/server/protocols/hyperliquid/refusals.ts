@@ -59,3 +59,12 @@ export function isHyperliquidPostOnlyRefusal(error: unknown): boolean {
       message.endsWith(SENTENCES.HYPERLIQUID_POST_ONLY))
   )
 }
+
+/** "Already filled or cancelled", before and after its plain-word translation. */
+export function isHyperliquidOrderGoneRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    hyperliquidRefusalCode(message) === "HYPERLIQUID_ORDER_GONE" ||
+    message.endsWith(SENTENCES.HYPERLIQUID_ORDER_GONE)
+  )
+}

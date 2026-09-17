@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto"
-import { isHyperliquidPostOnlyRefusal } from "@/server/protocols/hyperliquid/refusals"
+import {
+  isHyperliquidOrderGoneRefusal,
+  isHyperliquidPostOnlyRefusal,
+} from "@/server/protocols/hyperliquid/refusals"
+import { isPhemexOrderGoneRefusal } from "@/server/protocols/phemex/refusals"
 import { forgetHyperliquidPrice } from "@/server/protocols/hyperliquid/prices"
 import { POST_ONLY_RETRY } from "@/server/trade/smart-order-pause"
 
@@ -638,6 +642,9 @@ export async function cancelLiveOrder(
     })
     dropEngineExchangeReads(row)
   } catch (error) {
+    if (isOrderGoneRefusal(error)) {
+      await forgetOwnedStop(userId, row.id, input.marketKey, input.orderId)
+    }
     await recordRefusal(
       userId,
       row.id,
@@ -647,6 +654,7 @@ export async function cancelLiveOrder(
     )
     throw error
   }
+  await forgetOwnedStop(userId, row.id, input.marketKey, input.orderId)
   // Behind the answer, not in front of it — see `placeLiveOrder`.
   void journal(userId, row.id, input.marketKey, {
     action: "cancelled",
@@ -656,14 +664,35 @@ export async function cancelLiveOrder(
   })
 }
 
+/** The exchange's own word that an order is already filled or cancelled. */
+function isOrderGoneRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    isHyperliquidOrderGoneRefusal(error) ||
+    isPhemexOrderGoneRefusal(error) ||
+    /^(?:LIVE_ORDER_GONE|ASTER_ORDER_GONE):/.test(message)
+  )
+}
+
 /**
  * Cancels an exchange order this app has just placed and already knows by id.
  * Used to roll back a partly accepted multi-order action; unlike the normal
  * cancel path it does not depend on the next portfolio read seeing the order.
+ *
+ * `goneIsCancelled` is for a stop whose coins have already gone. There, the
+ * exchange saying the order is already filled or cancelled is the result the
+ * caller wanted. Without it, the row kept its dead order id and asked for the
+ * same cancel on every pass: on 17 Sep 2026 a DASH watch did that every two
+ * seconds for twelve hours after its position closed.
  */
 export async function rollbackLiveOrder(
   userId: string,
-  input: { walletId: string; marketKey: string; orderId: string }
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    goneIsCancelled?: boolean
+  }
 ): Promise<boolean> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
@@ -690,6 +719,15 @@ export async function rollbackLiveOrder(
     // smart-order recovery path, which "restored" the cancelled original by
     // PLACING IT AGAIN — an order that was never cancelled got a sibling.
     // So the refusal is journalled and the answer is returned, calmly.
+    if (input.goneIsCancelled && isOrderGoneRefusal(error)) {
+      dropEngineExchangeReads(row)
+      await journal(userId, row.id, input.marketKey, {
+        action: "cancelled",
+        side,
+        note: "The exchange had already taken this order off.",
+      })
+      return true
+    }
     const message = error instanceof Error ? error.message : String(error)
     await journal(userId, row.id, input.marketKey, {
       action: "refused",
@@ -1034,6 +1072,68 @@ export async function liveHeldPositions(
       }),
       held: one,
     }))
+}
+
+/**
+ * Tells a watched order or a grid that the stop it owns has been cancelled.
+ *
+ * The ordinary cancel, the × on a row, used to leave the owner holding the
+ * dead order id. On 17 Sep 2026 a DASH row believed in a stop cancelled at
+ * 00:53 until its coins went at 02:08, then asked Hyperliquid to cancel it
+ * every two seconds for twelve hours.
+ *
+ * - **A watched order loses its stop price too**, because its stop is the
+ *   person's own and the × took it off. The next engine pass finishes the row.
+ * - **A grid keeps its stop price**, so the next pass puts the grid's stop
+ *   back, the same way the engine restores any strategy's stop.
+ *
+ * Matched on the order id inside the plan, so only the row holding that id
+ * changes. Never throws, because the cancel has already happened. A watched
+ * order that misses this write is still finished by the engine once its stop
+ * has been missing for 15 seconds.
+ */
+async function forgetOwnedStop(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  orderId: string
+): Promise<void> {
+  const owner = and(
+    eq(tradeSmartLadders.userId, userId),
+    eq(tradeSmartLadders.walletId, walletId),
+    eq(tradeSmartLadders.marketKey, marketKey),
+    eq(tradeSmartLadders.status, "active")
+  )
+  try {
+    await db
+      .update(tradeSmartLadders)
+      .set({
+        plan: sql`${tradeSmartLadders.plan} || '{"ownStop": null, "slPx": null}'::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          owner,
+          eq(tradeSmartLadders.kind, "watch"),
+          sql`${tradeSmartLadders.plan}->'ownStop'->>'orderId' = ${orderId}`
+        )
+      )
+    await db
+      .update(tradeSmartLadders)
+      .set({
+        plan: sql`${tradeSmartLadders.plan} || '{"pairedStop": null}'::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          owner,
+          eq(tradeSmartLadders.kind, "grid"),
+          sql`${tradeSmartLadders.plan}->'pairedStop'->>'orderId' = ${orderId}`
+        )
+      )
+  } catch (error) {
+    recordEngineError("live-orders", "could not forget a cancelled stop", error)
+  }
 }
 
 /**

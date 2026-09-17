@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  isHyperliquidOrderGoneRefusal,
   isHyperliquidPostOnlyRefusal,
   hyperliquidRefusalCode,
   hyperliquidRefusalError,
@@ -57,5 +58,22 @@ describe("post-only refusal identity", () => {
     "LIVE_SMART_ORDER_NOT_RESTING",
   ])("does not treat %s as a confirmed exchange rejection", (message) => {
     expect(isHyperliquidPostOnlyRefusal(new Error(message))).toBe(false)
+  })
+})
+
+describe("order-gone refusal identity", () => {
+  it("recognizes raw and translated refusals", () => {
+    const raw = "Order was never placed, already canceled, or filled. asset=5"
+    expect(isHyperliquidOrderGoneRefusal(new Error(raw))).toBe(true)
+    expect(
+      isHyperliquidOrderGoneRefusal(
+        new Error("LIVE_EXCHANGE:" + hyperliquidRefusalError(raw).message)
+      )
+    ).toBe(true)
+  })
+  it("does not treat a busy exchange as gone", () => {
+    expect(
+      isHyperliquidOrderGoneRefusal(new Error("LIVE_EXCHANGE:429 Too Many"))
+    ).toBe(false)
   })
 })

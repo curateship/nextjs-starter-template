@@ -21,6 +21,10 @@ app now does that like this:
   the grid is holding right now. When a grid level buys or sells, the engine
   replaces that stop at the new size on the same pass. The order's id is
   written on the grid's own record, so only the grid can move or cancel it.
+- **Cancelling the grid's stop by hand does not remove it for good.** The grid
+  forgets the cancelled order but keeps its stop price, so the next engine
+  pass puts the stop back. The engine does the same for any strategy's stop.
+  To change it, change the grid's stop setting.
 - **An order placed by hand can hold its own stop the same way.** It is not
   part of this pairing and it is not refused by the one-per-coin rule, because
   a hand-placed order manages no position. `watched-orders.md` covers it.

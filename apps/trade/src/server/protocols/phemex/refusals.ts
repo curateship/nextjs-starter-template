@@ -75,3 +75,12 @@ export function phemexRefusalError(reason: string): Error {
     `Phemex refused the request for a reason Trade does not recognize: ${safeReason}. Check Phemex's status before trying again.`
   )
 }
+
+/** "Order not found", before and after its plain-word translation. */
+export function isPhemexOrderGoneRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    phemexRefusalCode(message) === "PHEMEX_ORDER_GONE" ||
+    message.endsWith(SENTENCES.PHEMEX_ORDER_GONE)
+  )
+}

@@ -10,6 +10,7 @@ import { snapToTick } from "@/lib/protocols/tick"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   cancelLiveOrder,
+  rollbackLiveOrder,
   closeLivePosition,
   loadLivePortfolio,
   placeLiveOrder,
@@ -620,6 +621,61 @@ describe("cancelling", () => {
     const rows = await journalRows(userId)
     expect(rows).toHaveLength(1)
     expect(rows[0].action).toBe("refused")
+  })
+})
+
+describe("rolling back an order", () => {
+  const gone = new Error(
+    "LIVE_EXCHANGE:Hyperliquid says this order is no longer open. Refresh the account before trying another change."
+  )
+
+  it("counts an already-gone stop as cancelled when the caller says so", async () => {
+    // On 17 Sep 2026 a watch whose coins had gone asked to cancel its dead
+    // stop every two seconds for twelve hours, because "already gone" came
+    // back as a failed cancel.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    cancel.mockRejectedValue(gone)
+
+    await expect(
+      rollbackLiveOrder(userId, {
+        walletId,
+        marketKey: MARKET,
+        orderId: "91",
+        goneIsCancelled: true,
+      })
+    ).resolves.toBe(true)
+    const rows = await journalRows(userId)
+    expect(rows.map((row) => row.action)).toEqual(["cancelled"])
+  })
+
+  it("still reports already-gone as not cancelled by default", async () => {
+    // A caller about to place a replacement must learn the order may have
+    // filled, or it buys the same thing twice.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    cancel.mockRejectedValue(gone)
+
+    await expect(
+      rollbackLiveOrder(userId, { walletId, marketKey: MARKET, orderId: "92" })
+    ).resolves.toBe(false)
+  })
+
+  it("keeps any other refusal as not cancelled", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    cancel.mockRejectedValue(new Error("LIVE_EXCHANGE:429 Too Many Requests"))
+
+    await expect(
+      rollbackLiveOrder(userId, {
+        walletId,
+        marketKey: MARKET,
+        orderId: "93",
+        goneIsCancelled: true,
+      })
+    ).resolves.toBe(false)
+    const rows = await journalRows(userId)
+    expect(rows.map((row) => row.action)).toEqual(["refused"])
   })
 })
 

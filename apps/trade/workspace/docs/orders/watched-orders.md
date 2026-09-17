@@ -541,6 +541,25 @@ Now:     your 1,000 ARB sells for $145, you are out $5, and the ladder keeps
   thing that knows which stop is yours. It is not drawn as a waiting order any
   more; it is holding one. The engine keeps the stop at the size your coins
   come to, capped at the position, and ends the row once the coins have gone.
+- **A stop the exchange has already taken off counts as cancelled.** When the
+  coins go, the row cancels its stop before it finishes. If the exchange
+  answers that the stop is already filled or cancelled, the row finishes. On
+  17 Sep 2026 a DASH row whose stop had been cancelled by hand asked for that
+  same cancel every two seconds for twelve hours, and each refusal showed up
+  on screen. A grid's own stop follows the same rule.
+- **Cancelling your stop by hand, with the × on its row, ends the row.** The
+  row forgets the stop and its stop price, and the next engine pass finishes
+  it. Your coins stay in the position. Before this, the row kept the dead
+  order's id and went on believing it had a stop.
+- **A stop missing from the exchange for 15 seconds also ends the row.** This
+  covers a stop taken off some other way, such as on Hyperliquid's own site,
+  or a stop that fired. The engine checks its account read, which is at most
+  5 seconds old, every pass. 15 seconds is how long an exchange's list can lag
+  behind an order.
+- **A missing stop is never put back.** The account read cannot tell a stop
+  that fired from one that was cancelled. Putting back one that fired would
+  arm a stop for 1 coin that was already sold. On a coin a ladder also holds,
+  that stop would then sell 1 of the ladder's coins.
 - **Calling the order off takes the stop off with it.** The row waits for the
   exchange to confirm that cancel before it finishes, so a busy venue cannot
   leave a stop behind that nothing owns.

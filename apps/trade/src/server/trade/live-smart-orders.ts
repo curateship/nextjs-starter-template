@@ -2319,11 +2319,14 @@ export async function reconcileLiveLaddersOnce(
         // stop forgotten while it stands is one nothing spares and nothing
         // retries — the record stays and the next pass tries again. A stop
         // that is refused because it already FIRED is caught by the
-        // fired-stop check at the top of the pass instead.
+        // fired-stop check at the top of the pass instead. The exchange
+        // saying the stop is already gone is the answer, not a refusal, and
+        // retrying it loops forever.
         const cancelled = await rollbackLiveOrder(userId, {
           walletId: wallet.id,
           marketKey: raw.marketKey,
           orderId: have.orderId,
+          goneIsCancelled: true,
         })
         if (cancelled) {
           plan.pairedStop = null
@@ -2333,6 +2336,53 @@ export async function reconcileLiveLaddersOnce(
     } catch (error) {
       await noteRowFailure(userId, wallet.id, raw.marketKey, error)
     }
+  }
+
+  /**
+   * Ends a holding row whose stop is no longer on the exchange.
+   *
+   * The row used to compare its stop only with its own record, so a stop
+   * cancelled some other way stayed "on" for as long as the coins were held.
+   * On 17 Sep 2026 a DASH row believed in a $49.441 stop for 75 minutes after
+   * it was cancelled by hand, then retried cancelling it every two seconds.
+   *
+   * **Ended, not put back.** A missing stop either fired or was taken off,
+   * and the account read cannot tell which. Putting back a stop that fired
+   * would arm it a second time, sized to coins that are already sold, on a
+   * position a strategy still holds, so it would sell the strategy's coins.
+   *
+   * Judged off the pass's own account read, which is at most five seconds
+   * old, and only after 15 seconds missing, because an exchange's list can
+   * lag a just-placed order (`order-presence.ts`).
+   */
+  const checkOwnStopStillThere = async (
+    raw: (typeof rows)[number],
+    plan: WatchPlan,
+    have: NonNullable<WatchPlan["ownStop"]>
+  ): Promise<void> => {
+    const marketId = parseMarketKey(raw.marketKey)?.marketId
+    const listed =
+      portfolio.orders.some((order) => order.orderId === have.orderId) ||
+      portfolio.positions.some(
+        (held) =>
+          held.marketId === marketId &&
+          held.protectionOrderIds.includes(have.orderId)
+      )
+    const judged = judgeOrder({
+      seenOnTheBook: listed,
+      accountShowsItDone: false,
+      missingSince: have.missingSince ?? 0,
+      now: Date.now(),
+    })
+    if (judged.presence === "gone") {
+      plan.ownStop = null
+      await saveLadderPlan(userId, raw.id, plan, "done")
+      return
+    }
+    const missingSince = judged.missingSince || undefined
+    if (have.missingSince === missingSince) return
+    plan.ownStop = { ...have, missingSince }
+    await saveLadderPlan(userId, raw.id, plan, "active")
   }
 
   /**
@@ -2377,6 +2427,7 @@ export async function reconcileLiveLaddersOnce(
           closeEnough(have.px, wantedPx) &&
           closeEnough(have.sz, wantedSz)
         ) {
+          await checkOwnStopStillThere(raw, plan, have)
           return
         }
         const placed = await setLiveBrackets(userId, {
@@ -2401,11 +2452,13 @@ export async function reconcileLiveLaddersOnce(
       // The coins have gone, or this order has been called off. Same rule as
       // the grid's: a plain cancel, and the record is only forgotten once the
       // exchange confirms it, so a busy venue cannot leave an orphan behind.
+      // "Already gone" counts as confirmed.
       if (have) {
         const cancelled = await rollbackLiveOrder(userId, {
           walletId: wallet.id,
           marketKey: raw.marketKey,
           orderId: have.orderId,
+          goneIsCancelled: true,
         })
         if (!cancelled) return
         plan.ownStop = null

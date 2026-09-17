@@ -202,6 +202,11 @@ const watchPlanSchema = z.object({
       px: z.number().positive(),
       sz: z.number().positive(),
       placedAt: z.number(),
+      /**
+       * When the engine's account read first stopped listing this stop, or
+       * absent while it is listed. See `checkOwnStopStillThere`.
+       */
+      missingSince: z.number().optional(),
     })
     .nullable()
     .default(null),
