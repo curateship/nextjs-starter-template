@@ -71,6 +71,54 @@ describe("the backtest canvas panel", () => {
     host.remove()
   })
 
+  it("ticks the sizes the newest press ran, so they match the title", async () => {
+    // Tyler, 16 Sep 2026: the card read "Large cap DCA, 1d" with 4h ticked.
+    const row = (id: string, interval: string, createdAt: number) => ({
+      id,
+      name: `Large cap DCA, ${interval}`,
+      createdAt,
+      finishedAt: createdAt + 1,
+      stopRequested: false,
+      spec: { interval, from: 0, to: 86_400_000 },
+      summary: null,
+    })
+    loadBacktests.mockResolvedValueOnce({
+      runs: [row("a", "1d", 2), row("b", "1h", 2), row("c", "4h", 1)],
+    } as never)
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <BacktestCanvasPanel
+          automationId="ran"
+          runId={null}
+          onClose={() => {}}
+          compiledConfig={{
+            v: 1,
+            kind: "automation",
+            edges: [],
+            nodes: {
+              strategy: {
+                kind: tradeDcaNode.kind,
+                settings: tradeDcaNode.createSettings(),
+              },
+            },
+          }}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const ticked = (size: string) =>
+      host.querySelector(`#backtest-ran-${size}`)?.getAttribute("aria-checked")
+    expect(ticked("1d")).toBe("true")
+    expect(ticked("1h")).toBe("true")
+    expect(ticked("4h")).toBe("false")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("defaults to the recipe size and submits three checked sizes", async () => {
     runRecipe.mockClear()
     const host = document.createElement("div")

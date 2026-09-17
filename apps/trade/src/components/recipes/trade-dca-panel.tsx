@@ -463,7 +463,11 @@ export default function TradeDcaFields({
       </InspectorCard>
 
       <InspectorCard title="Exit">
-        <div className="flex items-center gap-2">
+        {/* The rule sits on the checkbox's own row, so switching Exit on and
+            picking how it sells read as one choice. The row and the picker
+            may shrink, so a long rule ends in "…" instead of pushing the
+            panel wider than its column. */}
+        <div className="flex min-w-0 items-center gap-2">
           <Checkbox
             id={`dca-${node.id}-tp-on`}
             checked={params.takeProfit !== null}
@@ -478,61 +482,60 @@ export default function TradeDcaFields({
           />
           <FieldLabel
             htmlFor={`dca-${node.id}-tp-on`}
-            className="text-xs"
-            hint="Off means the ladder only ever leaves through its stop."
+            className="shrink-0 text-xs"
+            hint={
+              params.takeProfit
+                ? DCA_TP_MODE_HINTS[params.takeProfit.mode]
+                : "Off means the ladder only ever leaves through its stop."
+            }
           >
             Exit
           </FieldLabel>
+          {params.takeProfit ? (
+            <Select
+              value={params.takeProfit.mode}
+              onValueChange={(mode) =>
+                setParams({
+                  takeProfit: {
+                    ...params.takeProfit!,
+                    mode: mode as DcaTpMode,
+                  },
+                })
+              }
+            >
+              <SelectTrigger
+                id={`dca-${node.id}-tp-mode`}
+                aria-label="How the exit sells"
+                className="w-full min-w-0 flex-1"
+              >
+                <span className="min-w-0 truncate">
+                  <SelectValue />
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {DCA_TP_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {DCA_TP_MODE_LABELS[mode]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
         </div>
 
-        {params.takeProfit ? (
-          <>
-            <div className="grid gap-1.5">
-              <FieldLabel
-                htmlFor={`dca-${node.id}-tp-mode`}
-                className="text-xs"
-                hint={DCA_TP_MODE_HINTS[params.takeProfit.mode]}
-              >
-                Exit
-              </FieldLabel>
-              <Select
-                value={params.takeProfit.mode}
-                onValueChange={(mode) =>
-                  setParams({
-                    takeProfit: {
-                      ...params.takeProfit!,
-                      mode: mode as DcaTpMode,
-                    },
-                  })
-                }
-              >
-                <SelectTrigger id={`dca-${node.id}-tp-mode`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DCA_TP_MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {DCA_TP_MODE_LABELS[mode]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {params.takeProfit.mode === "average" ? (
-              <TradeNumberField
-                id={`dca-${node.id}-tp-pct`}
-                label="Target"
-                hint="How far above the average buy price the sell sits. It is re-aimed after every fill, so a deeper rung pulls the target down with it."
-                value={params.takeProfit.pct}
-                min={0.01}
-                max={999}
-                suffix="%"
-                onChange={(pct) =>
-                  setParams({ takeProfit: { ...params.takeProfit!, pct } })
-                }
-              />
-            ) : null}
-          </>
+        {params.takeProfit?.mode === "average" ? (
+          <TradeNumberField
+            id={`dca-${node.id}-tp-pct`}
+            label="Target"
+            hint="How far above the average buy price the sell sits. It is re-aimed after every fill, so a deeper rung pulls the target down with it."
+            value={params.takeProfit.pct}
+            min={0.01}
+            max={999}
+            suffix="%"
+            onChange={(pct) =>
+              setParams({ takeProfit: { ...params.takeProfit!, pct } })
+            }
+          />
         ) : null}
       </InspectorCard>
 

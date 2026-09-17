@@ -432,74 +432,30 @@ describe("chart bracket lines", () => {
     expect(label.textContent).toBe("Stop Loss -$25.00")
   })
 
-  it("counts a waiting order with no stop of its own in the position's stop", () => {
-    // Tyler, 16 Sep 2026: a second hand-placed order with no stop joins the
-    // stop the position already carries.
-    const held = position("stop")
-    const waiting: TradeOrder = {
-      ...order(95, "waiting-buy"),
-      side: "buy",
-      sz: 2,
-      reduceOnly: false,
-      trigger: undefined,
-      live: undefined,
+  it.each([
+    ["stop", "Stop Loss", "Stop Loss -$10.00"],
+    ["target", "Exit", "Exit $110 +$10.00"],
+  ] as const)(
+    "keeps a waiting order's money off the position's %s line",
+    (kind, name, text) => {
+      // Tyler, 16 Sep 2026: in a position, the exit and the stop show what
+      // the position itself makes or loses. A $500 buy still waiting has not
+      // bought anything, so it adds nothing to either figure.
+      const held = position(kind)
+      const waiting: TradeOrder = {
+        ...order(95, "waiting-buy"),
+        side: "buy",
+        sz: 2,
+        reduceOnly: false,
+        trigger: undefined,
+        live: undefined,
+      }
+
+      expect(lineLabel(renderLines(held, [waiting]), name).textContent).toBe(
+        text
+      )
     }
-
-    // The position alone loses $10 at its $90 stop. The waiting buy at $95
-    // loses another $10 for its 2 coins, so the one line says -$20.
-    expect(lineLabel(renderLines(held, []), "Stop Loss").textContent).toBe(
-      "Stop Loss -$10.00"
-    )
-    expect(
-      lineLabel(renderLines(held, [waiting]), "Stop Loss").textContent
-    ).toBe("Stop Loss -$20.00")
-  })
-
-  it("keeps a waiting order off an exit that sells a fixed number of coins", () => {
-    // That exit sells the coins the position holds now, so the waiting order's
-    // coins are not sold at it and its profit is not on that line.
-    const held = position("target")
-    held.targets = [{ px: 110, sz: 1, orderId: "bracket-order" }]
-    const waiting: TradeOrder = {
-      ...order(95, "waiting-buy"),
-      side: "buy",
-      sz: 2,
-      reduceOnly: false,
-      trigger: undefined,
-      live: undefined,
-    }
-
-    const label = lineLabel(renderLines(held, [waiting]), "Exit")
-    expect(label.textContent).toBe("Exit $110 +$10.00")
-  })
-
-  it("leaves the position's stop alone for an order carrying its own", () => {
-    const held = position("stop")
-    const withStop: TradeOrder = {
-      ...order(95, "waiting-buy"),
-      side: "buy",
-      sz: 2,
-      reduceOnly: false,
-      trigger: undefined,
-      live: undefined,
-      slPx: 92,
-    }
-    const opposite: TradeOrder = {
-      ...order(95, "waiting-sell"),
-      side: "sell",
-      sz: 2,
-      reduceOnly: false,
-      trigger: undefined,
-      live: undefined,
-    }
-
-    expect(
-      lineLabel(renderLines(held, [withStop]), "Stop Loss").textContent
-    ).toBe("Stop Loss -$10.00")
-    expect(
-      lineLabel(renderLines(held, [opposite]), "Stop Loss").textContent
-    ).toBe("Stop Loss -$10.00")
-  })
+  )
 
   it("shows no after-fee amount when the fee history is incomplete", () => {
     const held = position("stop")

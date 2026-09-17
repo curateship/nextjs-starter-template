@@ -84,10 +84,28 @@ export default function BacktestCanvasPanel({
     key: string
     values: CandleInterval[]
   } | null>(null)
+  /**
+   * The sizes the newest press ran, so the ticks match the title above them.
+   *
+   * The title names the run on the card ("Large cap DCA, 1d"). Ticking the
+   * flow's own size instead put a tick on 4h under a 1d result after every
+   * reload. The flow's size still wins once its step is changed, because the
+   * last run no longer describes the flow.
+   */
+  const [lastPressSizes, setLastPressSizes] = React.useState<CandleInterval[]>(
+    []
+  )
+  const [keyAtOpen, setKeyAtOpen] = React.useState<string | null>(null)
+  if (sizes && keyAtOpen === null) setKeyAtOpen(selectionKey)
+  const ranSizes = sizes
+    ? lastPressSizes.filter((size) => sizes.allowed.includes(size))
+    : []
   const intervals = sizes
     ? selection?.key === selectionKey
       ? selection.values
-      : [sizes.initial]
+      : selectionKey === keyAtOpen && ranSizes.length > 0
+        ? sizes.allowed.filter((size) => ranSizes.includes(size))
+        : [sizes.initial]
     : undefined
   const marketStep =
     compiledConfig &&
@@ -175,6 +193,13 @@ export default function BacktestCanvasPanel({
         if (stopped) return false
         const newest = list.runs[0] ?? null
         setRun(newest)
+        setLastPressSizes(
+          newest
+            ? list.runs
+                .filter((row) => row.createdAt === newest.createdAt)
+                .map((row) => row.spec.interval)
+            : []
+        )
         onLatestRunIdChange?.(newest?.id ?? null)
         setNoneYet(list.runs.length === 0)
         // The click has landed, so stop believing it on faith. Either of two

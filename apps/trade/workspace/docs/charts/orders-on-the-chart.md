@@ -96,13 +96,17 @@ there are two lines it can join.
   lane draws exactly one exit line, because with two there is no such thing as
   the only exit to join. The rules are in `src/lib/trade/order-line-groups.ts`
   and the saves run from `chart-panel.tsx`.
-- **The position's stop and exit.** With a position open on the coin, its Stop
-  Loss line counts the waiting order too: a line reading -$80 for the coin
-  already held reads -$175 once a $500 buy is waiting under it. Nothing is
-  written here, because an order that fills becomes part of that position and
-  the position's stop already covers all of it. Its Exit line counts the same
-  orders, and only when the position carries exactly one exit.
-  `src/components/trade/trade-lines-layer.tsx`.
+- **The position's stop and exit.** With a position open on the coin, the
+  order rides the position's stop, because once it fills it is part of that
+  position. Nothing is written onto the order.
+
+**A position's Exit and Stop Loss lines count only the position.** Tyler, 16 Sep
+2026: "If I'm in a position then the take profit should only show my projected
+take profit or stoploss for the currant position." The buys still waiting below
+have bought nothing yet, so their money is left out. A $100 position with $3,400
+of buys waiting under it once read "Exit $5,366 +$1,866.95". The same exit now
+reads about "$110 +$13", which is what that position would make.
+`src/components/trade/trade-lines-layer.tsx`.
 
 **The × on the waiting orders' stop or exit takes that level off every order
 under the line.** The orders themselves stay exactly where they are: it throws

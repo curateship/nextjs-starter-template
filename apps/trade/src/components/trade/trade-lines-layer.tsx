@@ -435,63 +435,6 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   const whose = (walletId: string) =>
     involved.size > 1 ? ` · ${walletName(walletId)}` : ""
 
-  /**
-   * The waiting orders that ride on a position's own stop or exit.
-   *
-   * Tyler, 16 Sep 2026: "If there is no stop for a second manual order then it
-   * joins the currant position stop." Nothing is merged, because the order
-   * never had a price of its own to merge. It is the order admitting what is
-   * already true. When it fills it becomes part of this position, and the
-   * position's stop is the stop it ends up under. So the line counts its money
-   * too, and a stop reading -$80 for the coin held reads -$175 once a $500 buy
-   * is waiting under it.
-   *
-   * Only a plain order on the position's own side rides. A bracket leg the
-   * exchange handed back is already drawn as what it is, an order still being
-   * sent has nothing to ride on yet, and an order closing this position is
-   * getting out rather than adding to it, so its money is not at stake when
-   * the stop fires.
-   */
-  const ridersOn = (
-    position: TradePosition,
-    kind: "sl" | "tp"
-  ): readonly TradeOrder[] =>
-    waiting.filter(
-      (order) =>
-        order.walletId === position.walletId &&
-        !order.placing &&
-        !order.taking &&
-        !order.reduceOnly &&
-        !order.trigger &&
-        order.side === (position.szi > 0 ? "buy" : "sell") &&
-        (kind === "sl" ? order.slPx === null : order.tpPx === null)
-    )
-
-  /** What those riders add to the line's figure at a price. */
-  const ridersResult =
-    (riders: readonly TradeOrder[]) =>
-    (at: number): number =>
-      riders.reduce(
-        (total, order) =>
-          total +
-          projectedProfit(
-            {
-              szi: order.side === "buy" ? order.sz : -order.sz,
-              entryPx: order.px,
-            },
-            at
-          ),
-        0
-      )
-
-  /** "and 1 waiting order", the part of a line's tooltip the riders earn. */
-  const ridersSaid = (riders: readonly TradeOrder[]): string =>
-    riders.length === 0
-      ? ""
-      : riders.length === 1
-        ? " Counts the one waiting order that has none of its own."
-        : ` Counts the ${riders.length} waiting orders that have none of their own.`
-
   // Alerts use this same bar renderer instead of carrying a second chart UI.
   // They go down first so a trading control wins the final paint order when
   // both prices match, while the shared pill layout still keeps both readable.
@@ -579,17 +522,9 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       })
     }
 
-    // Riders join the ONE exit on the chart, and only when that exit sells
-    // everything the position holds (`sz` null). With two or three targets
-    // there is no such thing as the only exit, and an exit for a fixed number
-    // of coins would not sell the rider's coins at all, so counting its profit
-    // there would be a figure nothing can pay.
-    const exitRiders =
-      position.targets.length === 1 && position.targets[0].sz === null
-        ? ridersOn(position, "tp")
-        : []
-    const exitRidersResult = ridersResult(exitRiders)
-
+    // Only the coins the position holds. A waiting order has bought nothing
+    // yet, and counting it put +$1,866.95 on an exit whose position would make
+    // a fraction of that. Tyler, 16 Sep 2026.
     for (const [targetIndex, target] of position.targets.entries()) {
       const targetSz = target.sz ?? Math.abs(position.szi)
       lines.push({
@@ -597,20 +532,15 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         kind: "take_profit",
         price: target.px,
         label: (at) =>
-          `Exit ${formatUsdRounded(
-            (targetSz +
-              exitRiders.reduce((total, order) => total + order.sz, 0)) *
-              at
-          )} ${formatSignedUsd(
+          `Exit ${formatUsdRounded(targetSz * at)} ${formatSignedUsd(
             projectedProfit(
               {
                 szi: Math.sign(position.szi) * targetSz,
                 entryPx: position.entryPx,
               },
               at
-            ) + exitRidersResult(at)
+            )
           )}${tag}`,
-        hint: exitRiders.length > 0 ? ridersSaid(exitRiders).trim() : undefined,
         onMove: (price) =>
           onSetBrackets(position, {
             targets: position.targets.map((one, index) => ({
@@ -629,8 +559,6 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       })
     }
     if (position.slPx !== null && stopSuitsPrice(position.szi > 0, position.slPx)) {
-      const stopRiders = ridersOn(position, "sl")
-      const stopRidersResult = ridersResult(stopRiders)
       lines.push({
         id: `sl:${position.id}`,
         kind: "stop_loss",
@@ -638,15 +566,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         label: (at) => {
           const result = resultAfterFees(at)
           return `Stop Loss ${
-            result === null
-              ? "—"
-              : formatSignedUsd(result + stopRidersResult(at))
+            result === null ? "—" : formatSignedUsd(result)
           }${tag}`
         },
         hint:
           feesPaid === null
             ? "The fills on hand do not cover this position's fees."
-            : `After fees charged so far. The closing fee is known only after the order fills.${ridersSaid(stopRiders)}`,
+            : "After fees charged so far. The closing fee is known only after the order fills.",
         allows: (price) => stopSuitsPrice(position.szi > 0, price),
         onMove: (price) =>
           onSetBrackets(position, {

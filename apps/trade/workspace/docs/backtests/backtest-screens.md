@@ -148,10 +148,12 @@ migration or backtest rerun is needed to show durations on saved runs.
 ## Several candle sizes from one press
 
 The recipe canvas Backtest panel has a Candle sizes checklist on desktop and
-narrow screens. The strategy's
-own size starts checked. DCA and Signals offer 1m, 5m, 15m, 1h, 4h and 1d.
-Grid offers only its fixed 4h size. Selecting sizes does not edit the strategy.
-Changing the strategy's own size resets the checklist to that size.
+narrow screens. The sizes the newest press ran start checked, so the ticks
+match the result named in the panel's title. A recipe that has never been
+backtested starts with the strategy's own size checked. DCA and Signals offer
+1m, 5m, 15m, 1h, 4h and 1d. Grid offers only its fixed 4h size. Selecting sizes
+does not edit the strategy. Changing the strategy's own size resets the
+checklist to that size, because the last run no longer describes the recipe.
 
 Each row estimates the candles needed for the recipe's coin count and date
 window, including the base history used by the existing memory check. These

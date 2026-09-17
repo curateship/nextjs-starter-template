@@ -193,10 +193,17 @@ export function FlowRunCoinsPanel({
                         {coin.coin}
                       </span>
                     </TableCell>
-                    <TableCell column="meta">
+                    {/* A row that needs a person wraps instead of clipping.
+                        Its words are a whole sentence saying what to change,
+                        and a cut-off one ended "so bu". Every other status
+                        stays on one line, so a narrow panel keeps short rows. */}
+                    <TableCell
+                      column="meta"
+                      className={cn(coin.problem && "whitespace-normal")}
+                    >
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1.5",
+                          "flex items-center gap-1.5",
                           coin.problem && "text-amber-700 dark:text-amber-400",
                           !held &&
                             !coin.problem &&
