@@ -198,6 +198,27 @@ bots" and links to the automation canvases. The rows arrive in the same server
 answer as the other overview widgets, with no timer of their own. A row keeps
 its last banked dollar figure until the overview is read again.
 
+Profit calendar is the P&L page's month grid as an overview widget. It draws
+the same component, `src/components/pnl/pnl-month-grid.tsx`, inside
+`src/components/trade/profit-calendar-widget.tsx`. New and reset dashboards
+leave it out, so it waits under Settings → Widgets until somebody places it.
+
+- **Where its dollars come from:** it splits the overview's own real fills by
+  Toronto day. It asks the server for nothing extra and updates with the
+  overview's fifteen-second read.
+- **Why the tiles give no trade count:** the overview carries fills, not
+  finished trades. Rebuilding every finished trade on each fifteen-second read
+  would be a much heavier read, so the widget names dollars and the P&L page
+  keeps the trade count.
+- **How it agrees with PnL Graph:** a month's tiles add up to the settled
+  figure the graph names for that month. Unpriced fills are counted apart and
+  never as zero, as on the P&L page.
+- **When the two can differ:** the graph leaves out a wallet whose balance
+  could not be read. The calendar still counts that wallet's saved fills,
+  the same as the P&L page does.
+- **Which month it opens on:** the current one. The arrows walk back to August
+  2026, and the chosen month is not remembered after a reload.
+
 Practice wallets never enter a number on this screen. If one real wallet cannot
 be read, the rest of the screen stays up, the missing exchange is named, and
 every affected total says it is short. A failed read is never drawn as an empty

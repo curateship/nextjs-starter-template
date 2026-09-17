@@ -70,6 +70,9 @@ August 2026 and no further.
   before that carry no figure yet. The tile says "plus 11 fills the exchange
   has not priced" and the money shown is the priced part alone.
 - **The trade count is finished trades that closed that day.**
+- **The same grid is a trading overview widget.** Profit calendar draws it
+  from the overview's fills without the trade count. The trading overview doc
+  explains why.
 
 ### The cards and their period
 

@@ -53,17 +53,23 @@ function monthPrefix({ year, month }: Month): string {
  * The arrows walk months from the current one back to August 2026, where the
  * records begin; days before 20 August are drawn faint, because there is
  * nothing to say about them rather than nothing having happened.
+ *
+ * `countsTrades` is off on the trading overview's calendar widget. That
+ * widget reads the overview's fills alone, which carry the money but not the
+ * finished trades, so it names dollars and never a trade count it lacks.
  */
 export function PnlMonthGrid({
   days,
   month,
   onMonthChange,
   now,
+  countsTrades = true,
 }: {
   days: ReadonlyMap<DayKey, DayResult>
   month: Month
   onMonthChange: (month: Month) => void
   now: number
+  countsTrades?: boolean
 }) {
   const latest = currentMonth(now)
   const earliest = earliestMonth()
@@ -78,12 +84,16 @@ export function PnlMonthGrid({
         icon={<CalendarDaysIcon />}
         title={formatMonthAndYear(month.year, month.month)}
         meta={
-          total.trades === 0 && total.unpriced === 0 ? (
+          total.trades === 0 && total.unpriced === 0 && total.money === 0 ? (
             "No trades"
           ) : (
             <>
               <PnlAmount>{formatSignedUsd(total.money)}</PnlAmount>
-              {` across ${total.trades} ${total.trades === 1 ? "trade" : "trades"}${total.unpriced ? `, ${total.unpriced} unpriced` : ""}`}
+              {countsTrades
+                ? ` across ${total.trades} ${total.trades === 1 ? "trade" : "trades"}${total.unpriced ? `, ${total.unpriced} unpriced` : ""}`
+                : total.unpriced
+                  ? `, ${total.unpriced} unpriced`
+                  : ""}
             </>
           )
         }
@@ -135,6 +145,7 @@ export function PnlMonthGrid({
                 result={days.get(day) ?? null}
                 beforeRecords={dayStart(day) < since}
                 future={dayStart(day) > now}
+                countsTrades={countsTrades}
               />
             ))}
           </div>
@@ -149,11 +160,13 @@ function DayTile({
   result,
   beforeRecords,
   future,
+  countsTrades,
 }: {
   day: DayKey
   result: DayResult | null
   beforeRecords: boolean
   future: boolean
+  countsTrades: boolean
 }) {
   const number = Number(day.slice(-2))
   const quiet = beforeRecords || future
@@ -166,7 +179,7 @@ function DayTile({
       ? "Not yet."
       : !traded
         ? "No trades."
-        : `${formatSignedUsd(result.money)} across ${result.trades} ${result.trades === 1 ? "trade" : "trades"}${result.unpriced ? `, plus ${result.unpriced} ${result.unpriced === 1 ? "fill" : "fills"} the exchange has not priced` : ""}.`
+        : `${formatSignedUsd(result.money)}${countsTrades ? ` across ${result.trades} ${result.trades === 1 ? "trade" : "trades"}` : ""}${result.unpriced ? `, plus ${result.unpriced} ${result.unpriced === 1 ? "fill" : "fills"} the exchange has not priced` : ""}.`
 
   return (
     <Tooltip>

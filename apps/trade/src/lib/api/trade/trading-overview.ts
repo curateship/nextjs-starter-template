@@ -15,7 +15,14 @@ import { loadTradingOverview } from "@/server/trade/trading-overview"
 
 import { createErrorMessage } from "../error-message"
 
-const widgetId = z.enum(["equity", "active-trades", "running-bots", "trades", "moving-now"])
+const widgetId = z.enum([
+  "equity",
+  "active-trades",
+  "running-bots",
+  "profit-calendar",
+  "trades",
+  "moving-now",
+])
 const layoutSchema = z.object({
   top: z.array(widgetId).max(widgetId.options.length),
   left: z.array(widgetId).max(widgetId.options.length),

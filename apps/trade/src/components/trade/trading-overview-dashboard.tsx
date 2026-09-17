@@ -8,6 +8,7 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
+import { ProfitCalendarWidget } from "@/components/trade/profit-calendar-widget"
 import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import {
@@ -199,6 +200,8 @@ function renderWidget(
       return <ActiveTradesWidget overview={overview} className={className} />
     case "running-bots":
       return <RunningBotsWidget bots={overview.bots} className={className} />
+    case "profit-calendar":
+      return <ProfitCalendarWidget overview={overview} className={className} />
     case "trades":
       return <TradesTable overview={overview} className={className} />
   }

@@ -1,5 +1,6 @@
 import {
   BotIcon,
+  CalendarDaysIcon,
   ChartNoAxesCombinedIcon,
   ListChecksIcon,
   ListIcon,
@@ -12,7 +13,12 @@ export type TradingDashboardWidgetSlot =
   (typeof TRADING_DASHBOARD_WIDGET_SLOTS)[number]
 
 export type TradingDashboardWidgetId =
-  "equity" | "active-trades" | "running-bots" | "trades" | "moving-now"
+  | "equity"
+  | "active-trades"
+  | "running-bots"
+  | "profit-calendar"
+  | "trades"
+  | "moving-now"
 
 export type TradingDashboardWidgetLayout = Record<
   TradingDashboardWidgetSlot,
@@ -51,6 +57,13 @@ const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
     description:
       "Every live or practice flow still working or needing attention.",
     icon: BotIcon,
+  },
+  {
+    id: "profit-calendar",
+    label: "Profit calendar",
+    description:
+      "A month of days, each coloured by the real money it made or lost.",
+    icon: CalendarDaysIcon,
   },
   {
     id: "trades",
