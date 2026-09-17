@@ -96,6 +96,11 @@ vi.mock("@/lib/api/content/announcements", () => ({
   loadVisitorAnnouncements: () => Promise.resolve([]),
 }))
 
+vi.mock("@/lib/api/auth/auth", () => ({
+  loadCurrentUser: () => Promise.resolve(null),
+  logout: () => Promise.resolve(),
+}))
+
 vi.mock("@/components/shell/brand-logo", () => ({
   BrandLogo: ({ size }: { size?: string }) => (
     <span data-brand-logo="" data-logo-size={size ?? "standard"} />
@@ -231,10 +236,12 @@ describe("PublicPageFrame navigation", () => {
     expect(header?.className).toContain("sticky")
     expect(header?.className).toContain("top-0")
     expect(header?.getAttribute("data-menu-alignment")).toBe("center")
-    expect(header?.firstElementChild?.className).toContain("md:grid")
+    expect(
+      header?.querySelector("nav > div > div")?.className
+    ).toContain("lg:grid")
     expect(
       header?.querySelector("[data-public-header-actions]")?.className
-    ).toContain("contents")
+    ).toContain("lg:w-full")
     expect(
       header
         ?.querySelector("[data-brand-logo]")
@@ -298,7 +305,7 @@ describe("PublicPageFrame navigation", () => {
     const frame = host.firstElementChild as HTMLElement | null
     const main = host.querySelector("main") as HTMLElement | null
     const widthElements = [
-      host.querySelector<HTMLElement>("header > div"),
+      host.querySelector<HTMLElement>("header nav > div"),
       host.querySelector<HTMLElement>("main > div"),
       host.querySelector<HTMLElement>("footer > div"),
     ]
@@ -331,20 +338,19 @@ describe("PublicPageFrame navigation", () => {
       'button[aria-label="Open navigation menu"]'
     )
     expect(trigger).not.toBeNull()
-    await act(async () => {
-      trigger?.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
-      )
-    })
+    await act(async () => trigger?.click())
+    expect(
+      host.querySelector("header nav")?.getAttribute("data-state")
+    ).toBe("active")
 
-    const menuLink = document.body.querySelector<HTMLAnchorElement>(
-      '[role="menuitem"][href="/pricing"]'
+    const menuLink = host.querySelector<HTMLAnchorElement>(
+      '#public-phone-menu a[href="/pricing"]'
     )
     expect(menuLink).not.toBeNull()
     await act(async () => menuLink?.click())
 
     expect(
-      document.body.querySelector('[role="menuitem"][href="/pricing"]')
+      host.querySelector("header nav")?.getAttribute("data-state")
     ).toBeNull()
 
     await act(async () => root.unmount())
@@ -425,14 +431,10 @@ describe("PublicPageFrame navigation", () => {
     const trigger = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Open navigation menu"]'
     )
-    await act(async () => {
-      trigger?.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
-      )
-    })
+    await act(async () => trigger?.click())
     expect(
-      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
-        (item) => item.textContent?.trim()
+      Array.from(host.querySelectorAll("#public-phone-menu a")).map((item) =>
+        item.textContent?.trim()
       )
     ).toEqual(["Pricing", "Search", "Elsewhere"])
 
@@ -485,18 +487,13 @@ describe("PublicPageFrame navigation", () => {
     const phoneTrigger = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Open navigation menu"]'
     )
-    await act(async () => {
-      phoneTrigger?.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
-      )
-    })
+    await act(async () => phoneTrigger?.click())
     expect(
-      document.body.querySelector('[data-slot="dropdown-menu-label"]')
-        ?.textContent
+      host.querySelector("#public-phone-menu p")?.textContent
     ).toBe("Resources")
     expect(
-      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
-        (item) => item.textContent?.trim()
+      Array.from(host.querySelectorAll("#public-phone-menu a")).map((item) =>
+        item.textContent?.trim()
       )
     ).toEqual(["Search", "Guides", "Support", "About"])
 
@@ -541,14 +538,10 @@ describe("PublicPageFrame navigation", () => {
     const trigger = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Open navigation menu"]'
     )
-    await act(async () => {
-      trigger?.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
-      )
-    })
+    await act(async () => trigger?.click())
     expect(
-      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
-        (item) => item.textContent?.trim()
+      Array.from(host.querySelectorAll("#public-phone-menu a")).map((item) =>
+        item.textContent?.trim()
       )
     ).toEqual(["Pricing", "Elsewhere"])
 

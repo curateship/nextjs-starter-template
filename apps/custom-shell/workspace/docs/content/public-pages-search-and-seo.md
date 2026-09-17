@@ -23,6 +23,61 @@ search visibility through `loadPublicNotFoundDiscovery`. That endpoint is
 intentionally available without a session and appears in the shell guard
 test's public-endpoint list.
 
+### What the header and footer look like
+
+The public header and footer are the directory app's, copied across. They live
+in `src/components/shell/public-navigation.tsx` and
+`src/components/shell/public-footer.tsx`, and
+`src/components/shell/public-page-frame.tsx` owns only what sits between them.
+
+The header is a translucent bar with the page blurred behind it, so content
+scrolling under it stays faintly visible instead of vanishing behind a solid
+block. The branding is on the left, the menu words next to it, and the account
+actions on the right. Menu words are full-contrast text spaced 32px apart that
+dim on hover, rather than looking like buttons. A dropdown group opens as a
+panel under its own word, with a chevron that turns over while it is open. The
+bar is 1152px wide by default and follows the Page width setting.
+
+The desktop menu appears at 1024px and wider. Below that the menu button takes
+over. The two menu icons are stacked and both drawn: pressing the button spins
+the bars out as the cross spins in, rather than swapping one picture for
+another. The menu opens as a rounded bordered panel directly under the bar,
+inside the page, pushing the content down. It is not a floating list, so it
+never covers what the visitor was reading, and it closes when a link inside it
+is chosen or the page changes.
+
+The header carries the account actions. A signed-out visitor sees Sign in and
+Create an account on desktop, and one round account button holding both on a
+phone, so the two words never squeeze the logo. A signed-in visitor sees their
+photo, and its menu holds their name and email, Dashboard, Admin for an admin,
+and Log out. Logging out from here reloads the site as a signed-out visitor,
+because the session cookie the whole client was built around has just gone. The
+session is read in the browser, so the account slot stays empty until that
+answer arrives. Drawing the signed-out buttons first would flash them on every
+page load for someone who is already signed in.
+
+The phone menu closes when a link inside it is chosen, when the visitor presses
+anywhere outside the header, and when the page changes under it through Back or
+Forward.
+
+The footer puts the branding centred at the top, the footer links centred in
+one wrapping row, the social accounts under those, and the copyright line last.
+It keeps 80px of space above it so it reads as the end of the page. The footer
+appears on every signed-out page now, including one with nothing set, because
+the branding alone is worth showing.
+
+The copyright line is `src/lib/pages/public-footer-copyright.ts`, and it
+understands `{year}` and `{site}`. `{year}` becomes the
+current year and `{site}` becomes the app name, so a line written once never
+goes stale. A line left blank reads "© 2026 Custom Shell. All rights reserved."
+with the real year and app name. A saved line that starts with a year and names
+no token still has that year brought forward.
+
+Social accounts have their drawing ready for Twitter, LinkedIn, Facebook,
+Instagram, Threads, YouTube, TikTok, GitHub, Medium and Substack, and a generic
+globe for anything else. Nothing saves them yet, so the row draws nothing until
+Public > Footer gains a field for them.
+
 Public > Navigation also controls the full header's layout across the app. The
 header can scroll with the page or stay at the top, and its desktop menu can sit
 in the normal header flow or in the exact centre of the page. Logo sizes are

@@ -111,7 +111,10 @@ Public pages use a separate signed-out frame with their own header, footer,
 navigation, and sign-in actions. Internal public links use router navigation.
 External links remain normal document navigation. The header search uses the
 same clearable field as signed-in lists and submits its current `q` value to the
-public search page.
+public search page. The header is a blurred translucent bar, the phone menu
+opens as a panel inside the page rather than as a floating list, and the footer
+is centred under the branding. [Public pages, search, and
+SEO](../content/public-pages-search-and-seo.md) describes that look in full.
 
 An error that escapes a route's own handling uses a smaller public frame rather
 than the signed-in shell. The fallback shows the root logo and app name, applies
