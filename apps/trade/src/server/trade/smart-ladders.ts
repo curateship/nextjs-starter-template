@@ -1736,6 +1736,37 @@ async function insertLadderOrder(
   return id
 }
 
+/**
+ * Deletes a watched order that has finished, and says whether it did.
+ *
+ * **A finished watched order is not kept.** Tyler, 17 Sep 2026: "If I placed
+ * a watched order and then remove it. It should not save to the db because
+ * otherwise we'd have tons of useless data." He chose the same for a watched
+ * order that ends by itself. The Journal keeps what it traded.
+ *
+ * Only an active watch row is deleted, so every other kind still finishes as
+ * "done". The row only reaches here once nothing of it is left on an
+ * exchange: every finishing path cancels its orders and its own stop first.
+ */
+export async function deleteFinishedWatch(
+  tx: CustomShellDb,
+  userId: string,
+  id: string
+): Promise<boolean> {
+  const deleted = await tx
+    .delete(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.id, id),
+        eq(tradeSmartLadders.kind, "watch"),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .returning({ id: tradeSmartLadders.id })
+  return deleted.length > 0
+}
+
 async function saveLadderRow(
   tx: CustomShellDb,
   userId: string,
@@ -1743,6 +1774,9 @@ async function saveLadderRow(
   status: "active" | "done",
   now: number
 ): Promise<void> {
+  if (status === "done" && (await deleteFinishedWatch(tx, userId, row.id))) {
+    return
+  }
   await tx
     .update(tradeSmartLadders)
     .set({ plan: row.plan, status, updatedAt: new Date(now) })

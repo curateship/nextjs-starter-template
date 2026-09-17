@@ -728,6 +728,12 @@ time, so this matters most when trading against a dev machine.
   engine may have read the watch just before the press. A later save from that
   older read cannot make the cancelled watch active again, and pressing the
   cancel control twice has the same result as pressing it once.
+- **A finished watch is deleted, not kept.** One that never sent anything is
+  deleted the moment it is called off. One with an order or its own stop on the
+  exchange is deleted by the engine once those are cancelled. One that ends by
+  itself, such as a filled buy whose coins have since gone, is deleted the same
+  way. `deleteFinishedWatch` in `src/server/trade/smart-ladders.ts` does it,
+  and `../rules/trading-rules.md` holds the rule.
 
   A watch that has only just been placed can still be the copy held on screen
   while the account read catches up. Its cancel still goes through the watched

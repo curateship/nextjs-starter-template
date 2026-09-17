@@ -69,6 +69,12 @@ add up to.
 
 ## Orders
 
+- **A finished watched order is deleted from the database.** Tyler, 17 Sep
+  2026: "If I placed a watched order and then remove it. It should not save to
+  the db because otherwise we'd have tons of useless data." He chose the same
+  for a watched order that ends by itself. What it traded stays in the Journal.
+  Anything it still has on an exchange is cancelled before the row goes.
+
 - **An existing position can exit at a loss.** Tyler asked to allow targets
   below entry and rename "Take profit" to "Exit". Entry price must not block
   an Exit target. Keep the loss visible without preventing the save.

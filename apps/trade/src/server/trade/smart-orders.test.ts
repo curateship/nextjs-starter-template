@@ -733,8 +733,28 @@ describe("cancelling a watched order", () => {
     await saveLadderPlan(userId, watch.id, watch.plan, "active")
 
     expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
-    const [stored] = await ladderRows()
-    expect(stored.status).toBe("done")
+    // Deleted, and the older copy saved afterwards does not bring it back.
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("answers quietly when the same watch is called off twice", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch) throw new Error("expected watch")
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+    await expect(
+      cancelWatchOrder(userId, wallet.id, watch.id)
+    ).resolves.toEqual({ cancelled: true })
   })
 
   it("lifts the pause when a paused watch is called off, so the engine reads the stop", async () => {

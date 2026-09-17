@@ -2172,11 +2172,13 @@ describe("live Smart orders", () => {
     await reconcileLiveLadders(userId, wallet)
 
     expect(place).not.toHaveBeenCalled()
-    const [watch] = await database
-      .select()
-      .from(tradeSmartLadders)
-      .where(eq(tradeSmartLadders.id, "watch-1"))
-    expect(watch.status).toBe("done")
+    // Finished, so deleted.
+    expect(
+      await database
+        .select()
+        .from(tradeSmartLadders)
+        .where(eq(tradeSmartLadders.id, "watch-1"))
+    ).toHaveLength(0)
     const refusals = await database
       .select()
       .from(tradeLiveJournal)
@@ -3787,11 +3789,13 @@ describe("post-only watch recovery", () => {
     })
     await nextPass()
     expect(place).toHaveBeenCalledTimes(2)
-    const [row] = await database
-      .select()
-      .from(tradeSmartLadders)
-      .where(eq(tradeSmartLadders.id, "watch-1"))
-    expect(row.status).toBe("done")
+    // Finished, so deleted.
+    expect(
+      await database
+        .select()
+        .from(tradeSmartLadders)
+        .where(eq(tradeSmartLadders.id, "watch-1"))
+    ).toHaveLength(0)
   })
   it("retries a price rejected locally without sending the stale order", async () => {
     await startClose()
@@ -4087,9 +4091,8 @@ describe("a watched order's own stop", () => {
     dropEngineExchangeReads(wallet)
     await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
 
-    const after = await watchRow()
-    expect(after.status).toBe("done")
-    expect((after.plan as WatchPlan).ownStop).toBeNull()
+    // Finished, so deleted.
+    expect(await watchRow()).toBeUndefined()
     // Never put back: a stop that fired would sell coins already sold.
     expect(setBrackets).not.toHaveBeenCalled()
     expect(cancel).not.toHaveBeenCalled()
@@ -4118,7 +4121,7 @@ describe("a watched order's own stop", () => {
       .where(eq(tradeSmartLadders.id, "watch-1"))
     dropEngineExchangeReads(wallet)
     await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
-    expect((await watchRow()).status).toBe("done")
+    expect(await watchRow()).toBeUndefined()
     expect(setBrackets).not.toHaveBeenCalled()
   })
 

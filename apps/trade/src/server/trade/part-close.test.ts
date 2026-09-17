@@ -345,11 +345,12 @@ describe("selling part of a position", () => {
 
     await priceTo(200)
     expect(await orders()).toHaveLength(0)
+    // Finished, so deleted.
     const rows = await database
       .select()
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.userId, userId))
-    expect(rows[0].status).toBe("done")
+    expect(rows).toHaveLength(0)
   })
 
   it("says the whole position when the amount covers it", async () => {

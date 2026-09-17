@@ -71,7 +71,7 @@ import {
   saveBook,
   settleWallet,
 } from "@/server/trade/paper"
-import { wantedStopPx } from "./smart-ladders"
+import { deleteFinishedWatch, wantedStopPx } from "./smart-ladders"
 import {
   tradeFlowRuns,
   tradePaperOrders,
@@ -781,6 +781,9 @@ export async function saveLadderPlan(
   updatedAt = Date.now(),
   tx: CustomShellDb = db
 ): Promise<void> {
+  if (status === "done" && (await deleteFinishedWatch(tx, userId, ladderId))) {
+    return
+  }
   await tx
     .update(tradeSmartLadders)
     .set({ plan, status, updatedAt: new Date(updatedAt) })
@@ -1586,11 +1589,11 @@ export async function placeWatchOrder(
 /**
  * Calls off a watched price.
  *
- * **It marks the row rather than deleting it**, and the engine's next pass does
- * the cancelling — the same road a flow being switched off takes. While the
- * level has not been touched there is nothing to cancel anywhere and the row
- * simply ends; once it has, there may be an order resting on a real exchange,
- * and only the engine has the wiring to take that back.
+ * While the level has not been touched there is nothing to cancel anywhere,
+ * so the row is deleted at once. Once it has, there may be an order resting on
+ * a real exchange, and only the engine has the wiring to take that back: the
+ * row is marked as stopping, and the engine's next pass cancels the order and
+ * then deletes the row.
  */
 export async function cancelWatchOrder(
   userId: string,
@@ -1614,27 +1617,19 @@ export async function cancelWatchOrder(
       )
     )
     .limit(1)
-  if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
   // A stale poll can leave the cancelled row on screen long enough for a
-  // second press. Calling off the same watch twice has the same result and is
-  // not a server failure.
-  if (row.status === "done") return { cancelled: true }
+  // second press, and a finished watch is deleted. Calling off a watch that is
+  // already gone has the same result and is not a server failure.
+  if (!row || row.status === "done") return { cancelled: true }
+  if (row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
 
   const plan = readWatchPlan(row.plan)
   if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
 
   // Nothing has been sent, so nothing has to be taken back: the row is the
-  // whole of the order and it ends here.
+  // whole of the order and it is deleted here.
   if (plan.phase === "waiting" && plan.orderId === null) {
-    await db
-      .update(tradeSmartLadders)
-      .set({ status: "done", updatedAt: new Date() })
-      .where(
-        and(
-          eq(tradeSmartLadders.userId, userId),
-          eq(tradeSmartLadders.id, watchId)
-        )
-      )
+    await deleteFinishedWatch(db, userId, watchId)
     return { cancelled: true }
   }
 

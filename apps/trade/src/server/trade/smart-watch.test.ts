@@ -157,6 +157,15 @@ async function row() {
   return { ...rows[0], plan: rows[0].plan as WatchPlan }
 }
 
+/** A finished watched order is deleted, not kept. */
+async function expectFinished() {
+  const rows = await database
+    .select()
+    .from(tradeSmartLadders)
+    .where(eq(tradeSmartLadders.userId, userId))
+  expect(rows).toHaveLength(0)
+}
+
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
@@ -263,7 +272,7 @@ describe("a price being watched", () => {
 
     await settle()
 
-    expect((await row()).status).toBe("done")
+    await expectFinished()
   })
 
   it("ends an old watch whose size rounds below one coin step", async () => {
@@ -271,7 +280,7 @@ describe("a price being watched", () => {
 
     await priceTo(100)
 
-    expect((await row()).status).toBe("done")
+    await expectFinished()
     expect(await orders()).toHaveLength(0)
     expect(await positions()).toHaveLength(0)
   })
@@ -378,7 +387,7 @@ describe("a price being watched", () => {
     // 2% above the level is 96.90; 99 is past it.
     await priceTo(99)
 
-    expect((await row()).status).toBe("done")
+    await expectFinished()
     expect(await orders()).toHaveLength(0)
   })
 
@@ -390,7 +399,7 @@ describe("a price being watched", () => {
 
     expect(await positions()).toHaveLength(1)
     expect(await orders()).toHaveLength(0)
-    expect((await row()).status).toBe("done")
+    await expectFinished()
   })
 
   it("hands the position a stop loss without inventing a take profit", async () => {
@@ -457,8 +466,7 @@ describe("a price being watched", () => {
     })
     await priceTo(96)
 
-    const held = await row()
-    expect(held.status).toBe("done")
+    await expectFinished()
     const [position] = await positions()
     expect(position.tpPx).toBe(110)
     expect(position.slPx).toBe(88)
@@ -566,7 +574,7 @@ describe("a price being watched", () => {
     await settle()
 
     expect(await orders()).toHaveLength(0)
-    expect((await row()).status).toBe("done")
+    await expectFinished()
   })
 })
 
