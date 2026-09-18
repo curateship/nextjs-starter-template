@@ -67,7 +67,6 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   keepUnreachableRows,
-  liveRefusalKey,
   refusalAlertsForActiveWatches,
   type LiveRefusal,
 } from "@/lib/trade/live"
@@ -306,7 +305,7 @@ export type Trading = {
    */
   watchOrders: TradeOrder[]
   /**
-   * The last refusal on each wallet and market.
+   * The last refusal each smart order received, keyed by its id.
    *
    * **The engine trades with nobody watching, so this is the only way it can
    * say no.** A refusal that comes back from a press throws to the hand that
@@ -1352,11 +1351,13 @@ export function useTrading(
   // Live only: a practice wallet's orders are filled from our own numbers and
   // nothing outside can refuse one.
   const refusals = React.useMemo(() => {
-    const byWalletMarket = new Map<string, LiveRefusal>()
+    // Keyed by the smart order that was refused. A refusal that belongs to
+    // no smart order is not drawn under any of them.
+    const bySmartOrder = new Map<string, LiveRefusal>()
     for (const one of liveAnswer?.refusals ?? EMPTY_REFUSALS) {
-      byWalletMarket.set(liveRefusalKey(one.walletId, one.marketKey), one)
+      if (one.smartOrderId) bySmartOrder.set(one.smartOrderId, one)
     }
-    return byWalletMarket
+    return bySmartOrder
   }, [liveAnswer])
 
   React.useEffect(() => {

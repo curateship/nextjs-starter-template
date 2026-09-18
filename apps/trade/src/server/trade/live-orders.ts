@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks"
 import { randomUUID } from "node:crypto"
 import {
   isHyperliquidOrderGoneRefusal,
@@ -151,6 +152,23 @@ function authFor(row: LiveWalletRow): OrderAuth {
   }
 }
 
+/** The smart order the engine is acting for, while it acts. */
+const actingFor = new AsyncLocalStorage<string>()
+
+/**
+ * Runs `act` with every journal row it writes marked as this smart order's.
+ *
+ * The rows are written deep inside placing, cancelling and protecting, which
+ * know the coin but not which smart order asked. Marking them here lets a
+ * watch show its own refusals and nobody else's.
+ */
+export function actForSmartOrder<T>(
+  smartOrderId: string,
+  act: () => Promise<T>
+): Promise<T> {
+  return actingFor.run(smartOrderId, act)
+}
+
 /**
  * One row written for every ask and every refusal. Never throws — the
  * journal must not take the trading path down — but a lost row is loudly
@@ -179,6 +197,7 @@ async function journal(
       px: entry.px ?? 0,
       sz: entry.sz ?? 0,
       note: entry.note ?? null,
+      smartOrderId: actingFor.getStore() ?? null,
     })
   } catch (error) {
     recordEngineError("live-orders", "trade_live_journal write failed", error)
@@ -727,6 +746,20 @@ export async function rollbackLiveOrder(
         note: "The exchange had already taken this order off.",
       })
       return true
+    }
+    // Still false: nothing was cancelled, and the caller must not place a
+    // replacement. But the exchange said nothing was wrong, only that the
+    // order had already left, almost always because it filled. Saved as a
+    // refusal, it showed as a red error on PONS on 18 Sep 2026 for a sell
+    // that had filled 30ms before a chase tried to move it.
+    if (isOrderGoneRefusal(error)) {
+      dropEngineExchangeReads(row)
+      await journal(userId, row.id, input.marketKey, {
+        action: "gone",
+        side,
+        note: "The order had already left the exchange, most likely because it filled.",
+      })
+      return false
     }
     const message = error instanceof Error ? error.message : String(error)
     await journal(userId, row.id, input.marketKey, {

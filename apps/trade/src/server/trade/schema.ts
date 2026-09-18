@@ -468,6 +468,9 @@ export const tradeLiveJournal = pgTable(
     sz: doublePrecision("sz").notNull().default(0),
     // The plain-word sentence — what the exchange answered, or why it refused.
     note: text("note"),
+    // The smart order the engine was acting for, so its refusals are shown
+    // under it and under nothing else on the same coin. Null for a press.
+    smartOrderId: varchar("smart_order_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

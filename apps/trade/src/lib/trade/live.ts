@@ -39,6 +39,12 @@ export type LiveJournalAction =
   | "brackets"
   /** The exchange, or this app's own rails, said no. */
   | "refused"
+  /**
+   * An order the app went to cancel or move had already left the book,
+   * almost always because it filled. Not a refusal: the exchange answered a
+   * question that the fill had already settled.
+   */
+  | "gone"
   /** A confirmed passive-price refusal that the watched order will retry. */
   | "retrying"
 
@@ -56,12 +62,19 @@ export const POST_ONLY_PAUSED_NOTE =
  * written to `trade_live_journal` and read by nothing, so a level that the
  * exchange had refused twenty times over eighteen minutes still drew as
  * "waiting" — which is the app saying everything is fine while the exchange
- * says no. This is the one row per market that answers "why has nothing
- * happened".
+ * says no. This is the one row per market and smart order that answers "why
+ * has nothing happened".
  */
 export type LiveRefusal = {
   walletId: string
   marketKey: string
+  /**
+   * The smart order whose action was refused, or null for anything else: a
+   * press, a ladder rung, a grid level. A watch shows only its own refusals.
+   * Matching on the coin alone put a filled sell's refusal under a buy watch
+   * on the same coin (PONS, 18 Sep 2026).
+   */
+  smartOrderId: string | null
   /** Already in plain words — see each protocol's own refusal mapping. */
   note: string
   /** Epoch ms. */
@@ -69,18 +82,24 @@ export type LiveRefusal = {
   retrying?: boolean
 }
 
-/** A refusal belongs to one wallet and one market, never every matching coin. */
-export function liveRefusalKey(walletId: string, marketKey: string): string {
-  return `${walletId}:${marketKey}`
+/**
+ * A refusal belongs to one wallet, one market and the one smart order that
+ * received it, never every matching coin.
+ */
+export function liveRefusalKey(
+  walletId: string,
+  marketKey: string,
+  smartOrderId: string | null
+): string {
+  return `${walletId}:${marketKey}:${smartOrderId ?? ""}`
 }
 
-/** Only the refusal received by this wallet after this watch began. */
+/** Only a refusal this watch received itself. The map is keyed by watch id. */
 export function refusalForWatchedOrder(
   refusals: ReadonlyMap<string, LiveRefusal>,
-  order: { walletId: string; marketKey: string; createdAt: number }
+  order: { id: string }
 ): LiveRefusal | null {
-  const refusal = refusals.get(liveRefusalKey(order.walletId, order.marketKey))
-  return refusal && refusal.at >= order.createdAt ? refusal : null
+  return refusals.get(order.id) ?? null
 }
 
 /**
@@ -92,33 +111,18 @@ export function refusalForWatchedOrder(
  */
 export function refusalAlertsForActiveWatches(
   refusals: readonly LiveRefusal[],
-  orders: readonly {
-    id: string
-    kind: string
-    walletId: string
-    marketKey: string
-    createdAt: number
-  }[],
+  orders: readonly { id: string; kind: string }[],
   pageOpenedAt: number
 ): { key: string; refusal: LiveRefusal }[] {
-  const watches = new Map<string, { id: string; createdAt: number }[]>()
-  for (const order of orders) {
-    if (order.kind !== "watch") continue
-    const key = liveRefusalKey(order.walletId, order.marketKey)
-    const created = watches.get(key) ?? []
-    created.push({ id: order.id, createdAt: order.createdAt })
-    watches.set(key, created)
-  }
+  const watchIds = new Set(
+    orders.flatMap((order) => (order.kind === "watch" ? [order.id] : []))
+  )
   const alerts: { key: string; refusal: LiveRefusal }[] = []
   for (const refusal of refusals) {
     if (refusal.at < pageOpenedAt) continue
-    const watch = watches
-      .get(liveRefusalKey(refusal.walletId, refusal.marketKey))
-      ?.filter((one) => refusal.at >= one.createdAt)
-      .sort((left, right) => right.createdAt - left.createdAt)[0]
-    if (!watch) continue
+    if (!refusal.smartOrderId || !watchIds.has(refusal.smartOrderId)) continue
     alerts.push({
-      key: `${watch.id}:${refusal.note}`,
+      key: `${refusal.smartOrderId}:${refusal.note}`,
       refusal,
     })
   }

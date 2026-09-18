@@ -77,6 +77,7 @@ import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { recoverHyperliquidClientOrder } from "@/server/protocols/hyperliquid/orders"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
+  actForSmartOrder,
   cancelLiveOrder,
   closeLivePosition,
   liveWallet,
@@ -2759,11 +2760,17 @@ export async function reconcileLiveLaddersOnce(
         // Nothing is on the exchange at all until the level is touched, and from
         // then on it is the same single chased order a signal trade has. Same
         // reasoning, same path.
-        await advanceRow(raw, entry, advanceWatch)
-        // A watch holding its own coins owns a stop over them. After the
-        // engine, so an order that filled on this pass is covered on this
-        // pass.
-        await reconcileWatchOwnStop(raw, entry.plan)
+        //
+        // Everything the exchange says during this is marked as this watch's,
+        // so its row shows its own refusals and not another order's on the
+        // same coin.
+        await actForSmartOrder(raw.id, async () => {
+          await advanceRow(raw, entry, advanceWatch)
+          // A watch holding its own coins owns a stop over them. After the
+          // engine, so an order that filled on this pass is covered on this
+          // pass.
+          await reconcileWatchOwnStop(raw, entry.plan)
+        })
         continue
       }
 

@@ -185,6 +185,7 @@ describe("new refusals for watched orders", () => {
   const refusal = {
     walletId: "w1",
     marketKey: "hyperliquid:mainnet:ENA",
+    smartOrderId: "watch-1",
     note: "The order is below Hyperliquid's minimum.",
     at: 2_000,
   }
@@ -197,9 +198,6 @@ describe("new refusals for watched orders", () => {
           {
             id: "watch-1",
             kind: "watch",
-            walletId: "w1",
-            marketKey: "hyperliquid:mainnet:ENA",
-            createdAt: 1_000,
           },
         ],
         1_500
@@ -212,17 +210,30 @@ describe("new refusals for watched orders", () => {
     ])
   })
 
-  it("does not turn an old refusal or another wallet's refusal into a toast", () => {
+  it("does not show another order's refusal under a watch on the same coin", () => {
+    // PONS, 18 Sep 2026: a filled sell's refusal showed under a buy watch.
+    expect(
+      refusalAlertsForActiveWatches(
+        [{ ...refusal, smartOrderId: "sell-chase" }],
+        [
+          {
+            id: "watch-1",
+            kind: "watch",
+          },
+        ],
+        1_500
+      )
+    ).toEqual([])
+  })
+
+  it("does not turn a refusal from before the page opened into a toast", () => {
     expect(
       refusalAlertsForActiveWatches(
         [refusal],
         [
           {
-            id: "watch-2",
+            id: "watch-1",
             kind: "watch",
-            walletId: "w2",
-            marketKey: "hyperliquid:mainnet:ENA",
-            createdAt: 1_000,
           },
         ],
         2_001

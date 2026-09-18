@@ -10,6 +10,7 @@ import { snapToTick } from "@/lib/protocols/tick"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   cancelLiveOrder,
+  actForSmartOrder,
   rollbackLiveOrder,
   closeLivePosition,
   loadLivePortfolio,
@@ -659,6 +660,31 @@ describe("rolling back an order", () => {
     await expect(
       rollbackLiveOrder(userId, { walletId, marketKey: MARKET, orderId: "92" })
     ).resolves.toBe(false)
+    // Not a refusal, though. On 18 Sep 2026 a PONS sell filled 30ms before
+    // a chase tried to move it, and the answer drew as a red error.
+    const rows = await journalRows(userId)
+    expect(rows.map((row) => row.action)).toEqual(["gone"])
+  })
+
+  it("marks journal rows with the smart order that was acting", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    cancel.mockRejectedValue(new Error("LIVE_EXCHANGE:429 Too Many Requests"))
+
+    await actForSmartOrder("watch-1", () =>
+      rollbackLiveOrder(userId, { walletId, marketKey: MARKET, orderId: "94" })
+    )
+    await rollbackLiveOrder(userId, {
+      walletId,
+      marketKey: MARKET,
+      orderId: "95",
+    })
+
+    const rows = await loadLiveRefusals(userId, [walletId])
+    // Two rows, not one: the watch's refusal is kept apart from the other.
+    expect(new Set(rows.map((row) => row.smartOrderId))).toEqual(
+      new Set(["watch-1", null])
+    )
   })
 
   it("keeps any other refusal as not cancelled", async () => {

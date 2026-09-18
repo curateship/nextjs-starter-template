@@ -1374,6 +1374,7 @@ describe("post-only retry notices", () => {
         {
           walletId: wallet.id,
           marketKey: "hyperliquid:mainnet:BTC",
+          smartOrderId: "watch-retry",
           at: Date.now(),
           retrying,
           note: retrying

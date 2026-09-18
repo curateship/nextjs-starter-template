@@ -1014,12 +1014,13 @@ const REFUSAL_SHOWN_FOR_MS = 6 * 60 * 60_000
 const MAX_REFUSAL_ROWS = 200
 
 /**
- * The last refusal in each wallet and market, newest first.
+ * The last refusal in each wallet and market for each smart order, newest
+ * first.
  *
- * **One per wallet and market, not all of them.** A full market refuses every
- * retry, so the honest reading of twenty identical rows is one fact — "this
- * market is refusing" — and twenty lines on screen would bury the other
- * markets. The newest carries the reason, and the count of how often is not
+ * **One per wallet, market and smart order, not all of them.** A full market
+ * refuses every retry, so the honest reading of twenty identical rows is one
+ * fact — "this market is refusing" — and twenty lines on screen would bury
+ * the other markets. The newest carries the reason, and the count of how often is not
  * something a person can act on.
  *
  * Latest-per-market is done in memory rather than in SQL on purpose: it is a
@@ -1038,6 +1039,7 @@ export async function loadLiveRefusals(
       marketKey: tradeLiveJournal.marketKey,
       note: tradeLiveJournal.note,
       action: tradeLiveJournal.action,
+      smartOrderId: tradeLiveJournal.smartOrderId,
       createdAt: tradeLiveJournal.createdAt,
     })
     .from(tradeLiveJournal)
@@ -1076,9 +1078,9 @@ export async function loadLiveRefusals(
 
   const newest = new Map<string, LiveRefusal>()
   for (const row of rows) {
-    // Rows arrive newest first, so the first one seen for a wallet and market
-    // is the one to keep.
-    const key = liveRefusalKey(row.walletId, row.marketKey)
+    // Rows arrive newest first, so the first one seen for a wallet, market
+    // and smart order is the one to keep.
+    const key = liveRefusalKey(row.walletId, row.marketKey, row.smartOrderId)
     if (newest.has(key)) continue
     // A refusal with nothing written on it explains nothing, and an empty
     // line under a level reads as a fault of its own.
@@ -1086,6 +1088,7 @@ export async function loadLiveRefusals(
     newest.set(key, {
       walletId: row.walletId,
       marketKey: row.marketKey,
+      smartOrderId: row.smartOrderId,
       // **Scrubbed again on the way out.** Everything written here has been
       // through the scrubber once, but `refuse()` journals whatever an error
       // happened to say, and an unexpected exception carries whatever was in

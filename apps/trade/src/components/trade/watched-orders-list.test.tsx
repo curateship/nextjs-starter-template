@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
-import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
+import type { LiveRefusal } from "@/lib/trade/live"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
@@ -150,10 +150,11 @@ describe("the Manual orders list", () => {
   })
 
   it("shows retry progress as information and a persistent refusal as an error", () => {
-    const key = liveRefusalKey(waitingLevel.walletId, waitingLevel.marketKey)
+    const key = waitingLevel.id
     const refusal = {
       walletId: waitingLevel.walletId,
       marketKey: waitingLevel.marketKey,
+      smartOrderId: waitingLevel.id,
       at: 2,
       note: "Trade is checking the price and trying again.",
       retrying: true,
@@ -223,20 +224,20 @@ describe("the Manual orders list", () => {
     expect(half).not.toContain(READING)
   })
 
-  it("does not attach an older order's refusal to a new watch on the same coin", () => {
-    const note = "A refusal from the order that already ended"
-    const newWatch = {
-      ...waitingLevel,
-      createdAt: Date.parse("2026-08-23T16:19:07.495Z"),
-    }
+  it("does not attach another order's refusal to a watch on the same coin", () => {
+    // PONS, 18 Sep 2026: a filled sell's refusal, made after this watch
+    // began, showed under it as a red error.
+    const note = "A refusal from another order on this coin"
+    const newWatch = waitingLevel
     const refusals = new Map([
       [
-        liveRefusalKey(newWatch.walletId, newWatch.marketKey),
+        "another-order",
         {
           walletId: newWatch.walletId,
           marketKey: newWatch.marketKey,
+          smartOrderId: "another-order",
           note,
-          at: Date.parse("2026-08-23T16:18:55.255Z"),
+          at: newWatch.createdAt + 1,
         },
       ],
     ])
@@ -372,10 +373,11 @@ describe("the Manual orders list", () => {
     const note = "The exchange refused this watch"
     const refusals = new Map([
       [
-        liveRefusalKey(waitingLevel.walletId, waitingLevel.marketKey),
+        waitingLevel.id,
         {
           walletId: waitingLevel.walletId,
           marketKey: waitingLevel.marketKey,
+          smartOrderId: waitingLevel.id,
           note,
           at: waitingLevel.createdAt + 1,
         },

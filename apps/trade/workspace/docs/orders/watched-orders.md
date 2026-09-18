@@ -457,12 +457,26 @@ The reason now sits under the level in the Manual orders panel.
   always been written to `trade_live_journal`. Nothing read it, on the
   reasoning that a person could go digging when an order had gone wrong —
   and digging needs a database client, so the answer may as well not have
-  existed. `loadLiveRefusals` reads it now, one row per wallet and market, six
-  hours back.
-- **One line per wallet and market, not one per attempt.** A full market
-  refuses every retry, so twenty identical rows are one fact. The newest
-  carries the reason and the rest are noise that would bury every other
-  market. Two wallets watching the same coin keep separate answers.
+  existed. `loadLiveRefusals` reads it now, one row per wallet, market and
+  watch, six hours back.
+- **A watch shows only its own refusals.** While the engine acts for a watch,
+  every journal row it writes carries that watch's id in `smart_order_id`
+  (`actForSmartOrder` in `src/server/trade/live-orders.ts`). The row under a
+  watch reads refusals with its own id and nothing else. It used to take any
+  refusal on the same coin made after the watch began. On 18 Sep 2026 a PONS
+  sell's refusal showed under a $2,000 PONS buy watch that had done nothing
+  wrong.
+- **One line per watch, not one per attempt.** A full market refuses every
+  retry, so twenty identical rows are one fact. The newest carries the reason
+  and the rest are noise that would bury every other market. Two wallets
+  watching the same coin keep separate answers.
+- **"Already filled" is not a refusal.** When a chase goes to move its order
+  and the exchange says the order has already left the book, the order almost
+  always filled a moment before. The journal records that as `gone`, not
+  `refused`, so nothing turns red. The chase still does not place a
+  replacement, because the fill is about to become the position. The PONS
+  sell above had filled 30 thousandths of a second before the chase tried to
+  move it.
 - **A refusal is a toast and a row.** A refusal that comes back from a press
   appears as a toast at once. The browser's regular read carries a refusal from
   the background engine. Trade shows the first new reason as a toast while the
