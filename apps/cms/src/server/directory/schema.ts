@@ -908,3 +908,69 @@ export const directoryClaimOutreachOptOuts = pgTable(
     ),
   ]
 )
+
+/**
+ * A problem a visitor spotted on a listing.
+ *
+ * A report is a tip-off and nothing more. It is never shown to the public, it
+ * never changes the listing by itself, and it needs no account — the person
+ * who drove to a bakery the site said was open on Sunday is the one most
+ * likely to know, and they have no reason to have signed up.
+ *
+ * `reporterEmail` is optional and exists so an admin can ask a follow-up
+ * question by hand. Nothing is sent to it automatically, so a report is never
+ * a way of making the site's sender email a stranger.
+ *
+ * Both foreign keys cascade. A report about a listing that has been deleted,
+ * or on a site that has been deleted, is a row nobody can act on.
+ */
+export const directoryListingReports = pgTable(
+  "directory_listing_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    /** One of the fixed reasons in `lib/directory/report-reasons.ts`. */
+    reason: varchar("reason", { length: 30 }).notNull(),
+    note: varchar("note", { length: 1000 }).notNull().default(""),
+    /** Empty unless they chose to give one, which is most of the time. */
+    reporterEmail: varchar("reporter_email", { length: 255 })
+      .notNull()
+      .default(""),
+    /** 'open', 'fixed' or 'dismissed'. */
+    status: varchar("status", { length: 20 }).notNull().default("open"),
+    closedByUserId: varchar("closed_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_listing_reports_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_directory_listing_reports_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    index("ix_directory_listing_reports_listing").on(table.listingId),
+    check(
+      "directory_listing_reports_reason_check",
+      sql`${table.reason} IN ('wrong_hours', 'wrong_contact', 'closed', 'other')`
+    ),
+    check(
+      "directory_listing_reports_status_check",
+      sql`${table.status} IN ('open', 'fixed', 'dismissed')`
+    ),
+  ]
+)
+
+export type DirectoryListingReportRow =
+  typeof directoryListingReports.$inferSelect

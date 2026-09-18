@@ -14,6 +14,7 @@ import { ListingContactLinks } from "@/components/directory/public/listing-conta
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingRating } from "@/components/directory/listing-rating"
+import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import {
   ListingGallery,
   ListingHoursAndLocation,
@@ -205,6 +206,17 @@ function ListingRoute() {
           {/* Whatever this site invented, after the words. Empty sections
               never arrive here — the server leaves them out. */}
           <ListingCustomSections sections={listing.customSections} />
+
+          {/* Last, and the quietest thing on the page. Somebody who knows the
+              hours are wrong will look for this; nobody else should notice it.
+              Wrapped for the same reason the claim button is — a direct child
+              of this grid stretches the full width and reads as a banner. */}
+          <div>
+            <ReportProblemButton
+              listingId={listing.id}
+              listingTitle={listing.title}
+            />
+          </div>
         </CardContent>
       </Card>
 

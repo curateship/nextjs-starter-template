@@ -77,3 +77,38 @@ export async function tellAdminsAboutEditRequest(
     database
   )
 }
+
+/**
+ * **The whole thing is wrapped, not just the sending.** `notifyAdmins` catches
+ * a send that fails, but reading the list of admins happens before it is
+ * called and is an ordinary query that can reject. Let that through and a
+ * report that is already saved answers the visitor with a failure — and they
+ * have spent their one report an hour, so pressing Send again is refused for
+ * the next hour. The row is in the queue either way, which is the promise
+ * `workspace/docs/listing-problem-reports.md` makes.
+ */
+export async function tellAdminsAboutListingReport(
+  workspaceId: string,
+  listingTitle: string,
+  reasonLabel: string,
+  database: CustomShellDb = db
+) {
+  try {
+    await notifyAdmins(
+      {
+        workspaceId,
+        subject: `Problem reported on ${listingTitle}`,
+        lines: [
+          `A visitor says something is wrong with ${listingTitle}: ${reasonLabel}.`,
+          "Nothing on the page has changed. It is waiting in the reports queue.",
+        ],
+        url: appUrlFor("/admin/listing-reports"),
+      },
+      await adminEmails(database),
+      database
+    )
+  } catch {
+    // Nothing to do about it here, and nothing worth failing a saved report
+    // over.
+  }
+}
