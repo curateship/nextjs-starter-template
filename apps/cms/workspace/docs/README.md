@@ -22,6 +22,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   Directory site into one CMS site.
 - `sitemap-files.md` — the numbered sitemap files a site's listings come in,
   and what happens at the edges of them.
+- `posts.md` — each site's Posts page: writing posts, listing cards in a post, and
+  where posts appear once published.
 
 ## Adding a doc
 

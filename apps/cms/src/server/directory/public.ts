@@ -74,6 +74,12 @@ import {
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
 import { visitorWorkspaceId } from "@/server/workspaces/for-request"
+import { CATEGORY_POST_LIMIT } from "@/lib/posts/post-sort"
+import {
+  postsArePublic,
+  publicPostsInCategory,
+  type PublicPostCard,
+} from "@/server/posts/cards"
 
 /**
  * What a visitor is allowed to read.
@@ -324,6 +330,11 @@ export type PublicCategoryPage = {
   page: number
   pageSize: number
   browseTitle: string
+  /**
+   * The newest posts filed here, shown under the listings. Empty while the
+   * Posts page is not open to everyone.
+   */
+  posts: PublicPostCard[]
 }
 
 /** Published, on this site. The whole of what a visitor may see. */
@@ -1183,7 +1194,7 @@ async function readPublicCategoryUncached(
   if (!category) return null
   const children = all.filter((row) => row.parentId === category.id)
 
-  const [{ listings, total, page }, childCounts] = await Promise.all([
+  const [{ listings, total, page }, childCounts, posts] = await Promise.all([
     listingPage(
       site.id,
       {
@@ -1200,6 +1211,16 @@ async function readPublicCategoryUncached(
       children.map((row) => row.id),
       database
     ),
+    postsArePublic(site.id, database).then((open) =>
+      open
+        ? publicPostsInCategory(
+            site.id,
+            category.id,
+            CATEGORY_POST_LIMIT,
+            database
+          )
+        : []
+    ),
   ])
 
   return {
@@ -1215,6 +1236,7 @@ async function readPublicCategoryUncached(
     page,
     pageSize: settings.pageSize,
     browseTitle: settings.browseTitle,
+    posts,
   }
 }
 

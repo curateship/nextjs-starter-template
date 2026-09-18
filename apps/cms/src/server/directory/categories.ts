@@ -14,6 +14,7 @@ import {
   type CategoryRow,
 } from "@/server/directory/schema"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { POST_CONTENT_TYPE } from "@/server/posts/schema"
 
 /**
  * The category tree listings are browsed by. One flat table with a parent
@@ -325,14 +326,26 @@ export async function updateCategory(
 
 /**
  * What deleting this category takes with it, for the confirmation to say:
- * how many subcategories move up a level, and how many listings lose the tag.
+ * how many subcategories move up a level, and how many listings and posts
+ * lose the tag.
  */
 export async function categoryDeleteImpact(
   workspaceId: string,
   id: string,
   database: CustomShellDb = db
-): Promise<{ children: number; listings: number }> {
-  const [[childRow], [listingRow]] = await Promise.all([
+): Promise<{ children: number; listings: number; posts: number }> {
+  const taggedWith = (contentType: string) =>
+    database
+      .select({ count: sql<number>`count(*)::int` })
+      .from(categoryRelationships)
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, workspaceId),
+          eq(categoryRelationships.categoryId, id),
+          eq(categoryRelationships.contentType, contentType)
+        )
+      )
+  const [[childRow], [listingRow], [postRow]] = await Promise.all([
     database
       .select({ count: sql<number>`count(*)::int` })
       .from(categories)
@@ -342,18 +355,14 @@ export async function categoryDeleteImpact(
           eq(categories.parentId, id)
         )
       ),
-    database
-      .select({ count: sql<number>`count(*)::int` })
-      .from(categoryRelationships)
-      .where(
-        and(
-          eq(categoryRelationships.workspaceId, workspaceId),
-          eq(categoryRelationships.categoryId, id),
-          eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE)
-        )
-      ),
+    taggedWith(LISTING_CONTENT_TYPE),
+    taggedWith(POST_CONTENT_TYPE),
   ])
-  return { children: childRow?.count ?? 0, listings: listingRow?.count ?? 0 }
+  return {
+    children: childRow?.count ?? 0,
+    listings: listingRow?.count ?? 0,
+    posts: postRow?.count ?? 0,
+  }
 }
 
 /**

@@ -34,6 +34,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { plural } from "@/lib/format/plural"
+import { categoryTreeOrder } from "@/lib/directory/category-tree"
 
 /**
  * The category tree, drawn as an indented list. The order is the tree itself,
@@ -41,27 +42,6 @@ import { plural } from "@/lib/format/plural"
  * tear children away from their parents. Searching flattens it: matches show
  * as a plain list so a deep match is not hidden under a fold.
  */
-
-/** The tree flattened parent-first, with how deep each row sits. */
-function treeRows(categories: Category[]): { category: Category; depth: number }[] {
-  const byParent = new Map<string | null, Category[]>()
-  for (const category of categories) {
-    const key = category.parentId ?? null
-    byParent.set(key, [...(byParent.get(key) ?? []), category])
-  }
-  const rows: { category: Category; depth: number }[] = []
-  const walk = (parentId: string | null, depth: number) => {
-    // Deeper than the tree can honestly be is a cycle left by hand-edited
-    // data; stopping keeps the page up rather than looping forever.
-    if (depth > 10) return
-    for (const category of byParent.get(parentId) ?? []) {
-      rows.push({ category, depth })
-      walk(category.id, depth + 1)
-    }
-  }
-  walk(null, 0)
-  return rows
-}
 
 export function CategoriesDashboard({
   categories,
@@ -86,11 +66,12 @@ export function CategoriesDashboard({
     category: Category
     children: number
     listings: number
+    posts: number
   } | null>(null)
 
   const rows = React.useMemo(() => {
     const query = searchText.trim().toLowerCase()
-    if (!query) return treeRows(categories)
+    if (!query) return categoryTreeOrder(categories)
     // A search answers with a flat list on purpose: a match three levels deep
     // shown at its tree indent would look like a child of nothing.
     return categories
@@ -281,6 +262,9 @@ export function CategoriesDashboard({
                   : null,
                 confirm.listings
                   ? `${confirm.listings} ${plural(confirm.listings, "listing loses", "listings lose")} the tag — the listings themselves stay.`
+                  : null,
+                confirm.posts
+                  ? `${confirm.posts} ${plural(confirm.posts, "post loses", "posts lose")} the tag too.`
                   : null,
               ]
                 .filter(Boolean)

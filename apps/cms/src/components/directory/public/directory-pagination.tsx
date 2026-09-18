@@ -16,11 +16,14 @@ export function DirectoryPagination({
   pageSize,
   total,
   hrefForPage,
+  label = "Listing pages",
 }: {
   page: number
   pageSize: number
   total: number
   hrefForPage: (page: number) => string
+  /** What a screen reader calls the control. */
+  label?: string
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize))
   if (pages <= 1) return null
@@ -28,10 +31,7 @@ export function DirectoryPagination({
   const current = Math.min(Math.max(page, 1), pages)
 
   return (
-    <nav
-      aria-label="Listing pages"
-      className="flex items-center justify-center gap-2"
-    >
+    <nav aria-label={label} className="flex items-center justify-center gap-2">
       {current === 1 ? (
         <Button type="button" variant="outline" disabled>
           Previous

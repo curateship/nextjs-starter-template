@@ -74,8 +74,8 @@ describe("one site's new-listing feed", () => {
     await listing(beta, { title: "Beta cafe", slug: "beta-cafe" })
 
     expect(
-      (await readDirectoryFeed(alpha, database)).map((row) => row.slug)
-    ).toEqual(["alpha-cafe"])
+      (await readDirectoryFeed(alpha, database)).map((row) => row.path)
+    ).toEqual(["/directory/alpha-cafe"])
 
     await updateListing(alpha, alphaListing.id, { status: "draft" }, database)
 
@@ -157,8 +157,8 @@ describe("one site's new-listing feed", () => {
     const feed = await readDirectoryFeed(alpha, database)
 
     expect(feed).toHaveLength(DIRECTORY_FEED_LIMIT)
-    expect(feed[0]?.slug).toBe("listing-21")
-    expect(feed.at(-1)?.slug).toBe("listing-02")
+    expect(feed[0]?.path).toBe("/directory/listing-21")
+    expect(feed.at(-1)?.path).toBe("/directory/listing-02")
   })
 
   it("does not query again for a repeated read", async () => {

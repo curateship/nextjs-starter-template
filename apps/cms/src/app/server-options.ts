@@ -6,6 +6,7 @@ import {
 import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
+import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -28,10 +29,17 @@ export const appServerOptions: AppServerOptions = {
     onCopy: copyDirectoryWorkspace,
   },
   sitemap: {
-    extraEntries: directorySitemapEntries,
+    // Category pages and posts. Listings are in the numbered files below.
+    extraEntries: async (workspaceId) =>
+      (
+        await Promise.all([
+          directorySitemapEntries(workspaceId),
+          postSitemapEntries(workspaceId),
+        ])
+      ).flat(),
     chunkFiles: directorySitemapChunkFiles,
   },
-  search: { sources: [directorySearchResults] },
+  search: { sources: [directorySearchResults, postSearchResults] },
   background: {
     workers: [
       {

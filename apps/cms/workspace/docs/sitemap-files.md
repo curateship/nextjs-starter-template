@@ -13,9 +13,10 @@
 - Each file lists the published listings on that site in address order. An
   address is unique within a site, so a listing cannot fall between two files
   or turn up in both.
-- Categories are not in the numbered files. They stay in the flat part at
-  `/sitemap.xml?part=pages` with the shell's own pages, because the biggest
-  site here has eighty of them and they would not fill a file.
+- Categories and posts are not in the numbered files. They stay in the
+  flat part at `/sitemap.xml?part=pages` with the shell's own pages, because
+  the biggest site here has eighty categories and posts are written by hand, so
+  neither would fill a file. `posts.md` says when posts are left out.
 - Drafts are never in any of it.
 - File zero always exists, even on a site with nothing published. An empty list
   of addresses is a valid sitemap and a missing file is not.
@@ -53,8 +54,8 @@ listing.
    and not an error page.
 5. Ask for `/directory-sitemaps/01`, `/directory-sitemaps/-1`, and a nineteen
    digit number. All should be 404.
-6. Open `/sitemap.xml?part=pages`. It should hold the site's pages and its
-   category addresses, and no listing addresses.
+6. Open `/sitemap.xml?part=pages`. It should hold the site's pages, its
+   category addresses and its published posts, and no listing addresses.
 7. Publish a listing, then reload its numbered file. The new address should be
    there.
 8. Repeat on a second site. Neither site's listings should appear in the

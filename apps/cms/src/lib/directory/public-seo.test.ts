@@ -50,7 +50,7 @@ describe("titles and descriptions", () => {
     expect(head.links).toContainEqual({
       rel: "alternate",
       type: "application/rss+xml",
-      title: "New listings",
+      title: "New listings and posts",
       href: "/feed.xml",
     })
   })

@@ -6,6 +6,7 @@ import {
   MenuLinksFields,
   SocialLinksFields,
 } from "@/components/directory/contact-links-fields"
+import { CategoryChecklist } from "@/components/directory/category-checklist"
 import { ListingCustomFields } from "@/components/directory/listing-custom-fields"
 import { ListingDetailsFields } from "@/components/directory/listing-details-fields"
 import {
@@ -17,7 +18,6 @@ import { ImageUpload } from "@/components/shared/image-upload"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DialogBody,
   DialogContent,
@@ -31,7 +31,6 @@ import { LISTING_META_DESCRIPTION_MAX } from "@/lib/directory/field-lengths"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -57,6 +56,7 @@ import {
   type CustomSection,
   type CustomValues,
 } from "@/lib/directory/custom-fields"
+import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import {
   listingRatingFromText,
@@ -416,7 +416,7 @@ export function ListingDialog({
   }
 
   const orderedCategories = React.useMemo(
-    () => treeOrder(categories),
+    () => categoryTreeOrder(categories),
     [categories]
   )
   const chosenCategories = orderedCategories.filter(({ category }) =>
@@ -646,90 +646,62 @@ export function ListingDialog({
                   description="Where visitors find it when browsing. The primary one is the category its breadcrumb names."
                   contentClassName="grid gap-4"
                 >
-                  {orderedCategories.length ? (
-                    <>
-                      <div className="grid gap-2">
-                        {orderedCategories.map(({ category, depth }) => (
-                          <div
-                            key={category.id}
-                            className="flex items-center gap-2"
-                            style={
-                              depth
-                                ? { paddingLeft: `${depth * 1.25}rem` }
-                                : undefined
-                            }
-                          >
-                            <Checkbox
-                              id={`listing-category-${category.id}`}
-                              checked={categoryIds.has(category.id)}
-                              disabled={saving}
-                              onCheckedChange={() => {
-                                setCategoryIds((current) => {
-                                  const next = new Set(current)
-                                  if (next.has(category.id)) {
-                                    next.delete(category.id)
-                                  } else {
-                                    next.add(category.id)
-                                  }
-                                  return next
-                                })
-                              }}
-                            />
-                            <Label htmlFor={`listing-category-${category.id}`}>
-                              {category.name}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                      {chosenCategories.length ? (
-                        <div className="grid gap-2">
-                          <FieldLabel
-                            htmlFor="listing-primary-category"
-                            hint="The one category the listing's breadcrumb names. It has to be one of the ticked ones."
-                          >
-                            Primary category
-                          </FieldLabel>
-                          <Select
-                            value={
-                              primaryCategoryId &&
-                              categoryIds.has(primaryCategoryId)
-                                ? primaryCategoryId
-                                : "none"
-                            }
-                            disabled={saving}
-                            onValueChange={(value) =>
-                              setPrimaryCategoryId(
-                                value === "none" ? null : value
-                              )
-                            }
-                          >
-                            <SelectTrigger
-                              id="listing-primary-category"
-                              className="w-full sm:w-fit"
+                  <CategoryChecklist
+                    idPrefix="listing-category"
+                    rows={orderedCategories}
+                    checked={categoryIds}
+                    disabled={saving}
+                    onToggle={(id) =>
+                      setCategoryIds((current) => {
+                        const next = new Set(current)
+                        if (next.has(id)) next.delete(id)
+                        else next.add(id)
+                        return next
+                      })
+                    }
+                  />
+                  {chosenCategories.length ? (
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="listing-primary-category"
+                        hint="The one category the listing's breadcrumb names. It has to be one of the ticked ones."
+                      >
+                        Primary category
+                      </FieldLabel>
+                      <Select
+                        value={
+                          primaryCategoryId &&
+                          categoryIds.has(primaryCategoryId)
+                            ? primaryCategoryId
+                            : "none"
+                        }
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          setPrimaryCategoryId(
+                            value === "none" ? null : value
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          id="listing-primary-category"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {chosenCategories.map(({ category }) => (
+                            <SelectItem
+                              key={category.id}
+                              value={category.id}
                             >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {chosenCategories.map(({ category }) => (
-                                <SelectItem
-                                  key={category.id}
-                                  value={category.id}
-                                >
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No categories exist yet — create them on the Categories
-                      screen and they appear here.
-                    </p>
-                  )}
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
                 </CollapsibleSettingsCard>
 
                 <CollapsibleSettingsCard
@@ -813,29 +785,6 @@ export function ListingDialog({
       )}
     </FormDialog>
   )
-}
-
-/** The categories in tree order, with how deep each sits, for the checkboxes. */
-function treeOrder(
-  categoriesList: Category[]
-): { category: Category; depth: number }[] {
-  const byParent = new Map<string | null, Category[]>()
-  for (const category of categoriesList) {
-    const key = category.parentId ?? null
-    byParent.set(key, [...(byParent.get(key) ?? []), category])
-  }
-  const rows: { category: Category; depth: number }[] = []
-  const walk = (parentId: string | null, depth: number) => {
-    // Deeper than the tree can honestly be is a cycle left by hand-edited
-    // data; stopping keeps the window up rather than looping forever.
-    if (depth > 10) return
-    for (const category of byParent.get(parentId) ?? []) {
-      rows.push({ category, depth })
-      walk(category.id, depth + 1)
-    }
-  }
-  walk(null, 0)
-  return rows
 }
 
 /** What a brand-new listing's form holds before anything is typed. */

@@ -97,7 +97,7 @@ export function directoryHead(
       {
         rel: "alternate",
         type: "application/rss+xml",
-        title: "New listings",
+        title: "New listings and posts",
         href: "/feed.xml",
       },
     ],
@@ -229,6 +229,32 @@ export function categoryJsonLd(input: {
   if (input.description) page.description = input.description
 
   return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
+}
+
+/** The same for a post: the site, and the article this page is. */
+export function postJsonLd(input: {
+  siteName: string
+  siteUrl: string
+  title: string
+  slug: string
+  summary: string
+  image: string
+  publishedAt: Date | string
+  updatedAt: Date | string
+}): JsonLdNode {
+  const organisation = organisationJsonLd(input.siteName, input.siteUrl)
+  const page: JsonLdNode = {
+    "@type": "BlogPosting",
+    headline: input.title,
+    url: siteUrlFor(input.siteUrl, `/posts/${input.slug}`),
+    datePublished: asDate(input.publishedAt),
+    dateModified: asDate(input.updatedAt),
+    publisher: organisation,
+  }
+  if (input.summary) page.description = input.summary
+  if (input.image) page.image = input.image
+
+  return graph([organisation, page])
 }
 
 function organisationJsonLd(siteName: string, siteUrl: string): JsonLdNode {
