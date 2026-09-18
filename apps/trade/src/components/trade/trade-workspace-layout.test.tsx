@@ -532,6 +532,16 @@ describe("the trade workspace chart full screen", () => {
     expect(
       host.querySelector("[data-order-panels]")?.parentElement?.className
     ).toContain("h-full")
+    // No smart orders and no waiting prices, so neither list is the longer
+    // one and Smart orders takes the spare height. The panel that does not
+    // grow sits at its own rows, which is what stops an empty half-card
+    // appearing under the last row while the other list scrolls.
+    const [smartFrame, manualFrame] = Array.from(
+      host.querySelector("[data-order-panels]")?.children ?? []
+    )
+    expect(smartFrame?.className).toContain("flex-auto")
+    expect(manualFrame?.className).toContain("max-h-[55%]")
+    expect(manualFrame?.className).toContain("flex-none")
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Open alerts"]'

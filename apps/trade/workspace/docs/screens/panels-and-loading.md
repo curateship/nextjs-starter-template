@@ -6,13 +6,24 @@ The same panel parts as the Automation Canvas, not a second system. Anything
 fixed in one is fixed in both.
 
 - The divider between Smart orders and Manual orders is gone. The
-  Smart orders panel sizes to its contents. Manual orders fills the remaining
-  height to the bottom edge of the right column. Neither panel has a percentage
-  height cap. Each panel starts with the height its contents need. If both fit,
-  neither list scrolls and Manual orders takes any leftover space. If their
-  combined contents exceed the column height, both panels shrink and their
-  lists scroll inside their own frames. Switching to Bots sizes the top
-  panel to that tab's contents. The old 60/40 split is no longer saved or read.
+  two panels size to their contents and fill the right column between them.
+  The old 60/40 split is no longer saved or read.
+- **The spare height goes to the longer of the two lists.** The shorter panel
+  takes exactly the height its own rows need, so there is never an empty
+  half-card under the last row while the other list is scrolling. With 23 smart
+  orders and 4 waiting prices in a 601px column, Manual orders is 243px and its
+  4 rows fill it, and Smart orders keeps 352px and scrolls. With 3 smart orders
+  and 20 waiting prices it is the other way round: Smart orders is 219px for
+  its 3 rows and Manual orders is 376px and scrolls.
+- **Whichever panel grows stops at 55% of the column.** The other list always
+  keeps rows of its own. Before this, a long Smart orders list left Manual
+  orders its header and two rows.
+- **The share is a share of the column, not a fixed height.** A 901px column
+  gives the growing panel around 445px, which is 9 rows rather than 5, with no
+  code change.
+- **The longer list is counted in smart orders, not in bots.** The top panel's
+  Bots tab is inside the panel, so a long Bots list does not win the spare
+  height. Bots scrolls in whatever height the smart orders count earned.
 - The dividers beside the chart and above Positions still drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back. **Both
