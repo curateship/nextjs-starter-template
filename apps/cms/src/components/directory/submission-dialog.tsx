@@ -49,7 +49,8 @@ export function SubmissionDialog({
   /** The listing an approved one became, when it has one. */
   listing: { title: string; slug: string } | null
   onClose: () => void
-  onDecided: (decision: "approve" | "reject") => void
+  /** `emailed` is whether the sender was actually told, not whether we tried. */
+  onDecided: (decision: "approve" | "reject", emailed: boolean) => void
 }) {
   const [note, setNote] = React.useState("")
   const [busy, setBusy] = React.useState(false)
@@ -68,8 +69,12 @@ export function SubmissionDialog({
     dismissErrorToast()
     setBusy(true)
     try {
-      await decideSubmission({ id: submission.id, decision, note })
-      onDecided(decision)
+      const { emailed } = await decideSubmission({
+        id: submission.id,
+        decision,
+        note,
+      })
+      onDecided(decision, emailed)
     } catch (error) {
       showErrorToast(getAdminSubmissionErrorMessage(error))
     } finally {

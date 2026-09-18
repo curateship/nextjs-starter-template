@@ -267,11 +267,14 @@ const reviewSubmissionFn = createServerFn({ method: "POST" })
       reviewerId: context.user.id,
     })
 
-    // Telling the sender is a courtesy, not part of the decision — a mail
-    // server having a bad afternoon must not undo an approval that has already
-    // created a listing.
+    // Telling the sender is a courtesy, not part of the decision: a mail server
+    // having a bad afternoon must not undo an approval that has already created
+    // a listing. So the failure is caught and reported rather than thrown, and
+    // the admin is told which of the two happened instead of always being told
+    // the sender knows.
+    let emailed = false
     try {
-      await sendDirectoryEmail({
+      const sent = await sendDirectoryEmail({
         workspaceId: site,
         to: submission.contactEmail,
         subject:
@@ -290,14 +293,21 @@ const reviewSubmissionFn = createServerFn({ method: "POST" })
                   "If you think this is a mistake, reply to this email.",
               ],
       })
+      emailed = sent.delivered
     } catch {
-      // Nothing to do about it here.
+      // The decision stands. `emailed` stays false, and the screen says so.
     }
 
-    return { listingId }
+    return { listingId, emailed }
   })
 
-/** Approve — which creates the listing — or reject with a reason. */
+/**
+ * Approve, which creates the listing, or reject with a reason.
+ *
+ * `emailed` is whether the sender was actually told. False covers both a
+ * provider that refused the message and a site with no email key saved, so the
+ * screen can stop claiming a send that never happened.
+ */
 export function decideSubmission(input: {
   id: string
   decision: "approve" | "reject"

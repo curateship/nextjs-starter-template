@@ -26,6 +26,7 @@ import {
   REVIEW_STATUS_LABELS,
   type ReviewStatus,
 } from "@/lib/directory/review-status"
+import { submissionDecisionMessage } from "@/lib/directory/submission-decision-message"
 import { formatDate } from "@/lib/format/format-time"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 
@@ -251,13 +252,16 @@ export function SubmissionsDashboard({
           open?.listingId ? (data.listings[open.listingId] ?? null) : null
         }
         onClose={() => setListSearch({ open: undefined })}
-        onDecided={(decision) => {
+        onDecided={(decision, emailed) => {
           setListSearch({ open: undefined })
-          toast.success(
-            decision === "approve"
-              ? "Approved. The listing is live and the sender has been emailed."
-              : "Rejected. The sender has been emailed."
-          )
+          // Amber, not green, when the sender was not reached. The decision
+          // held, so it is not a failure, but it is not finished either.
+          const message = submissionDecisionMessage(decision, emailed)
+          if (emailed) {
+            toast.success(message)
+          } else {
+            toast.warning(message)
+          }
           void router.invalidate()
         }}
       />
