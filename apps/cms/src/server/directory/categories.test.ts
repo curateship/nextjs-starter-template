@@ -126,6 +126,7 @@ describe("deleting", () => {
     expect(await categoryDeleteImpact(site, parent.id, database)).toEqual({
       children: 1,
       listings: 1,
+      posts: 0,
     })
   })
 

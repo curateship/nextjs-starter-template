@@ -234,8 +234,10 @@ export type CategoryRow = typeof categories.$inferSelect
 
 /**
  * Which categories a piece of content is in. Polymorphic on purpose:
- * `contentType` is 'directory_listing' today, and the next content type this
- * app grows shares this table instead of getting a twin. `isPrimary` marks
+ * `contentType` is 'directory_listing' for a listing and 'post' for a
+ * post (`server/posts/schema.ts`), so every content type shares this table
+ * instead of getting a twin. Every count of a category's listings filters on
+ * the listing type, so filing posts never changes those counts. `isPrimary` marks
  * the one category a listing's breadcrumb names; the server keeps it to at
  * most one per piece of content.
  */
@@ -276,7 +278,7 @@ export const categoryRelationships = pgTable(
   ]
 )
 
-/** The one content type in this table today. */
+/** A listing's rows in this table. Posts use `POST_CONTENT_TYPE`. */
 export const LISTING_CONTENT_TYPE = "directory_listing"
 
 /**

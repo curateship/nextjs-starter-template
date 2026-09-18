@@ -19,6 +19,7 @@ import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
+import { Route as PostsRouteImport } from './routes/posts'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportUnwantedSignInRouteImport } from './routes/report-unwanted-sign-in'
@@ -42,6 +43,7 @@ import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-v
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
+import { Route as PostsSlugRouteImport } from './routes/posts_.$slug'
 import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -66,6 +68,7 @@ import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
+import { Route as AuthenticatedAdminPostsRouteImport } from './routes/_authenticated/admin/posts'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
@@ -139,6 +142,11 @@ const LoginRoute = LoginRouteImport.update({
 const MaintenanceRoute = MaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostsRoute = PostsRouteImport.update({
+  id: '/posts',
+  path: '/posts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -256,6 +264,11 @@ const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
 const DirectorySlugRoute = DirectorySlugRouteImport.update({
   id: '/directory_/$slug',
   path: '/directory/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostsSlugRoute = PostsSlugRouteImport.update({
+  id: '/posts_/$slug',
+  path: '/posts/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileProfileIdRoute = ProfileProfileIdRouteImport.update({
@@ -394,6 +407,11 @@ const AuthenticatedAdminPagesRoute = AuthenticatedAdminPagesRouteImport.update({
 const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminPostsRoute = AuthenticatedAdminPostsRouteImport.update({
+  id: '/posts',
+  path: '/posts',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const AuthenticatedAdminReferralsRoute =
@@ -547,6 +565,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/posts': typeof PostsRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -570,6 +589,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -593,6 +613,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/posts': typeof AuthenticatedAdminPostsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -630,6 +651,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/posts': typeof PostsRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -651,6 +673,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -674,6 +697,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/posts': typeof AuthenticatedAdminPostsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -713,6 +737,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/posts': typeof PostsRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -736,6 +761,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
+  '/posts_/$slug': typeof PostsSlugRoute
   '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -759,6 +785,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/_authenticated/admin/posts': typeof AuthenticatedAdminPostsRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -798,6 +825,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/posts'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -821,6 +849,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
+    | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -844,6 +873,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/pages'
     | '/admin/plans'
+    | '/admin/posts'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
@@ -881,6 +911,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/posts'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -902,6 +933,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
+    | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -925,6 +957,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/pages'
     | '/admin/plans'
+    | '/admin/posts'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
@@ -963,6 +996,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/posts'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -986,6 +1020,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
+    | '/posts_/$slug'
     | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
@@ -1009,6 +1044,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
+    | '/_authenticated/admin/posts'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
@@ -1048,6 +1084,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
+  PostsRoute: typeof PostsRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
   ReportUnwantedSignInRoute: typeof ReportUnwantedSignInRoute
@@ -1064,6 +1101,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
+  PostsSlugRoute: typeof PostsSlugRoute
   ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
@@ -1147,6 +1185,13 @@ declare module '@tanstack/react-router' {
       path: '/maintenance'
       fullPath: '/maintenance'
       preLoaderRoute: typeof MaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/posts': {
+      id: '/posts'
+      path: '/posts'
+      fullPath: '/posts'
+      preLoaderRoute: typeof PostsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -1308,6 +1353,13 @@ declare module '@tanstack/react-router' {
       path: '/directory/$slug'
       fullPath: '/directory/$slug'
       preLoaderRoute: typeof DirectorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/posts_/$slug': {
+      id: '/posts_/$slug'
+      path: '/posts/$slug'
+      fullPath: '/posts/$slug'
+      preLoaderRoute: typeof PostsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile_/$profileId': {
@@ -1476,6 +1528,13 @@ declare module '@tanstack/react-router' {
       path: '/plans'
       fullPath: '/admin/plans'
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/posts': {
+      id: '/_authenticated/admin/posts'
+      path: '/posts'
+      fullPath: '/admin/posts'
+      preLoaderRoute: typeof AuthenticatedAdminPostsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/referrals': {
@@ -1705,6 +1764,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
+  AuthenticatedAdminPostsRoute: typeof AuthenticatedAdminPostsRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -1745,6 +1805,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
+  AuthenticatedAdminPostsRoute: AuthenticatedAdminPostsRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
@@ -1818,6 +1879,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
+  PostsRoute: PostsRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
   ReportUnwantedSignInRoute: ReportUnwantedSignInRoute,
@@ -1834,6 +1896,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
+  PostsSlugRoute: PostsSlugRoute,
   ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,

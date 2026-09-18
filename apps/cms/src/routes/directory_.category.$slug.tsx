@@ -10,6 +10,7 @@ import { DirectoryPagination } from "@/components/directory/public/directory-pag
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
+import { PostGrid } from "@/components/posts/public/post-grid"
 import { loadDirectoryCategory } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
@@ -21,7 +22,8 @@ import {
 import { readPage } from "@/lib/nav/list-search"
 
 /**
- * One category: what it is, the categories under it, and its listings.
+ * One category: what it is, the categories under it, its listings, and the
+ * newest posts filed under it.
  *
  * **Its own listings, never its children's.** A listing put in "Italian" does
  * not appear under "Restaurants" as well — that is what the directory app this
@@ -76,6 +78,7 @@ function CategoryRoute() {
     page,
     pageSize,
     browseTitle,
+    posts,
   } = Route.useLoaderData()
 
   const crumbs: Crumb[] = [
@@ -131,14 +134,18 @@ function CategoryRoute() {
         </section>
       ) : null}
 
-      <ListingGrid
-        listings={listings}
-        emptyMessage={
-          children.length
-            ? "Choose a subcategory above to see its listings."
-            : `There is nothing in ${category.name} yet.`
-        }
-      />
+      {/* A category holding only posts skips the "nothing here" card, which
+          would be untrue with the posts right below it. */}
+      {listings.length || !posts.length ? (
+        <ListingGrid
+          listings={listings}
+          emptyMessage={
+            children.length
+              ? "Choose a subcategory above to see its listings."
+              : `There is nothing in ${category.name} yet.`
+          }
+        />
+      ) : null}
 
       <DirectoryPagination
         page={page}
@@ -148,6 +155,15 @@ function CategoryRoute() {
           `/directory/category/${encodeURIComponent(category.slug)}${next > 1 ? `?page=${next}` : ""}`
         }
       />
+
+      {posts.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="posts">
+          <h2 id="posts" className="text-lg font-semibold">
+            Posts about {category.name}
+          </h2>
+          <PostGrid posts={posts} emptyMessage="" />
+        </section>
+      ) : null}
     </DirectoryFrame>
   )
 }

@@ -41,6 +41,10 @@ export const appOpenEndpoints: Record<string, string> = {
     "A site's optional listings home page is public, and it returns published cards only for the site whose address the visitor typed. A row drawn as a map also carries that site's browser map key, which is a value its own admin chose to publish and is only sent when a map row exists.",
   "directory/public.ts:geocodeDirectoryPlaceFn":
     "A visitor may type a town when browser location is unavailable; this lookup is rate limited, cached, and returns no private site data.",
+  "posts/public.ts:readPostsFn":
+    "The Posts page is a public page, so its list of published posts has to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Posts page switched off or kept for members and the reader is signed out.",
+  "posts/public.ts:readPostFn":
+    "A post's own page is public. It answers with a published post on the visited site only, so a draft is missing rather than hidden, and it follows the Posts page's on/off switch before reading anything.",
   "directory/public-profile.ts:readPublicSavedProfileFn":
     "A person can share the saved lists they explicitly made public, and this returns only those lists and published listings on the visited site.",
   "directory/submissions.ts:readSubmissionFormFn":

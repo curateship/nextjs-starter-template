@@ -3,12 +3,18 @@ import { Link } from "@tanstack/react-router"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
- * Where a page sits: site home → Directory → its category → itself.
+ * Where a page sits: site home → Directory → its category → itself, or site
+ * home → Posts → the post.
  *
  * The last step is the page you are on, so it is plain text with
  * `aria-current` rather than a link back to where you already are.
  */
-export type Crumb = { label: string; categorySlug?: string; home?: boolean }
+export type Crumb = {
+  label: string
+  categorySlug?: string
+  home?: boolean
+  posts?: boolean
+}
 
 export function DirectoryBreadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
   return (
@@ -40,6 +46,13 @@ function CrumbLink({ crumb }: { crumb: Crumb }) {
   if (crumb.home) {
     return (
       <Link to="/" className={className}>
+        {crumb.label}
+      </Link>
+    )
+  }
+  if (crumb.posts) {
+    return (
+      <Link to="/posts" search={{}} className={className}>
         {crumb.label}
       </Link>
     )
