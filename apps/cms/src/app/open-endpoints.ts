@@ -53,6 +53,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "Anybody may suggest a listing, which is the whole feature — it still checks the request came from this app's own pages, is rate limited per site and per address, and produces nothing an admin sees until the address is confirmed by email.",
   "directory/submissions.ts:resendSubmissionEmailFn":
     "Somebody whose confirmation link expired has no account to sign in to, so asking for a fresh one cannot require one — it is rate limited and answers the same way whether or not a submission is waiting.",
+  "directory/reports.ts:reportListingProblemFn":
+    "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
 }
 
 /**

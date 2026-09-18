@@ -17,3 +17,6 @@ export const CLAIM_MESSAGE_MAX = 1000
 
 /** The sentence a search engine shows under a listing's title. */
 export const LISTING_META_DESCRIPTION_MAX = 300
+
+/** A visitor's note on the "Report a problem" form, on a listing's page. */
+export const LISTING_REPORT_NOTE_MAX = 1000
