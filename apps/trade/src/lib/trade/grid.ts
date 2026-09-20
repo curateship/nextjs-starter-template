@@ -1548,6 +1548,30 @@ export function gridHeldSz(
 }
 
 /**
+ * What "Stop the grid" is about to do, said before it is pressed.
+ *
+ * **A grid holding nothing ends when it is stopped.** Cancelling its waiting
+ * levels leaves it with nothing to buy and nothing to sell, so the engine
+ * writes it down as finished on its next pass and it leaves the chart. The
+ * warning used to promise only that "its sells keep working", which is true
+ * of a grid holding coins and quietly wrong of one that is not: Tyler stopped
+ * a CASHCAT grid on 20 Sep 2026 and watched the whole grid vanish nine
+ * seconds later, with nothing on screen saying that is what stopping it
+ * meant.
+ */
+export function stopGridWarning(grid: {
+  plan: Pick<GridPlan, "levels" | "carriedLevels">
+}): string {
+  const waiting = grid.plan.levels.filter(
+    (level) => level.status === "waiting"
+  ).length
+  const levels = `${waiting} waiting ${waiting === 1 ? "level is" : "levels are"} cancelled and buy nothing. They do not come back.`
+  return gridHeldSz(grid.plan) > 0
+    ? `${levels} Whatever the grid is holding stays, and its sells keep working.`
+    : `${levels} This grid is holding nothing, so stopping it ends the grid.`
+}
+
+/**
  * Where a stop sits, given a range and how far past its losing edge to rest.
  *
  * Below the bottom for a buying grid, above the top for a selling one. The

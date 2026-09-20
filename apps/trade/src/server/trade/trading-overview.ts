@@ -18,7 +18,10 @@ import {
   walletProfitWindowStart,
   type TradeWallet,
 } from "@/lib/trade/wallets"
+import { gridRoundTrips } from "@/lib/trade/live-trades"
+import type { TradeSide } from "@/lib/trade/paper"
 import { db } from "@/server/db"
+import { stampGridFills } from "@/server/trade/grid-fills"
 import { tradeLiveFills } from "@/server/trade/schema"
 import {
   listWalletsWithCredentials,
@@ -142,6 +145,16 @@ export async function loadTradingOverview(
  * Every visible real fill of the wallets given, newest first, priced the way
  * the overview's Made or lost figure prices them. Shared with the P&L page so
  * its month grid adds up the same fills, and the same money, as the PnL Graph.
+ *
+ * **A grid's sale is worth what its own rung made**, the same figure the chart
+ * arrow and the Smart orders panel show, never the exchange's. The exchange
+ * books every part-sale against one blended average, and while a grid is
+ * running that average is held up by the rungs still holding, so a rung that
+ * did its job reads here as a loss. `gridRoundTrips` has the arithmetic.
+ *
+ * A sale whose own buy is older than what was read keeps the exchange's
+ * figure, because nothing on hand says what those coins cost. That only
+ * happens on the `since` read: the overview and the P&L page hold the lot.
  */
 export async function loadOverviewFills(
   userId: string,
@@ -172,6 +185,25 @@ export async function loadOverviewFills(
     .orderBy(desc(tradeLiveFills.at))
 
   const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  const stamped = await stampGridFills(
+    userId,
+    wallets.map((wallet) => wallet.id),
+    rows.map((row) => ({
+      fillId: row.fillId,
+      orderId: row.orderId,
+      walletId: row.walletId,
+      marketKey: row.marketKey,
+      side: row.side as TradeSide,
+      px: row.px,
+      sz: row.sz,
+      at: Number(row.at),
+      closedPnl: row.closedPnl,
+      fee: row.fee,
+      dir: row.dir,
+      liquidation: row.liquidation,
+    }))
+  )
+  const rungs = gridRoundTrips(stamped)
   return rows.flatMap((row) => {
     const wallet = walletById.get(row.walletId)
     if (!wallet) return []
@@ -189,12 +221,14 @@ export async function loadOverviewFills(
         sz: row.sz,
         at: Number(row.at),
         fee: row.fee,
-        money: moneyForWalletFill({
-          profitPerSale: pricesEverySale(protocol),
-          side: row.side,
-          closedPnl: row.closedPnl,
-          fee: row.fee,
-        }),
+        money:
+          rungs.get(row.fillId)?.money ??
+          moneyForWalletFill({
+            profitPerSale: pricesEverySale(protocol),
+            side: row.side,
+            closedPnl: row.closedPnl,
+            fee: row.fee,
+          }),
       },
     ]
   })

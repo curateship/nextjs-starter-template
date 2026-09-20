@@ -99,6 +99,7 @@ import {
   holdsEntry,
   isGridStopLeg,
   plannedGridReversal,
+  stopGridWarning,
   type GridRangeMove,
 } from "@/lib/trade/grid"
 import { prefetchLadderBase } from "@/lib/trade/ladder-base-cache"
@@ -2753,21 +2754,7 @@ export function ChartPanel({
           if (!open) setCancelGridFor(null)
         }}
         title="Stop this grid buying?"
-        description={
-          cancelGridFor
-            ? `${
-                cancelGridFor.plan.levels.filter(
-                  (level) => level.status === "waiting"
-                ).length
-              } waiting ${
-                cancelGridFor.plan.levels.filter(
-                  (level) => level.status === "waiting"
-                ).length === 1
-                  ? "level is"
-                  : "levels are"
-              } cancelled and buy nothing — they do not come back. Whatever the grid is holding stays, and its sells keep working.`
-            : ""
-        }
+        description={cancelGridFor ? stopGridWarning(cancelGridFor) : ""}
         confirmLabel="Stop the grid"
         onConfirm={() => {
           if (cancelGridFor) {

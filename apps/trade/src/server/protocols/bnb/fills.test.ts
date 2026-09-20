@@ -13,15 +13,19 @@ const m = vi.hoisted(() => ({
   record: vi.fn(),
   note: vi.fn(),
 }))
-vi.mock("./rpc", () => ({
-  bnbReadClient: () => ({
+vi.mock("./rpc", () => {
+  const client = () => ({
     getBlockNumber: m.head,
     getLogs: m.logs,
     getTransactionReceipt: m.receipt,
     getBlock: m.block,
-  }),
-  bnbTokenDecimals: m.decimals,
-}))
+  })
+  return {
+    bnbReadClient: client,
+    bnbLogsClient: client,
+    bnbTokenDecimals: m.decimals,
+  }
+})
 vi.mock("./ledger", () => ({
   pendingBnbSends: m.pending,
   rememberBnbSend: m.remember,
@@ -53,17 +57,52 @@ beforeEach(() => {
 
 it("does not claim a mined swap moved nothing when its decimals read fails", async () => {
   m.decimals.mockRejectedValue(bnbRefusalError("unknown"))
-  await expect(
-    fetchBnbOrderFills(
-      "mainnet",
-      receipt.from,
-      0,
-      () => null,
-      "background",
-      owner()
-    )
-  ).rejects.toThrow("The transaction's fee is not confirmed yet.")
+  const read = fetchBnbOrderFills(
+    "mainnet",
+    receipt.from,
+    0,
+    () => null,
+    "background",
+    owner()
+  )
+  await expect(read).rejects.toThrow(/did not answer a trade history request/)
+  await expect(read).rejects.not.toThrow(/coins moved/i)
   expect(m.record).not.toHaveBeenCalled()
+})
+
+it("keeps the pages a node serves when it refuses an older one", async () => {
+  const refusal = Object.assign(new Error("limit exceeded"), {
+    shortMessage: "limit exceeded",
+  })
+  // The oldest page of the scan is past what a free node keeps. Every newer
+  // page is there, and the swap in them has to reach the Journal.
+  m.logs.mockRejectedValueOnce(refusal).mockRejectedValueOnce(refusal)
+  const fills = await fetchBnbOrderFills(
+    "mainnet",
+    receipt.from,
+    0,
+    () => null,
+    "background",
+    owner()
+  )
+  expect(fills).toHaveLength(1)
+  expect(m.record).toHaveBeenCalled()
+})
+
+it("says the node would not answer, not that a transaction is unconfirmed", async () => {
+  m.logs.mockRejectedValue(
+    Object.assign(new Error("limit exceeded"), { shortMessage: "limit exceeded" })
+  )
+  const read = fetchBnbOrderFills(
+    "mainnet",
+    receipt.from,
+    0,
+    () => null,
+    "background",
+    owner()
+  )
+  await expect(read).rejects.toThrow(/will not answer a trade history request/)
+  await expect(read).rejects.not.toThrow(/fee is not confirmed/)
 })
 
 it("journals a recovered failed receipt with paid gas and no invented fill", async () => {
@@ -186,7 +225,7 @@ it("does not advance the block cursor after a provider failure", async () => {
       "background",
       scope
     )
-  ).rejects.toThrow("EXCHANGE_BUSY:BNB Chain has not confirmed")
+  ).rejects.toThrow("EXCHANGE_BUSY:BNB Chain's node did not answer")
   const first = m.logs.mock.calls[0][0].fromBlock
   m.logs.mockClear()
   await fetchBnbOrderFills(

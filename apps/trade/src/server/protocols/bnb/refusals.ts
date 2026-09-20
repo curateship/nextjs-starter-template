@@ -14,6 +14,7 @@ export type BnbRefusal =
   | "unsellable"
   | "pending"
   | "replaced"
+  | "history"
   | "unknown"
 export type BnbRefusalDetail = {
   hash?: string
@@ -23,11 +24,26 @@ export type BnbRefusalDetail = {
   approvalFeeWei?: bigint
   pending?: boolean
   approval?: boolean
+  /**
+   * This was a history read, not a transaction.
+   *
+   * It is about every swap the wallet has ever made, so it cannot say what
+   * one transaction moved or paid. Saying "the fee is not confirmed yet" here
+   * sent the reader looking for a stuck swap that was never there.
+   */
+  history?: boolean
 }
 
 // Only errors created here may carry prose through an outer catch. A provider
 // cannot smuggle text through by starting its message with a shared prefix.
-class BnbRefusalError extends Error {}
+class BnbRefusalError extends Error {
+  /** Which refusal this is, where one was named. */
+  readonly code?: BnbRefusal
+  constructor(message: string, code?: BnbRefusal) {
+    super(message)
+    this.code = code
+  }
+}
 export function bnbRefused(sentence: string, busy = false): Error {
   return new BnbRefusalError(
     `${busy ? "EXCHANGE_BUSY" : "LIVE_ORDER_REFUSED"}:${sentence}`
@@ -45,8 +61,10 @@ export function bnbRefusalSentence(
   const pending = detail.pending || code === "pending" || code === "replaced"
   if (pending && !["pending", "replaced", "node-busy"].includes(code))
     code = "pending"
-  const fee =
-    detail.feeWei !== undefined
+  const reading = detail.history === true || code === "history"
+  const fee = reading
+    ? ""
+    : detail.feeWei !== undefined
       ? ` ${formatUnits(detail.feeWei, 18)} BNB was spent on network fees.`
       : pending
         ? " The transaction's fee is not confirmed yet."
@@ -55,7 +73,7 @@ export function bnbRefusalSentence(
     detail.approvalFeeWei && detail.approvalFeeWei > 0n
       ? ` Confirmed approvals spent ${formatUnits(detail.approvalFeeWei, 18)} BNB separately.`
       : ""
-  const movement = pending ? "" : " No swap coins moved."
+  const movement = pending || reading ? "" : " No swap coins moved."
   let sentence: string
   switch (code) {
     case "no-route":
@@ -104,8 +122,14 @@ export function bnbRefusalSentence(
       sentence =
         "The node reports a replacement transaction. Check both transactions before placing another trade."
       break
+    case "history":
+      sentence =
+        "This BNB node will not answer a trade history request, so new swaps cannot reach the Journal. Point TRADE_BNB_LOGS_RPC at a node that answers eth_getLogs, such as bsc-rpc.publicnode.com."
+      break
     case "unknown":
-      sentence = "BNB Chain refused the trade, and no coins moved. Check the wallet and request a fresh quote."
+      sentence = reading
+        ? "BNB Chain's node did not answer a trade history request. The Journal catches up on the next read."
+        : "BNB Chain refused the trade, and no coins moved. Check the wallet and request a fresh quote."
       break
   }
   return (
@@ -121,13 +145,51 @@ export function bnbRefusalError(
   code: BnbRefusal,
   detail: BnbRefusalDetail = {}
 ): Error {
+  // A history read can never refuse an order, so nothing it says is allowed
+  // to reach the app wearing a refused order's prefix.
   const busy =
     detail.pending ||
-    ["kyber-busy", "node-busy", "pending", "replaced"].includes(code)
+    detail.history === true ||
+    ["kyber-busy", "node-busy", "pending", "replaced", "history"].includes(code)
   return new BnbRefusalError(
-    `${busy ? "EXCHANGE_BUSY" : "LIVE_ORDER_REFUSED"}:${bnbRefusalSentence(code, detail)}`
+    `${busy ? "EXCHANGE_BUSY" : "LIVE_ORDER_REFUSED"}:${bnbRefusalSentence(code, detail)}`,
+    code
   )
 }
+/** The words a node uses when a log request is past what it will serve. */
+export function bnbLogsBeyondNode(error: unknown): boolean {
+  const words = [
+    (error as { message?: unknown })?.message,
+    (error as { shortMessage?: unknown })?.shortMessage,
+    (error as { details?: unknown })?.details,
+  ]
+    .filter((one): one is string => typeof one === "string")
+    .join(" ")
+    .slice(0, 16_000)
+  return /limit exceeded|exceed maximum block range|block range|query returned more than|not supported|requires a personal token|archive/i.test(
+    words
+  )
+}
+
+/**
+ * What went wrong reading a wallet's history, in words about the READ.
+ *
+ * A node that will not answer has not lost a transaction, and the sweep runs
+ * every couple of minutes whether or not a swap was ever sent. Reporting it as
+ * "BNB Chain has not confirmed the transaction" sent the reader hunting for a
+ * stuck swap on 20 Sep 2026. The node simply does not serve logs.
+ */
+export function bnbHistoryRefusalError(error: unknown): Error {
+  if (error instanceof BnbRefusalError && error.code === "history") return error
+  if (bnbLogsBeyondNode(error)) return bnbRefusalError("history")
+  // A refusal raised before a swap was signed says "no coins moved", which is
+  // a sentence about one transaction. A history read is about every swap the
+  // wallet ever made, so its prose is never reused here.
+  const code =
+    error instanceof BnbRefusalError ? "unknown" : bnbNodeRefusalCode(error)
+  return bnbRefusalError(code, { history: true })
+}
+
 export function kyberRefusalCode(body: unknown): BnbRefusal | null {
   const code =
     body && typeof body === "object" && "code" in body ? body.code : undefined

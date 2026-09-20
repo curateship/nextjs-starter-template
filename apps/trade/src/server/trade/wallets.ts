@@ -16,6 +16,9 @@ import {
   type WalletAccountSummary,
   type WalletKind,
 } from "@/lib/trade/wallets"
+import { gridRoundTrips } from "@/lib/trade/live-trades"
+import type { TradeSide } from "@/lib/trade/paper"
+import { stampGridFills } from "@/server/trade/grid-fills"
 import {
   liquidationWarningSchema,
   resolveLiquidationWarning,
@@ -560,9 +563,17 @@ export async function loadWalletSummaries(
       ? db
           .select({
             walletId: tradeLiveFills.walletId,
+            fillId: tradeLiveFills.fillId,
+            orderId: tradeLiveFills.orderId,
+            marketKey: tradeLiveFills.marketKey,
             side: tradeLiveFills.side,
+            px: tradeLiveFills.px,
+            sz: tradeLiveFills.sz,
+            at: tradeLiveFills.at,
             closedPnl: tradeLiveFills.closedPnl,
             fee: tradeLiveFills.fee,
+            dir: tradeLiveFills.dir,
+            liquidation: tradeLiveFills.liquidation,
           })
           .from(tradeLiveFills)
           .where(
@@ -602,13 +613,40 @@ export async function loadWalletSummaries(
   const unpricedByWallet = new Map<string, number>()
   const addSettled = (walletId: string, money: number) =>
     settledByWallet.set(walletId, (settledByWallet.get(walletId) ?? 0) + money)
+  // A grid's sale is worth what its own rung made, never what the venue books
+  // it at against one blended average. Same rule and same arithmetic as the
+  // chart arrows and the P&L page, so a wallet's settled figure and the fills
+  // it is made of can never read as two different amounts. A sale whose buy is
+  // older than this window keeps the venue's figure.
+  const rungs = gridRoundTrips(
+    await stampGridFills(
+      userId,
+      liveWallets.map((wallet) => wallet.id),
+      liveMoney.map((fill) => ({
+        fillId: fill.fillId,
+        orderId: fill.orderId,
+        walletId: fill.walletId,
+        marketKey: fill.marketKey,
+        side: fill.side as TradeSide,
+        px: fill.px,
+        sz: fill.sz,
+        at: Number(fill.at),
+        closedPnl: fill.closedPnl,
+        fee: fill.fee,
+        dir: fill.dir,
+        liquidation: fill.liquidation,
+      }))
+    )
+  )
   for (const fill of liveMoney) {
     const wallet = walletById.get(fill.walletId)
     if (!wallet) continue
-    const money = moneyForWalletFill({
-      profitPerSale: pricesEverySale(wallet.protocol),
-      ...fill,
-    })
+    const money =
+      rungs.get(fill.fillId)?.money ??
+      moneyForWalletFill({
+        profitPerSale: pricesEverySale(wallet.protocol),
+        ...fill,
+      })
     if (money === null) {
       unpricedByWallet.set(
         fill.walletId,
