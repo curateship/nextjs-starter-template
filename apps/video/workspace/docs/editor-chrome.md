@@ -43,3 +43,22 @@ it, well short of the panel's edge. The content now carries `min-height: 100%`
 (`src/components/video-editor/studio-timeline.tsx:287`), so it is always at
 least as tall as the box it scrolls in. A project with enough lanes to scroll is
 unaffected, because the lanes are already taller than that.
+
+## The parts the editor borrows from the shell
+
+Every panel header in the studio and in the carousel studio is the shell's
+`DashboardCardTitleHeader` from `src/components/shared/dashboard-card-header.tsx`.
+The editor has no header of its own, so a header in the studio and a header on
+the contacts page are the same height, the same type and the same line
+underneath, and a change to the shell's reaches both at once.
+
+Failures the editor cannot put right itself go to the shared error toast through
+`useErrorToast` from `src/lib/toast/error-toast.ts`. Two of them exist: a
+timeline that will not parse, and a project that changed in another window so
+this one has stopped saving. Neither draws anything in the editor, because a
+banner above the stage would shrink the picture every time something went wrong.
+
+Both were named differently until 20 Sep 2026, `WorkspacePanelHeader` and
+`ErrorBanner`, and both lived in files the app carried its own copy of. The
+shell renamed them and deleted the old files, so the editor now imports the
+shell's.

@@ -9,6 +9,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [editor-chrome.md](editor-chrome.md) — which lines around the editor come from
   the shell, which ones the editor draws itself, and why it never hides a shell
   one.
+- [media-addresses.md](media-addresses.md) — where the address of a picture or a
+  clip comes from, and why every call that asks for one waits for the answer.
 
 The AI tools, the credit ledger and the export and render path were built before
 this folder existed, and none of them is written up.

@@ -8,8 +8,22 @@ import type {
   AutomationSourcePort,
 } from "./graph"
 
-export type AutomationPaletteGroup =
-  "Triggers" | "Actions" | "Flow" | "AI" | "Steps"
+/**
+ * The heading a step sits under in the palette.
+ *
+ * Deliberately a plain string rather than the shell's own five names. An app
+ * that adds steps of its own usually wants a heading of its own too — Trade's
+ * backtest steps are not Actions or Flow — and a fixed list here could never
+ * gain one without editing a shell file, which is the exact fork this whole
+ * arrangement exists to avoid.
+ *
+ * Nothing is lost by widening it. The registry still knows the full list at
+ * run time, since it is the shell's own headings plus the ones the app declared
+ * in `automations.paletteGroups`, and a step naming a heading that is in
+ * neither is refused out loud rather than quietly vanishing from the palette.
+ * A typo was a compile error before and is a loud throw now.
+ */
+export type AutomationPaletteGroup = string
 
 /**
  * A node's icon — the component itself, imported by the node's own file.
@@ -29,6 +43,13 @@ export type AutomationNodePort = {
 export type AutomationNodeSettings = Record<string, AutomationSettingValue>
 
 /**
+ * Small JSON-only data a completed step may hand to its run-history view.
+ * Large app records stay in the app's own table; this carries the id and the
+ * few values the view needs to find and describe them.
+ */
+export type AutomationRunOutput = AutomationSettingValue
+
+/**
  * What a node's settings panel is handed: the node as it stands, and the single
  * way to change it. The same pair the shell's own field components already
  * take, written down so an app's node can be handed it too.
@@ -42,15 +63,23 @@ export type AutomationNodeFieldsProps = {
   onOpenEditor?: () => void
 }
 
+/** What an app-owned run result is handed inside the shell's history row. */
+export type AutomationNodeRunResultProps = {
+  runId: string
+  stepId: string
+  nodeId: string
+  output: AutomationRunOutput
+}
+
 /**
  * Everything the canvas and the compiler need to know about one node kind, in
  * one place, assembled by `node-registry.ts`. Adding a kind means writing one of
  * these rather than editing a catalogue, a parser, a validator and the canvas
  * separately.
  *
- * A node is two files: this, and the settings panel it points at with `fields`.
- * What the node *does* when a flow reaches it is the third — an executor, which
- * lives on the server and is keyed by the same `kind`.
+ * A node starts with this descriptor and the executor keyed by the same `kind`.
+ * It may point at separate browser files for its settings and its rich run
+ * result; the shell loads either only when that view is actually drawn.
  */
 export type AutomationNodeDescriptor = {
   kind: string
@@ -74,6 +103,8 @@ export type AutomationNodeDescriptor = {
   outputPorts: readonly AutomationNodePort[]
   /** Whether the node accepts an inbound connection (false only for triggers). */
   hasInput: boolean
+  /** False when pressing Run cannot provide the real event or member it needs. */
+  manualStart?: boolean
   /** A human reason this connection is not allowed, or null when it is. */
   connectionError: (
     sourcePort: AutomationSourcePort,
@@ -98,6 +129,16 @@ export type AutomationNodeDescriptor = {
    * Unset means the node has no settings to show.
    */
   fields?: () => Promise<{ default: ComponentType<AutomationNodeFieldsProps> }>
+  /**
+   * An optional rich view of this step's structured output.
+   *
+   * Like `fields`, this is a pointer to another file rather than the component
+   * itself. The engine reads descriptors on the server and must never load an
+   * app's browser-only result view while it is running a flow.
+   */
+  runResult?: () => Promise<{
+    default: ComponentType<AutomationNodeRunResultProps>
+  }>
 }
 
 /** Identity helper so descriptor literals stay fully typed at the definition. */

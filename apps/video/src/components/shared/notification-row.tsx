@@ -1,17 +1,19 @@
 import {
+  ActivityIcon,
+  CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
+  MailWarningIcon,
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
   UserCheckIcon,
+  UserRoundCogIcon,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  type NotificationItem,
-} from "@/lib/api/notification"
+import { type NotificationItem } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
   automationApprovalNotificationText,
@@ -50,6 +52,10 @@ function isFromTheApp(item: NotificationItem) {
     item.type === "changelog" ||
     item.type === "announcement" ||
     item.type === "automation_approval" ||
+    item.type === "automation_failed" ||
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity" ||
     isAiLimitNotification(item.type)
   )
 }
@@ -67,13 +73,28 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
   if (isFromTheApp(item)) {
     return (
       <Avatar size="lg">
-        <AvatarFallback className="bg-secondary text-secondary-foreground">
+        <AvatarFallback
+          className={cn(
+            "bg-secondary text-secondary-foreground",
+            (item.type === "automation_failed" ||
+              item.type === "system_email_failed") &&
+              "text-destructive-foreground bg-destructive"
+          )}
+        >
           {item.type === "changelog" ? (
             <SparklesIcon className="h-4 w-4" />
           ) : item.type === "announcement" ? (
             <MegaphoneIcon className="h-4 w-4" />
           ) : item.type === "automation_approval" ? (
             <UserCheckIcon className="h-4 w-4" />
+          ) : item.type === "automation_failed" ? (
+            <CircleAlertIcon className="h-4 w-4" />
+          ) : item.type === "account_update" ? (
+            <UserRoundCogIcon className="h-4 w-4" />
+          ) : item.type === "system_email_failed" ? (
+            <MailWarningIcon className="h-4 w-4" />
+          ) : item.type === "app_activity" ? (
+            <ActivityIcon className="h-4 w-4" />
           ) : (
             <GaugeIcon className="h-4 w-4" />
           )}
@@ -90,6 +111,13 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
+    return <strong>{item.message ?? "The app needs attention"}</strong>
+  }
   if (item.type === "changelog") {
     return <>New update shipped</>
   }
@@ -109,6 +137,9 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
   // The flow's name is the useful half — "Weekly changelog email" says more
   // about what is waiting than the word "approval" ever could.
   if (item.type === "automation_approval") {
+    return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
+  }
+  if (item.type === "automation_failed") {
     return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
   }
 
@@ -139,6 +170,15 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "app_activity") {
+    return <ActivityIcon className="h-3.5 w-3.5" />
+  }
+  if (item.type === "account_update") {
+    return <UserRoundCogIcon className="h-3.5 w-3.5" />
+  }
+  if (item.type === "system_email_failed") {
+    return <MailWarningIcon className="h-3.5 w-3.5" />
+  }
   if (item.type === "changelog") {
     return <SparklesIcon className="h-3.5 w-3.5" />
   }
@@ -150,6 +190,9 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   }
   if (item.type === "automation_approval") {
     return <UserCheckIcon className="h-3.5 w-3.5" />
+  }
+  if (item.type === "automation_failed") {
+    return <CircleAlertIcon className="h-3.5 w-3.5" />
   }
   if (item.type === "feedback_merged") {
     return <GitMergeIcon className="h-3.5 w-3.5" />
@@ -170,17 +213,23 @@ function notificationPreview(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
-    item.type === "changelog"
-      ? (item.changelog_title ?? "")
-      : item.type === "announcement"
-        ? (item.announcement_body ?? "")
-        : item.type === "automation_approval"
-          ? approvalSummary
-            ? `${approvalText.message}. ${approvalSummary}`
-            : approvalText.detail
-          : isAiLimitNotification(item.type)
-            ? aiLimitNotificationText[item.type].detail
-            : (item.feedback_message ?? "")
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+      ? (item.detail ?? "")
+      : item.type === "changelog"
+        ? (item.changelog_title ?? "")
+        : item.type === "announcement"
+          ? (item.announcement_body ?? "")
+          : item.type === "automation_approval"
+            ? approvalSummary
+              ? `${approvalText.message}. ${approvalSummary}`
+              : approvalText.detail
+            : item.type === "automation_failed"
+              ? `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
+              : isAiLimitNotification(item.type)
+                ? aiLimitNotificationText[item.type].detail
+                : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }

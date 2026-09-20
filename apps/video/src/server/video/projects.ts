@@ -143,15 +143,20 @@ async function resolveTimelineMediaUrls(
     )
 
   const urls = new Map(
-    rows.map((row) => [
-      row.media.id,
-      videoPlaybackUrl(
-        serializeMedia(row.media).url,
-        row.proxyStatus
-          ? { status: row.proxyStatus, storagePath: row.proxyStoragePath }
-          : null
-      ),
-    ])
+    await Promise.all(
+      rows.map(
+        async (row) =>
+          [
+            row.media.id,
+            await videoPlaybackUrl(
+              (await serializeMedia(row.media)).url,
+              row.proxyStatus
+                ? { status: row.proxyStatus, storagePath: row.proxyStoragePath }
+                : null
+            ),
+          ] as const
+      )
+    )
   )
 
   return {
@@ -201,7 +206,7 @@ async function thumbnailUrlsFor(
     .from(customShellMedia)
     .where(inArray(customShellMedia.id, ids))
   for (const row of media) {
-    urls.set(row.id, serializeMedia(row).url)
+    urls.set(row.id, (await serializeMedia(row)).url)
   }
   return urls
 }

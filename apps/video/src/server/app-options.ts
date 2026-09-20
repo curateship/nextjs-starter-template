@@ -1,5 +1,7 @@
 import { appServerOptions } from "@/app/server-options"
+import type { SiteSearchResult } from "@/lib/pages/site-search"
 import type { AutomationExecutor } from "@/server/automations/executors"
+import type { CustomShellDb } from "@/server/db"
 
 /**
  * The same idea as `src/lib/app-options.ts`, for the answers that can only run
@@ -22,6 +24,92 @@ export type AppServerOptions = {
   background?: BackgroundServerOptions
   security?: SecurityServerOptions
   auth?: AuthServerOptions
+  sitemap?: SitemapServerOptions
+  search?: SearchServerOptions
+  workspaces?: WorkspaceServerOptions
+}
+
+export type WorkspaceCopyChoice = {
+  key: string
+  label: string
+}
+
+export type WorkspaceCopyInput = {
+  sourceWorkspaceId: string
+  newWorkspaceId: string
+  choices: readonly string[]
+  /** The transaction creating the new workspace. Throwing rolls it all back. */
+  database: CustomShellDb
+}
+
+type WorkspaceServerOptions = {
+  /** Optional app-owned content choices shown only when copying a workspace. */
+  copyChoices?: readonly WorkspaceCopyChoice[]
+  /** Copies app-owned rows inside the shell's workspace-copy transaction. */
+  onCopy?: (input: WorkspaceCopyInput) => Promise<void>
+}
+
+export type SiteSearchSource = (
+  workspaceId: string,
+  query: string,
+  limit: number
+) => Promise<readonly SiteSearchResult[]>
+
+type SearchServerOptions = {
+  /**
+   * Public content this app adds to a site's search results.
+   *
+   * The shell searches its admin-written pages. An app whose public content
+   * lives in its own tables adds one or more reads here. The workspace id
+   * comes from the request's Host header, never from the browser, and every
+   * source must return only public rows belonging to that workspace.
+   */
+  sources?: readonly SiteSearchSource[]
+}
+
+export type SitemapEntry = {
+  path: string
+  updatedAt?: Date
+}
+
+/** One numbered sitemap file an app serves, as the index lists it. */
+export type SitemapChunkFile = {
+  /** Where the file lives on this site, e.g. `/directory-sitemaps/0`. */
+  path: string
+  /** The most recent change among the addresses inside it, when known. */
+  updatedAt?: Date
+}
+
+type SitemapServerOptions = {
+  /**
+   * Public addresses this app adds to a site's sitemap.
+   *
+   * The shell contributes its declared and admin-written pages. An app whose
+   * public content lives in its own tables contributes those rows here. The
+   * workspace id comes from the request's Host header, never from the browser,
+   * and the app must return only public rows belonging to that workspace.
+   */
+  extraEntries?: (workspaceId: string) => Promise<readonly SitemapEntry[]>
+  /**
+   * The numbered files this app's bulk public addresses come in.
+   *
+   * One sitemap file may hold 50,000 addresses or 50MB, whichever comes first.
+   * A directory of a few hundred listings never gets near that and should say
+   * nothing here; a directory of tens of thousands sails past it, and nobody is
+   * told — the extra listings simply stop being indexed.
+   *
+   * So an app with that much content serves its own numbered files and names
+   * them here. `/sitemap.xml` then becomes a sitemap index pointing at each of
+   * them, plus `/sitemap.xml?part=pages` for everything else the site has. An
+   * app that answers with an empty list gets the single flat file it always
+   * got, which is what an app that never sets this gets too.
+   *
+   * Work this out from a count, not by reading the rows: the index is asked for
+   * this on every visit and must never load a site's whole content to answer.
+   * The workspace id comes from the request's Host header, never from the
+   * browser, and each file must hold only that site's addresses.
+   */
+  chunkFiles?: (workspaceId: string) => Promise<readonly SitemapChunkFile[]>
 }
 
 type SecurityServerOptions = {
@@ -162,6 +250,27 @@ export function appBackgroundWorkers(
   return options.background?.workers ?? []
 }
 
+/** App-owned choices shown on the workspace copy form, or none. */
+export function appWorkspaceCopyChoices(
+  options: AppServerOptions = appServerOptions
+): readonly WorkspaceCopyChoice[] {
+  return options.workspaces?.copyChoices ?? []
+}
+
+/** Copies app-owned workspace rows, or does nothing when the app has none. */
+export async function copyAppWorkspace(
+  input: WorkspaceCopyInput,
+  options: AppServerOptions = appServerOptions
+): Promise<void> {
+  const configured = new Set(
+    (options.workspaces?.copyChoices ?? []).map((choice) => choice.key)
+  )
+  if (input.choices.some((choice) => !configured.has(choice))) {
+    throw new Error("That workspace copy choice is not available.")
+  }
+  await options.workspaces?.onCopy?.(input)
+}
+
 /**
  * Whether the app vouches for an address the origin check did not recognise.
  *
@@ -177,6 +286,46 @@ export function appTrustsOrigin(
   options: AppServerOptions = appServerOptions
 ): boolean {
   return options.security?.isTrustedOrigin?.(origin) ?? false
+}
+
+/** The app's public sitemap rows, or none when it has not added any. */
+export async function appSitemapEntries(
+  workspaceId: string,
+  options: AppServerOptions = appServerOptions
+): Promise<readonly SitemapEntry[]> {
+  return (await options.sitemap?.extraEntries?.(workspaceId)) ?? []
+}
+
+/**
+ * The numbered sitemap files this app serves, or none.
+ *
+ * None is what the shell always did: one flat `/sitemap.xml` listing every
+ * address. An app only answers here when it has more content than one file can
+ * carry.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export async function appSitemapChunkFiles(
+  workspaceId: string,
+  options: AppServerOptions = appServerOptions
+): Promise<readonly SitemapChunkFile[]> {
+  return (await options.sitemap?.chunkFiles?.(workspaceId)) ?? []
+}
+
+/** Results from the app's own public search sources, or none when unset. */
+export async function appSiteSearchResults(
+  workspaceId: string,
+  query: string,
+  limit: number,
+  options: AppServerOptions = appServerOptions
+): Promise<SiteSearchResult[]> {
+  const sources = options.search?.sources ?? []
+  const groups = await Promise.all(
+    sources.map((source) => source(workspaceId, query, limit))
+  )
+  return groups.flatMap((results) => results.slice(0, limit))
 }
 
 /**

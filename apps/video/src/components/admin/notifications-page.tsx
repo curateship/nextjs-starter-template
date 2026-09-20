@@ -1,10 +1,13 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
+  ActivityIcon,
   BellIcon,
+  CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
+  MailWarningIcon,
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
@@ -33,12 +36,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
 import {
   TableCell,
-  TableHead,
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
@@ -71,20 +74,19 @@ const notificationsRoute = getRouteApi("/_authenticated/admin/notifications")
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
 type NotificationSortColumn =
-  | "activity"
-  | "feedback"
-  | "recipient"
-  | "type"
-  | "status"
-  | "created"
+  "activity" | "recipient" | "type" | "status" | "created"
 
 const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
-  { key: "activity", label: "Activity", column: "main" },
-  { key: "feedback", label: "Feedback", column: "preview" },
-  { key: "recipient", label: "Recipient", column: "meta" },
-  { key: "type", label: "Type", column: "meta" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "created", label: "Created", column: "meta" },
+  {
+    key: "activity",
+    label: "Activity",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "recipient", label: "Recipient", column: "preview" },
+  { key: "type", label: "Type", column: "preview" },
+  { key: "status", label: "Status", column: "preview" },
+  { key: "created", label: "Created", column: "preview" },
 ]
 
 /**
@@ -94,16 +96,31 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
+    return item.message ?? "The app needs attention"
+  }
   // An AI-allowance notice carries its own words — there is no thing it is
   // about to borrow a title from.
   if (isAiLimitNotification(item.type)) {
     return aiLimitNotificationText[item.type].message
   }
   // An approval notice is about a flow, so the flow's name is its subject.
-  if (item.type === "automation_approval") {
+  if (
+    item.type === "automation_approval" ||
+    item.type === "automation_failed"
+  ) {
     return item.automation_name ?? ""
   }
-  return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
+  return (
+    item.changelog_title ??
+    item.announcement_title ??
+    item.feedback_message ??
+    ""
+  )
 }
 
 /**
@@ -113,6 +130,13 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
+    return item.detail ? `${subject}\n\n${item.detail}` : subject
+  }
   if (isAiLimitNotification(item.type)) {
     return `${subject}\n\n${aiLimitNotificationText[item.type].detail}`
   }
@@ -120,14 +144,34 @@ function notificationSubjectDetail(item: NotificationItem) {
     const state = item.automation_approval_state ?? "pending"
     return `${subject}\n\n${automationApprovalNotificationText[state].detail}`
   }
+  if (item.type === "automation_failed") {
+    return `${subject}\n\n${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
+  }
   return item.announcement_body
     ? `${subject}\n\n${item.announcement_body}`
     : subject
 }
 
 /** Who caused it. An update or a broadcast has nobody behind it. */
+/**
+ * The line under the subject.
+ *
+ * A notice somebody set off names that person. A notice the app wrote about the
+ * reader's own doing has nobody to name, so it shows its own second sentence
+ * instead — the fill's dollars, the line the price crossed. A dash there says
+ * nothing and wastes the row's most readable line.
+ */
 function notificationActor(item: NotificationItem) {
-  return item.actor_name ?? "—"
+  if (item.actor_name) return item.actor_name
+  if (
+    item.type === "account_update" ||
+    item.type === "system_email_failed" ||
+    item.type === "app_activity"
+  ) {
+    return item.detail ?? "—"
+  }
+  if (item.type === "announcement") return item.announcement_body || "—"
+  return "—"
 }
 
 /**
@@ -293,7 +337,10 @@ export function NotificationsPage({
   // something get the role, the hand cursor and the handlers.
   function notificationDestination(item: NotificationItem) {
     if (item.type === "changelog") return "changelog" as const
-    if (item.type === "automation_approval") {
+    if (
+      item.type === "automation_approval" ||
+      item.type === "automation_failed"
+    ) {
       return item.automation_run_id && item.automation_id
         ? ("automationRun" as const)
         : null
@@ -315,7 +362,10 @@ export function NotificationsPage({
       void navigate({
         to: "/admin/automations/$automationId",
         params: { automationId: item.automation_id },
-        search: { run: item.automation_run_id },
+        search: {
+          run: item.automation_run_id,
+          node: item.automation_failure_node_id ?? undefined,
+        },
       })
       return
     }
@@ -381,9 +431,7 @@ export function NotificationsPage({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Read filter"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Read filter">
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -401,9 +449,7 @@ export function NotificationsPage({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Type filter"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Type filter">
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -414,8 +460,16 @@ export function NotificationsPage({
                 <SelectItem value="changelog">Updates</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
                 <SelectItem value="ai_limit_warning">AI warnings</SelectItem>
-                <SelectItem value="ai_limit_reached">AI limit reached</SelectItem>
+                <SelectItem value="ai_limit_reached">
+                  AI limit reached
+                </SelectItem>
                 <SelectItem value="automation_approval">Approvals</SelectItem>
+                <SelectItem value="automation_failed">
+                  Automation failures
+                </SelectItem>
+                <SelectItem value="system_email_failed">
+                  Email failures
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -427,21 +481,19 @@ export function NotificationsPage({
             direction={direction}
             onSort={toggleSort}
             leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleNotificationIds)}
-                  onCheckedChange={() =>
-                    selection.toggleVisible(visibleNotificationIds)
-                  }
-                  aria-label="Select visible notifications"
-                />
-              </TableHead>
+              <SelectAllTableHead
+                noun="notifications"
+                checked={selection.selectAllState(visibleNotificationIds)}
+                onCheckedChange={() =>
+                  selection.toggleVisible(visibleNotificationIds)
+                }
+              />
             }
           />
         }
         isEmpty={!loading && notifications.length === 0}
         emptyText="No notifications match those filters."
-        emptyColSpan={7}
+        emptyColSpan={6}
         footer={{
           type: "pagination",
           page,
@@ -457,37 +509,22 @@ export function NotificationsPage({
       >
         {notifications.map((item) => {
           const opens = notificationDestination(item) !== null
+          const subject = notificationSubject(item)
           return (
             <TableRow
               key={item.id}
-              role={opens ? "button" : undefined}
-              tabIndex={opens ? 0 : undefined}
-              className={opens ? "cursor-pointer" : undefined}
-              onClick={opens ? () => openNotification(item) : undefined}
-              onKeyDown={
-                opens
-                  ? (event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault()
-                        openNotification(item)
-                      }
-                    }
-                  : undefined
-              }
+              className="group"
+              rowAction={opens ? () => openNotification(item) : undefined}
             >
-              <TableCell
-                column="select"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-              >
+              <TableCell column="select">
                 <Checkbox
                   checked={selectedIds.has(item.id)}
                   onCheckedChange={() => selection.toggle(item.id)}
                   aria-label={`Select ${notificationTypeLabels[item.type]} notification`}
                 />
               </TableCell>
-              <TableCell column="main">
-                <div className="flex items-center gap-2">
+              <TableCell column="main" className="min-w-0 md:min-w-80">
+                <div className="flex max-w-64 items-center gap-2 sm:max-w-none">
                   {item.type === "changelog" ? (
                     <SparklesIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "announcement" ? (
@@ -496,6 +533,12 @@ export function NotificationsPage({
                     <GaugeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "automation_approval" ? (
                     <UserCheckIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "automation_failed" ? (
+                    <CircleAlertIcon className="size-4 text-destructive" />
+                  ) : item.type === "system_email_failed" ? (
+                    <MailWarningIcon className="size-4 text-destructive" />
+                  ) : item.type === "app_activity" ? (
+                    <ActivityIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_merged" ? (
                     <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (
@@ -503,10 +546,24 @@ export function NotificationsPage({
                   ) : (
                     <MessageSquareIcon className="size-4 text-muted-foreground" />
                   )}
-                  <div>
-                    <p className="text-sm font-medium">
-                      {notificationTypeLabels[item.type]}
-                    </p>
+                  <div className="min-w-0">
+                    {opens ? (
+                      <button
+                        type="button"
+                        className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
+                        title={notificationSubjectDetail(item)}
+                        onClick={() => openNotification(item)}
+                      >
+                        {subject}
+                      </button>
+                    ) : (
+                      <p
+                        className="max-w-96 truncate text-sm font-medium"
+                        title={notificationSubjectDetail(item)}
+                      >
+                        {subject}
+                      </p>
+                    )}
                     <p
                       className="max-w-96 truncate text-xs text-muted-foreground"
                       title={notificationActor(item)}
@@ -516,23 +573,13 @@ export function NotificationsPage({
                   </div>
                 </div>
               </TableCell>
+              <TableCell column="preview">{item.recipient_name}</TableCell>
               <TableCell column="preview">
-                <span
-                  className="block truncate"
-                  title={notificationSubjectDetail(item)}
-                >
-                  {notificationSubject(item)}
-                </span>
-              </TableCell>
-              <TableCell column="mutedMeta">
-                {item.recipient_name}
-              </TableCell>
-              <TableCell column="meta">
                 <Badge variant="secondary">
                   {notificationTypeLabels[item.type]}
                 </Badge>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <Badge
                   variant={item.read_at ? "secondary" : "default"}
                   className={cn(!item.read_at && "bg-primary")}
@@ -541,7 +588,7 @@ export function NotificationsPage({
                 </Badge>
               </TableCell>
               <TableCell
-                column="mutedMeta"
+                column="preview"
                 title={formatDateTime(item.created_at)}
               >
                 {formatRelativeTime(item.created_at, formatDateTime)}

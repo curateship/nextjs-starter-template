@@ -30,6 +30,7 @@ export function ConfirmDialog({
   loading = false,
   disabled = false,
   onConfirm,
+  onCloseAutoFocus,
   children,
 }: {
   open: boolean
@@ -43,6 +44,9 @@ export function ConfirmDialog({
   loading?: boolean
   disabled?: boolean
   onConfirm: () => void
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof DialogContent
+  >["onCloseAutoFocus"]
   children?: React.ReactNode
 }) {
   return (
@@ -53,7 +57,7 @@ export function ConfirmDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent variant="admin">
+      <DialogContent variant="admin" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

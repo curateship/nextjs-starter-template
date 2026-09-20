@@ -138,6 +138,7 @@ export const billingMomentNode = defineNode({
   icon: CreditCardIcon,
   outputPorts: [{ id: "then", label: "Then" }],
   hasInput: false,
+  manualStart: false,
   connectionError: () => null,
   fields: () => import("@/components/automations/nodes/billing-moment-panel"),
 })

@@ -50,6 +50,9 @@ export async function saveGeneratedAsset(options: {
     mimeType: options.mimeType,
     fileType: options.fileType,
     storagePath,
+    // The shell only sets this once a newsletter has gone out carrying the
+    // file, so a freshly generated asset is never protected.
+    emailProtectedAt: null,
     createdAt: at,
     updatedAt: at,
   }
@@ -61,7 +64,7 @@ export async function saveGeneratedAsset(options: {
     throw error
   }
 
-  return { ...row, url: getPublicMediaUrl(storagePath) }
+  return { ...row, url: await getPublicMediaUrl(storagePath) }
 }
 
 /** Roll back a file whose owning asset row could not be written. */

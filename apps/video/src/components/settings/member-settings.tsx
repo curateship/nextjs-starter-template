@@ -4,10 +4,7 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 
-/**
- * Everything an admin decides on a member's behalf, in one place. Only the
- * sidebar so far — the card is the shape the rest will follow.
- */
+/** The sidebar editor on Members → Navigation. */
 export function MemberSettings({
   config,
   onConfigChange,
@@ -26,11 +23,9 @@ export function MemberSettings({
       onSaveConfig={onSaveConfig}
       card={{
         storageId: "member-sidebar",
-        // Not just "Sidebar": the rail already says that, and two identical
-        // headings one above the other read as a mistake.
         title: "Member sidebar",
         description:
-          "The links every member sees, in the order you put them. Your own sidebar is on the Sidebar tab and is not affected.",
+          "The links every member sees, in the order you put them. Your own sidebar is on the Platform → Navigation page and is not affected.",
       }}
       reset={{
         label: "Reset member sidebar",

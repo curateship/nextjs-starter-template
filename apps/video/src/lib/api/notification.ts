@@ -1,13 +1,23 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications/inbox"
+import {
+  listCurrentUserNotificationPage,
+  listAdminNotifications as listAdminNotificationRows,
+  requireAdminNotificationUser,
+  countUnreadNotifications as countUnreadNotificationRows,
+  markCurrentUserNotificationRead,
+  markAllCurrentUserNotificationsRead,
+  deleteAdminNotificationRows,
+  clearAdminNotificationRows,
+} from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
 import { readShellGlobals } from "@/server/shell-settings"
 // The words and the kinds live apart from this module on purpose: it reaches
 // into `server/notifications/inbox.ts`, which reaches back, and a circle hands
 // out `undefined` to whichever side loads first. See `lib/notification-types`.
-import type {
-  AutomationApprovalState,
-  NotificationType,
+import {
+  NOTIFICATION_TYPES,
+  type AutomationApprovalState,
+  type NotificationType,
 } from "@/lib/notification-types"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
@@ -38,10 +48,8 @@ export type NotificationItem = {
   announcement_title: string | null
   announcement_body: string | null
   /**
-   * All four null unless the notice is an automation approval. The notice opens
-   * the run inside its own flow's editor, so it carries both ids; the name is
-   * what it is about, and the state says whether it is asking for a decision or
-   * reporting that nobody made one.
+   * Null unless the notice is about an automation run. The notice opens the run
+   * inside its own flow's editor, so it carries both ids and the flow name.
    */
   automation_run_id: string | null
   automation_id: string | null
@@ -49,6 +57,13 @@ export type NotificationItem = {
   /** The checkpoint's own sentence saying what approval will do. */
   automation_approval_summary: string | null
   automation_approval_state: AutomationApprovalState | null
+  /** Filled only for a failed-run alert. */
+  automation_failure_node_id: string | null
+  automation_failure_node_name: string | null
+  automation_failure_error: string | null
+  /** Filled when an admin changed this person's own account. */
+  message: string | null
+  detail: string | null
   read_at: string | null
   created_at: string
 }
@@ -74,23 +89,11 @@ const listNotificationsSchema = z.object({
 const adminListQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   read: z.enum(["all", "unread", "read"]).default("all"),
-  type: z
-    .enum([
-      "all",
-      "feedback_vote",
-      "feedback_comment",
-      "feedback_merged",
-      "changelog",
-      "announcement",
-      "ai_limit_warning",
-      "ai_limit_reached",
-      "automation_approval",
-    ])
-    .default("all"),
+  type: z.enum(["all", ...NOTIFICATION_TYPES]).default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   sort: z
-    .enum(["activity", "feedback", "recipient", "type", "status", "created"])
+    .enum(["activity", "recipient", "type", "status", "created"])
     .default("created"),
   direction: z.enum(["asc", "desc"]).default("desc"),
 })
@@ -102,10 +105,7 @@ const notificationIdSchema = z.object({
 })
 
 const deleteNotificationsSchema = z.object({
-  notificationIds: z
-    .array(z.string().min(1).max(100))
-    .min(1)
-    .max(500),
+  notificationIds: z.array(z.string().min(1).max(100)).min(1).max(500),
 })
 
 export function getNotificationErrorMessage(error: unknown) {
@@ -138,7 +138,10 @@ const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
     await requireAdminNotificationUser()
     const pageSize = await readDashboardRowsPerPage()
 
-    return { ...(await listAdminNotificationRows({ ...data, pageSize })), pageSize }
+    return {
+      ...(await listAdminNotificationRows({ ...data, pageSize })),
+      pageSize,
+    }
   })
 
 /**

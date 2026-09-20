@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -8,10 +7,11 @@ import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getStripeSettingsErrorMessage,
   loadStripeSettings,
@@ -361,14 +361,15 @@ export function StripeSettings() {
         contentClassName="space-y-6"
       >
         {loadError ? (
-          <ErrorBanner
+          <ErrorRow
             message={loadError}
             onRetry={() => setReloads((count) => count + 1)}
           />
         ) : !status || !texts ? (
-          <div className="flex justify-center p-6">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          </div>
+          <LoadingRow
+            label="Loading Stripe settings…"
+            className="min-h-[35rem] sm:min-h-[34.25rem]"
+          />
         ) : (
           <>
             <div className="flex items-center gap-3">

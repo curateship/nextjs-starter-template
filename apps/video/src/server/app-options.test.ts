@@ -5,7 +5,12 @@ import { describe, expect, it, vi } from "vitest"
 import {
   appAutomationExecutors,
   appBackgroundWorkers,
+  appSitemapChunkFiles,
+  appSitemapEntries,
+  appSiteSearchResults,
   appTrustsOrigin,
+  appWorkspaceCopyChoices,
+  copyAppWorkspace,
   notifyAppAuthEvent,
 } from "@/server/app-options"
 
@@ -35,10 +40,39 @@ describe("an option nobody set means what the shell always did", () => {
     expect(appTrustsOrigin("https://somebody-elses-site.com", {})).toBe(false)
   })
 
+  it("adds no sitemap rows of its own", async () => {
+    await expect(appSitemapEntries("site-1", {})).resolves.toEqual([])
+  })
+
+  it("serves no numbered sitemap files, so /sitemap.xml stays one flat file", async () => {
+    await expect(appSitemapChunkFiles("site-1", {})).resolves.toEqual([])
+  })
+
+  it("adds no search results of its own", async () => {
+    await expect(
+      appSiteSearchResults("site-1", "parking", 40, {})
+    ).resolves.toEqual([])
+  })
+
   it("has nobody to tell when an account is made or signed in to", async () => {
     // Nothing to assert but that an app which set nothing is left alone.
     await expect(
       notifyAppAuthEvent({ kind: "signin", userId: "user-1" }, {})
+    ).resolves.toBeUndefined()
+  })
+
+  it("offers and copies no app-owned workspace content", async () => {
+    expect(appWorkspaceCopyChoices({})).toEqual([])
+    await expect(
+      copyAppWorkspace(
+        {
+          sourceWorkspaceId: "alpha",
+          newWorkspaceId: "gamma",
+          choices: [],
+          database: {} as never,
+        },
+        {}
+      )
     ).resolves.toBeUndefined()
   })
 })
@@ -64,6 +98,53 @@ describe("an app's answer wins", () => {
     }
     expect(appTrustsOrigin("https://alpha.test", options)).toBe(true)
     expect(appTrustsOrigin("https://beta.test", options)).toBe(false)
+  })
+
+  it("hands the resolved site to the app's sitemap read", async () => {
+    const extraEntries = vi.fn(async (workspaceId: string) => [
+      { path: `/from-${workspaceId}` },
+    ])
+
+    await expect(
+      appSitemapEntries("alpha", { sitemap: { extraEntries } })
+    ).resolves.toEqual([{ path: "/from-alpha" }])
+    expect(extraEntries).toHaveBeenCalledWith("alpha")
+  })
+
+  it("hands the resolved site to the app's chunk-file read", async () => {
+    const chunkFiles = vi.fn(async (workspaceId: string) => [
+      { path: `/${workspaceId}-sitemaps/0` },
+    ])
+
+    await expect(
+      appSitemapChunkFiles("alpha", { sitemap: { chunkFiles } })
+    ).resolves.toEqual([{ path: "/alpha-sitemaps/0" }])
+    expect(chunkFiles).toHaveBeenCalledWith("alpha")
+  })
+
+  it("hands the resolved site, words and bound to every search source", async () => {
+    const source = vi.fn(async (workspaceId: string, query: string) => [
+      {
+        type: "Listing",
+        title: query,
+        snippet: "",
+        path: `/from-${workspaceId}`,
+      },
+    ])
+
+    await expect(
+      appSiteSearchResults("alpha", "parking", 20, {
+        search: { sources: [source] },
+      })
+    ).resolves.toEqual([
+      {
+        type: "Listing",
+        title: "parking",
+        snippet: "",
+        path: "/from-alpha",
+      },
+    ])
+    expect(source).toHaveBeenCalledWith("alpha", "parking", 20)
   })
 
   it("tells the app who registered and who signed in", async () => {
@@ -101,6 +182,36 @@ describe("an app's answer wins", () => {
     expect(errors).toHaveBeenCalledOnce()
 
     errors.mockRestore()
+  })
+
+  it("hands workspace ids, choices and the transaction to the app", async () => {
+    const onCopy = vi.fn(async () => {})
+    const database = {} as never
+    const options = {
+      workspaces: {
+        copyChoices: [{ key: "records", label: "Copy records" }],
+        onCopy,
+      },
+    }
+
+    expect(appWorkspaceCopyChoices(options)).toEqual([
+      { key: "records", label: "Copy records" },
+    ])
+    await copyAppWorkspace(
+      {
+        sourceWorkspaceId: "alpha",
+        newWorkspaceId: "gamma",
+        choices: ["records"],
+        database,
+      },
+      options
+    )
+    expect(onCopy).toHaveBeenCalledWith({
+      sourceWorkspaceId: "alpha",
+      newWorkspaceId: "gamma",
+      choices: ["records"],
+      database,
+    })
   })
 })
 

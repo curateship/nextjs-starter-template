@@ -5,6 +5,7 @@ import {
   listWorkspaceAutomations,
   getWorkspaceAutomation,
   createWorkspaceAutomation,
+  renameWorkspaceAutomation,
   saveWorkspaceAutomation,
   duplicateWorkspaceAutomation,
   deleteWorkspaceAutomations,
@@ -27,6 +28,7 @@ import {
   type AutomationValidationError,
 } from "@/lib/automations/graph"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
+import { automationCanStartManually } from "@/lib/automations/run"
 import {
   AUTOMATION_TEMPLATE_KEYS,
   type AutomationTemplateKey,
@@ -46,8 +48,12 @@ export type AutomationListItem = {
   nodeCount: number
   /** Whether this flow's trigger is live. Never about the Run button. */
   enabled: boolean
+  paused_reason: string | null
   /** What it reacts to, or null when it only ever runs by hand. */
   trigger_name: string | null
+  can_run_manually: boolean
+  /** The next automatic Time occurrence, null while off or unscheduled. */
+  next_run_at: string | null
   updated_at: string
 }
 
@@ -58,7 +64,10 @@ export type AutomationDetail = {
   compiledConfig: AutomationCompiledConfig | null
   errors: AutomationValidationError[]
   enabled: boolean
+  paused_reason: string | null
   trigger_name: string | null
+  can_run_manually: boolean
+  next_run_at: string | null
   created_at: string
   updated_at: string
 }
@@ -84,7 +93,10 @@ export function toAutomationListItem(
     isValid,
     nodeCount,
     enabled: automation.enabled,
+    paused_reason: automation.paused_reason,
     trigger_name: automation.trigger_name,
+    can_run_manually: automation.can_run_manually,
+    next_run_at: automation.next_run_at,
     summary: isValid
       ? `${nodeCount} ${plural(nodeCount, "step", "steps")}`
       : nodeCount === 0
@@ -109,6 +121,7 @@ const saveSchema = automationIdSchema.extend({
   name: nameSchema,
   graph: automationGraphSchema,
 })
+const renameSchema = automationIdSchema.extend({ name: nameSchema })
 const enabledSchema = automationIdSchema.extend({ enabled: z.boolean() })
 const favoritesSchema = z.object({
   favoriteNodeKeys: z.array(z.string().min(1).max(64)).max(50),
@@ -120,6 +133,12 @@ const automationErrorMessages: Record<string, string> = {
     "This flow has something to fix before it can go live. Check the steps marked in red.",
   NO_TRIGGER:
     "This flow has no trigger step, so there is nothing for it to react to. Add one from the Triggers group.",
+  SCHEDULE_FINISHED:
+    "That one-time schedule has already passed. Choose a future time before turning the flow on.",
+  SEGMENT_NOT_FOUND:
+    "That segment no longer exists. Choose another one before turning the flow on.",
+  FLOW_CHANGED:
+    "This flow changed while its live switch was being saved. Check it, then try again.",
   NAME_REQUIRED: "Name the automation first.",
   NAME_TAKEN: "An automation with that name already exists.",
   COPY_LIMIT: "Could not find a free name for the copy.",
@@ -151,7 +170,10 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         isValid: row.isValid,
         nodeCount: row.nodeCount,
         enabled: row.enabled,
+        paused_reason: row.pausedReason,
         trigger_name: row.triggerName,
+        can_run_manually: row.canRunManually,
+        next_run_at: row.nextRunAt?.toISOString() ?? null,
         updated_at: row.updatedAt.toISOString(),
       })),
       templates: templates.map((template) => ({
@@ -208,6 +230,20 @@ const saveAutomationFn = createServerFn({ method: "POST" })
         name: data.name,
         graph: data.graph,
       }
+    )
+    if (!row) throw new Error("NOT_FOUND")
+    return serializeDetail(row)
+  })
+
+/** Just the name. The steps are the editor's business, not this one's. */
+const renameAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(renameSchema)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await renameWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
+      data.automationId,
+      data.name
     )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
@@ -302,6 +338,10 @@ export function saveAutomation(input: {
   return saveAutomationFn({ data: input })
 }
 
+export function renameAutomation(automationId: string, name: string) {
+  return renameAutomationFn({ data: { automationId, name } })
+}
+
 export function duplicateAutomation(automationId: string) {
   return duplicateAutomationFn({ data: { automationId } })
 }
@@ -333,7 +373,12 @@ async function serializeDetail(
     compiledConfig: inspected.compiledConfig,
     errors: inspected.errors,
     enabled: row.enabled,
+    paused_reason: row.pausedReason,
     trigger_name: automationTriggerName(inspected),
+    can_run_manually: inspected.compiledConfig
+      ? automationCanStartManually(inspected.compiledConfig)
+      : false,
+    next_run_at: row.nextRunAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

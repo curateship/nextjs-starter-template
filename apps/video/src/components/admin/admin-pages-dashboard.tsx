@@ -214,7 +214,6 @@ export function AdminPagesDashboard({
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          withAriaSort
           trailing={<TableHead column="meta">Open</TableHead>}
         />
       }
@@ -288,7 +287,6 @@ export function AdminPagesDashboard({
           </TableCell>
           <TableCell column="meta">{row.visits.toLocaleString()}</TableCell>
           <TableCell column="actions">
-            <div className="flex items-center">
               <Button asChild variant="ghost" size="icon">
                 <a
                   href={row.path}
@@ -325,7 +323,6 @@ export function AdminPagesDashboard({
                   </Button>
                 </>
               ) : null}
-            </div>
           </TableCell>
         </TableRow>
       ))}
@@ -391,7 +388,10 @@ function VisibilitySelect({
       >
         {/* Named per row rather than leaning on the column heading, so the
             control says which page it belongs to when read out on its own. */}
-        <SelectTrigger className="w-fit" aria-label={`Who can see ${row.name}`}>
+        <SelectTrigger
+          className="w-full sm:w-fit"
+          aria-label={`Who can see ${row.name}`}
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -6,7 +6,7 @@ import { BlockInspector } from "@/components/broadcasts/block-inspector"
 import { BlockPalette } from "@/components/broadcasts/block-palette"
 import { BroadcastCanvas } from "@/components/broadcasts/broadcast-canvas"
 import { SaveTemplateDialog } from "@/components/broadcasts/template-dialogs"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -46,6 +46,7 @@ import {
   panelLayoutKey,
   useRememberedPanelLayout,
 } from "@/lib/layout/panel-layout"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
@@ -124,6 +125,7 @@ export type EmailEditableFields = {
  */
 export function EmailBlockEditor({
   title,
+  back,
   fields: incomingFields,
   fieldsVersion = 0,
   initialBlockDefaults,
@@ -137,6 +139,10 @@ export function EmailBlockEditor({
 }: {
   /** Shown in the middle of the canvas header. */
   title: string
+  /** Where the canvas header's arrow goes. Without it the header keeps its
+   *  envelope, which is what the editors that are already inside something
+   *  else — an automation's email step — want. */
+  back?: { to: string; label: string }
   fields: EmailEditableFields
   /**
    * Bumped by the owner to say "throw away what is in the boxes and take these
@@ -152,7 +158,7 @@ export function EmailBlockEditor({
   settingsExtra?: React.ReactNode
   /** Top-right of the canvas. Given a flush, so it can save before it acts. */
   headerAction?: (saveNow: () => Promise<boolean>) => React.ReactNode
-  bottomPanel: React.ReactNode
+  bottomPanel: React.ReactNode | ((active: boolean) => React.ReactNode)
   layout?: "broadcast" | "systemEmail" | "automationEmail"
   onSave: (fields: EmailEditableFields) => Promise<void | boolean>
 }) {
@@ -494,6 +500,7 @@ export function EmailBlockEditor({
       width={previewWidth}
       selectedBlockId={previewBlock ? null : selectedBlockId}
       disabled={!editable}
+      renderStyle={layout === "systemEmail" ? "system" : "standard"}
       onSelect={selectBlock}
       onOpenSettings={() => selectBlock(null)}
       onReorder={(blocks) =>
@@ -506,8 +513,9 @@ export function EmailBlockEditor({
   )
 
   const canvasHeader = (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={<MailIcon className="size-4" />}
+      back={back}
       title={title}
       action={
         <div className="flex items-center gap-2">
@@ -633,7 +641,7 @@ export function EmailBlockEditor({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+      style={{ gap: pageGutter }}
     >
       {/* No bar of its own. The three panels and the bar along the bottom are
           the whole screen — the way back out is the sidebar, and the name of
@@ -667,7 +675,9 @@ export function EmailBlockEditor({
               onDoubleClick={bottomDoubleClick}
               headerOnly={bottomShut.collapsed}
             >
-              {bottomPanel}
+              {typeof bottomPanel === "function"
+                ? bottomPanel(!bottomShut.collapsed)
+                : bottomPanel}
             </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>

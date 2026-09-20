@@ -80,14 +80,14 @@ type GenerationJoin = {
   firstFrame: typeof customShellMedia.$inferSelect | null
 }
 
-function serializeGeneration(row: GenerationJoin): GenerationItem {
+async function serializeGeneration(row: GenerationJoin): Promise<GenerationItem> {
   return {
     id: row.generation.id,
     project_id: row.generation.projectId,
     project_name: row.projectName,
     first_frame_id: row.generation.firstFrameId,
     first_frame_image_url: row.firstFrame
-      ? serializeMedia(row.firstFrame).url
+      ? (await serializeMedia(row.firstFrame)).url
       : null,
     prompt: row.generation.prompt,
     model: row.generation.model,
@@ -95,7 +95,7 @@ function serializeGeneration(row: GenerationJoin): GenerationItem {
     duration_seconds: row.generation.durationSeconds as VideoDurationSeconds,
     status: row.generation.status as GenerationStatus,
     output_media_id: row.generation.outputMediaId,
-    output_url: row.output ? serializeMedia(row.output).url : null,
+    output_url: row.output ? (await serializeMedia(row.output)).url : null,
     error_message: row.generation.errorMessage,
     attempts: row.generation.attempts,
     created_at: row.generation.createdAt.toISOString(),
@@ -145,7 +145,7 @@ export async function listGenerations(userId: string) {
   const rows = await generationRows(userId).orderBy(
     desc(videoAiGenerations.createdAt)
   )
-  return { generations: rows.map(serializeGeneration) }
+  return { generations: await Promise.all(rows.map(serializeGeneration)) }
 }
 
 async function getGeneration(userId: string, generationId: string) {
@@ -227,7 +227,7 @@ export async function createGeneration(
       updatedAt: at,
     })
     .returning()
-  return serializeGeneration({
+  return await serializeGeneration({
     generation: created,
     projectName: project.name,
     output: null,
@@ -258,7 +258,7 @@ export async function retryGeneration(userId: string, generationId: string) {
     )
     .returning({ id: videoAiGenerations.id })
   if (!updated) throw new Error("Only failed generations can be retried")
-  return serializeGeneration(await getGeneration(userId, generationId))
+  return await serializeGeneration(await getGeneration(userId, generationId))
 }
 
 export async function deleteGenerations(userId: string, generationIds: string[]) {
@@ -308,7 +308,7 @@ export async function insertGeneration(
   if (!project) throw new Error("Project not found")
   const timeline = requireCanonicalTimeline(project.timeline)
   if (timeline.tracks.length >= 50) throw new Error("Project timeline is full")
-  const media = serializeMedia(joined.output)
+  const media = await serializeMedia(joined.output)
   const durationMs = joined.generation.durationSeconds * 1_000
   const next = requireCanonicalTimeline({
     ...timeline,

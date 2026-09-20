@@ -1,7 +1,9 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  CircleAlertIcon,
   GaugeIcon,
+  MailWarningIcon,
   MegaphoneIcon,
   PencilLineIcon,
   UserCheckIcon,
@@ -169,6 +171,38 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
               search: { run: item.automation_run_id },
             }
           : null,
+    }
+  }
+  if (item.type === "automation_failed") {
+    return {
+      ...event,
+      who:
+        item.automation_name?.replace(/\s*—\s*/g, " ") ?? "An automation",
+      text: "failed",
+      detail: `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`,
+      icon: CircleAlertIcon,
+      link:
+        item.automation_id && item.automation_run_id
+          ? {
+              to: "/admin/automations/$automationId",
+              params: { automationId: item.automation_id },
+              search: {
+                run: item.automation_run_id,
+                ...(item.automation_failure_node_id
+                  ? { node: item.automation_failure_node_id }
+                  : {}),
+              },
+            }
+          : null,
+    }
+  }
+  if (item.type === "system_email_failed") {
+    return {
+      ...event,
+      who: item.message ?? "An account email could not be delivered",
+      text: "",
+      detail: item.detail,
+      icon: MailWarningIcon,
     }
   }
   if (item.type === "announcement") {
@@ -373,11 +407,6 @@ export function ActivityFeed({
     <>
       <ScrollArea
         className="min-h-0 flex-1"
-        // `[&>div]:block!` because Radix wraps what it is given in a
-        // `display: table` box, which sizes to its widest line rather than to
-        // the card. One long detail then stretches every row and pushes the
-        // buttons out past the card's edge, where they are clipped.
-        viewportClassName="[&>div]:block!"
       >
         {groups.length ? (
           <div className="flex flex-col divide-y">

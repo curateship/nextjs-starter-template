@@ -1,5 +1,6 @@
 import { CheckIcon, Loader2Icon } from "lucide-react"
 
+import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,8 +15,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatMoney } from "@/lib/format/money"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import { describePlanFeatures } from "@/lib/billing/plan-features"
-
-export type BillingInterval = "monthly" | "yearly"
+import { describeCode } from "@/lib/format/code-label"
+import type { BillingInterval } from "@/lib/billing/pricing-choice"
+import { cn } from "@/lib/utils"
 
 /**
  * Plan cards shared by the public pricing page and the billing page.
@@ -26,6 +28,7 @@ export type BillingInterval = "monthly" | "yearly"
 export function PricingTable({
   plans,
   currentPlanSlug,
+  selectedPlanSlug,
   currentInterval,
   interval,
   onIntervalChange,
@@ -33,9 +36,12 @@ export function PricingTable({
   busyPlanSlug,
   actionLabel = "Upgrade",
   trialUsed = false,
+  changingPlan = false,
 }: {
   plans: PlanOption[]
   currentPlanSlug?: string
+  /** The card chosen on the previous page, distinct from the plan they own. */
+  selectedPlanSlug?: string | null
   /**
    * How the person already pays. A plan is only theirs on the period they are
    * actually on, so a monthly subscriber's yearly card stays buyable.
@@ -53,16 +59,24 @@ export function PricingTable({
    * spent a trial before we know who they are.
    */
   trialUsed?: boolean
+  changingPlan?: boolean
 }) {
   const hasYearly = plans.some((plan) => plan.priceYearlyCents > 0)
 
   return (
     <div className="flex w-full flex-col gap-2 md:gap-3">
       {hasYearly ? (
-        <div className="flex justify-center">
+        <div
+          className={cn(
+            "flex justify-center",
+            publicContentAlignmentRowClassName
+          )}
+        >
           <Tabs
             value={interval}
-            onValueChange={(value) => onIntervalChange(value as BillingInterval)}
+            onValueChange={(value) =>
+              onIntervalChange(value as BillingInterval)
+            }
           >
             <TabsList>
               <TabsTrigger value="monthly">Monthly</TabsTrigger>
@@ -79,10 +93,12 @@ export function PricingTable({
             plan={plan}
             interval={interval}
             currentPlanSlug={currentPlanSlug}
+            selected={plan.slug === selectedPlanSlug}
             currentInterval={currentInterval}
             busy={busyPlanSlug === plan.slug}
             actionLabel={actionLabel}
             trialUsed={trialUsed}
+            changingPlan={changingPlan}
             onSelect={onSelect}
           />
         ))}
@@ -95,19 +111,23 @@ function PlanCard({
   plan,
   interval,
   currentPlanSlug,
+  selected,
   currentInterval,
   busy,
   actionLabel,
   trialUsed,
+  changingPlan,
   onSelect,
 }: {
   plan: PlanOption
   interval: BillingInterval
   currentPlanSlug?: string
+  selected: boolean
   currentInterval?: BillingInterval | null
   busy?: boolean
   actionLabel: string
   trialUsed: boolean
+  changingPlan: boolean
   onSelect: (plan: PlanOption, interval: BillingInterval) => void
 }) {
   const priceCents =
@@ -132,24 +152,36 @@ function PlanCard({
   const free = plan.isDefault || (priceCents === 0 && !notSoldThisPeriod)
   const onThisPlan = plan.slug === currentPlanSlug
   const current =
-    onThisPlan && (free || currentInterval == null || interval === currentInterval)
+    onThisPlan &&
+    (free || currentInterval == null || interval === currentInterval)
+  const highlighted = Boolean(plan.highlightBadgeText)
 
   return (
-    <Card className="flex flex-col">
+    <Card
+      className={cn(
+        "flex flex-col",
+        (selected || highlighted) && "ring-2 ring-primary shadow-sm"
+      )}
+    >
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>{plan.name}</CardTitle>
-          {current ? (
-            <Badge variant="secondary" className="shrink-0">
-              Current plan
-            </Badge>
-          ) : onThisPlan ? (
-            // Same plan, other period: say which period they are on so the
-            // live button below reads as a switch rather than a second buy.
-            <Badge variant="outline" className="shrink-0">
-              {currentInterval === "yearly" ? "Yours, yearly" : "Yours, monthly"}
-            </Badge>
-          ) : null}
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {highlighted ? <Badge>{plan.highlightBadgeText}</Badge> : null}
+            {selected ? (
+              <Badge variant="secondary">Selected</Badge>
+            ) : current ? (
+              <Badge variant="secondary">Current plan</Badge>
+            ) : onThisPlan ? (
+              // Same plan, other period: say which period they are on so the
+              // live button below reads as a switch rather than a second buy.
+              <Badge variant="outline">
+                {currentInterval === "yearly"
+                  ? "Yours, yearly"
+                  : "Yours, monthly"}
+              </Badge>
+            ) : null}
+          </div>
         </div>
         {plan.description ? (
           <CardDescription>{plan.description}</CardDescription>
@@ -167,16 +199,18 @@ function PlanCard({
                 : "not sold monthly"
               : priceCents === 0
                 ? "forever"
-                : interval === "yearly"
-                  ? "per year"
-                  : "per month"}
+                : plan.usageMeter
+                  ? `per ${describeCode(plan.usageMeter).toLowerCase()}, billed ${interval}`
+                  : interval === "yearly"
+                    ? "per year"
+                    : "per month"}
           </span>
         </p>
         {/* Said here rather than left to Stripe's page. A trial that has
             already been used is going to be missing at the checkout either
             way; the only choice is whether the person finds out before they
             click or after. */}
-        {plan.trialDays > 0 && priceCents > 0 ? (
+        {!changingPlan && plan.trialDays > 0 && priceCents > 0 ? (
           <p className="text-sm text-muted-foreground">
             {trialUsed
               ? "You've used your free trial, so billing starts today."
@@ -212,6 +246,7 @@ function PlanCard({
               soldOnOtherPeriod,
               interval,
               actionLabel,
+              checkoutButtonText: changingPlan ? null : plan.checkoutButtonText,
             })}
           </Button>
         )}
@@ -233,15 +268,17 @@ function planActionLabel({
   soldOnOtherPeriod,
   interval,
   actionLabel,
+  checkoutButtonText,
 }: {
   current: boolean
   purchasable: boolean
   soldOnOtherPeriod: boolean
   interval: BillingInterval
   actionLabel: string
+  checkoutButtonText: string | null
 }) {
   if (current) return "Your plan"
-  if (purchasable) return actionLabel
+  if (purchasable) return checkoutButtonText || actionLabel
   if (soldOnOtherPeriod) {
     return interval === "yearly" ? "Sold monthly only" : "Sold yearly only"
   }

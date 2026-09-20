@@ -1,4 +1,7 @@
-import { getRequestHeader } from "@tanstack/react-start/server"
+import {
+  getRequestHeader,
+  getRequestProtocol,
+} from "@tanstack/react-start/server"
 
 import { RESERVED_SUBDOMAINS } from "@/lib/workspaces/addresses"
 import { LIVE_WORKSPACE_STATUSES } from "@/lib/workspaces/status"
@@ -81,6 +84,49 @@ function requestHost(): string | null {
   }
 }
 
+/** Builds the public origin without trusting a different forwarded host. */
+export function publicOriginFromParts(
+  requestedUrl: string,
+  host: string | null,
+  forwardedProtocol: string | null
+) {
+  const requested = new URL(requestedUrl)
+  const scheme =
+    forwardedProtocol === "http" || forwardedProtocol === "https"
+      ? forwardedProtocol
+      : requested.protocol.slice(0, -1)
+  if (!host) return requested.origin
+
+  try {
+    const publicUrl = new URL(`${scheme}://${host}`)
+    if (
+      publicUrl.username ||
+      publicUrl.password ||
+      publicUrl.pathname !== "/" ||
+      publicUrl.search ||
+      publicUrl.hash
+    ) {
+      return requested.origin
+    }
+    return publicUrl.origin
+  } catch {
+    return requested.origin
+  }
+}
+
+/** The public origin selected by the same Host header that selected the site. */
+export function currentPublicOrigin() {
+  try {
+    return publicOriginFromParts(
+      appUrl(),
+      requestHost(),
+      getRequestProtocol({ xForwardedProto: true })
+    )
+  } catch {
+    return appUrl()
+  }
+}
+
 /** The host this deployment itself answers on. */
 function platformHost() {
   try {
@@ -146,7 +192,27 @@ type WorkspaceCache = {
   customDomains: Set<string>
 }
 
-let cache: WorkspaceCache | null = null
+/**
+ * The cache lives on `globalThis`, not in this module.
+ *
+ * A page's loader and a server route handler — `/feed.xml`, `/sitemap.xml` —
+ * are built into **different bundles**, and each bundle gets its own copy of
+ * every module it imports. With the cache held in a module variable, clearing
+ * it from a save cleared only that bundle's copy: the site's own page showed
+ * the new name straight away while its feed kept the old one until the server
+ * restarted. One slot on `globalThis` is one cache, whoever is asking.
+ */
+const CACHE_SLOT = Symbol.for("custom-shell.workspace-host-cache")
+
+type CacheHolder = { [CACHE_SLOT]?: WorkspaceCache | null }
+
+function readCache(): WorkspaceCache | null {
+  return (globalThis as CacheHolder)[CACHE_SLOT] ?? null
+}
+
+function writeCache(value: WorkspaceCache | null) {
+  ;(globalThis as CacheHolder)[CACHE_SLOT] = value
+}
 
 function toResolvedWorkspace(row: CustomShellWorkspace): ResolvedWorkspace {
   return {
@@ -165,11 +231,12 @@ function toResolvedWorkspace(row: CustomShellWorkspace): ResolvedWorkspace {
  * worth being clever about — the table is small and reading it again is cheap.
  */
 export function dropWorkspaceCache() {
-  cache = null
+  writeCache(null)
 }
 
 async function workspaceCache(database: CustomShellDb): Promise<WorkspaceCache> {
-  if (cache && cache.database === database) return cache
+  const known = readCache()
+  if (known && known.database === database) return known
 
   const rows = await database.select().from(customShellWorkspaces)
   const next: WorkspaceCache = {
@@ -192,7 +259,7 @@ async function workspaceCache(database: CustomShellDb): Promise<WorkspaceCache> 
     if (row.customDomain) next.byCustomDomain.set(row.customDomain, workspace)
   }
 
-  cache = next
+  writeCache(next)
   return next
 }
 
@@ -269,5 +336,5 @@ export function hostBelongsToThisApp(origin: string) {
     return true
   }
 
-  return cache?.customDomains.has(host) ?? false
+  return readCache()?.customDomains.has(host) ?? false
 }

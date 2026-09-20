@@ -60,11 +60,11 @@ function tags(value: unknown) {
     : []
 }
 
-function serializeActor(
+async function serializeActor(
   actor: VideoActorRow,
   image: typeof customShellMedia.$inferSelect,
   reference: typeof customShellMedia.$inferSelect | null
-): ActorItem {
+): Promise<ActorItem> {
   return {
     id: actor.id,
     name: actor.name,
@@ -72,10 +72,12 @@ function serializeActor(
     model: actor.model as ImageModelId,
     status: actor.status as ActorStatus,
     tags: tags(actor.tags),
-    image_url: serializeMedia(image).url,
+    image_url: (await serializeMedia(image)).url,
     image_media_id: actor.imageMediaId,
     reference_media_id: actor.referenceMediaId,
-    reference_media_url: reference ? serializeMedia(reference).url : null,
+    reference_media_url: reference
+      ? (await serializeMedia(reference)).url
+      : null,
     created_at: actor.createdAt.toISOString(),
     updated_at: actor.updatedAt.toISOString(),
   }
@@ -140,8 +142,8 @@ export async function listActors(userId: string): Promise<{ actors: ActorItem[] 
     .where(eq(videoActors.userId, userId))
     .orderBy(desc(videoActors.createdAt))
   return {
-    actors: rows.map((row) =>
-      serializeActor(row.actor, row.image, row.reference)
+    actors: await Promise.all(
+      rows.map((row) => serializeActor(row.actor, row.image, row.reference))
     ),
   }
 }
@@ -185,7 +187,7 @@ export async function createActor(userId: string, payload: ActorPayload) {
         updatedAt: at,
       })
       .returning()
-    return serializeActor(created, media, reference)
+    return await serializeActor(created, media, reference)
   } catch (error) {
     await discardGeneratedAsset(media)
     throw error
@@ -240,7 +242,7 @@ export async function updateActor(
       .where(and(eq(videoActors.id, actorId), eq(videoActors.userId, userId)))
       .returning()
     if (!updated) throw new Error("Actor not found")
-    return serializeActor(updated, generatedMedia ?? currentImage, reference)
+    return await serializeActor(updated, generatedMedia ?? currentImage, reference)
   } catch (error) {
     if (generatedMedia) await discardGeneratedAsset(generatedMedia)
     throw error
