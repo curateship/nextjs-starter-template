@@ -159,6 +159,19 @@ describe("what the overview says a grid sale made", () => {
     expect(sale?.money).toBeCloseTo(5, 9)
   })
 
+  it("prices today's sale from a buy made before the window", async () => {
+    await gridFills()
+
+    // What the daily goal asks for: today's fills alone. The rung bought at
+    // $0.90 before the window opened, so pricing from the window alone would
+    // have to fall back to the venue's nothing.
+    const today = await loadOverviewFills(userId, [wallet], 3_500)
+    const sale = today.find((fill) => fill.fillId === "sell-2")
+
+    expect(today.map((fill) => fill.fillId)).toEqual(["sell-2"])
+    expect(sale?.money).toBeCloseTo(5, 9)
+  })
+
   it("leaves a sale with no grid behind it on the venue's own figure", async () => {
     await database.insert(tradeLiveFills).values({
       userId,

@@ -494,10 +494,16 @@ Every place that prices one sale shows this figure, and they all agree.
   panel, for the same reason: a total and the sales it is made of must never
   read as two different amounts.
 
-A sale the app cannot match to a buy keeps the exchange's figure, because
-nothing on hand says what those coins cost. That happens on the daily goal
-alone, which reads today's fills and not the whole history, and only when the
-rung bought on an earlier day.
+**The daily goal reads today's fills and prices them from the whole history.**
+What a sale made is decided by the buy it closed, and that buy is often older
+than today: a rung that bought yesterday and sold this morning has its buy
+outside the window. Pricing from the window alone made the goal and the P&L
+page disagree about the same day by $68 on 20 September 2026, the goal reading
+$5 while the page read -$63. So the goal reads the fills of every market it
+touches in full, works the round trips out from those, and shows only today's.
+
+A sale the app still cannot match to a buy keeps the exchange's figure,
+because nothing on hand says what those coins cost.
 
 **A ladder is left alone on purpose.** A ladder's exits take a share off one
 blended position, so the average really is its story and the exchange's figure

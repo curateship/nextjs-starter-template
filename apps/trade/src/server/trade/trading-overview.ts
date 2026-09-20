@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm"
 
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
@@ -152,9 +152,13 @@ export async function loadTradingOverview(
  * running that average is held up by the rungs still holding, so a rung that
  * did its job reads here as a loss. `gridRoundTrips` has the arithmetic.
  *
- * A sale whose own buy is older than what was read keeps the exchange's
- * figure, because nothing on hand says what those coins cost. That only
- * happens on the `since` read: the overview and the P&L page hold the lot.
+ * **A `since` read still prices from the whole history.** What a sale made is
+ * decided by the buy it closed, which is often older than the window: the
+ * daily goal reads today's fills, and a rung that bought yesterday and sold
+ * this morning has its buy outside them. Pricing from the window alone made
+ * the goal and the P&L page disagree about the same day by $68 on
+ * 20 Sep 2026. So the fills of every market in the window are read in full,
+ * used to work the round trips out, and only the window's own rows come back.
  */
 export async function loadOverviewFills(
   userId: string,
@@ -168,27 +172,44 @@ export async function loadOverviewFills(
   since?: number
 ): Promise<TradingOverviewFill[]> {
   if (wallets.length === 0) return []
+  const walletIds = wallets.map((wallet) => wallet.id)
+  const mine = and(
+    eq(tradeLiveFills.userId, userId),
+    inArray(tradeLiveFills.walletId, walletIds),
+    eq(tradeLiveFills.hidden, false)
+  )
   const rows = await db
     .select()
     .from(tradeLiveFills)
     .where(
-      and(
-        eq(tradeLiveFills.userId, userId),
-        inArray(
-          tradeLiveFills.walletId,
-          wallets.map((wallet) => wallet.id)
-        ),
-        eq(tradeLiveFills.hidden, false),
-        since === undefined ? undefined : gte(tradeLiveFills.at, since)
-      )
+      since === undefined ? mine : and(mine, gte(tradeLiveFills.at, since))
     )
     .orderBy(desc(tradeLiveFills.at))
+
+  // The buys behind the window's sales, for the markets the window touches
+  // and no others. A market nobody traded today cannot hold a coin sold
+  // today, so reading it would be rows carried for nothing.
+  const marketKeys = [...new Set(rows.map((row) => row.marketKey))]
+  const earlier =
+    since === undefined || marketKeys.length === 0
+      ? []
+      : await db
+          .select()
+          .from(tradeLiveFills)
+          .where(
+            and(
+              mine,
+              lt(tradeLiveFills.at, since),
+              inArray(tradeLiveFills.marketKey, marketKeys)
+            )
+          )
+          .orderBy(desc(tradeLiveFills.at))
 
   const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
   const stamped = await stampGridFills(
     userId,
-    wallets.map((wallet) => wallet.id),
-    rows.map((row) => ({
+    walletIds,
+    [...rows, ...earlier].map((row) => ({
       fillId: row.fillId,
       orderId: row.orderId,
       walletId: row.walletId,
