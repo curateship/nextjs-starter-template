@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
 import { HookDialog } from "@/components/video-editor/hook-dialog"
@@ -111,7 +111,7 @@ export function AiPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<SparklesIcon className="size-4" />}
         title="AI"
       />

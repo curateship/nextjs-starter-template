@@ -1,21 +1,32 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { listResendWebhookSecrets } from "@/server/email/settings"
-import { customShellContacts, customShellDeliveries } from "@/server/schema"
+import {
+  customShellAutomationDeliveries,
+  customShellAutomationRuns,
+  customShellContacts,
+  customShellDeliveries,
+} from "@/server/schema"
 import { now } from "@/server/auth/security"
 
 // A call whose timestamp is further out than this is refused: replaying an
 // old captured request must not work forever.
 const TOLERANCE_SECONDS = 5 * 60
 
-/** The two events that change anything here. Everything else is ignored. */
+/** The two events that take an address off the contact list. */
 const EVENT_STATUS: Record<string, "bounced" | "complained"> = {
   "email.bounced": "bounced",
   "email.complained": "complained",
 }
+
+const TRACKING_EVENTS = new Set([
+  "email.delivered",
+  "email.opened",
+  "email.clicked",
+])
 
 export type ResendWebhookHeaders = {
   id: string | null
@@ -74,10 +85,75 @@ export function verifyResendSignature(
 
 type ResendEvent = {
   type?: string
+  created_at?: string
   data?: {
     email_id?: string
     to?: string[] | string
   }
+}
+
+function eventTime(event: ResendEvent): Date {
+  const parsed = event.created_at ? new Date(event.created_at) : null
+  return parsed && Number.isFinite(parsed.getTime()) ? parsed : now()
+}
+
+/**
+ * Stamps the first verified delivery, open or click on an automation email.
+ *
+ * The signed secret identifies the workspace, and the join enforces that
+ * boundary before the message id is trusted. A replay finds a non-null stamp
+ * and changes nothing, which keeps both the row and every count idempotent.
+ */
+async function applyAutomationTrackingEvent(
+  workspaceId: string,
+  event: ResendEvent,
+  database: CustomShellDb
+): Promise<number> {
+  if (!event.type || !TRACKING_EVENTS.has(event.type)) return 0
+  const emailId = event.data?.email_id?.trim()
+  if (!emailId || emailId.length > 255) return 0
+
+  const matches = await database
+    .select({ id: customShellAutomationDeliveries.id })
+    .from(customShellAutomationDeliveries)
+    .innerJoin(
+      customShellAutomationRuns,
+      eq(customShellAutomationRuns.id, customShellAutomationDeliveries.runId)
+    )
+    .where(
+      and(
+        eq(customShellAutomationRuns.workspaceId, workspaceId),
+        eq(customShellAutomationDeliveries.providerMessageId, emailId)
+      )
+    )
+  const ids = matches.map((row) => row.id)
+  if (ids.length === 0) return 0
+
+  const timestamp = eventTime(event)
+  const column =
+    event.type === "email.delivered"
+      ? customShellAutomationDeliveries.deliveredAt
+      : event.type === "email.opened"
+        ? customShellAutomationDeliveries.openedAt
+        : customShellAutomationDeliveries.clickedAt
+  const values =
+    event.type === "email.delivered"
+      ? { deliveredAt: timestamp }
+      : event.type === "email.opened"
+        ? { openedAt: timestamp }
+        : { clickedAt: timestamp }
+
+  const changed = await database
+    .update(customShellAutomationDeliveries)
+    .set(values)
+    .where(
+      and(
+        inArray(customShellAutomationDeliveries.id, ids),
+        isNull(column)
+      )
+    )
+    .returning({ id: customShellAutomationDeliveries.id })
+  return changed.length
 }
 
 /**
@@ -97,8 +173,13 @@ export async function applyResendEvent(
   event: ResendEvent,
   database: CustomShellDb = db
 ): Promise<number> {
+  const trackingChanged = await applyAutomationTrackingEvent(
+    workspaceId,
+    event,
+    database
+  )
   const status = event.type ? EVENT_STATUS[event.type] : undefined
-  if (!status) return 0
+  if (!status) return trackingChanged
 
   const contactIds = new Set<string>()
 
@@ -170,7 +251,7 @@ export async function applyResendEvent(
       .returning({ id: customShellContacts.id })
     changed += updated.length
   }
-  return changed
+  return changed + trackingChanged
 }
 
 export type ResendWebhookResult =

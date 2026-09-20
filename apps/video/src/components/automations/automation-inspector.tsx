@@ -10,8 +10,9 @@ import {
 
 import { InspectorNote } from "@/components/automations/inspector-card"
 import { AutomationNodeIcon } from "@/components/automations/automation-node-icon"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { InlineError } from "@/components/ui/inline-error"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
   AutomationGraph,
@@ -67,7 +68,7 @@ export function AutomationInspector({
         className
       )}
     >
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={
           selectedNode ? (
             <AutomationNodeIcon
@@ -113,10 +114,7 @@ export function AutomationInspector({
             </p>
 
             {nodeErrors.length > 0 ? (
-              <div
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
-              >
+              <InlineError className="grid gap-1">
                 <div className="mb-1 flex items-center gap-1.5 font-medium">
                   <AlertCircleIcon className="size-3.5" />
                   {selectedNode
@@ -132,7 +130,7 @@ export function AutomationInspector({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </InlineError>
             ) : null}
 
             {selectedNode ? (

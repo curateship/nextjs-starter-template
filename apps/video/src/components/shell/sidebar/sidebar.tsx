@@ -23,6 +23,7 @@ import {
   canSeeShellEntry,
   isActiveShellHref,
   isShellEntryNamed,
+  isShellEntryVisible,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
@@ -31,7 +32,10 @@ import {
 import { useBlankSpaceDoubleClick } from "@/lib/layout/panel-collapse"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
-import type { WorkspaceItem } from "@/lib/api/people/workspaces"
+import type {
+  WorkspaceCopyChoice,
+  WorkspaceItem,
+} from "@/lib/api/people/workspaces"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
@@ -39,6 +43,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   plan: PlanSummary
   workspaces: WorkspaceItem[]
   baseDomain?: string
+  copyChoices?: WorkspaceCopyChoice[]
   /** True while an admin is looking at the app as this member. */
   viewingAsMember: boolean
   onLogout: () => void
@@ -54,7 +59,10 @@ function getActiveHref(config: ShellConfig, currentPath: string, role: string) {
       hrefs.push(entry.href)
       entry.children
         ?.filter(
-          (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+          (child) =>
+            isShellEntryVisible(child) &&
+            canSeeShellEntry(child, role) &&
+            isShellEntryNamed(child)
         )
         .forEach((child) => hrefs.push(child.href))
     })
@@ -91,7 +99,10 @@ function mapSectionEntries(
     }
 
     const children = entry.children?.filter(
-      (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+      (child) =>
+        isShellEntryVisible(child) &&
+        canSeeShellEntry(child, role) &&
+        isShellEntryNamed(child)
     )
 
     entries.push({
@@ -127,6 +138,7 @@ export function AppSidebar({
   plan,
   workspaces,
   baseDomain,
+  copyChoices,
   viewingAsMember,
   onLogout,
   ...props
@@ -165,10 +177,26 @@ export function AppSidebar({
         <WorkspaceSwitcher
           workspaces={workspaces}
           baseDomain={baseDomain}
-          favicon={config.favicon}
+          copyChoices={copyChoices}
+          // A member owns no workspace, so the LIST reaches them empty and the
+          // switcher has nothing to name. The config names the site either way
+          // — `readShellSettings` answers it for the request, not only for
+          // somebody who owns a workspace — so this is what fills the header
+          // in.
+          brand={{
+            name: config.workspaceName,
+            favicon: config.workspaceFavicon,
+            // The one uploaded logo stands in when the site has no icon of its
+            // own, which is every app that is not multisite.
+            logo: config.logo,
+            logoDark: config.logoDark,
+          }}
         />
       </SidebarHeader>
-      <SidebarContent onDoubleClick={handleDoubleClick}>
+      <SidebarContent
+        aria-label="Main navigation"
+        onDoubleClick={handleDoubleClick}
+      >
         {sections.length ? (
           sections.map(({ section, entries }) => (
             <SidebarCollapsible

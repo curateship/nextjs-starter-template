@@ -17,6 +17,8 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  EyeIcon,
+  EyeOffIcon,
   GripVertical,
   MinusIcon,
   PlusIcon,
@@ -98,9 +100,10 @@ type PendingDelete =
 type SidebarSettingsProps = {
   /** The list being edited — the admin's own, or the one members get. */
   sections: ShellSection[]
+  topLeftNavigation?: React.ReactNode
   onSectionsChange: (sections: ShellSection[]) => void
   onSaveConfig: () => Promise<boolean>
-  /** The card the sections sit in. Add section and Reset stay outside it. */
+  /** The card containing the sections and their actions. */
   card: { storageId: string; title: string; description: string }
   /** What the Reset button does, and what it warns it will do. */
   reset: { label: string; description: string; onReset: () => void }
@@ -213,6 +216,7 @@ function SortableChild({
   // and a screen reader could not tell which one it was in. Where the row sits
   // is the only thing that tells them apart until one is typed.
   const childName = isNamed ? child.label : `child link ${position}`
+  const visible = child.visible !== false
   const addressCheck = useCheckedAddress(child.href, isNamed)
   const { attributes, listeners, setNodeRef, style } = useSortableRow(child.id)
 
@@ -220,7 +224,7 @@ function SortableChild({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto]"
+      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
     >
       <button
         type="button"
@@ -258,6 +262,20 @@ function SortableChild({
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
         {...addressCheck}
       />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => onChange(child.id, { visible: !visible })}
+        aria-label={`${visible ? "Hide" : "Show"} ${childName}`}
+        title={visible ? "Visible" : "Hidden"}
+      >
+        {visible ? (
+          <EyeIcon className="h-4 w-4" />
+        ) : (
+          <EyeOffIcon className="h-4 w-4" />
+        )}
+      </Button>
       <Button
         type="button"
         variant="ghost"
@@ -634,14 +652,13 @@ function SortableSectionCard({
 
 export function SidebarSettings({
   sections,
+  topLeftNavigation,
   onSectionsChange,
   onSaveConfig,
   card,
   reset,
 }: SidebarSettingsProps) {
-  // Held here, not in the card, because "Add section" sits outside the card and
-  // has to open it — a new section made behind a shut card looks like a button
-  // that did nothing. Same storage key, so the choice is still remembered.
+  // Keep the remembered collapse state available when adding a section.
   const [cardOpen, setCardOpen, cardNoFlashKey] = useRememberedCollapse(
     collapseStorageKey.settingsCard(card.storageId)
   )
@@ -979,6 +996,7 @@ export function SidebarSettings({
       id: createShellId("child"),
       label: "",
       href: "",
+      visible: true,
     }
 
     setNewChildId(child.id)
@@ -1112,91 +1130,84 @@ export function SidebarSettings({
 
   return (
     <>
-      <CardGroup>
-        <CollapsibleSettingsCard
-          storageId={card.storageId}
-          title={card.title}
-          description={card.description}
-          collapse={{
-            open: cardOpen,
-            onOpenChange: setCardOpen,
-            noFlashKey: cardNoFlashKey,
-          }}
-        >
-          {sections.length === 0 ? (
-            <EmptyRow>
-              No sidebar sections yet. Use “Add Section” to create one.
-            </EmptyRow>
-          ) : (
-            <DndContext
-              id="custom-shell-sidebar-sections"
-              sensors={sensors}
-              collisionDetection={collisionDetection}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
+      <CollapsibleSettingsCard
+        storageId={card.storageId}
+        title={card.title}
+        description={card.description}
+        collapse={{
+          open: cardOpen,
+          onOpenChange: setCardOpen,
+          noFlashKey: cardNoFlashKey,
+        }}
+      >
+        {topLeftNavigation ? (
+          <div className="mb-4">{topLeftNavigation}</div>
+        ) : null}
+        {sections.length === 0 ? (
+          <EmptyRow>
+            No sidebar sections yet. Use “Add Section” to create one.
+          </EmptyRow>
+        ) : (
+          <DndContext
+            id="custom-shell-sidebar-sections"
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <SortableContext
+              items={sections.map((section) => section.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={sections.map((section) => section.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <CardGroup>
-                  {sections.map((section) => (
-                    <SortableSectionCard
-                      key={section.id}
-                      section={section}
-                      isDraggingItem={isDraggingItem}
-                      isNew={section.id === newSectionId}
-                      openItemId={openItemId}
-                      onOpenItemChange={handleOpenItemChange}
-                      newChildId={newChildId}
-                      onSectionTitleChange={handleSectionTitleChange}
-                      onSectionDelete={(sectionId) =>
-                        setPendingDeleteSectionId(sectionId)
-                      }
-                      onItemAdd={handleAddItem}
-                      onItemChange={handleItemChange}
-                      onItemDelete={(_sectionId, itemId) =>
-                        setPendingDelete({ kind: "link", itemId })
-                      }
-                      onChildAdd={handleChildAdd}
-                      onChildChange={handleChildChange}
-                      onChildDelete={(_sectionId, itemId, childId) =>
-                        setPendingDelete({ kind: "child", itemId, childId })
-                      }
-                      onChildDragEnd={handleChildDragEnd}
-                      onSaveConfig={onSaveConfig}
-                    />
-                  ))}
-                </CardGroup>
-              </SortableContext>
-            </DndContext>
-          )}
-        </CollapsibleSettingsCard>
-      </CardGroup>
-      {/* The tab's own actions, and the only reset on the page — it wipes the
-          whole sidebar, so it is the last button in the row and the only red
-          one, instead of being repeated on every section card next to
-          "Add link" where it read as a per-section reset.
-
-          Outside the card on purpose: they act on the whole sidebar, not on
-          anything inside the card, and inside they read as one more control
-          belonging to the last section. */}
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <Button type="button" variant="outline" onClick={handleAddSection}>
-          <PlusIcon className="h-4 w-4" />
-          Add section
-        </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={() => setResetOpen(true)}
-        >
-          <RotateCcwIcon className="h-4 w-4" />
-          {reset.label}
-        </Button>
-      </div>
+              <CardGroup style={{ gap: "1rem" }}>
+                {sections.map((section) => (
+                  <SortableSectionCard
+                    key={section.id}
+                    section={section}
+                    isDraggingItem={isDraggingItem}
+                    isNew={section.id === newSectionId}
+                    openItemId={openItemId}
+                    onOpenItemChange={handleOpenItemChange}
+                    newChildId={newChildId}
+                    onSectionTitleChange={handleSectionTitleChange}
+                    onSectionDelete={(sectionId) =>
+                      setPendingDeleteSectionId(sectionId)
+                    }
+                    onItemAdd={handleAddItem}
+                    onItemChange={handleItemChange}
+                    onItemDelete={(_sectionId, itemId) =>
+                      setPendingDelete({ kind: "link", itemId })
+                    }
+                    onChildAdd={handleChildAdd}
+                    onChildChange={handleChildChange}
+                    onChildDelete={(_sectionId, itemId, childId) =>
+                      setPendingDelete({ kind: "child", itemId, childId })
+                    }
+                    onChildDragEnd={handleChildDragEnd}
+                    onSaveConfig={onSaveConfig}
+                  />
+                ))}
+              </CardGroup>
+            </SortableContext>
+          </DndContext>
+        )}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={handleAddSection}>
+            <PlusIcon className="h-4 w-4" />
+            Add section
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setResetOpen(true)}
+          >
+            <RotateCcwIcon className="h-4 w-4" />
+            {reset.label}
+          </Button>
+        </div>
+      </CollapsibleSettingsCard>
 
       <ConfirmDialog
         open={resetOpen}
@@ -1234,7 +1245,9 @@ export function SidebarSettings({
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null)
         }}
-        title={isDeletingChild ? "Delete this child link?" : "Delete this link?"}
+        title={
+          isDeletingChild ? "Delete this child link?" : "Delete this link?"
+        }
         description={
           isDeletingChild
             ? describeChildDelete(pendingDeleteChild)

@@ -12,6 +12,7 @@ import {
   type SQL,
 } from "drizzle-orm"
 
+import { isGeneratedFaviconStoragePath } from "@/lib/favicon"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   deleteFromR2,
@@ -298,7 +299,7 @@ export async function listOwnedMedia({
     .limit(normalizedPageSize)
 
   return {
-    media: rows.map(serializeMedia),
+    media: await Promise.all(rows.map(serializeMedia)),
     total,
     page: normalizedPage,
     page_size: normalizedPageSize,
@@ -355,11 +356,18 @@ export async function findOwnedImageByUrl(
   url: string,
   database: Pick<CustomShellDb, "select"> = db
 ) {
-  const storagePath = storagePathForUrl(url)
+  const storagePath = await storagePathForUrl(url)
   if (!storagePath) return null
 
   const [row] = await database
-    .select({ id: customShellMedia.id, fileType: customShellMedia.fileType })
+    .select({
+      id: customShellMedia.id,
+      fileType: customShellMedia.fileType,
+      storagePath: customShellMedia.storagePath,
+      // The brand image's dark twin is made from the file's own kind: an SVG is
+      // recoloured as text and everything else is redrawn pixel by pixel.
+      mimeType: customShellMedia.mimeType,
+    })
     .from(customShellMedia)
     .where(
       and(
@@ -389,7 +397,7 @@ export async function clearAvatarsForStoragePaths(
 
   let urls: string[]
   try {
-    urls = storagePaths.map(getPublicMediaUrl)
+    urls = await Promise.all(storagePaths.map(getPublicMediaUrl))
   } catch {
     // No public URL means no account can be holding one.
     return
@@ -405,12 +413,12 @@ export async function clearAvatarsForStoragePaths(
  * The bucket key a public media URL points at, or null when the URL is not one
  * this app would ever have handed out.
  */
-function storagePathForUrl(url: string) {
+export async function storagePathForUrl(url: string) {
   let prefix: string
   try {
     // Passing the empty key yields the public base with its trailing slash,
     // which is exactly what every real media URL starts with.
-    prefix = getPublicMediaUrl("")
+    prefix = await getPublicMediaUrl("")
   } catch {
     // Storage is not configured, so this app has handed out no media URLs and
     // nothing can match.
@@ -441,7 +449,7 @@ export async function getOwnedMedia(userId: string, mediaId: string) {
   return row
 }
 
-export function serializeMedia(row: CustomShellMedia): MediaItem {
+export async function serializeMedia(row: CustomShellMedia): Promise<MediaItem> {
   return {
     id: row.id,
     filename: row.filename,
@@ -450,7 +458,7 @@ export function serializeMedia(row: CustomShellMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
-    url: getPublicMediaUrl(row.storagePath),
+    url: await getPublicMediaUrl(row.storagePath),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -479,6 +487,8 @@ export type AdminMediaItem = MediaItem & {
   owner_name: string
   owner_email: string
   storage_path: string
+  /** Once set, deleting this file would break email already in inboxes. */
+  email_protected_at: string | null
 }
 
 export type AdminMediaListQuery = {
@@ -582,13 +592,16 @@ export async function listAllMedia(
   const total = totals?.total ?? 0
 
   return {
-    media: rows.map((row) => ({
-      ...serializeMedia(row.media),
-      owner_id: row.owner.id,
-      owner_name: row.owner.name,
-      owner_email: row.owner.email,
-      storage_path: row.media.storagePath,
-    })),
+    media: await Promise.all(
+      rows.map(async (row) => ({
+        ...(await serializeMedia(row.media)),
+        owner_id: row.owner.id,
+        owner_name: row.owner.name,
+        owner_email: row.owner.email,
+        storage_path: row.media.storagePath,
+        email_protected_at: row.media.emailProtectedAt?.toISOString() ?? null,
+      }))
+    ),
     total,
     page,
     page_size: pageSize,
@@ -607,11 +620,12 @@ export async function getAdminMedia(mediaId: string): Promise<AdminMediaItem | n
 
   return row
     ? {
-        ...serializeMedia(row.media),
+        ...(await serializeMedia(row.media)),
         owner_id: row.owner.id,
         owner_name: row.owner.name,
         owner_email: row.owner.email,
         storage_path: row.media.storagePath,
+        email_protected_at: row.media.emailProtectedAt?.toISOString() ?? null,
       }
     : null
 }
@@ -776,7 +790,12 @@ async function scanMediaOrphans(
   // still be traced back to a person.
   const unlinked = objects
     .filter(
-      (object) => !knownPaths.has(object.key) && APP_STORAGE_KEY.test(object.key)
+      (object) =>
+        !knownPaths.has(object.key) &&
+        APP_STORAGE_KEY.test(object.key) &&
+        // Favicon sizes have no media row by design. Their settings save owns
+        // replacement and cleanup, so the generic orphan tool must leave them.
+        !isGeneratedFaviconStoragePath(object.key)
     )
     .map((object) => {
       const [ownerId, ...rest] = object.key.split("/")
@@ -800,7 +819,7 @@ async function scanMediaOrphans(
       createdAt: null,
       fileType: fileTypeFromKey(object.key),
       // The file is still there, so it can be previewed before it is erased.
-      url: getPublicMediaUrl(object.key),
+      url: await getPublicMediaUrl(object.key),
     })
   }
 
@@ -872,29 +891,38 @@ export async function deleteMediaAsAdmin(
   database: CustomShellDb = db
 ) {
   const uniqueIds = Array.from(new Set(mediaIds))
-  const rows = await database
-    .select()
-    .from(customShellMedia)
-    .where(inArray(customShellMedia.id, uniqueIds))
+  return database.transaction(async (transaction) => {
+    // Hold each row until its file and record agree. A send trying to protect
+    // the same logo waits here, then either sees the protected row or sees that
+    // it has gone and refuses to send a broken address.
+    const rows = await transaction
+      .select()
+      .from(customShellMedia)
+      .where(inArray(customShellMedia.id, uniqueIds))
+      .for("update")
 
-  for (const row of rows) {
-    await deleteFromR2(row.storagePath)
-  }
+    const protectedCount = rows.filter((row) => row.emailProtectedAt).length
+    const deletableRows = rows.filter((row) => !row.emailProtectedAt)
 
-  if (rows.length) {
-    await database.delete(customShellMedia).where(
-      inArray(
-        customShellMedia.id,
-        rows.map((row) => row.id)
+    for (const row of deletableRows) {
+      await deleteFromR2(row.storagePath)
+    }
+
+    if (deletableRows.length) {
+      await transaction.delete(customShellMedia).where(
+        inArray(
+          customShellMedia.id,
+          deletableRows.map((row) => row.id)
+        )
       )
-    )
-    await clearAvatarsForStoragePaths(
-      rows.map((row) => row.storagePath),
-      database
-    )
-  }
+      await clearAvatarsForStoragePaths(
+        deletableRows.map((row) => row.storagePath),
+        transaction
+      )
+    }
 
-  return { deletedCount: rows.length }
+    return { deletedCount: deletableRows.length, protectedCount }
+  })
 }
 
 function defaultExtensionForMimeType(mimeType: string) {

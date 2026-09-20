@@ -5,16 +5,47 @@ import { Tooltip as TooltipPrimitive } from "radix-ui"
 
 import { cn } from "../../lib/utils"
 
+const KeyboardTooltipFocusContext = React.createContext<
+  React.RefObject<boolean>
+>({ current: false })
+
 function TooltipProvider({
   delayDuration = 0,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  const keyboardFocus = React.useRef(false)
+
+  React.useEffect(() => {
+    let clearTab: number | undefined
+    const onKeyDown = (event: KeyboardEvent) => {
+      keyboardFocus.current = event.key === "Tab"
+      if (clearTab !== undefined) window.clearTimeout(clearTab)
+      if (event.key === "Tab") {
+        clearTab = window.setTimeout(() => {
+          keyboardFocus.current = false
+        }, 0)
+      }
+    }
+    const onPointerDown = () => {
+      keyboardFocus.current = false
+    }
+    document.addEventListener("keydown", onKeyDown, true)
+    document.addEventListener("pointerdown", onPointerDown, true)
+    return () => {
+      if (clearTab !== undefined) window.clearTimeout(clearTab)
+      document.removeEventListener("keydown", onKeyDown, true)
+      document.removeEventListener("pointerdown", onPointerDown, true)
+    }
+  }, [])
+
   return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delayDuration={delayDuration}
-      {...props}
-    />
+    <KeyboardTooltipFocusContext.Provider value={keyboardFocus}>
+      <TooltipPrimitive.Provider
+        data-slot="tooltip-provider"
+        delayDuration={delayDuration}
+        {...props}
+      />
+    </KeyboardTooltipFocusContext.Provider>
   )
 }
 
@@ -25,9 +56,25 @@ function Tooltip({
 }
 
 function TooltipTrigger({
+  onFocus,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const keyboardFocus = React.useContext(KeyboardTooltipFocusContext)
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      onFocus={(event) => {
+        onFocus?.(event)
+        // Radix opens for every focus event. A direct Tab is the one focus move
+        // that should announce a tooltip; popover auto-focus and restored focus
+        // arrive without it and stay quiet.
+        if (!keyboardFocus.current) {
+          event.preventDefault()
+        }
+      }}
+      {...props}
+    />
+  )
 }
 
 function TooltipContent({
@@ -48,7 +95,11 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-sm bg-foreground fill-foreground" />
+        {/* A square turned on its corner. The radius is deliberately tiny —
+            it still has to read as a point. `rounded-sm` is 4px on a 10px
+            square, which rounds the tip away entirely and leaves a knob stuck
+            to the bottom of the box. */}
+        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

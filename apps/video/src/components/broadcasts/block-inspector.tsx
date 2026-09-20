@@ -16,7 +16,7 @@ import {
 } from "@/components/broadcasts/inspector-fields"
 import { RichTextEditor } from "@/components/shared/rich-text-editor"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -95,7 +95,7 @@ function AlignmentField({
               "flex size-9 items-center justify-center rounded-lg border transition-colors disabled:opacity-50",
               value === option.value
                 ? "border-foreground bg-foreground text-background"
-                : "border-foreground/10 bg-background text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+                : "bg-background text-muted-foreground hover:border-foreground/25 hover:text-foreground"
             )}
           >
             <option.icon className="size-4" />
@@ -120,7 +120,7 @@ function HeaderFields({
     <>
       <InspectorCard
         title="Logo"
-        description="The picture at the top. It has to be at an address anyone can open, or inboxes cannot load it."
+        description="The picture at the top. After an email uses it, the file stays in the media library so old inbox copies keep working. With no picture, the app name is shown instead."
       >
         {/* The app's standard image field, so a logo is picked from — or
             uploaded straight into — the media library rather than pasted in as
@@ -519,7 +519,7 @@ export function BlockInspector({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={
           block ? (
             <MailIcon className="size-4" />

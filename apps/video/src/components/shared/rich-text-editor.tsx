@@ -152,6 +152,93 @@ function UrlPopover({
   )
 }
 
+function ImagePopover({ editor }: { editor: Editor }) {
+  const [open, setOpen] = React.useState(false)
+  const [url, setUrl] = React.useState("")
+  const [description, setDescription] = React.useState("")
+  const [editing, setEditing] = React.useState(false)
+
+  const submit = React.useCallback(() => {
+    const source = url.trim()
+    const alt = description.trim()
+    if (!source || !alt) return
+
+    const chain = editor.chain().focus()
+    if (editing) chain.updateAttributes("image", { src: source, alt }).run()
+    else chain.setImage({ src: source, alt }).run()
+    setOpen(false)
+  }, [description, editing, editor, url])
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) return
+        const selected = editor.isActive("image")
+        const image = selected ? editor.getAttributes("image") : {}
+        setEditing(selected)
+        setUrl(typeof image.src === "string" ? image.src : "")
+        setDescription(typeof image.alt === "string" ? image.alt : "")
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Image"
+          title="Image"
+        >
+          <ImageIcon className="size-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start">
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            submit()
+          }}
+        >
+          <div className="grid gap-2">
+            <Label htmlFor="email-image-url">Image URL</Label>
+            <Input
+              id="email-image-url"
+              type="url"
+              value={url}
+              placeholder="https://example.com/image.jpg"
+              maxLength={2000}
+              onChange={(event) => setUrl(event.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="email-image-description">Image description</Label>
+            <Input
+              id="email-image-description"
+              value={description}
+              placeholder="Two people talking at a table"
+              maxLength={500}
+              onChange={(event) => setDescription(event.target.value)}
+              required
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!url.trim() || !description.trim()}
+            >
+              {editing ? "Save" : "Insert"}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function Toolbar({
   editor,
   allowImages,
@@ -233,14 +320,7 @@ function Toolbar({
         }
         onRemove={() => editor.chain().focus().unsetLink().run()}
       />
-      {allowImages ? (
-        <UrlPopover
-          label="Image URL"
-          icon={<ImageIcon className="size-3.5" />}
-          buttonLabel="Insert"
-          onSubmit={(url) => editor.chain().focus().setImage({ src: url }).run()}
-        />
-      ) : null}
+      {allowImages ? <ImagePopover editor={editor} /> : null}
     </div>
   )
 }

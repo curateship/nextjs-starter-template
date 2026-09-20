@@ -18,9 +18,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReportUnwantedSignInRouteImport } from './routes/report-unwanted-sign-in'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RevokeEmailChangeRouteImport } from './routes/revoke-email-change'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -28,13 +32,15 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
+import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
-import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
+import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
@@ -42,6 +48,7 @@ import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
+import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
@@ -123,6 +130,11 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportUnwantedSignInRoute = ReportUnwantedSignInRouteImport.update({
+  id: '/report-unwanted-sign-in',
+  path: '/report-unwanted-sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -133,9 +145,24 @@ const RevokeEmailChangeRoute = RevokeEmailChangeRouteImport.update({
   path: '/revoke-email-change',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInLinkRoute = SignInLinkRouteImport.update({
   id: '/sign-in-link',
   path: '/sign-in-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
@@ -173,6 +200,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -183,6 +215,12 @@ const AuthenticatedAdminAiRoute = AuthenticatedAdminAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminAiUsageRoute =
+  AuthenticatedAdminAiUsageRouteImport.update({
+    id: '/ai-usage',
+    path: '/ai-usage',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAnnouncementsRoute =
   AuthenticatedAdminAnnouncementsRouteImport.update({
     id: '/announcements',
@@ -195,12 +233,6 @@ const AuthenticatedAdminAutomationsRoute =
     path: '/automations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminBillingRoute =
-  AuthenticatedAdminBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminContactsRoute =
   AuthenticatedAdminContactsRouteImport.update({
     id: '/contacts',
@@ -211,6 +243,12 @@ const AuthenticatedAdminDashboardRoute =
   AuthenticatedAdminDashboardRouteImport.update({
     id: '/dashboard',
     path: '/dashboard',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminDevOutboxRoute =
+  AuthenticatedAdminDevOutboxRouteImport.update({
+    id: '/dev-outbox',
+    path: '/dev-outbox',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminFeedbackRoute =
@@ -252,6 +290,12 @@ const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminReferralsRoute =
+  AuthenticatedAdminReferralsRouteImport.update({
+    id: '/referrals',
+    path: '/referrals',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSegmentsRoute =
   AuthenticatedAdminSegmentsRouteImport.update({
     id: '/segments',
@@ -471,9 +515,13 @@ export interface FileRoutesByFullPath {
   '/maintenance': typeof MaintenanceRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
@@ -481,12 +529,14 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
+  '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
@@ -494,6 +544,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
@@ -541,20 +592,26 @@ export interface FileRoutesByTo {
   '/maintenance': typeof MaintenanceRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
+  '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
@@ -562,6 +619,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
@@ -609,9 +667,13 @@ export interface FileRoutesById {
   '/maintenance': typeof MaintenanceRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
@@ -619,12 +681,14 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
+  '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
@@ -632,6 +696,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
@@ -681,9 +746,13 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/pricing'
     | '/register'
+    | '/report-unwanted-sign-in'
     | '/reset-password'
     | '/revoke-email-change'
+    | '/robots.txt'
+    | '/search'
     | '/sign-in-link'
+    | '/sitemap.xml'
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
@@ -691,12 +760,14 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/home'
     | '/workspaces'
+    | '/api/health'
     | '/admin/ai'
+    | '/admin/ai-usage'
     | '/admin/announcements'
     | '/admin/automations'
-    | '/admin/billing'
     | '/admin/contacts'
     | '/admin/dashboard'
+    | '/admin/dev-outbox'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/membership'
@@ -704,6 +775,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/pages'
     | '/admin/plans'
+    | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
@@ -751,20 +823,26 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/pricing'
     | '/register'
+    | '/report-unwanted-sign-in'
     | '/reset-password'
     | '/revoke-email-change'
+    | '/robots.txt'
+    | '/search'
     | '/sign-in-link'
+    | '/sitemap.xml'
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
     | '/home'
     | '/workspaces'
+    | '/api/health'
     | '/admin/ai'
+    | '/admin/ai-usage'
     | '/admin/announcements'
     | '/admin/automations'
-    | '/admin/billing'
     | '/admin/contacts'
     | '/admin/dashboard'
+    | '/admin/dev-outbox'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/membership'
@@ -772,6 +850,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/pages'
     | '/admin/plans'
+    | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
@@ -818,9 +897,13 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/pricing'
     | '/register'
+    | '/report-unwanted-sign-in'
     | '/reset-password'
     | '/revoke-email-change'
+    | '/robots.txt'
+    | '/search'
     | '/sign-in-link'
+    | '/sitemap.xml'
     | '/unsubscribe'
     | '/verify-email'
     | '/_authenticated/account'
@@ -828,12 +911,14 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
+    | '/api/health'
     | '/_authenticated/admin/ai'
+    | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
-    | '/_authenticated/admin/billing'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
+    | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
@@ -841,6 +926,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
+    | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/system-emails'
@@ -890,11 +976,16 @@ export interface RootRouteChildren {
   MaintenanceRoute: typeof MaintenanceRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
+  ReportUnwantedSignInRoute: typeof ReportUnwantedSignInRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RevokeEmailChangeRoute: typeof RevokeEmailChangeRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SearchRoute: typeof SearchRoute
   SignInLinkRoute: typeof SignInLinkRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
@@ -974,6 +1065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/report-unwanted-sign-in': {
+      id: '/report-unwanted-sign-in'
+      path: '/report-unwanted-sign-in'
+      fullPath: '/report-unwanted-sign-in'
+      preLoaderRoute: typeof ReportUnwantedSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -988,11 +1086,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RevokeEmailChangeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in-link': {
       id: '/sign-in-link'
       path: '/sign-in-link'
       fullPath: '/sign-in-link'
       preLoaderRoute: typeof SignInLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/unsubscribe': {
@@ -1044,6 +1163,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -1056,6 +1182,13 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/admin/ai'
       preLoaderRoute: typeof AuthenticatedAdminAiRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ai-usage': {
+      id: '/_authenticated/admin/ai-usage'
+      path: '/ai-usage'
+      fullPath: '/admin/ai-usage'
+      preLoaderRoute: typeof AuthenticatedAdminAiUsageRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/announcements': {
@@ -1072,13 +1205,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/billing': {
-      id: '/_authenticated/admin/billing'
-      path: '/billing'
-      fullPath: '/admin/billing'
-      preLoaderRoute: typeof AuthenticatedAdminBillingRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/contacts': {
       id: '/_authenticated/admin/contacts'
       path: '/contacts'
@@ -1091,6 +1217,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/admin/dashboard'
       preLoaderRoute: typeof AuthenticatedAdminDashboardRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/dev-outbox': {
+      id: '/_authenticated/admin/dev-outbox'
+      path: '/dev-outbox'
+      fullPath: '/admin/dev-outbox'
+      preLoaderRoute: typeof AuthenticatedAdminDevOutboxRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/feedback': {
@@ -1140,6 +1273,13 @@ declare module '@tanstack/react-router' {
       path: '/plans'
       fullPath: '/admin/plans'
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/referrals': {
+      id: '/_authenticated/admin/referrals'
+      path: '/referrals'
+      fullPath: '/admin/referrals'
+      preLoaderRoute: typeof AuthenticatedAdminReferralsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/segments': {
@@ -1464,11 +1604,12 @@ const AuthenticatedAdminVideoEditorRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
+  AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
-  AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
+  AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
@@ -1476,6 +1617,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
+  AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
@@ -1496,11 +1638,12 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
+  AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
-  AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
+  AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
@@ -1508,6 +1651,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
+  AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
@@ -1584,11 +1728,16 @@ const rootRouteChildren: RootRouteChildren = {
   MaintenanceRoute: MaintenanceRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
+  ReportUnwantedSignInRoute: ReportUnwantedSignInRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RevokeEmailChangeRoute: RevokeEmailChangeRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SearchRoute: SearchRoute,
   SignInLinkRoute: SignInLinkRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,

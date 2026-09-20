@@ -3,19 +3,100 @@ import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { appPublicTheme } from "@/lib/app-options"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  MAX_MAINTENANCE_MESSAGE_LENGTH,
   SHELL_ROLES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
+  TOP_RIGHT_NAVIGATION_ITEM_IDS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import {
+  MAX_PUBLIC_SEO_DESCRIPTION_LENGTH,
+  MAX_PUBLIC_SEO_TITLE_LENGTH,
+  MAX_PUBLIC_SYSTEM_BODY_LENGTH,
+  MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
+  MAX_SOCIAL_HANDLE_LENGTH,
+  SOCIAL_CARD_TYPES,
+  normalizeShareImage,
+} from "@/lib/pages/public-metadata"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import {
+  brandImagesAreCurrent,
+  type BrandImages,
+} from "@/lib/brand-image"
+import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
+import {
+  FRONT_PAGE_ROW_LAYOUTS,
+  MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
+  MAX_FRONT_PAGE_FAQ_ITEMS,
+  MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+  MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
+  MAX_FRONT_PAGE_ITEM_ROLE_LENGTH,
+  MAX_FRONT_PAGE_LOGOS,
+  MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
+  MAX_FRONT_PAGE_ROW_ID_LENGTH,
+  MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  MAX_FRONT_PAGE_ROWS,
+  MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH,
+  MAX_FRONT_PAGE_SCREENSHOTS,
+  MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
+  MAX_FRONT_PAGE_TESTIMONIALS,
+  frontPageRowImageUrls,
+  normalizeFrontPageImageUrl,
+  normalizeFrontPageRows,
+} from "@/lib/pages/front-page"
+import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
+  cleanPublicNavigationLinks,
+  MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
+  MAX_PUBLIC_FOOTER_LINKS,
+  MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
+  MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
+} from "@/lib/pages/public-navigation"
+import {
+  PUBLIC_HEADER_LOGO_SIZES,
+  PUBLIC_HEADER_MENU_ALIGNMENTS,
+} from "@/lib/pages/public-header"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
+import {
+  MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  MAX_PUBLIC_MAIN_SPACING,
+  MAX_PUBLIC_PAGE_WIDTH,
+  MAX_PUBLIC_RADIUS,
+  MIN_PUBLIC_PAGE_WIDTH,
+  PUBLIC_BACKGROUND_PATTERNS,
+  PUBLIC_BACKGROUND_PATTERN_SIZES,
+  PUBLIC_BRAND_COLOR_PATTERN,
+  PUBLIC_BRAND_OVERRIDE_KEYS,
+  PUBLIC_BUTTON_CASINGS,
+  PUBLIC_BUTTON_STYLES,
+  PUBLIC_COLOR_SCHEMES,
+  PUBLIC_CONTENT_ALIGNMENTS,
+  PUBLIC_THEME_FONTS,
+  normalizePublicBrandTheme,
+  publicThemeForAppWideSave,
+  publicThemeOverrides,
+} from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
-import { isOwnedImageUrl } from "@/server/media/library"
+import {
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
+import {
+  findOwnedImageByUrl,
+  isOwnedImageUrl,
+} from "@/server/media/library"
+import {
+  createDarkBrandVariant,
+  createFaviconVariant,
+  deleteReplacedFaviconFiles,
+} from "@/server/media/favicon"
 import {
   customShellSettings,
   customShellUsers,
@@ -25,11 +106,19 @@ import {
 import {
   parseShellGlobals,
   pickShellGlobals,
+  readShellGlobals,
 } from "@/server/shell-settings"
 import { adminPost, userPost } from "@/server/guards"
 import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
+const faviconSourceSchema = z.string().trim().max(2048)
+const publicFontAssetSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    version: z.string().uuid(),
+  })
+  .nullable()
 
 const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
 
@@ -38,6 +127,7 @@ const shellChildItemSchema = z.object({
   label: z.string(),
   href: z.string(),
   icon: shellIconSchema.optional(),
+  visible: z.boolean().optional(),
   roles: shellRolesSchema,
 })
 
@@ -74,7 +164,14 @@ const shellSectionSchema = z.object({
 const shellTopRightItemSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("builtIn"),
-    id: z.enum(["feedback", "theme", "notifications"]),
+    // The one list, so a built-in renamed in `custom-shell.tsx` cannot be
+    // refused here by a copy of the names nobody remembered to change.
+    id: z.enum(TOP_RIGHT_NAVIGATION_ITEM_IDS),
+    visible: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("app"),
+    id: z.string().trim().min(1).max(64),
     visible: z.boolean(),
   }),
   z.object({
@@ -112,6 +209,157 @@ const shellStylingSchema = z.object({
   chrome: shellBackgroundSchema,
   modal: shellModalStylingSchema,
 })
+
+const publicNavigationLinkSchema = z.object({
+  label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
+  href: z.string().max(MAX_PUBLIC_NAVIGATION_HREF_LENGTH),
+})
+
+const publicNavigationSchema = z
+  .array(
+    z.union([
+      publicNavigationLinkSchema,
+      z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
+      z.object({
+        type: z.literal("group"),
+        label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
+        links: z.array(publicNavigationLinkSchema),
+      }),
+    ])
+  )
+  .transform(cleanPublicNavigationItems)
+
+const publicFooterSchema = z
+  .array(publicNavigationLinkSchema)
+  .max(MAX_PUBLIC_FOOTER_LINKS)
+  .transform(cleanPublicNavigationLinks)
+
+const publicBrandOverridesSchema = z.object(
+  Object.fromEntries(
+    PUBLIC_BRAND_OVERRIDE_KEYS.map((key) => [
+      key,
+      z.string().regex(PUBLIC_BRAND_COLOR_PATTERN).optional(),
+    ])
+  ) as Record<
+    (typeof PUBLIC_BRAND_OVERRIDE_KEYS)[number],
+    z.ZodOptional<z.ZodString>
+  >
+)
+
+const publicThemeSchema = z.object({
+  brandColor: z.union([
+    z.literal(""),
+    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
+  ]),
+  brandOverrides: publicBrandOverridesSchema,
+  canvasColor: z.union([
+    z.literal(""),
+    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
+  ]),
+  pageWidth: z
+    .number()
+    .int()
+    .min(MIN_PUBLIC_PAGE_WIDTH)
+    .max(MAX_PUBLIC_PAGE_WIDTH),
+  mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
+  contentAlignment: z.enum(PUBLIC_CONTENT_ALIGNMENTS),
+  backgroundPattern: z.enum(PUBLIC_BACKGROUND_PATTERNS),
+  backgroundPatternSize: z.enum(PUBLIC_BACKGROUND_PATTERN_SIZES),
+  backgroundPatternOpacity: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY),
+  buttonStyle: z.enum(PUBLIC_BUTTON_STYLES),
+  buttonCasing: z.enum(PUBLIC_BUTTON_CASINGS),
+  headerBorder: z.boolean(),
+  footerBorder: z.boolean(),
+  colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
+  useCustomFont: z.boolean(),
+  font: z.enum(PUBLIC_THEME_FONTS),
+  radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
+})
+
+const frontPageRowBaseShape = {
+  id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
+  heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
+  intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
+  layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+}
+
+const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)
+const frontPageImageSchema = z
+  .string()
+  .trim()
+  .max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH)
+  .refine(
+    (value) => !value || normalizeFrontPageImageUrl(value) === value,
+    "Choose an image from the media library."
+  )
+
+const frontPageRowsSchema = z
+  .array(
+    z.discriminatedUnion("kind", [
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
+      z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("testimonials"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              quote: z.string().max(MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH),
+              name: z.string().max(MAX_FRONT_PAGE_ITEM_NAME_LENGTH),
+              role: z.string().max(MAX_FRONT_PAGE_ITEM_ROLE_LENGTH),
+              picture: frontPageImageSchema,
+            })
+          )
+          .max(MAX_FRONT_PAGE_TESTIMONIALS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("faq"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              question: z.string().max(MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH),
+              answer: z.string().max(MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_FAQ_ITEMS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("logos"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_LOGOS),
+      }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("screenshots"),
+        items: z
+          .array(
+            z.object({
+              id: frontPageItemIdSchema,
+              image: frontPageImageSchema,
+              caption: z.string().max(MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH),
+            })
+          )
+          .max(MAX_FRONT_PAGE_SCREENSHOTS),
+      }),
+    ])
+  )
+  .max(MAX_FRONT_PAGE_ROWS)
+  .transform(normalizeFrontPageRows)
 
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
@@ -152,9 +400,56 @@ const shellConfigSchema = z.object({
   ),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
-  favicon: z.string(),
-  logo: z.string(),
-  logoDark: z.string(),
+  workspaceFavicon: faviconSourceSchema,
+  workspaceLogo: z.string().trim().max(2048),
+  workspaceLogoDark: z.string().trim().max(2048),
+  workspaceShareImage: z.string().trim().max(2048),
+  // The one brand image. It is the signed-out logo and the browser-tab icon,
+  // and its dark-mode twin is made on the way in — so the dark logo, the dark
+  // tab icon and every generated tab size are the server's to write, never the
+  // client's to send.
+  logo: z.string().trim().max(2048),
+  // Which of the two generated versions the browser tab shows. An admin choice,
+  // unlike the pictures above it, because both versions already exist.
+  faviconMode: z.enum(FAVICON_MODES),
+  shareImage: z.string().trim().max(2048),
+  // Carried by the client for the full config shape. The handler always takes
+  // the saved version or writes a fresh timestamp instead of trusting this.
+  shareImageVersion: z.string().max(64),
+  socialCardType: z.enum(SOCIAL_CARD_TYPES),
+  socialHandle: z
+    .string()
+    .max(MAX_SOCIAL_HANDLE_LENGTH)
+    .regex(/^[A-Za-z0-9_]*$/),
+  publicSeo: z.object({
+    homeTitle: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
+    homeDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+    writtenTitleTemplate: z.string().max(MAX_PUBLIC_SEO_TITLE_LENGTH),
+    writtenDescriptionTemplate: z
+      .string()
+      .max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+    siteDescription: z.string().max(MAX_PUBLIC_SEO_DESCRIPTION_LENGTH),
+  }),
+  publicSystemCopy: z.object({
+    notFoundHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
+    notFoundBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
+    maintenanceHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
+    maintenanceBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
+  }),
+  frontPageRows: frontPageRowsSchema,
+  publicNavigation: publicNavigationSchema,
+  publicFooter: publicFooterSchema,
+  publicFooterCopyright: z
+    .string()
+    .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
+    .transform(cleanPublicFooterCopyright),
+  publicHeader: z.object({
+    sticky: z.boolean(),
+    menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
+    logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+  }),
+  publicFont: publicFontAssetSchema,
+  publicTheme: publicThemeSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
@@ -167,7 +462,6 @@ const shellConfigSchema = z.object({
   ),
   maintenance: z.object({
     enabled: z.boolean(),
-    message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
   }),
   // Carried in the config for display only; the save below never writes it.
   sessionPolicy: z.object({
@@ -189,19 +483,67 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const updatedAt = now()
     const workspace = await requireCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
     }
 
-    await db.transaction(async (tx) => {
+    const generatedFaviconSet: PublicFaviconSet = {}
+    const startingGlobals = await readShellGlobals()
+    const logo = data.logo.trim()
+
+    // Nothing is drawn when the saved pictures already match this logo, which
+    // is every save that is not a logo change — a rename, a colour, a menu
+    // edit. The check is against the whole chain rather than the logo alone, so
+    // an install still carrying a separately chosen favicon rebuilds once and
+    // is then in step.
+    if (logo && !brandImagesAreCurrent(logo, startingGlobals)) {
+      const media = await findOwnedImageByUrl(context.user.id, logo)
+      if (!media) {
+        throw new Error(
+          "That logo is no longer in your media library. Pick another one."
+        )
+      }
+
+      try {
+        generatedFaviconSet.light = await createFaviconVariant(media, "light")
+        generatedFaviconSet.dark = await createDarkBrandVariant(media)
+      } catch (error) {
+        await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+          () => undefined
+        )
+        console.error("The brand image could not be converted", error)
+        throw new Error(
+          "The dark version of that logo could not be made. Try a PNG or an SVG."
+        )
+      }
+    }
+
+    // The transaction hands its findings back rather than writing them into
+    // variables declared above it, so what the answer carries is what the row
+    // actually holds.
+    const saved = await db.transaction(async (tx) => {
       await tx
         .update(customShellWorkspaces)
         .set({
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
-            favicon: data.favicon,
+            favicon: data.workspaceFavicon,
+            logo: normalizeShareImage(data.workspaceLogo),
+            logoDark: normalizeShareImage(data.workspaceLogoDark),
+            shareImage: normalizeShareImage(data.workspaceShareImage),
+            publicTheme: normalizePublicBrandTheme(data.publicTheme),
+            publicNavigation: workspaceDomainsEnabled
+              ? data.publicNavigation
+              : workspaceSettings.publicNavigation,
+            publicFooter: workspaceDomainsEnabled
+              ? data.publicFooter
+              : workspaceSettings.publicFooter,
+            publicFooterCopyright: workspaceDomainsEnabled
+              ? data.publicFooterCopyright
+              : workspaceSettings.publicFooterCopyright,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -229,32 +571,47 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // The maintenance switch is only ever flipped by its own confirmed
       // action (lib/api/maintenance.ts). An admin whose settings page loaded
       // before somebody turned it on must not switch it back off by renaming
-      // the app, so the switch keeps whatever the row already says; only its
-      // message comes from this save. The session policy and the automations
-      // kill switch are kept whole for the same reason — their one writer each
-      // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
+      // the app, so the switch keeps whatever the row already says. The
+      // session policy and the automations kill switch are kept whole for the
+      // same reason — their one writer each is lib/api/auth/session-policy.ts
+      // and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
 
-      // The logos are drawn on the signed-out pages, so what gets stored has to
-      // be a picture somebody here really uploaded — not any address a browser
-      // felt like sending. Only a changed logo is checked: the settings page
-      // saves the whole config, so a second admin renaming the app must not be
-      // refused because the picture was uploaded from another account.
-      for (const [next, saved] of [
-        [data.logo, existingGlobals.logo],
-        [data.logoDark, existingGlobals.logoDark],
-      ]) {
+      if (
+        data.shareImage &&
+        data.shareImage !== existingGlobals.shareImage &&
+        !(await isOwnedImageUrl(context.user.id, data.shareImage, tx))
+      ) {
+        throw new Error(
+          "That share image is no longer in your media library. Pick another one."
+        )
+      }
+
+      const savedFrontPageImages = new Set(
+        frontPageRowImageUrls(existingGlobals.frontPageRows)
+      )
+      for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
         if (
-          next &&
-          next !== saved &&
-          !(await isOwnedImageUrl(context.user.id, next, tx))
+          !savedFrontPageImages.has(image) &&
+          !(await isOwnedImageUrl(context.user.id, image, tx))
         ) {
           throw new Error(
-            "That logo is no longer in your media library. Pick another one."
+            "A front page image is no longer in your media library. Pick another one."
           )
         }
       }
 
+      const brand = brandImagesForLockedSave(
+        logo,
+        existingGlobals,
+        generatedFaviconSet
+      )
+
+      const nextPublicTheme = publicThemeForAppWideSave(
+        data.publicTheme,
+        existingGlobals.publicTheme,
+        workspaceDomainsEnabled
+      )
       const globalSettings = {
         // The kill switch is not in this request's shape at all, on purpose:
         // the settings page never sends it, so there is no version of this
@@ -262,11 +619,34 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // start every automation running again.
         ...pickShellGlobals({
           ...data,
+          ...brand,
+          // One-site apps have one public menu and footer regardless of which
+          // workspace an admin is viewing. Multisite apps keep these choices
+          // on the workspace named by the domain.
+          publicNavigation: workspaceDomainsEnabled
+            ? existingGlobals.publicNavigation
+            : data.publicNavigation,
+          publicFooter: workspaceDomainsEnabled
+            ? existingGlobals.publicFooter
+            : data.publicFooter,
+          publicFooterCopyright: workspaceDomainsEnabled
+            ? existingGlobals.publicFooterCopyright
+            : data.publicFooterCopyright,
+          // A dedicated upload action owns the stored font. A stale settings
+          // tab may choose whether to use it, but cannot replace its identity.
+          publicFont: existingGlobals.publicFont,
+          shareImageVersion:
+            data.shareImage === existingGlobals.shareImage
+              ? existingGlobals.shareImageVersion
+              : data.shareImage
+                ? updatedAt.toISOString()
+                : "",
+          publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
         }),
+        publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
-          message: data.maintenance.message,
         },
         sessionPolicy: existingGlobals.sessionPolicy,
       }
@@ -284,18 +664,118 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           updatedAt,
         })
       }
+
+      return {
+        brand,
+        previousFaviconSet: existingGlobals.faviconSet,
+        publicFont: existingGlobals.publicFont,
+      }
+    }).catch(async (error) => {
+      await deleteReplacedFaviconFiles(generatedFaviconSet, null).catch(
+        () => undefined
+      )
+      throw error
     })
 
-    return { settings: data }
+    const savedFaviconSet = saved.brand.faviconSet
+    await deleteReplacedFaviconFiles(
+      saved.previousFaviconSet,
+      savedFaviconSet
+    ).catch((error) => {
+      console.error("Replaced favicon files could not be removed", error)
+    })
+    await deleteReplacedFaviconFiles(
+      generatedFaviconSet,
+      savedFaviconSet
+    ).catch((error) => {
+      console.error("Unused favicon files could not be removed", error)
+    })
+
+    // The public pages, the feed and the sitemap all read a site's name and
+    // navigation out of the host cache, which has no expiry — so without this
+    // a rename saved here would not reach a signed-out visitor until the
+    // server restarted. After the commit, never before: a failed write must
+    // not throw away a cache that still matches the database.
+    dropWorkspaceCache()
+
+    // The derived pictures go back to the settings page so the tab icon and
+    // the dark logo change on screen the moment the save lands, instead of
+    // waiting for a reload.
+    return { brand: saved.brand, publicFont: saved.publicFont }
   })
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
 }
 
-// Lightweight, per-user save for the draggable sidebar width. Unlike the full
-// shell save this is not admin-gated — any signed-in user can persist their own
-// workspace's sidebar width by dragging the rail.
+/**
+ * What the four stored pictures become, decided inside the locked read so two
+ * admins saving at once cannot leave the tab icon pointing at one logo and the
+ * signed-out page at another.
+ *
+ * Exported for its test. The one thing worth pinning is that it answers with
+ * five fields and never with the row it was handed.
+ */
+export function brandImagesForLockedSave(
+  logo: string,
+  existing: BrandImages,
+  generated: PublicFaviconSet
+): BrandImages {
+  if (!logo) {
+    return {
+      logo: "",
+      logoDark: "",
+      favicon: "",
+      faviconDark: "",
+      faviconSet: null,
+    }
+  }
+
+  // Field by field, never `{ ...existing }`. What arrives here is the whole
+  // saved globals row, which structurally satisfies `BrandImages`, so spreading
+  // it would carry every other global back out and `pickShellGlobals` would
+  // then lay the saved app name, tab-icon choice and public settings back over
+  // the ones being saved. Every edit made in the same breath as an unchanged
+  // logo would silently revert.
+  if (brandImagesAreCurrent(logo, existing)) {
+    return {
+      logo,
+      logoDark: existing.logoDark,
+      favicon: existing.favicon,
+      faviconDark: existing.faviconDark,
+      faviconSet: existing.faviconSet,
+    }
+  }
+
+  const { light, dark } = generated
+  if (light?.source !== logo || !dark) {
+    throw new Error(
+      "The logo changed while these settings were saving. Try again."
+    )
+  }
+
+  return {
+    logo,
+    logoDark: dark.source,
+    favicon: logo,
+    faviconDark: dark.source,
+    faviconSet: { light, dark },
+  }
+}
+
+/**
+ * The draggable sidebar width, saved on the PERSON who dragged it.
+ *
+ * Not admin-gated, because it is nobody else's business how wide somebody
+ * likes their own rail. It used to write the width into the workspace's
+ * settings, which made it one width for the whole site: on an app that is one
+ * site everybody is in the same workspace, so a member dragging their rail
+ * resized the admin's. Their own row is the only thing this touches now, so
+ * the question of who may write it does not arise.
+ *
+ * A row of their own also means no `dropWorkspaceCache()` to think about: the
+ * host cache is built from workspace settings, and this no longer writes any.
+ */
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(

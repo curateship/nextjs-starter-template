@@ -109,6 +109,7 @@ function announcement(title: string) {
     title,
     body: "Something to say.",
     level: "info" as const,
+    audience: "app" as const,
     showBanner: true,
     notify: false,
     startsOn: "",

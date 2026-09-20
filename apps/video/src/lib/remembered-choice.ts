@@ -43,6 +43,14 @@ export function useRememberedChoice<T extends string>(
 ): [T, (next: T) => void, boolean] {
   const [state, setState] = React.useState({ value: fallback, settled: false })
 
+  // The fallback as it was on the very first render, kept so that it changing
+  // later cannot re-run the effect below. A sidebar link's fallback is "is this
+  // the page you are on", which flips every time you go somewhere — and
+  // re-running would fold the section shut again the moment you left it,
+  // jerking everything underneath up the screen and back down. It decides what
+  // this browser starts on and nothing after that.
+  const firstFallback = React.useRef(fallback)
+
   useEffectBeforePaint(() => {
     const stored = window.localStorage.getItem(storageKey)
     // Anything unrecognised — an old value, a hand-edited one — leaves the
@@ -50,9 +58,9 @@ export function useRememberedChoice<T extends string>(
     const remembered =
       stored !== null && (allowed as readonly string[]).includes(stored)
         ? (stored as T)
-        : fallback
+        : firstFallback.current
     setState({ value: remembered, settled: true })
-  }, [allowed, fallback, storageKey])
+  }, [allowed, storageKey])
 
   const choose = React.useCallback(
     (next: T) => {

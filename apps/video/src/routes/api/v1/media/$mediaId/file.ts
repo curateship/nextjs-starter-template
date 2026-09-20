@@ -57,7 +57,7 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
             return Response.json(
               {
                 detail:
-                  "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables, including CUSTOM_SHELL_R2_PUBLIC_URL.",
+                  "File storage is not set up. Fill in the bucket under Settings \u2192 Storage.",
               },
               { status: 503 }
             )

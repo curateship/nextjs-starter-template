@@ -17,7 +17,6 @@ import {
 import { renameProject } from "@/lib/api/video/projects"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { Input } from "@/components/ui/input"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -28,7 +27,7 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
   ASPECT_RATIOS,
@@ -100,6 +99,16 @@ export function StudioEditor({
   const saveStatus = useEditorSaveStatus()
   const desktop = useWideScreen()
   const [panel, setPanel] = React.useState<StudioPanel>("media")
+
+  // Two things the editor cannot put right on its own, said once and left in
+  // the shared error toast until they are dealt with.
+  useErrorToast(timelineError)
+  useErrorToast(
+    hasConflict
+      ? "This project changed somewhere else, so nothing more will be saved from this window. Reload to pick up the newer version — anything you have done since will be lost."
+      : null,
+    () => window.location.reload()
+  )
 
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY.horizontal)
   const verticalLayout = useRememberedPanelLayout(LAYOUT_KEY.vertical)
@@ -260,16 +269,6 @@ export function StudioEditor({
       className="studio-root flex min-h-0 flex-1 flex-col"
       style={{ gap: "var(--shell-gutter, 0.75rem)" }}
     >
-      {/* Two things the editor cannot put right on its own, said once and left
-          in the shared error toast until they are dealt with. */}
-      {timelineError ? <ErrorBanner message={timelineError} /> : null}
-      {hasConflict ? (
-        <ErrorBanner
-          message="This project changed somewhere else, so nothing more will be saved from this window. Reload to pick up the newer version — anything you have done since will be lost."
-          onRetry={() => window.location.reload()}
-        />
-      ) : null}
-
       <ResizablePanelGroup
         key={verticalLayout.layoutKey}
         orientation="vertical"

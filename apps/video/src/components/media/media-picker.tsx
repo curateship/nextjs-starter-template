@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
@@ -68,6 +68,12 @@ type MediaPickerProps = {
 }
 
 export function MediaPicker({
+  ...props
+}: MediaPickerProps) {
+  return <MediaPickerSession key={props.open ? "open" : "closed"} {...props} />
+}
+
+function MediaPickerSession({
   open,
   onOpenChange,
   onSelectMedia,
@@ -77,8 +83,9 @@ export function MediaPicker({
   inline = false,
 }: MediaPickerProps) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
-  const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
   const [searchQuery, setSearchQuery] = React.useState("")
   // What the server was last asked for. Kept apart from what is typed so the
   // box stays responsive while the request waits out the pause below.
@@ -102,6 +109,16 @@ export function MediaPicker({
   /** The one video allowed to play at a time, so tiles never talk over each other. */
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const pageSize = 12
+  const fileType = showVideos
+    ? filterType === "all"
+      ? undefined
+      : filterType
+    : "image"
+  const requestKey = open
+    ? JSON.stringify([currentPage, pageSize, searchTerm, fileType, reloads])
+    : null
+  const loading = requestKey !== null && loadedRequest !== requestKey
+  const visibleError = loadedRequest === requestKey ? error : null
 
   // The preview points at the file rather than holding it: reading a 100MB
   // video into a data URL would cost well over 100MB of memory as text. A blob
@@ -121,45 +138,36 @@ export function MediaPicker({
     return () => URL.revokeObjectURL(cropPreviewUrl)
   }, [cropPreviewUrl])
 
-  const loadCurrentMedia = React.useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const fileType = showVideos
-        ? filterType === "all"
-          ? undefined
-          : filterType
-        : "image"
-      setData(
-        await listMedia({
-          page: currentPage,
-          pageSize,
-          search: searchTerm,
-          fileType,
-        })
-      )
-      setPlayingId(null)
-    } catch (loadError) {
-      setError(getMediaErrorMessage(loadError))
-    } finally {
-      setLoading(false)
-    }
-  }, [currentPage, filterType, pageSize, searchTerm, showVideos])
-
   React.useEffect(() => {
-    if (!open) {
-      setCurrentPage(1)
-      setSearchQuery("")
-      setSearchTerm("")
-      setSelectedMedia(null)
-      setPlayingId(null)
-      setCropFile(null)
-      clearUpload()
-      return
+    if (!requestKey) return
+    let active = true
+    listMedia({
+      page: currentPage,
+      pageSize,
+      search: searchTerm,
+      fileType,
+    })
+      .then((next) => {
+        if (!active) return
+        setData(next)
+        setSelectedMedia((current) =>
+          current && !next.media.some((item) => item.id === current.id)
+            ? null
+            : current
+        )
+        setPlayingId(null)
+        setError(null)
+      })
+      .catch((loadError) => {
+        if (active) setError(getMediaErrorMessage(loadError))
+      })
+      .finally(() => {
+        if (active) setLoadedRequest(requestKey)
+      })
+    return () => {
+      active = false
     }
-
-    loadCurrentMedia()
-  }, [loadCurrentMedia, open])
+  }, [currentPage, fileType, pageSize, requestKey, searchTerm])
 
   // The same quarter-second pause the media library and notifications pages
   // use, so one request goes out per word rather than per letter. Opening the
@@ -186,14 +194,11 @@ export function MediaPicker({
     })
   }, [currentMediaUrl, data?.media])
 
-  React.useEffect(() => {
-    if (!open || selectedMedia || !currentMediaUrl) return
-
-    const currentMedia = mediaItems.find((item) => item.url === currentMediaUrl)
-    if (currentMedia) {
-      setSelectedMedia(currentMedia)
-    }
-  }, [currentMediaUrl, mediaItems, open, selectedMedia])
+  const activeSelectedMedia = loading
+    ? null
+    : mediaItems.find((item) => item.id === selectedMedia?.id) ??
+      mediaItems.find((item) => item.url === currentMediaUrl) ??
+      null
 
   function clearUpload() {
     setUpload(null)
@@ -263,13 +268,16 @@ export function MediaPicker({
 
   // While the crop step is up, Escape, the X, and the backdrop back out of
   // the crop and return to the picker instead of tearing the whole thing down.
-  function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen && cropFile) {
-      setCropFile(null)
-      return
-    }
-    onOpenChange(nextOpen)
-  }
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && cropFile) {
+        setCropFile(null)
+        return
+      }
+      onOpenChange(nextOpen)
+    },
+    [cropFile, onOpenChange]
+  )
 
   React.useEffect(() => {
     if (!inline || !open) return
@@ -279,9 +287,9 @@ export function MediaPicker({
       event.stopPropagation()
       handleOpenChange(false)
     }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [inline, open, cropFile])
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [handleOpenChange, inline, open])
 
   const pickerContent = (
     <>
@@ -352,13 +360,6 @@ export function MediaPicker({
                     </label>
                   </Button>
                 </div>
-
-                {error ? (
-                  <ErrorBanner
-                    message={error}
-                    onRetry={() => void loadCurrentMedia()}
-                  />
-                ) : null}
 
                 {upload ? (
                   <form
@@ -432,7 +433,13 @@ export function MediaPicker({
                 {/* No scroll box of its own: the dialog body is already a
                 ScrollArea, and a second one would trap the wheel. */}
                 <div className="min-h-64 rounded-lg border p-3">
-                  {loading ? (
+                  {visibleError ? (
+                    <ErrorRow
+                      message={visibleError}
+                      onRetry={() => setReloads((count) => count + 1)}
+                      className="min-h-56"
+                    />
+                  ) : loading ? (
                     <LoadingRow label="Loading…" className="min-h-56" />
                   ) : mediaItems.length === 0 ? (
                     <EmptyRow className="grid min-h-56 place-items-center">
@@ -463,7 +470,7 @@ export function MediaPicker({
                           key={item.id}
                           item={item}
                           selected={
-                            selectedMedia?.id === item.id ||
+                            activeSelectedMedia?.id === item.id ||
                             currentMediaUrl === item.url
                           }
                           isCurrent={currentMediaUrl === item.url}
@@ -522,13 +529,12 @@ export function MediaPicker({
               </Button>
               <Button
                 type="button"
-                aria-invalid={!selectedMedia || undefined}
                 onClick={() => {
-                  if (!selectedMedia) {
+                  if (!activeSelectedMedia) {
                     showErrorToast("Choose a file before selecting it.")
                     return
                   }
-                  chooseMedia(selectedMedia)
+                  chooseMedia(activeSelectedMedia)
                 }}
               >
                 Select

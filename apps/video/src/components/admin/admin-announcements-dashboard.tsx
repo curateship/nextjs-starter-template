@@ -48,7 +48,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -70,6 +72,7 @@ import {
 } from "@/lib/api/content/announcements"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatUtcDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
@@ -78,7 +81,6 @@ import {
 } from "@/lib/nav/list-search"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
-import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useSelection } from "@/lib/hooks/use-selection"
 
 const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
@@ -86,10 +88,15 @@ const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
 type AnnouncementSortColumn = "title" | "where" | "status" | "shows"
 
 const ANNOUNCEMENT_COLUMNS: SortableColumn<AnnouncementSortColumn>[] = [
-  { key: "title", label: "Announcement", column: "main" },
-  { key: "where", label: "Where", column: "meta" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "shows", label: "Shows", column: "meta" },
+  {
+    key: "title",
+    label: "Announcement",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "where", label: "Where", column: "preview" },
+  { key: "status", label: "Status", column: "preview" },
+  { key: "shows", label: "Shows", column: "preview" },
 ]
 
 /** Showing first, then what is still coming, then what is over. */
@@ -122,6 +129,7 @@ function channelLabels(announcement: Announcement) {
   return [
     ...(announcement.showBanner ? ["Banner"] : []),
     ...(announcement.notify ? ["Tray"] : []),
+    ...(announcement.audience === "everyone" ? ["Visitors"] : []),
   ]
 }
 
@@ -194,7 +202,6 @@ export function AdminAnnouncementsDashboard({
   const sort: AnnouncementSortColumn = listSearch.sort ?? "shows"
   const direction = listSearch.direction ?? "desc"
   const toggleSort = useListSort<AnnouncementSortColumn>({ sort, direction })
-  const [editing, setEditing] = React.useState<Announcement | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [retireTargets, setRetireTargets] = React.useState<Announcement[]>([])
   const [retiring, setRetiring] = React.useState(false)
@@ -219,16 +226,14 @@ export function AdminAnnouncementsDashboard({
   )
   const openAnnouncement = React.useCallback(
     (announcement: Announcement) => {
-      setEditing(announcement)
       setOpenAnnouncement(announcement.id)
     },
     [setOpenAnnouncement]
   )
-
-  useOpenFromLink({ openId, records: announcements, onOpen: setEditing })
-  React.useEffect(() => {
-    if (!openId && !creating) setEditing(null)
-  }, [creating, openId])
+  const editing = React.useMemo(
+    () => announcements.find((announcement) => announcement.id === openId) ?? null,
+    [announcements, openId]
+  )
 
   // One reading of the clock, taken once. Every row's status and the sort then
   // agree with each other, and — because a fresh number on every render would
@@ -346,15 +351,7 @@ export function AdminAnnouncementsDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select announcements on this page"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="announcements" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -395,22 +392,22 @@ export function AdminAnnouncementsDashboard({
                   aria-label={`Select ${announcement.title}`}
                 />
               </TableCell>
-              <TableCell column="main">
+              <TableCell column="main" className="min-w-0 md:min-w-80">
                 <button
                   type="button"
-                  className="block text-left text-sm font-medium group-hover:underline"
+                  className="block max-w-28 truncate text-left text-sm font-medium group-hover:underline sm:max-w-none"
                   onClick={() => openAnnouncement(announcement)}
                 >
                   {announcement.title}
                 </button>
                 <span
-                  className="line-clamp-2 whitespace-normal text-xs text-muted-foreground"
+                  className="line-clamp-2 max-w-28 whitespace-normal text-xs text-muted-foreground sm:max-w-none"
                   title={announcement.body}
                 >
                   {announcement.body}
                 </span>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <div className="flex flex-wrap items-center gap-1">
                   {channelLabels(announcement).map((label) => (
                     <Badge key={label} variant="outline">
@@ -419,20 +416,19 @@ export function AdminAnnouncementsDashboard({
                   ))}
                 </div>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <Badge
                   variant={status === "showing" ? "secondary" : "outline"}
                 >
                   {statusLabels[status]}
                 </Badge>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <span className="block truncate" title={windowText(announcement)}>
                   {windowText(announcement)}
                 </span>
               </TableCell>
               <TableCell column="actions">
-                <div className="flex items-center">
                   <DisabledReason
                     disabled={status === "ended"}
                     reason="This announcement has already ended, so there is nothing to take down."
@@ -470,7 +466,6 @@ export function AdminAnnouncementsDashboard({
                   >
                     <Trash2Icon className="size-4" />
                   </Button>
-                </div>
               </TableCell>
             </TableRow>
           )
@@ -483,12 +478,10 @@ export function AdminAnnouncementsDashboard({
         announcement={editing}
         onClose={() => {
           setCreating(false)
-          setEditing(null)
           setOpenAnnouncement(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
-          setEditing(null)
           setOpenAnnouncement(undefined)
           await refresh()
         }}
@@ -517,13 +510,16 @@ export function AdminAnnouncementsDashboard({
         onConfirm={async () => {
           setRetiring(true)
           try {
-            await retireAdminAnnouncements(
-              retireTargets.map((announcement) => announcement.id)
-            )
+            const ids = retireTargets.map((announcement) => announcement.id)
+            const { count } = await retireAdminAnnouncements(ids)
             toast.success(
-              retireTargets.length === 1
-                ? "Announcement retired."
-                : "Announcements retired."
+              describeBulkResult({
+                done: count,
+                kept: ids.length - count,
+                one: "announcement",
+                many: "announcements",
+                verb: "retired",
+              })
             )
             selection.clear()
             setRetireTargets([])
@@ -560,13 +556,16 @@ export function AdminAnnouncementsDashboard({
         onConfirm={async () => {
           setDeleting(true)
           try {
-            await deleteAdminAnnouncements(
-              deleteTargets.map((announcement) => announcement.id)
-            )
+            const ids = deleteTargets.map((announcement) => announcement.id)
+            const { count } = await deleteAdminAnnouncements(ids)
             toast.success(
-              deleteTargets.length === 1
-                ? "Announcement deleted."
-                : "Announcements deleted."
+              describeBulkResult({
+                done: count,
+                kept: ids.length - count,
+                one: "announcement",
+                many: "announcements",
+                verb: "deleted",
+              })
             )
             selection.clear()
             setDeleteTargets([])
@@ -604,6 +603,9 @@ function AnnouncementDialog({
     announcement?.showBanner ?? true
   )
   const [notify, setNotify] = React.useState(announcement?.notify ?? false)
+  const [showToVisitors, setShowToVisitors] = React.useState(
+    announcement?.showBanner === true && announcement.audience === "everyone"
+  )
   const [startsOn, setStartsOn] = React.useState(
     toDateField(announcement?.startsAt ?? null)
   )
@@ -643,7 +645,16 @@ function AnnouncementDialog({
       return
     }
 
-    const input = { title, body, level, showBanner, notify, startsOn, endsOn }
+    const input = {
+      title,
+      body,
+      level,
+      audience: showBanner && showToVisitors ? ("everyone" as const) : ("app" as const),
+      showBanner,
+      notify,
+      startsOn,
+      endsOn,
+    }
 
     setSaving(true)
     try {
@@ -668,6 +679,7 @@ function AnnouncementDialog({
     notify,
     onSaved,
     showBanner,
+    showToVisitors,
     startsOn,
     title,
   ])
@@ -680,6 +692,7 @@ function AnnouncementDialog({
     level !== (announcement?.level ?? DEFAULT_ANNOUNCEMENT_LEVEL) ||
     showBanner !== (announcement?.showBanner ?? true) ||
     notify !== (announcement?.notify ?? false) ||
+    showToVisitors !== (announcement?.audience === "everyone") ||
     startsOn !== toDateField(announcement?.startsAt ?? null) ||
     endsOn !== toDateField(announcement?.endsAt ?? null)
 
@@ -803,7 +816,11 @@ function AnnouncementDialog({
                 <Checkbox
                   id="announcement-banner"
                   checked={showBanner}
-                  onCheckedChange={(value) => setShowBanner(value === true)}
+                  onCheckedChange={(value) => {
+                    const next = value === true
+                    setShowBanner(next)
+                    if (!next) setShowToVisitors(false)
+                  }}
                 />
                 <Label htmlFor="announcement-banner" className="font-normal">
                   Banner across the top of the app
@@ -818,6 +835,14 @@ function AnnouncementDialog({
                 <Label htmlFor="announcement-notify" className="font-normal">
                   Notice in the notification tray
                 </Label>
+              </div>
+              <div className={cn("flex items-center gap-2", !showBanner && "text-muted-foreground")}>
+                <DisabledReason disabled={!showBanner} reason="Turn on the banner before showing it to visitors.">
+                  <Checkbox id="announcement-visitors" checked={showToVisitors} disabled={!showBanner} onCheckedChange={(value) => setShowToVisitors(value === true)} />
+                </DisabledReason>
+                <FieldLabel htmlFor="announcement-visitors" className="font-normal" hint="Visitors do not have a notification tray, so they only ever see the banner.">
+                  Also show to visitors
+                </FieldLabel>
               </div>
             </CardContent>
           </Card>

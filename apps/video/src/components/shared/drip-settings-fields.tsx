@@ -1,4 +1,3 @@
-import * as React from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -6,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -84,6 +84,7 @@ export function DripSettingsFields({
               min={1}
               max={10_000}
               disabled={disabled}
+              className="sm:flex-1"
               onChange={(batchSizeMin) => set({ batchSizeMin })}
             />
             <NumberField
@@ -94,6 +95,7 @@ export function DripSettingsFields({
               min={1}
               max={10_000}
               disabled={disabled}
+              className="sm:flex-1"
               onChange={(batchSizeMax) => set({ batchSizeMax })}
             />
           </div>
@@ -107,6 +109,7 @@ export function DripSettingsFields({
               min={1}
               max={1440}
               disabled={disabled}
+              className="sm:flex-1"
               onChange={(waitMinMinutes) => set({ waitMinMinutes })}
             />
             <NumberField
@@ -117,6 +120,7 @@ export function DripSettingsFields({
               min={1}
               max={1440}
               disabled={disabled}
+              className="sm:flex-1"
               onChange={(waitMaxMinutes) => set({ waitMaxMinutes })}
             />
           </div>
@@ -280,74 +284,6 @@ export function DripSettingsFields({
       <p role="status" className="text-sm text-muted-foreground">
         {describeDripSchedule(value)}
       </p>
-    </div>
-  )
-}
-
-/**
- * A number field that can be empty while it is being typed in.
- *
- * A plain controlled number input cannot: clearing it reads as zero, the value
- * snaps to zero, and correcting it means selecting the zero first. So the text
- * being typed lives here, and only a number that parses is passed up. The
- * render-time sync keeps it honest when the value is changed from outside —
- * the same shape the send dialog uses to reset itself on open.
- */
-function NumberField({
-  id,
-  label,
-  hint,
-  value,
-  min,
-  max,
-  disabled,
-  onChange,
-}: {
-  id: string
-  label: string
-  hint?: string
-  value: number
-  min: number
-  max: number
-  disabled?: boolean
-  onChange: (value: number) => void
-}) {
-  const [draft, setDraft] = React.useState(String(value))
-  const [lastValue, setLastValue] = React.useState(value)
-  if (value !== lastValue) {
-    setLastValue(value)
-    setDraft(String(value))
-  }
-
-  return (
-    <div className="grid gap-2 sm:flex-1">
-      <FieldLabel htmlFor={id} hint={hint}>
-        {label}
-      </FieldLabel>
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        min={min}
-        max={max}
-        value={draft}
-        disabled={disabled}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          const parsed = Number(event.target.value)
-          if (
-            event.target.value.trim() &&
-            Number.isInteger(parsed) &&
-            parsed >= min &&
-            parsed <= max
-          ) {
-            onChange(parsed)
-          }
-        }}
-        // Half-typed or out-of-range text goes back to the last number that
-        // stuck, so the field is never left saying something that was not saved.
-        onBlur={() => setDraft(String(value))}
-      />
     </div>
   )
 }

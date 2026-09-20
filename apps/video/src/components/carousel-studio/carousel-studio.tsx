@@ -34,7 +34,7 @@ import {
 } from "lucide-react"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import {
   InspectorCard,
@@ -59,7 +59,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -100,7 +99,7 @@ import {
   type TextFontId,
 } from "@/lib/video/text-fonts"
 import { cn } from "@/lib/utils"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
@@ -318,6 +317,15 @@ export function CarouselBuilderPage({
   const saveQueueRef = React.useRef(Promise.resolve())
   const conflictRef = React.useRef(false)
   const [hasConflict, setHasConflict] = React.useState(false)
+
+  // Both failures live in the shared error toast. A conflict outranks a status
+  // failure, because it is the one that has stopped the saving.
+  useErrorToast(
+    hasConflict
+      ? "This carousel changed somewhere else, so this window has stopped saving. Reload to use the newer version."
+      : statusError,
+    hasConflict ? () => window.location.reload() : undefined
+  )
   const textSwatches = React.useMemo(
     () => Array.from(new Set([...brandColors, ...TEXT_SWATCHES])),
     [brandColors]
@@ -748,15 +756,6 @@ export function CarouselBuilderPage({
 
   return (
     <div className="studio-root carousel-studio flex min-h-0 flex-1 flex-col gap-[var(--shell-gutter,0.75rem)]">
-      {hasConflict ? (
-        <ErrorBanner
-          message="This carousel changed somewhere else, so this window has stopped saving. Reload to use the newer version."
-          onRetry={() => window.location.reload()}
-        />
-      ) : statusError ? (
-        <ErrorBanner message={statusError} />
-      ) : null}
-
       <div className="flex h-full min-h-0">{workspace}</div>
 
       <PreviewDialog
@@ -977,7 +976,7 @@ function CarouselContextPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<PanelIcon className="size-4" />}
         title={currentPanel.label}
         meta={panel === "slides" ? `${slides.length} slides` : undefined}
@@ -2513,7 +2512,7 @@ function CarouselInspector({
       data-screen-label="Inspector"
       className="flex h-full min-h-0 flex-col"
     >
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<SlidersHorizontalIcon className="size-4" />}
         title={selectedItem ? title : "Inspector"}
         meta={slide.title || "Untitled slide"}

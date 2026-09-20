@@ -85,7 +85,7 @@ export function AnnouncementBanners({
   )
 }
 
-function AnnouncementBanner({
+export function AnnouncementBanner({
   announcement,
   onDismiss,
 }: {

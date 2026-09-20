@@ -57,7 +57,7 @@ function DashboardToolbarSearch({
   const hasValue = props.value != null && String(props.value).length > 0
 
   return (
-    <div className={cn("relative flex-1 sm:flex-none", className)}>
+    <div className={cn("relative min-w-0 flex-1 sm:flex-none", className)}>
       <SearchIcon
         className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground sm:size-5"
         aria-hidden="true"

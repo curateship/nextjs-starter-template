@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { describeSubscriptionEvent } from "@/lib/billing/subscription-events"
 import {
+  closeAccounts,
   markAccountsForDeletion,
   purgeExpiredDeletions,
   restoreOwnAccount,
@@ -25,6 +26,7 @@ import {
 import {
   applyStripeEvent,
   cancelSubscriptionByAdmin,
+  cancelSubscriptionByMember,
   findExpiringCard,
   setSubscriptionPaused,
   trialDaysFor,
@@ -48,10 +50,12 @@ import {
   findPlanByStripePrice,
   getDefaultPlan,
   getPlanBySlug,
+  updatePlan,
   type PlanInput,
 } from "@/server/billing/plans"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { listSubscriptionEvents } from "@/server/billing/subscription-events"
+import { listScheduledCancellations } from "@/server/billing/cancellations"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
   consumeAuthToken,
@@ -66,9 +70,12 @@ import {
 } from "@/server/auth/security"
 import {
   customShellAuthTokens,
+  customShellCancellations,
+  customShellNotifications,
   customShellPlans,
   customShellSessions,
   customShellSubscriptions,
+  customShellSystemEmailSends,
   customShellUsers,
   type CustomShellPlan,
 } from "@/server/schema"
@@ -487,6 +494,65 @@ describe("plans", () => {
         database
       )
     ).rejects.toThrow("PLAN_STRIPE_PRICE_REQUIRED")
+  })
+
+  it("allows one highlighted plan at a time and names the one already highlighted", async () => {
+    const popular = await createPlan(
+      planInput({
+        slug: "popular",
+        name: "Popular",
+        highlightBadgeText: "Most popular",
+      }),
+      database
+    )
+
+    await expect(
+      createPlan(
+        planInput({
+          slug: "second",
+          name: "Second",
+          stripePriceIdMonthly: "price_second_monthly",
+          highlightBadgeText: "Recommended",
+        }),
+        database
+      )
+    ).rejects.toThrow("PLAN_HIGHLIGHT_ALREADY_SET:Popular")
+
+    const databaseGuard = await createPlan(
+      planInput({
+        slug: "database-guard",
+        stripePriceIdMonthly: "price_database_guard_monthly",
+      }),
+      database
+    )
+    await expect(
+      database
+        .update(customShellPlans)
+        .set({ highlightBadgeText: "Recommended" })
+        .where(eq(customShellPlans.id, databaseGuard.id))
+    ).rejects.toThrow()
+
+    await updatePlan(
+      popular.id,
+      planInput({
+        slug: "popular",
+        name: "Popular",
+        highlightBadgeText: null,
+      }),
+      database
+    )
+
+    await expect(
+      createPlan(
+        planInput({
+          slug: "second",
+          name: "Second",
+          stripePriceIdMonthly: "price_second_monthly",
+          highlightBadgeText: "Recommended",
+        }),
+        database
+      )
+    ).resolves.toMatchObject({ highlightBadgeText: "Recommended" })
   })
 
   it("finds a plan by its Stripe price and refuses to archive the default", async () => {
@@ -979,6 +1045,158 @@ describe("admin cancels subscriptions", () => {
     await expect(
       cancelSubscriptionByAdmin(user.id, "immediate", database, neverCallsStripe)
     ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+  })
+})
+
+describe("members cancel subscriptions", () => {
+  it("stops renewal, stores the optional answer, and shows it to admins", async () => {
+    const user = await createUser({ name: "Leaving Member" })
+    await seedStripeSubscription(user.id)
+
+    const result = await cancelSubscriptionByMember(
+      user.id,
+      {
+        reason: "too_expensive",
+        feedback: "I cannot justify it right now.",
+      },
+      database,
+      {
+        ...neverCallsStripe,
+        stopRenewal: async () => stripeAnswer(),
+      }
+    )
+
+    expect(result.endsAt).toBe(new Date("2027-01-01").toISOString())
+    const [answer] = await database
+      .select()
+      .from(customShellCancellations)
+      .where(eq(customShellCancellations.userId, user.id))
+    expect(answer.reason).toBe("too_expensive")
+    expect(answer.feedback).toBe("I cannot justify it right now.")
+
+    const leaving = await listScheduledCancellations(5, database)
+    expect(leaving).toEqual([
+      expect.objectContaining({
+        userId: user.id,
+        name: "Leaving Member",
+        planName: "Pro",
+        reason: "too_expensive",
+        feedback: "I cannot justify it right now.",
+        endsAt: new Date("2027-01-01").toISOString(),
+      }),
+    ])
+  })
+
+  it("cancels without an answer and records that it was skipped", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+
+    await cancelSubscriptionByMember(
+      user.id,
+      { reason: null, feedback: null },
+      database,
+      {
+        ...neverCallsStripe,
+        stopRenewal: async () => stripeAnswer(),
+      }
+    )
+
+    const [answer] = await database
+      .select()
+      .from(customShellCancellations)
+      .where(eq(customShellCancellations.userId, user.id))
+    expect(answer.reason).toBeNull()
+    expect(answer.feedback).toBeNull()
+  })
+
+  it("keeps the cancellation when the optional survey cannot be saved", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {})
+    const surveyFailureDatabase = new Proxy(database, {
+      get(target, property) {
+        if (property === "insert") {
+          return (table: unknown) => {
+            if (table === customShellCancellations) {
+              throw new Error("survey storage failed")
+            }
+            return target.insert(table as never)
+          }
+        }
+        const value = Reflect.get(target, property)
+        return typeof value === "function" ? value.bind(target) : value
+      },
+    }) as CustomShellDb
+
+    await expect(
+      cancelSubscriptionByMember(
+        user.id,
+        { reason: "other", feedback: "Optional answer" },
+        surveyFailureDatabase,
+        {
+          ...neverCallsStripe,
+          stopRenewal: async () => stripeAnswer(),
+        }
+      )
+    ).resolves.toEqual({
+      mode: "period_end",
+      endsAt: new Date("2027-01-01").toISOString(),
+    })
+
+    expect((await loadEntitlements(user.id, database)).entitlements.cancelAtPeriodEnd).toBe(true)
+    expect(reported).toHaveBeenCalledWith(
+      "Cancellation survey could not be recorded"
+    )
+    reported.mockRestore()
+  })
+
+  it("does not attach an old answer to a later cancellation", async () => {
+    const user = await createUser()
+    const subscription = await seedStripeSubscription(user.id, {
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: new Date("2027-02-01"),
+    })
+    const plan = await getPlanBySlug("pro", database)
+    await database.insert(customShellCancellations).values({
+      id: uuid(),
+      userId: user.id,
+      planId: plan!.id,
+      planName: plan!.name,
+      reason: "missing_features",
+      feedback: "From the earlier subscription.",
+      endsAt: new Date("2027-01-01"),
+      createdAt: subscription.createdAt,
+    })
+
+    const [leaving] = await listScheduledCancellations(5, database)
+    expect(leaving.reason).toBeNull()
+    expect(leaving.feedback).toBeNull()
+  })
+
+  it("refuses a granted plan and a second cancellation", async () => {
+    const grantedUser = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(grantedUser.id, plan!.id, null, database)
+
+    await expect(
+      cancelSubscriptionByMember(
+        grantedUser.id,
+        { reason: null, feedback: null },
+        database,
+        neverCallsStripe
+      )
+    ).rejects.toThrow("CANNOT_CANCEL_GRANT")
+
+    const endingUser = await createUser()
+    await seedStripeSubscription(endingUser.id, { cancelAtPeriodEnd: true })
+    await expect(
+      cancelSubscriptionByMember(
+        endingUser.id,
+        { reason: null, feedback: null },
+        database,
+        neverCallsStripe
+      )
+    ).rejects.toThrow("ALREADY_ENDING")
   })
 })
 
@@ -1653,6 +1871,39 @@ describe("admin account management", () => {
     }
   })
 
+  it("creates an account that can sign in at once when the admin sets the password", async () => {
+    const result = await createAccountByAdmin(
+      "handed@example.test",
+      "Handed Person",
+      "member",
+      database,
+      undefined,
+      "a good long password"
+    )
+    // Nothing was emailed, because there is no link left to send.
+    expect(result.delivered).toBe(false)
+
+    const [created] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, result.id))
+
+    expect(created.status).toBe("active")
+    // Sign in refuses an unverified address, so the admin's word stands in for
+    // the link that would otherwise have proved it.
+    expect(created.emailVerifiedAt).not.toBeNull()
+    const hash = created.passwordHash
+    expect(await verifyPassword(hash, "a good long password")).toBe(true)
+    expect(await verifyPassword(hash, "something else")).toBe(false)
+
+    // No set-password link exists for an account that already has one.
+    const tokens = await database
+      .select()
+      .from(customShellAuthTokens)
+      .where(eq(customShellAuthTokens.userId, created.id))
+    expect(tokens).toHaveLength(0)
+  })
+
   it("refuses to invite an email that already has an account", async () => {
     await createUser({ email: "taken@example.test" })
 
@@ -1745,6 +1996,50 @@ describe("admin account management", () => {
     expect(remaining.map((row) => row.id)).toEqual([actor.id])
   })
 
+  it("emails a free account when an admin closes it", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser({ email: "closed-free@example.test" })
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+
+    const sends = await database
+      .select()
+      .from(customShellSystemEmailSends)
+      .where(eq(customShellSystemEmailSends.toEmail, member.email))
+    expect(sends).toHaveLength(1)
+    expect(sends[0]).toMatchObject({
+      kind: "account-closed",
+      toEmail: "closed-free@example.test",
+      subject: "Your account has been closed",
+    })
+  })
+
+  it("emails an account that closes itself and leaves it self-restorable", async () => {
+    const member = await createUser({ email: "self-closed@example.test" })
+
+    await closeAccounts(member.id, [member.id], database)
+
+    const [closed] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+    expect(closed).toMatchObject({
+      status: "pending_deletion",
+      deletedBy: member.id,
+    })
+
+    const sends = await database
+      .select()
+      .from(customShellSystemEmailSends)
+      .where(eq(customShellSystemEmailSends.toEmail, member.email))
+    expect(sends).toHaveLength(1)
+    expect(sends[0].kind).toBe("account-closed")
+
+    await expect(restoreOwnAccount(closed, database)).resolves.toMatchObject({
+      status: "active",
+    })
+  })
+
   it("cancels a paying account's plan before it deletes anything", async () => {
     const actor = await createUser({ role: "admin" })
     const member = await createUser()
@@ -1764,6 +2059,19 @@ describe("admin account management", () => {
 
     const { entitlements } = await loadEntitlements(member.id, database)
     expect(entitlements.isPaid).toBe(false)
+
+    const sends = await database
+      .select()
+      .from(customShellSystemEmailSends)
+      .where(eq(customShellSystemEmailSends.toEmail, member.email))
+    expect(sends).toHaveLength(1)
+    expect(sends[0].kind).toBe("account-closed")
+    expect(
+      await database
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.recipientUserId, member.id))
+    ).toHaveLength(0)
   })
 
   it("deletes nothing when Stripe will not cancel the plan", async () => {

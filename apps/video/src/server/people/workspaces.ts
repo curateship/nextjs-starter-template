@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
+import { normalizeShareImage } from "@/lib/pages/public-metadata"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
@@ -7,6 +8,7 @@ import {
   normalizeStyling,
   type IconKey,
   type ShellChildItem,
+  type ShellEntry,
   type ShellItem,
   type ShellSection,
   type ShellStyling,
@@ -36,10 +38,26 @@ import {
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
 import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
+  cleanPublicNavigationLinks,
+  createDefaultPublicNavigation,
+  type PublicNavigationItem,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import {
+  normalizePublicBrandTheme,
+  type PublicBrandTheme,
+} from "@/lib/public-theme"
+import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
 } from "@/lib/workspaces/status"
 import { db, type CustomShellDb } from "@/server/db"
+import {
+  appWorkspaceCopyChoices,
+  copyAppWorkspace,
+} from "@/server/app-options"
 import {
   answerForRequest,
   dropWorkspaceCache,
@@ -47,6 +65,7 @@ import {
 } from "@/server/workspaces/host"
 import {
   customShellUsers,
+  customShellWrittenPages,
   customShellWorkspaces,
   type CustomShellWorkspace,
 } from "@/server/schema"
@@ -169,6 +188,31 @@ function aiUsageLink(): ShellItem {
     label: "AI usage",
     href: AI_USAGE_HREF,
     icon: "sparkles",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
+const METERED_USAGE_LINK_ID = "item-admin-metered-usage"
+const METERED_USAGE_HREF = "/admin/ai-usage"
+
+function meteredUsageChildLink(): ShellChildItem {
+  return {
+    id: METERED_USAGE_LINK_ID,
+    label: "Metered usage",
+    href: METERED_USAGE_HREF,
+    icon: "barChart3",
+    roles: ["admin"],
+  }
+}
+
+function meteredUsageLink(): ShellItem {
+  return {
+    type: "item",
+    id: METERED_USAGE_LINK_ID,
+    label: "Metered usage",
+    href: METERED_USAGE_HREF,
+    icon: "barChart3",
     visible: true,
     roles: ["admin"],
   }
@@ -388,11 +432,19 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 18
+export const NAVIGATION_VERSION = 19
 
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  logo: string
+  logoDark: string
+  shareImage: string
+  publicNavigation: PublicNavigationItem[]
+  publicFooter: PublicNavigationLink[]
+  publicFooterCopyright: string
+  /** The brand colour used by this site's signed-out pages. */
+  publicTheme: PublicBrandTheme
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   /** How far this workspace's saved sidebar has been brought forward. */
@@ -617,24 +669,14 @@ export async function readWorkspaceList(
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)
     ),
+    copyChoices: appWorkspaceCopyChoices().map(({ key, label }) => ({
+      key,
+      label,
+    })),
     baseDomain: workspaceBaseDomain(),
   }
 }
 
-/**
- * This person's workspaces.
- *
- * A workspace now survives the account that made it, which leaves rows nobody
- * owns — and they are deliberately **not** listed here yet. Everything that
- * reads this list is reachable by any signed-in member (`loadWorkspacesFn` is
- * `userGet`, the delete pair is `userPost`, and `/workspaces` has no admin
- * check), so including them would let a member see and delete a workspace that
- * is nobody's — taking its contacts, segments and broadcasts with it.
- *
- * Reaching an ownerless workspace belongs with the task that makes any admin
- * able to see any workspace, because that is where the admin check gets made.
- * Until then an orphan is kept and unreachable, which is the safe way round.
- */
 /**
  * An address nobody is using yet, derived from the workspace's name.
  *
@@ -834,6 +876,106 @@ export async function createUserWorkspace(
     dropWorkspaceCache()
     return setCurrentWorkspace(userId, workspace.id, tx)
   })
+}
+
+/**
+ * Starts a workspace from another reachable workspace's site setup.
+ *
+ * Settings, written pages and the app hook share one transaction. Anything
+ * failing leaves no workspace, page or app row behind. The source is only
+ * read, and the new workspace is always a draft.
+ */
+export async function copyUserWorkspace(
+  userId: string,
+  sourceWorkspaceId: string,
+  name: string,
+  settings: Partial<WorkspaceSettings> = {},
+  database: CustomShellDb = db,
+  address?: Partial<WorkspaceAddress>,
+  options: {
+    seesEveryWorkspace?: boolean
+    choices?: readonly string[]
+  } = {}
+) {
+  const trimmedName = name.trim()
+  if (!trimmedName) throw new Error("Workspace name is required")
+
+  const workspace = await database.transaction(async (tx) => {
+    const mayReach = reachable(userId, options.seesEveryWorkspace ?? false)
+    const [source] = await tx
+      .select()
+      .from(customShellWorkspaces)
+      .where(and(eq(customShellWorkspaces.id, sourceWorkspaceId), mayReach))
+      .limit(1)
+    if (!source) throw new Error("Workspace not found")
+
+    const createdAt = now()
+    const id = uuid()
+    const copiedSettings = cleanWorkspaceSettings({
+      ...parseWorkspaceSettings(source.settings),
+      ...settings,
+    })
+    const [created] = await tx
+      .insert(customShellWorkspaces)
+      .values({
+        id,
+        userId,
+        name: trimmedName.slice(0, 255),
+        ...(address?.subdomain
+          ? cleanAddress({
+              subdomain: address.subdomain,
+              customDomain: address.customDomain ?? "",
+              status: "draft",
+            })
+          : {
+              subdomain: await freeSubdomain(trimmedName, id, tx),
+              status: "draft" as const,
+            }),
+        settings: copiedSettings,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+      .catch((error) => {
+        throw describeAddressClash(error, {
+          subdomain: cleanSubdomain(address?.subdomain ?? ""),
+          customDomain: cleanCustomDomain(address?.customDomain ?? ""),
+          status: "draft",
+        })
+      })
+    if (!created) throw new Error("Workspace was not created")
+
+    const pages = await tx
+      .select()
+      .from(customShellWrittenPages)
+      .where(eq(customShellWrittenPages.workspaceId, sourceWorkspaceId))
+    if (pages.length) {
+      await tx.insert(customShellWrittenPages).values(
+        pages.map((page) => ({
+          id: uuid(),
+          workspaceId: created.id,
+          path: page.path,
+          title: page.title,
+          body: page.body,
+          createdAt,
+          updatedAt: createdAt,
+        }))
+      )
+    }
+
+    await copyAppWorkspace(
+      {
+        sourceWorkspaceId,
+        newWorkspaceId: created.id,
+        choices: options.choices ?? [],
+        database: tx,
+      }
+    )
+    return setCurrentWorkspace(userId, created.id, tx)
+  })
+
+  dropWorkspaceCache()
+  return workspace
 }
 
 export async function updateUserWorkspace(
@@ -1111,6 +1253,9 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 18) {
     sections = addAutomationTemplatesLink(sections)
+  }
+  if (settings.navVersion < 19) {
+    sections = addMeteredUsageLink(sections)
   }
 
   const [updated] = await database
@@ -1504,6 +1649,130 @@ export function addAiUsageLink(sections: ShellSection[]): ShellSection[] {
       0,
       aiUsageLink()
     )
+    return { ...section, entries }
+  })
+}
+
+/** Adds Metered usage to the group that supplies the shell's top-left menu. */
+export function addMeteredUsageLink(
+  sections: ShellSection[]
+): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isMeteredUsage = (link: {
+    id: string
+    label?: string
+    href?: string
+  }) => {
+    if (
+      link.id === METERED_USAGE_LINK_ID ||
+      link.href === METERED_USAGE_HREF
+    ) {
+      return true
+    }
+
+    if (link.label?.trim().toLowerCase() !== "metered usage" || !link.href) {
+      return false
+    }
+
+    try {
+      return new URL(link.href).pathname === METERED_USAGE_HREF
+    } catch {
+      return false
+    }
+  }
+
+  let savedChild:
+    | { sectionIndex: number; entryIndex: number; child: ShellChildItem }
+    | undefined
+  let savedTopLevel: ShellItem | undefined
+  let overview:
+    | { sectionIndex: number; entryIndex: number; item: ShellItem }
+    | undefined
+
+  sections.forEach((section, sectionIndex) => {
+    section.entries.forEach((entry, entryIndex) => {
+      if (!isShellItem(entry)) return
+
+      if (!savedTopLevel && isMeteredUsage(entry)) {
+        savedTopLevel = entry
+      }
+      if (
+        !overview &&
+        (entry.id === OVERVIEW_LINK_ID || entry.href === OVERVIEW_HREF)
+      ) {
+        overview = { sectionIndex, entryIndex, item: entry }
+      }
+      const child = entry.children?.find(isMeteredUsage)
+      if (!savedChild && child) {
+        savedChild = { sectionIndex, entryIndex, child }
+      }
+    })
+  })
+
+  // A saved copy elsewhere supplies its label and icon, but the Overview is
+  // still the destination whenever it exists because that group draws the
+  // top-left menu on admin pages.
+  const target = overview ?? savedChild
+  if (target) {
+    const child: ShellChildItem = savedChild
+      ? { ...savedChild.child, href: METERED_USAGE_HREF }
+      : savedTopLevel
+        ? {
+            id: savedTopLevel.id,
+            label: savedTopLevel.label,
+            href: METERED_USAGE_HREF,
+            icon: savedTopLevel.icon,
+            roles: savedTopLevel.roles,
+          }
+        : meteredUsageChildLink()
+
+    return sections.map((section, sectionIndex) => ({
+      ...section,
+      entries: section.entries.flatMap<ShellEntry>((entry, entryIndex) => {
+        if (isMeteredUsage(entry)) return []
+        if (!isShellItem(entry)) return [entry]
+
+        const children = (entry.children ?? []).filter(
+          (candidate) => !isMeteredUsage(candidate)
+        )
+        if (
+          sectionIndex !== target.sectionIndex ||
+          entryIndex !== target.entryIndex
+        ) {
+          return [
+            children.length === (entry.children ?? []).length
+              ? entry
+              : { ...entry, children },
+          ]
+        }
+
+        const plansAt = children.findIndex(
+          (candidate) =>
+            candidate.id === "item-admin-plans" ||
+            candidate.href === "/admin/plans"
+        )
+        const nextChildren = [...children]
+        nextChildren.splice(plansAt >= 0 ? plansAt + 1 : children.length, 0, child)
+        return [{ ...entry, children: nextChildren }]
+      }),
+    }))
+  }
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(isMeteredUsage)
+  )
+  if (alreadyThere) return sections
+
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  const index = Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const entries = [...section.entries]
+    entries.push(meteredUsageLink())
     return { ...section, entries }
   })
 }
@@ -1987,7 +2256,7 @@ function promoteChild(
     label: child.label,
     href: child.href,
     icon: child.icon ?? parent.icon,
-    visible: Boolean(parent.visible),
+    visible: Boolean(parent.visible && child.visible !== false),
     ...(child.roles ? { roles: child.roles } : {}),
   }
 }
@@ -2024,8 +2293,8 @@ export function removeAuditLinks(sections: ShellSection[]): ShellSection[] {
  * Takes the Revenue link out wherever it sits.
  *
  * Its page was folded into the Membership page directly above it — same tables,
- * same numbers — and `/admin/billing` now only redirects there. Two sidebar
- * links landing on one screen is worse than one, so the link goes.
+ * same numbers — and the old `/admin/billing` address is retired. A saved
+ * sidebar link to that address has to go with it.
  *
  * Matched by id or by address, and inside children as well as at the top level,
  * so a hand-rebuilt link is caught too. Runs once per workspace on the
@@ -2291,13 +2560,30 @@ export function serializeWorkspace(
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   const fallback = defaultWorkspaceSettings()
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    const settings = value as Partial<WorkspaceSettings>
+    const settings = value as Partial<WorkspaceSettings> & {
+      accentColor?: unknown
+    }
     return {
       icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
       favicon:
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      logo: normalizeShareImage(settings.logo),
+      logoDark: normalizeShareImage(settings.logoDark),
+      shareImage: normalizeShareImage(settings.shareImage),
+      publicNavigation:
+        settings.publicNavigation === undefined
+          ? fallback.publicNavigation
+          : cleanPublicNavigationItems(settings.publicNavigation),
+      publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+      publicFooterCopyright: cleanPublicFooterCopyright(
+        settings.publicFooterCopyright
+      ),
+      publicTheme: normalizePublicBrandTheme(
+        settings.publicTheme,
+        settings.accentColor
+      ),
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -2341,6 +2627,18 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    logo: normalizeShareImage(settings.logo),
+    logoDark: normalizeShareImage(settings.logoDark),
+    shareImage: normalizeShareImage(settings.shareImage),
+    publicNavigation:
+      settings.publicNavigation === undefined
+        ? fallback.publicNavigation
+        : cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicTheme: normalizePublicBrandTheme(settings.publicTheme),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -2425,6 +2723,13 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    logo: "",
+    logoDark: "",
+    shareImage: "",
+    publicNavigation: createDefaultPublicNavigation(),
+    publicFooter: [],
+    publicFooterCopyright: "",
+    publicTheme: normalizePublicBrandTheme(undefined),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     // The defaults above are already the current shape, so a new workspace has
@@ -2453,7 +2758,11 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         // order `foldMembershipIntoOverview` leaves them for a sidebar that
         // still had the Membership parent when it was last saved — so a new
         // workspace and an upgraded one read the same.
-        overviewLink([...feedsChildLinks(), ...membershipChildLinks()]),
+        overviewLink([
+          ...feedsChildLinks(),
+          ...membershipChildLinks(),
+          meteredUsageChildLink(),
+        ]),
         aiUsageLink(),
         trafficLink(),
         pagesLink(),

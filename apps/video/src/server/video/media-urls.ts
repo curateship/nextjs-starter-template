@@ -14,6 +14,9 @@ import { getPublicMediaUrl } from "@/server/media/storage"
  * by the dev server, so a copy served that way would never play while
  * developing. A rebuilt copy is written under a new name, so its address
  * changes with it and nothing can serve a stale one.
+ *
+ * Asking where the bucket is reads the saved storage settings, so this answers
+ * a promise.
  */
 
 export type VideoProxyState = {
@@ -21,8 +24,11 @@ export type VideoProxyState = {
   storagePath: string | null
 } | null
 
-export function videoPlaybackUrl(originalUrl: string, proxy: VideoProxyState) {
+export async function videoPlaybackUrl(
+  originalUrl: string,
+  proxy: VideoProxyState
+) {
   return proxy?.status === "ready" && proxy.storagePath
-    ? getPublicMediaUrl(proxy.storagePath)
+    ? await getPublicMediaUrl(proxy.storagePath)
     : originalUrl
 }

@@ -15,8 +15,8 @@ import { z } from "zod"
  * - **hand-picked** — the people themselves, in `contact_segment_members`, for
  *   the one-off list no rule describes.
  *
- * Conditions are a flat list and **all of them have to be true**. No "or", no
- * brackets. A builder with grouping is a query tool nobody can read back.
+ * Conditions are one flat list. The whole list can require every rule or any
+ * one rule, but there are no nested groups or brackets.
  */
 
 /** The four things a contact's status can be — the same list the table checks. */
@@ -37,8 +37,11 @@ export type SegmentKind = (typeof SEGMENT_KINDS)[number]
 export const MAX_SEGMENT_NAME_LENGTH = 120
 export const MAX_SEGMENT_DESCRIPTION_LENGTH = 500
 const MAX_TAG_LENGTH = 100
-/** Ten years. Long enough for any real "joined before" rule. */
-const MAX_JOINED_DAYS = 3650
+/**
+ * Ten years. Long enough for any real "joined before" or "not emailed in"
+ * rule, and short enough that a mistyped number is refused rather than saved.
+ */
+export const MAX_RULE_DAYS = 3650
 
 const segmentConditionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -59,7 +62,20 @@ const segmentConditionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("joined"),
     operator: z.enum(["within", "before"]),
-    days: z.number().int().min(1).max(MAX_JOINED_DAYS),
+    days: z.number().int().min(1).max(MAX_RULE_DAYS),
+  }),
+  /**
+   * When they were last sent something.
+   *
+   * `days` is carried even by "never", where it means nothing, so switching
+   * the operator back and forth does not lose the number somebody typed. The
+   * rule reads sends, not opens — a separate thing, and not to be merged with
+   * this one.
+   */
+  z.object({
+    type: z.literal("emailed"),
+    operator: z.enum(["within", "before", "never"]),
+    days: z.number().int().min(1).max(MAX_RULE_DAYS),
   }),
   z.object({
     type: z.literal("account"),
@@ -69,6 +85,10 @@ const segmentConditionSchema = z.discriminatedUnion("type", [
     type: z.literal("plan"),
     operator: z.enum(["is", "isnt"]),
     planSlug: z.string().trim().min(1).max(50),
+  }),
+  z.object({
+    type: z.literal("in"),
+    segmentIds: z.array(z.string().min(1).max(36)).min(1).max(25),
   }),
   z.object({
     type: z.literal("notIn"),
@@ -87,10 +107,16 @@ export type SegmentConditionType = SegmentCondition["type"]
 export const MAX_SEGMENT_CONDITIONS = 20
 
 export const segmentRulesSchema = z.object({
+  match: z.enum(["all", "any"]).optional(),
   conditions: z.array(segmentConditionSchema).max(MAX_SEGMENT_CONDITIONS),
 })
 
 export type SegmentRules = z.infer<typeof segmentRulesSchema>
+
+/** Old rows have no mode field and keep their original all-rules meaning. */
+export function segmentRulesMatch(rules: SegmentRules): "all" | "any" {
+  return rules.match ?? "all"
+}
 
 /**
  * The rules of a segment whose saved conditions could not be read at all.
@@ -181,8 +207,10 @@ export const segmentConditionLabels: Record<SegmentConditionType, string> = {
   status: "Status",
   source: "Where they came from",
   joined: "When they joined",
+  emailed: "When they were last emailed",
   account: "Has an account",
   plan: "Plan",
+  in: "In another segment",
   notIn: "Not in another segment",
 }
 
@@ -207,10 +235,16 @@ export function newSegmentCondition(
       return { type: "source", operator: "is", source: "" }
     case "joined":
       return { type: "joined", operator: "within", days: 30 }
+    case "emailed":
+      // Ninety days, because the rule this exists for is the re-engagement
+      // one — "we have not talked to these people in three months".
+      return { type: "emailed", operator: "before", days: 90 }
     case "account":
       return { type: "account", operator: "has" }
     case "plan":
       return { type: "plan", operator: "is", planSlug: "" }
+    case "in":
+      return { type: "in", segmentIds: [] }
     case "notIn":
       return { type: "notIn", segmentIds: [] }
   }
@@ -252,6 +286,11 @@ export function describeSegmentCondition(
       return condition.operator === "within"
         ? `joined in the last ${condition.days} days`
         : `joined more than ${condition.days} days ago`
+    case "emailed":
+      if (condition.operator === "never") return "never emailed"
+      return condition.operator === "within"
+        ? `emailed in the last ${condition.days} days`
+        : `not emailed in the last ${condition.days} days`
     case "account":
       return condition.operator === "has"
         ? "has an account"
@@ -260,6 +299,10 @@ export function describeSegmentCondition(
       return condition.operator === "is"
         ? `on the ${condition.planSlug} plan`
         : `not on the ${condition.planSlug} plan`
+    case "in":
+      return `in ${condition.segmentIds
+        .map((id) => segmentNames[id] ?? "a deleted segment")
+        .join(" or ")}`
     case "notIn":
       return `not in ${condition.segmentIds
         .map((id) => segmentNames[id] ?? "a deleted segment")
@@ -275,18 +318,21 @@ export function describeSegmentRules(
   // No rules is not "nobody" — it is every contact in the workspace, opted-out
   // people included. Saying so out loud is the point.
   if (rules.conditions.length === 0) return "Every contact, with no rules"
-  return rules.conditions
+  const description = rules.conditions
     .map((condition) => describeSegmentCondition(condition, segmentNames))
-    .join(", and ")
+    .join(segmentRulesMatch(rules) === "any" ? ", or " : ", and ")
+  return segmentRulesMatch(rules) === "any"
+    ? `Any of: ${description}`
+    : description
 }
 
 /**
  * Whether a condition is finished enough to save.
  *
- * The builder starts a tag, source, plan or "not in" row empty, and an empty
- * one would either match nobody or — worse — quietly drop out and widen the
- * segment. Saying so before the save is the only place this can be caught while
- * the words are still on screen.
+ * The builder starts a tag, source, plan or segment-reference row empty, and
+ * an empty one would either match nobody or — worse — quietly drop out and
+ * widen the segment. Saying so before the save is the only place this can be
+ * caught while the words are still on screen.
  */
 export function segmentConditionIsComplete(condition: SegmentCondition) {
   switch (condition.type) {
@@ -296,6 +342,7 @@ export function segmentConditionIsComplete(condition: SegmentCondition) {
       return condition.source.trim().length > 0
     case "plan":
       return condition.planSlug.trim().length > 0
+    case "in":
     case "notIn":
       return condition.segmentIds.length > 0
     default:
@@ -303,11 +350,24 @@ export function segmentConditionIsComplete(condition: SegmentCondition) {
   }
 }
 
+/**
+ * Whether a draft reaches enough of the whole list to deserve a gentle nudge.
+ *
+ * Four in five matches the existing automation-audience warning. Nobody is
+ * not nearly everyone, and neither is any share of an empty contact list.
+ */
+export function segmentCountIsNearlyEveryone(
+  matching: number,
+  everyone: number
+): boolean {
+  return everyone > 0 && matching > 0 && matching >= everyone * 0.8
+}
+
 /** Every segment a set of rules points at, so a loop can be looked for. */
 export function segmentReferences(rules: SegmentRules): string[] {
   const ids = new Set<string>()
   for (const condition of rules.conditions) {
-    if (condition.type === "notIn") {
+    if (condition.type === "in" || condition.type === "notIn") {
       condition.segmentIds.forEach((id) => ids.add(id))
     }
   }

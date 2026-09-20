@@ -129,17 +129,17 @@ export async function listVideoMedia({
     videoStateByMedia(videoMediaFilmstrips, mediaIds, database),
   ])
 
-  const media = rows.map((row) => {
-    const base = serializeMedia(row)
+  const media = await Promise.all(rows.map(async (row) => {
+    const base = await serializeMedia(row)
     const proxy = proxies.get(row.id)
     return {
       ...base,
-      playback_url: videoPlaybackUrl(base.url, proxy ?? null),
+      playback_url: await videoPlaybackUrl(base.url, proxy ?? null),
       proxy_status: proxy?.status ?? null,
       filmstrip_status: filmstrips.get(row.id)?.status ?? null,
       collection_ids: collections.get(row.id) ?? [],
     }
-  })
+  }))
 
   const total = totals?.total ?? 0
   return {

@@ -114,6 +114,21 @@ export async function listWrittenPages(
   return rows.map(toWrittenPage)
 }
 
+/** The two columns the sitemap needs, without loading every page's body. */
+export async function listWrittenPageSitemapEntries(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<Array<{ path: string; updatedAt: Date }>> {
+  return database
+    .select({
+      path: customShellWrittenPages.path,
+      updatedAt: customShellWrittenPages.updatedAt,
+    })
+    .from(customShellWrittenPages)
+    .where(eq(customShellWrittenPages.workspaceId, workspaceId))
+    .orderBy(asc(customShellWrittenPages.path))
+}
+
 /**
  * One page by address on one site, or null — what the public route asks.
  *

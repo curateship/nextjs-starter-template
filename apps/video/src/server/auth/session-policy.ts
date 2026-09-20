@@ -7,7 +7,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
 import { now } from "@/server/auth/security"
-import { parseShellGlobals } from "@/server/shell-settings"
+import { shellGlobalsForWrite } from "@/server/shell-settings"
 
 /**
  * How long a sign-in may last, app-wide (Settings → Security).
@@ -38,7 +38,10 @@ export async function setSessionPolicy(
       .limit(1)
       .for("update")
 
-    const settings = { ...parseShellGlobals(existing?.settings), sessionPolicy }
+    const settings = {
+      ...shellGlobalsForWrite(existing?.settings),
+      sessionPolicy,
+    }
     const timestamp = now()
 
     if (existing) {

@@ -1,8 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
+import {
+  describeAdminEmailDeliveryError,
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
 
-import { loadAccountDetail, type AccountDetail } from "@/server/people/account-detail"
+import {
+  loadAccountDetail,
+  type AccountDetail,
+} from "@/server/people/account-detail"
 import {
   createAccountByAdmin,
   deleteUserAccount,
@@ -20,16 +28,18 @@ import {
   type CancelSubscriptionMode,
 } from "@/server/billing/stripe"
 import { listPlans } from "@/server/billing/plans"
+import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
+import { MEMBER_TAG_LIMIT, MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
+import { replaceMemberTags } from "@/server/people/member-tags"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { db } from "@/server/db"
+import { getAuthLinkContext } from "@/server/auth/link-expiry"
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
-export type {
-  AccountDetail,
-  AccountRow,
-  CancelSubscriptionMode,
-}
+export type { AccountDetail, AccountRow, CancelSubscriptionMode }
 
 /** Plans an admin can hand out by hand, as the account modal lists them. */
 export type AssignablePlan = { id: string; name: string; slug: string }
@@ -38,7 +48,14 @@ const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   role: z.enum(["all", "admin", "member"]).default("all"),
   status: z
-    .enum(["all", "active", "suspended", "pending_deletion", "locked_out"])
+    .enum([
+      "all",
+      "active",
+      "unverified",
+      "suspended",
+      "pending_deletion",
+      "locked_out",
+    ])
     .default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
@@ -50,13 +67,15 @@ const listQuerySchema = z.object({
 
 export type AccountListQueryInput = z.input<typeof listQuerySchema>
 
-export const getAdminUserErrorMessage = createErrorMessage(
+const getBaseAdminUserErrorMessage = createErrorMessage(
   {
     USER_NOT_FOUND: "That account no longer exists.",
     ACCOUNT_EXISTS: "An account already exists for this email.",
     EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
-    EMAIL_DELIVERY_FAILED:
-      "We could not send the set-password email, so the account was not created. Please try again.",
+    [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+      "The set-password email could not be sent, so the account was not created. Email delivery needs attention.",
+    [EMAIL_DELIVERY_RETRYABLE]:
+      "The set-password email could not be sent, so the account was not created. Please try again shortly.",
     LAST_ADMIN: "You cannot remove the last admin.",
     CANNOT_DELETE_SELF: "You cannot delete your own account here.",
     PLAN_NOT_FOUND: "That plan no longer exists.",
@@ -78,9 +97,20 @@ export const getAdminUserErrorMessage = createErrorMessage(
       "That account is scheduled for deletion. Restore it first.",
     RESTORE_WINDOW_PASSED:
       "That account was deleted too long ago to bring back.",
+    MEMBER_TAG_LIMIT: `An account can have up to ${MEMBER_TAG_LIMIT} tags.`,
+    MEMBER_TAG_TOO_LONG: `Keep each tag to ${MEMBER_TAG_MAX_LENGTH} characters or fewer.`,
+    PASSWORD_BREACHED:
+      "That password has shown up in a known data breach. Please pick a different one.",
   },
   "We could not update that account. Please try again."
 )
+
+export function getAdminUserErrorMessage(error: unknown) {
+  return (
+    describeAdminEmailDeliveryError(error, "The account was not created.") ??
+    getBaseAdminUserErrorMessage(error)
+  )
+}
 
 const listAccountsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -140,10 +170,25 @@ const createAccountFn = createServerFn({ method: "POST" })
       email: z.string().trim().toLowerCase().min(3).max(255).email(),
       name: z.string().trim().min(1).max(255),
       role: z.enum(["admin", "member"]),
+      // Absent when the admin leaves the field empty, which is the emailed
+      // set-password link the shell has always sent. The rules match the ones
+      // the sign-up and reset forms enforce.
+      password: z.string().min(8).max(128).optional(),
     })
   )
-  .handler(async ({ data }) => {
-    return createAccountByAdmin(data.email, data.name, data.role)
+  .handler(async ({ data, context }) => {
+    if (data.password) {
+      await enforcePasswordNotBreached(data.password)
+    }
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    return createAccountByAdmin(
+      data.email,
+      data.name,
+      data.role,
+      db,
+      await getAuthLinkContext(db, workspaceId),
+      data.password
+    )
   })
 
 const updateRoleFn = createServerFn({ method: "POST" })
@@ -168,6 +213,20 @@ const updateStatusFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     return setUserStatus(data.userId, data.status)
+  })
+
+const updateMemberTagsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      userId: z.string().min(1).max(36),
+      tags: z
+        .array(z.string().max(MEMBER_TAG_MAX_LENGTH))
+        .max(MEMBER_TAG_LIMIT),
+    })
+  )
+  .handler(async ({ data }) => {
+    return replaceMemberTags(data.userId, data.tags)
   })
 
 const grantPlanFn = createServerFn({ method: "POST" })
@@ -254,9 +313,10 @@ export function listAdminAccounts(query: AccountListQueryInput) {
 export function createAccountAsAdmin(
   email: string,
   name: string,
-  role: "admin" | "member"
+  role: "admin" | "member",
+  password?: string
 ) {
-  return createAccountFn({ data: { email, name, role } })
+  return createAccountFn({ data: { email, name, role, password } })
 }
 
 export function updateAccountRole(userId: string, role: "admin" | "member") {
@@ -268,6 +328,10 @@ export function updateAccountStatus(
   status: "active" | "suspended"
 ) {
   return updateStatusFn({ data: { userId, status } })
+}
+
+export function updateAccountMemberTags(userId: string, tags: string[]) {
+  return updateMemberTagsFn({ data: { userId, tags } })
 }
 
 export function grantAccountPlan(

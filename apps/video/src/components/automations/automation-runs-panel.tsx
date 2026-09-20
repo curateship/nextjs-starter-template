@@ -14,12 +14,14 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
+import { ErrorRow } from "@/components/ui/error-row"
+import { InlineError } from "@/components/ui/inline-error"
 import { EmptyRow } from "@/components/shared/feed-card"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -32,11 +34,14 @@ import {
   listWaitingRuns,
   type AutomationRunDetailItem,
   type AutomationRunItem,
+  type AutomationRunStepItem,
   type AutomationRunsPanelData,
 } from "@/lib/api/automations/automation-runs"
+import { automationNodeRunResult } from "@/lib/automations/node-registry"
 import {
   automationRunStatusLabel,
   automationRunStepStatusLabels,
+  finalAutomationRunStatuses,
 } from "@/lib/automations/run"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
@@ -44,6 +49,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
+import { AutomationDeliveryHistory } from "@/components/automations/automation-delivery-history"
 
 type PanelTab = "runs" | "waiting"
 
@@ -60,15 +66,24 @@ export function AutomationRunsPanel({
   automationId,
   initial,
   openRunId,
+  active = true,
 }: {
   automationId: string
   initial: AutomationRunsPanelData
   /** The run a link asked for, opened once when the panel mounts. */
   openRunId?: string
+  /** False while the panel is dragged shut but deliberately stays mounted. */
+  active?: boolean
 }) {
   const [tab, setTab] = React.useState<PanelTab>(
     // A link to a run of another flow belongs in Waiting, where it actually is.
-    openRunId && !initial.runs.some((run) => run.id === openRunId)
+    //
+    // Judged by whether the run IS in the waiting list, not by whether it is
+    // missing from this flow's first page. Pressing Run opens the panel at the
+    // brand-new run, and a run created a moment ago is in neither list yet —
+    // so "not in Runs" sent every single Run press to Waiting on you, which is
+    // the one tab it certainly is not in.
+    openRunId && initial.waiting.some((run) => run.id === openRunId)
       ? "waiting"
       : "runs"
   )
@@ -77,13 +92,15 @@ export function AutomationRunsPanel({
   const [waiting, setWaiting] = React.useState(initial.waiting)
   const [waitingTotal, setWaitingTotal] = React.useState(initial.waiting_total)
   const [expandedId, setExpandedId] = React.useState<string | null>(
-    openRunId ?? null
+    // The newest run open on arrival, unless a link asked for another. The
+    // panel exists to answer "what did that just do", and the answer is almost
+    // always the run at the top.
+    openRunId ?? initial.runs[0]?.id ?? null
   )
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = React.useState<AutomationRunItem | null>(
-    null
-  )
+  const [deleteTarget, setDeleteTarget] =
+    React.useState<AutomationRunItem | null>(null)
   const [runDelete, deleting] = useAsyncAction(getAutomationRunErrorMessage)
 
   const refresh = React.useCallback(async () => {
@@ -101,6 +118,26 @@ export function AutomationRunsPanel({
       setError(getAutomationRunErrorMessage(refreshError))
     }
   }, [automationId])
+
+  // A run the address asks for that the list has never heard of.
+  //
+  // Pressing Run adds `?run=<id>` without the route's loader running again, so
+  // the panel is still holding the list from before the run existed — it opened
+  // on a run it could not draw, and showed nothing at all. One read puts the
+  // new run at the top where it belongs.
+  //
+  // Once per run id, and no more. A read always hands back a fresh list, so
+  // "still not there, read again" is a loop that never ends — and a link to a
+  // run of another flow is never in this flow's list, so it would hammer the
+  // server for as long as the page stayed open.
+  const chased = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!openRunId) return
+    if (runs.some((run) => run.id === openRunId)) return
+    if (chased.current === openRunId) return
+    chased.current = openRunId
+    void refresh()
+  }, [openRunId, runs, refresh])
 
   async function loadMore() {
     if (loadingMore) return
@@ -133,28 +170,28 @@ export function AutomationRunsPanel({
         onValueChange={(value) => setTab(value as PanelTab)}
         className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
       >
-        <WorkspacePanelTabsHeader>
-          <WorkspacePanelTab
+        <DashboardCardTabsHeader>
+          <DashboardCardTab
             value="runs"
             icon={<HistoryIcon className="size-4" />}
             label="Runs"
             count={total}
           />
-          <WorkspacePanelTab
+          <DashboardCardTab
             value="waiting"
             icon={<UserCheckIcon className="size-4" />}
             label="Waiting on you"
             count={waitingTotal}
           />
-        </WorkspacePanelTabsHeader>
+        </DashboardCardTabsHeader>
 
         <TabsContent value="runs" className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="grid gap-2 p-4 sm:p-5">
+            <div className="grid gap-2 p-3">
               {error ? (
-                <ErrorBanner message={error} onRetry={() => void refresh()} />
+                <ErrorRow message={error} onRetry={() => void refresh()} />
               ) : null}
-              {runs.length === 0 ? (
+              {!error && runs.length === 0 ? (
                 <EmptyRow>
                   This flow has not run yet. Press Run above the canvas to try
                   it.
@@ -165,6 +202,7 @@ export function AutomationRunsPanel({
                     key={run.id}
                     run={run}
                     expanded={expandedId === run.id}
+                    panelActive={active}
                     onToggle={() =>
                       setExpandedId((current) =>
                         current === run.id ? null : run.id
@@ -176,19 +214,11 @@ export function AutomationRunsPanel({
                 ))
               )}
               {runs.length < total ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
+                <LoadMoreButton
                   className="justify-self-start"
-                  disabled={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
-                >
-                  {loadingMore ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : null}
-                  Load more ({total - runs.length} older)
-                </Button>
+                />
               ) : null}
             </div>
           </ScrollArea>
@@ -196,11 +226,11 @@ export function AutomationRunsPanel({
 
         <TabsContent value="waiting" className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="grid gap-2 p-4 sm:p-5">
+            <div className="grid gap-2 p-3">
               {error ? (
-                <ErrorBanner message={error} onRetry={() => void refresh()} />
+                <ErrorRow message={error} onRetry={() => void refresh()} />
               ) : null}
-              {waiting.length === 0 ? (
+              {!error && waiting.length === 0 ? (
                 <EmptyRow>
                   Nothing is waiting on you. Runs that stop at an approval
                   checkpoint appear here, from every flow you own.
@@ -213,6 +243,7 @@ export function AutomationRunsPanel({
                     // Across flows, so each row says which flow it belongs to.
                     showFlow
                     expanded={expandedId === run.id}
+                    panelActive={active}
                     onToggle={() =>
                       setExpandedId((current) =>
                         current === run.id ? null : run.id
@@ -248,6 +279,9 @@ export function AutomationRunsPanel({
   )
 }
 
+/** How often an unfinished run is re-read while it is open. */
+const STILL_GOING_MS = 3_000
+
 /**
  * One run: a line you can click open. Shut, it is the status and when. Open, it
  * loads its own steps — and, when it is waiting on somebody, the sentence the
@@ -257,6 +291,7 @@ function RunRow({
   run,
   showFlow,
   expanded,
+  panelActive,
   onToggle,
   onChanged,
   onDelete,
@@ -264,6 +299,7 @@ function RunRow({
   run: AutomationRunItem
   showFlow?: boolean
   expanded: boolean
+  panelActive: boolean
   onToggle: () => void
   onChanged: () => void
   /** Absent in the Waiting tab: a run still waiting cannot be deleted. */
@@ -276,19 +312,57 @@ function RunRow({
   const [deciding, setDeciding] = React.useState(false)
 
   const load = React.useCallback(async () => {
-    setDetailError(null)
     try {
       setDetail(await getAutomationRun(run.id))
+      setDetailError(null)
     } catch (error) {
       setDetail(null)
       setDetailError(getAutomationRunErrorMessage(error))
     }
   }, [run.id])
 
+  /**
+   * The run as freshly as this row knows it.
+   *
+   * Open, the row re-reads itself every few seconds and the list behind it does
+   * not, so the row's own reading is the newer one — a run that finishes while
+   * it is open still reads "Running" in the list, so the badge said the wrong
+   * thing and the poll below, judged on that, never stopped.
+   *
+   * Shut, the row stops reading and its last answer freezes, so the list is the
+   * newer one again.
+   */
+  const current = expanded && detail ? detail : run
+
   React.useEffect(() => {
-    if (!expanded) return
-    void load()
-  }, [expanded, load])
+    if (!expanded || !panelActive) return
+    let active = true
+    void getAutomationRun(run.id)
+      .then((next) => {
+        if (!active) return
+        setDetail(next)
+        setDetailError(null)
+      })
+      .catch((error) => {
+        if (!active) return
+        setDetail(null)
+        setDetailError(getAutomationRunErrorMessage(error))
+      })
+    return () => {
+      active = false
+    }
+  }, [expanded, panelActive, run.id])
+
+  // A run that has not finished is still growing steps. Read once and it stays
+  // as it was the instant it was opened — press Run and the row opens on a run
+  // with no steps at all, then never draws the ones that arrive a second later.
+  // A finished run never changes again, so this stops.
+  React.useEffect(() => {
+    if (!expanded || !panelActive) return
+    if (finalAutomationRunStatuses.has(current.status)) return
+    const timer = window.setInterval(() => void load(), STILL_GOING_MS)
+    return () => window.clearInterval(timer)
+  }, [expanded, load, current.status, panelActive])
 
   async function decide(decision: "approved" | "rejected") {
     if (deciding) return
@@ -314,12 +388,13 @@ function RunRow({
     }
   }
 
-  const waiting = run.status === "waiting_approval"
-  const finished = !waiting && run.status !== "active"
+  const waiting = current.status === "waiting_approval"
+  const finished = !waiting && current.status !== "active"
+  const latestDeliveryStepIds = latestSendEmailStepIds(detail?.steps ?? [])
 
   return (
-    <div className="rounded-lg border border-foreground/10 bg-muted/20">
-      <div className="flex items-center gap-2 pr-2">
+    <div className="min-w-0 rounded-lg border bg-muted/20">
+      <div className="flex min-w-0 items-center gap-2 pr-2">
         <button
           type="button"
           aria-expanded={expanded}
@@ -335,16 +410,31 @@ function RunRow({
               !expanded && "-rotate-90"
             )}
           />
+          {current.is_test ? (
+            <Badge variant="outline" className="shrink-0">
+              TEST
+            </Badge>
+          ) : null}
           <Badge
             variant={
-              waiting ? "default" : run.status === "failed" ? "destructive" : "secondary"
+              waiting
+                ? "default"
+                : current.status === "failed"
+                  ? "destructive"
+                  : "secondary"
             }
             className="shrink-0"
           >
-            {automationRunStatusLabel(run.status, run.approval_decision)}
+            {automationRunStatusLabel(
+              current.status,
+              current.approval_decision
+            )}
           </Badge>
           {showFlow ? (
-            <span className="min-w-0 truncate text-xs font-medium" title={run.automation_name}>
+            <span
+              className="min-w-0 truncate text-xs font-medium"
+              title={run.automation_name}
+            >
               {run.automation_name}
             </span>
           ) : null}
@@ -383,9 +473,9 @@ function RunRow({
       </div>
 
       {expanded ? (
-        <div className="grid gap-3 border-t border-foreground/10 p-3">
+        <div className="grid min-w-0 gap-3 border-t p-3">
           {detailError ? (
-            <ErrorBanner message={detailError} onRetry={() => void load()} />
+            <ErrorRow message={detailError} onRetry={() => void load()} />
           ) : !detail ? (
             <LoadingRow label="Loading…" />
           ) : (
@@ -409,7 +499,13 @@ function RunRow({
                 </Link>
               ) : null}
 
-              {detail.trigger_name ? (
+              {detail.is_test && detail.subject_label ? (
+                <p className="text-xs text-muted-foreground">
+                  Tested as {detail.subject_label}. Emails were redirected to
+                  the admin who started the test, and outside changes were
+                  skipped.
+                </p>
+              ) : detail.trigger_name ? (
                 <p className="text-xs text-muted-foreground">
                   Started by {detail.trigger_name}
                   {detail.subject_label ? `, for ${detail.subject_label}` : ""}.
@@ -421,14 +517,16 @@ function RunRow({
                   The first step has not finished yet.
                 </p>
               ) : (
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   {detail.steps.map((step) => (
-                    <div key={step.id} className="grid gap-0.5 text-xs">
+                    <div key={step.id} className="grid min-w-0 gap-0.5 text-xs">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{step.step_name}</span>
                         <Badge
                           variant={
-                            step.status === "completed" ? "secondary" : "destructive"
+                            step.status === "completed"
+                              ? "secondary"
+                              : "destructive"
                           }
                         >
                           {automationRunStepStatusLabels[step.status]}
@@ -442,15 +540,26 @@ function RunRow({
                       </div>
                       <p className="text-muted-foreground">{step.summary}</p>
                       {step.error ? (
-                        <p className="text-destructive">{step.error}</p>
+                        <InlineError>{step.error}</InlineError>
                       ) : null}
+                      {latestDeliveryStepIds.has(step.id) ? (
+                        <AutomationDeliveryHistory
+                          runId={detail.id}
+                          nodeId={step.node_id}
+                          polling={
+                            panelActive &&
+                            !finalAutomationRunStatuses.has(detail.status)
+                          }
+                        />
+                      ) : null}
+                      <StepRunResult runId={detail.id} step={step} />
                     </div>
                   ))}
                 </div>
               )}
 
               {detail.status === "failed" && detail.error ? (
-                <p className="text-xs text-destructive">{detail.error}</p>
+                <InlineError>{detail.error}</InlineError>
               ) : null}
               {detail.approval_decided_at ? (
                 <p className="text-xs text-muted-foreground">
@@ -463,6 +572,41 @@ function RunRow({
           )}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** A retried Send Email step shares one delivery set across every attempt. */
+function latestSendEmailStepIds(steps: AutomationRunStepItem[]): Set<string> {
+  const latestByNode = new Map<string, string>()
+  for (const step of steps) {
+    if (step.kind === "sendEmail") latestByNode.set(step.node_id, step.id)
+  }
+  return new Set(latestByNode.values())
+}
+
+/** The node's own result UI, kept inside the shell's status and error frame. */
+function StepRunResult({
+  runId,
+  step,
+}: {
+  runId: string
+  step: AutomationRunStepItem
+}) {
+  if (step.output === null) return null
+  const result = automationNodeRunResult(step.kind)
+  if (!result) return null
+
+  return (
+    <div className="pt-2">
+      <React.Suspense fallback={null}>
+        {React.createElement(result, {
+          runId,
+          stepId: step.id,
+          nodeId: step.node_id,
+          output: step.output,
+        })}
+      </React.Suspense>
     </div>
   )
 }
@@ -482,7 +626,7 @@ function ApprovalBlock({
   onDecide: (decision: "approved" | "rejected") => void
 }) {
   return (
-    <div className="grid gap-2 rounded-lg border border-foreground/10 bg-background p-3">
+    <div className="grid gap-2 rounded-lg border bg-background p-3">
       <p className="text-xs">
         <span className="font-medium">If you approve: </span>
         {detail.approval_summary?.trim() ||

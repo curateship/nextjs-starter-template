@@ -9,7 +9,7 @@ import {
   SwitchField,
 } from "@/components/broadcasts/inspector-fields"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -81,7 +81,7 @@ export function StudioInspector() {
 
   return (
     <div data-screen-label="Inspector" className="flex h-full min-h-0 flex-col">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<SlidersHorizontal className="size-4" />}
         title={clip ? CLIP_KIND_LABEL[clip.kind] : "Inspector"}
         meta={clip ? clip.name : undefined}

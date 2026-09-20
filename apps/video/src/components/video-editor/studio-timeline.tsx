@@ -56,7 +56,7 @@ import {
   type ScrollMetrics,
   type TimelineWindow,
 } from "@/lib/video/timeline-virtualization"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   useEditorDurationMs,
   useEditorRuntime,
@@ -1380,7 +1380,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
   }
 
   return (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={<LayersIcon className="size-4" />}
       title="Timeline"
       action={
