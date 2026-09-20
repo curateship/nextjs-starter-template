@@ -286,7 +286,15 @@ export function StudioTimeline() {
       >
         <div
           ref={innerRef}
-          style={{ position: "relative", minWidth: "100%", width: contentWidth }}
+          // Full height of the scroll box even when the lanes do not fill it,
+          // so the playhead and the snapping guide run to the bottom edge of
+          // the panel instead of stopping under the last lane.
+          style={{
+            position: "relative",
+            minWidth: "100%",
+            width: contentWidth,
+            minHeight: "100%",
+          }}
         >
           <div
             style={{

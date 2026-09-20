@@ -6,8 +6,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
-Nothing yet. The AI tools, the credit ledger and the export and render path were
-built before this folder existed, and none of them is written up.
+- [editor-chrome.md](editor-chrome.md) — which lines around the editor come from
+  the shell, which ones the editor draws itself, and why it never hides a shell
+  one.
+
+The AI tools, the credit ledger and the export and render path were built before
+this folder existed, and none of them is written up.
 
 ## Adding a doc
 
