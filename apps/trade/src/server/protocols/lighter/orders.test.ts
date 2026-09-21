@@ -157,7 +157,7 @@ describe("placing a Lighter order", () => {
     expect(body.ApiKeyIndex).toBe(2)
   }, 60_000)
 
-  it("is always post-only, and never a market order", async () => {
+  it("sends a post-only order post-only, and never as a market order", async () => {
     // Tyler's rule, and Lighter's own numbering: time in force 2 is
     // post-only, and order type 1 is the market order this never sends.
     await placeLighterOrder("mainnet", auth(), order())
@@ -165,6 +165,52 @@ describe("placing a Lighter order", () => {
     expect(body.TimeInForce).toBe(2)
     expect(body.Type).toBe(0)
     expect(body.Type).not.toBe(1)
+  }, 60_000)
+
+  it("lets a plain limit order cross instead of cancelling it", async () => {
+    /**
+     * **Post-only for every kind was a real bug.** A watch set to take the
+     * price asks for `limit`, Lighter cancelled it `canceled-post-only` each
+     * time, and the watch paused itself after five refusals with nothing
+     * bought. Seen on a Lighter AMZN watch on 21 Sep 2026. Time in force 1 is
+     * good-till-time: it rests when it is behind the market and fills when it
+     * crosses.
+     */
+    await placeLighterOrder("mainnet", auth(), order({ kind: "limit" }))
+    const body = bodySent()
+    expect(body.TimeInForce).toBe(1)
+    expect(body.Type).toBe(0)
+    // A limit order keeps its own price, untouched.
+    expect(body.Price).toBe(785_841)
+  }, 60_000)
+
+  it("sends a market order as a capped immediate-or-cancel limit", async () => {
+    // Three percent through the price, expiring at once, still a limit with a
+    // price on it. Order type 1, Lighter's own market order, is never sent.
+    await placeLighterOrder("mainnet", auth(), order({ kind: "market" }))
+    const body = bodySent()
+    expect(body.TimeInForce).toBe(0)
+    expect(body.OrderExpiry).toBe(0)
+    expect(body.Type).toBe(0)
+    // $78,584.10 plus 3% is $80,941.62, at one decimal place.
+    expect(body.Price).toBe(809_416)
+  }, 60_000)
+
+  it("caps a selling market order below the price, not above it", async () => {
+    await placeLighterOrder(
+      "mainnet",
+      auth(),
+      order({ kind: "market", side: "sell" })
+    )
+    const body = bodySent()
+    expect(body.IsAsk).toBe(1)
+    // $78,584.10 less 3% is $76,226.58, at one decimal place.
+    expect(body.Price).toBe(762_266)
+  }, 60_000)
+
+  it("gives a resting order Lighter's usual expiry, not zero", async () => {
+    await placeLighterOrder("mainnet", auth(), order({ kind: "limit" }))
+    expect(bodySent().OrderExpiry).not.toBe(0)
   }, 60_000)
 
   it("says which way round the order goes", async () => {

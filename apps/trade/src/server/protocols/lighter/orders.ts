@@ -425,6 +425,35 @@ async function confirmLighterOrder(
   )
 }
 
+/**
+ * How far through the mark an order that has to cross the spread may reach.
+ *
+ * **Crossing cannot be post-only.** A post-only order is refused rather than
+ * filled when it would take the market, which is exactly what a close, and a
+ * market order, have to do. So both go Immediate-or-Cancel — still a limit
+ * with a price on it, never a market order. Three percent is the same cap
+ * Aster uses: wide enough to fill, tight enough that a broken price feed
+ * cannot sell into nothing.
+ */
+const THROUGH_MARK = 0.03
+
+/**
+ * How long an order may live, from the kind the caller asked for. The same
+ * job Hyperliquid's `orderTimeInForce` does, and every answer is a limit
+ * order with a price on it.
+ *
+ * - **postOnly** must rest or be refused, which is the caller's whole point.
+ * - **limit** rests when it is behind the market and fills when it crosses,
+ *   the same thing Hyperliquid's `Gtc` gives.
+ * - **market** takes what it can this instant and cancels the rest, at a
+ *   price capped through the mark. Never Lighter's own market order.
+ */
+function orderTimeInForce(kind: PlaceOrderParams["kind"]): number {
+  if (kind === "market") return LIGHTER_TIME_IN_FORCE.immediateOrCancel
+  if (kind === "postOnly") return LIGHTER_TIME_IN_FORCE.postOnly
+  return LIGHTER_TIME_IN_FORCE.goodTillTime
+}
+
 export async function placeLighterOrder(
   network: NetworkId,
   auth: OrderAuth,
@@ -433,7 +462,21 @@ export async function placeLighterOrder(
   return saying(async () => {
     assertPlaceOrderValues(params)
     const where = await orderContext(network, auth, params.marketId)
-    const price = scaleLighterPrice(params.px, where.priceDecimals)
+
+    /**
+     * **Every Lighter order was sent post-only until 21 Sep 2026**, whatever
+     * the caller asked for. So an order meant to take the price was cancelled
+     * as `canceled-post-only` every single time and nothing was ever bought.
+     * Tyler's Lighter AMZN watch hit it that day: five refusals in fifty
+     * seconds, then the watch switched itself off. See `orderTimeInForce`.
+     */
+    const crossing = params.kind === "market"
+    const asked = crossing
+      ? params.side === "buy"
+        ? params.px * (1 + THROUGH_MARK)
+        : params.px * (1 - THROUGH_MARK)
+      : params.px
+    const price = scaleLighterPrice(asked, where.priceDecimals)
     const size = scaleLighterSize(params.sz, where.sizeDecimals)
     if (price === null || size === null || size <= 0) {
       throw new Error(
@@ -478,10 +521,16 @@ export async function placeLighterOrder(
         price,
         side: params.side,
         orderType: LIGHTER_ORDER_TYPE.limit,
-        // Never `market`. A post-only order that would take the market is
-        // refused by Lighter instead of filling, which is the rule.
-        timeInForce: LIGHTER_TIME_IN_FORCE.postOnly,
+        timeInForce: orderTimeInForce(params.kind),
         reduceOnly: params.reduceOnly,
+        /**
+         * **Zero for an Immediate-or-Cancel order, and it has to be.** An
+         * order that lives only for this instant cannot also carry an expiry
+         * weeks away: Lighter's signer refuses the whole transaction with
+         * "OrderExpiry is invalid", so nothing reaches the exchange. A
+         * resting order keeps the default of -1, Lighter's usual 28 days.
+         */
+        ...(crossing ? { orderExpiry: 0 } : {}),
         nonce,
       })
     )
@@ -876,18 +925,6 @@ async function toLighterOpenOrders(
 }
 
 /**
- * How far through the mark a closing order may reach.
- *
- * **Closing cannot be post-only.** A post-only order is refused rather than
- * filled when it would cross the spread, which is exactly what closing has to
- * do. So a close is the one order here sent Immediate-or-Cancel — still a
- * limit with a price on it, never a market order. Three percent is the same
- * cap Aster's close uses: wide enough to fill, tight enough that a broken
- * price feed cannot sell into nothing.
- */
-const CLOSE_THROUGH_MARK = 0.03
-
-/**
  * Closes a position with a reduce-only order priced through the mark.
  *
  * Reduce-only matters as much as the price: it can shrink a position and can
@@ -910,8 +947,8 @@ export async function closeLighterPosition(
     // up: the cap has to be on the side the order will actually cross to.
     const selling = params.szi > 0
     const capped = selling
-      ? mark * (1 - CLOSE_THROUGH_MARK)
-      : mark * (1 + CLOSE_THROUGH_MARK)
+      ? mark * (1 - THROUGH_MARK)
+      : mark * (1 + THROUGH_MARK)
 
     const price = scaleLighterPrice(capped, where.priceDecimals)
     const size = scaleLighterSize(Math.abs(params.szi), where.sizeDecimals)

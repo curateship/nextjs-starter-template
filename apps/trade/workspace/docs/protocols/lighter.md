@@ -641,12 +641,43 @@ not mistaken for "never there"):
 It costs one or two requests at order priority, spent from the fifth of the
 minute the background reads are kept out of.
 
+## The three kinds of order, and the one that must rest
+
+Lighter carries the kind in the order's time in force, and Trade picks it from
+what the caller asked for. Every one of the three is a limit order with a real
+price on it, so the rule in `trading-rules.md` still holds: this app never
+sends a venue market order.
+
+- **Post-only (time in force 2).** The order must rest in the book. Lighter
+  cancels it outright, with the status `canceled-post-only`, if it would take
+  the market instead. A grid rung, a DCA rung and a watch set to wait for the
+  price all ask for this.
+- **Limit (time in force 1, good till time).** The order rests when its price
+  is behind the market and fills when it crosses. This is what a watch set to
+  take the price asks for, and it matches Hyperliquid's `Gtc`.
+- **Market (time in force 0, immediate or cancel).** Priced three percent
+  through the mark, expiring at that instant, filling what it can and
+  cancelling the rest. Adding to a position at market and closing one both go
+  this way.
+
+**Every Lighter order was sent post-only until 21 Sep 2026, whatever the
+caller asked for.** So an order meant to take the price was cancelled by
+Lighter every single time, and nothing was ever bought. That breaks the rule
+in `trading-rules.md`: "Do not force post-only or convert the limit into a
+market order." Tyler hit it on a Lighter AMZN watch on 21 Sep 2026: the price
+reached his level at 17:47, the engine sent the buy five times in fifty
+seconds, Lighter cancelled all five, and the watch switched itself off with
+"Lighter cancelled the order rather than let it take the market". The failed
+retries also ate the minute's request allowance, so the journal then filled
+with "spent 17 of 12 this minute", which is a symptom of the retries and not a
+separate fault. The kinds are chosen in `placeLighterOrder` in
+`src/server/protocols/lighter/orders.ts`.
+
 ## Closing, and the expiry that has to be zero
 
-Closing is the one order here that is not post-only, because post-only refuses
-to cross the spread and crossing is exactly what closing does. It goes as a
-reduce-only limit priced three percent through the mark, immediate-or-cancel —
-still a price, never a market order.
+Closing never rests, because crossing the spread is exactly what closing does.
+It goes as a reduce-only limit priced three percent through the mark,
+immediate-or-cancel, still a price and never a market order.
 
 Before sending, Trade rereads the current position so a stale size can never
 sell past zero and open a position the other way. That safety read uses the

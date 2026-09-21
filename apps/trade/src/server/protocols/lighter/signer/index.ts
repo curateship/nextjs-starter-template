@@ -44,10 +44,11 @@ export const LIGHTER_ORDER_TYPE = {
 } as const
 
 /**
- * How long an order may live. **Post-only is the one this app sends.** A
- * post-only order that would take the market is refused by Lighter instead
- * of filling, which is what `trading-rules.md` demands: this app never sends
- * a market order.
+ * How long an order may live. The caller's kind picks one: post-only when the
+ * order must rest or be refused, good-till-time for a plain limit that may
+ * cross, and immediate-or-cancel for an order that has to take the market
+ * now. Every one of them carries a price, so `trading-rules.md` still holds:
+ * this app never sends a venue market order.
  */
 export const LIGHTER_TIME_IN_FORCE = {
   immediateOrCancel: 0,
