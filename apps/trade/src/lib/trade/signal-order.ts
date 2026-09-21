@@ -207,16 +207,35 @@ export const CHASE_MAX_OFFSET = 0.02
  * further over it for a sell. The cost is a worse place in the queue, never a
  * worse price.
  *
+ * **`refusedAlready` widens the first step.** The price this returns is
+ * checked again, moments later, against a price read somewhere else: the
+ * engine prices from the socket's live mark and the order path re-reads
+ * Hyperliquid's mids, which are cached for two seconds and are the middle of
+ * the book rather than the mark. When those two numbers differ by more than
+ * the offset, every attempt is marketable and the order is refused every time
+ * until the streak pauses it. That closed a DOGE part close on 21 Sep 2026,
+ * five refusals in fourteen seconds, and an AVNT one twice on 7 and 8 Sep.
+ * So each refusal in a row starts the search one doubling further out, and an
+ * accepted order puts it straight back to {@link CHASE_OFFSET}.
+ *
  * Null means this coin cannot be chased. That is a refusal for the caller to
  * report, not a reason to send something that will be turned down.
  */
 export function restingChasePx(
   side: "buy" | "sell",
   mark: number,
-  roundPx: (px: number) => number
+  roundPx: (px: number) => number,
+  refusedAlready = 0
 ): number | null {
   if (!(mark > 0)) return null
-  for (let offset = CHASE_OFFSET; offset <= CHASE_MAX_OFFSET; offset *= 2) {
+  // Clamped, not left to the loop: a start beyond the cap would skip the loop
+  // body and answer "this coin cannot be chased", which is a different thing
+  // and would stop the chase silently instead of trying the widest price.
+  const first = Math.min(
+    CHASE_OFFSET * 2 ** Math.max(0, refusedAlready),
+    CHASE_MAX_OFFSET
+  )
+  for (let offset = first; offset <= CHASE_MAX_OFFSET; offset *= 2) {
     const px = roundPx(
       side === "buy" ? mark * (1 - offset) : mark * (1 + offset)
     )

@@ -103,6 +103,26 @@ same retry path. The engine clears the refused attempt from its plan and
 discards the cached Hyperliquid price. The next engine pass reads the price
 again and calculates a new waiting price.
 
+**Each refusal in a row stands the next attempt twice as far off the market.**
+The first attempt waits 0.02% off the price, then 0.04%, 0.08%, 0.16% and so
+on, up to the 2% the chase is ever allowed. An accepted order puts it straight
+back to 0.02%, so a calm coin never widens at all and the queue position comes
+back as soon as one order rests.
+
+The widening exists because the refusals arrive in runs at one price. The
+engine prices the order against the live price the exchange pushes it, and the
+order path then checks that price against Hyperliquid's mids, which are cached
+for two seconds and are the middle of the book rather than the mark. When those
+two numbers disagree by more than 0.02%, every attempt at 0.02% is takeable and
+every attempt is refused, so asking again at the same distance only earns the
+same answer. A DOGE part close hit that on 21 Sep 2026, refused five times in
+fourteen seconds and paused with nothing sold, and an AVNT one paused twice on
+7 and 8 September.
+
+Standing further off is always in your favour on price and never against it: a
+sell asks for more and a buy offers less. What it costs is queue position, so
+the part may take longer to fill.
+
 The popup and watched row say the order is still trying. The popup clears when
 Trade records an accepted order or an immediate fill, or the watch is removed.
 Repeated refusals use the existing consecutive-refusal limit, five by default.

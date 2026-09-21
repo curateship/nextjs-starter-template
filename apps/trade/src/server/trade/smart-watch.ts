@@ -307,8 +307,12 @@ export async function advanceWatch(
     return
   }
 
+  // The refusal streak widens the price this asks for. A close refused for
+  // being takeable is refused because the price the order path reads is not
+  // the price this pass priced against, so asking again at the same distance
+  // is asking for the same refusal. See `restingChasePx`.
   const wanted = plan.maker
-    ? restingChasePx(plan.side, mark, roundPx)
+    ? restingChasePx(plan.side, mark, roundPx, plan.refusalStreak ?? 0)
     : roundPx(plan.triggerPx)
   if (wanted === null) {
     // This coin's prices are too coarse to sit just off the market. Saying

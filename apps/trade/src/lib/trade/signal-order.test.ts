@@ -77,6 +77,49 @@ describe("pricing an order that has to rest", () => {
     expect(restingChasePx("buy", 0, (one) => one)).toBeNull()
     expect(restingChasePx("sell", -1, (one) => one)).toBeNull()
   })
+
+  it("stands further off the market after each refusal in a row", () => {
+    /**
+     * **The refusals come in runs, and the same distance earns the same
+     * refusal.** The price here is checked again moments later against a
+     * price read somewhere else, so when the two disagree by more than the
+     * offset every attempt is takeable. A DOGE part close died that way on
+     * 21 Sep 2026, five refusals in fourteen seconds.
+     */
+    const roundPx = (one: number) => roundOrderPx(one, 2)
+    const first = restingChasePx("sell", 100, roundPx) as number
+    const fourth = restingChasePx("sell", 100, roundPx, 3) as number
+    expect(first).toBeGreaterThan(100)
+    // Three refusals double the distance three times: 0.02% becomes 0.16%.
+    expect(fourth - 100).toBeCloseTo((first - 100) * 8, 6)
+  })
+
+  it("keeps a buy's widened price below the market", () => {
+    const px = restingChasePx("buy", 100, (one) => roundOrderPx(one, 2), 4)
+    expect(px).not.toBeNull()
+    expect(px as number).toBeLessThan(100)
+  })
+
+  it("asks for the widest allowed price rather than giving up", () => {
+    /**
+     * A streak long enough to push the first step past the allowance must
+     * still send an order at the allowance. Falling through to null would
+     * stop the chase in silence, which is a different answer from "this
+     * coin's grid is too coarse to rest on".
+     */
+    const px = restingChasePx("sell", 100, (one) => roundOrderPx(one, 2), 20)
+    expect(px).not.toBeNull()
+    expect(px as number).toBeCloseTo(100 * (1 + CHASE_MAX_OFFSET), 6)
+  })
+
+  it("goes back to standing close once an order is accepted", () => {
+    // The streak resets on a confirmed send, so the next move is the ordinary
+    // distance again and the queue position comes back.
+    const roundPx = (one: number) => roundOrderPx(one, 2)
+    expect(restingChasePx("sell", 100, roundPx, 0)).toBe(
+      restingChasePx("sell", 100, roundPx)
+    )
+  })
 })
 
 /**

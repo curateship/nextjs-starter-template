@@ -3812,6 +3812,28 @@ describe("post-only watch recovery", () => {
       retrying: true,
     })
   })
+  it("stands further off the market on each refused attempt, at one price", async () => {
+    /**
+     * **The price does not have to move for the refusals to repeat.** This
+     * pass prices against the socket's live mark and the order path checks
+     * against Hyperliquid's mids, cached for two seconds and taken from the
+     * middle of the book, so the two can disagree by more than the offset and
+     * refuse every attempt at the same distance. A DOGE part close died that
+     * way on 21 Sep 2026 and an AVNT one twice the fortnight before. The mark
+     * is held at one price here so only the widening can move the ask.
+     */
+    await startClose()
+    place.mockRejectedValue(rejected)
+    for (let attempt = 0; attempt < 4; attempt++) await nextPass()
+    expect(place).toHaveBeenCalledTimes(4)
+    const asked = place.mock.calls.map((call) => call[2].px as number)
+    const mark = (await prices.mock.results[0].value).get("BTC") as number
+    for (const px of asked) expect(px).toBeGreaterThan(mark)
+    // Each refusal doubles the distance: 0.02%, 0.04%, 0.08%, 0.16%.
+    expect(asked[1] - mark).toBeCloseTo((asked[0] - mark) * 2, 4)
+    expect(asked[2] - mark).toBeCloseTo((asked[0] - mark) * 4, 4)
+    expect(asked[3] - mark).toBeCloseTo((asked[0] - mark) * 8, 4)
+  })
   it("pauses and reports persistent post-only refusals after five attempts", async () => {
     await insertWorkspace(database, { userId })
     await startClose()
