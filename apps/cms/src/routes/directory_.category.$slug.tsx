@@ -110,19 +110,34 @@ function CategoryRoute() {
 
       <DirectoryBreadcrumbs crumbs={crumbs} />
 
-      {category.featuredImage ? (
-        <img
-          src={category.featuredImage}
-          alt=""
-          className="aspect-[3/1] w-full rounded-lg object-cover"
-        />
-      ) : null}
-
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{category.name}</h1>
-        {category.description ? (
-          <p className="text-sm text-muted-foreground">{category.description}</p>
+      {/*
+       * Picture beside the words rather than a band across the top, which is
+       * how the old site draws a neighbourhood. A category with no picture
+       * keeps the plain heading — a lone column of text in the right-hand 60%
+       * of the page would look like a mistake.
+       */}
+      <header
+        className={
+          category.featuredImage
+            ? "grid items-start gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-8"
+            : "flex flex-col gap-1"
+        }
+      >
+        {category.featuredImage ? (
+          <img
+            src={category.featuredImage}
+            alt=""
+            className="aspect-[4/3] w-full rounded-xl object-cover"
+          />
         ) : null}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">{category.name}</h1>
+          {category.description ? (
+            <p className="text-sm text-muted-foreground">
+              {category.description}
+            </p>
+          ) : null}
+        </div>
       </header>
 
       {children.length ? (

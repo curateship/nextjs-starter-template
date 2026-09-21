@@ -1,3 +1,6 @@
+import { CheckIcon } from "lucide-react"
+
+import { Card, CardContent } from "@/components/ui/card"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   type CustomSectionView,
@@ -29,48 +32,50 @@ export function ListingCustomSections({
   return (
     <>
       {sections.map((section) => (
-        <section key={section.slug} className="grid gap-2">
-          <h2 className="text-lg font-semibold">{section.name}</h2>
-          <div
-            className={cn(
-              "grid gap-2 md:gap-3",
-              section.layout === "two-column" && "sm:grid-cols-2",
-              section.layout === "card" && "rounded-lg border p-3"
-            )}
-          >
-            {section.fields.map((field) =>
-              field.type === "repeater" ? (
-                <div key={field.key} className="grid gap-2">
-                  <h3 className="text-sm font-medium">{field.label}</h3>
-                  <div className="grid gap-2">
-                    {field.rows.map((row, index) => (
-                      <div
-                        key={index}
-                        className="grid gap-1 rounded-md border p-3"
-                      >
-                        {row.map((entry) => (
-                          <FieldLine
-                            key={entry.key}
-                            label={entry.label}
-                            type={entry.type}
-                            value={entry.value}
-                          />
-                        ))}
-                      </div>
-                    ))}
+        <Card key={section.slug}>
+          <CardContent className="grid gap-3">
+            <h2 className="text-lg font-semibold">{section.name}</h2>
+            <div
+              className={cn(
+                "grid gap-4",
+                section.layout === "two-column" && "sm:grid-cols-2",
+                section.layout === "card" && "rounded-lg border p-3"
+              )}
+            >
+              {section.fields.map((field) =>
+                field.type === "repeater" ? (
+                  <div key={field.key} className="grid gap-2">
+                    <h3 className="text-sm font-medium">{field.label}</h3>
+                    <div className="grid gap-2">
+                      {field.rows.map((row, index) => (
+                        <div
+                          key={index}
+                          className="grid gap-1 rounded-md border p-3"
+                        >
+                          {row.map((entry) => (
+                            <FieldLine
+                              key={entry.key}
+                              label={entry.label}
+                              type={entry.type}
+                              value={entry.value}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <FieldLine
-                  key={field.key}
-                  label={field.label}
-                  type={field.type as CustomSimpleFieldType}
-                  value={field.value as CustomSimpleValue}
-                />
-              )
-            )}
-          </div>
-        </section>
+                ) : (
+                  <FieldLine
+                    key={field.key}
+                    label={field.label}
+                    type={field.type as CustomSimpleFieldType}
+                    value={field.value as CustomSimpleValue}
+                  />
+                )
+              )}
+            </div>
+          </CardContent>
+        </Card>
       ))}
     </>
   )
@@ -113,11 +118,19 @@ function FieldLine({
 
   if (type === "tags" && Array.isArray(value)) {
     return (
-      <div className="grid gap-1">
-        <h3 className="text-sm font-medium">{label}</h3>
+      <div className="grid gap-2">
+        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {label}
+        </h3>
         <div className="flex flex-wrap gap-2">
           {value.map((tag) => (
-            <span key={tag} className="rounded-md border px-2 py-1 text-xs">
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 px-3 py-1 text-sm font-medium"
+            >
+              {/* The tick is what turns a word into a statement: this place
+                  does do breakfast. A bare pill reads as a filter. */}
+              <CheckIcon className="size-3.5 shrink-0" aria-hidden="true" />
               {tag}
             </span>
           ))}

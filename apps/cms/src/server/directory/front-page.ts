@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm"
 
+import { cleanContactLinks } from "@/lib/directory/contact-links"
 import {
   browseSortForFrontPageSort,
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
@@ -38,10 +39,13 @@ type FrontPageRow = {
   metaDescription: string | null
   rating: number | string | null
   featuredImage: string | null
+  contactLinks: unknown
   latitude: number | string | null
   longitude: number | string | null
   listingCategoryName: string | null
   listingCategorySlug: string | null
+  neighbourhoodName: string | null
+  neighbourhoodSlug: string | null
   claimed: boolean | null
   featured: boolean | null
 }
@@ -74,7 +78,10 @@ async function readFrontPageRows(
         (
           coalesce(settings.map_enabled, false)
           AND settings.map_display_key_encrypted IS NOT NULL
-        ) AS map_ok
+        ) AS map_ok,
+        -- Which parent category names a neighbourhood here. Null on a site
+        -- that has not picked one, and the join below then finds nothing.
+        settings.neighbourhood_category_id AS neighbourhood_category_id
       FROM (SELECT 1) fallback
       LEFT JOIN directory_settings settings
         ON settings.workspace_id = ${site.id}
@@ -143,10 +150,13 @@ async function readFrontPageRows(
       chosen."metaDescription",
       chosen.rating,
       chosen."featuredImage",
+      chosen."contactLinks",
       chosen.latitude,
       chosen.longitude,
       chosen."listingCategoryName",
       chosen."listingCategorySlug",
+      chosen."neighbourhoodName",
+      chosen."neighbourhoodSlug",
       chosen.claimed,
       chosen.featured
     FROM sections
@@ -159,10 +169,13 @@ async function readFrontPageRows(
         listing.meta_description AS "metaDescription",
         listing.rating,
         listing.featured_image AS "featuredImage",
+        listing.contact_links AS "contactLinks",
         listing.latitude,
         listing.longitude,
         category.name AS "listingCategoryName",
         category.slug AS "listingCategorySlug",
+        neighbourhood.name AS "neighbourhoodName",
+        neighbourhood.slug AS "neighbourhoodSlug",
         EXISTS (
           SELECT 1 FROM directory_claims approved
           WHERE approved.listing_id = listing.id
@@ -190,6 +203,19 @@ async function readFrontPageRows(
         ORDER BY relationship.is_primary DESC, category.display_order ASC, category.name ASC
         LIMIT 1
       ) category ON true
+      -- The listing's neighbourhood: whichever of its categories is a child of
+      -- the one this site named. Nothing at all when it named none.
+      LEFT JOIN LATERAL (
+        SELECT category.name, category.slug
+        FROM category_relationships relationship
+        INNER JOIN categories category ON category.id = relationship.category_id
+        WHERE relationship.workspace_id = ${site.id}
+          AND relationship.content_type = 'directory_listing'
+          AND relationship.content_id = listing.id
+          AND category.parent_id = config.neighbourhood_category_id
+        ORDER BY category.display_order ASC, category.name ASC
+        LIMIT 1
+      ) neighbourhood ON true
       WHERE listing.workspace_id = ${site.id}
         AND listing.status = 'published'
         -- A category row draws categories, so it fetches no listings at all.
@@ -324,9 +350,14 @@ function toListing(
     metaDescription: row.metaDescription ?? "",
     rating: row.rating === null ? null : Number(row.rating),
     featuredImage: row.featuredImage ?? "",
+    address: cleanContactLinks(row.contactLinks).address,
     category:
       row.listingCategoryName && row.listingCategorySlug
         ? { name: row.listingCategoryName, slug: row.listingCategorySlug }
+        : null,
+    neighbourhood:
+      row.neighbourhoodName && row.neighbourhoodSlug
+        ? { name: row.neighbourhoodName, slug: row.neighbourhoodSlug }
         : null,
     claimed: row.claimed ?? false,
     featured: row.featured ?? false,

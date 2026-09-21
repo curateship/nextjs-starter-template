@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import {
   cleanPickedCategoryIds,
@@ -14,7 +14,7 @@ import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { db, type CustomShellDb } from "@/server/db"
 import { checkedPickedCategoryIds } from "@/server/directory/category-cards"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
-import { directorySettings } from "@/server/directory/schema"
+import { categories, directorySettings } from "@/server/directory/schema"
 
 /**
  * What a site says to the public about claiming a listing.
@@ -48,6 +48,12 @@ export type DirectorySettings = {
   /** The chosen categories for that row, in the admin's order. */
   browsePickedCategoryIds: string[]
   /**
+   * The parent category whose children name a listing's neighbourhood on a
+   * card. Empty means this site shows no neighbourhood labels, which is every
+   * site until an admin picks one.
+   */
+  neighbourhoodCategoryId: string
+  /**
    * A map key is saved for this site. Read off the same row rather than asked
    * for separately, because the browse page needs it on every load and a
    * second query for one boolean is a second query for one boolean.
@@ -78,6 +84,7 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   browseCategoriesEnabled: false,
   browseCategorySource: "top-level",
   browsePickedCategoryIds: [],
+  neighbourhoodCategoryId: "",
   hasMapKey: false,
 }
 
@@ -132,7 +139,9 @@ function resolvedBrowseCategories(row: {
     browseCategorySource: isDirectoryCategorySource(row.browseCategorySource)
       ? row.browseCategorySource
       : DIRECTORY_SETTING_DEFAULTS.browseCategorySource,
-    browsePickedCategoryIds: cleanPickedCategoryIds(row.browsePickedCategoryIds),
+    browsePickedCategoryIds: cleanPickedCategoryIds(
+      row.browsePickedCategoryIds
+    ),
   }
 }
 
@@ -165,6 +174,7 @@ export async function directorySettingsFor(
     ),
     ...resolvedBrowseSettings(row),
     ...resolvedBrowseCategories(row),
+    neighbourhoodCategoryId: row.neighbourhoodCategoryId ?? "",
     mapEnabled: row.mapEnabled,
     hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
   }
@@ -332,6 +342,7 @@ export async function savedDirectorySettings(
         claimApprovedMessage: row.claimApprovedMessage,
         ...resolvedBrowseSettings(row),
         ...resolvedBrowseCategories(row),
+        neighbourhoodCategoryId: row.neighbourhoodCategoryId ?? "",
         mapEnabled: row.mapEnabled,
         hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
       }
@@ -350,6 +361,8 @@ export async function savedDirectorySettings(
         browseCategoriesEnabled:
           DIRECTORY_SETTING_DEFAULTS.browseCategoriesEnabled,
         browseCategorySource: DIRECTORY_SETTING_DEFAULTS.browseCategorySource,
+        neighbourhoodCategoryId:
+          DIRECTORY_SETTING_DEFAULTS.neighbourhoodCategoryId,
         browsePickedCategoryIds:
           DIRECTORY_SETTING_DEFAULTS.browsePickedCategoryIds,
         hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
@@ -479,6 +492,43 @@ export async function saveDirectoryBrowseCategories(
     browseCategorySource: input.browseCategorySource,
     browsePickedCategoryIds: picked,
   }
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, ...values, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { ...values, updatedAt: at },
+    })
+
+  clearPublicDirectoryCache(workspaceId)
+  return directorySettingsFor(workspaceId, database)
+}
+
+/**
+ * Changes which parent category names a neighbourhood, and nothing else.
+ *
+ * An empty choice means no labels. Anything else is checked against this site's
+ * own categories first, so one site cannot point at another's tree.
+ */
+export async function saveDirectoryNeighbourhoodCategory(
+  workspaceId: string,
+  neighbourhoodCategoryId: string,
+  database: CustomShellDb = db
+): Promise<DirectorySettings> {
+  const chosen = neighbourhoodCategoryId.trim()
+  if (chosen) {
+    const [found] = await database
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(eq(categories.workspaceId, workspaceId), eq(categories.id, chosen))
+      )
+      .limit(1)
+    if (!found) throw new Error("That category is not on this site.")
+  }
+
+  const at = now()
+  const values = { neighbourhoodCategoryId: chosen || null }
   await database
     .insert(directorySettings)
     .values({ workspaceId, ...values, createdAt: at, updatedAt: at })

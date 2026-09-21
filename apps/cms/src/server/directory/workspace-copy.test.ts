@@ -2,10 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import {
-  createCategory,
-  listCategories,
-} from "@/server/directory/categories"
+import { createCategory, listCategories } from "@/server/directory/categories"
 import {
   createCustomSection,
   listCustomSections,
@@ -18,6 +15,7 @@ import {
 import {
   directorySettingsFor,
   saveDirectoryBrowseCategories,
+  saveDirectoryNeighbourhoodCategory,
 } from "@/server/directory/settings"
 import {
   categoriesForListing,
@@ -27,10 +25,7 @@ import {
   setListingCategories,
   updateListing,
 } from "@/server/directory/listings"
-import {
-  customShellWrittenPages,
-  customShellWorkspaces,
-} from "@/server/schema"
+import { customShellWrittenPages, customShellWorkspaces } from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -145,9 +140,11 @@ describe("copying CMS site content", () => {
       database
     )
     expect(links).toHaveLength(2)
-    expect(links.every((link) =>
-      copiedCategories.some((category) => category.id === link.categoryId)
-    )).toBe(true)
+    expect(
+      links.every((link) =>
+        copiedCategories.some((category) => category.id === link.categoryId)
+      )
+    ).toBe(true)
     expect(links.filter((link) => link.isPrimary)).toHaveLength(1)
   })
 
@@ -174,7 +171,11 @@ describe("copying CMS site content", () => {
       [sections[0]!.slug]: { grape: "Nebbiolo" },
     })
     expect(listing?.gallery).toEqual(["https://images.example.test/one.jpg"])
-    expect(listing?.hours.monday).toEqual({ open: "09:00", close: "17:00" })
+    expect(listing?.hours.monday).toEqual({
+      open: "09:00",
+      close: "17:00",
+      second: null,
+    })
     expect(listing?.latitude).toBe(40.7)
     expect(listing?.longitude).toBe(-74)
   })
@@ -223,6 +224,9 @@ describe("copying CMS site content", () => {
       browseCategoriesEnabled: true,
       browseCategorySource: "picked",
       browsePickedCategoryIds: [food?.id],
+      // The copy's own category again. Pointed at the original's, the copied
+      // site would label none of its cards.
+      neighbourhoodCategoryId: food?.id,
     })
   })
 })
@@ -319,6 +323,7 @@ async function seedSourceSite() {
     },
     database
   )
+  await saveDirectoryNeighbourhoodCategory(workspace.id, parent.id, database)
   await createFrontPageSection(
     workspace.id,
     {

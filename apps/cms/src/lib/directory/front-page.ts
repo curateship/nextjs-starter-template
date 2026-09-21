@@ -20,8 +20,7 @@ import type { DirectorySort } from "@/lib/directory/public-search"
  */
 export const DIRECTORY_FRONT_PAGE_KINDS = ["listings", "categories"] as const
 
-export type DirectoryFrontPageKind =
-  (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
+export type DirectoryFrontPageKind = (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
 
 export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
   DirectoryFrontPageKind,
@@ -54,8 +53,7 @@ export const DIRECTORY_FRONT_PAGE_SORTS = [
   "name",
 ] as const
 
-export type DirectoryFrontPageSort =
-  (typeof DIRECTORY_FRONT_PAGE_SORTS)[number]
+export type DirectoryFrontPageSort = (typeof DIRECTORY_FRONT_PAGE_SORTS)[number]
 
 export const DIRECTORY_FRONT_PAGE_SORT_LABELS: Record<
   DirectoryFrontPageSort,
@@ -112,12 +110,10 @@ export const DIRECTORY_FRONT_PAGE_HEADING_MAX = 120
 export const DIRECTORY_FRONT_PAGE_INTRO_MAX = 500
 
 /** The sentence said when a seventh row is asked for, in one place. */
-export const DIRECTORY_FRONT_PAGE_FULL_MESSAGE =
-  `A home page can have ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS} rows. Delete one before adding another.`
+export const DIRECTORY_FRONT_PAGE_FULL_MESSAGE = `A home page can have ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS} rows. Delete one before adding another.`
 
 /** "cards" rather than "listings": a row of categories is counted the same way. */
-export const DIRECTORY_FRONT_PAGE_COUNT_MESSAGE =
-  `A row shows between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX} cards.`
+export const DIRECTORY_FRONT_PAGE_COUNT_MESSAGE = `A row shows between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX} cards.`
 
 export const DIRECTORY_FRONT_PAGE_HEADING_MESSAGE = "Give the row a heading."
 
@@ -213,7 +209,9 @@ export type DirectoryFrontPageListing = {
   metaDescription: string
   rating: number | null
   featuredImage: string
+  address: string
   category: { name: string; slug: string } | null
+  neighbourhood: { name: string; slug: string } | null
   claimed: boolean
   featured: boolean
   /** Present only on a row that draws a map, where a pin needs both. */

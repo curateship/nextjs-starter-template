@@ -1,16 +1,12 @@
 import * as React from "react"
-import { MapPinIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
-  googleMapsDirectionsUrl,
+  formatListingDayHours,
   LISTING_WEEKDAYS,
   LISTING_WEEKDAY_LABELS,
   listingHoursStatus,
-  formatListingTime,
-  type ListingCoordinates,
   type ListingHours,
-  type ListingWeekday,
 } from "@/lib/directory/listing-details"
 import { cn } from "@/lib/utils"
 
@@ -48,13 +44,21 @@ export function ListingGallery({
   )
 }
 
-export function ListingHoursAndLocation({
-  hours,
-  coordinates,
-}: {
-  hours: ListingHours
-  coordinates: ListingCoordinates | null
-}) {
+/**
+ * The week, with today at the top.
+ *
+ * Today is pulled out of the week's order and drawn first in black, and the
+ * other six stay in their usual order underneath in grey. Somebody checking
+ * whether they can go *now* is asking about one day, and making them find
+ * Thursday in a list of seven is the whole reason the old site does it this
+ * way.
+ *
+ * Which day is today comes from the reader's own clock, which the server does
+ * not have. So the card draws the plain week on the server and moves today to
+ * the top once it is in the browser, rather than showing everybody the server's
+ * idea of Thursday.
+ */
+export function ListingHoursCard({ hours }: { hours: ListingHours }) {
   const openDays = LISTING_WEEKDAYS.filter((day) => hours[day])
   const [now, setNow] = React.useState<Date | null>(null)
   React.useEffect(() => {
@@ -63,89 +67,39 @@ export function ListingHoursAndLocation({
   }, [])
   const today = now ? LISTING_WEEKDAYS[(now.getDay() + 6) % 7]! : null
 
-  if (!openDays.length && !coordinates) return null
+  if (!openDays.length) return null
+
+  const rest = LISTING_WEEKDAYS.filter((day) => day !== today)
+  const ordered = today ? [today, ...rest] : [...LISTING_WEEKDAYS]
 
   return (
-    <div className="grid gap-4">
-      {openDays.length ? (
-        <section className="grid gap-2" aria-labelledby="listing-hours-title">
-          <div className="grid gap-1">
-            <h2 id="listing-hours-title" className="text-lg font-semibold">
-              Opening hours
-            </h2>
-            {now ? (
-              <p className="text-sm text-muted-foreground">
-                {listingHoursStatus(hours, now)}
-              </p>
-            ) : null}
-          </div>
-          <div className="rounded-lg border">
-            <table className="w-full text-sm">
-              <tbody>
-                {LISTING_WEEKDAYS.map((day) => (
-                  <HoursRow
-                    key={day}
-                    day={day}
-                    hours={hours[day]}
-                    today={day === today}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {coordinates ? (
-        <section
-          className="grid gap-2"
-          aria-labelledby="listing-location-title"
-        >
-          <h2 id="listing-location-title" className="text-lg font-semibold">
-            Location
-          </h2>
-          <div>
-            <Button asChild variant="outline">
-              <a
-                href={googleMapsDirectionsUrl(coordinates)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <MapPinIcon aria-hidden="true" /> Get directions
-              </a>
-            </Button>
-          </div>
-        </section>
-      ) : null}
-    </div>
-  )
-}
-
-function HoursRow({
-  day,
-  hours,
-  today,
-}: {
-  day: ListingWeekday
-  hours: ListingHours[ListingWeekday]
-  today: boolean
-}) {
-  return (
-    <tr
-      className={cn(
-        "border-b last:border-b-0",
-        today && "bg-muted font-medium"
-      )}
-    >
-      <th scope="row" className="font-inherit px-3 py-2 text-left">
-        {LISTING_WEEKDAY_LABELS[day]}
-        {today ? " (Today)" : ""}
-      </th>
-      <td className="px-3 py-2 text-right text-muted-foreground">
-        {hours
-          ? `${formatListingTime(hours.open)}–${formatListingTime(hours.close)}`
-          : "Closed"}
-      </td>
-    </tr>
+    <Card>
+      <CardContent className="grid gap-3">
+        <div className="grid gap-1">
+          <h2 className="text-lg font-semibold">Business hours</h2>
+          {now ? (
+            <p className="text-sm text-muted-foreground">
+              {listingHoursStatus(hours, now)}
+            </p>
+          ) : null}
+        </div>
+        <dl className="grid gap-2.5">
+          {ordered.map((day) => (
+            <div
+              key={day}
+              className={cn(
+                "flex items-baseline justify-between gap-4 text-sm text-muted-foreground",
+                day === today && "font-semibold text-foreground"
+              )}
+            >
+              <dt>{LISTING_WEEKDAY_LABELS[day]}</dt>
+              <dd className="shrink-0 text-right">
+                {hours[day] ? formatListingDayHours(hours[day]) : "Closed"}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
   )
 }

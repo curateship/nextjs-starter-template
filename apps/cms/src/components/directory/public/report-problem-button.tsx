@@ -1,7 +1,9 @@
 import * as React from "react"
+import { FlagIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CharacterCount } from "@/components/shared/character-count"
+import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -51,6 +53,10 @@ import { cn } from "@/lib/utils"
  * page where complaining is as loud as claiming reads as a page that expects to
  * be wrong.
  *
+ * `asRow` draws it as the last line of the listing's card of links instead,
+ * which is where somebody who has just read the hours and knows they are wrong
+ * is already looking.
+ *
  * No account, because the person who drove to the bakery and found it shut has
  * none. Nothing they send appears on the page, and the listing does not change
  * — an admin reads the report and fixes the listing by hand.
@@ -58,16 +64,25 @@ import { cn } from "@/lib/utils"
 export function ReportProblemButton({
   listingId,
   listingTitle,
+  asRow = false,
 }: {
   listingId: string
   listingTitle: string
+  /** Drawn as a line of the listing's card rather than as a small link. */
+  asRow?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [sent, setSent] = React.useState(false)
 
   if (sent) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p
+        className={
+          asRow
+            ? `${LISTING_ROW_CLASS} text-muted-foreground`
+            : "text-xs text-muted-foreground"
+        }
+      >
         Thank you. Somebody who looks after this site will read it.
       </p>
     )
@@ -82,11 +97,16 @@ export function ReportProblemButton({
       <button
         type="button"
         className={cn(
-          "rounded-sm text-xs text-muted-foreground underline-offset-4 hover:underline",
+          asRow
+            ? `${LISTING_ROW_CLASS} w-full text-left text-muted-foreground hover:bg-accent/40`
+            : "rounded-sm text-xs text-muted-foreground underline-offset-4 hover:underline",
           focusRing
         )}
         onClick={() => setOpen(true)}
       >
+        {asRow ? (
+          <FlagIcon className="size-4 shrink-0" aria-hidden="true" />
+        ) : null}
         Report a problem
       </button>
       <ReportProblemDialog
@@ -186,7 +206,10 @@ function ReportProblemDialog({
                       setReason(value as ListingReportReason)
                     }
                   >
-                    <SelectTrigger id="report-reason" className="w-full sm:w-fit">
+                    <SelectTrigger
+                      id="report-reason"
+                      className="w-full sm:w-fit"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -263,7 +286,11 @@ function ReportProblemDialog({
             </Button>
             {/* Kept enabled: the server says what is wrong in a sentence, and a
                 button that greys itself out never says why. */}
-            <Button type="button" disabled={sending} onClick={() => void send()}>
+            <Button
+              type="button"
+              disabled={sending}
+              onClick={() => void send()}
+            >
               Send the report
             </Button>
           </DialogFooter>

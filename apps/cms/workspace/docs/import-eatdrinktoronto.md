@@ -26,6 +26,41 @@ Remote images are limited to 10 MB, time out after 10 seconds, reject private
 network addresses, and must have both a supported image type and matching file
 contents.
 
+## Loading the fields the import left behind
+
+The import writes opening hours, coordinates and custom blocks to
+`dropped.json` rather than into CMS. A second command loads two of those three:
+
+```bash
+pnpm run load:eatdrinktoronto-fields -- --source-site <old-site-id> --site <cms-site-slug> --dry-run
+```
+
+**The hours need nothing but `dropped.json`.** Leave `--source-site` off and it
+loads them on their own:
+
+```bash
+pnpm run load:eatdrinktoronto-fields -- --site <cms-site-slug>
+```
+
+The tags are the part that needs `DIRECTORY_SOURCE_DATABASE_URL`, because
+their labels ("Popular for", "Atmosphere") are in the old database and not in
+`dropped.json`. Asking for tags without that address stops the run rather than
+inventing names. Drop `--dry-run` to write. `--dropped <file>` points it at a
+`dropped.json` somewhere other than the output folder.
+
+- **Hours** are read from the old free text — "Monday: 11:30 AM to 10 PM",
+  "Closed", "Open 24 hours", and lines with a lunch and a dinner service. A
+  start with no AM or PM takes the half of the day that puts it before the
+  closing time, so "12 to 10 PM" is noon and "5 to 10 PM" is the afternoon. A
+  line it cannot read is counted in the report and left out rather than
+  guessed at.
+- **Tags** become one custom section per old template, its fields taken from
+  the old template with their real labels. A field CMS has no home for — a
+  written-text field, a repeating one — is named in the report instead.
+- **Coordinates** are not loaded. There are none: the old site had zero.
+- Run it twice. The second report shows `listingsChanged: 0`, because nothing
+  is written unless it differs from what is already stored.
+
 ## Test road map
 
 1. Run `pnpm run db:setup` so migration 0060 has added the source markers.

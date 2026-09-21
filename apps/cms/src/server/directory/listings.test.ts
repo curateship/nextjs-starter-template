@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { menuLinkHref } from "@/lib/directory/contact-links"
 import { uuid } from "@/server/auth/security"
-import { createTestDatabase, insertWorkspace, type TestDatabase } from "@/server/test-support"
+import {
+  createTestDatabase,
+  insertWorkspace,
+  type TestDatabase,
+} from "@/server/test-support"
 import { createCategory } from "@/server/directory/categories"
 import {
   categoriesForListing,
@@ -74,7 +78,11 @@ afterEach(async () => {
 
 describe("creating and addressing", () => {
   it("derives the address from the title and starts as a draft", async () => {
-    const listing = await createListing(site, { title: "Joe's Diner & Grill" }, database)
+    const listing = await createListing(
+      site,
+      { title: "Joe's Diner & Grill" },
+      database
+    )
     expect(listing.slug).toBe("joes-diner-grill")
     expect(listing.status).toBe("draft")
   })
@@ -91,7 +99,8 @@ describe("creating and addressing", () => {
       createListing(site, { title: "Second", slug: "the-spot" }, database)
     ).rejects.toThrow("already uses the address the-spot")
     await expect(
-      updateListing(site,
+      updateListing(
+        site,
         (await createListing(site, { title: "Third" }, database)).id,
         { slug: "the-spot" },
         database
@@ -132,7 +141,11 @@ describe("what a save may contain", () => {
       "https://images.example/one.jpg",
       "https://images.example/two.jpg",
     ])
-    expect(saved.hours.monday).toEqual({ open: "09:00", close: "17:00" })
+    expect(saved.hours.monday).toEqual({
+      open: "09:00",
+      close: "17:00",
+      second: null,
+    })
     expect(saved.hours.tuesday).toBeNull()
     expect(saved.latitude).toBe(43.6532)
     expect(saved.longitude).toBe(-79.3832)
@@ -195,13 +208,19 @@ describe("what a save may contain", () => {
 
   it("stores a poisoned link as typed but never makes it followable", async () => {
     const listing = await createListing(site, { title: "Joes" }, database)
-    await updateListing(site,
+    await updateListing(
+      site,
       listing.id,
       {
         contactLinks: {
           address: "12 Main St",
           menuLinks: [
-            { id: "m1", type: "custom", label: "Click", value: "javascript:alert(1)" },
+            {
+              id: "m1",
+              type: "custom",
+              label: "Click",
+              value: "javascript:alert(1)",
+            },
           ],
           socialLinks: [],
         },
@@ -222,7 +241,8 @@ describe("what a save may contain", () => {
 
   it("keeps only allowed body nodes, so a pasted script is just text", async () => {
     const listing = await createListing(site, { title: "Joes" }, database)
-    await updateListing(site,
+    await updateListing(
+      site,
       listing.id,
       {
         body: {
@@ -246,17 +266,27 @@ describe("the admin list", () => {
     for (const title of ["Alpha Bakery", "Beta Bakery", "Gamma Garage"]) {
       await createListing(site, { title }, database)
     }
-    const published = await createListing(site, { title: "Delta Bakery" }, database)
+    const published = await createListing(
+      site,
+      { title: "Delta Bakery" },
+      database
+    )
     await updateListing(site, published.id, { status: "published" }, database)
 
     const bakeries = await listListings(site, { search: "bakery" }, database)
     expect(bakeries.total).toBe(3)
 
-    const publishedOnly = await listListings(site, { status: "published" }, database)
+    const publishedOnly = await listListings(
+      site,
+      { status: "published" },
+      database
+    )
     expect(publishedOnly.total).toBe(1)
     expect(publishedOnly.listings[0].title).toBe("Delta Bakery")
 
-    const pageTwo = await listListings(site, { sort: "title", direction: "asc", limit: 2, offset: 2 },
+    const pageTwo = await listListings(
+      site,
+      { sort: "title", direction: "asc", limit: 2, offset: 2 },
       database
     )
     expect(pageTwo.total).toBe(4)
@@ -298,7 +328,13 @@ describe("categories on a listing", () => {
     const food = await createCategory(site, { name: "Food" }, database)
     const bars = await createCategory(site, { name: "Bars" }, database)
 
-    await setListingCategories(site, listing.id, [food.id, bars.id], bars.id, database)
+    await setListingCategories(
+      site,
+      listing.id,
+      [food.id, bars.id],
+      bars.id,
+      database
+    )
     let links = await categoriesForListing(site, listing.id, database)
     expect(links).toHaveLength(2)
     expect(links.find((link) => link.isPrimary)?.categoryId).toBe(bars.id)
@@ -364,7 +400,11 @@ describe("copying and deleting", () => {
     expect(copy.status).toBe("draft")
     expect(copy.slug).not.toBe(listing.slug)
     expect(copy.gallery).toEqual(["https://images.example/one.jpg"])
-    expect(copy.hours.monday).toEqual({ open: "09:00", close: "17:00" })
+    expect(copy.hours.monday).toEqual({
+      open: "09:00",
+      close: "17:00",
+      second: null,
+    })
     expect(copy.latitude).toBe(43.6532)
     const links = await categoriesForListing(site, copy.id, database)
     expect(links.map((link) => link.categoryId)).toEqual([food.id])
@@ -376,7 +416,11 @@ describe("copying and deleting", () => {
     const food = await createCategory(site, { name: "Food" }, database)
     await setListingCategories(site, a.id, [food.id], null, database)
 
-    const impact = await listingDeleteImpact(site, [a.id, b.id, "gone"], database)
+    const impact = await listingDeleteImpact(
+      site,
+      [a.id, b.id, "gone"],
+      database
+    )
     expect(impact).toEqual({ listings: 2, categoryLinks: 1 })
 
     const result = await deleteListings(site, [a.id, b.id, "gone"], database)

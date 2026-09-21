@@ -4,6 +4,7 @@ import {
   cleanListingGallery,
   cleanListingHours,
   coordinatesFromGoogleMapsUrl,
+  formatListingDayHours,
   listingHoursStatus,
   requireListingCoordinates,
 } from "@/lib/directory/listing-details"
@@ -28,9 +29,57 @@ describe("listing details", () => {
       monday: { open: "09:00", close: "17:30" },
       tuesday: { open: "noon", close: "17:00" },
     })
-    expect(hours.monday).toEqual({ open: "09:00", close: "17:30" })
+    expect(hours.monday).toEqual({
+      open: "09:00",
+      close: "17:30",
+      second: null,
+    })
     expect(hours.tuesday).toBeNull()
     expect(hours.sunday).toBeNull()
+  })
+
+  it("keeps a lunch and a dinner service, and drops a half-filled one", () => {
+    const hours = cleanListingHours({
+      monday: {
+        open: "12:00",
+        close: "14:30",
+        second: { open: "17:00", close: "22:00" },
+      },
+      tuesday: { open: "12:00", close: "22:00", second: { open: "17:00" } },
+    })
+    expect(hours.monday?.second).toEqual({ open: "17:00", close: "22:00" })
+    expect(hours.tuesday?.second).toBeNull()
+    expect(formatListingDayHours(hours.monday)).toBe(
+      "12 PM–2:30 PM, 5 PM–10 PM"
+    )
+  })
+
+  it("says a day that never shuts in words, not 12 AM to 12 AM", () => {
+    const hours = cleanListingHours({
+      thursday: { open: "00:00", close: "00:00" },
+    })
+    expect(formatListingDayHours(hours.thursday)).toBe("Open 24 hours")
+    // A Thursday afternoon.
+    expect(listingHoursStatus(hours, new Date(2026, 8, 17, 15, 0))).toBe(
+      "Open now · all day"
+    )
+  })
+
+  it("says when a place between services opens again", () => {
+    const hours = cleanListingHours({
+      wednesday: {
+        open: "12:00",
+        close: "14:30",
+        second: { open: "17:00", close: "22:00" },
+      },
+    })
+    // A Wednesday afternoon, after lunch and before dinner.
+    const afternoon = new Date(2026, 8, 16, 15, 30)
+    expect(listingHoursStatus(hours, afternoon)).toBe(
+      "Closed now · open 5 PM–10 PM"
+    )
+    const dinner = new Date(2026, 8, 16, 19, 0)
+    expect(listingHoursStatus(hours, dinner)).toBe("Open now · closes 10 PM")
   })
 
   it("refuses partial and out-of-range coordinates", () => {

@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { createCategory } from "@/server/directory/categories"
+import { createCategory, updateCategory } from "@/server/directory/categories"
 import {
   createClaim,
   reviewClaim,
@@ -35,6 +35,7 @@ import {
 import {
   saveDirectoryBrowseCategories,
   saveDirectoryBrowseSettings,
+  saveDirectoryNeighbourhoodCategory,
 } from "@/server/directory/settings"
 import * as schema from "@/server/schema"
 
@@ -263,6 +264,76 @@ describe("only published listings are readable", () => {
       latitude: 43.6532,
       longitude: -79.3832,
     })
+  })
+
+  it("labels a card with its neighbourhood and its address", async () => {
+    const neighbourhoods = await createCategory(
+      alpha.id,
+      { name: "Neighbourhood", slug: "neighbourhood" },
+      database
+    )
+    const village = await createCategory(
+      alpha.id,
+      { name: "Dovercourt Village", slug: "dovercourt-village" },
+      database
+    )
+    await updateCategory(
+      alpha.id,
+      village.id,
+      { parentId: neighbourhoods.id },
+      database
+    )
+    const listing = await publish(alpha, { title: "San Wich", slug: "san" })
+    await setListingCategories(
+      alpha.id,
+      listing.id,
+      [village.id],
+      village.id,
+      database
+    )
+    await updateListing(
+      alpha.id,
+      listing.id,
+      {
+        contactLinks: {
+          address: "1141 Dundas St W, Toronto",
+          menuLinks: [],
+          socialLinks: [],
+        },
+      },
+      database
+    )
+
+    // Before the site says which categories are neighbourhoods, no card is
+    // labelled. The address is on it either way.
+    const before = (await browse(alpha)).listings[0]
+    expect(before?.address).toBe("1141 Dundas St W, Toronto")
+    expect(before?.neighbourhood).toBeNull()
+
+    await saveDirectoryNeighbourhoodCategory(
+      alpha.id,
+      neighbourhoods.id,
+      database
+    )
+    resetPublicDirectoryCacheForTests()
+
+    const after = (await browse(alpha)).listings[0]
+    expect(after?.neighbourhood).toEqual({
+      name: "Dovercourt Village",
+      slug: "dovercourt-village",
+    })
+  })
+
+  it("refuses a neighbourhood category belonging to another site", async () => {
+    const betaCategory = await createCategory(
+      beta.id,
+      { name: "Neighbourhood", slug: "neighbourhood" },
+      database
+    )
+
+    await expect(
+      saveDirectoryNeighbourhoodCategory(alpha.id, betaCategory.id, database)
+    ).rejects.toThrow("That category is not on this site.")
   })
 
   it("keeps a draft out of the browse list", async () => {
@@ -983,7 +1054,12 @@ describe("the fields a site invented", () => {
     await publish(alpha, { title: "Alpha one", slug: "alpha-one-fields" })
     resetPublicDirectoryCacheForTests()
 
-    const page = await readPublicListing(alpha, "alpha-one-fields", {}, database)
+    const page = await readPublicListing(
+      alpha,
+      "alpha-one-fields",
+      {},
+      database
+    )
     expect(page?.listing.customSections).toEqual([])
   })
 

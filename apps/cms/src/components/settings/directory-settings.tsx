@@ -27,6 +27,7 @@ import {
   loadDirectorySettings,
   saveBrowseSettings,
   saveMapEnabled,
+  saveNeighbourhoodCategory,
   type DirectoryBrowseSettingsInput,
   type DirectorySettings as DirectorySettingsValue,
 } from "@/lib/api/directory/settings"
@@ -43,6 +44,12 @@ import { loadCategories, type Category } from "@/lib/api/directory/categories"
 import type { DirectoryCategorySource } from "@/lib/directory/category-cards"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { showErrorToast } from "@/lib/toast/error-toast"
+
+/**
+ * "No labels" needs a value of its own: a Select cannot hold an empty string,
+ * and the setting's own empty value is exactly what this choice means.
+ */
+const NO_NEIGHBOURHOOD = "none"
 
 export function DirectorySettings() {
   const [settings, setSettings] = React.useState<DirectorySettingsValue | null>(
@@ -105,6 +112,23 @@ export function DirectorySettings() {
       return queued
     },
     [save]
+  )
+
+  const persistNeighbourhood = React.useCallback(
+    (neighbourhoodCategoryId: string) => {
+      const queued = saveQueue.current.then(() =>
+        save(() => saveNeighbourhoodCategory(neighbourhoodCategoryId))
+      )
+      saveQueue.current = queued
+      return queued
+    },
+    [save]
+  )
+
+  // Only a category with children can name neighbourhoods, so a leaf is not
+  // offered — picking one would label nothing.
+  const parentCategories = categories.filter((category) =>
+    categories.some((child) => child.parentId === category.id)
   )
 
   const pageNumber = Number(pageSize)
@@ -338,6 +362,58 @@ export function DirectorySettings() {
             }}
           />
         ) : null}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="directory-neighbourhood"
+        title="Neighbourhood labels"
+        description="Pick the category that holds this site's neighbourhoods. Its children are shown as a small label on listing cards."
+        contentClassName="space-y-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="directory-neighbourhood-category"
+            hint="Only the children of this category are labelled. Every other category a listing is in is left off the card."
+          >
+            Neighbourhoods come from
+          </FieldLabel>
+          <Select
+            value={settings.neighbourhoodCategoryId || NO_NEIGHBOURHOOD}
+            disabled={saving}
+            onValueChange={(value) => {
+              const neighbourhoodCategoryId =
+                value === NO_NEIGHBOURHOOD ? "" : value
+              const previous = settings.neighbourhoodCategoryId
+              setSettings({ ...settings, neighbourhoodCategoryId })
+              void persistNeighbourhood(neighbourhoodCategoryId).then(
+                (saved) => {
+                  if (!saved) {
+                    setSettings((current) =>
+                      current
+                        ? { ...current, neighbourhoodCategoryId: previous }
+                        : current
+                    )
+                  }
+                }
+              )
+            }}
+          >
+            <SelectTrigger
+              id="directory-neighbourhood-category"
+              className="w-full sm:w-auto"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_NEIGHBOURHOOD}>No labels</SelectItem>
+              {parentCategories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

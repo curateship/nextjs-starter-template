@@ -101,12 +101,12 @@ export async function copyDirectoryWorkspace({
         // category above. An id left pointing at the original would filter to a
         // category this site cannot see, so a copied row of cards would come
         // back empty and the row would silently vanish.
-        pickedCategoryIds: cleanPickedCategoryIds(row.pickedCategoryIds).flatMap(
-          (id) => {
-            const copied = categoryIds.get(id)
-            return copied ? [copied] : []
-          }
-        ),
+        pickedCategoryIds: cleanPickedCategoryIds(
+          row.pickedCategoryIds
+        ).flatMap((id) => {
+          const copied = categoryIds.get(id)
+          return copied ? [copied] : []
+        }),
         sort: row.sort,
         listingCount: row.listingCount,
         layout: row.layout,
@@ -116,33 +116,47 @@ export async function copyDirectoryWorkspace({
     )
   }
 
-  // The browse page's own row of category cards. Only this app's three
-  // browse-category columns are carried: the rest of `directory_settings` has
-  // never been copied, and its two encrypted Google keys deliberately must not
-  // be — a key belongs to the site whose admin pasted it.
+  // The browse page's own row of category cards, and which category names a
+  // neighbourhood. Only this app's category-shaped columns are carried: the
+  // rest of `directory_settings` has never been copied, and its two encrypted
+  // Google keys deliberately must not be — a key belongs to the site whose
+  // admin pasted it.
   const [sourceSettings] = await database
     .select({
       browseCategoriesEnabled: directorySettings.browseCategoriesEnabled,
       browseCategorySource: directorySettings.browseCategorySource,
       browsePickedCategoryIds: directorySettings.browsePickedCategoryIds,
+      neighbourhoodCategoryId: directorySettings.neighbourhoodCategoryId,
     })
     .from(directorySettings)
     .where(eq(directorySettings.workspaceId, sourceWorkspaceId))
     .limit(1)
 
-  if (sourceSettings?.browseCategoriesEnabled) {
+  // Re-pointed at the copy's own category, the same as every other id here. An
+  // id left pointing at the original would label nothing on the copy.
+  const copiedNeighbourhood = sourceSettings?.neighbourhoodCategoryId
+    ? (categoryIds.get(sourceSettings.neighbourhoodCategoryId) ?? null)
+    : null
+
+  if (sourceSettings?.browseCategoriesEnabled || copiedNeighbourhood) {
     await database
       .insert(directorySettings)
       .values({
         workspaceId: newWorkspaceId,
-        browseCategoriesEnabled: true,
-        browseCategorySource: sourceSettings.browseCategorySource,
-        browsePickedCategoryIds: cleanPickedCategoryIds(
-          sourceSettings.browsePickedCategoryIds
-        ).flatMap((id) => {
-          const copied = categoryIds.get(id)
-          return copied ? [copied] : []
-        }),
+        browseCategoriesEnabled: Boolean(
+          sourceSettings?.browseCategoriesEnabled
+        ),
+        browseCategorySource:
+          sourceSettings?.browseCategorySource ?? "top-level",
+        browsePickedCategoryIds: sourceSettings?.browseCategoriesEnabled
+          ? cleanPickedCategoryIds(
+              sourceSettings.browsePickedCategoryIds
+            ).flatMap((id) => {
+              const copied = categoryIds.get(id)
+              return copied ? [copied] : []
+            })
+          : [],
+        neighbourhoodCategoryId: copiedNeighbourhood,
         createdAt: at,
         updatedAt: at,
       })

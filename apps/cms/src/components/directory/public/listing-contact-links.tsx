@@ -1,23 +1,49 @@
 import * as React from "react"
-import { MapPinIcon } from "lucide-react"
+import {
+  GlobeIcon,
+  LinkIcon,
+  MailIcon,
+  MapPinIcon,
+  NavigationIcon,
+  PhoneIcon,
+} from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import {
   menuLinkHref,
   menuLinkLabel,
   socialLinkHref,
   type ContactLinks,
+  type MenuLinkType,
 } from "@/lib/directory/contact-links"
+import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
- * A listing's address, its links and its social profiles.
+ * A listing's address, its links and its social profiles, as one row each.
  *
  * **Every address goes through the builders in `contact-links.ts` and nothing
  * else.** They are the same functions the server cleaned the values with on
  * the way in, and they answer with an empty string for anything that is not a
  * link — a `javascript:` URL is a script, not an address, and a link with
  * nowhere safe to go is simply not drawn.
+ *
+ * Rows rather than a row of buttons: this list sits in the narrow column beside
+ * the listing, where four outline buttons wrap into a block of chrome. A line
+ * with an icon in front of it reads as a phone number and a website, which is
+ * what they are.
  */
+
+/** The shape every row in the card shares, links and plain text alike. */
+export const LISTING_ROW_CLASS =
+  "flex min-h-8 items-center gap-3 px-4 py-1.5 text-sm"
+
+const ICON_FOR: Record<MenuLinkType, typeof PhoneIcon> = {
+  phone: PhoneIcon,
+  website: GlobeIcon,
+  email: MailIcon,
+  directions: NavigationIcon,
+  custom: LinkIcon,
+}
+
 /**
  * A link on somebody else's listing.
  *
@@ -45,6 +71,7 @@ function OutwardLink({
       href={href}
       target={opensInTab ? "_blank" : undefined}
       rel={opensInTab ? "noopener noreferrer nofollow" : "nofollow"}
+      className={`${LISTING_ROW_CLASS} hover:bg-accent/40 ${focusRing}`}
     >
       {children}
     </a>
@@ -55,46 +82,69 @@ export function ListingContactLinks({ links }: { links: ContactLinks }) {
   const menuLinks = links.menuLinks
     .map((link) => ({ link, href: menuLinkHref(link) }))
     .filter((row) => row.href)
-  const socialLinks = links.socialLinks
-    .map((link) => ({ link, href: socialLinkHref(link) }))
-    .filter((row) => row.href)
 
-  if (!links.address && !menuLinks.length && !socialLinks.length) return null
+  if (!links.address && !menuLinks.length) return null
 
   return (
-    <div className="grid gap-2">
+    <div className="grid">
       {links.address ? (
-        <p className="flex items-start gap-2 text-sm text-muted-foreground">
-          <MapPinIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <p className={`${LISTING_ROW_CLASS} text-muted-foreground`}>
+          <MapPinIcon className="size-4 shrink-0" aria-hidden="true" />
           <span>{links.address}</span>
         </p>
       ) : null}
 
-      {menuLinks.length ? (
-        <ul className="flex flex-wrap gap-2">
-          {menuLinks.map(({ link, href }) => (
-            <li key={link.id}>
-              <Button asChild variant="outline">
-                <OutwardLink href={href}>{menuLinkLabel(link)}</OutwardLink>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {socialLinks.length ? (
-        <ul className="flex flex-wrap gap-2">
-          {socialLinks.map(({ link, href }) => (
-            <li key={link.id}>
-              <Button asChild variant="ghost">
-                <OutwardLink href={href}>
-                  {link.platform || "Profile"}
-                </OutwardLink>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {menuLinks.map(({ link, href }) => {
+        const Icon = ICON_FOR[link.type]
+        return (
+          <OutwardLink key={link.id} href={href}>
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 truncate">{menuLinkLabel(link)}</span>
+          </OutwardLink>
+        )
+      })}
     </div>
+  )
+}
+
+/** "instagram" as the site typed it reads as a mistake next to a photo. */
+function platformLabel(platform: string) {
+  const name = platform.trim()
+  if (!name) return "Profile"
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+/**
+ * The social profiles, drawn over the listing's photo the way the old site
+ * draws them. Nothing at all when the listing has none.
+ */
+export function ListingSocialLinks({
+  links,
+  className,
+}: {
+  links: ContactLinks
+  className?: string
+}) {
+  const socialLinks = links.socialLinks
+    .map((link) => ({ link, href: socialLinkHref(link) }))
+    .filter((row) => row.href)
+
+  if (!socialLinks.length) return null
+
+  return (
+    <ul className={className}>
+      {socialLinks.map(({ link, href }) => (
+        <li key={link.id}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className={`flex items-center rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium ${focusRing}`}
+          >
+            {platformLabel(link.platform)}
+          </a>
+        </li>
+      ))}
+    </ul>
   )
 }

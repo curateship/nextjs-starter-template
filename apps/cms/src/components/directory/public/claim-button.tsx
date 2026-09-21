@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
+import { Building2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
@@ -20,15 +21,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CharacterCount } from "@/components/shared/character-count"
+import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { CLAIM_MESSAGE_MAX } from "@/lib/directory/field-lengths"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  getClaimErrorMessage,
-  submitClaim,
-} from "@/lib/api/directory/claims"
+import { getClaimErrorMessage, submitClaim } from "@/lib/api/directory/claims"
 import type { PublicClaimState } from "@/lib/api/directory/public"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -53,6 +53,7 @@ export function ClaimButton({
   listingTitle,
   claim,
   startOpen = false,
+  asRow = false,
 }: {
   listingId: string
   /** For the come-back-here address on the sign-in link. */
@@ -61,15 +62,30 @@ export function ClaimButton({
   claim: PublicClaimState
   /** Outreach links land with the form open after sign-in. */
   startOpen?: boolean
+  /**
+   * Drawn as the last line of the listing's card of links rather than as a
+   * button of its own. Same five answers either way; only the shape changes.
+   */
+  asRow?: boolean
 }) {
   const [open, setOpen] = React.useState(startOpen && claim.signedIn)
   const [sent, setSent] = React.useState(false)
+  const messageClass = asRow
+    ? `${LISTING_ROW_CLASS} text-muted-foreground`
+    : "text-xs text-muted-foreground"
+  const rowLinkClass = `${LISTING_ROW_CLASS} hover:bg-accent/40 ${focusRing}`
 
   if (!claim.enabled) return null
 
   if (claim.claimed) {
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className={
+          asRow
+            ? `${LISTING_ROW_CLASS} flex-wrap text-muted-foreground`
+            : "flex flex-wrap items-center gap-2"
+        }
+      >
         <ClaimedBadge />
         <span className="text-xs text-muted-foreground">
           {claim.mine === "approved"
@@ -82,7 +98,7 @@ export function ClaimButton({
 
   if (sent || claim.mine === "pending_verification") {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className={messageClass}>
         Check your email for a link confirming the address. Nobody looks at the
         request until you click it.
       </p>
@@ -90,18 +106,23 @@ export function ClaimButton({
   }
 
   if (claim.mine === "pending_review") {
-    return <p className="text-xs text-muted-foreground">{claim.pendingMessage}</p>
+    return <p className={messageClass}>{claim.pendingMessage}</p>
   }
 
   if (!claim.signedIn) {
-    return (
+    // Comes back here afterwards, so signing in does not lose the page they
+    // were reading.
+    const redirect = {
+      redirect: `/directory/${listingSlug}${startOpen ? "?claim=start" : ""}`,
+    }
+    return asRow ? (
+      <Link to="/login" search={redirect} className={rowLinkClass}>
+        <Building2Icon className="size-4 shrink-0" aria-hidden="true" />
+        {claim.buttonLabel}
+      </Link>
+    ) : (
       <Button asChild variant="outline">
-        {/* Comes back here afterwards, so signing in does not lose the page
-            they were reading. */}
-        <Link
-          to="/login"
-          search={{ redirect: `/directory/${listingSlug}${startOpen ? "?claim=start" : ""}` }}
-        >
+        <Link to="/login" search={redirect}>
           {claim.buttonLabel}
         </Link>
       </Button>
@@ -110,9 +131,20 @@ export function ClaimButton({
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        {claim.buttonLabel}
-      </Button>
+      {asRow ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`${rowLinkClass} w-full text-left`}
+        >
+          <Building2Icon className="size-4 shrink-0" aria-hidden="true" />
+          {claim.buttonLabel}
+        </button>
+      ) : (
+        <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+          {claim.buttonLabel}
+        </Button>
+      )}
       <ClaimDialog
         open={open}
         listingId={listingId}
@@ -162,11 +194,11 @@ function ClaimDialog({
 
   const dirty = Boolean(
     contactEmail.trim() ||
-      claimantName.trim() ||
-      roleTitle.trim() ||
-      phone.trim() ||
-      proofUrl.trim() ||
-      message.trim()
+    claimantName.trim() ||
+    roleTitle.trim() ||
+    phone.trim() ||
+    proofUrl.trim() ||
+    message.trim()
   )
 
   async function send() {
@@ -210,8 +242,8 @@ function ClaimDialog({
               <CardHeader>
                 <CardTitle>About you</CardTitle>
                 <CardDescription>
-                  An address at the business's own domain is checked fastest, but
-                  any address you can receive email at will do.
+                  An address at the business's own domain is checked fastest,
+                  but any address you can receive email at will do.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
@@ -311,7 +343,11 @@ function ClaimDialog({
             </Button>
             {/* Kept enabled: the server says what is wrong in a sentence, and a
                 button that greys itself out never says why. */}
-            <Button type="button" disabled={sending} onClick={() => void send()}>
+            <Button
+              type="button"
+              disabled={sending}
+              onClick={() => void send()}
+            >
               Send my request
             </Button>
           </DialogFooter>

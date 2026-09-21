@@ -18,8 +18,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   and how to check location-dependent filtering.
 - `listing-view-counts.md` — where a listing's view figures come from and what
   each column counts.
+- `directory-page-layout.md` — how the browse page, a category page and a
+  listing are laid out, what a day with two services stores, and where
+  neighbourhood labels come from.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old
-  Directory site into one CMS site.
+  Directory site into one CMS site, and the second command that loads the
+  fields it left behind.
 - `sitemap-files.md` — the numbered sitemap files a site's listings come in,
   and what happens at the edges of them.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what

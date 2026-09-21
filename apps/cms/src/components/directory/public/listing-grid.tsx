@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router"
+import { MapPinIcon } from "lucide-react"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
@@ -108,6 +109,15 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
           </Link>
         </h2>
         <ListingRating rating={listing.rating} />
+        {listing.address ? (
+          <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+            <MapPinIcon
+              className="mt-0.5 size-3.5 shrink-0 text-foreground"
+              aria-hidden="true"
+            />
+            <span className="min-w-0">{listing.address}</span>
+          </p>
+        ) : null}
         {listing.distanceKm !== undefined ? (
           <p className="text-xs text-muted-foreground">
             {formatDirectoryDistance(listing.distanceKm) ||
@@ -130,6 +140,13 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
         {listing.metaDescription ? (
           <p className="line-clamp-3 text-sm text-muted-foreground">
             {listing.metaDescription}
+          </p>
+        ) : null}
+        {listing.neighbourhood ? (
+          <p className="flex flex-wrap gap-1.5 pt-1">
+            <span className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs text-muted-foreground">
+              {listing.neighbourhood.name}
+            </span>
           </p>
         ) : null}
       </CardContent>

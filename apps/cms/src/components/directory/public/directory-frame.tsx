@@ -23,7 +23,19 @@ import { PublicPageFrame } from "@/components/shell/public-page-frame"
 export function DirectoryFrame({ children }: { children: React.ReactNode }) {
   return (
     <PublicPageFrame className="place-items-start justify-items-center">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 md:gap-3">
+      {/*
+       * 1152px: the width the old Eat Drink Toronto pages are drawn at, and
+       * the width a listing's two columns need before the narrow one stops
+       * being narrow.
+       *
+       * `text-left` because a site's Styling settings can centre its public
+       * text, which is right for a page of marketing and wrong for a list of
+       * records: it centres a phone number over an address and a field's name
+       * over its value. A directory page is a record either way, so it reads
+       * from the left whatever the site chose. Anything that genuinely is
+       * centred — an empty list, the pager — still says so on itself.
+       */}
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 text-left md:gap-3">
         {children}
       </div>
     </PublicPageFrame>

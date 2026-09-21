@@ -540,6 +540,16 @@ export const directorySettings = pgTable(
       .notNull()
       .default([]),
     /**
+     * The parent category whose children are a listing's neighbourhood label.
+     *
+     * Null for every site that has not picked one, and a site with none draws
+     * no labels. Deleting that category empties this rather than leaving a
+     * pointer to something that is gone.
+     */
+    neighbourhoodCategoryId: varchar("neighbourhood_category_id", {
+      length: 36,
+    }).references(() => categories.id, { onDelete: "set null" }),
+    /**
      * The Google key the visitor's browser uses to draw the map. Separate from
      * the geocoding key above on purpose: a browser key is restricted to a
      * website address, and a key restricted that way is refused by the

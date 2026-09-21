@@ -13,6 +13,7 @@ import {
   saveDirectoryBadgesEnabled,
   saveDirectoryBrowseCategories,
   saveDirectoryBrowseSettings,
+  saveDirectoryNeighbourhoodCategory,
   directoryGeocodingKeyStatus,
   directoryMapDisplayKeyStatus,
   saveDirectoryMapEnabled,
@@ -34,8 +35,7 @@ export const getDirectorySettingsErrorMessage = createErrorMessage(
       "Choose which categories the row should show.",
     "Choose at least one category, or show the top-level ones instead.":
       "Choose at least one category, or show the top-level ones instead.",
-    "That category is not on this site.":
-      "That category is not on this site.",
+    "That category is not on this site.": "That category is not on this site.",
   },
   "The directory settings could not be saved."
 )
@@ -151,6 +151,21 @@ const saveBrowseCategoriesFn = createServerFn({ method: "POST" })
 /** Changes the row of category cards at the top of the browse page. */
 export function saveBrowseCategories(input: DirectoryBrowseCategoriesInput) {
   return saveBrowseCategoriesFn({ data: input })
+}
+
+const saveNeighbourhoodCategoryFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ neighbourhoodCategoryId: z.string().max(36) }))
+  .handler(async ({ data, context }) =>
+    saveDirectoryNeighbourhoodCategory(
+      await workspaceIdForRequest(context.user.id),
+      data.neighbourhoodCategoryId
+    )
+  )
+
+/** Changes which parent category names a listing's neighbourhood. */
+export function saveNeighbourhoodCategory(neighbourhoodCategoryId: string) {
+  return saveNeighbourhoodCategoryFn({ data: { neighbourhoodCategoryId } })
 }
 
 export type { DirectorySettings }

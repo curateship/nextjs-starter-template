@@ -182,8 +182,15 @@ export type PublicListingCard = {
   metaDescription: string
   rating: number | null
   featuredImage: string
+  /** The street address, plain text, or empty when the listing has none. */
+  address: string
   /** The primary category if it has one, else the first it is in. */
   category: PublicCategoryLink | null
+  /**
+   * The neighbourhood this listing is in, when the site has said which of its
+   * categories hold neighbourhoods. Null on every site that has not.
+   */
+  neighbourhood: PublicCategoryLink | null
   /**
    * The business itself looks after this page. Says nothing about who they are
    * — a visitor is told the page is looked after, never by whom.
@@ -433,15 +440,22 @@ function orderFor(
 async function categoryForCards(
   siteId: string,
   listingIds: string[],
+  neighbourhoodCategoryId: string,
   database: CustomShellDb
-): Promise<Map<string, PublicCategoryLink>> {
-  if (listingIds.length === 0) return new Map()
+): Promise<{
+  shownUnder: Map<string, PublicCategoryLink>
+  neighbourhood: Map<string, PublicCategoryLink>
+}> {
+  if (listingIds.length === 0) {
+    return { shownUnder: new Map(), neighbourhood: new Map() }
+  }
 
   const rows = await database
     .select({
       contentId: categoryRelationships.contentId,
       name: categories.name,
       slug: categories.slug,
+      parentId: categories.parentId,
     })
     .from(categoryRelationships)
     .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
@@ -454,15 +468,23 @@ async function categoryForCards(
     )
     .orderBy(desc(categoryRelationships.isPrimary), asc(categories.name))
 
-  const found = new Map<string, PublicCategoryLink>()
+  const shownUnder = new Map<string, PublicCategoryLink>()
+  const neighbourhood = new Map<string, PublicCategoryLink>()
   for (const row of rows) {
     // Primary first in the sort, so the first row wins and the rest are the
     // listing's other categories.
-    if (!found.has(row.contentId)) {
-      found.set(row.contentId, { name: row.name, slug: row.slug })
+    if (!shownUnder.has(row.contentId)) {
+      shownUnder.set(row.contentId, { name: row.name, slug: row.slug })
+    }
+    if (
+      neighbourhoodCategoryId &&
+      row.parentId === neighbourhoodCategoryId &&
+      !neighbourhood.has(row.contentId)
+    ) {
+      neighbourhood.set(row.contentId, { name: row.name, slug: row.slug })
     }
   }
-  return found
+  return { shownUnder, neighbourhood }
 }
 
 /**
@@ -478,24 +500,31 @@ async function toCards<
     metaDescription: string
     rating: number | null
     featuredImage: string
+    contactLinks: unknown
     distanceKm?: number | null
   },
 >(
   siteId: string,
   rows: Row[],
+  /** Which parent category names a neighbourhood here, or empty for none. */
+  neighbourhoodCategoryId: string,
   database: CustomShellDb
-): Promise<(Row & PublicListingCard)[]> {
+): Promise<(Omit<Row, "contactLinks"> & PublicListingCard)[]> {
   const ids = rows.map((row) => row.id)
   // Both for the whole page at once. One query each rather than one per card:
   // twelve cards used to mean twelve round trips for the category alone.
-  const [shownUnder, claimed, featured] = await Promise.all([
-    categoryForCards(siteId, ids, database),
+  const [{ shownUnder, neighbourhood }, claimed, featured] = await Promise.all([
+    categoryForCards(siteId, ids, neighbourhoodCategoryId, database),
     claimedListingIds(siteId, ids, database),
     activeFeaturedForListings(siteId, ids, database),
   ])
-  return rows.map((row) => ({
+  // The stored links never travel to a card. Only the address line does, and
+  // only through the cleaner.
+  return rows.map(({ contactLinks, ...row }) => ({
     ...row,
+    address: cleanContactLinks(contactLinks).address,
     category: shownUnder.get(row.id) ?? null,
+    neighbourhood: neighbourhood.get(row.id) ?? null,
     claimed: claimed.has(row.id),
     featured: featured.has(row.id),
   }))
@@ -510,13 +539,21 @@ export async function publicListingCardsByIds(
   const uniqueIds = [...new Set(listingIds)]
   if (uniqueIds.length === 0) return []
 
-  const rows = await database
-    .select(cardColumns)
-    .from(directoryListings)
-    .where(
-      and(publishedOnSite(siteId), inArray(directoryListings.id, uniqueIds))
-    )
-  const cards = await toCards(siteId, rows, database)
+  const [rows, settings] = await Promise.all([
+    database
+      .select(cardColumns)
+      .from(directoryListings)
+      .where(
+        and(publishedOnSite(siteId), inArray(directoryListings.id, uniqueIds))
+      ),
+    directorySettingsFor(siteId, database),
+  ])
+  const cards = await toCards(
+    siteId,
+    rows,
+    settings.neighbourhoodCategoryId,
+    database
+  )
   const byId = new Map(cards.map((card) => [card.id, card]))
 
   return uniqueIds.flatMap((id) => {
@@ -533,6 +570,10 @@ const cardColumns = {
   metaDescription: directoryListings.metaDescription,
   rating: directoryListings.rating,
   featuredImage: directoryListings.featuredImage,
+  // The whole stored object, for the one line of it a card shows. It is read
+  // through the same cleaner the listing page uses rather than reached into,
+  // so a hand-edited row cannot put anything on a card.
+  contactLinks: directoryListings.contactLinks,
 }
 
 /**
@@ -713,7 +754,11 @@ function browseQuery(
 /** One page of published listings, ordered and counted. */
 async function listingPage(
   siteId: string,
-  options: BrowseQuery & { page: number; pageSize: number },
+  options: BrowseQuery & {
+    page: number
+    pageSize: number
+    neighbourhoodCategoryId: string
+  },
   database: CustomShellDb
 ): Promise<{ listings: PublicListingCard[]; total: number; page: number }> {
   const page = Math.max(1, Math.trunc(options.page))
@@ -746,7 +791,12 @@ async function listingPage(
   const cardRows = rows.map(({ total: _total, ...row }) => row)
 
   return {
-    listings: await toCards(siteId, cardRows, database),
+    listings: await toCards(
+      siteId,
+      cardRows,
+      options.neighbourhoodCategoryId,
+      database
+    ),
     total: total ?? 0,
     page,
   }
@@ -785,6 +835,7 @@ async function readPublicBrowseUncached(
       categoryId: chosen?.id,
       pageSize: settings.pageSize,
       featuredFirst: settings.featuredFirst,
+      neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
       near: options.near,
       radius: options.radius,
     },
@@ -927,7 +978,15 @@ async function readDirectoryMapUncached(
       : [{ ...row, latitude: row.latitude, longitude: row.longitude }]
   )
 
-  return { pins: await toCards(site.id, pinRows, database), total }
+  return {
+    pins: await toCards(
+      site.id,
+      pinRows,
+      settings.neighbourhoodCategoryId,
+      database
+    ),
+    total,
+  }
 }
 
 export async function readDirectoryMap(
@@ -982,6 +1041,7 @@ async function relatedListings(
   listingId: string,
   categoryIds: string[],
   featuredFirst: boolean,
+  neighbourhoodCategoryId: string,
   database: CustomShellDb
 ): Promise<PublicListingCard[]> {
   if (categoryIds.length === 0) return []
@@ -1010,7 +1070,7 @@ async function relatedListings(
     .orderBy(...orderFor("order", siteId, featuredFirst))
     .limit(RELATED_LISTING_COUNT)
 
-  return toCards(siteId, rows, database)
+  return toCards(siteId, rows, neighbourhoodCategoryId, database)
 }
 
 /**
@@ -1109,6 +1169,7 @@ async function readPublicListingUncached(
       row.id,
       links.map((link) => link.id),
       settings.featuredFirst,
+      settings.neighbourhoodCategoryId,
       database
     ),
     claim: {
@@ -1203,6 +1264,7 @@ async function readPublicCategoryUncached(
         page: options.page,
         pageSize: settings.pageSize,
         featuredFirst: settings.featuredFirst,
+        neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
       },
       database
     ),

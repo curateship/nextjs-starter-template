@@ -11,7 +11,18 @@ export const LISTING_WEEKDAYS = [
 ] as const
 
 export type ListingWeekday = (typeof LISTING_WEEKDAYS)[number]
-export type ListingDayHours = { open: string; close: string }
+/** One stretch of a day a place is open, as 24-hour `HH:MM` times. */
+export type ListingShift = { open: string; close: string }
+/**
+ * A day's opening, and a second stretch when the place shuts in between.
+ *
+ * Restaurants that serve lunch and then dinner are the reason `second` exists.
+ * One pair of times cannot say "open at noon, shut at 2:30, open again at 5"
+ * without claiming the place is open all afternoon, which is a false statement
+ * on the page rather than a rounding of one. `second` is null on every day that
+ * does not do it, which is nearly all of them.
+ */
+export type ListingDayHours = ListingShift & { second: ListingShift | null }
 export type ListingHours = Record<ListingWeekday, ListingDayHours | null>
 export type ListingCoordinates = { latitude: number; longitude: number }
 
@@ -51,13 +62,49 @@ export function cleanListingHours(value: unknown): ListingHours {
   if (!value || typeof value !== "object" || Array.isArray(value)) return hours
   const source = value as Record<string, unknown>
   for (const day of LISTING_WEEKDAYS) {
-    const entry = source[day]
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
-    const open = cleanTime((entry as Record<string, unknown>).open)
-    const close = cleanTime((entry as Record<string, unknown>).close)
-    if (open && close) hours[day] = { open, close }
+    const shift = cleanShift(source[day])
+    if (!shift) continue
+    const second = cleanShift(
+      (source[day] as Record<string, unknown>).second ?? null
+    )
+    hours[day] = { ...shift, second }
   }
   return hours
+}
+
+/** A pair of times, or nothing. A half-filled pair is not a shift. */
+function cleanShift(value: unknown): ListingShift | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const entry = value as Record<string, unknown>
+  const open = cleanTime(entry.open)
+  const close = cleanTime(entry.close)
+  return open && close ? { open, close } : null
+}
+
+/** Both of a day's stretches, in the order they happen. */
+export function listingDayShifts(
+  value: ListingDayHours | null
+): ListingShift[] {
+  if (!value) return []
+  return value.second
+    ? [{ open: value.open, close: value.close }, value.second]
+    : [{ open: value.open, close: value.close }]
+}
+
+/**
+ * "11:30 AM–3 PM, 5–10 PM", which is how a day reads on the page.
+ *
+ * A day that opens and closes at the same minute never shuts, and "12 AM–12 AM"
+ * is not how anybody says that.
+ */
+export function formatListingDayHours(value: ListingDayHours | null) {
+  return listingDayShifts(value)
+    .map((shift) =>
+      shift.open === shift.close
+        ? "Open 24 hours"
+        : `${formatListingTime(shift.open)}–${formatListingTime(shift.close)}`
+    )
+    .join(", ")
 }
 
 /** A save accepts a complete valid pair or no pin at all. */
@@ -138,25 +185,42 @@ export function listingHoursStatus(hours: ListingHours, now = new Date()) {
   const dayIndex = (now.getDay() + 6) % 7
   const day = LISTING_WEEKDAYS[dayIndex]!
   const minutes = now.getHours() * 60 + now.getMinutes()
-  const previous = hours[LISTING_WEEKDAYS[(dayIndex + 6) % 7]!]
-  if (
-    previous &&
-    minutesFor(previous.open) >= minutesFor(previous.close) &&
-    minutes < minutesFor(previous.close)
-  ) {
-    return `Open now · closes ${formatListingTime(previous.close)}`
+  // Yesterday's last stretch can still be running: a bar that opens at 8pm and
+  // closes at 2am is open at one in the morning on the following day's page.
+  const ranPastMidnight = listingDayShifts(
+    hours[LISTING_WEEKDAYS[(dayIndex + 6) % 7]!]
+  ).find(
+    (shift) =>
+      minutesFor(shift.open) >= minutesFor(shift.close) &&
+      minutes < minutesFor(shift.close)
+  )
+  if (ranPastMidnight) {
+    return ranPastMidnight.open === ranPastMidnight.close
+      ? "Open now · all day"
+      : `Open now · closes ${formatListingTime(ranPastMidnight.close)}`
   }
+
   const today = hours[day]
   if (!today) return "Closed today"
-  const open = minutesFor(today.open)
-  const close = minutesFor(today.close)
-  const openNow =
-    open < close
+  const shifts = listingDayShifts(today)
+  const openNow = shifts.find((shift) => {
+    const open = minutesFor(shift.open)
+    const close = minutesFor(shift.close)
+    return open < close
       ? minutes >= open && minutes < close
       : minutes >= open || minutes < close
-  return openNow
-    ? `Open now · closes ${formatListingTime(today.close)}`
-    : `Closed now · open ${formatListingTime(today.open)}–${formatListingTime(today.close)}`
+  })
+  if (openNow) {
+    return openNow.open === openNow.close
+      ? "Open now · all day"
+      : `Open now · closes ${formatListingTime(openNow.close)}`
+  }
+
+  // Between lunch and dinner, the useful sentence is when they open again, not
+  // when they opened this morning.
+  const next = shifts.find((shift) => minutesFor(shift.open) > minutes)
+  const shown = next ?? shifts[0]!
+  return `Closed now · open ${formatListingTime(shown.open)}–${formatListingTime(shown.close)}`
 }
 
 /**

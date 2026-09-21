@@ -8,6 +8,7 @@ import {
   cleanListingCoordinates,
   cleanListingGallery,
   cleanListingHours,
+  listingDayShifts,
   LISTING_WEEKDAYS,
   LISTING_WEEKDAY_LABELS,
 } from "@/lib/directory/listing-details"
@@ -198,19 +199,16 @@ export function listingJsonLd(input: {
 
 function openingHoursSpecifications(hours: unknown) {
   const cleaned = cleanListingHours(hours)
-  return LISTING_WEEKDAYS.flatMap((day) => {
-    const value = cleaned[day]
-    return value
-      ? [
-          {
-            "@type": "OpeningHoursSpecification",
-            dayOfWeek: `https://schema.org/${LISTING_WEEKDAY_LABELS[day]}`,
-            opens: value.open,
-            closes: value.close,
-          },
-        ]
-      : []
-  })
+  // One entry per stretch, so a day with a lunch and a dinner service is two
+  // of them. Schema.org has no way to say "open twice" in a single entry.
+  return LISTING_WEEKDAYS.flatMap((day) =>
+    listingDayShifts(cleaned[day]).map((shift) => ({
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: `https://schema.org/${LISTING_WEEKDAY_LABELS[day]}`,
+      opens: shift.open,
+      closes: shift.close,
+    }))
+  )
 }
 
 /** The same for a category page: the site, and the list this page is. */

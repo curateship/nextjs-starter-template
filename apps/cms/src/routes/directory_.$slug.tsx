@@ -4,22 +4,18 @@ import {
   DirectoryBreadcrumbs,
   type Crumb,
 } from "@/components/directory/public/directory-breadcrumbs"
-import { ClaimButton } from "@/components/directory/public/claim-button"
-import { FeaturedBadge } from "@/components/directory/public/featured-badge"
-import { SaveDropdown } from "@/components/directory/public/save-dropdown"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
-import { ListingContactLinks } from "@/components/directory/public/listing-contact-links"
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
-import { ListingGrid } from "@/components/directory/public/listing-grid"
-import { ListingRating } from "@/components/directory/listing-rating"
-import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
+import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
+import { RelatedListings } from "@/components/directory/public/related-listings"
 import {
   ListingGallery,
-  ListingHoursAndLocation,
+  ListingHoursCard,
 } from "@/components/directory/public/listing-rich-details"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
+import { writtenPageBodyIsEmpty } from "@/lib/pages/written-page-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { loadDirectoryListing } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -101,6 +97,77 @@ function ListingRoute() {
     { label: listing.title },
   ]
 
+  const coordinates =
+    listing.latitude !== null && listing.longitude !== null
+      ? { latitude: listing.latitude, longitude: listing.longitude }
+      : null
+
+  // What the wide column has to show. Worked out once, because the page asks
+  // twice: each card asks whether to draw itself, and the layout asks whether
+  // there is a wide column at all.
+  const hasWriting =
+    !writtenPageBodyIsEmpty(listing.body) || categories.length > 0
+  const hasMain =
+    hasWriting ||
+    listing.gallery.length > 0 ||
+    listing.customSections.length > 0 ||
+    related.length > 0
+
+  // A listing with none of it — no write-up, no tags, no photos, nothing else
+  // like it — is drawn as one column instead of a narrow card beside an empty
+  // half of the page.
+  const main = (
+    <>
+      {listing.gallery.length ? (
+        <Card>
+          <ListingGallery title={listing.title} images={listing.gallery} />
+        </Card>
+      ) : null}
+
+      {hasWriting ? (
+        <Card>
+          <CardContent className="grid gap-3">
+            {/* The search description is not drawn here. It is the sentence
+                for a search result and for a card, and on 1,658 of the
+                imported listings it is word for word the first line of the
+                write-up below — the same thing said twice. A listing page
+                shows what the venue says about itself and nothing else. */}
+            {categories.length ? (
+              <p className="text-xs text-muted-foreground">
+                {categories.map((category) => category.name).join(" · ")}
+              </p>
+            ) : null}
+            {/*
+             * The same renderer the shell's written pages use. It builds React
+             * elements from the stored nodes and never a string of markup, so
+             * nothing an admin typed can be anything but the text of a
+             * paragraph.
+             */}
+            <WrittenPageBody body={listing.body} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Whatever this site invented, each in a card of its own. Empty
+          sections never arrive here — the server leaves them out. */}
+      <ListingCustomSections sections={listing.customSections} />
+
+      <RelatedListings listings={related} />
+    </>
+  )
+
+  const sidebar = (
+    <>
+      <ListingSidebar
+        listing={listing}
+        coordinates={coordinates}
+        claim={claim}
+        startClaimOpen={search.claim === "start"}
+      />
+      <ListingHoursCard hours={listing.hours} />
+    </>
+  )
+
   return (
     <DirectoryFrame>
       <JsonLd
@@ -123,112 +190,28 @@ function ListingRoute() {
 
       <DirectoryBreadcrumbs crumbs={crumbs} />
 
-      <Card>
-        {listing.featuredImage ? (
-          <div className="relative overflow-hidden">
-            <img
-              src={listing.featuredImage}
-              alt=""
-              className="aspect-[3/1] w-full object-cover"
-            />
-            <SaveDropdown
-              listingId={listing.id}
-              overlay
-              className="absolute top-3 right-3"
-            />
+      {/* Two columns on a wide screen, the narrow card on the right. */}
+      {hasMain ? (
+        <div className="grid items-start gap-2 md:gap-3 lg:grid-cols-[minmax(0,1.36fr)_minmax(16rem,0.64fr)]">
+          {/* First in the page, and second on a wide screen. On a phone that
+              puts the photo, the name and the phone number at the top, which
+              is what the page was opened for; `order` moves the wide column
+              above it only once the two fit side by side.
+
+              Sticks while the wide column scrolls past it. `top-4` keeps it
+              clear of the top of the window rather than touching it. */}
+          <div className="grid content-start gap-2 md:gap-3 lg:sticky lg:top-4 lg:order-2">
+            {sidebar}
           </div>
-        ) : null}
-        <ListingGallery title={listing.title} images={listing.gallery} />
-        <CardContent className="grid gap-4">
-          <div className="grid gap-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold">{listing.title}</h1>
-                {listing.featured ? <FeaturedBadge /> : null}
-              </div>
-              {!listing.featuredImage ? (
-                <SaveDropdown listingId={listing.id} />
-              ) : null}
-            </div>
-            <ListingRating rating={listing.rating} />
-            {listing.metaDescription ? (
-              <p className="text-sm text-muted-foreground">
-                {listing.metaDescription}
-              </p>
-            ) : null}
+          <div className="grid content-start gap-2 md:gap-3 lg:order-1">
+            {main}
           </div>
-
-          {categories.length ? (
-            <p className="text-xs text-muted-foreground">
-              {categories.map((category) => category.name).join(" · ")}
-            </p>
-          ) : null}
-
-          <ListingContactLinks links={listing.contactLinks} />
-
-          <ListingHoursAndLocation
-            hours={listing.hours}
-            coordinates={
-              listing.latitude !== null && listing.longitude !== null
-                ? {
-                    latitude: listing.latitude,
-                    longitude: listing.longitude,
-                  }
-                : null
-            }
-          />
-
-          {/* Between the facts and the story: somebody deciding whether this is
-              their business has read enough by here, and it stays above the
-              body rather than at the bottom of a long page.
-
-              Wrapped, because this card is a grid — a button left as a direct
-              child of it stretches the full width of the page, which reads as
-              a banner rather than a thing to press. */}
-          <div>
-            <ClaimButton
-              listingId={listing.id}
-              listingSlug={listing.slug}
-              listingTitle={listing.title}
-              claim={claim}
-              startOpen={search.claim === "start"}
-            />
-          </div>
-
-          {/*
-           * The same renderer the shell's written pages use. It builds React
-           * elements from the stored nodes and never a string of markup, so
-           * nothing an admin typed can be anything but the text of a
-           * paragraph.
-           */}
-          <WrittenPageBody body={listing.body} />
-
-          {/* Whatever this site invented, after the words. Empty sections
-              never arrive here — the server leaves them out. */}
-          <ListingCustomSections sections={listing.customSections} />
-
-          {/* Last, and the quietest thing on the page. Somebody who knows the
-              hours are wrong will look for this; nobody else should notice it.
-              Wrapped for the same reason the claim button is — a direct child
-              of this grid stretches the full width and reads as a banner. */}
-          <div>
-            <ReportProblemButton
-              listingId={listing.id}
-              listingTitle={listing.title}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {related.length ? (
-        <section className="grid gap-2 md:gap-3">
-          <h2 className="text-lg font-semibold">More like this</h2>
-          <ListingGrid
-            listings={related}
-            emptyMessage="Nothing else shares a category with this one."
-          />
-        </section>
-      ) : null}
+        </div>
+      ) : (
+        <div className="grid content-start gap-2 md:gap-3 lg:max-w-md">
+          {sidebar}
+        </div>
+      )}
     </DirectoryFrame>
   )
 }
