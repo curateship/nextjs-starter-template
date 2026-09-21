@@ -13,6 +13,7 @@ import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AppHeaderLeftContent } from "@/components/shell/sticky-header/app-header-left-content"
 import { AppSidebar } from "@/components/shell/sidebar/sidebar"
 import {
   StickyHeader,
@@ -21,11 +22,15 @@ import {
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
+  createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  getBorderStyleVars,
   getModalStyleVars,
   isActiveShellHref,
   isShellEntryNamed,
+  isShellEntryVisible,
   isShellItem,
+  BORDER_STYLE_VAR_NAMES,
   MODAL_STYLE_VAR_NAMES,
   normalizeAutomationPause,
   normalizeMaintenance,
@@ -39,12 +44,39 @@ import {
   type ShellItem,
   type ShellMaintenance,
   type ShellModalStyling,
+  type ShellStyling,
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import {
+  appHeaderRightActionsForRole,
+  appHeaderLeftContentForRole,
+  capitalise,
+  workspaceWord,
+} from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizePublicHeader } from "@/lib/pages/public-header"
+import {
+  normalizePublicSeo,
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+} from "@/lib/pages/public-metadata"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import {
+  isPublicThemeInputValid,
+  normalizePublicTheme,
+} from "@/lib/public-theme"
+import { normalizePublicFontAsset } from "@/lib/public-font"
+import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
+import {
+  normalizeFaviconMode,
+  normalizePublicFaviconSet,
+  publicFaviconLinks,
+  type FaviconLink,
+} from "@/lib/favicon"
 import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import { logout } from "@/lib/api/auth/auth"
@@ -70,10 +102,13 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
 import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
 
 // Debounce window before an edit on the settings page is auto-saved.
 const CONFIG_SAVE_DEBOUNCE_MS = 700
@@ -144,10 +179,15 @@ export function ShellLayout({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const currentRouteId = useRouterState({
+    select: (state) => state.matches.at(-1)?.routeId,
+  })
   const navigate = useNavigate()
   const router = useRouter()
   const { account: accountTab } = useSearch({ from: "/_authenticated" })
-  const [config, setConfig] = React.useState(() => normalizeConfig(settings))
+  const [config, setConfig] = React.useState(() =>
+    normalizeConfig(settings, user.role)
+  )
   // Last width the server confirmed, plus a serialized save queue + version
   // counter so rapid drags persist in order and a failure rolls back to the
   // last-saved width without clobbering a newer in-flight drag.
@@ -181,8 +221,14 @@ export function ShellLayout({
   const lastSettingsRef = React.useRef(settings)
 
   useShellDocumentTitle(config.appName)
-  useShellFavicon(config.favicon)
+  useShellFavicons(
+    config.favicon,
+    config.faviconDark,
+    config.faviconSet,
+    config.faviconMode
+  )
   useModalStyleVars(config.styling.modal)
+  useBorderStyleVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -190,7 +236,7 @@ export function ShellLayout({
     }
 
     lastSettingsRef.current = settings
-    const nextConfig = normalizeConfig(settings)
+    const nextConfig = normalizeConfig(settings, user.role)
     savedSidebarWidthRef.current = nextConfig.sidebarWidth
     // Fresh server data supersedes any pending debounced auto-save so an
     // in-flight edit can't overwrite it.
@@ -201,7 +247,7 @@ export function ShellLayout({
     latestConfigRef.current = nextConfig
     setConfig(nextConfig)
     setSaveStatus("idle")
-  }, [settings])
+  }, [settings, user.role])
 
   // NOTE: no focus/visibilitychange auto-redirect. A client-side "am I still
   // signed in?" check on every tab focus was bouncing the user to /login
@@ -227,6 +273,10 @@ export function ShellLayout({
       setSaveStatus("blocked")
       return false
     }
+    if (!isPublicThemeInputValid(snapshot.publicTheme)) {
+      setSaveStatus("idle")
+      return false
+    }
 
     const version = configSaveVersionRef.current + 1
     configSaveVersionRef.current = version
@@ -241,8 +291,21 @@ export function ShellLayout({
     )
 
     try {
-      await save
+      const result = await save
       if (version === configSaveVersionRef.current) {
+        const savedConfig = normalizeConfig(
+          {
+            ...snapshot,
+            // The dark logo, the tab icon and its sizes are all made from the
+            // one uploaded logo on the server, so they arrive with the answer
+            // rather than being guessed at here.
+            ...result.brand,
+            publicFont: result.publicFont,
+          },
+          user.role
+        )
+        latestConfigRef.current = savedConfig
+        setConfig(savedConfig)
         setSaveStatus("saved")
       }
       return true
@@ -253,7 +316,7 @@ export function ShellLayout({
       }
       return false
     }
-  }, [])
+  }, [user.role])
 
   // Every settings edit funnels through here. Update state immediately and
   // schedule a debounced auto-save; the settings-sync effect above uses
@@ -412,7 +475,10 @@ export function ShellLayout({
         clearTimeout(configSaveTimerRef.current)
         configSaveTimerRef.current = null
         const snapshot = latestConfigRef.current
-        if (snapshot.workspaceName.trim()) {
+        if (
+          snapshot.workspaceName.trim() &&
+          isPublicThemeInputValid(snapshot.publicTheme)
+        ) {
           void saveShellSettings(snapshot).catch(() => undefined)
         }
       }
@@ -502,6 +568,12 @@ export function ShellLayout({
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
   } as React.CSSProperties
+  const stickyHeaderNavLinks = getStickyHeaderNavLinks(
+    config,
+    currentPath,
+    user.role
+  )
+  const headerLeftContent = appHeaderLeftContentForRole(user.role)
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
@@ -511,18 +583,42 @@ export function ShellLayout({
           sidebarWidth={config.sidebarWidth}
           onSidebarWidthCommit={handleSidebarWidthCommit}
         >
+          <a
+            href="#main-content"
+            className={cn(
+              "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
+              focusRing
+            )}
+            onClick={(event) => {
+              const main = document.getElementById("main-content")
+              if (!main) return
+              event.preventDefault()
+              main.focus()
+            }}
+          >
+            Skip to content
+          </a>
           <AppSidebar
             config={config}
             user={user}
             plan={plan}
             workspaces={workspaces.workspaces}
             baseDomain={workspaces.baseDomain}
+            copyChoices={workspaces.copyChoices}
             viewingAsMember={Boolean(viewedBy)}
             onLogout={handleLogout}
           />
           <SidebarInset>
             <StickyHeader
-              navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
+              navLinks={stickyHeaderNavLinks}
+              navContent={headerLeftContent ? (
+                <AppHeaderLeftContent
+                  action={headerLeftContent}
+                  role={user.role}
+                  navLinks={stickyHeaderNavLinks}
+                  limit={config.topLeftNavLimit}
+                />
+              ) : undefined}
               navLinkLimit={config.topLeftNavLimit}
               rightNavItems={config.topRightNavigation}
               role={user.role}
@@ -560,7 +656,25 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent styling={config.styling}>
+            <DashboardContent
+              id="main-content"
+              // Settings pages are taller than the viewport and already make
+              // the document scroll. Letting this panel scroll too draws two
+              // vertical scrollbars beside the settings cards.
+              className={
+                currentPath === "/admin/settings" ||
+                currentPath.startsWith("/admin/settings/")
+                  ? "overflow-visible"
+                  : undefined
+              }
+              styling={config.styling}
+              pageTitle={getCurrentPageTitle(
+                config,
+                currentPath,
+                currentRouteId,
+                user.role
+              )}
+            >
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
                   of ids so a fresh load after one is retired starts from the
@@ -600,10 +714,24 @@ export function ShellLayout({
   )
 }
 
-function normalizeConfig(settings: ShellConfig | null): ShellConfig {
+function normalizeConfig(
+  settings: ShellConfig | null,
+  role: string
+): ShellConfig {
   const fallback = createDefaultShellConfig()
+  const actionIds = appHeaderRightActionsForRole(role).map(
+    (action) => action.id
+  )
+  const memberActionIds = appHeaderRightActionsForRole("member").map(
+    (action) => action.id
+  )
   if (!settings) {
-    return fallback
+    return {
+      ...fallback,
+      topRightNavigation: createDefaultTopRightNavigation(actionIds),
+      memberTopRightNavigation:
+        createDefaultTopRightNavigation(memberActionIds),
+    }
   }
 
   return {
@@ -621,14 +749,44 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
+    workspaceFavicon: settings.workspaceFavicon ?? fallback.workspaceFavicon,
+    workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
+    workspaceLogoDark: settings.workspaceLogoDark ?? fallback.workspaceLogoDark,
+    workspaceShareImage: settings.workspaceShareImage ?? fallback.workspaceShareImage,
     favicon: settings.favicon ?? fallback.favicon,
+    faviconDark: settings.faviconDark ?? fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
     logo: settings.logo ?? fallback.logo,
     logoDark: settings.logoDark ?? fallback.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
+    publicNavigation: Array.isArray(settings.publicNavigation)
+      ? settings.publicNavigation
+      : fallback.publicNavigation,
+    publicFooter: Array.isArray(settings.publicFooter)
+      ? settings.publicFooter
+      : fallback.publicFooter,
+    publicFooterCopyright:
+      settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
+    publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicFont: normalizePublicFontAsset(settings.publicFont),
+    publicTheme: normalizePublicTheme(settings.publicTheme),
     topRightNavigation: normalizeTopRightNavigation(
-      settings.topRightNavigation
+      settings.topRightNavigation,
+      actionIds
     ),
     memberTopRightNavigation: normalizeTopRightNavigation(
-      settings.memberTopRightNavigation
+      settings.memberTopRightNavigation,
+      memberActionIds
     ),
     sections: stripRetiredAccountEntries(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections
@@ -689,9 +847,32 @@ function useModalStyleVars(modal: ShellModalStyling) {
   }, [modal])
 }
 
+// Popovers, dropdown menus, selects, sheets, and toasts also portal to
+// document.body, so the border settings are applied the same way: as CSS
+// variables on the document root, where the portaled layers can see them.
+function useBorderStyleVars(styling: ShellStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getBorderStyleVars(styling)
+    for (const name of BORDER_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of BORDER_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [styling])
+}
+
 // The root route puts the saved app name in the tab title when the page loads.
 // Editing the name on the settings page does not reload the page, so follow the
-// live config here too — same as the favicon below — and the tab renames itself
+// live config here too, just like the favicons below, and the tab renames itself
 // as you type instead of waiting for the next full load.
 function useShellDocumentTitle(appName: string) {
   React.useEffect(() => {
@@ -699,36 +880,55 @@ function useShellDocumentTitle(appName: string) {
   }, [appName])
 }
 
-function useShellFavicon(favicon: string) {
+function useShellFavicons(
+  favicon: string,
+  faviconDark: string,
+  faviconSet: ShellConfig["faviconSet"],
+  faviconMode: ShellConfig["faviconMode"]
+) {
   React.useEffect(() => {
-    const href = favicon.trim()
-    const currentLink = document.querySelector<HTMLLinkElement>(
-      'link[data-custom-shell-favicon="true"]'
+    replaceShellFaviconLinks(
+      publicFaviconLinks({ favicon, faviconDark, faviconSet, faviconMode })
     )
-
-    if (!href) {
-      currentLink?.remove()
-      return
-    }
-
-    const link = getOrCreateShellFaviconLink()
-    link.href = href
-  }, [favicon])
+  }, [favicon, faviconDark, faviconSet, faviconMode])
 }
 
-function getOrCreateShellFaviconLink() {
-  const existing = document.querySelector<HTMLLinkElement>(
-    'link[data-custom-shell-favicon="true"]'
+function replaceShellFaviconLinks(links: FaviconLink[]) {
+  const current = Array.from(
+    document.querySelectorAll<HTMLLinkElement>(
+      'link[data-custom-shell-favicon="true"]'
+    )
   )
-  if (existing) {
-    return existing
+  if (
+    current.length === links.length &&
+    current.every((link, index) => faviconLinkMatches(link, links[index]))
+  ) {
+    return
   }
 
-  const link = document.createElement("link")
-  link.rel = "icon"
-  link.setAttribute("data-custom-shell-favicon", "true")
-  document.head.appendChild(link)
-  return link
+  current.forEach((link) => link.remove())
+  for (const favicon of links) {
+    const link = document.createElement("link")
+    link.rel = favicon.rel
+    link.href = favicon.href
+    if (favicon.type) link.type = favicon.type
+    if (favicon.sizes) link.setAttribute("sizes", favicon.sizes)
+    link.setAttribute("data-custom-shell-favicon", "true")
+    document.head.appendChild(link)
+  }
+}
+
+function faviconLinkMatches(
+  current: HTMLLinkElement,
+  expected: FaviconLink | undefined
+) {
+  return Boolean(
+    expected &&
+      current.rel === expected.rel &&
+      current.getAttribute("href") === expected.href &&
+      (current.getAttribute("type") ?? undefined) === expected.type &&
+      (current.getAttribute("sizes") ?? undefined) === expected.sizes
+  )
 }
 
 function getShellItems(config: ShellConfig, role: string) {
@@ -738,7 +938,10 @@ function getShellItems(config: ShellConfig, role: string) {
     .map((item) => ({
       ...item,
       children: item.children?.filter(
-        (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+        (child) =>
+          isShellEntryVisible(child) &&
+          canSeeShellEntry(child, role) &&
+          isShellEntryNamed(child)
       ),
     }))
 }
@@ -751,6 +954,29 @@ function findActiveSectionItem(items: ShellItem[], currentPath: string) {
         item.children.some((child) =>
           isActiveShellHref(child.href, currentPath)
         ))
+  )
+}
+
+function getCurrentPageTitle(
+  config: ShellConfig,
+  currentPath: string,
+  routeId: string | undefined,
+  role: string
+) {
+  const links = getShellItems(config, role).flatMap((item) => [
+    { href: item.href, label: item.label },
+    ...(item.children ?? []).map((child) => ({
+      href: child.href,
+      label: child.label,
+    })),
+  ])
+  const currentLink = links
+    .filter((link) => isActiveShellHref(link.href, currentPath))
+    .sort((a, b) => b.href.length - a.href.length)[0]
+
+  return (
+    currentLink?.label ??
+    routePageTitle(routeId, capitalise(workspaceWord().many))
   )
 }
 

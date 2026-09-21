@@ -1,7 +1,19 @@
 import { and, eq, gt, inArray, lte, ne } from "drizzle-orm"
 
-import { ACCOUNT_RESTORE_DAYS, PENDING_DELETION } from "@/lib/account-deletion"
+import {
+  ACCOUNT_RESTORE_DAYS,
+  PENDING_DELETION,
+  restoreDeadline,
+} from "@/lib/account-deletion"
+import { formatUtcDate } from "@/lib/format/format-time"
+import { appUrlFor } from "@/server/app-url"
+import {
+  cancelSubscriptionsForDeletion,
+  type CancelApi,
+} from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
+import { cancelPendingMemberRuns } from "@/server/automations/member-events"
+import { sendAuthEmail, type AuthEmail } from "@/server/email/send"
 import {
   customShellSessions,
   customShellUsers,
@@ -23,6 +35,87 @@ import { now } from "@/server/auth/security"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** The one closure path shared by self-service and admin deletion. */
+export async function closeAccounts(
+  actorId: string,
+  userIds: string[],
+  database: CustomShellDb = db,
+  api?: CancelApi
+) {
+  const paidPlanCancelledUserIds = new Set(
+    await cancelSubscriptionsForDeletion(userIds, database, api)
+  )
+  const markedIds = await markAccountsForDeletion(actorId, userIds, database)
+  if (!markedIds.length) return markedIds
+
+  const recipients = await database
+    .select({
+      id: customShellUsers.id,
+      email: customShellUsers.email,
+      name: customShellUsers.name,
+      passwordHash: customShellUsers.passwordHash,
+      deletedAt: customShellUsers.deletedAt,
+    })
+    .from(customShellUsers)
+    .where(inArray(customShellUsers.id, markedIds))
+
+  await Promise.all(
+    recipients.map(async (recipient) => {
+      if (!recipient.deletedAt) return
+      try {
+        await sendAuthEmail(
+          accountClosedEmail({
+            email: recipient.email,
+            name: recipient.name,
+            deletedAt: recipient.deletedAt,
+            paidPlanCancelled: paidPlanCancelledUserIds.has(recipient.id),
+            canRestoreOwn:
+              recipient.id === actorId && Boolean(recipient.passwordHash),
+          })
+        )
+      } catch {
+        // The closure is the source of truth. The failed send is recorded by
+        // `sendAuthEmail`, but a mail outage must not leave a paid account open
+        // after its subscription has already been cancelled.
+      }
+    })
+  )
+
+  return markedIds
+}
+
+/** Builds the receipt without reading account state, so its wording is testable. */
+export function accountClosedEmail({
+  email,
+  name,
+  deletedAt,
+  paidPlanCancelled,
+  canRestoreOwn,
+}: {
+  email: string
+  name?: string | null
+  deletedAt: Date
+  paidPlanCancelled: boolean
+  canRestoreOwn: boolean
+}): AuthEmail {
+  const deletionDate = formatUtcDate(restoreDeadline(deletedAt))
+  return {
+    kind: "account-closed",
+    to: email,
+    recipientName: name ?? null,
+    actionUrl: appUrlFor("/login"),
+    tokens: {
+      deletion_date: deletionDate,
+      plan_status: paidPlanCancelled
+        ? "Your paid plan was cancelled immediately and will not renew again."
+        : "There was no paid plan to cancel.",
+      restore_instructions: canRestoreOwn
+        ? "To restore the account before then, sign in with this email and password, then choose Restore my account."
+        : "To restore the account before then, contact an administrator.",
+    },
+  }
+}
+
 /**
  * Marks accounts for deletion and signs them out everywhere.
  *
@@ -40,33 +133,35 @@ export async function markAccountsForDeletion(
 ) {
   const timestamp = now()
 
-  const marked = await database
-    .update(customShellUsers)
-    .set({
-      status: PENDING_DELETION,
-      deletedAt: timestamp,
-      deletedBy: actorId,
-      updatedAt: timestamp,
-    })
-    .where(
-      and(
-        inArray(customShellUsers.id, userIds),
-        ne(customShellUsers.status, PENDING_DELETION)
+  return database.transaction(async (tx) => {
+    const marked = await tx
+      .update(customShellUsers)
+      .set({
+        status: PENDING_DELETION,
+        deletedAt: timestamp,
+        deletedBy: actorId,
+        updatedAt: timestamp,
+      })
+      .where(
+        and(
+          inArray(customShellUsers.id, userIds),
+          ne(customShellUsers.status, PENDING_DELETION)
+        )
       )
-    )
-    .returning({ id: customShellUsers.id })
+      .returning({ id: customShellUsers.id })
 
-  if (marked.length > 0) {
-    // Same as suspending: nothing keeps working on an open tab.
-    await database.delete(customShellSessions).where(
-      inArray(
-        customShellSessions.userId,
-        marked.map((row) => row.id)
-      )
-    )
-  }
+    if (marked.length > 0) {
+      const markedIds = marked.map((row) => row.id)
+      await cancelPendingMemberRuns(markedIds, tx, timestamp)
 
-  return marked.map((row) => row.id)
+      // Same as suspending: nothing keeps working on an open tab.
+      await tx
+        .delete(customShellSessions)
+        .where(inArray(customShellSessions.userId, markedIds))
+    }
+
+    return marked.map((row) => row.id)
+  })
 }
 
 /**

@@ -479,7 +479,7 @@ falls through the levels on its way down, so the lowest level holding is always
 the one bought most recently, and the lowest level is also the first to reach
 its sell.
 
-Two places show this figure, and they now agree.
+Every place that prices one sale shows this figure, and they all agree.
 
 - **The arrow on the chart.** Point at a grid entry and it reads "Enter rung 1
   - for $47.53". Its matching close reads "Exit rung 1 - profit $4.28", with
@@ -488,6 +488,22 @@ Two places show this figure, and they now agree.
   order id with its rung before the range can move, so an older arrow keeps the
   number it had when it traded.
 - **The Smart orders panel**, on the grid's row, as banked.
+- **The trading overview and the P&L page**, on every row of their fill lists
+  and in the totals those rows add up to.
+- **The daily goal**, and the wallet's own made-or-lost figure in the account
+  panel, for the same reason: a total and the sales it is made of must never
+  read as two different amounts.
+
+**The daily goal reads today's fills and prices them from the whole history.**
+What a sale made is decided by the buy it closed, and that buy is often older
+than today: a rung that bought yesterday and sold this morning has its buy
+outside the window. Pricing from the window alone made the goal and the P&L
+page disagree about the same day by $68 on 20 September 2026, the goal reading
+$5 while the page read -$63. So the goal reads the fills of every market it
+touches in full, works the round trips out from those, and shows only today's.
+
+A sale the app still cannot match to a buy keeps the exchange's figure,
+because nothing on hand says what those coins cost.
 
 **A ladder is left alone on purpose.** A ladder's exits take a share off one
 blended position, so the average really is its story and the exchange's figure
@@ -497,6 +513,105 @@ One thing this fixes by accident. KuCoin reports money per position closed
 rather than per sale, so a KuCoin grid's sells arrived with no figure at all
 and the panel had to leave them blank. A level's round trip is worked out from
 the fills, so KuCoin's grids now get a figure like everybody else's.
+
+## A level never sells coins the grid does not have
+
+A level is written down as holding the moment its order is sent, not when the
+exchange confirms it. That is deliberate: an order that filled and was not
+written down is how a rung gets bought twice.
+
+What it costs is an order that never filled at all. The level goes on claiming
+coins nobody bought, and when price comes back to that level's sell price it
+sells them, out of the coins other levels paid more for.
+
+CASHCAT on Aster, 20 September 2026, is the case this was found on.
+
+- Two market buys, one for 1,674 coins at $0.15495 and one for 1,802 coins at
+  $0.14601, came back resting instead of filled. Neither bought anything.
+- Both levels sold anyway. 1,802 coins went at $0.1514 and 1,674 at $0.1636.
+- Those sales closed coins bought at $0.17658 and $0.16933. The second one lost
+  $13.95 on a rung that had done nothing wrong.
+- The grid's book was left claiming 5,086 coins against a position of 1,610.
+
+Every pass now checks the levels against the position. The position is the
+truth and a level is only a claim. When the levels claim more coins than the
+exchange holds, the extra comes off the levels nearest the losing edge first,
+because those hold the coins bought most recently and a grid sells newest
+first. A level left holding nothing goes back to waiting, and a carried level
+that empties is finished.
+
+Two guards sit on that.
+
+- **Real money only.** A practice book settles its own fills, so it cannot
+  disagree with the engine.
+- **The mismatch has to last fifteen seconds**, the same wait as a position
+  that has vanished from a read. One read that is behind the venue looks
+  exactly like coins that were never bought, and throwing away a level's real
+  coins on a slow read is the worse mistake of the two.
+
+## A rung the range moved past can still buy
+
+A rung buys only when it is **armed**, which means price has been above it.
+That rule is what stops a whole range filling in one lump the moment a grid is
+placed, and it is right.
+
+**Moving the range up used to switch every rung off.** A move away only
+happens when price is above every rung in the new range, so every one of them
+is armed by definition, and switching them off threw that away. Price coming
+straight back down then fell through rungs that could not buy, and only a
+later pass with price above them again would switch them back on. A PONS grid
+on Hyperliquid sat like that on 20 September 2026: price at $0.5896 with rungs
+at $0.5956, $0.61107 and $0.62693 all switched off, holding nothing, after the
+range had followed price up and price had come back down through all three.
+
+Now a move away leaves each rung armed if price is above it, which after a
+move is all of them.
+
+**One rung is still switched off by the move, on purpose.** The rung on the
+winning edge is the line price has just sold at, and buying it back on the
+same wobble is the CHIP case: it waits until price reaches a full rung above
+it before it may buy there again.
+
+## A grid placed under the market waits, and End Grid cannot end it
+
+A buying grid is placed below today's price and buys as price falls into it.
+Until price reaches the top of its range the grid has nothing to do, and the
+plan says so: `entered` is false until price touches the range for the first
+time.
+
+**Follow price up does not drag the range to the market.** It is gated on the
+same `entered` flag, on purpose: a range hung clear of the price is one
+somebody drew there to catch a move, and walking it up to the market on the
+first pass is the opposite of what was placed. So a grid whose range sits
+below the market waits for price to come down, however long that takes, and
+the switch does nothing in the meantime.
+
+**End Grid no longer ends a grid that has never traded.** End Grid is placed
+5% above TODAY'S price when the range is below it, so it sits between the
+market and nothing at all. A rally of that 5% used to reach it and finish a
+grid that had never bought a coin, written down as "takeProfit" with no fill
+and no cycle behind it. An HBAR grid went that way on 20 September 2026: it
+was placed at 13:47 with a range of $0.071434 to $0.084574 and an End Grid
+line at $0.087657, and it was finished nineteen minutes later having done
+nothing. There is no profit to take on a grid that never bought, so it keeps
+waiting.
+
+## Stopping a grid that holds nothing ends it
+
+"Stop the grid" calls off every waiting level. A grid still holding coins
+carries on working its exits, which is what the warning has always promised.
+A grid holding nothing has then got nothing to buy and nothing to sell, so the
+engine writes it down as finished on its next pass and it leaves the chart.
+
+Two things follow from that, and both were missing until 20 September 2026.
+
+- **The warning says which of the two is about to happen.** A grid holding
+  nothing now reads "This grid is holding nothing, so stopping it ends the
+  grid" instead of a promise that its sells keep working.
+- **The record names the hand that stopped it.** It used to be written down as
+  "flat", the same word a grid gets when it runs out of levels by itself, so a
+  grid stopped by hand and a grid that ended on its own were the same row.
+  Stopping it by hand now writes "cancelled".
 
 ## Following price up and down
 

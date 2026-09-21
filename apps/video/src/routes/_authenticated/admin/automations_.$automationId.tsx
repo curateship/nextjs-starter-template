@@ -12,16 +12,28 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 
 /**
  * `?run=<id>` is which run the bottom panel opens with — that is what makes one
- * run linkable from a bell notice. Checked before use, and dropped when it is
- * not a usable id.
+ * run linkable from a bell notice.
+ *
+ * `?node=<id or kind>` is which step opens selected, so a page built from one
+ * step can send somebody back to the settings that produced it. A kind is
+ * allowed as well as an id because the sender usually knows what the step IS
+ * without knowing which copy of it a particular flow holds.
+ *
+ * Both are checked before use, and dropped when they are not usable.
  */
-type EditorSearch = { run?: string }
+type EditorSearch = { run?: string; node?: string }
 
 function readEditorSearch(search: Record<string, unknown>): EditorSearch {
   return {
     run:
       typeof search.run === "string" && search.run.length <= 36
         ? search.run
+        : undefined,
+    node:
+      typeof search.node === "string" &&
+      search.node.length > 0 &&
+      search.node.length <= 64
+        ? search.node
         : undefined,
   }
 }
@@ -55,7 +67,7 @@ export const Route = createFileRoute(
 function AdminAutomationEditorRoute() {
   const { automation, favoriteNodeKeys, runs, blockDefaults } =
     Route.useLoaderData()
-  const { run } = Route.useSearch()
+  const { run, node } = Route.useSearch()
 
   return (
     <AutomationEditor
@@ -66,6 +78,7 @@ function AdminAutomationEditorRoute() {
       initialRuns={runs}
       initialBlockDefaults={blockDefaults}
       openRunId={run}
+      openNode={node}
     />
   )
 }

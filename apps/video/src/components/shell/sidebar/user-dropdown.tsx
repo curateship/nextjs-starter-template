@@ -79,7 +79,7 @@ export function UserDropdown({
   isAdmin: boolean
   showUpgrade: boolean
 }) {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const openAccount = useOpenAccount()
   const { leaving, stopViewing } = useStopViewingAs()
   const initials = React.useMemo(() => {
@@ -92,6 +92,15 @@ export function UserDropdown({
       .slice(0, 2)
       .toUpperCase()
   }, [user.email, user.name])
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+  const openAccountFromSidebar = (
+    tab: "profile" | "billing" | "security"
+  ) => {
+    closeMobileSidebar()
+    openAccount(tab)
+  }
 
   return (
     <SidebarMenu>
@@ -134,7 +143,7 @@ export function UserDropdown({
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem asChild>
-                    <Link to="/pricing">
+                    <Link to="/pricing" onClick={closeMobileSidebar}>
                       <SparklesIcon />
                       Upgrade
                     </Link>
@@ -144,28 +153,37 @@ export function UserDropdown({
             ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={() => openAccount("profile")}>
+              <DropdownMenuItem
+                onSelect={() => openAccountFromSidebar("profile")}
+              >
                 <BadgeCheckIcon />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => openAccount("billing")}>
+              <DropdownMenuItem
+                onSelect={() => openAccountFromSidebar("billing")}
+              >
                 <CreditCardIcon />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => openAccount("security")}>
+              <DropdownMenuItem
+                onSelect={() => openAccountFromSidebar("security")}
+              >
                 <ShieldCheckIcon />
                 Security
               </DropdownMenuItem>
               {isAdmin ? (
                 <>
                   <DropdownMenuItem asChild>
-                    <Link to="/admin/notifications">
+                    <Link
+                      to="/admin/notifications"
+                      onClick={closeMobileSidebar}
+                    >
                       <BellIcon />
                       Notifications
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/admin/settings">
+                    <Link to="/admin/settings" onClick={closeMobileSidebar}>
                       <SettingsIcon />
                       Settings
                     </Link>
@@ -199,7 +217,12 @@ export function UserDropdown({
                 Stop viewing
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem onClick={onLogout}>
+              <DropdownMenuItem
+                onClick={() => {
+                  closeMobileSidebar()
+                  onLogout()
+                }}
+              >
                 <LogOutIcon />
                 Log out
               </DropdownMenuItem>

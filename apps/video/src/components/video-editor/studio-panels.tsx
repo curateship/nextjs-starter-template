@@ -15,7 +15,7 @@ import { uploadMedia } from "@/lib/api/media/media"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
@@ -72,7 +72,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={panel === "text" ? <Type className="size-4" /> : <LayoutGrid className="size-4" />}
         title={PANEL_TITLE[panel]}
       />
@@ -294,7 +294,7 @@ function MediaPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<FilmIcon className="size-4" />}
         title="Media"
         action={

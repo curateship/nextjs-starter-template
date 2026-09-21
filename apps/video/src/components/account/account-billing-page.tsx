@@ -1,12 +1,20 @@
 import * as React from "react"
-import { ExternalLinkIcon, PauseIcon, PlayIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  Loader2Icon,
+  PauseIcon,
+  PlayIcon,
+} from "lucide-react"
 
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
+import { AccountBillingHistoryCard } from "@/components/account/account-billing-history-card"
+import { AccountMeteredUsageCard } from "@/components/account/account-metered-usage-card"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
-import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
+import { PricingTable } from "@/components/shared/pricing-table"
+import { PlanChangeConfirmation } from "@/components/shared/plan-change-confirmation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,7 +36,17 @@ import {
   TableSurface,
 } from "@/components/ui/table"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Label } from "@/components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  cancelOwnSubscription,
   getBillingErrorMessage,
   openBillingPortal,
   openPlanChange,
@@ -37,13 +55,23 @@ import {
   type BillingOverview,
   type CardExpiryWarning,
   type PlanOption,
+  type PlanChangePreview,
+  type MemberUsageSummary,
 } from "@/lib/api/billing/billing"
+import {
+  CANCELLATION_FEEDBACK_MAX_LENGTH,
+  CANCELLATION_REASON_LABELS,
+  CANCELLATION_REASONS,
+  type CancellationReason,
+} from "@/lib/billing/cancellation"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { pauseRefusalCode, pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { describeCode } from "@/lib/format/code-label"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
 import { planSummary } from "@/lib/billing/plan-summary"
+import type { BillingInterval } from "@/lib/billing/pricing-choice"
+import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not
@@ -66,11 +94,15 @@ export function AccountBillingPage({
   overview,
   invoices,
   cardWarning,
+  billingHistory,
+  usage,
   onChanged,
 }: {
   overview: BillingOverview
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
+  billingHistory: MemberSubscriptionEvent[]
+  usage: MemberUsageSummary
   /** Re-reads the page after a pause or a resume changed what it says. */
   onChanged: () => void
 }) {
@@ -78,20 +110,27 @@ export function AccountBillingPage({
     overview.interval ?? "monthly"
   )
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
+  const [preview, setPreview] = React.useState<PlanChangePreview | null>(null)
+  const selecting = React.useRef(false)
   const [openingPortal, setOpeningPortal] = React.useState(false)
   const [confirmingPause, setConfirmingPause] = React.useState(false)
+  const [cancelStep, setCancelStep] = React.useState<
+    "survey" | "confirm" | null
+  >(null)
+  const [cancelReason, setCancelReason] =
+    React.useState<CancellationReason | null>(null)
+  const [cancelFeedback, setCancelFeedback] = React.useState("")
+  const [cancelledEndsAt, setCancelledEndsAt] = React.useState<string | null>(
+    null
+  )
   const [runPause, pausing] = useAsyncAction(getBillingErrorMessage)
+  const [runCancel, cancelling] = useAsyncAction(getBillingErrorMessage)
   // Why pausing is not on offer, if it is not. The button is shown either way
   // and answers the click with this, because a button that is simply missing
   // leaves somebody looking at their own plan with no way to find out why.
   const pauseRefusal = pauseRefusalCode(overview)
-  // Someone who already has a subscription changes plan or period in the
-  // portal, never through a second checkout — see `openPlanChange`; sending a
-  // paused subscriber through checkout would leave them paying for two at once.
-  // The same flag names the button, so what it says and where it goes stay in
-  // step.
-  const manageInStripe =
-    (overview.isPaid || overview.paused) && overview.hasStripeCustomer
+  const changingPlan =
+    overview.source === "stripe" && overview.hasStripeCustomer
 
   const handlePause = React.useCallback(
     async (paused: boolean) => {
@@ -111,20 +150,21 @@ export function AccountBillingPage({
 
   const handleSelect = React.useCallback(
     async (plan: PlanOption, selectedInterval: BillingInterval) => {
+      if (selecting.current) return
+      selecting.current = true
       setBusyPlanSlug(plan.slug)
       try {
-        const { url } = await openPlanChange(
-          manageInStripe,
-          plan.slug,
-          selectedInterval
-        )
-        window.location.href = url
+        const result = await openPlanChange(plan.slug, selectedInterval)
+        if ("preview" in result) setPreview(result.preview)
+        else window.location.href = result.url
       } catch (checkoutError) {
         showErrorToast(getBillingErrorMessage(checkoutError))
+      } finally {
+        selecting.current = false
         setBusyPlanSlug(null)
       }
     },
-    [manageInStripe]
+    []
   )
 
   const handlePortal = React.useCallback(async () => {
@@ -137,6 +177,19 @@ export function AccountBillingPage({
       setOpeningPortal(false)
     }
   }, [])
+
+  const handleCancel = React.useCallback(async () => {
+    await runCancel(async () => {
+      const result = await cancelOwnSubscription(
+        cancelReason,
+        cancelFeedback.trim() || null
+      )
+      if (!result.endsAt) throw new Error("SUBSCRIPTION_NOT_FOUND")
+      setCancelledEndsAt(result.endsAt)
+      setCancelStep(null)
+      onChanged()
+    })
+  }, [cancelFeedback, cancelReason, onChanged, runCancel])
 
   return (
     <CardGroup className="w-full">
@@ -152,7 +205,7 @@ export function AccountBillingPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Your plan</CardTitle>
+          <CardTitle as="h3">Your plan</CardTitle>
           <CardDescription>{planSummary(overview)}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
@@ -178,9 +231,26 @@ export function AccountBillingPage({
           {/* Every button on this card in one right-hand group, so adding
               pause did not push "Manage in Stripe" onto its own line. */}
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {(overview.isPaid || overview.paused) &&
+            overview.source === "stripe" &&
+            !overview.cancelAtPeriodEnd ? (
+              <Button
+                variant="destructive"
+                onClick={() => setCancelStep("survey")}
+              >
+                Cancel my plan
+              </Button>
+            ) : null}
             {overview.paused ? (
-              <Button onClick={() => void handlePause(false)} disabled={pausing}>
-                <PlayIcon className="h-4 w-4" />
+              <Button
+                onClick={() => void handlePause(false)}
+                disabled={pausing}
+              >
+                {pausing ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PlayIcon className="size-4" />
+                )}
                 Start my plan again
               </Button>
             ) : null}
@@ -194,7 +264,11 @@ export function AccountBillingPage({
                 }
                 disabled={pausing}
               >
-                <PauseIcon className="h-4 w-4" />
+                {pausing ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PauseIcon className="size-4" />
+                )}
                 Pause my plan
               </Button>
             ) : null}
@@ -204,13 +278,51 @@ export function AccountBillingPage({
                 onClick={handlePortal}
                 disabled={openingPortal}
               >
-                <ExternalLinkIcon className="h-4 w-4" />
+                {openingPortal ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <ExternalLinkIcon className="size-4" />
+                )}
                 Manage in Stripe
               </Button>
             ) : null}
           </div>
         </CardContent>
       </Card>
+
+      {cancelStep === "survey" ? (
+        <CancellationSurveyCard
+          reason={cancelReason}
+          feedback={cancelFeedback}
+          busy={cancelling}
+          onReasonChange={setCancelReason}
+          onFeedbackChange={setCancelFeedback}
+          onCancel={() => setCancelStep(null)}
+          onContinue={() => setCancelStep("confirm")}
+        />
+      ) : null}
+
+      {cancelStep === "confirm" ? (
+        <CancellationConfirmCard
+          planName={overview.planName}
+          endsAt={overview.currentPeriodEnd}
+          busy={cancelling}
+          onBack={() => setCancelStep("survey")}
+          onConfirm={() => void handleCancel()}
+        />
+      ) : null}
+
+      {cancelledEndsAt ? (
+        <Card>
+          <CardHeader>
+            <CardTitle as="h3">Your plan is set to end</CardTitle>
+            <CardDescription>
+              You keep {overview.planName} until {formatDate(cancelledEndsAt)}.
+              It will not renew, and you will not be charged again.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       <ConfirmDialog
         open={confirmingPause}
@@ -227,9 +339,18 @@ export function AccountBillingPage({
         onConfirm={() => void handlePause(true)}
       />
 
+      <AccountBillingHistoryCard events={billingHistory} />
+
+      <AccountMeteredUsageCard usage={usage} />
+
       <AccountAiUsageCard />
 
-      {!overview.billingEnabled ? (
+      {preview ? (
+        <PlanChangeConfirmation
+          preview={preview}
+          onCancel={() => setPreview(null)}
+        />
+      ) : !overview.billingEnabled ? (
         <PaymentsOffCard />
       ) : (
         <PricingTable
@@ -241,12 +362,119 @@ export function AccountBillingPage({
           onSelect={handleSelect}
           busyPlanSlug={busyPlanSlug}
           trialUsed={overview.trialUsed}
-          actionLabel={manageInStripe ? "Change in Stripe" : "Upgrade"}
+          changingPlan={changingPlan}
+          actionLabel={changingPlan ? "Change plan" : "Upgrade"}
         />
       )}
 
       <InvoicesCard invoices={invoices} />
     </CardGroup>
+  )
+}
+
+function CancellationSurveyCard({
+  reason,
+  feedback,
+  busy,
+  onReasonChange,
+  onFeedbackChange,
+  onCancel,
+  onContinue,
+}: {
+  reason: CancellationReason | null
+  feedback: string
+  busy: boolean
+  onReasonChange: (reason: CancellationReason) => void
+  onFeedbackChange: (feedback: string) => void
+  onCancel: () => void
+  onContinue: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle as="h3">Why are you leaving?</CardTitle>
+        <CardDescription>
+          This is optional. You can continue without answering.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="cancel-reason">Main reason (optional)</Label>
+          <Select
+            value={reason ?? undefined}
+            onValueChange={(value) =>
+              onReasonChange(value as CancellationReason)
+            }
+            disabled={busy}
+          >
+            <SelectTrigger id="cancel-reason" className="w-full sm:w-fit">
+              <SelectValue placeholder="Choose a reason" />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCELLATION_REASONS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {CANCELLATION_REASON_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="cancel-feedback">Anything else? (optional)</Label>
+          <Textarea
+            id="cancel-feedback"
+            value={feedback}
+            maxLength={CANCELLATION_FEEDBACK_MAX_LENGTH}
+            disabled={busy}
+            onChange={(event) => onFeedbackChange(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" disabled={busy} onClick={onCancel}>
+            Keep my plan
+          </Button>
+          <Button disabled={busy} onClick={onContinue}>
+            Continue
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CancellationConfirmCard({
+  planName,
+  endsAt,
+  busy,
+  onBack,
+  onConfirm,
+}: {
+  planName: string
+  endsAt: string | null
+  busy: boolean
+  onBack: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle as="h3">Cancel {planName}?</CardTitle>
+        <CardDescription>
+          You keep your plan until{" "}
+          {endsAt ? formatDate(endsAt) : "the end of the period you paid for"}.
+          It will not renew, and you will not be charged again.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" disabled={busy} onClick={onBack}>
+          Back
+        </Button>
+        <Button variant="destructive" disabled={busy} onClick={onConfirm}>
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+          Cancel my plan
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -289,7 +517,7 @@ function CardExpiryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
+        <CardTitle as="h3">
           {warning.expired
             ? "Your saved card has expired"
             : "Your card expires before your next renewal"}
@@ -312,7 +540,11 @@ function CardExpiryCard({
           onClick={onUpdateCard}
           disabled={busy}
         >
-          <ExternalLinkIcon className="h-4 w-4" />
+          {busy ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : (
+            <ExternalLinkIcon className="size-4" />
+          )}
           Update card in Stripe
         </Button>
       </CardContent>
@@ -324,7 +556,7 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invoices</CardTitle>
+        <CardTitle as="h3">Invoices</CardTitle>
         <CardDescription>Your last two years of receipts.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -358,11 +590,10 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
               <TableBody>
                 {invoices.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                    >
+                    <TableCell colSpan={5}>
                       <EmptyRow>
-                        No invoices yet. They appear here after your first payment.
+                        No invoices yet. They appear here after your first
+                        payment.
                       </EmptyRow>
                     </TableCell>
                   </TableRow>
@@ -399,14 +630,17 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
                       </TableCell>
                       <TableCell column="meta" className="text-right">
                         {invoice.hostedInvoiceUrl ? (
-                          <a
-                            className="font-medium underline-offset-4 hover:underline"
-                            href={invoice.hostedInvoiceUrl}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                          >
-                            View
-                          </a>
+                          <Button asChild variant="ghost" size="sm">
+                            <a
+                              href={invoice.hostedInvoiceUrl}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              aria-label={`Open the ${formatMoney(invoice.amountPaid, invoice.currency)} receipt from ${formatDate(invoice.createdAt)} in a new tab`}
+                            >
+                              Receipt
+                              <ExternalLinkIcon className="size-4" />
+                            </a>
+                          </Button>
                         ) : (
                           "—"
                         )}

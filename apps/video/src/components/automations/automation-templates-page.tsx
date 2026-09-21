@@ -72,6 +72,9 @@ export function AutomationTemplatesPage({
   const closingResetTarget = useLastValue(resetTarget)
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
+  const [nameTouched, setNameTouched] = React.useState(false)
+  const [descriptionTouched, setDescriptionTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [runSave, saving] = useAsyncAction(getAutomationTemplateErrorMessage)
   const [runReset, resetting] = useAsyncAction(
     getAutomationTemplateErrorMessage
@@ -81,12 +84,18 @@ export function AutomationTemplatesPage({
     setDetailsTarget(template)
     setName(template.name)
     setDescription(template.description)
+    setNameTouched(false)
+    setDescriptionTouched(false)
+    setAttempted(false)
   }
 
   const closeDetails = () => {
     setDetailsTarget(null)
     setName("")
     setDescription("")
+    setNameTouched(false)
+    setDescriptionTouched(false)
+    setAttempted(false)
   }
 
   const updateTemplate = (template: AutomationTemplateDetail) => {
@@ -100,6 +109,7 @@ export function AutomationTemplatesPage({
 
   const saveDetails = async () => {
     if (!detailsTarget || saving) return
+    setAttempted(true)
     if (!name.trim()) {
       showErrorToast("Give the template a name.")
       return
@@ -205,7 +215,6 @@ export function AutomationTemplatesPage({
               {template.updated_at ? formatDate(template.updated_at) : "—"}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center justify-end gap-1">
                 {template.isCustomized ? (
                   <Button
                     type="button"
@@ -240,7 +249,6 @@ export function AutomationTemplatesPage({
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -273,7 +281,10 @@ export function AutomationTemplatesPage({
                       id="automation-template-name"
                       value={name}
                       maxLength={80}
-                      aria-invalid={!name.trim() || undefined}
+                      onBlur={() => setNameTouched(true)}
+                      aria-invalid={
+                        (!name.trim() && (nameTouched || attempted)) || undefined
+                      }
                       onChange={(event) => setName(event.target.value)}
                     />
                   </div>
@@ -285,7 +296,12 @@ export function AutomationTemplatesPage({
                       id="automation-template-description"
                       value={description}
                       maxLength={300}
-                      aria-invalid={!description.trim() || undefined}
+                      onBlur={() => setDescriptionTouched(true)}
+                      aria-invalid={
+                        (!description.trim() &&
+                          (descriptionTouched || attempted)) ||
+                        undefined
+                      }
                       onChange={(event) => setDescription(event.target.value)}
                     />
                   </div>

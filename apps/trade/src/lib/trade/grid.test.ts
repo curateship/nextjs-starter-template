@@ -37,6 +37,7 @@ import {
   placeGridParamsSchema,
   plannedGridReversal,
   readGridPlan,
+  stopGridWarning,
   type GridLevelState,
   type GridPlan,
 } from "./grid"
@@ -1643,5 +1644,41 @@ describe("gridRangeFromNearRung", () => {
         direction: "long",
       })
     ).toBeNull()
+  })
+})
+
+describe("what stopping a grid warns it will do", () => {
+  const level = (over: Partial<GridLevelState> = {}): GridLevelState => ({
+    buyPx: 100,
+    sellPx: 110,
+    sz: 1,
+    budget: 100,
+    heldSz: 0,
+    status: "waiting",
+    armed: true,
+    dead: false,
+    cycles: 0,
+    ...over,
+  })
+
+  it("says the grid ends when it is holding nothing", () => {
+    const warning = stopGridWarning({
+      plan: { levels: [level(), level()], carriedLevels: [] },
+    })
+
+    expect(warning).toContain("2 waiting levels are cancelled")
+    expect(warning).toContain("stopping it ends the grid")
+  })
+
+  it("promises the sells keep working when it is holding coins", () => {
+    const warning = stopGridWarning({
+      plan: {
+        levels: [level(), level({ status: "holding", heldSz: 4 })],
+        carriedLevels: [],
+      },
+    })
+
+    expect(warning).toContain("1 waiting level is cancelled")
+    expect(warning).toContain("its sells keep working")
   })
 })

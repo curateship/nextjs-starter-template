@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm"
 
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
@@ -18,7 +18,10 @@ import {
   walletProfitWindowStart,
   type TradeWallet,
 } from "@/lib/trade/wallets"
+import { gridRoundTrips } from "@/lib/trade/live-trades"
+import type { TradeSide } from "@/lib/trade/paper"
 import { db } from "@/server/db"
+import { stampGridFills } from "@/server/trade/grid-fills"
 import { tradeLiveFills } from "@/server/trade/schema"
 import {
   listWalletsWithCredentials,
@@ -142,6 +145,20 @@ export async function loadTradingOverview(
  * Every visible real fill of the wallets given, newest first, priced the way
  * the overview's Made or lost figure prices them. Shared with the P&L page so
  * its month grid adds up the same fills, and the same money, as the PnL Graph.
+ *
+ * **A grid's sale is worth what its own rung made**, the same figure the chart
+ * arrow and the Smart orders panel show, never the exchange's. The exchange
+ * books every part-sale against one blended average, and while a grid is
+ * running that average is held up by the rungs still holding, so a rung that
+ * did its job reads here as a loss. `gridRoundTrips` has the arithmetic.
+ *
+ * **A `since` read still prices from the whole history.** What a sale made is
+ * decided by the buy it closed, which is often older than the window: the
+ * daily goal reads today's fills, and a rung that bought yesterday and sold
+ * this morning has its buy outside them. Pricing from the window alone made
+ * the goal and the P&L page disagree about the same day by $68 on
+ * 20 Sep 2026. So the fills of every market in the window are read in full,
+ * used to work the round trips out, and only the window's own rows come back.
  */
 export async function loadOverviewFills(
   userId: string,
@@ -155,23 +172,59 @@ export async function loadOverviewFills(
   since?: number
 ): Promise<TradingOverviewFill[]> {
   if (wallets.length === 0) return []
+  const walletIds = wallets.map((wallet) => wallet.id)
+  const mine = and(
+    eq(tradeLiveFills.userId, userId),
+    inArray(tradeLiveFills.walletId, walletIds),
+    eq(tradeLiveFills.hidden, false)
+  )
   const rows = await db
     .select()
     .from(tradeLiveFills)
     .where(
-      and(
-        eq(tradeLiveFills.userId, userId),
-        inArray(
-          tradeLiveFills.walletId,
-          wallets.map((wallet) => wallet.id)
-        ),
-        eq(tradeLiveFills.hidden, false),
-        since === undefined ? undefined : gte(tradeLiveFills.at, since)
-      )
+      since === undefined ? mine : and(mine, gte(tradeLiveFills.at, since))
     )
     .orderBy(desc(tradeLiveFills.at))
 
+  // The buys behind the window's sales, for the markets the window touches
+  // and no others. A market nobody traded today cannot hold a coin sold
+  // today, so reading it would be rows carried for nothing.
+  const marketKeys = [...new Set(rows.map((row) => row.marketKey))]
+  const earlier =
+    since === undefined || marketKeys.length === 0
+      ? []
+      : await db
+          .select()
+          .from(tradeLiveFills)
+          .where(
+            and(
+              mine,
+              lt(tradeLiveFills.at, since),
+              inArray(tradeLiveFills.marketKey, marketKeys)
+            )
+          )
+          .orderBy(desc(tradeLiveFills.at))
+
   const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  const stamped = await stampGridFills(
+    userId,
+    walletIds,
+    [...rows, ...earlier].map((row) => ({
+      fillId: row.fillId,
+      orderId: row.orderId,
+      walletId: row.walletId,
+      marketKey: row.marketKey,
+      side: row.side as TradeSide,
+      px: row.px,
+      sz: row.sz,
+      at: Number(row.at),
+      closedPnl: row.closedPnl,
+      fee: row.fee,
+      dir: row.dir,
+      liquidation: row.liquidation,
+    }))
+  )
+  const rungs = gridRoundTrips(stamped)
   return rows.flatMap((row) => {
     const wallet = walletById.get(row.walletId)
     if (!wallet) return []
@@ -189,12 +242,14 @@ export async function loadOverviewFills(
         sz: row.sz,
         at: Number(row.at),
         fee: row.fee,
-        money: moneyForWalletFill({
-          profitPerSale: pricesEverySale(protocol),
-          side: row.side,
-          closedPnl: row.closedPnl,
-          fee: row.fee,
-        }),
+        money:
+          rungs.get(row.fillId)?.money ??
+          moneyForWalletFill({
+            profitPerSale: pricesEverySale(protocol),
+            side: row.side,
+            closedPnl: row.closedPnl,
+            fee: row.fee,
+          }),
       },
     ]
   })

@@ -10,6 +10,23 @@ export function bnbRpcUrl(): string {
   return process.env.TRADE_BNB_RPC?.trim() || "https://bsc-dataseed.binance.org"
 }
 
+/**
+ * The node that reads trade history, which is not the node that sends trades.
+ *
+ * **Not every BSC node answers `eth_getLogs`, and the popular one does not.**
+ * `bsc-dataseed.binance.org` refuses every log request with "limit exceeded",
+ * a single block included, so it is not a range to page around: that node does
+ * not serve logs at all. It was the node this app sent trades through and read
+ * history through, so from 20 Sep 2026 every BNB fills sweep failed and no
+ * swap reached the Journal. Sending is left where it was, because that part
+ * worked.
+ */
+export function bnbLogsRpcUrl(): string {
+  return (
+    process.env.TRADE_BNB_LOGS_RPC?.trim() || "https://bsc-rpc.publicnode.com"
+  )
+}
+
 export const BNB_USDT = "0x55d398326f99059ff775485246999027b3197955"
 export const BNB_WRAPPED_NATIVE = "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
 

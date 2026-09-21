@@ -155,9 +155,17 @@ const POSITION_GONE_CONFIRM_MS = 15_000
 /** When each grid's position first went missing from a read, by row id. */
 const positionGoneSince = new Map<string, number>()
 
-/** Test support: forgets every grid's missing-position clock. */
+/**
+ * When each grid's levels first claimed more coins than the position had, by
+ * row id. Same clock as above and for the same reason: a read that is behind
+ * the venue looks exactly like coins that were never bought.
+ */
+const heldTooMuchSince = new Map<string, number>()
+
+/** Test support: forgets what every grid has been told about its position. */
 export function resetGridPositionGoneMemory(): void {
   positionGoneSince.clear()
+  heldTooMuchSince.clear()
 }
 
 export type GridRow = {
@@ -284,8 +292,19 @@ export async function advanceGrid(
 
   const target = gridTakeProfitPx(plan)
   let ended = false
+  // **End Grid finishes a grid that traded. It cannot finish one that never
+  // did.** A buying grid is placed under the market and waits for price to
+  // come down to it, and its End Grid line sits above the market. A rally
+  // then reached the finishing line of a grid that had never bought a coin
+  // and ended it there. An HBAR grid was placed at 13:47 on 20 Sep 2026 with a
+  // range of $0.071434 to $0.084574, price rose to $0.087657, and it was
+  // written down as "takeProfit" nineteen minutes later with no fill, no
+  // cycle and nothing held. A grid waiting for a dip has no profit to take,
+  // so it keeps waiting. `entered` is the same flag Follow reads: price has
+  // reached this range at least once.
   if (
     !stopped &&
+    plan.entered &&
     mark !== null &&
     target !== null &&
     reachedExit(direction, mark, target)
@@ -378,6 +397,12 @@ export async function advanceGrid(
     if (!plan.closedReason) plan.closedReason = anyHolding ? "stop" : "flat"
     await deps.saveLadder(row, "done", now)
     return
+  }
+
+  // ----- 3b. No level may hold coins the position does not have -----------
+
+  if (trimPhantomHoldings(plan, position, row.id, book.wallet.kind, now)) {
+    changed = true
   }
 
   // ----- 4. Exit triggers, BEFORE entry triggers --------------------------
@@ -845,7 +870,17 @@ function followTheRangeAway(
     level.sellPx = sized[index].sellPx
     level.sz = sized[index].sz
     if (level.status === "waiting") {
-      level.armed = false
+      // **Armed means price has been above this level**, and after a move
+      // away every level is below the price: the move is refused above if any
+      // of them is not. Disarming the lot cost a trade every time the range
+      // moved up and price came straight back down. The rungs it fell
+      // through had been switched off by the move and could not buy, and only
+      // a fresh pass with price above them again would switch them back on.
+      // A PONS grid on 20 Sep 2026 sat with price at $0.5896 and its three
+      // rungs at $0.5956, $0.61107 and $0.62693 all disarmed, having bought
+      // nothing on the way down. The one level that must genuinely wait is
+      // the moved edge, and `rebuyAbove` below is what holds it.
+      level.armed = readyWhen(direction, mark, level.buyPx)
       const carriedRequirement = rebuyAboveByPx.get(level.buyPx)
       if (carriedRequirement !== undefined) {
         if (reachedExit(direction, mark, carriedRequirement)) {
@@ -861,12 +896,100 @@ function followTheRangeAway(
   }
   const movedEdge = winEdgeLevel(plan)
   if (movedEdge?.status === "waiting") {
+    // The one level the move really does switch off. It is the line price
+    // just sold at, and buying it back on the same wobble is the CHIP case
+    // below. `rebuyAbove` is the guard that matters; this keeps the flag
+    // beside it honest.
+    movedEdge.armed = false
     movedEdge.rebuyAbove =
       movedEdge.rebuyAbove === undefined
         ? movedEdge.sellPx
         : winningSide(direction, movedEdge.rebuyAbove, movedEdge.sellPx)
   }
   plan.shifts += 1
+  return true
+}
+
+/**
+ * Puts the levels back to holding no more coins than the position really has.
+ *
+ * **The position is the truth and a level is only a claim.** A level is marked
+ * holding the moment its order is sent, because an order that filled and was
+ * not written down is how a rung gets bought twice. What that rule costs is an
+ * order that never filled at all: the level goes on claiming coins nobody
+ * bought, and when price reaches that level's exit it sells them, out of the
+ * coins other levels paid more for.
+ *
+ * Aster did this to a CASHCAT grid on 20 September 2026. Two market buys, one
+ * for 1,674 coins and one for 1,802, came back resting instead of filled and
+ * bought nothing. Both levels sold anyway, 1,802 coins at $0.1514 and 1,674 at
+ * $0.1636, and each sale closed coins bought at $0.17658 and $0.16933. The
+ * second lost $13.95 on a rung that had done nothing wrong, and the plan was
+ * left claiming 5,086 coins against a position of 1,610.
+ *
+ * **The extra comes off the levels nearest the losing edge first**, because
+ * those hold the coins bought most recently and a grid sells newest first. The
+ * holdings that survive a sale are always the older, further-out ones. On that
+ * CASHCAT grid this rule lands on exactly the 1,610 coins the exchange had.
+ *
+ * **Real money only, and only once the mismatch has outlasted a slow read.**
+ * Same reason as the missing-position clock above: one read that is behind the
+ * venue must never throw away a level's real coins. A practice book settles
+ * its own fills and cannot be behind.
+ */
+function trimPhantomHoldings(
+  plan: GridPlan,
+  position: { szi: number } | null,
+  rowId: string,
+  walletKind: WalletBook["wallet"]["kind"],
+  now: number
+): boolean {
+  if (!position || walletKind !== "live") {
+    heldTooMuchSince.delete(rowId)
+    return false
+  }
+  const real = Math.abs(position.szi)
+  const claimed = gridHeldSz(plan)
+  const extra = claimed - real
+  const dust = Math.max(claimed, real, 1) * 1e-9
+  if (extra <= Math.max(claimed, real) * 1e-6) {
+    heldTooMuchSince.delete(rowId)
+    return false
+  }
+  const since = heldTooMuchSince.get(rowId) ?? now
+  heldTooMuchSince.set(rowId, since)
+  if (now - since < POSITION_GONE_CONFIRM_MS) return false
+  heldTooMuchSince.delete(rowId)
+
+  const holding = [
+    ...plan.levels.map((level) => ({ level, carried: false })),
+    ...plan.carriedLevels.map((level) => ({ level, carried: true })),
+  ].filter(({ level }) => level.status === "holding" && level.heldSz > 0)
+  // Nearest the losing edge first: the lowest entry on a buying grid, the
+  // highest on a selling one.
+  holding.sort((left, right) =>
+    plan.direction === "long"
+      ? left.level.buyPx - right.level.buyPx
+      : right.level.buyPx - left.level.buyPx
+  )
+
+  const emptied = new Set<GridPlan["carriedLevels"][number]>()
+  let over = extra
+  for (const { level, carried } of holding) {
+    if (over <= dust) break
+    const take = Math.min(level.heldSz, over)
+    level.heldSz -= take
+    over -= take
+    if (level.heldSz > dust) continue
+    level.heldSz = 0
+    level.status = carried ? "cancelled" : "waiting"
+    if (carried) emptied.add(level)
+  }
+  if (emptied.size > 0) {
+    plan.carriedLevels = plan.carriedLevels.filter(
+      (level) => !emptied.has(level)
+    )
+  }
   return true
 }
 

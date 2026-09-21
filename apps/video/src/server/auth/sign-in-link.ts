@@ -4,13 +4,19 @@ import { isPendingDeletion } from "@/lib/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import { startSessionWithAlert } from "@/server/auth/security-alerts"
+import { markReferralJoined } from "@/server/billing/referrals"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import {
   consumeAuthToken,
-  createAuthToken,
   findUserByEmail,
+  isActiveAccount,
   now,
   type SessionOrigin,
 } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
 
 /**
  * Magic-link sign-in: a one-time link, emailed to the address on the account,
@@ -37,14 +43,21 @@ import {
  */
 export async function createSignInLinkToken(
   email: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  linkContext?: AuthLinkContext
 ) {
   const user = await findUserByEmail(email, database)
-  if (!user || user.status !== "active") {
+  if (!isActiveAccount(user)) {
     return null
   }
 
-  return { email: user.email, token: await createAuthToken(user.id, "login", database) }
+  return {
+    email: user.email,
+    name: user.name,
+    token: await createWorkspaceAuthToken(user.id, "login", database, {
+      context: linkContext,
+    }),
+  }
 }
 
 /**
@@ -94,13 +107,16 @@ export async function consumeSignInLink(
   // password reset already draws.
   const user = account.emailVerifiedAt
     ? account
-    : (
-        await database
+    : await database.transaction(async (tx) => {
+        const [verified] = await tx
           .update(customShellUsers)
           .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
           .where(eq(customShellUsers.id, account.id))
           .returning()
-      )[0]
+        await markReferralJoined(verified.id, tx, timestamp)
+        await emitMemberEvent("verified", verified, tx)
+        return verified
+      })
 
   return {
     user,

@@ -14,6 +14,11 @@ export function isExternalHref(href?: string) {
   )
 }
 
+/** A saved path the client router can handle without leaving this site. */
+export function isInternalHref(href?: string) {
+  return Boolean(href?.startsWith("/") && !href.startsWith("//"))
+}
+
 /**
  * The router's `Link` takes a path, a query and a hash separately, while a
  * saved link is one string an admin typed — so split it here. Without this a

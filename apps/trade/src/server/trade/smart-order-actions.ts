@@ -2,6 +2,7 @@ import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
 import { exitLadderGapPctForPrice, ladderBaseStopOf } from "@/lib/trade/dca"
 import {
   gridEndPx,
+  gridHeldSz,
   gridStopBeyond,
   gridStopPx,
   lossEdge,
@@ -29,6 +30,16 @@ export function cancelGridRestPlan(plan: GridPlan): number {
     if (level.status !== "waiting") continue
     level.status = "cancelled"
     cancelled += 1
+  }
+  // **Say who ended it.** A grid with nothing waiting and nothing held is
+  // over, and the engine writes that down on its next pass. Left alone it
+  // writes "flat", which reads as the grid deciding for itself, and that is
+  // exactly what a grid stopped by hand then looked like.
+  //
+  // Only when it holds nothing. A grid still holding coins keeps working its
+  // exits, and a reason written here would close the row out from under them.
+  if (cancelled > 0 && !plan.closedReason && gridHeldSz(plan) <= 0) {
+    plan.closedReason = "cancelled"
   }
   return cancelled
 }

@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   getAiToolErrorMessage,
   loadAiToolsAvailability,
@@ -147,7 +147,7 @@ export function TranscriptPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<TypeIcon className="size-4" />}
         title="Transcript"
       />

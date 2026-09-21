@@ -1,7 +1,7 @@
 import { parseAbiItem, type Address, type Hash } from "viem"
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
 import { BNB_USDT, BNB_WRAPPED_NATIVE } from "./client"
-import { bnbReadClient, bnbTokenDecimals } from "./rpc"
+import { bnbLogsClient, bnbTokenDecimals } from "./rpc"
 import { bnbReceiptFailure, bnbReceiptFill, bnbTransfers } from "./receipts"
 import { bnbAccountMarkets } from "./markets"
 import {
@@ -13,11 +13,18 @@ import {
   type BnbOwner,
 } from "./ledger"
 import { clearBnbAccountState } from "./account"
-import { bnbRefusalError, bnbNodeRefusalCode } from "./refusals"
+import {
+  bnbHistoryRefusalError,
+  bnbLogsBeyondNode,
+  bnbRefusalError,
+} from "./refusals"
 import { bnbUnits } from "./quote"
 
-// Measured PublicNode: 10,000 wallet-filtered blocks accepted; 50,000 refused.
-// Page by 1,000 blocks and bound the initial recovery window to 10,000.
+// Measured on 20 Sep 2026: PublicNode serves 1,000 wallet-filtered blocks per
+// request and answers about 9,000 blocks back from the head, roughly two
+// hours, before calling the rest archive. Page by 1,000 blocks and bound the
+// initial recovery window to 10,000; the pages past what the node keeps are
+// skipped below rather than failing the read.
 export const BNB_LOG_PAGE = 1_000n
 export const BNB_RECENT_BLOCKS = 10_000n
 const transfer = parseAbiItem(
@@ -39,8 +46,9 @@ export async function fetchBnbOrderFills(
     return await readBnbOrderFills(address, since, owner)
   } catch (error) {
     // History reads may concern a successful swap. Never reuse a pre-signing
-    // decimals refusal that claims no coins moved.
-    throw bnbRefusalError(bnbNodeRefusalCode(error), { pending: true })
+    // decimals refusal that claims no coins moved, and never report a node
+    // that would not answer as a transaction nobody confirmed.
+    throw bnbHistoryRefusalError(error)
   }
 }
 async function readBnbOrderFills(
@@ -49,7 +57,7 @@ async function readBnbOrderFills(
   owner: BnbOwner
 ): Promise<WalletOrderFill[]> {
   const wallet = address.toLowerCase() as Address
-  const client = bnbReadClient()
+  const client = bnbLogsClient()
   const head = await client.getBlockNumber()
   if (head < 2n) return []
   const toBlock = head - 2n
@@ -65,31 +73,49 @@ async function readBnbOrderFills(
         : floor
   const pending = await pendingBnbSends(owner)
   const hashes = new Set<Hash>(pending.map((row) => row.hash as Hash))
+  // **A page the node will not serve is skipped, not thrown.** A free node
+  // keeps only the most recent blocks, so the oldest page of a first scan is
+  // refused while every newer page is there. The newer ones are the point,
+  // since the sweep runs every couple of minutes, and losing them all to
+  // the oldest page is how a wallet's swaps never reach the Journal at all.
+  let asked = 0
+  let served = 0
   for (let fromBlock = start; fromBlock <= toBlock; fromBlock += BNB_LOG_PAGE) {
     const end =
       fromBlock + BNB_LOG_PAGE - 1n < toBlock
         ? fromBlock + BNB_LOG_PAGE - 1n
         : toBlock
-    const pages = await Promise.all([
-      client.getLogs({
-        address: BNB_USDT,
-        event: transfer,
-        args: { from: wallet },
-        fromBlock,
-        toBlock: end,
-      }),
-      client.getLogs({
-        address: BNB_USDT,
-        event: transfer,
-        args: { to: wallet },
-        fromBlock,
-        toBlock: end,
-      }),
-    ])
+    asked += 1
+    let pages
+    try {
+      pages = await Promise.all([
+        client.getLogs({
+          address: BNB_USDT,
+          event: transfer,
+          args: { from: wallet },
+          fromBlock,
+          toBlock: end,
+        }),
+        client.getLogs({
+          address: BNB_USDT,
+          event: transfer,
+          args: { to: wallet },
+          fromBlock,
+          toBlock: end,
+        }),
+      ])
+    } catch (error) {
+      if (!bnbLogsBeyondNode(error)) throw error
+      continue
+    }
+    served += 1
     for (const logs of pages)
       for (const log of logs)
         if (log.transactionHash) hashes.add(log.transactionHash)
   }
+  // Every page refused is a node that does not serve history at all, which is
+  // worth saying out loud rather than answering "no new swaps" forever.
+  if (asked > 0 && served === 0) throw bnbRefusalError("history")
   const price = (await bnbAccountMarkets()).prices.get(BNB_WRAPPED_NATIVE)
   if (!(price && price > 0)) throw bnbRefusalError("pending")
   const fills: WalletOrderFill[] = []

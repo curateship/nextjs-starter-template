@@ -56,7 +56,7 @@ import {
   type ScrollMetrics,
   type TimelineWindow,
 } from "@/lib/video/timeline-virtualization"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   useEditorDurationMs,
   useEditorRuntime,
@@ -286,7 +286,15 @@ export function StudioTimeline() {
       >
         <div
           ref={innerRef}
-          style={{ position: "relative", minWidth: "100%", width: contentWidth }}
+          // Full height of the scroll box even when the lanes do not fill it,
+          // so the playhead and the snapping guide run to the bottom edge of
+          // the panel instead of stopping under the last lane.
+          style={{
+            position: "relative",
+            minWidth: "100%",
+            width: contentWidth,
+            minHeight: "100%",
+          }}
         >
           <div
             style={{
@@ -1372,7 +1380,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
   }
 
   return (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={<LayersIcon className="size-4" />}
       title="Timeline"
       action={

@@ -1,16 +1,19 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement } from "@/server/content/announcements"
+import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement, loadVisitorAnnouncements as loadVisitorAnnouncementsQuery } from "@/server/content/announcements"
 import { adminGet, adminPost, userPost } from "@/server/guards"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { visitorWorkspaceId, workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
 
 import {
   ANNOUNCEMENT_LEVELS,
+  ANNOUNCEMENT_AUDIENCES,
   DEFAULT_ANNOUNCEMENT_LEVEL,
   MAX_ANNOUNCEMENT_BODY_LENGTH,
   MAX_ANNOUNCEMENT_TITLE_LENGTH,
   type AnnouncementLevel,
+  type AnnouncementAudience,
+  type VisitorAnnouncement,
 } from "@/lib/announcement"
 
 export type Announcement = {
@@ -18,6 +21,7 @@ export type Announcement = {
   title: string
   body: string
   level: AnnouncementLevel
+  audience: AnnouncementAudience
   showBanner: boolean
   notify: boolean
   startsAt: string
@@ -53,6 +57,7 @@ const announcementInputSchema = z.object({
     .min(1, "ANNOUNCEMENT_BODY_REQUIRED")
     .max(MAX_ANNOUNCEMENT_BODY_LENGTH),
   level: z.enum(ANNOUNCEMENT_LEVELS).default(DEFAULT_ANNOUNCEMENT_LEVEL),
+  audience: z.enum(ANNOUNCEMENT_AUDIENCES).default("app"),
   showBanner: z.boolean().default(true),
   notify: z.boolean().default(false),
   startsOn: dateFieldSchema.default(""),
@@ -64,6 +69,17 @@ export type AnnouncementFormInput = z.input<typeof announcementInputSchema>
 const idListSchema = z.object({
   announcementIds: z.array(z.string().min(1).max(36)).min(1).max(200),
 })
+
+/**
+ * Public on purpose. The request's domain chooses the site, and the query only
+ * returns live announcements an admin explicitly opened to visitors.
+ */
+const readVisitorAnnouncementsFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<VisitorAnnouncement[]> => {
+    const workspaceId = await visitorWorkspaceId()
+    return workspaceId ? loadVisitorAnnouncementsQuery(workspaceId) : []
+  }
+)
 
 const listAdminFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -135,6 +151,10 @@ const dismissFn = createServerFn({ method: "POST" })
 
 export function loadAdminAnnouncements() {
   return listAdminFn()
+}
+
+export function loadVisitorAnnouncements() {
+  return readVisitorAnnouncementsFn()
 }
 
 export function createAdminAnnouncement(announcement: AnnouncementFormInput) {

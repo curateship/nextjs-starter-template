@@ -239,7 +239,7 @@ async function keepInLibrary(
     await deleteFromR2(storagePath).catch(() => undefined)
     throw error
   }
-  return { mediaId: row.id, url: getPublicMediaUrl(storagePath), name }
+  return { mediaId: row.id, url: await getPublicMediaUrl(storagePath), name }
 }
 
 /**

@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -53,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -97,6 +99,7 @@ import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { cn } from "@/lib/utils"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 
 type ViewMode = "list" | "gallery"
 
@@ -226,6 +229,7 @@ export function MediaLibraryPage({
   const navigate = useNavigate()
   const [data, setData] = React.useState(initialData)
   const [error, setError] = React.useState<string | null>(null)
+  const [refreshCount, setRefreshCount] = React.useState(0)
   const [search, setSearch] = React.useState("")
   const [ownerId, setOwnerId] = React.useState(initialOwnerId)
   const [typeFilter, setTypeFilter] = React.useState<MediaViewFilter>("all")
@@ -251,7 +255,10 @@ export function MediaLibraryPage({
   )
   const selection = useSelection()
   const selectedIds = selection.selected
-  const [openMedia, setOpenMedia] = React.useState<AdminMediaItem | null>(null)
+  const [loadedMedia, setLoadedMedia] = React.useState<{
+    id: string
+    item: AdminMediaItem | null
+  } | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   // The confirmation is still on screen while it fades out, after the selection
   // has been cleared — so it keeps counting what it opened with, not "0 files".
@@ -265,14 +272,15 @@ export function MediaLibraryPage({
   // Finding orphans means reading the whole bucket, so the scan runs the first
   // time the filter asks for it and the result is kept until it changes.
   const [orphanData, setOrphanData] = React.useState<OrphanDashboard | null>(null)
-  const [scanning, setScanning] = React.useState(false)
+  const [rescanning, setRescanning] = React.useState(false)
   const [orphanError, setOrphanError] = React.useState<string | null>(null)
+  const scanning =
+    rescanning || Boolean(openOrphanKey && !orphanData && !orphanError)
   const {
     sort: orphanSort,
     direction: orphanDirection,
     toggleSort: toggleOrphanSort,
   } = useTableSort<OrphanSort>("size", "desc", orphanSortDirection)
-  const [openOrphan, setOpenOrphan] = React.useState<MediaOrphan | null>(null)
   const [confirmKeys, setConfirmKeys] = React.useState<string[] | null>(null)
   // Same as the media confirmation: the window is still fading out after the
   // keys have been cleared, so it keeps counting what it opened with.
@@ -301,6 +309,7 @@ export function MediaLibraryPage({
   )
 
   const refresh = React.useCallback(async () => {
+    setRefreshCount((count) => count + 1)
     try {
       const next = await loadAdminMediaPage(query)
       setData(next)
@@ -316,20 +325,25 @@ export function MediaLibraryPage({
       }
     } catch (loadError) {
       setError(getAdminMediaErrorMessage(loadError))
+    } finally {
+      setRefreshCount((count) => Math.max(0, count - 1))
     }
   }, [query])
 
-  const rescan = React.useCallback(async () => {
-    setScanning(true)
+  const loadOrphanData = React.useCallback(async () => {
     try {
       setOrphanData(await loadOrphans())
       setOrphanError(null)
     } catch (scanError) {
       setOrphanError(getAdminMediaErrorMessage(scanError))
     } finally {
-      setScanning(false)
+      setRescanning(false)
     }
   }, [])
+  const rescan = React.useCallback(() => {
+    setRescanning(true)
+    return loadOrphanData()
+  }, [loadOrphanData])
 
   // A queue of uploads runs for minutes, and the filters stay live the whole
   // time. Reloading through a ref means the reload at the end asks for whatever
@@ -370,38 +384,48 @@ export function MediaLibraryPage({
   )
 
   const media = data.media.media
-  React.useEffect(() => {
-    if (!openMediaId) {
-      setOpenMedia(null)
-      return
-    }
+  const visibleOpenMedia = media.find((item) => item.id === openMediaId) ?? null
+  const openMedia =
+    visibleOpenMedia ??
+    (loadedMedia && loadedMedia.id === openMediaId ? loadedMedia.item : null)
 
-    const visibleItem = media.find((item) => item.id === openMediaId)
-    if (visibleItem) {
-      setOpenMedia(visibleItem)
-      return
-    }
+  React.useEffect(() => {
+    if (!openMediaId || visibleOpenMedia || loadedMedia?.id === openMediaId) return
 
     let active = true
     void loadAdminMediaItem(openMediaId)
       .then((item) => {
-        if (active) setOpenMedia(item)
+        if (active) setLoadedMedia({ id: openMediaId, item })
       })
       .catch(() => {
-        if (active) setOpenMedia(null)
+        if (active) setLoadedMedia({ id: openMediaId, item: null })
       })
     return () => {
       active = false
     }
-  }, [media, openMediaId])
+  }, [loadedMedia?.id, openMediaId, visibleOpenMedia])
+  const openOrphan = React.useMemo(
+    () =>
+      orphanData?.orphans.find((item) => orphanKey(item) === openOrphanKey) ??
+      null,
+    [openOrphanKey, orphanData]
+  )
   React.useEffect(() => {
-    if (openOrphanKey && !orphanData) void rescan()
-    if (orphanData) {
-      setOpenOrphan(
-        orphanData.orphans.find((item) => orphanKey(item) === openOrphanKey) ?? null
-      )
+    if (!openOrphanKey || orphanData) return
+    let active = true
+    void loadOrphans()
+      .then((next) => {
+        if (!active) return
+        setOrphanData(next)
+        setOrphanError(null)
+      })
+      .catch((scanError) => {
+        if (active) setOrphanError(getAdminMediaErrorMessage(scanError))
+      })
+    return () => {
+      active = false
     }
-  }, [openOrphanKey, orphanData, rescan])
+  }, [openOrphanKey, orphanData])
   const visibleIds = media.map((item) => item.id)
 
   const matchingOrphans = React.useMemo(() => {
@@ -497,16 +521,27 @@ export function MediaLibraryPage({
     const ids = deleteIds
     await runDelete(async () => {
       const result = await deleteMediaAsAdminAction(ids)
-      toast.success(
-        `Deleted ${result.deletedCount} ${plural(result.deletedCount, "file", "files")}.`
-      )
+      const summary = describeBulkResult({
+        done: result.deletedCount,
+        kept: ids.length - result.deletedCount,
+        one: "file",
+        many: "files",
+        verb: "deleted",
+      })
+      if (result.protectedCount) {
+        toast.warning(
+          `${summary} ${result.protectedCount} ${plural(result.protectedCount, "file was", "files were")} kept because ${plural(result.protectedCount, "it appears", "they appear")} in email already sent.`
+        )
+      } else {
+        toast.success(summary)
+      }
       selection.setSelected((current) => {
         const next = new Set(current)
         ids.forEach((id) => next.delete(id))
         return next
       })
       setDeleteIds(null)
-      setOpenMedia(null)
+      setOpenRecord("media", undefined)
       await refresh()
     })
   }
@@ -533,7 +568,13 @@ export function MediaLibraryPage({
         deleted += result.deletedCount
       }
       toast.success(
-        `Cleaned up ${deleted} ${plural(deleted, "orphan", "orphans")}.`
+        describeBulkResult({
+          done: deleted,
+          kept: selected.length - deleted,
+          one: "orphan",
+          many: "orphans",
+          verb: "deleted",
+        })
       )
       selection.setSelected((current) => {
         const next = new Set(current)
@@ -542,7 +583,7 @@ export function MediaLibraryPage({
       })
       setConfirmKeys(null)
       setDeletingAll(false)
-      setOpenOrphan(null)
+      setOpenRecord("orphan", undefined)
       // A cleaned-up record was media a moment ago, so the library behind the
       // filter is stale too.
       await Promise.all([rescan(), refresh()])
@@ -813,6 +854,7 @@ export function MediaLibraryPage({
 
       {viewMode === "gallery" ? (
         <DashboardTable
+          busy={refreshCount > 0}
           title={title}
           icon={icon}
           count={count}
@@ -867,6 +909,7 @@ export function MediaLibraryPage({
         />
       ) : (
         <DashboardTable
+          busy={refreshCount > 0}
           title={title}
           icon={icon}
           count={count}
@@ -881,18 +924,8 @@ export function MediaLibraryPage({
                 sort={orphanSort}
                 direction={orphanDirection}
                 onSort={toggleOrphanSort}
-                withAriaSort
                 leading={
-                  <TableHead column="select">
-                    <Checkbox
-                      checked={selection.selectAllState(visibleOrphanKeys)}
-                      onCheckedChange={() =>
-                        selection.toggleVisible(visibleOrphanKeys)
-                      }
-                      disabled={visibleOrphans.length === 0}
-                      aria-label="Select visible orphans"
-                    />
-                  </TableHead>
+                  <SelectAllTableHead noun="orphans" checked={selection.selectAllState(visibleOrphanKeys)} onCheckedChange={() => selection.toggleVisible(visibleOrphanKeys)} disabled={visibleOrphans.length === 0} />
                 }
                 trailing={<TableHead column="meta">Actions</TableHead>}
               />
@@ -902,16 +935,8 @@ export function MediaLibraryPage({
                 sort={sort}
                 direction={direction}
                 onSort={toggleSort}
-                withAriaSort
                 leading={
-                  <TableHead column="select">
-                    <Checkbox
-                      checked={selection.selectAllState(visibleIds)}
-                      onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                      disabled={media.length === 0}
-                      aria-label="Select visible media"
-                    />
-                  </TableHead>
+                  <SelectAllTableHead noun="media" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} disabled={media.length === 0} />
                 }
                 trailing={<TableHead column="meta">Actions</TableHead>}
               />
@@ -974,7 +999,7 @@ export function MediaLibraryPage({
           if (!open && !deleting) setDeleteIds(null)
         }}
         title={`Delete ${closingDeleteCount} ${plural(closingDeleteCount, "file", "files")}?`}
-        description="The file is erased from storage and removed from its owner's library. This cannot be undone."
+        description="Unused files are erased from storage and removed from their owner's library. A logo already used in email is kept so old inbox copies do not break."
         confirmLabel={`Delete ${plural(closingDeleteCount, "file", "files")}`}
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
@@ -1102,6 +1127,15 @@ function MediaDetailsDialog({
                   </CardContent>
                 </Card>
 
+                {item.email_protected_at ? (
+                  <Card size="sm">
+                    <CardContent className="text-sm leading-relaxed text-muted-foreground">
+                      This logo is kept because it appears in email already sent.
+                      Removing it would break those inbox copies.
+                    </CardContent>
+                  </Card>
+                ) : null}
+
                 {editable ? (
                   <Card size="sm">
                     <CardContent className="grid gap-4">
@@ -1136,15 +1170,21 @@ function MediaDetailsDialog({
           {/* Someone else's file opens read-only, so it ends with a single Done
               — there would be nothing for a Cancel to undo. */}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="destructive"
+            <DisabledReason
+              disabled={Boolean(item?.email_protected_at)}
+              reason="This logo appears in email already sent, so it must stay."
               className="mr-auto"
-              disabled={saving}
-              onClick={onDelete}
             >
-              Delete
-            </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                disabled={saving || Boolean(item?.email_protected_at)}
+                onClick={onDelete}
+              >
+                Delete
+              </Button>
+            </DisabledReason>
             {editable ? (
               <>
                 <Button
@@ -1247,7 +1287,6 @@ function MediaTableRow({
         {formatDate(item.created_at)}
       </TableCell>
       <TableCell column="actions">
-        <div className="flex items-center">
           <Button
             type="button"
             variant="ghost"
@@ -1268,7 +1307,6 @@ function MediaTableRow({
           >
             <Trash2Icon className="size-4" />
           </Button>
-        </div>
       </TableCell>
     </TableRow>
   )

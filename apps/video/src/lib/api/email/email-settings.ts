@@ -3,11 +3,17 @@ import { z } from "zod"
 
 import { dripConfigSchema, type DripConfig } from "@/lib/broadcasts/drip"
 import {
+  authLinkExpirySchema,
+  type AuthLinkExpiry,
+} from "@/lib/email/auth-token-expiry"
+import {
   clearEmailApiKey,
   clearResendWebhookSecret,
   getEmailSettingsStatus,
+  saveAuthLinkExpiry,
   saveDripDefaults,
   saveEmailSender,
+  saveSystemEmailSender,
   setEmailApiKey,
   setResendWebhookSecret,
   testEmailApiKey,
@@ -71,6 +77,38 @@ export function saveEmailSenderSettings(fromEmail: string, fromName: string) {
   return saveEmailSenderFn({
     data: { fromEmail: fromEmail.trim(), fromName },
   })
+}
+
+const saveSystemEmailSenderFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      systemFromEmail: z.union([z.literal(""), z.string().email().max(255)]),
+    }),
+  )
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveSystemEmailSender(workspaceId, data.systemFromEmail)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveSystemEmailSenderSetting(systemFromEmail: string) {
+  return saveSystemEmailSenderFn({
+    data: { systemFromEmail: systemFromEmail.trim() },
+  })
+}
+
+const saveAuthLinkExpiryFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(authLinkExpirySchema)
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveAuthLinkExpiry(workspaceId, data)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveAuthLinkExpirySetting(expiry: AuthLinkExpiry) {
+  return saveAuthLinkExpiryFn({ data: expiry })
 }
 
 const saveEmailKeyFn = createServerFn({ method: "POST" })

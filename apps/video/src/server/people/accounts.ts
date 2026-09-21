@@ -15,16 +15,14 @@ import {
 } from "drizzle-orm"
 
 import { PENDING_DELETION } from "@/lib/account-deletion"
+import { formatUtcDate } from "@/lib/format/format-time"
 import {
-  markAccountsForDeletion,
+  closeAccounts,
   purgeExpiredDeletions,
   restoreAccounts,
 } from "@/server/people/account-deletion"
 import { appUrlFor } from "@/server/app-url"
-import {
-  cancelSubscriptionsForDeletion,
-  type CancelApi,
-} from "@/server/billing/stripe"
+import { type CancelApi } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email/send"
 import {
@@ -41,25 +39,36 @@ import {
   customShellUsers,
 } from "@/server/schema"
 import {
-  createAuthToken,
   findUserByEmail,
+  hashPassword,
   now,
   uuid,
 } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import { recordSubscriptionEvent } from "@/server/billing/subscription-events"
+import { listMemberTags } from "@/server/people/member-tags"
+import {
+  recordAdminAccountAction,
+  sendAdminAccountAction,
+} from "@/server/people/admin-action-notifications"
 
 export type AccountSort =
-  | "name"
-  | "email"
-  | "role"
-  | "status"
-  | "plan"
-  | "created"
+  "name" | "email" | "role" | "status" | "plan" | "created"
 
 export type AccountListQuery = {
   search: string
   role: "all" | "admin" | "member"
-  status: "all" | "active" | "suspended" | "pending_deletion" | "locked_out"
+  status:
+    | "all"
+    | "active"
+    | "unverified"
+    | "suspended"
+    | "pending_deletion"
+    | "locked_out"
   page: number
   pageSize: number
   sort: AccountSort
@@ -70,6 +79,7 @@ export type AccountRow = {
   id: string
   email: string
   name: string
+  tags: string[]
   role: string
   status: string
   /** When this account was marked for deletion, and null when it was not. */
@@ -129,8 +139,10 @@ export async function listAccounts(
     filters.push(eq(customShellUsers.role, query.role))
   }
   if (query.status === "locked_out") {
+    filters.push(sql`${customShellUsers.status} = 'active' and ${lockedOut}`)
+  } else if (query.status === "unverified") {
     filters.push(
-      sql`${customShellUsers.status} = 'active' and ${lockedOut}`
+      sql`${customShellUsers.status} = 'active' and ${customShellUsers.emailVerifiedAt} is null`
     )
   } else if (query.status !== "all") {
     filters.push(eq(customShellUsers.status, query.status))
@@ -191,8 +203,18 @@ export async function listAccounts(
   const defaultPlan = await getDefaultPlan(database)
   const timestamp = now()
 
+  const tagsByUser = await listMemberTags(
+    rows.map((row) => row.user.id),
+    database
+  )
   const accounts = rows.map((row) =>
-    toAccountRow(row, defaultPlan, timestamp, Boolean(row.lockedOut))
+    toAccountRow(
+      row,
+      defaultPlan,
+      timestamp,
+      Boolean(row.lockedOut),
+      tagsByUser.get(row.user.id) ?? []
+    )
   )
 
   return { accounts, total: totals?.total ?? 0 }
@@ -216,20 +238,23 @@ function toAccountRow(
   row: AccountJoin,
   defaultPlan: { name: string; slug: string } | null | undefined,
   timestamp: Date,
-  lockedOut = false
+  lockedOut = false,
+  tags: string[] = []
 ): AccountRow {
   const paid =
     Boolean(row.plan) && subscriptionIsActive(row.subscription, timestamp)
   // Not "paid but on hold" — a paused plan is not paid, which is exactly why
   // the row needs a second word for it or it reads as a plain free account.
   const paused = Boolean(
-    row.subscription?.pausedAt && subscriptionIsLive(row.subscription, timestamp)
+    row.subscription?.pausedAt &&
+    subscriptionIsLive(row.subscription, timestamp)
   )
 
   return {
     id: row.user.id,
     email: row.user.email,
     name: row.user.name,
+    tags,
     role: row.user.role,
     status: row.user.status,
     deletedAt: row.user.deletedAt?.toISOString() ?? null,
@@ -287,23 +312,44 @@ export async function loadNewestAccounts(
     .limit(limit)
 
   const timestamp = now()
-  return rows.map((row) => toAccountRow(row, defaultPlan, timestamp))
+  const tagsByUser = await listMemberTags(
+    rows.map((row) => row.user.id),
+    database
+  )
+  return rows.map((row) =>
+    toAccountRow(
+      row,
+      defaultPlan,
+      timestamp,
+      false,
+      tagsByUser.get(row.user.id) ?? []
+    )
+  )
 }
 
 /**
  * Adds a person directly, instead of waiting for them to register themselves.
  *
- * The account starts with no password at all — nothing typed can match a null
- * hash, so nobody can sign in to it until the emailed link has set one. The
- * link is the same one a password reset sends, and spending it does two things
- * at once: sets the password, and marks the email verified, because opening a
- * link that was mailed to the address proves the inbox is theirs.
+ * Without a password the account starts with no password at all — nothing typed
+ * can match a null hash, so nobody can sign in to it until the emailed link has
+ * set one. The link is the same one a password reset sends, and spending it
+ * does two things at once: sets the password, and marks the email verified,
+ * because opening a link that was mailed to the address proves the inbox is
+ * theirs.
+ *
+ * When the admin types a password instead, the account is ready to sign in
+ * straight away: the password is stored and the address is marked verified,
+ * because there is no emailed link left to prove it and an unverified account
+ * is refused at sign in. Nothing is emailed, so the admin has to pass the
+ * password on themselves.
  */
 export async function createAccountByAdmin(
   email: string,
   name: string,
   role: "admin" | "member",
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  linkContext?: AuthLinkContext,
+  password?: string
 ) {
   // An address stays taken while a deleted account holding it can still be
   // restored, and frees up the moment that account is really gone — the same
@@ -315,6 +361,41 @@ export async function createAccountByAdmin(
   }
 
   const createdAt = now()
+
+  if (password) {
+    const passwordHash = await hashPassword(password)
+    const created = await database.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(customShellUsers)
+        .values({
+          id: uuid(),
+          email,
+          name,
+          role,
+          status: "active",
+          passwordHash,
+          // The admin vouching for the address stands in for the emailed link,
+          // which is the only other thing that ever sets this.
+          emailVerifiedAt: createdAt,
+          createdAt,
+          updatedAt: createdAt,
+        })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      // The same event the emailed link fires when it verifies an address, so
+      // an automation watching for members does not miss these accounts.
+      await emitMemberEvent("verified", user, tx)
+      return user
+    })
+
+    return { id: created.id, delivered: false }
+  }
+
   const { userId, token } = await database.transaction(async (tx) => {
     const [user] = await tx
       .insert(customShellUsers)
@@ -332,18 +413,31 @@ export async function createAccountByAdmin(
 
     return {
       userId: user.id,
-      token: await createAuthToken(user.id, "reset_password", tx),
+      token: await createWorkspaceAuthToken(user.id, "reset_password", tx, {
+        context: linkContext,
+      }),
     }
   })
 
   let delivered: boolean
   try {
     delivered = (
-      await sendAuthEmail({
-        kind: "new-account",
-        to: email,
-        actionUrl: appUrlFor(`/reset-password?token=${encodeURIComponent(token)}`),
-      })
+      await sendAuthEmail(
+        {
+          kind: "new-account",
+          to: email,
+          recipientName: name,
+          workspaceId: linkContext?.workspaceId ?? undefined,
+          linkExpiry: linkContext?.expiry,
+          showFailureReasonToAdmin: true,
+          actionUrl: appUrlFor(
+            `/reset-password?token=${encodeURIComponent(token)}`
+          ),
+        },
+        // A failed send removes the fresh account below so the admin can try
+        // again. Keeping its now-invalid password link for retry would lie.
+        { retryOnFailure: false }
+      )
     ).delivered
   } catch (deliveryError) {
     // The mail never went out, so the person could never get in. Dropping the
@@ -418,17 +512,48 @@ export async function updateUserRole(
     await requireAnotherAdmin(userId, database)
   }
 
-  const [updated] = await database
-    .update(customShellUsers)
-    .set({ role, updatedAt: now() })
-    .where(eq(customShellUsers.id, userId))
-    .returning({ id: customShellUsers.id })
+  const changedAt = now()
+  const result = await database.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customShellUsers)
+      .set({ role, updatedAt: changedAt })
+      .where(
+        and(eq(customShellUsers.id, userId), ne(customShellUsers.role, role))
+      )
+      .returning({ id: customShellUsers.id })
 
-  if (!updated) {
+    if (updated) {
+      return {
+        id: updated.id,
+        delivery: await recordAdminAccountAction(
+          userId,
+          {
+            summary: `Your role changed to ${role === "admin" ? "Admin" : "Member"}.`,
+            effect:
+              role === "admin"
+                ? "You can now open the admin area and manage the app."
+                : "You no longer have access to the admin area.",
+          },
+          tx,
+          changedAt
+        ),
+      }
+    }
+
+    const [existing] = await tx
+      .select({ id: customShellUsers.id })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+      .limit(1)
+    return existing ? { id: existing.id, delivery: null } : null
+  })
+
+  if (!result) {
     throw new Error("USER_NOT_FOUND")
   }
 
-  return { id: updated.id, role }
+  await sendAdminAccountAction(result.delivery)
+  return { id: result.id, role }
 }
 
 export async function setUserStatus(
@@ -443,33 +568,59 @@ export async function setUserStatus(
   // An account on its way out is not suspended or unsuspended from here. Its
   // status is the deletion clock, and the only two things that may move it are
   // restoring the account and purging it.
-  const [updated] = await database
-    .update(customShellUsers)
-    .set({ status, updatedAt: now() })
-    .where(
-      and(
-        eq(customShellUsers.id, userId),
-        ne(customShellUsers.status, PENDING_DELETION)
+  const changedAt = now()
+  const result = await database.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customShellUsers)
+      .set({ status, updatedAt: changedAt })
+      .where(
+        and(
+          eq(customShellUsers.id, userId),
+          ne(customShellUsers.status, PENDING_DELETION),
+          ne(customShellUsers.status, status)
+        )
       )
-    )
-    .returning({ id: customShellUsers.id })
+      .returning({ id: customShellUsers.id })
 
-  if (!updated) {
+    if (!updated) return { updated: null, delivery: null }
+
+    if (status === "suspended") {
+      // Drop their sessions too, so nothing keeps working on an open tab.
+      await tx
+        .delete(customShellSessions)
+        .where(eq(customShellSessions.userId, userId))
+    }
+
+    const delivery = await recordAdminAccountAction(
+      userId,
+      status === "suspended"
+        ? {
+            summary: "Your account was suspended.",
+            effect:
+              "You were signed out everywhere and cannot sign in. Contact an administrator if you need help.",
+          }
+        : {
+            summary: "Your account suspension was lifted.",
+            effect: "You can sign in and use the app again.",
+          },
+      tx,
+      changedAt
+    )
+    return { updated, delivery }
+  })
+
+  if (!result.updated) {
+    const currentStatus = await findAccountStatus(userId, database)
+    if (currentStatus === status) return { id: userId, status }
     throw new Error(
-      (await findAccountStatus(userId, database)) === PENDING_DELETION
+      currentStatus === PENDING_DELETION
         ? "ACCOUNT_PENDING_DELETION"
         : "USER_NOT_FOUND"
     )
   }
 
-  if (status === "suspended") {
-    // Drop their sessions too, so nothing keeps working on an open tab.
-    await database
-      .delete(customShellSessions)
-      .where(eq(customShellSessions.userId, userId))
-  }
-
-  return { id: updated.id, status }
+  await sendAdminAccountAction(result.delivery)
+  return { id: result.updated.id, status }
 }
 
 /**
@@ -520,7 +671,8 @@ export async function deleteUserAccounts(
   // After the guards and before anything is removed: a plan cancelled for a
   // delete that then failed on "last admin" would be a plan taken away for
   // nothing. If Stripe refuses this, nothing below runs.
-  await cancelSubscriptionsForDeletion(
+  const marked = await closeAccounts(
+    actorId,
     rows.map((row) => row.id),
     database,
     api
@@ -529,14 +681,6 @@ export async function deleteUserAccounts(
   const alreadyMarked = rows
     .filter((row) => row.status === PENDING_DELETION)
     .map((row) => row.id)
-  const toMark = rows
-    .filter((row) => row.status !== PENDING_DELETION)
-    .map((row) => row.id)
-
-  const marked = toMark.length
-    ? await markAccountsForDeletion(actorId, toMark, database)
-    : []
-
   const deleted = alreadyMarked.length
     ? await database
         .delete(customShellUsers)
@@ -552,12 +696,32 @@ export async function restoreUserAccounts(
   userIds: string[],
   database: CustomShellDb = db
 ) {
-  const restored = await restoreAccounts(userIds, database)
+  const changedAt = now()
+  const { restored, deliveries } = await database.transaction(async (tx) => {
+    const restored = await restoreAccounts(userIds, tx)
+    const deliveries = []
+    for (const user of restored) {
+      deliveries.push(
+        await recordAdminAccountAction(
+          user.id,
+          {
+            summary: "Your account was restored.",
+            effect:
+              "Your account is active again. You can sign in and everything you owned is available again, but any paid plan cancelled during closure was not restored.",
+          },
+          tx,
+          changedAt
+        )
+      )
+    }
+    return { restored, deliveries }
+  })
 
   if (restored.length === 0) {
     throw new Error("RESTORE_WINDOW_PASSED")
   }
 
+  await Promise.all(deliveries.map(sendAdminAccountAction))
   return { restored: restored.length }
 }
 
@@ -572,31 +736,43 @@ export async function grantManualPlan(
   database: CustomShellDb = db
 ) {
   if (!planId) {
-    const [removed] = await database
-      .delete(customShellSubscriptions)
-      .where(
-        and(
-          eq(customShellSubscriptions.userId, userId),
-          eq(customShellSubscriptions.source, "manual")
+    const changedAt = now()
+    const delivery = await database.transaction(async (tx) => {
+      const [removed] = await tx
+        .delete(customShellSubscriptions)
+        .where(
+          and(
+            eq(customShellSubscriptions.userId, userId),
+            eq(customShellSubscriptions.source, "manual")
+          )
         )
-      )
-      .returning({ planId: customShellSubscriptions.planId })
+        .returning({ planId: customShellSubscriptions.planId })
 
-    // Only when there was actually a grant to take away. Saving "no granted
-    // plan" on an account that never had one changed nothing, and a history
-    // entry for it would be a lie.
-    if (removed) {
-      const previous = removed.planId
-        ? await getPlan(removed.planId, database)
-        : null
+      // Only when there was actually a grant to take away. Saving "no granted
+      // plan" on an account that never had one changed nothing, and a history
+      // entry or notice for it would be a lie.
+      if (!removed) return null
 
-      await recordSubscriptionEvent(database, {
+      const previous = removed.planId ? await getPlan(removed.planId, tx) : null
+      await recordSubscriptionEvent(tx, {
         userId,
         kind: "grant_removed",
         planName: previous?.name ?? null,
         source: "admin",
       })
-    }
+      return recordAdminAccountAction(
+        userId,
+        {
+          summary: `${previous?.name ?? "Your granted plan"} was removed from your account.`,
+          effect:
+            "Your account is now on the free plan and paid features are no longer available.",
+        },
+        tx,
+        changedAt
+      )
+    })
+
+    await sendAdminAccountAction(delivery)
 
     return { planId: null }
   }
@@ -616,31 +792,63 @@ export async function grantManualPlan(
     updatedAt: timestamp,
   }
 
-  await database
-    .insert(customShellSubscriptions)
-    .values({
-      id: uuid(),
-      userId,
-      interval: "monthly",
-      createdAt: timestamp,
-      ...values,
-    })
-    .onConflictDoUpdate({
-      target: customShellSubscriptions.userId,
-      set: values,
-    })
+  const delivery = await database.transaction(async (tx) => {
+    const [current] = await tx
+      .select({
+        planId: customShellSubscriptions.planId,
+        source: customShellSubscriptions.source,
+        currentPeriodEnd: customShellSubscriptions.currentPeriodEnd,
+      })
+      .from(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.userId, userId))
+      .limit(1)
+    if (
+      current?.source === "manual" &&
+      current.planId === plan.id &&
+      current.currentPeriodEnd?.getTime() === expiresAt?.getTime()
+    ) {
+      return null
+    }
 
-  await recordSubscriptionEvent(
-    database,
-    {
+    await tx
+      .insert(customShellSubscriptions)
+      .values({
+        id: uuid(),
+        userId,
+        interval: "monthly",
+        createdAt: timestamp,
+        ...values,
+      })
+      .onConflictDoUpdate({
+        target: customShellSubscriptions.userId,
+        set: values,
+      })
+
+    await recordSubscriptionEvent(
+      tx,
+      {
+        userId,
+        kind: "plan_granted",
+        planName: plan.name,
+        detail: expiresAt?.toISOString() ?? null,
+        source: "admin",
+      },
+      timestamp
+    )
+    return recordAdminAccountAction(
       userId,
-      kind: "plan_granted",
-      planName: plan.name,
-      detail: expiresAt?.toISOString() ?? null,
-      source: "admin",
-    },
-    timestamp
-  )
+      {
+        summary: `${plan.name} was granted to your account.`,
+        effect: expiresAt
+          ? `Paid features are available until ${formatUtcDate(expiresAt)}. You will not be charged for this plan.`
+          : "Paid features are available until an administrator removes the grant. You will not be charged for this plan.",
+      },
+      tx,
+      timestamp
+    )
+  })
+
+  await sendAdminAccountAction(delivery)
 
   return { planId: plan.id }
 }
@@ -719,7 +927,12 @@ export async function loadRevenueSummary(
         ? Math.round(row.plan.priceYearlyCents / 12)
         : row.plan.priceMonthlyCents
 
-    monthlyRecurringCents += monthlyCents
+    // A usage price is a per-unit rate, not recurring revenue. Stripe works
+    // out its variable invoice from meter events, so counting the unit price
+    // here as monthly revenue would make the headline knowingly wrong.
+    if (!row.plan.usageMeter) {
+      monthlyRecurringCents += monthlyCents
+    }
 
     const entry = breakdown.get(row.plan.id) ?? {
       planId: row.plan.id,

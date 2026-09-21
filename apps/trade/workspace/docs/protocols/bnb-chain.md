@@ -21,6 +21,24 @@ reserved for network fees.
 - **Node setting:** `TRADE_BNB_RPC` in `.env` defaults to
   `https://bsc-dataseed.binance.org`. The node reads balances. Adding and making wallets require a successful
   balance read before saving. The same node receives signed swaps.
+- **History node:** `TRADE_BNB_LOGS_RPC` defaults to
+  `https://bsc-rpc.publicnode.com` and is the only node that reads what the
+  wallet has traded. It is separate because `bsc-dataseed.binance.org` refuses
+  every `eth_getLogs` request with "limit exceeded", a single block included,
+  so it does not serve logs at all. While history shared the trading node,
+  every BNB fills sweep failed and no swap reached the Journal. Sending is
+  left on `TRADE_BNB_RPC`, which works.
+- **A page the history node will not serve is skipped, not thrown.** A free
+  node keeps only the most recent blocks, roughly two hours on BNB Chain, so
+  the oldest page of a first scan is refused while the newer pages are there.
+  The newer ones are the point: the sweep runs every couple of minutes. If
+  every page is refused, the read says so in one sentence naming
+  `TRADE_BNB_LOGS_RPC` rather than answering "no new swaps" forever.
+- **A failed history read never talks about a transaction.** It used to report
+  every failure as "BNB Chain has not confirmed the transaction. The
+  transaction's fee is not confirmed yet", which sent the reader hunting for a
+  stuck swap that was never there. A read is about every swap the wallet has
+  made, so it can say neither what one transaction moved nor what it paid.
 - **Trading:** USDT is the purchase coin and BNB pays network fees.
   KyberSwap finds routes through liquidity pools. Trading buys and owns
   coins outright, without leverage, short positions, funding or liquidation.

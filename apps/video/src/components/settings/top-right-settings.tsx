@@ -33,12 +33,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import type { AppHeaderAction } from "@/lib/app-options"
 import {
   isShellEntryNamed,
   isShellTopRightLink,
   renderShellIcon,
   topRightBuiltInMeta,
   type ShellTopRightBuiltIn,
+  type ShellTopRightAppAction,
   type ShellTopRightLink,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
@@ -48,7 +50,9 @@ type TopRightSettingsProps = {
   items: ShellTopRightNavigationItem[]
   onItemsChange: (items: ShellTopRightNavigationItem[]) => void
   onSaveConfig: () => Promise<boolean>
-  /** The card the chips sit in. Reset stays outside it. */
+  /** The app-owned items this menu may contain, with their editor details. */
+  appActions?: readonly AppHeaderAction[]
+  /** The card containing the chips and reset action. */
   card: { storageId: string; title: string; description: string }
   /** What the Reset button does, and what it warns it will do. */
   reset: { label: string; description: string; onReset: () => void }
@@ -62,14 +66,40 @@ type TopRightSettingsProps = {
 const CHIP_CLASS =
   "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
 
-function SortableBuiltInChip({
+/**
+ * One app-owned chip. A saved row whose control the app no longer offers draws
+ * nothing: the row is kept in the saved order so the chip returns in its old
+ * place if the app offers that control again.
+ */
+function AppActionChip({
   item,
+  action,
   onVisibleChange,
 }: {
-  item: ShellTopRightBuiltIn
+  item: ShellTopRightAppAction
+  action: AppHeaderAction | undefined
   onVisibleChange: (visible: boolean) => void
 }) {
-  const meta = topRightBuiltInMeta[item.id]
+  if (!action) return null
+
+  return (
+    <SortableFixedChip
+      item={item}
+      meta={action}
+      onVisibleChange={onVisibleChange}
+    />
+  )
+}
+
+function SortableFixedChip({
+  item,
+  meta,
+  onVisibleChange,
+}: {
+  item: ShellTopRightBuiltIn | ShellTopRightAppAction
+  meta: { label: string; icon: AppHeaderAction["icon"] }
+  onVisibleChange: (visible: boolean) => void
+}) {
   const Icon = meta.icon
   const { attributes, listeners, setNodeRef, style } = useSortableRow(
     item.id,
@@ -256,6 +286,7 @@ export function TopRightSettings({
   items,
   onItemsChange,
   onSaveConfig,
+  appActions = [],
   card,
   reset,
 }: TopRightSettingsProps) {
@@ -311,7 +342,7 @@ export function TopRightSettings({
   const handleVisibleChange = (builtInId: string, visible: boolean) => {
     onItemsChange(
       items.map((item) =>
-        item.type === "builtIn" && item.id === builtInId
+        item.type !== "link" && item.id === builtInId
           ? { ...item, visible }
           : item
       )
@@ -363,10 +394,22 @@ export function TopRightSettings({
                     onDelete={() => setPendingDeleteId(item.id)}
                     onSaveConfig={onSaveConfig}
                   />
-                ) : (
-                  <SortableBuiltInChip
+                ) : item.type === "app" ? (
+                  <AppActionChip
                     key={item.id}
                     item={item}
+                    action={appActions.find(
+                      (action) => action.id === item.id
+                    )}
+                    onVisibleChange={(visible) =>
+                      handleVisibleChange(item.id, visible)
+                    }
+                  />
+                ) : (
+                  <SortableFixedChip
+                    key={item.id}
+                    item={item}
+                    meta={topRightBuiltInMeta[item.id]}
                     onVisibleChange={(visible) =>
                       handleVisibleChange(item.id, visible)
                     }
@@ -387,20 +430,17 @@ export function TopRightSettings({
             </div>
           </SortableContext>
         </DndContext>
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setResetOpen(true)}
+          >
+            <RotateCcwIcon className="h-4 w-4" />
+            {reset.label}
+          </Button>
+        </div>
       </CollapsibleSettingsCard>
-
-      {/* Outside the card on purpose, like the sidebar tab's actions: it acts
-          on the whole row, not on anything inside the card. */}
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={() => setResetOpen(true)}
-        >
-          <RotateCcwIcon className="h-4 w-4" />
-          {reset.label}
-        </Button>
-      </div>
 
       <ConfirmDialog
         open={resetOpen}

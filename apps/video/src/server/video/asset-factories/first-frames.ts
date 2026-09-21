@@ -68,20 +68,20 @@ function parseTags(value: unknown) {
     : []
 }
 
-function serializeFirstFrame(
+async function serializeFirstFrame(
   frame: VideoFirstFrameRow,
   actor: typeof videoActors.$inferSelect,
   actorMedia: typeof customShellMedia.$inferSelect,
   image: typeof customShellMedia.$inferSelect,
   reference: typeof customShellMedia.$inferSelect | null
-): FirstFrameItem {
+): Promise<FirstFrameItem> {
   return {
     id: frame.id,
     name: frame.name,
     actor: {
       id: actor.id,
       name: actor.name,
-      image_url: serializeMedia(actorMedia).url,
+      image_url: (await serializeMedia(actorMedia)).url,
     },
     prompt: frame.prompt,
     model: frame.model as GeminiImageModelId,
@@ -89,9 +89,11 @@ function serializeFirstFrame(
     tags: parseTags(frame.tags),
     pinned: frame.pinned,
     image_media_id: frame.imageMediaId,
-    image_url: serializeMedia(image).url,
+    image_url: (await serializeMedia(image)).url,
     reference_media_id: frame.referenceMediaId,
-    reference_media_url: reference ? serializeMedia(reference).url : null,
+    reference_media_url: reference
+      ? (await serializeMedia(reference)).url
+      : null,
     created_at: frame.createdAt.toISOString(),
     updated_at: frame.updatedAt.toISOString(),
   }
@@ -147,13 +149,15 @@ function listRows(userId: string, firstFrameId?: string) {
 export async function listFirstFrames(userId: string) {
   const rows = await listRows(userId)
   return {
-    firstFrames: rows.map((row) =>
-      serializeFirstFrame(
-        row.frame,
-        row.actor,
-        row.actorMedia,
-        row.image,
-        row.reference
+    firstFrames: await Promise.all(
+      rows.map((row) =>
+        serializeFirstFrame(
+          row.frame,
+          row.actor,
+          row.actorMedia,
+          row.image,
+          row.reference
+        )
       )
     ),
   }
@@ -221,7 +225,7 @@ export async function createFirstFrames(
           })
           .returning()
         created.push(
-          serializeFirstFrame(
+          await serializeFirstFrame(
             frame,
             actor,
             actorMedia,
@@ -262,7 +266,7 @@ export async function setFirstFramePinned(
   if (!updated) throw new Error("First frame not found")
   const row = await oneFrame(userId, firstFrameId)
   if (!row) throw new Error("First frame not found")
-  return serializeFirstFrame(
+  return await serializeFirstFrame(
     row.frame,
     row.actor,
     row.actorMedia,
@@ -315,7 +319,7 @@ export async function insertFirstFrame(
   if (!project) throw new Error("Project not found")
   const timeline = requireCanonicalTimeline(project.timeline)
   if (timeline.tracks.length >= 50) throw new Error("Project timeline is full")
-  const media = serializeMedia(frame.image)
+  const media = await serializeMedia(frame.image)
   const next = requireCanonicalTimeline({
     ...timeline,
     tracks: [

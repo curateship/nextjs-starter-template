@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -54,11 +55,11 @@ import {
   type ChangelogEntry,
 } from "@/lib/api/content/changelog"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { formatDate } from "@/lib/format/format-time"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useClientPage } from "@/lib/hooks/use-client-page"
-import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
@@ -111,7 +112,6 @@ export function ChangelogAdminDashboard({
     "published",
     "desc"
   )
-  const [editing, setEditing] = React.useState<ChangelogEntry | null>(null)
   const [previewing, setPreviewing] = React.useState<ChangelogEntry | null>(
     null
   )
@@ -141,16 +141,14 @@ export function ChangelogAdminDashboard({
   )
   const openEntry = React.useCallback(
     (entry: ChangelogEntry) => {
-      setEditing(entry)
       setOpenEntry(entry.id)
     },
     [setOpenEntry]
   )
-
-  useOpenFromLink({ openId, records: entries, onOpen: setEditing })
-  React.useEffect(() => {
-    if (!openId && !creating) setEditing(null)
-  }, [creating, openId])
+  const editing = React.useMemo(
+    () => entries.find((entry) => entry.id === openId) ?? null,
+    [entries, openId]
+  )
 
   const sortedEntries = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -246,15 +244,7 @@ export function ChangelogAdminDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select updates on this page"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="updates" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -305,7 +295,6 @@ export function ChangelogAdminDashboard({
             {/* A draft has no date; `formatDate` writes the em dash for it. */}
             <TableCell column="meta">{formatDate(entry.publishedAt)}</TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -336,7 +325,6 @@ export function ChangelogAdminDashboard({
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -348,12 +336,10 @@ export function ChangelogAdminDashboard({
         entry={editing}
         onClose={() => {
           setCreating(false)
-          setEditing(null)
           setOpenEntry(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
-          setEditing(null)
           setOpenEntry(undefined)
           await refresh()
         }}
@@ -374,8 +360,17 @@ export function ChangelogAdminDashboard({
         onConfirm={async () => {
           setMassDeleting(true)
           try {
-            await deleteAdminChangelogEntries([...selectedIds])
-            toast.success("Updates deleted.")
+            const ids = [...selectedIds]
+            const { count } = await deleteAdminChangelogEntries(ids)
+            toast.success(
+              describeBulkResult({
+                done: count,
+                kept: ids.length - count,
+                one: "update",
+                many: "updates",
+                verb: "deleted",
+              })
+            )
             selection.clear()
             setMassDeleteOpen(false)
             await refresh()
@@ -405,8 +400,16 @@ export function ChangelogAdminDashboard({
           if (!target) return
           setDeleting(true)
           try {
-            await deleteAdminChangelogEntries([target.id])
-            toast.success("Update deleted.")
+            const { count } = await deleteAdminChangelogEntries([target.id])
+            toast.success(
+              describeBulkResult({
+                done: count,
+                kept: 1 - count,
+                one: "update",
+                many: "updates",
+                verb: "deleted",
+              })
+            )
             setDeleteTarget(null)
             await refresh()
           } catch (deleteError) {

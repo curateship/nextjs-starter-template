@@ -9,10 +9,16 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -36,9 +42,7 @@ import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import {
   createBroadcast,
@@ -54,10 +58,33 @@ import { formatDate } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "status" | "sent" | "updated"
+
+const BROADCAST_COLUMNS: SortableColumn<SortColumn>[] = [
+  { key: "name", label: "Name", column: "main" },
+  {
+    key: "status",
+    label: "Status",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "sent",
+    label: "Sent",
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  {
+    key: "updated",
+    label: "Updated",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
 
 const STATUS_LABELS: Record<BroadcastListItem["status"], string> = {
   draft: "Draft",
@@ -94,6 +121,8 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
+  const [createNameTouched, setCreateNameTouched] = React.useState(false)
+  const [createAttempted, setCreateAttempted] = React.useState(false)
   const [runCreate, creating] = useAsyncAction(getBroadcastErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] =
@@ -135,6 +164,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
     [currentPage, pageSize, sorted]
   )
 
+  useClearSelectionOnListChange(
+    selection.setSelected,
+    `${search}|${sort}|${direction}|${currentPage}|${pageSize}`
+  )
+
   const openEditor = (broadcastId: string) =>
     navigate({
       to: "/admin/newsletter/$broadcastId",
@@ -143,6 +177,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
 
   const handleCreate = async () => {
     if (creating) return
+    setCreateAttempted(true)
     if (!createName.trim()) {
       showErrorToast("Newsletter name is required.")
       return
@@ -152,6 +187,8 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       toast.success(`Created "${created.name}".`)
       setCreateOpen(false)
       setCreateName("")
+      setCreateNameTouched(false)
+      setCreateAttempted(false)
       await openEditor(created.id)
     })
   }
@@ -180,7 +217,13 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       setBroadcasts((current) => current.filter((item) => !gone.has(item.id)))
       selection.clear()
       toast.success(
-        `Deleted ${deleted} ${plural(deleted, "newsletter", "newsletters")}.`
+        describeBulkResult({
+          done: deleted,
+          kept: ids.length - deleted,
+          one: "newsletter",
+          many: "newsletters",
+          verb: "deleted",
+        })
       )
       done()
     })
@@ -217,55 +260,33 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <DashboardToolbarButton onClick={() => setCreateOpen(true)}>
+            <DashboardToolbarButton
+              onClick={() => {
+                setCreateNameTouched(false)
+                setCreateAttempted(false)
+                setCreateOpen(true)
+              }}
+            >
               <PlusIcon className="size-4" />
               New newsletter
             </DashboardToolbarButton>
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select the newsletters on this page"
-                />
-              </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden md:table-cell">
-                <TableSortButton active={sort === "sent"} direction={direction} onClick={() => toggleSort("sent")}>Sent</TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "updated"}
-                  direction={direction}
-                  onClick={() => toggleSort("updated")}
-                >
-                  Updated
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={BROADCAST_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="newsletters"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sorted.length === 0}
         emptyText={
@@ -319,7 +340,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
             <TableCell column="mutedMeta" className="hidden md:table-cell">{progressText(item)}</TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">{formatDate(item.updated_at)}</TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"
@@ -352,7 +372,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -364,7 +383,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
         open={createOpen}
         dirty={Boolean(createName.trim())}
         busy={creating}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateNameTouched(false)
+          setCreateAttempted(false)
+          setCreateOpen(false)
+        }}
       >
         {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
@@ -386,7 +409,12 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                     autoFocus
                     placeholder="March update"
                     onChange={(event) => setCreateName(event.target.value)}
-                    aria-invalid={!createName.trim() || undefined}
+                    onBlur={() => setCreateNameTouched(true)}
+                    aria-invalid={
+                      (!createName.trim() &&
+                        (createNameTouched || createAttempted)) ||
+                      undefined
+                    }
                     onKeyDown={(event) => {
                       if (event.key !== "Enter") return
                       event.preventDefault()

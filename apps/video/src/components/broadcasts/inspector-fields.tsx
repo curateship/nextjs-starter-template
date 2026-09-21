@@ -47,7 +47,7 @@ export function InspectorCard({
       open={open}
       onOpenChange={setOpen}
       className={cn(
-        "group/card rounded-lg border border-foreground/5 bg-muted/40 p-4",
+        "group/card rounded-lg border bg-muted/40 p-4",
         // Fields sit on the page background rather than the transparent the
         // shared Input defaults to. On a grey card, transparent means the card
         // shows through and a box you type into looks like a box you cannot.
@@ -55,18 +55,20 @@ export function InspectorCard({
         "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
       )}
     >
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
-            focusRingInset
-          )}
-        >
-          <h3 className="text-[15px] font-semibold">{title}</h3>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-        </button>
-      </CollapsibleTrigger>
+      <h2 className="text-[15px] font-semibold">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
+              focusRingInset
+            )}
+          >
+            <span>{title}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
+          </button>
+        </CollapsibleTrigger>
+      </h2>
       <CollapsibleContent data-collapse-key={noFlashKey}>
         {description ? (
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -180,7 +182,7 @@ export function ColorField({
               "size-9 rounded-lg border transition-[box-shadow,border-color] disabled:opacity-50",
               normalized === swatch.value
                 ? "border-foreground ring-2 ring-foreground/20"
-                : "border-foreground/10 hover:border-foreground/25"
+                : "hover:border-foreground/25"
             )}
             style={{ backgroundColor: swatch.value }}
           />
@@ -192,7 +194,7 @@ export function ColorField({
             "relative size-9 cursor-pointer overflow-hidden rounded-lg border transition-colors",
             custom
               ? "border-foreground ring-2 ring-foreground/20"
-              : "border-foreground/10 hover:border-foreground/25",
+              : "hover:border-foreground/25",
             disabled && "pointer-events-none opacity-50"
           )}
           style={{ backgroundColor: custom ? value : undefined }}

@@ -8,9 +8,24 @@ import {
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
+import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
+import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
+import {
+  MEMBER_EVENT_LABELS,
+  memberEventNode,
+  readMemberEvent,
+} from "@/lib/automations/nodes/member-event"
+import { webhookNode } from "@/lib/automations/nodes/webhook"
+import {
+  MEMBER_TAG_MODES,
+  memberTagNode,
+  type MemberTagMode,
+} from "@/lib/automations/nodes/member-tag"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
+  memberMatchesAutomationAudience,
   readAutomationAudience,
   requireAudienceSegment,
 } from "@/server/automations/audience"
@@ -21,7 +36,14 @@ import { workspaceForRun } from "@/server/automations/runs"
 import type { AutomationTriggerFacts } from "@/lib/automations/run"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import {
+  formatScheduledInstant,
+  readAutomationSchedule,
+} from "@/lib/automations/schedule"
 import { executeSendEmailNode } from "@/server/automations/send-email"
+import { executeWebhookNode } from "@/server/automations/webhook"
+import { changeMemberTag } from "@/server/people/member-tags"
+import { normalizeMemberTag } from "@/lib/member-tags"
 
 /**
  * What a step is handed, and what it may answer with.
@@ -37,13 +59,17 @@ export type AutomationExecutorContext = {
   /** The node's settings, already strict-parsed at compile time. */
   settings: Record<string, unknown>
   now: () => Date
+  /** The dry-run task sets this so outside effects can describe, not happen. */
+  dryRun?: boolean
+  /** A rehearsal against one member, with outside effects made safe. */
+  testRun?: boolean
 }
 
 export type AutomationExecutorResult =
   /** Done — carry on to whatever this step feeds into. */
-  | { type: "next"; summary: string }
+  | { type: "next"; summary: string; output?: AutomationRunOutput }
   /** Done, and deliberately the end of the flow. */
-  | { type: "complete"; summary: string }
+  | { type: "complete"; summary: string; output?: AutomationRunOutput }
   /**
    * Stop and wait for a person. The engine hands the claim back, so the run
    * occupies nothing while it waits, and auto-rejects it at `deadlineAt`.
@@ -73,21 +99,129 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * spotted the date. This writes the first line of the history, and it is the
    * line that names the moment and the person.
    *
-   * A flow started by hand has no moment and nobody to be about, and that is
-   * allowed on purpose: it is how you try the rest of a recovery flow without
-   * having to make a real payment fail.
+   * A one-member test has no real billing moment on purpose. It names the
+   * chosen member and carries on without pretending a payment event happened.
    */
-  [billingMomentNode.kind]: async ({ run, settings }) => {
+  [billingMomentNode.kind]: async ({ run, settings, testRun }) => {
     const facts = run.triggerFacts
     const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. No real billing event happened.`,
+      }
+    }
     if (!facts || !who) {
+      throw new Error(
+        "This billing run has no member or billing event, so it cannot continue."
+      )
+    }
+    return { type: "next", summary: billingMomentLine(settings, facts, who) }
+  },
+
+  [timeActivateNode.kind]: async ({ run, settings }) => {
+    const schedule = readAutomationSchedule(settings)
+    const scheduledAt = run.triggerFacts?.scheduledAt
+    if (
+      schedule &&
+      typeof scheduledAt === "string" &&
+      Number.isFinite(new Date(scheduledAt).getTime())
+    ) {
+      return {
+        type: "next",
+        summary: `Started on schedule at ${formatScheduledInstant(new Date(scheduledAt), schedule.timezone)}.`,
+      }
+    }
+    return {
+      type: "next",
+      summary:
+        "Started by hand. The saved schedule was not changed, and its next automatic run stays where it was.",
+    }
+  },
+
+  [joinedSegmentNode.kind]: async ({ run, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. They did not really join the segment.`,
+      }
+    }
+    if (!who) {
+      throw new Error(
+        "This segment run has no contact, so it cannot continue safely."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${who} joined the segment.`,
+    }
+  },
+
+  [memberEventNode.kind]: async ({ run, settings, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    const event = readMemberEvent(settings)
+    if (testRun && who && event) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. ${MEMBER_EVENT_LABELS[event]} did not really happen.`,
+      }
+    }
+    if (!who || !event || run.triggerFacts?.event !== event) {
+      throw new Error(
+        "This member event run has no matching member event, so it cannot continue."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${MEMBER_EVENT_LABELS[event]} for ${who}.`,
+    }
+  },
+
+  [memberTagNode.kind]: async ({ database, run, settings, testRun }) => {
+    const mode = settings.mode
+    const tag =
+      typeof settings.tag === "string" ? normalizeMemberTag(settings.tag) : ""
+    const who = run.subjectLabel?.trim() || "the flow's member"
+    if (!MEMBER_TAG_MODES.includes(mode as MemberTagMode) || !tag) {
+      throw new Error(
+        "This tag step has incomplete settings, so it cannot continue."
+      )
+    }
+    if (!run.subjectUserId) {
+      throw new Error(
+        "This run has no member for the tag step to change, so it cannot continue."
+      )
+    }
+    if (testRun) {
+      return {
+        type: "next",
+        summary: `Would ${mode} the '${tag}' tag on ${who}. No tag was changed in this test.`,
+      }
+    }
+
+    const change = await changeMemberTag(
+      run.subjectUserId,
+      mode as MemberTagMode,
+      tag,
+      database
+    )
+    if (change === "unchanged") {
       return {
         type: "next",
         summary:
-          "Started by hand, so there is nobody in particular this run is about. The steps after this one act on whoever they are set to.",
+          mode === "add"
+            ? `${who} already had the '${tag}' tag. Nothing changed.`
+            : `${who} did not have the '${tag}' tag. Nothing changed.`,
       }
     }
-    return { type: "next", summary: billingMomentLine(settings, facts, who) }
+    return {
+      type: "next",
+      summary:
+        mode === "add"
+          ? `Tagged ${who} with '${tag}'.`
+          : `Removed the '${tag}' tag from ${who}.`,
+    }
   },
 
   /**
@@ -106,13 +240,15 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * segment the flow points at having been deleted *is* a failure, because
    * carrying on would mean guessing.
    */
-  [audienceNode.kind]: async ({ database, run, settings, now }) => {
+  [audienceNode.kind]: async ({ database, run, settings, now, testRun }) => {
     const audience = readAutomationAudience(settings)
     // The run's own workspace, fixed when it started. Only a run that predates
     // that column falls back to its owner's — looking it up every time is how a
     // flow's audience used to change when its owner switched workspace.
     const workspaceId = await workspaceForRun(run, database)
-    await syncContactsFromUsers(workspaceId, database)
+    // A test must not "helpfully" create or update the chosen member's contact.
+    // It reads exactly what exists and says when that means they do not match.
+    if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
     // Looked up here as well as inside the count so the run history can say
     // the segment's name — and looked up by id, so a renamed segment still
@@ -122,18 +258,44 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       workspaceId,
       database
     )
-    const matched = await countAutomationAudience(
-      audience,
-      workspaceId,
-      database,
-      now(),
-      segment
-    )
+    const timestamp = now()
+    const subjectMatched =
+      testRun && run.subjectUserId
+        ? await memberMatchesAutomationAudience(
+            audience,
+            workspaceId,
+            run.subjectUserId,
+            database,
+            timestamp,
+            segment
+          )
+        : null
+    const matched =
+      subjectMatched === null
+        ? await countAutomationAudience(
+            audience,
+            workspaceId,
+            database,
+            timestamp,
+            segment
+          )
+        : Number(subjectMatched)
     const who = audienceWording(
       audience.kind,
       audience.planSlug,
-      segment?.name ?? ""
+      segment?.name ?? "",
+      audience.tag
     )
+
+    if (subjectMatched !== null) {
+      const subject = run.subjectLabel?.trim() || "The chosen member"
+      return {
+        type: "next",
+        summary: subjectMatched
+          ? `${subject} matched — ${who}.`
+          : `${subject} did not match — ${who}.`,
+      }
+    }
 
     return {
       type: "next",
@@ -145,6 +307,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
   },
 
   [sendEmailNode.kind]: executeSendEmailNode,
+
+  [webhookNode.kind]: executeWebhookNode,
 
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =
@@ -158,6 +322,27 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       deadlineAt: approvalDeadline(now(), timeoutDays),
     }
   },
+}
+
+/**
+ * Only these built-in steps may execute during a one-member rehearsal.
+ * App-owned and future steps are skipped until they explicitly gain a safe
+ * test path, so a new outside action cannot accidentally touch the member.
+ */
+const TEST_RUN_SAFE_KINDS = new Set([
+  "placeholder",
+  billingMomentNode.kind,
+  memberEventNode.kind,
+  memberTagNode.kind,
+  timeActivateNode.kind,
+  audienceNode.kind,
+  sendEmailNode.kind,
+  webhookNode.kind,
+  waitForApprovalNode.kind,
+])
+
+export function automationExecutorMayRunInTest(kind: string): boolean {
+  return TEST_RUN_SAFE_KINDS.has(kind)
 }
 
 /**
@@ -252,9 +437,7 @@ function checkedAppExecutors(): Record<string, AutomationExecutor> {
  * says it is, and `automationExecutors["constructor"]` would otherwise hand
  * back something off `Object`'s prototype and the engine would try to run it.
  */
-export function automationExecutorFor(
-  kind: string
-): AutomationExecutor | null {
+export function automationExecutorFor(kind: string): AutomationExecutor | null {
   if (Object.hasOwn(automationExecutors, kind)) return automationExecutors[kind]
   const supplied = checkedAppExecutors()
   return Object.hasOwn(supplied, kind) ? supplied[kind] : null

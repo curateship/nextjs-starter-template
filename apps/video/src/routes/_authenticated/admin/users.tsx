@@ -20,6 +20,7 @@ export const USER_ROLE_FILTERS = ["all", "admin", "member"] as const
 export const USER_STATUS_FILTERS = [
   "all",
   "active",
+  "unverified",
   "suspended",
   "pending_deletion",
   "locked_out",

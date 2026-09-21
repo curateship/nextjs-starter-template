@@ -319,7 +319,8 @@ describe("the media list with video extras", () => {
           .delete(customShellMedia)
           .where(eq(customShellMedia.id, mediaIds[0]))
           .returning({ id: customShellMedia.id })
-        return { deletedCount: deleted.length }
+        // Nothing in this test is protected by email already sent.
+        return { deletedCount: deleted.length, protectedCount: 0 }
       }
 
     await expect(

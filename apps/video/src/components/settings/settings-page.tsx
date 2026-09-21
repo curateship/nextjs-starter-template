@@ -1,16 +1,30 @@
+import * as React from "react"
+import type { ComponentType } from "react"
 import { Link } from "@tanstack/react-router"
 import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
+import { FrontPageRowsSettings } from "@/components/settings/front-page-rows-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import {
+  PublicSeoSettings,
+  PublicSocialSettings,
+  PublicSystemPagesSettings,
+} from "@/components/settings/public-metadata-settings"
+import { PublicSiteSettings } from "@/components/settings/public-site-settings"
+import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StorageSettings } from "@/components/settings/storage-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
+import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
+import { CardGroup } from "@/components/ui/card"
+import { appHeaderRightActionsForRole, appSettingsTabs } from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -25,14 +39,14 @@ import {
 /** Settings that are about the app, and about the admin's own shell. */
 const settingsTabs = [
   { id: "general", label: "General settings" },
-  { id: "sidebar", label: "Sidebar" },
-  { id: "top-right", label: "Top right menu" },
+  { id: "navigation", label: "Navigation" },
   { id: "widgets", label: "Widgets" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
   { id: "notifications", label: "Notifications" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
+  { id: "storage", label: "Storage" },
   { id: "ai", label: "AI" },
 ] as const
 
@@ -41,24 +55,47 @@ const settingsTabs = [
  * so it is obvious at a glance which of these change somebody else's screen.
  */
 const memberSettingsTabs = [
-  { id: "member-sidebar", label: "Sidebar" },
-  { id: "member-top-right", label: "Top right menu" },
+  { id: "member-navigation", label: "Navigation" },
+] as const
+
+/** Settings for the pages a site's visitors see before signing in. */
+const publicSettingsTabs = [
+  { id: "public-navigation", label: "Navigation" },
+  { id: "public-styling", label: "Styling" },
+  { id: "public-pages", label: "Pages" },
+  { id: "public-seo", label: "SEO" },
+  { id: "public-social", label: "Social" },
 ] as const
 
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
   | (typeof memberSettingsTabs)[number]["id"]
+  | (typeof publicSettingsTabs)[number]["id"]
 
-const allSettingsTabIds: readonly string[] = [
+/** Every id the shell itself owns — what an app's tab may not be called. */
+const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
   ...memberSettingsTabs.map((tab) => tab.id),
+  ...publicSettingsTabs.map((tab) => tab.id),
 ]
+
+/**
+ * The app's own tabs, worked out on first use rather than at import.
+ *
+ * An app's options file imports its own components, which import shell
+ * components, which can import this one — a real circle. A list built while
+ * this module loads would be built before the app's answers exist.
+ */
+function extraTabs() {
+  return appSettingsTabs(undefined, shellSettingsTabIds)
+}
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
-  return allSettingsTabIds.includes(segment)
-    ? (segment as SettingsTabId)
-    : "general"
+  const known =
+    shellSettingsTabIds.includes(segment) ||
+    extraTabs().some((tab) => tab.id === segment)
+  return known ? (segment as SettingsTabId) : "general"
 }
 
 export function SettingsPage({
@@ -80,6 +117,11 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
+  const adminHeaderActions = appHeaderRightActionsForRole("admin")
+  const memberHeaderActions = appHeaderRightActionsForRole("member")
+  const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
+  const memberHeaderActionIds = memberHeaderActions.map((action) => action.id)
+
   return (
     <div
       className="flex flex-col items-start lg:flex-row"
@@ -102,6 +144,29 @@ export function SettingsPage({
           tabs={memberSettingsTabs}
           activeTab={activeTab}
         />
+
+        <SettingsTabGroup
+          storageId="settings-rail-public"
+          title="Public"
+          tabs={publicSettingsTabs}
+          activeTab={activeTab}
+        />
+
+        {/* The app's own, last and in their own card, so it is obvious at a
+            glance which settings belong to this app rather than to the shell.
+            Nothing is drawn when an app has none, which is every app by
+            default. */}
+        {extraTabs().length > 0 ? (
+          <SettingsTabGroup
+            storageId="settings-rail-app"
+            title="This app"
+            tabs={extraTabs().map((tab) => ({
+              id: tab.id as SettingsTabId,
+              label: tab.label,
+            }))}
+            activeTab={activeTab}
+          />
+        ) : null}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -113,85 +178,152 @@ export function SettingsPage({
             maintenanceBusy={maintenanceBusy}
           />
         ) : null}
-        {activeTab === "sidebar" ? (
-          <SidebarSettings
-            sections={config.sections}
-            onSectionsChange={(sections) =>
-              onConfigChange({ ...config, sections })
+        {activeTab === "public-navigation" ? (
+          <PublicSiteSettings
+            navigation={config.publicNavigation}
+            footer={config.publicFooter}
+            footerCopyright={config.publicFooterCopyright}
+            publicHeader={config.publicHeader}
+            onNavigationChange={(publicNavigation) =>
+              onConfigChange({ ...config, publicNavigation })
+            }
+            onFooterChange={(publicFooter) =>
+              onConfigChange({ ...config, publicFooter })
+            }
+            onFooterCopyrightChange={(publicFooterCopyright) =>
+              onConfigChange({ ...config, publicFooterCopyright })
+            }
+            onPublicHeaderChange={(publicHeader) =>
+              onConfigChange({ ...config, publicHeader })
             }
             onSaveConfig={onSaveConfig}
-            card={{
-              storageId: "sidebar",
-              // Not just "Sidebar": the rail already says that, and the twin
-              // card under Members names itself the same way.
-              title: "Your sidebar",
-              description:
-                "The links you see in your own sidebar, in the order you put them. What members see is on the Members → Sidebar tab.",
-            }}
-            reset={{
-              label: "Reset all to defaults",
-              description:
-                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
-              onReset: () => onConfigChange(createDefaultShellConfig()),
-            }}
           />
         ) : null}
-        {activeTab === "top-right" ? (
-          <TopRightSettings
-            items={config.topRightNavigation}
-            onItemsChange={(topRightNavigation) =>
-              onConfigChange({ ...config, topRightNavigation })
+        {activeTab === "public-styling" ? (
+          <PublicThemeSettings
+            theme={config.publicTheme}
+            publicFont={config.publicFont}
+            onThemeChange={(publicTheme) =>
+              onConfigChange({ ...config, publicTheme })
+            }
+            onFontStateChange={(publicTheme, publicFont) =>
+              onConfigChange({ ...config, publicTheme, publicFont })
             }
             onSaveConfig={onSaveConfig}
-            card={{
-              storageId: "top-right",
-              title: "Your top right menu",
-              description:
-                "The buttons in the top right of your own header, in the order you put them. What members see is on the Members → Top right menu tab.",
-            }}
-            reset={{
-              label: "Reset top right menu",
-              description:
-                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
-              onReset: () =>
-                onConfigChange({
-                  ...config,
-                  topRightNavigation: createDefaultTopRightNavigation(),
-                }),
-            }}
           />
         ) : null}
-        {activeTab === "member-top-right" ? (
-          <TopRightSettings
-            items={config.memberTopRightNavigation}
-            onItemsChange={(memberTopRightNavigation) =>
-              onConfigChange({ ...config, memberTopRightNavigation })
-            }
-            onSaveConfig={onSaveConfig}
-            card={{
-              storageId: "member-top-right",
-              title: "Member top right menu",
-              description:
-                "The buttons every member sees in the top right of their header, in the order you put them. Your own menu is on the Top right menu tab and is not affected.",
-            }}
-            reset={{
-              label: "Reset member menu",
-              description:
-                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
-              onReset: () =>
-                onConfigChange({
-                  ...config,
-                  memberTopRightNavigation: createDefaultTopRightNavigation(),
-                }),
-            }}
-          />
+        {activeTab === "public-pages" ? (
+          <CardGroup>
+            <FrontPageRowsSettings
+              rows={config.frontPageRows}
+              onRowsChange={(frontPageRows) =>
+                onConfigChange({ ...config, frontPageRows })
+              }
+            />
+            <PublicSystemPagesSettings
+              config={config}
+              onConfigChange={onConfigChange}
+            />
+          </CardGroup>
         ) : null}
-        {activeTab === "member-sidebar" ? (
-          <MemberSettings
+        {activeTab === "public-seo" ? (
+          <PublicSeoSettings config={config} onConfigChange={onConfigChange} />
+        ) : null}
+        {activeTab === "public-social" ? (
+          <PublicSocialSettings
             config={config}
             onConfigChange={onConfigChange}
-            onSaveConfig={onSaveConfig}
           />
+        ) : null}
+        {activeTab === "navigation" ? (
+          <CardGroup>
+            <SidebarSettings
+              topLeftNavigation={
+                <TopLeftNavigationSettings
+                  config={config}
+                  onConfigChange={onConfigChange}
+                />
+              }
+              sections={config.sections}
+              onSectionsChange={(sections) =>
+                onConfigChange({ ...config, sections })
+              }
+              onSaveConfig={onSaveConfig}
+              card={{
+                storageId: "sidebar",
+                title: "Your sidebar",
+                description:
+                  "The links you see in your own sidebar, in the order you put them. What members see is on the Members → Navigation page.",
+              }}
+              reset={{
+                label: "Reset all to defaults",
+                description:
+                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
+                onReset: () => onConfigChange(createDefaultShellConfig()),
+              }}
+            />
+            <TopRightSettings
+              items={config.topRightNavigation}
+              onItemsChange={(topRightNavigation) =>
+                onConfigChange({ ...config, topRightNavigation })
+              }
+              onSaveConfig={onSaveConfig}
+              appActions={adminHeaderActions}
+              card={{
+                storageId: "top-right",
+                title: "Your top right menu",
+                description:
+                  "The buttons in the top right of your own header, in the order you put them. What members see is on the Members → Navigation page.",
+              }}
+              reset={{
+                label: "Reset top right menu",
+                description:
+                  "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
+                onReset: () =>
+                  onConfigChange({
+                    ...config,
+                    topRightNavigation: createDefaultTopRightNavigation(
+                      adminHeaderActionIds
+                    ),
+                  }),
+              }}
+            />
+          </CardGroup>
+        ) : null}
+        {activeTab === "member-navigation" ? (
+          <CardGroup>
+            <MemberSettings
+              config={config}
+              onConfigChange={onConfigChange}
+              onSaveConfig={onSaveConfig}
+            />
+            <TopRightSettings
+              items={config.memberTopRightNavigation}
+              onItemsChange={(memberTopRightNavigation) =>
+                onConfigChange({ ...config, memberTopRightNavigation })
+              }
+              onSaveConfig={onSaveConfig}
+              appActions={memberHeaderActions}
+              card={{
+                storageId: "member-top-right",
+                title: "Member top right menu",
+                description:
+                  "The buttons every member sees in the top right of their header, in the order you put them. Your own menu is on the Platform → Navigation page and is not affected.",
+              }}
+              reset={{
+                label: "Reset member menu",
+                description:
+                  "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
+                onReset: () =>
+                  onConfigChange({
+                    ...config,
+                    memberTopRightNavigation: createDefaultTopRightNavigation(
+                      memberHeaderActionIds
+                    ),
+                  }),
+              }}
+            />
+          </CardGroup>
         ) : null}
         {activeTab === "widgets" ? (
           <WidgetSettings
@@ -219,9 +351,50 @@ export function SettingsPage({
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
+        {activeTab === "storage" ? <StorageSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
+        <AppSettingsPanel activeTab={activeTab} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Each app panel wrapped once, outside any render.
+ *
+ * `React.lazy` makes a new component type every time it is called, and a
+ * component type made during a render resets its state on every render. Made
+ * here and remembered, so a tab keeps whatever it is holding.
+ */
+const lazyPanels = new Map<string, React.LazyExoticComponent<ComponentType>>()
+
+function lazyPanelFor(
+  id: string
+): React.LazyExoticComponent<ComponentType> | null {
+  const found = lazyPanels.get(id)
+  if (found) return found
+  const tab = extraTabs().find((one) => one.id === id)
+  if (!tab) return null
+  const made = React.lazy(tab.panel)
+  lazyPanels.set(id, made)
+  return made
+}
+
+/**
+ * Whichever of the app's own tabs is open, loaded when it is drawn.
+ *
+ * The tab holds a pointer to its file rather than the component, so nothing the
+ * panel imports is loaded until a browser asks for it — see `AppSettingsTab`.
+ */
+function AppSettingsPanel({ activeTab }: { activeTab: SettingsTabId }) {
+  const panel = lazyPanelFor(activeTab)
+  if (!panel) return null
+  // Built with `createElement` rather than as `<Panel />` so it is plain that
+  // the component comes from the cache above and is not made here.
+  return (
+    <React.Suspense fallback={null}>
+      {React.createElement(panel)}
+    </React.Suspense>
   )
 }
 

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -9,6 +11,7 @@ import {
   hostBelongsToThisApp,
   isPlatformHost,
   normalizeHost,
+  publicOriginFromParts,
   resolveWorkspaceByHost,
 } from "@/server/workspaces/host"
 import type { WorkspaceStatus } from "@/lib/workspaces/status"
@@ -74,6 +77,16 @@ describe("reading a host", () => {
   it("treats nothing at all as the deployment's own", () => {
     expect(isPlatformHost("")).toBe(true)
     expect(isPlatformHost(null)).toBe(true)
+  })
+
+  it("refuses a host that hides another domain behind credentials", () => {
+    expect(
+      publicOriginFromParts(
+        "http://internal:3000/about",
+        "alpha.example.com@other.example.com",
+        "https"
+      )
+    ).toBe("http://internal:3000")
   })
 })
 
@@ -231,5 +244,56 @@ describe("an app that never asked for addresses", () => {
     // every *.localhost origin, in every app.
     expect(hostBelongsToThisApp("http://alpha.localhost:3015")).toBe(false)
     expect(hostBelongsToThisApp("https://somebody-elses-site.com")).toBe(false)
+  })
+})
+
+/**
+ * Renaming a site in Settings has to reach the site itself.
+ *
+ * The public pages, the feed and the sitemap all read a site's name and menu
+ * out of this cache, which has no expiry. So any code that writes
+ * `customShellWorkspaces.name` or `.settings` and does not clear it leaves the
+ * public side showing the old values until the server restarts. That was a
+ * real bug in the Settings save; these two are here so it cannot come back.
+ *
+ * Do not delete either as redundant. The first says what the cache does; the
+ * second is the one that actually fails when a writer forgets.
+ */
+describe("a saved rename reaches the public side", () => {
+  it("keeps answering with the old name until the cache is cleared", async () => {
+    const workspace = await addWorkspace({ subdomain: "alpha", name: "Alpha" })
+
+    expect((await resolveWorkspaceByHost("alpha.localhost", database))?.name).toBe(
+      "Alpha"
+    )
+
+    await database
+      .update(customShellWorkspaces)
+      .set({ name: "Toronto Eats" })
+      .where(eq(customShellWorkspaces.id, workspace.id))
+
+    // Still the old one — this is exactly what a visitor saw after a rename.
+    expect((await resolveWorkspaceByHost("alpha.localhost", database))?.name).toBe(
+      "Alpha"
+    )
+
+    dropWorkspaceCache()
+
+    expect((await resolveWorkspaceByHost("alpha.localhost", database))?.name).toBe(
+      "Toronto Eats"
+    )
+  })
+
+  it("has the Settings save clear it", () => {
+    // The save is a server function reached through a request, so it cannot be
+    // called from here. What can be checked is that the one writer outside
+    // server/people/workspaces.ts still clears the cache — which is the line
+    // that was missing.
+    const source = readFileSync(
+      join(process.cwd(), "src/lib/api/shell-settings.ts"),
+      "utf8"
+    )
+
+    expect(source).toContain("dropWorkspaceCache()")
   })
 })

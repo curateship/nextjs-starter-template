@@ -6,6 +6,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -36,7 +37,9 @@ import {
   getWorkspaceErrorMessage,
   updateWorkspace,
   type WorkspaceItem,
+  type WorkspaceCopyChoice,
 } from "@/lib/api/people/workspaces"
+import { capitalise, workspaceWord } from "@/lib/app-options"
 import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
 import {
   customDomainProblem,
@@ -59,6 +62,8 @@ type WorkspaceDraft = {
   subdomain: string
   customDomain: string
   status: WorkspaceStatus
+  copySourceId: string
+  copyChoices: string[]
 }
 
 function draftFor(workspace: WorkspaceItem | null): WorkspaceDraft {
@@ -69,6 +74,8 @@ function draftFor(workspace: WorkspaceItem | null): WorkspaceDraft {
         subdomain: workspace.subdomain,
         customDomain: workspace.customDomain,
         status: workspace.status,
+        copySourceId: "blank",
+        copyChoices: [],
       }
     : {
         name: "",
@@ -76,6 +83,8 @@ function draftFor(workspace: WorkspaceItem | null): WorkspaceDraft {
         subdomain: "",
         customDomain: "",
         status: "active",
+        copySourceId: "blank",
+        copyChoices: [],
       }
 }
 
@@ -97,6 +106,8 @@ export function WorkspaceFormDialog({
   open,
   editing = null,
   baseDomain = "",
+  availableWorkspaces = [],
+  copyChoices = [],
   onClose,
 }: {
   open: boolean
@@ -107,9 +118,16 @@ export function WorkspaceFormDialog({
    * on. Empty on an app that serves one site, which is most of them.
    */
   baseDomain?: string
+  /** Workspaces the signed-in person may use as a starting point. */
+  availableWorkspaces?: WorkspaceItem[]
+  /** Optional app-owned content choices for a copied workspace. */
+  copyChoices?: WorkspaceCopyChoice[]
   onClose: () => void
 }) {
   const router = useRouter()
+  // Read here rather than at the top of the module: an app's options file can
+  // import its way back to this one.
+  const word = workspaceWord()
   const [draft, setDraft] = React.useState<WorkspaceDraft>(() =>
     draftFor(editing)
   )
@@ -122,6 +140,7 @@ export function WorkspaceFormDialog({
   const subdomainId = `${fieldId}-subdomain`
   const domainId = `${fieldId}-domain`
   const statusId = `${fieldId}-status`
+  const copySourceId = `${fieldId}-copy-source`
 
   // Opening is a fresh start: the window shows the workspace it was just
   // handed, never whatever the last one it opened for was left holding.
@@ -146,7 +165,9 @@ export function WorkspaceFormDialog({
     draft.icon !== opened.icon ||
     draft.subdomain !== opened.subdomain ||
     draft.customDomain !== opened.customDomain ||
-    draft.status !== opened.status
+    draft.status !== opened.status ||
+    draft.copySourceId !== opened.copySourceId ||
+    draft.copyChoices.length > 0
 
   // Said as it is typed, so a refusal never waits for a save. The server checks
   // the same rules again — this half is a courtesy, not the gate.
@@ -160,7 +181,7 @@ export function WorkspaceFormDialog({
     if (!name) {
       setNameInvalid(true)
       showErrorToast(
-        "Add a workspace name — settings can't be saved without one."
+        `Add a ${word.one} name — settings can't be saved without one.`
       )
       return
     }
@@ -175,10 +196,26 @@ export function WorkspaceFormDialog({
       if (editing) {
         await updateWorkspace(editing.id, name, draft.icon, address)
       } else {
-        await createWorkspace(name, draft.icon, address)
+        await createWorkspace(
+          name,
+          draft.icon,
+          address,
+          draft.copySourceId === "blank"
+            ? undefined
+            : {
+                workspaceId: draft.copySourceId,
+                choices: draft.copyChoices,
+              }
+        )
       }
       await router.invalidate()
-      toast.success(editing ? "Workspace updated." : "Workspace created.")
+      toast.success(
+        editing
+          ? `${capitalise(word.one)} updated.`
+          : draft.copySourceId === "blank"
+            ? `${capitalise(word.one)} created.`
+            : `${capitalise(word.one)} copied.`
+      )
       onClose()
     })
   }
@@ -199,10 +236,10 @@ export function WorkspaceFormDialog({
         >
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Edit workspace" : "New workspace"}
+              {editing ? `Edit ${word.one}` : `New ${word.one}`}
             </DialogTitle>
             <DialogDescription>
-              Choose the name and icon shown in the workspace switcher.
+              Choose the name and icon shown in the {word.one} switcher.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -215,14 +252,14 @@ export function WorkspaceFormDialog({
             <DialogBody>
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Workspace</CardTitle>
+                  <CardTitle>{capitalise(word.one)}</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <div className="grid gap-2">
                       <FieldLabel
                         htmlFor={iconId}
-                        hint="Sits next to the name in the sidebar switcher. A favicon, once one is uploaded, shows instead."
+                        hint="Sits next to the name in the sidebar switcher. The logo from Settings → General shows instead, once one is uploaded."
                       >
                         Icon
                       </FieldLabel>
@@ -252,7 +289,7 @@ export function WorkspaceFormDialog({
                     <div className="grid gap-2 sm:flex-1">
                       <FieldLabel
                         htmlFor={nameId}
-                        hint="What this workspace is called everywhere in the app."
+                        hint={`What this ${word.one} is called everywhere in the app.`}
                       >
                         Name
                       </FieldLabel>
@@ -276,6 +313,87 @@ export function WorkspaceFormDialog({
                   </div>
                 </CardContent>
               </Card>
+
+              {!editing ? (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Starting point</CardTitle>
+                    <CardDescription>
+                      Copies site settings and written pages. Contacts,
+                      segments, broadcasts, members, traffic, announcements,
+                      automations, media-library records and billing never copy.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor={copySourceId}>Start from</FieldLabel>
+                      <Select
+                        value={draft.copySourceId}
+                        disabled={saving}
+                        onValueChange={(value) => {
+                          const source = availableWorkspaces.find(
+                            (workspace) => workspace.id === value
+                          )
+                          setDraft((current) => ({
+                            ...current,
+                            copySourceId: value,
+                            copyChoices: [],
+                            icon: source?.icon ?? defaultIcon,
+                            status: source ? "draft" : "active",
+                          }))
+                        }}
+                      >
+                        <SelectTrigger
+                          id={copySourceId}
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="blank">Blank</SelectItem>
+                          {availableWorkspaces.map((workspace) => (
+                            <SelectItem key={workspace.id} value={workspace.id}>
+                              {workspace.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {draft.copySourceId !== "blank"
+                      ? copyChoices.map((choice) => {
+                          const checked = draft.copyChoices.includes(choice.key)
+                          const choiceId = `${fieldId}-copy-${choice.key}`
+                          return (
+                            <div
+                              key={choice.key}
+                              className="flex items-center gap-2"
+                            >
+                              <Checkbox
+                                id={choiceId}
+                                checked={checked}
+                                disabled={saving}
+                                onCheckedChange={(next) =>
+                                  setDraft((current) => ({
+                                    ...current,
+                                    copyChoices: next
+                                      ? [...current.copyChoices, choice.key]
+                                      : current.copyChoices.filter(
+                                          (key) => key !== choice.key
+                                        ),
+                                  }))
+                                }
+                              />
+                              <label htmlFor={choiceId} className="text-sm">
+                                {choice.label}
+                              </label>
+                            </div>
+                          )
+                        })
+                      : null}
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card size="sm">
                 <CardHeader>
@@ -317,7 +435,11 @@ export function WorkspaceFormDialog({
                     >
                       {addressProblem ??
                         (baseDomain
-                          ? workspaceAddress(draft.subdomain, baseDomain)
+                          ? workspaceAddress(
+                              draft.subdomain,
+                              baseDomain,
+                              `your-${word.one}`
+                            )
                           : "No base domain is configured, so this is not reachable yet.")}
                     </p>
                   </div>
@@ -359,7 +481,7 @@ export function WorkspaceFormDialog({
                     <FieldLabel htmlFor={statusId}>State</FieldLabel>
                     <Select
                       value={draft.status}
-                      disabled={saving}
+                      disabled={saving || draft.copySourceId !== "blank"}
                       onValueChange={(value) =>
                         setDraft((current) => ({
                           ...current,
@@ -393,7 +515,7 @@ export function WorkspaceFormDialog({
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                {editing ? "Save changes" : "Create workspace"}
+                {editing ? "Save changes" : `Create ${word.one}`}
               </Button>
             </DialogFooter>
           </form>

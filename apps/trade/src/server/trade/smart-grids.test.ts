@@ -759,6 +759,33 @@ describe("running out of the range", () => {
     expect(await orders()).toHaveLength(0)
   })
 
+  it("keeps waiting when End Grid is reached and it has never traded", async () => {
+    // A buying grid sits under the market waiting for a dip, and its End Grid
+    // line is above the market. A rally reaching that line is not a profit to
+    // take: nothing was ever bought. An HBAR grid was ended this way on
+    // 20 Sep 2026 after nineteen minutes, with no fill and nothing held.
+    // The range is $80 to $120 with price at $200, so End Grid is 5% above
+    // today's price: $210, five dollars of rise away and nothing to do with
+    // the range underneath it.
+    await place({ takeProfitPct: 5 })
+    const placed = await onlyGrid()
+    expect(placed.plan.entered).toBe(false)
+    expect(placed.plan.takeProfitPx).toBeCloseTo(210, 9)
+
+    await priceTo(211)
+
+    const grid = await onlyGrid()
+    expect(grid.status).toBe("active")
+    expect(grid.plan.closedReason).toBeNull()
+    expect(grid.plan.levels.every((level) => level.status === "waiting")).toBe(
+      true
+    )
+
+    // And it still works the moment price does come down to the range.
+    await priceTo(109)
+    expect((await positions())[0].szi).toBeGreaterThan(0)
+  })
+
   it("stops buying but stays open below the bottom, holding what it has", async () => {
     await place()
     await priceTo(75)
@@ -1594,6 +1621,30 @@ describe("following price up", () => {
     ).toBe("holding")
   })
 
+  it("buys a rung price falls straight back through after the move", async () => {
+    // The move away leaves every rung below the price, which is what "armed"
+    // means, so the fall that follows has to be able to buy them. Disarming
+    // the lot on a move cost the trade every time: a PONS grid on
+    // 20 Sep 2026 sat at $0.5896 with its rungs at $0.5956, $0.61107 and
+    // $0.62693 all switched off, having bought nothing on the way down.
+    await place({ follow: true })
+    await priceTo(115)
+    await priceTo(122)
+
+    const moved = await onlyGrid()
+    expect(moved.plan.shifts).toBe(1)
+    expect(moved.plan.levels.map((level) => level.buyPx)).toEqual([
+      90, 100, 110, 120,
+    ])
+
+    // Straight down through the $110 rung, with no pass in between.
+    await priceTo(105)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels[2].status).toBe("holding")
+    expect((await positions())[0].szi).toBeGreaterThan(0)
+  })
+
   it("keeps a hand-set split when the range moves up", async () => {
     await priceTo(100)
     await place({
@@ -2308,7 +2359,8 @@ describe("a grid that sells first", () => {
   it("is over once every level is called off and nothing is held", async () => {
     // The state a selling grid lands in when the × on its badge is pressed
     // before any level has traded. The row must not sit as a zombie holding
-    // the coin against a later grid.
+    // the coin against a later grid, and it says a hand ended it rather than
+    // "flat", which reads as the grid deciding for itself.
     await priceTo(70)
     await placeShort()
     await cancelGridRest(userId, wallet, { gridId: (await onlyGrid()).id })
@@ -2316,7 +2368,7 @@ describe("a grid that sells first", () => {
 
     const grid = await onlyGrid()
     expect(grid.status).toBe("done")
-    expect(grid.plan.closedReason).toBe("flat")
+    expect(grid.plan.closedReason).toBe("cancelled")
     expect(await positions()).toHaveLength(0)
     // And the coin is free again.
     await expect(placeShort()).resolves.toBeTruthy()
@@ -2520,6 +2572,67 @@ describe("reversing a grid", () => {
   })
 })
 
+/**
+ * The live side's own reads, driven through `advanceGrid` directly. A practice
+ * book settles its own fills and cannot disagree with the engine, so the two
+ * things below only exist on real money: a read that is behind the venue,
+ * and levels claiming coins the venue does not have.
+ */
+function bookWith(
+  kind: "live" | "paper",
+  positions: Map<string, TradePosition>
+): WalletBook {
+  // Only the fields the grid pass reads. A frozen grid must not fill,
+  // so the rest of the book is never reached.
+  return {
+    wallet: { ...wallet, kind },
+    costs: defaultPaperCosts(),
+    positions,
+    touchedMarkets: new Set<string>(),
+  } as unknown as WalletBook
+}
+
+function depsInto(saves: string[]): LadderEngineDeps {
+  return {
+    fill: () => {
+      throw new Error("a grid with no read position must not trade")
+    },
+    dropOrder: () => {},
+    freeCash: () => 10_000,
+    insertOrder: async () => "order-1",
+    saveLadder: async (_row, status) => {
+      saves.push(status)
+    },
+  }
+}
+
+function passAt(now: number, book: WalletBook) {
+  return {
+    book,
+    marks: new Map([[BTC, 109]]),
+    ladderBars: new Map(),
+    now,
+  }
+}
+
+/** A position the engine reads back, holding whatever size is handed in. */
+function positionOf(szi: number, now: number): TradePosition {
+  return {
+    id: BTC,
+    walletId: "w1",
+    marketKey: BTC,
+    szi,
+    entryPx: 110,
+    leverage: 1,
+    maxLeverage: 50,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: now,
+  }
+}
+
 describe("a read with no position", () => {
   /**
    * A real wallet's positions come from an exchange read, and one read can be
@@ -2531,34 +2644,6 @@ describe("a read with no position", () => {
    */
   beforeEach(() => resetGridPositionGoneMemory())
 
-  function bookWith(
-    kind: "live" | "paper",
-    positions: Map<string, TradePosition>
-  ): WalletBook {
-    // Only the fields the grid pass reads. A frozen grid must not fill,
-    // so the rest of the book is never reached.
-    return {
-      wallet: { ...wallet, kind },
-      costs: defaultPaperCosts(),
-      positions,
-      touchedMarkets: new Set<string>(),
-    } as unknown as WalletBook
-  }
-
-  function depsInto(saves: string[]): LadderEngineDeps {
-    return {
-      fill: () => {
-        throw new Error("a grid with no read position must not trade")
-      },
-      dropOrder: () => {},
-      freeCash: () => 10_000,
-      insertOrder: async () => "order-1",
-      saveLadder: async (_row, status) => {
-        saves.push(status)
-      },
-    }
-  }
-
   /** A grid whose $110 level has bought, read back as the engine holds it. */
   async function holdingGridRow(): Promise<GridRow> {
     await place()
@@ -2569,29 +2654,8 @@ describe("a read with no position", () => {
     return { id: grid.id, marketKey: BTC, plan: grid.plan }
   }
 
-  function passAt(now: number, book: WalletBook) {
-    return {
-      book,
-      marks: new Map([[BTC, 109]]),
-      ladderBars: new Map(),
-      now,
-    }
-  }
-
-  const heldPosition = (row: GridRow, now: number): TradePosition => ({
-    id: BTC,
-    walletId: "w1",
-    marketKey: BTC,
-    szi: row.plan.levels[3].heldSz,
-    entryPx: 110,
-    leverage: row.plan.leverage,
-    maxLeverage: 50,
-    targets: [],
-    tpPx: null,
-    slPx: null,
-    feesPaid: 0,
-    updatedAt: now,
-  })
+  const heldPosition = (row: GridRow, now: number): TradePosition =>
+    positionOf(row.plan.levels[3].heldSz, now)
 
   it("freezes a live grid rather than ending it on one blind read", async () => {
     const row = await holdingGridRow()
@@ -2663,6 +2727,99 @@ describe("a read with no position", () => {
 
     expect(saves).toEqual(["done"])
     expect(row.plan.closedReason).toBe("stop")
+  })
+})
+
+describe("levels claiming more coins than the position has", () => {
+  /**
+   * An order that never filled leaves its level claiming coins nobody bought,
+   * and when price reaches that level's exit it sells them out of the coins
+   * other levels paid more for. A CASHCAT grid did this on 20 Sep 2026 and
+   * lost $13.95 on a rung that had done nothing wrong.
+   */
+  beforeEach(() => resetGridPositionGoneMemory())
+
+  /** A grid holding its $110 and its $100 level, with price back at $109. */
+  async function twoHoldingLevels(): Promise<GridRow> {
+    await place()
+    await priceTo(115)
+    await priceTo(109)
+    await priceTo(99)
+    await priceTo(109)
+    const grid = await onlyGrid()
+    expect(grid.plan.levels[3].status).toBe("holding")
+    expect(grid.plan.levels[2].status).toBe("holding")
+    return { id: grid.id, marketKey: BTC, plan: grid.plan }
+  }
+
+  it("keeps both levels while the mismatch is younger than a slow read", async () => {
+    const row = await twoHoldingLevels()
+    const saves: string[] = []
+    const now = Date.now()
+    const real = row.plan.levels[3].heldSz
+
+    await advanceGrid(
+      passAt(now, bookWith("live", new Map([[BTC, positionOf(real, now)]]))),
+      depsInto(saves),
+      row
+    )
+
+    expect(row.plan.levels[2].status).toBe("holding")
+    expect(row.plan.levels[3].status).toBe("holding")
+  })
+
+  it("takes the extra off the level nearest the losing edge", async () => {
+    const row = await twoHoldingLevels()
+    const saves: string[] = []
+    const now = Date.now()
+    // The venue holds what the $110 level bought and nothing else, so every
+    // coin the $100 level claims is one nobody ever bought.
+    const real = row.plan.levels[3].heldSz
+    const book = bookWith("live", new Map([[BTC, positionOf(real, now)]]))
+
+    await advanceGrid(passAt(now, book), depsInto(saves), row)
+    await advanceGrid(passAt(now + 16_000, book), depsInto(saves), row)
+
+    expect(row.plan.levels[2].heldSz).toBe(0)
+    expect(row.plan.levels[2].status).toBe("waiting")
+    // The older, further-out holding is the one the coins really belong to.
+    expect(row.plan.levels[3].heldSz).toBe(real)
+    expect(row.plan.levels[3].status).toBe("holding")
+    // Nothing to write on the first pass: the mismatch is only believed once
+    // it has outlasted a slow read.
+    expect(saves).toEqual(["active"])
+  })
+
+  it("drops a carried level that holds nothing the venue has", async () => {
+    const row = await twoHoldingLevels()
+    const saves: string[] = []
+    const now = Date.now()
+    // The $100 level as a carried one: same coins, same claim, and a carried
+    // level that empties is finished rather than put back to waiting.
+    const carried = row.plan.levels[2]
+    row.plan.levels[2] = { ...carried, heldSz: 0, status: "waiting" }
+    row.plan.carriedLevels.push(carried)
+    const real = row.plan.levels[3].heldSz
+    const book = bookWith("live", new Map([[BTC, positionOf(real, now)]]))
+
+    await advanceGrid(passAt(now, book), depsInto(saves), row)
+    await advanceGrid(passAt(now + 16_000, book), depsInto(saves), row)
+
+    expect(row.plan.carriedLevels).toHaveLength(0)
+    expect(row.plan.levels[3].heldSz).toBe(real)
+  })
+
+  it("leaves a practice grid alone, because its book cannot be behind", async () => {
+    const row = await twoHoldingLevels()
+    const saves: string[] = []
+    const now = Date.now()
+    const real = row.plan.levels[3].heldSz
+    const book = bookWith("paper", new Map([[BTC, positionOf(real, now)]]))
+
+    await advanceGrid(passAt(now, book), depsInto(saves), row)
+    await advanceGrid(passAt(now + 16_000, book), depsInto(saves), row)
+
+    expect(row.plan.levels[2].status).toBe("holding")
   })
 })
 
