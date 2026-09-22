@@ -29,6 +29,7 @@ import {
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
 import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
+import type { PublicThemePreset } from "@/lib/public-theme-presets"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
 import {
@@ -489,6 +490,8 @@ export type ShellConfig = {
   publicHeader: PublicHeader
   /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
+  /** The admin's own saved public looks, applied from the Styling tab. */
+  publicThemePresets: PublicThemePreset[]
   /** One app-wide uploaded WOFF2 font, or null when none has been added. */
   publicFont: PublicFontAsset | null
   /** The signed-in admin's own header row, saved on their workspace. */
@@ -748,6 +751,7 @@ export function createDefaultShellConfig(): ShellConfig {
     publicFooterCopyright: "",
     publicHeader: createDefaultPublicHeader(),
     publicTheme: createDefaultPublicTheme(),
+    publicThemePresets: [],
     publicFont: null,
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,

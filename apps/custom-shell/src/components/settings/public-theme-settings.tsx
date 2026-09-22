@@ -9,6 +9,7 @@ import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
+import { PublicThemePresetsCard } from "@/components/settings/public-theme-presets-card"
 import {
   BackgroundField,
   FieldGroup,
@@ -76,6 +77,7 @@ import {
   type ShellModalStyling,
 } from "@/lib/layout/styling-values"
 import { cn } from "@/lib/utils"
+import type { PublicThemePreset } from "@/lib/public-theme-presets"
 import {
   getPublicFontUploadError,
   PUBLIC_FONT_ACCEPT,
@@ -94,8 +96,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 type PublicThemeSettingsProps = {
   theme: PublicTheme
+  presets: PublicThemePreset[]
   publicFont: PublicFontAsset | null
   onThemeChange: (theme: PublicTheme) => void
+  onPresetsChange: (presets: PublicThemePreset[]) => void
   onFontStateChange: (
     theme: PublicTheme,
     publicFont: PublicFontAsset | null
@@ -105,8 +109,10 @@ type PublicThemeSettingsProps = {
 
 export function PublicThemeSettings({
   theme,
+  presets,
   publicFont,
   onThemeChange,
+  onPresetsChange,
   onFontStateChange,
   onSaveConfig,
 }: PublicThemeSettingsProps) {
@@ -214,6 +220,13 @@ export function PublicThemeSettings({
 
   return (
     <CardGroup>
+      <PublicThemePresetsCard
+        theme={theme}
+        presets={presets}
+        onApply={onThemeChange}
+        onPresetsChange={onPresetsChange}
+      />
+
       <CollapsibleSettingsCard
         storageId="public-styling-brand-colour"
         title="Brand colour"

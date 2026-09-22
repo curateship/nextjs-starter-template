@@ -40,6 +40,7 @@ import {
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
 import {
   BORDER_STYLE_VAR_NAMES,
   getBorderStyleVars,
@@ -782,6 +783,9 @@ function normalizeConfig(
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation,
       actionIds

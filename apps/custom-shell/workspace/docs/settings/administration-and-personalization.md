@@ -274,6 +274,10 @@ the Platform Styling tab, and they work the same way:
 Every one of those cards has a live preview that draws the values as they are
 edited, not the signed-in app's own.
 
+The Presets card at the top of the tab applies a whole named look in one
+click, and saves the current one to come back to. It has its own doc:
+[Public theme presets](public-theme-presets.md).
+
 Public and platform styling never reach each other. Public values are written
 onto the public frame and onto the document root only while a public page is on
 screen, and they are removed when it leaves, so an admin who visits a public

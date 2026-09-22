@@ -48,6 +48,7 @@ import {
   publicThemeOverrides,
   type PublicTheme,
 } from "@/lib/public-theme"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
 import {
   normalizePublicFontAsset,
   type PublicFontAsset,
@@ -410,6 +411,9 @@ export function parseShellGlobals(value: unknown) {
       settings.publicTheme,
       fallback.publicTheme
     ),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -496,6 +500,7 @@ export function pickShellGlobals(
     | "publicHeader"
     | "publicFont"
     | "publicTheme"
+    | "publicThemePresets"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -534,6 +539,9 @@ export function pickShellGlobals(
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,

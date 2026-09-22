@@ -356,6 +356,20 @@ describe("public site branding", () => {
     expect((await readBranding(testDb)).publicSearchEnabled).toBe(false)
   })
 
+  it("carries an admin's saved presets through a global write", () => {
+    const written = shellGlobalsForWrite({
+      appName: "Bookshelf",
+      publicThemePresets: [
+        { id: "mine", name: "Summer", theme: { radius: 4 } },
+        { id: "mine", name: "Duplicate id", theme: {} },
+      ],
+    }).publicThemePresets
+
+    expect(written).toHaveLength(1)
+    expect(written[0]).toMatchObject({ id: "mine", name: "Summer" })
+    expect(written[0].theme.radius).toBe(4)
+  })
+
   it("keeps app theme defaults out of unrelated global writes", () => {
     expect(shellGlobalsForWrite({ appName: "Bookshelf" }).publicTheme).toEqual(
       {}

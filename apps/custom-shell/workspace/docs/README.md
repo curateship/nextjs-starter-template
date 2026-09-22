@@ -70,6 +70,7 @@ local setup docs.
 ## Settings
 
 - [Administration and personalization](settings/administration-and-personalization.md)
+- [Public theme presets](settings/public-theme-presets.md)
 
 ## UI
 

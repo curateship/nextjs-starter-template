@@ -81,6 +81,11 @@ import {
   publicThemeForAppWideSave,
   publicThemeOverrides,
 } from "@/lib/public-theme"
+import {
+  MAX_PUBLIC_THEME_PRESETS,
+  MAX_PUBLIC_THEME_PRESET_ID_LENGTH,
+  MAX_PUBLIC_THEME_PRESET_NAME_LENGTH,
+} from "@/lib/public-theme-presets"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import {
   MAX_CARD_BORDER_WIDTH,
@@ -311,6 +316,20 @@ const publicThemeSchema = z.object({
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
+/**
+ * An admin's saved public looks. Each one carries a whole theme, so the same
+ * checks the live theme gets apply to every preset before it can be saved.
+ */
+const publicThemePresetsSchema = z
+  .array(
+    z.object({
+      id: z.string().min(1).max(MAX_PUBLIC_THEME_PRESET_ID_LENGTH),
+      name: z.string().min(1).max(MAX_PUBLIC_THEME_PRESET_NAME_LENGTH),
+      theme: publicThemeSchema,
+    })
+  )
+  .max(MAX_PUBLIC_THEME_PRESETS)
+
 const frontPageRowBaseShape = {
   id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
   heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
@@ -481,6 +500,7 @@ const shellConfigSchema = z.object({
   }),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
+  publicThemePresets: publicThemePresetsSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
