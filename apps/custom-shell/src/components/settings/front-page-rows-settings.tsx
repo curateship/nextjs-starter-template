@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
 import {
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
@@ -190,8 +191,16 @@ function FrontPageSettingsRow({
       >
         <span className="truncate text-sm font-medium">{row.heading}</span>
         <span className="truncate text-xs text-muted-foreground">
-          {FRONT_PAGE_ROW_KIND_LABELS[row.kind]} ·{" "}
-          {FRONT_PAGE_ROW_LAYOUT_LABELS[row.layout]}
+          {[
+            FRONT_PAGE_ROW_KIND_LABELS[row.kind],
+            FRONT_PAGE_ROW_LAYOUT_LABELS[row.layout],
+            // Only worth a word when it is not the everyday answer, so the
+            // line stays short on the rows that behave normally.
+            row.device === "all" ? null : PUBLIC_DEVICE_LABELS[row.device],
+            row.hidden ? "Hidden" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </button>
       <Button

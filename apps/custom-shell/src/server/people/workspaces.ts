@@ -5,15 +5,17 @@ import {
   createDefaultTopRightNavigation,
   iconMeta,
   isShellItem,
-  normalizeStyling,
   type IconKey,
   type ShellChildItem,
   type ShellEntry,
   type ShellItem,
   type ShellSection,
-  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+import {
+  normalizeStyling,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
 import {
   createDefaultDashboardWidgets,

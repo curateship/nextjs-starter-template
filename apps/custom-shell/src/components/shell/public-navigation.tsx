@@ -36,6 +36,7 @@ import type {
 import {
   isPublicNavigationGroup,
   isPublicNavigationSearchItem,
+  publicNavigationForDevice,
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
@@ -163,6 +164,7 @@ export function PublicNavigation({
   menuAlignment,
   headerBorder,
   pageWidthStyle,
+  chromeBackground,
   showThemeToggle,
 }: {
   appName: string
@@ -174,15 +176,23 @@ export function PublicNavigation({
   menuAlignment: PublicHeaderMenuAlignment
   headerBorder: boolean
   pageWidthStyle: { maxWidth: number } | undefined
+  /** Public styling's header and footer colour, or undefined for the theme's. */
+  chromeBackground: string | undefined
   showThemeToggle: boolean
 }) {
   const pathname = useLocation({ select: (location) => location.pathname })
   const headerRef = React.useRef<HTMLElement>(null)
   const [menuState, setMenuState] = React.useState(false)
   const [siteSearch, setSiteSearch] = React.useState("")
-  // Centring needs something to centre. An empty menu falls back to the normal
-  // flow so the bar does not reserve a column for nothing.
-  const centeredMenu = menuAlignment === "center" && navigation.length > 0
+  // The header draws two lists from one saved menu, so each asks for its own
+  // items. Both lists are in the page at every width and the `lg` classes
+  // below hide the wrong one, so this decides what is drawn, not what ships.
+  const desktopItems = publicNavigationForDevice(navigation, "desktop")
+  const phoneItems = publicNavigationForDevice(navigation, "phone")
+  // Centring needs something to centre, and what it centres is the desktop
+  // row. A menu whose every item is phone-only falls back to the normal flow
+  // so the bar does not reserve a column for nothing.
+  const centeredMenu = menuAlignment === "center" && desktopItems.length > 0
   const [user, setUser] = React.useState<PublicUser | null>(null)
   // The session is looked up in the browser, so until it answers "no user" is
   // not the same as "signed out". Drawing the Sign in buttons on that first
@@ -374,10 +384,10 @@ export function PublicNavigation({
     </Link>
   )
 
-  const desktopNavigation = navigation.length ? (
+  const desktopNavigation = desktopItems.length ? (
     <nav aria-label="Main navigation" className="hidden lg:block">
       <ul className="flex items-center gap-8 text-sm font-medium">
-        {navigation.map((item, index) =>
+        {desktopItems.map((item, index) =>
           isPublicNavigationSearchItem(item) ? (
             <li key="search" className="w-40 xl:w-56">
               {searchField}
@@ -399,7 +409,7 @@ export function PublicNavigation({
   // Both icons are drawn and stacked, and the nav's data-state turns one into
   // the other: the bars spin out as the cross spins in. Mounting one at a time
   // would jump rather than turn.
-  const menuButton = navigation.length ? (
+  const menuButton = phoneItems.length ? (
     <button
       type="button"
       onClick={() => setMenuState((open) => !open)}
@@ -416,7 +426,7 @@ export function PublicNavigation({
     </button>
   ) : null
 
-  const phoneMenu = navigation.length ? (
+  const phoneMenu = phoneItems.length ? (
     <nav
       id="public-phone-menu"
       aria-label="Main navigation"
@@ -424,7 +434,7 @@ export function PublicNavigation({
       className="mb-6 hidden w-full space-y-8 rounded-3xl border bg-background p-6 shadow-2xl in-data-[state=active]:block lg:hidden"
     >
       <ul className="space-y-6 text-base">
-        {navigation.map((item, index) =>
+        {phoneItems.map((item, index) =>
           isPublicNavigationSearchItem(item) ? (
             <li key="search">
               {/* The panel is full width, but a second search box beside the
@@ -479,10 +489,14 @@ export function PublicNavigation({
       ref={headerRef}
       data-menu-alignment={menuAlignment}
       className={cn(
-        "z-40 w-full bg-background/90 backdrop-blur-xl",
+        "z-40 w-full backdrop-blur-xl",
+        // A chosen colour is drawn solid, the way the signed-in sidebar and
+        // sticky bar are, so the header reads the same over any page content.
+        chromeBackground ? undefined : "bg-background/90",
         headerBorder && "border-b",
         sticky && "sticky top-0"
       )}
+      style={chromeBackground ? { backgroundColor: chromeBackground } : undefined}
     >
       <nav data-state={menuState ? "active" : undefined} className="w-full">
         <div

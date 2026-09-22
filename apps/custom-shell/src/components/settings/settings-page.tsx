@@ -202,9 +202,13 @@ export function SettingsPage({
         {activeTab === "public-styling" ? (
           <PublicThemeSettings
             theme={config.publicTheme}
+            presets={config.publicThemePresets}
             publicFont={config.publicFont}
             onThemeChange={(publicTheme) =>
               onConfigChange({ ...config, publicTheme })
+            }
+            onPresetsChange={(publicThemePresets) =>
+              onConfigChange({ ...config, publicThemePresets })
             }
             onFontStateChange={(publicTheme, publicFont) =>
               onConfigChange({ ...config, publicTheme, publicFont })
@@ -258,8 +262,15 @@ export function SettingsPage({
               reset={{
                 label: "Reset all to defaults",
                 description:
-                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
-                onReset: () => onConfigChange(createDefaultShellConfig()),
+                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. Saved public presets are kept. This cannot be undone.",
+                // A preset is a look the admin built and named, not a setting,
+                // and it is the way back after a reset lands on a look nobody
+                // wanted. Resetting the sidebar must not delete the lot.
+                onReset: () =>
+                  onConfigChange({
+                    ...createDefaultShellConfig(),
+                    publicThemePresets: config.publicThemePresets,
+                  }),
               }}
             />
             <TopRightSettings

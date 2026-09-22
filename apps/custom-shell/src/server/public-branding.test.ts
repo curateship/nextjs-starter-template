@@ -31,6 +31,19 @@ const appPublicTheme = vi.hoisted(() => ({
   radius: 4,
 }))
 
+/**
+ * The app fixture above as the shell reads it: every value the app names, over
+ * the shell's own starting look, with the app's plain canvas hex read as the
+ * custom colour it draws.
+ */
+function normalizedAppPublicTheme() {
+  return {
+    ...createDefaultPublicTheme(),
+    ...appPublicTheme,
+    canvasColor: { mode: "custom", strength: 60, color: "#f5f5f5" },
+  }
+}
+
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeader: (name: string) => (name === "host" ? request.host : null),
   getRequestProtocol: () => "http",
@@ -40,6 +53,7 @@ vi.mock("@/app/options", () => ({
   appOptions: { publicTheme: appPublicTheme, workspaces: workspaceOptions },
 }))
 
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
@@ -48,7 +62,11 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import { readBranding, shellGlobalsForWrite } from "@/server/shell-settings"
+import {
+  parseShellGlobals,
+  readBranding,
+  shellGlobalsForWrite,
+} from "@/server/shell-settings"
 import { setPageVisibility } from "@/server/content/pages"
 import { dropWorkspaceCache } from "@/server/workspaces/host"
 
@@ -342,6 +360,55 @@ describe("public site branding", () => {
     expect((await readBranding(testDb)).publicSearchEnabled).toBe(false)
   })
 
+  it("keeps a hidden row out of what a visitor is served", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        frontPageRows: [
+          { id: "shown", heading: "Shown", kind: "text" },
+          { id: "staged", heading: "Staged", kind: "text", hidden: true },
+        ],
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    // The visitor's data carries one row. The staged one is not hidden with a
+    // class, it is not in the response at all, so its words cannot be read out
+    // of the page source before it is ready.
+    expect(branding.frontPageRows.map((row) => row.heading)).toEqual(["Shown"])
+    expect(JSON.stringify(branding)).not.toContain("Staged")
+
+    // The admin's own read still has both, so the editor can list it.
+    const globals = parseShellGlobals({
+      frontPageRows: [
+        { id: "shown", heading: "Shown", kind: "text" },
+        { id: "staged", heading: "Staged", kind: "text", hidden: true },
+      ],
+    })
+    expect(globals.frontPageRows.map((row) => row.heading)).toEqual([
+      "Shown",
+      "Staged",
+    ])
+  })
+
+  it("carries an admin's saved presets through a global write", () => {
+    const written = shellGlobalsForWrite({
+      appName: "Bookshelf",
+      publicThemePresets: [
+        { id: "mine", name: "Summer", theme: { radius: 4 } },
+        { id: "mine", name: "Duplicate id", theme: {} },
+      ],
+    }).publicThemePresets
+
+    expect(written).toHaveLength(1)
+    expect(written[0]).toMatchObject({ id: "mine", name: "Summer" })
+    expect(written[0].theme.radius).toBe(4)
+  })
+
   it("keeps app theme defaults out of unrelated global writes", () => {
     expect(shellGlobalsForWrite({ appName: "Bookshelf" }).publicTheme).toEqual(
       {}
@@ -364,7 +431,7 @@ describe("public site branding", () => {
 
     const branding = await readBranding(database as unknown as CustomShellDb)
 
-    expect(branding.publicTheme).toEqual(appPublicTheme)
+    expect(branding.publicTheme).toEqual(normalizedAppPublicTheme())
   })
 
   it("combines saved app-wide values with the site's brand", async () => {
@@ -390,7 +457,7 @@ describe("public site branding", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicTheme).toEqual({
-      ...appPublicTheme,
+      ...normalizedAppPublicTheme(),
       brandColor: "#2563eb",
       brandOverrides: { hoverColor: "#1d4ed8" },
       font: "mono",
@@ -434,9 +501,11 @@ describe("public site branding", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicTheme).toEqual({
+      ...createDefaultPublicTheme(),
       brandColor: "#2563eb",
       brandOverrides: { hoverColor: "#1d4ed8" },
-      canvasColor: "#f1f5f9",
+      // Saved as a plain hex before the canvas gained its mode picker.
+      canvasColor: { mode: "custom", strength: 60, color: "#f1f5f9" },
       pageWidth: 960,
       mainSpacing: 24,
       contentAlignment: "right",

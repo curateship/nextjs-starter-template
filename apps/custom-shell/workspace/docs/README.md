@@ -41,6 +41,7 @@ local setup docs.
 - [Announcements and changelog](content/announcements-and-changelog.md)
 - [Public pages, search, and SEO](content/public-pages-search-and-seo.md)
 - [Public page load errors](content/public-page-load-errors.md)
+- [Hiding a row, and choosing its screens](content/showing-and-hiding-public-things.md)
 
 ## Email and notifications
 
@@ -70,6 +71,7 @@ local setup docs.
 ## Settings
 
 - [Administration and personalization](settings/administration-and-personalization.md)
+- [Public theme presets](settings/public-theme-presets.md)
 
 ## UI
 

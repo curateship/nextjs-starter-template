@@ -44,6 +44,7 @@ import {
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { loadMemberHome } from "@/server/people/member-home"
 import {
   createAnnouncement,
@@ -1209,9 +1210,11 @@ describe("custom shell workspaces", () => {
       ])
       expect(singleSiteConfig.publicFooterCopyright).toBe("App copyright")
       expect(singleSiteConfig.publicTheme).toEqual({
+        ...createDefaultPublicTheme(),
         brandColor: "#dc2626",
         brandOverrides: { darkColor: "#f87171" },
-        canvasColor: "#f1f5f9",
+        // Saved as a plain hex before the canvas gained its mode picker.
+        canvasColor: { mode: "custom", strength: 60, color: "#f1f5f9" },
         pageWidth: 960,
         mainSpacing: 24,
         contentAlignment: "right",
@@ -1242,9 +1245,10 @@ describe("custom shell workspaces", () => {
       ])
       expect(multiSiteConfig.publicFooterCopyright).toBe("Workspace copyright")
       expect(multiSiteConfig.publicTheme).toEqual({
+        ...createDefaultPublicTheme(),
         brandColor: "#3b82f6",
         brandOverrides: { hoverColor: "#1d4ed8" },
-        canvasColor: "#f1f5f9",
+        canvasColor: { mode: "custom", strength: 60, color: "#f1f5f9" },
         pageWidth: 960,
         mainSpacing: 24,
         contentAlignment: "right",
@@ -1714,9 +1718,9 @@ describe("custom shell workspaces", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicTheme).toEqual({
+      ...createDefaultPublicTheme(),
       brandColor: "",
       brandOverrides: {},
-      canvasColor: "",
       pageWidth: 1152,
       mainSpacing: 40,
       contentAlignment: "center",

@@ -9,8 +9,21 @@ import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
+import { PublicThemePresetsCard } from "@/components/settings/public-theme-presets-card"
+import {
+  BackgroundField,
+  FieldGroup,
+  ModalPreview,
+} from "@/components/settings/styling-fields"
 import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardGroup,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -26,6 +39,7 @@ import {
 } from "@/components/ui/select"
 import {
   DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  DEFAULT_PUBLIC_GUTTER,
   DEFAULT_PUBLIC_MAIN_SPACING,
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
   MAX_PUBLIC_MAIN_SPACING,
@@ -54,6 +68,17 @@ import {
   type PublicThemeFont,
 } from "@/lib/public-theme"
 import {
+  MAX_CARD_BORDER_WIDTH,
+  MAX_CONTENT_GUTTER,
+  MAX_MODAL_PADDING,
+  MIN_CONTENT_GUTTER,
+  resolveBackground,
+  type ShellBackground,
+  type ShellModalStyling,
+} from "@/lib/layout/styling-values"
+import { cn } from "@/lib/utils"
+import type { PublicThemePreset } from "@/lib/public-theme-presets"
+import {
   getPublicFontUploadError,
   PUBLIC_FONT_ACCEPT,
   type PublicFontAsset,
@@ -71,8 +96,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 type PublicThemeSettingsProps = {
   theme: PublicTheme
+  presets: PublicThemePreset[]
   publicFont: PublicFontAsset | null
   onThemeChange: (theme: PublicTheme) => void
+  onPresetsChange: (presets: PublicThemePreset[]) => void
   onFontStateChange: (
     theme: PublicTheme,
     publicFont: PublicFontAsset | null
@@ -82,8 +109,10 @@ type PublicThemeSettingsProps = {
 
 export function PublicThemeSettings({
   theme,
+  presets,
   publicFont,
   onThemeChange,
+  onPresetsChange,
   onFontStateChange,
   onSaveConfig,
 }: PublicThemeSettingsProps) {
@@ -96,7 +125,20 @@ export function PublicThemeSettings({
   const update = (patch: Partial<PublicTheme>) =>
     onThemeChange({ ...theme, ...patch })
   const brandColorInvalid = !isPublicBrandColor(theme.brandColor)
-  const canvasColorInvalid = !isPublicBrandColor(theme.canvasColor)
+  const modal = theme.modal
+  const isFlat = theme.gutter === 0
+
+  const updateBackground = (
+    key: PublicBackgroundKey,
+    patch: Partial<ShellBackground>
+  ) => update({ [key]: { ...theme[key], ...patch } } as Partial<PublicTheme>)
+  const updateModal = (patch: Partial<ShellModalStyling>) =>
+    update({ modal: { ...modal, ...patch } })
+  const updateModalBackground = (
+    key: ModalBackgroundKey,
+    patch: Partial<ShellBackground>
+  ) =>
+    updateModal({ [key]: { ...modal[key], ...patch } } as Partial<ShellModalStyling>)
   const colors = brandColorInvalid
     ? null
     : derivePublicBrandColors(theme.brandColor, theme.brandOverrides)
@@ -178,6 +220,13 @@ export function PublicThemeSettings({
 
   return (
     <CardGroup>
+      <PublicThemePresetsCard
+        theme={theme}
+        presets={presets}
+        onApply={onThemeChange}
+        onPresetsChange={onPresetsChange}
+      />
+
       <CollapsibleSettingsCard
         storageId="public-styling-brand-colour"
         title="Brand colour"
@@ -389,53 +438,17 @@ export function PublicThemeSettings({
           help="The space above and below the main content on every public page."
         />
 
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-canvas-colour"
-            hint="Enter a 6-digit hex colour. Clear it to use the standard muted canvas."
-          >
-            Canvas colour
-          </FieldLabel>
-          <div className="flex flex-wrap items-center gap-2">
-            <ColorSwatch
-              aria-label="Pick canvas colour"
-              value={
-                canvasColorInvalid || !theme.canvasColor
-                  ? "#000000"
-                  : theme.canvasColor
-              }
-              onChange={(event) =>
-                update({ canvasColor: event.target.value })
-              }
-            />
-            <Input
-              id="public-theme-canvas-colour"
-              value={theme.canvasColor}
-              placeholder="Theme default"
-              className="w-full sm:w-40"
-              aria-invalid={canvasColorInvalid || undefined}
-              onBlur={() => {
-                if (canvasColorInvalid) {
-                  showErrorToast(
-                    "Enter a 6-digit canvas colour, like #f3f4f6."
-                  )
-                }
-              }}
-              onChange={(event) =>
-                update({ canvasColor: event.target.value })
-              }
-            />
-            {theme.canvasColor ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => update({ canvasColor: "" })}
-              >
-                Use default
-              </Button>
-            ) : null}
-          </div>
-        </div>
+        <FieldGroup
+          label="Canvas colour"
+          description="The background behind the header, page content, and footer."
+        >
+          <BackgroundField
+            idPrefix="public-theme-canvas"
+            value={theme.canvasColor}
+            defaultHint="Uses the standard muted canvas (adapts to light and dark)."
+            onChange={(patch) => updateBackground("canvasColor", patch)}
+          />
+        </FieldGroup>
 
         <div className="grid gap-4">
           <div className="flex items-center gap-2">
@@ -463,6 +476,105 @@ export function PublicThemeSettings({
             </Label>
           </div>
         </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-styling-spacing"
+        title="Spacing & borders"
+        description="The space around public content and the borders its cards draw. Changes save automatically."
+        contentClassName="space-y-6"
+      >
+        <SettingsSliderRow
+          label="Content spacing"
+          value={theme.gutter}
+          min={MIN_CONTENT_GUTTER}
+          max={MAX_CONTENT_GUTTER}
+          valueLabel={
+            theme.gutter === DEFAULT_PUBLIC_GUTTER
+              ? `${theme.gutter}px \u00b7 Default`
+              : `${theme.gutter}px`
+          }
+          onChange={(gutter) => update({ gutter })}
+          help="The space at the sides of public content and between its blocks. Set to 0 for a flat layout with no card borders, rounded corners, or spacing. The space above and below stays with Main spacing."
+        />
+
+        <SettingsSliderRow
+          label="Card border"
+          value={theme.cardBorderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={
+            isFlat || theme.cardBorderWidth === 0
+              ? "Off"
+              : `${theme.cardBorderWidth}px`
+          }
+          disabled={isFlat}
+          onChange={(cardBorderWidth) => update({ cardBorderWidth })}
+          help={
+            isFlat
+              ? "Card and table borders are off while content spacing is 0 (flat mode)."
+              : "Border thickness around cards and tables on public pages. 0 removes the border."
+          }
+        />
+
+        <FieldGroup
+          label="Border color"
+          description="The color of card and table borders on public pages."
+        >
+          <BackgroundField
+            idPrefix="public-theme-card-border"
+            value={theme.cardBorderColor}
+            disabled={isFlat}
+            defaultHint="A subtle default border that adapts to light and dark."
+            onChange={(patch) => updateBackground("cardBorderColor", patch)}
+          />
+        </FieldGroup>
+
+        <PublicContentPreview theme={theme} />
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-styling-divider"
+        title="Divider lines"
+        description="The thin lines inside public cards and tables, the rule under the header, and the rule above the footer."
+        contentClassName="space-y-6"
+      >
+        <BackgroundField
+          idPrefix="public-theme-divider"
+          value={theme.dividerColor}
+          defaultHint="Uses the theme's own divider color (adapts to light and dark)."
+          onChange={(patch) => updateBackground("dividerColor", patch)}
+        />
+
+        <FieldGroup label="Preview" className="gap-2">
+          <div
+            className="max-w-lg overflow-hidden rounded-lg border"
+            style={dividerPreviewStyle(theme.dividerColor)}
+          >
+            <div className="border-b bg-muted/30 px-4 py-2 text-sm font-medium">
+              Section header
+            </div>
+            <div className="border-b px-4 py-2 text-sm text-muted-foreground">
+              A row, separated by a divider.
+            </div>
+            <div className="px-4 py-2 text-sm text-muted-foreground">
+              The last row has no divider under it.
+            </div>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-styling-chrome"
+        title="Header & footer"
+        description="The background of the public header bar and the footer."
+      >
+        <BackgroundField
+          idPrefix="public-theme-chrome"
+          value={theme.chrome}
+          defaultHint="Uses the page background, slightly see-through behind the header."
+          onChange={(patch) => updateBackground("chrome", patch)}
+        />
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
@@ -717,6 +829,106 @@ export function PublicThemeSettings({
         />
       </CollapsibleSettingsCard>
 
+      <CollapsibleSettingsCard
+        storageId="public-styling-modal"
+        title="Modal"
+        description="Windows that open over a public page. Nothing on the public site opens one yet, so these settings wait for the first one."
+        contentClassName="space-y-6"
+      >
+        <SettingsSliderRow
+          label="Backdrop dimming"
+          value={modal.overlayOpacity}
+          min={0}
+          max={100}
+          valueLabel={`${modal.overlayOpacity}%`}
+          onChange={(overlayOpacity) => updateModal({ overlayOpacity })}
+          help="How dark the area outside the modal gets."
+        />
+
+        <SettingsSliderRow
+          label="Inner spacing"
+          value={modal.padding}
+          min={0}
+          max={MAX_MODAL_PADDING}
+          valueLabel={`${modal.padding}px`}
+          onChange={(padding) => updateModal({ padding })}
+          help="Padding between the modal edge and its content."
+        />
+
+        <FieldGroup label="Background">
+          <BackgroundField
+            idPrefix="public-theme-modal-bg"
+            value={modal.background}
+            defaultHint="Uses the theme's popover surface."
+            onChange={(patch) => updateModalBackground("background", patch)}
+          />
+        </FieldGroup>
+
+        <SettingsSliderRow
+          label="Border"
+          value={modal.borderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={modal.borderWidth === 0 ? "Off" : `${modal.borderWidth}px`}
+          onChange={(borderWidth) => updateModal({ borderWidth })}
+          help="Modal border thickness. 0 removes it."
+        />
+
+        <FieldGroup label="Border color">
+          <BackgroundField
+            idPrefix="public-theme-modal-border"
+            value={modal.borderColor}
+            disabled={modal.borderWidth === 0}
+            defaultHint="A subtle default border."
+            onChange={(patch) => updateModalBackground("borderColor", patch)}
+          />
+        </FieldGroup>
+
+        <ModalPreview modal={modal} />
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="public-styling-modal-cards"
+        title="Cards inside modals"
+        description="The bordered sections within a public modal."
+        contentClassName="space-y-6"
+      >
+        <FieldGroup label="Background">
+          <BackgroundField
+            idPrefix="public-theme-modal-card-bg"
+            value={modal.cardBackground}
+            defaultHint="Uses the theme's card surface."
+            onChange={(patch) => updateModalBackground("cardBackground", patch)}
+          />
+        </FieldGroup>
+
+        <SettingsSliderRow
+          label="Border"
+          value={modal.cardBorderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={
+            modal.cardBorderWidth === 0 ? "Off" : `${modal.cardBorderWidth}px`
+          }
+          onChange={(cardBorderWidth) => updateModal({ cardBorderWidth })}
+          help="Border thickness of cards inside the modal. 0 removes it."
+        />
+
+        <FieldGroup label="Border color">
+          <BackgroundField
+            idPrefix="public-theme-modal-card-border"
+            value={modal.cardBorderColor}
+            disabled={modal.cardBorderWidth === 0}
+            defaultHint="A subtle default border."
+            onChange={(patch) =>
+              updateModalBackground("cardBorderColor", patch)
+            }
+          />
+        </FieldGroup>
+
+        <ModalPreview modal={modal} />
+      </CollapsibleSettingsCard>
+
       <ConfirmDialog
         open={removeFontOpen}
         onOpenChange={setRemoveFontOpen}
@@ -727,6 +939,87 @@ export function PublicThemeSettings({
         onConfirm={() => void handleFontRemove()}
       />
     </CardGroup>
+  )
+}
+
+/** The colour fields that sit directly on the public theme. */
+type PublicBackgroundKey =
+  | "canvasColor"
+  | "chrome"
+  | "cardBorderColor"
+  | "dividerColor"
+
+/** The colour fields inside the public theme's modal settings. */
+type ModalBackgroundKey =
+  | "background"
+  | "borderColor"
+  | "cardBackground"
+  | "cardBorderColor"
+
+/**
+ * The hairline theme.css draws when a border colour is left on "Theme
+ * default". Written out in the previews below because they sit inside the
+ * signed-in app, which already sets these variables to the admin's own
+ * colours; an omitted variable would inherit those and preview the wrong
+ * thing.
+ */
+const PREVIEW_HAIRLINE = "color-mix(in oklab, var(--foreground) 10%, transparent)"
+
+function dividerPreviewStyle(dividerColor: ShellBackground) {
+  const resolved = resolveBackground(dividerColor, {
+    base: "--muted-foreground",
+  })
+  // "Theme default" has to preview the theme's own line, not the admin's, so
+  // it reads the untouched token rather than inheriting --border from the page.
+  return {
+    "--border": resolved ?? "var(--shell-theme-border)",
+  } as React.CSSProperties
+}
+
+/** The public content column, drawn with the spacing and borders being edited. */
+function PublicContentPreview({ theme }: { theme: PublicTheme }) {
+  const isFlat = theme.gutter === 0
+  const background = resolveBackground(theme.canvasColor)
+  const borderColor = resolveBackground(theme.cardBorderColor, {
+    base: "--muted-foreground",
+  })
+
+  return (
+    <FieldGroup label="Preview" className="gap-2">
+      <div
+        data-content-styling=""
+        data-flat={isFlat ? "true" : undefined}
+        className={cn(
+          "flex max-w-lg flex-col overflow-hidden rounded-lg border border-border",
+          background ? undefined : "bg-muted/60"
+        )}
+        style={
+          {
+            padding: theme.gutter,
+            gap: theme.gutter,
+            backgroundColor: background,
+            "--shell-card-border-width": String(theme.cardBorderWidth),
+            "--shell-card-border-color": borderColor ?? PREVIEW_HAIRLINE,
+          } as React.CSSProperties
+        }
+      >
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Card title</CardTitle>
+            <CardDescription>Sample public card</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Spacing, borders, and background update as you change the settings
+            above.
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardContent className="text-sm text-muted-foreground">
+            A second card shows the gap between blocks.
+          </CardContent>
+        </Card>
+      </div>
+    </FieldGroup>
   )
 }
 

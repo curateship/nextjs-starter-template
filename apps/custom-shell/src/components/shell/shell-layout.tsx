@@ -24,30 +24,33 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  getBorderStyleVars,
-  getModalStyleVars,
   isActiveShellHref,
   isShellEntryNamed,
   isShellEntryVisible,
   isShellItem,
-  BORDER_STYLE_VAR_NAMES,
-  MODAL_STYLE_VAR_NAMES,
   normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
-  normalizeStyling,
   normalizeTopLeftNavLimit,
   normalizeTopRightNavigation,
   renderShellIcon,
-  resolveBackground,
   type ShellConfig,
   type ShellItem,
   type ShellMaintenance,
-  type ShellModalStyling,
-  type ShellStyling,
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
+import {
+  BORDER_STYLE_VAR_NAMES,
+  getBorderStyleVars,
+  getModalStyleVars,
+  MODAL_STYLE_VAR_NAMES,
+  normalizeStyling,
+  resolveBackground,
+  type ShellModalStyling,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
 import {
   appHeaderRightActionsForRole,
   appHeaderLeftContentForRole,
@@ -780,6 +783,9 @@ function normalizeConfig(
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation,
       actionIds

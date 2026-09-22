@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { FrontPageRowContentEditor } from "@/components/settings/front-page-row-content-editor"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -20,6 +21,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -28,6 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  PUBLIC_DEVICE_HINTS,
+  PUBLIC_DEVICE_LABELS,
+  PUBLIC_DEVICES,
+  type PublicDevice,
+} from "@/lib/pages/public-device"
 import {
   FRONT_PAGE_ROW_HEADING_MESSAGE,
   FRONT_PAGE_ROW_KIND_HINTS,
@@ -67,6 +75,8 @@ export function FrontPageRowDialog({
   const [intro, setIntro] = React.useState("")
   const [kind, setKind] = React.useState<FrontPageRowKind>("text")
   const [layout, setLayout] = React.useState<FrontPageRowLayout>("wide")
+  const [hidden, setHidden] = React.useState(false)
+  const [device, setDevice] = React.useState<PublicDevice>("all")
   const [testimonials, setTestimonials] = React.useState<
     FrontPageTestimonial[]
   >([])
@@ -86,6 +96,8 @@ export function FrontPageRowDialog({
     setIntro(row?.intro ?? "")
     setKind(row?.kind ?? "text")
     setLayout(row?.layout ?? "wide")
+    setHidden(row?.hidden ?? false)
+    setDevice(row?.device ?? "all")
     setTestimonials(row?.kind === "testimonials" ? row.items : [])
     setFaqItems(row?.kind === "faq" ? row.items : [])
     setLogos(row?.kind === "logos" ? row.items : [])
@@ -107,6 +119,8 @@ export function FrontPageRowDialog({
     intro !== (row?.intro ?? "") ||
     kind !== (row?.kind ?? "text") ||
     layout !== (row?.layout ?? "wide") ||
+    hidden !== (row?.hidden ?? false) ||
+    device !== (row?.device ?? "all") ||
     JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
@@ -132,16 +146,18 @@ export function FrontPageRowDialog({
 
     dismissErrorToast()
     onSaved(
-      buildDraft(
-        heading.trim(),
-        intro.trim(),
+      buildDraft({
+        heading: heading.trim(),
+        intro: intro.trim(),
         kind,
         layout,
+        hidden,
+        device,
         testimonials,
         faqItems,
         logos,
-        screenshots
-      )
+        screenshots,
+      })
     )
   }
 
@@ -256,6 +272,46 @@ export function FrontPageRowDialog({
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="front-page-row-device"
+                    hint={PUBLIC_DEVICE_HINTS[device]}
+                  >
+                    Shown on
+                  </FieldLabel>
+                  <Select
+                    value={device}
+                    onValueChange={(value) =>
+                      setDevice(value as PublicDevice)
+                    }
+                  >
+                    <SelectTrigger
+                      id="front-page-row-device"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PUBLIC_DEVICES.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {PUBLIC_DEVICE_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="front-page-row-hidden"
+                    checked={hidden}
+                    onCheckedChange={(checked) => setHidden(checked === true)}
+                  />
+                  <Label htmlFor="front-page-row-hidden" className="font-normal">
+                    Hide this row from visitors
+                  </Label>
+                </div>
               </CardContent>
             </Card>
 
@@ -334,17 +390,30 @@ function getContentProblem(
   return null
 }
 
-function buildDraft(
-  heading: string,
-  intro: string,
-  kind: FrontPageRowKind,
-  layout: FrontPageRowLayout,
-  testimonials: FrontPageTestimonial[],
-  faqItems: FrontPageFaqItem[],
-  logos: FrontPageLogo[],
+function buildDraft({
+  heading,
+  intro,
+  kind,
+  layout,
+  hidden,
+  device,
+  testimonials,
+  faqItems,
+  logos,
+  screenshots,
+}: {
+  heading: string
+  intro: string
+  kind: FrontPageRowKind
+  layout: FrontPageRowLayout
+  hidden: boolean
+  device: PublicDevice
+  testimonials: FrontPageTestimonial[]
+  faqItems: FrontPageFaqItem[]
+  logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
-): FrontPageRowDraft {
-  const base = { heading, intro, layout }
+}): FrontPageRowDraft {
+  const base = { heading, intro, layout, hidden, device }
   if (kind === "testimonials") return { ...base, kind, items: testimonials }
   if (kind === "faq") return { ...base, kind, items: faqItems }
   if (kind === "logos") return { ...base, kind, items: logos }

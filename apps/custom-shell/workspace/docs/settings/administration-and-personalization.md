@@ -236,13 +236,56 @@ does not belong to the current admin's media library. Dragging changes the
 public order. Removing every row brings back the built-in pricing front page,
 so an untouched app does not change.
 
+Each row also has a Hidden switch and a Shown on choice, and a header menu item
+has the same Shown on choice. They have their own doc:
+[Hiding a row, and choosing its screens](../content/showing-and-hiding-public-things.md).
+
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the
 header and above the footer. These choices are app-wide. Their defaults keep
 the former 1152px width, muted canvas, 40px spacing, both divider lines, and
 content centred. Content alignment can move every public page's main content
-to the left, centre, or right. Canvas colours use the same 6-digit hex
-validation as brand colours.
+to the left, centre, or right.
+
+Canvas colour, and every other colour on the Public Styling tab, uses the same
+three-mode picker as the Platform Styling tab. Theme default keeps the colour
+the theme already draws, and it adapts to light and dark on its own. Muted
+tints the theme's own muted colour by a strength from 0 to 100. Custom colour
+takes a 6-digit hex value and stays the same colour in light and dark. A canvas
+colour saved before this picker existed reads as a custom colour, so the site
+looks the same as it did.
+
+Public Styling has the same spacing, border, divider, header and modal cards as
+the Platform Styling tab, and they work the same way:
+
+- **Spacing & borders.** Content spacing is the space at the sides of public
+  content and between its blocks, from 0 to 48 pixels. The space above and
+  below stays with Main spacing on the Page frame card. Setting content spacing
+  to 0 is flat mode: public cards and tables lose their borders, their rounded
+  corners and the gaps between them, and the card border control switches off
+  because nothing would draw it. Card border sets that border's thickness from
+  0 to 3 pixels, with its own colour.
+- **Divider lines.** The thin lines inside public cards and tables, the rule
+  under the header and the rule above the footer.
+- **Header & footer.** The background of the public header bar and the footer.
+  A chosen colour is drawn solid, the way the signed-in sidebar and sticky bar
+  are, instead of the slightly see-through bar the theme default draws.
+- **Modal** and **Cards inside modals.** Backdrop dimming, inner spacing,
+  background, border width and border colour for windows that open over a
+  public page. Nothing on the public site opens one yet. The settings exist so
+  the first public window arrives already wearing the site's look.
+
+Every one of those cards has a live preview that draws the values as they are
+edited, not the signed-in app's own.
+
+The Presets card at the top of the tab applies a whole named look in one
+click, and saves the current one to come back to. It has its own doc:
+[Public theme presets](public-theme-presets.md).
+
+Public and platform styling never reach each other. Public values are written
+onto the public frame and onto the document root only while a public page is on
+screen, and they are removed when it leaves, so an admin who visits a public
+page and returns to the app finds the app's own colours.
 
 The Background pattern card can leave the canvas plain or draw dots or a grid
 over it. Small, medium, and large sizes control the spacing. Pattern opacity

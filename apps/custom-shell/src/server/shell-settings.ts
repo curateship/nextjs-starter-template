@@ -48,12 +48,14 @@ import {
   publicThemeOverrides,
   type PublicTheme,
 } from "@/lib/public-theme"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
 import {
   normalizePublicFontAsset,
   type PublicFontAsset,
 } from "@/lib/public-font"
 import {
   normalizeFrontPageRows,
+  visibleFrontPageRows,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
@@ -185,7 +187,7 @@ export async function readBranding(
       publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
-      frontPageRows: globals.frontPageRows,
+      frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
       publicNavigation: workspaceDomainsEnabled
         ? []
@@ -230,7 +232,7 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    frontPageRows: globals.frontPageRows,
+    frontPageRows: visibleFrontPageRows(globals.frontPageRows),
     publicHeader: globals.publicHeader,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
@@ -410,6 +412,9 @@ export function parseShellGlobals(value: unknown) {
       settings.publicTheme,
       fallback.publicTheme
     ),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -496,6 +501,7 @@ export function pickShellGlobals(
     | "publicHeader"
     | "publicFont"
     | "publicTheme"
+    | "publicThemePresets"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -534,6 +540,9 @@ export function pickShellGlobals(
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,

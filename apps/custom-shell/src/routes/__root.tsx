@@ -34,6 +34,7 @@ import {
   publicThemeStyle,
   type PublicTheme,
 } from "@/lib/public-theme"
+import { resolveBackground } from "@/lib/layout/styling-values"
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { routePageTitle } from "@/lib/nav/route-title"
@@ -135,8 +136,11 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
   const branding = Route.useLoaderData()
   const appName = resolveAppName(branding?.appName)
   const publicTheme = branding?.publicTheme ?? null
-  const canvasStyle = publicTheme?.canvasColor
-    ? { backgroundColor: publicTheme.canvasColor }
+  const canvasBackground = publicTheme
+    ? resolveBackground(publicTheme.canvasColor)
+    : undefined
+  const chromeBackground = publicTheme
+    ? resolveBackground(publicTheme.chrome, { opaque: true })
     : undefined
 
   return (
@@ -158,14 +162,23 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
       >
         <div
           data-public-canvas=""
-          className="flex min-h-screen flex-col bg-muted/60"
-          style={canvasStyle}
+          className={cn(
+            "flex min-h-screen flex-col",
+            canvasBackground ? undefined : "bg-muted/60"
+          )}
+          style={
+            canvasBackground ? { backgroundColor: canvasBackground } : undefined
+          }
         >
           <header
-            className={
-              publicTheme?.headerBorder
-                ? "border-b bg-background"
-                : "bg-background"
+            className={cn(
+              chromeBackground ? undefined : "bg-background",
+              publicTheme?.headerBorder && "border-b"
+            )}
+            style={
+              chromeBackground
+                ? { backgroundColor: chromeBackground }
+                : undefined
             }
           >
             <div className="mx-auto flex w-full max-w-6xl items-center px-3 py-2 md:px-4">
