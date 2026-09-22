@@ -552,10 +552,16 @@ export const gridParamsSchema = z.object({
   reverseWhenStopped: z.boolean().default(false),
 })
 
-/** Settings accepted for a newly placed grid. New grids always split evenly. */
+/**
+ * Settings accepted for a newly placed grid. New grids always split evenly.
+ *
+ * `stopLoss` stays nullable, the same as on a running grid. A new grid used to
+ * be forced to carry one; Tyler asked for the Stop loss card to have its own
+ * on/off box on 22 Sep 2026, which is the only way to place a grid that is
+ * ended by hand or by End Grid and by nothing else.
+ */
 export const placeGridParamsSchema = gridParamsSchema.extend({
   sizing: z.literal("even"),
-  stopLoss: gridStopSchema,
 })
 
 export type GridParams = z.infer<typeof gridParamsSchema>

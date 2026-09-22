@@ -774,17 +774,19 @@ describe("the grid window's saved settings", () => {
     )
   })
 
-  it("keeps stop loss on even when old saved settings had it off", async () => {
-    vi.mocked(loadSmartGridParams).mockResolvedValue({
-      params: { ...defaultGridParams(), stopLoss: null },
-    })
+  // Tyler, 22 Sep 2026: the Stop loss card gets its own on/off box, so a grid
+  // can be placed with no stop at all. Before this every placed grid carried
+  // one and the window had no way to say otherwise.
+  it("opens with the stop on and places one", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     const onPlace = vi.fn(async () => false)
     await renderDialog(onPlace)
     await act(async () => Promise.resolve())
 
-    expect(host.textContent).toContain("Stop loss")
+    expect(host.querySelector("#grid-sl-on")?.getAttribute("data-state")).toBe(
+      "checked"
+    )
     expect(host.textContent).toContain("Sits past the range by")
-    expect(host.querySelector("#grid-sl-on")).toBeNull()
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.includes("Place")
@@ -1083,7 +1085,7 @@ describe("the grid window's saved settings", () => {
     })
   })
 
-  it("keeps stop loss on when old saved settings had it off", async () => {
+  it("opens with the box unticked when the last grid had no stop, and places none", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({
       params: { ...defaultGridParams(), stopLoss: null },
     })
@@ -1091,9 +1093,10 @@ describe("the grid window's saved settings", () => {
     await renderDialog(onPlace)
     await act(async () => Promise.resolve())
 
-    expect(host.textContent).toContain("Stop loss")
-    expect(host.textContent).toContain("Sits past the range by")
-    expect(host.querySelector("#grid-sl-on")).toBeNull()
+    const box = host.querySelector<HTMLButtonElement>("#grid-sl-on")
+    expect(box?.getAttribute("data-state")).toBe("unchecked")
+    // An unticked card cannot be opened, so its settings are off screen.
+    expect(host.textContent).not.toContain("Sits past the range by")
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.includes("Place")
@@ -1101,6 +1104,16 @@ describe("the grid window's saved settings", () => {
     await act(async () => place?.click())
 
     expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ stopLoss: null }),
+      })
+    )
+
+    // Ticking it back on brings the stop, and its distance, back.
+    await act(async () => box?.click())
+    expect(host.textContent).toContain("Sits past the range by")
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenLastCalledWith(
       expect.objectContaining({
         params: expect.objectContaining({
           stopLoss: expect.objectContaining({ underPct: expect.any(Number) }),

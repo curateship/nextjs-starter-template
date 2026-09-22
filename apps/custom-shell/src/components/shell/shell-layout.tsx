@@ -164,7 +164,7 @@ export function ShellLayout({
   settings,
   workspaces,
   plan,
-  unreadNotifications,
+  unseenNotifications,
   announcements,
   viewedBy,
 }: {
@@ -172,7 +172,7 @@ export function ShellLayout({
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
   plan: PlanSummary
-  unreadNotifications: number
+  unseenNotifications: number
   announcements: UserAnnouncement[]
   viewedBy: { id: string; name: string; email: string } | null
 }) {
@@ -622,7 +622,7 @@ export function ShellLayout({
               navLinkLimit={config.topLeftNavLimit}
               rightNavItems={config.topRightNavigation}
               role={user.role}
-              unreadNotifications={unreadNotifications}
+              unseenNotifications={unseenNotifications}
               liveNotifications={config.liveNotifications}
               saveStatus={pageSaveStatus ?? saveStatus}
               maintenanceOn={

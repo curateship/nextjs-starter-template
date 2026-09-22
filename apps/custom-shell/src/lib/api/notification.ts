@@ -4,6 +4,8 @@ import {
   listAdminNotifications as listAdminNotificationRows,
   requireAdminNotificationUser,
   countUnreadNotifications as countUnreadNotificationRows,
+  countUnseenNotifications as countUnseenNotificationRows,
+  markCurrentUserNotificationsSeen,
   markCurrentUserNotificationRead,
   markAllCurrentUserNotificationsRead,
   deleteAdminNotificationRows,
@@ -71,7 +73,10 @@ export type NotificationItem = {
 type NotificationListResponse = {
   notifications: NotificationItem[]
   next_cursor: string | null
+  /** Notices not yet clicked. This is the Unread tab's number. */
   unread_count: number
+  /** Notices that arrived since the bell was last opened. The red number. */
+  unseen_count: number
 }
 
 type NotificationListPayload = {
@@ -145,24 +150,47 @@ const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
   })
 
 /**
- * The bell's number on its own — what a live nudge (and the slow fallback
+ * The two numbers on their own — what a live nudge (and the slow fallback
  * check) asks for while the tray is shut. There is no point pulling a list
  * nobody is looking at.
+ *
+ * Two, because the bell and the Unread tab count different things: the bell
+ * counts what arrived since it was last opened, the tab counts what has not
+ * been clicked.
  */
 const countUnreadNotificationsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }): Promise<{ unread_count: number }> => {
-    // The guard has already found the account, so this asks the database one
-    // question, not three. It runs once a minute per open tab.
-    const { notificationTypes } = await readShellGlobals()
-    return {
-      unread_count: await countUnreadNotificationRows(
-        context.user.id,
-        undefined,
-        notificationTypes
-      ),
+  .handler(
+    async ({
+      context,
+    }): Promise<{ unread_count: number; unseen_count: number }> => {
+      // The guard has already found the account, so this asks the database two
+      // questions, not four. It runs once a minute per open tab.
+      const { notificationTypes } = await readShellGlobals()
+      const [unread_count, unseen_count] = await Promise.all([
+        countUnreadNotificationRows(
+          context.user.id,
+          undefined,
+          notificationTypes
+        ),
+        countUnseenNotificationRows(
+          context.user.id,
+          undefined,
+          notificationTypes
+        ),
+      ])
+      return { unread_count, unseen_count }
     }
-  })
+  )
+
+/**
+ * Opening the bell. It clears the red number and leaves every notice unread.
+ */
+const markNotificationsSeenFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ seenCount: number; seenAt: string }> => {
+    return markCurrentUserNotificationsSeen()
+  }
+)
 
 const markNotificationReadFn = createServerFn({ method: "POST" })
   .inputValidator(notificationIdSchema)
@@ -204,8 +232,13 @@ export function loadAdminNotificationsPage(
   return loadAdminNotificationsPageFn({ data: query })
 }
 
+/** Both numbers, despite the name. See the handler above. */
 export function countUnreadNotifications() {
   return countUnreadNotificationsFn()
+}
+
+export function markNotificationsSeen() {
+  return markNotificationsSeenFn()
 }
 
 export function markNotificationRead(notificationId: string) {

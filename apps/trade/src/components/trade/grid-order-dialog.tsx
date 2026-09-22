@@ -321,6 +321,12 @@ export function GridOrderDialog({
   // back to the gap.
   const [tpDragPct, setTpDragPct] = React.useState<number | null>(null)
   const [slDragPct, setSlDragPct] = React.useState<number | null>(null)
+  // The Stop loss card's own on/off box. A grid with it off runs until End
+  // Grid is reached or somebody stops it by hand — Tyler, 22 Sep 2026. On by
+  // default, because a grid with no stop is the deliberate choice.
+  const [stopOn, setStopOn] = React.useState(
+    seeded ? seeded.stopLoss !== null : true
+  )
   const [baseOn, setBaseOn] = React.useState(
     seeded ? seeded.stopLoss?.base != null : false
   )
@@ -367,6 +373,7 @@ export function GridOrderDialog({
       setFollowDown(params.followDown)
       setTpOn(params.takeProfitPct !== null)
       setReverseOn(params.reverseWhenStopped)
+      setStopOn(params.stopLoss !== null)
       if (params.stopLoss) {
         setBaseOn(params.stopLoss.base !== null)
         if (params.stopLoss.base) {
@@ -554,16 +561,21 @@ export function GridOrderDialog({
       baseDetection: baseStopDetection(),
       // One gap past the range, both of them, unless one was dragged.
       takeProfitPct: tpOn ? (takeProfitPct ?? -1) : null,
-      reverseWhenStopped: reverseOn,
-      stopLoss: {
-        underPct: stopUnderPct ?? -1,
-        base: baseOn
-          ? {
-              underPct: parsed(baseUnderPct) ?? -1,
-              reclaimDays: parsed(baseReclaimDays) ?? -1,
-            }
-          : null,
-      },
+      // Only meaningful beside a stop: a grid with no stop has nothing to
+      // reverse on. Sent as false rather than hidden, so a stopless grid is
+      // never remembered carrying a switch that can never fire.
+      reverseWhenStopped: stopOn && reverseOn,
+      stopLoss: stopOn
+        ? {
+            underPct: stopUnderPct ?? -1,
+            base: baseOn
+              ? {
+                  underPct: parsed(baseUnderPct) ?? -1,
+                  reclaimDays: parsed(baseReclaimDays) ?? -1,
+                }
+              : null,
+          }
+        : null,
     }
     const checked = placeGridParamsSchema.safeParse(candidate)
     return checked.success ? checked.data : null
@@ -587,6 +599,7 @@ export function GridOrderDialog({
     takeProfitPct,
     stopUnderPct,
     reverseOn,
+    stopOn,
     baseOn,
     baseUnderPct,
     baseReclaimDays,
@@ -627,8 +640,10 @@ export function GridOrderDialog({
         )
       : null
 
+  // Null with the card switched off, which is what takes the stop line off the
+  // preview and the stop-past-liquidation refusal out of the way.
   const stopPx =
-    top !== null && bottom !== null && bottom > 0
+    stopOn && top !== null && bottom !== null && bottom > 0
       ? gridStopBeyond(
           direction,
           { topPx: top, bottomPx: bottom },
@@ -1380,10 +1395,32 @@ export function GridOrderDialog({
           <OptionCard
             id="grid-sl-on"
             title="Stop loss"
+            foldWhenOff={false}
+            /**
+             * The box the card was always named for. Off, the grid is placed
+             * with no stop at all: it runs until End Grid is reached or
+             * somebody ends it by hand — Tyler, 22 Sep 2026.
+             *
+             * Switching it off drops the drawing-alert stop with it. A line
+             * alert IS a stop, so leaving one behind an unticked Stop loss box
+             * would place a stop the window says is not there.
+             */
+            toggle={{
+              checked: stopOn,
+              disabled: busy,
+              onChange: touched((next: boolean) => {
+                setStopOn(next)
+                if (!next) setLineChoice({ enabled: false, stop: null })
+              }),
+            }}
             summary={
-              lineChoice.enabled ? "Line alert" : stopUnderPct === null
-                ? "—"
-                : `${direction === "long" ? "−" : "+"}${pctText(stopUnderPct)}%`
+              !stopOn
+                ? "Off"
+                : lineChoice.enabled
+                  ? "Line alert"
+                  : stopUnderPct === null
+                    ? "—"
+                    : `${direction === "long" ? "−" : "+"}${pctText(stopUnderPct)}%`
             }
             hint={
               direction === "long"

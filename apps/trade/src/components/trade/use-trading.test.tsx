@@ -1097,6 +1097,30 @@ describe("removing a DCA ladder", () => {
   })
 })
 
+describe("what the grid's stop says when it is saved", () => {
+  // Tyler, 22 Sep 2026: the × on the stop line used to say "Stop changed",
+  // which reads as though a stop is still there.
+  it("says the stop was removed when both stops go", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [gridOn("hyperliquid:mainnet:ENA", false)],
+    })
+    await finishFirstRead()
+    const grid = latest!.grids[0]
+
+    await act(async () => {
+      await latest!.setGridStop(wallet.id, grid.id, null, false, null)
+    })
+    expect(api.toastSuccess).toHaveBeenCalledWith("Stop removed.")
+
+    api.toastSuccess.mockClear()
+    await act(async () => {
+      await latest!.setGridStop(wallet.id, grid.id, { underPct: 4, base: null })
+    })
+    expect(api.toastSuccess).toHaveBeenCalledWith("Stop changed.")
+  })
+})
+
 describe("a grid edit that finishes before it saves", () => {
   it("restores the grid and clears busy state when Stop is refused by another writer", async () => {
     const refusal =

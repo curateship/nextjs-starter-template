@@ -15,23 +15,37 @@ carries its own words in the notice's `message` and `detail`, belongs to one
 account, and needs nothing else in the database behind it. An app with a notice
 to send writes one of these rather than announcing something nobody announced.
 
-The notification button in the shell shows the unread count and opens the tray.
+## Seen and read are two different things
 
-**Opening the tray clears the red count.** Tyler, 16 Sep 2026: clicking the
-bell clears the red number. Having seen the tray is having been told, so every
-notice is marked read on the click that opens it rather than one at a time. The
-notices themselves stay in the Unread list for that one opening, so nothing
-disappears out from under the person who just opened it, and the tab still
-counts them. Shutting the tray lets them go back to being ordinary read rows.
-The write runs before the first page is asked for, because a page fetched
-beside the write answers with the count as it was a moment earlier and put the
-red number straight back on a bell that had just cleared. A failed write says
-nothing out loud: the number stands, and the next check says so again.
+The bell carries a red number and opens the tray. The number is not the unread
+count. It counts notices that have arrived **since the bell was last opened**,
+which the `seen_at` column on each notice records.
 
-The footer's "Mark all as read" still does the same thing on demand, which is
-what it is for when notices arrived while the tray was already open. Clicking
-one notification opens its linked item when it has one and saves the read state
-in the background. If that save fails, the unread dot returns.
+**Opening the bell clears the red number and nothing else.** Tyler, 22 Sep
+2026: it should only clear the bell number amount, and the tray items clear
+either by clicking one or by clicking clear all. So the click stamps `seen_at`
+on everything waiting, and every one of those notices stays unread, stays in
+the Unread tab, and keeps its dot.
+
+That is a change from 16 Sep 2026, when opening the bell marked everything read
+and the tray held the rows in the Unread list for that one opening as a
+consolation. Nothing does that any more.
+
+Three details hold it together:
+
+- **The stamp is written before the first page is asked for.** A page fetched
+  beside the write answers with the count as it was a moment earlier, which put
+  the red number straight back on a bell that had just cleared.
+- **A notice that lands while the tray is open is stamped too.** It is on
+  screen, so a number over an open tray would be telling somebody about
+  something they are already reading.
+- **A failed write says nothing out loud.** The number stands, and the next
+  check says so again.
+
+The footer's "Mark all as read" is now the only thing that reads the whole tray
+at once. Clicking one notification opens its linked item when it has one and
+saves the read state in the background. If that save fails, the unread dot
+returns.
 
 ## Live updates
 

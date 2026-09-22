@@ -886,7 +886,7 @@ describe("splitting the pot by hand", () => {
 })
 
 describe("new grid requirements", () => {
-  it("accepts even sizing with a stop and refuses removed choices", () => {
+  it("accepts even sizing, with or without a stop, and refuses removed choices", () => {
     expect(placeGridParamsSchema.safeParse(defaultGridParams()).success).toBe(
       true
     )
@@ -896,12 +896,14 @@ describe("new grid requirements", () => {
         sizing: "double",
       }).success
     ).toBe(false)
+    // Tyler, 22 Sep 2026: a grid may be placed with no stop. It then runs
+    // until End Grid is reached or somebody ends it by hand.
     expect(
       placeGridParamsSchema.safeParse({
         ...defaultGridParams(),
         stopLoss: null,
       }).success
-    ).toBe(false)
+    ).toBe(true)
   })
 })
 

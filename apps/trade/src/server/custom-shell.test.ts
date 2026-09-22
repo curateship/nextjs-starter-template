@@ -5830,6 +5830,58 @@ describe("custom shell feedback notifications", () => {
     ])
   })
 
+  /**
+   * Tyler, 22 Sep 2026: opening the bell clears its red number and leaves the
+   * notices unread. So the two counts have to be able to disagree.
+   */
+  it("separates the bell's number from the unread count", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+    const seenId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: ownerId,
+      email: "notification-seen@internal.dev",
+      name: "Notification seen",
+      role: "member",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellNotifications).values([
+      { id: seenId, recipientUserId: ownerId, type: "announcement", createdAt },
+      {
+        id: uuid(),
+        recipientUserId: ownerId,
+        type: "announcement",
+        createdAt: new Date(createdAt.getTime() + 1000),
+      },
+    ])
+
+    const before = await getNotificationPage({
+      currentUser: { id: ownerId },
+      database,
+    })
+    expect(before.unread_count).toBe(2)
+    expect(before.unseen_count).toBe(2)
+
+    // What opening the bell writes, without the session the server fn needs.
+    await database
+      .update(customShellNotifications)
+      .set({ seenAt: createdAt })
+      .where(eq(customShellNotifications.id, seenId))
+
+    const after = await getNotificationPage({
+      currentUser: { id: ownerId },
+      database,
+    })
+    expect(after.unread_count).toBe(2)
+    expect(after.unseen_count).toBe(1)
+    expect(
+      after.notifications.find((item) => item.id === seenId)?.read_at
+    ).toBeNull()
+  })
+
   it("hides switched-off notification types from the list and unread count", async () => {
     const createdAt = now()
     const ownerId = uuid()

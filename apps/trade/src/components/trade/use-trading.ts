@@ -2585,6 +2585,15 @@ export function useTrading(
 
   const setGridStop: Trading["setGridStop"] = React.useCallback(
     async (walletId, gridId, stopLoss, reverseWhenStopped, lineStop) => {
+      // Taking the stop off and moving it are the same call, and they used to
+      // say the same thing. "Stop changed" after the × on the stop line read
+      // as though a stop was still there (Tyler, 22 Sep 2026).
+      //
+      // Both stops have to be gone. `lineStop` is left out entirely by a
+      // caller that did not touch it, which is why undefined counts as absent
+      // here; only the chart's × sends a null stop, and it sends both.
+      const removing =
+        stopLoss === null && (lineStop === null || lineStop === undefined)
       return await runWith(
         getTradingSmartOrderError,
         () =>
@@ -2595,7 +2604,7 @@ export function useTrading(
             reverseWhenStopped,
             lineStop,
           }),
-        "Stop changed."
+        removing ? "Stop removed." : "Stop changed."
       )
     },
     [runWith]

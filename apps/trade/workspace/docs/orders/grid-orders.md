@@ -853,9 +853,22 @@ finished, so nothing was changed."
 
 ## The stop
 
-New grids require a stop when placed. The running grid window changes or
-restores the stop. The SL bar's × removes the ordinary stop while leaving the
-grid running. See Removing the chart stop below for the save and refusal rules.
+**The Stop loss card has its own on/off box** (Tyler, 22 Sep 2026). Ticked,
+which is how the window opens on a first visit, the grid is placed with a stop.
+Unticked, the card folds shut and the grid is placed with no stop at all: it
+then ends only at End Grid, or when somebody ends it by hand. The box also
+drops a drawing-alert stop when it is switched off, because a line alert is a
+stop and leaving one behind an unticked box would place a stop the window says
+is not there.
+
+Before that date every placed grid carried a stop and the window had no way to
+say otherwise.
+
+The window opens on whatever the last grid was placed with, the box included.
+The running grid window changes or restores the stop. The SL bar's × removes
+the ordinary stop while leaving the grid running, and says "Stop removed"
+rather than "Stop changed". See Removing the chart stop below for the save and
+refusal rules.
 
 The stop hangs off the **losing end of the range** — below the bottom on a
 buying grid, above the top on a selling one.
@@ -1200,7 +1213,11 @@ Live removal uses the existing bracket action to remove exchange protection
 where the exchange supports a resting stop. The server saves the changed plan
 only after that action succeeds. Removal handles both long and short positions
 and leaves an opposite-direction position alone. Watched stops change the grid's plan.
-New grids still require a stop when placed. Grid settings can restore a stop.
+Grid settings can restore a stop.
+
+The toast says **"Stop removed."** The same call moves a stop and takes one
+away, and both used to say "Stop changed", which read as though a stop was
+still there (Tyler, 22 Sep 2026).
 
 No database migration is needed. The saved grid already accepts an empty stop.
 The web and engine code need the normal release before production has the new
