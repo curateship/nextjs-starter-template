@@ -62,7 +62,11 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import { readBranding, shellGlobalsForWrite } from "@/server/shell-settings"
+import {
+  parseShellGlobals,
+  readBranding,
+  shellGlobalsForWrite,
+} from "@/server/shell-settings"
 import { setPageVisibility } from "@/server/content/pages"
 import { dropWorkspaceCache } from "@/server/workspaces/host"
 
@@ -354,6 +358,41 @@ describe("public site branding", () => {
     )
 
     expect((await readBranding(testDb)).publicSearchEnabled).toBe(false)
+  })
+
+  it("keeps a hidden row out of what a visitor is served", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        frontPageRows: [
+          { id: "shown", heading: "Shown", kind: "text" },
+          { id: "staged", heading: "Staged", kind: "text", hidden: true },
+        ],
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const branding = await readBranding(database as unknown as CustomShellDb)
+
+    // The visitor's data carries one row. The staged one is not hidden with a
+    // class, it is not in the response at all, so its words cannot be read out
+    // of the page source before it is ready.
+    expect(branding.frontPageRows.map((row) => row.heading)).toEqual(["Shown"])
+    expect(JSON.stringify(branding)).not.toContain("Staged")
+
+    // The admin's own read still has both, so the editor can list it.
+    const globals = parseShellGlobals({
+      frontPageRows: [
+        { id: "shown", heading: "Shown", kind: "text" },
+        { id: "staged", heading: "Staged", kind: "text", hidden: true },
+      ],
+    })
+    expect(globals.frontPageRows.map((row) => row.heading)).toEqual([
+      "Shown",
+      "Staged",
+    ])
   })
 
   it("carries an admin's saved presets through a global write", () => {

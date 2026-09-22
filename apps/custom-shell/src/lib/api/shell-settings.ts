@@ -61,6 +61,7 @@ import {
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
 } from "@/lib/pages/public-header"
+import { PUBLIC_DEVICES } from "@/lib/pages/public-device"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
@@ -227,15 +228,23 @@ const publicNavigationLinkSchema = z.object({
   href: z.string().max(MAX_PUBLIC_NAVIGATION_HREF_LENGTH),
 })
 
+/**
+ * A header menu item also says which screens it is drawn on. Optional, because
+ * a menu saved before the choice existed has no value and reads as everywhere,
+ * and because the footer sends the same link shape without one.
+ */
 const publicNavigationSchema = z
   .array(
     z.union([
-      publicNavigationLinkSchema,
+      publicNavigationLinkSchema.extend({
+        device: z.enum(PUBLIC_DEVICES).optional(),
+      }),
       z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
       z.object({
         type: z.literal("group"),
         label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
         links: z.array(publicNavigationLinkSchema),
+        device: z.enum(PUBLIC_DEVICES).optional(),
       }),
     ])
   )
@@ -335,6 +344,8 @@ const frontPageRowBaseShape = {
   heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
   intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
   layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+  hidden: z.boolean(),
+  device: z.enum(PUBLIC_DEVICES),
 }
 
 const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)

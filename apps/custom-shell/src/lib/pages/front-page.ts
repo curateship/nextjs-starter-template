@@ -1,3 +1,8 @@
+import {
+  normalizePublicDevice,
+  type PublicDevice,
+} from "@/lib/pages/public-device"
+
 export const FRONT_PAGE_ROW_KINDS = [
   "text",
   "plans",
@@ -73,6 +78,14 @@ type FrontPageRowBase = {
   heading: string
   intro: string
   layout: FrontPageRowLayout
+  /**
+   * Kept out of the public page entirely, so a row can be built over several
+   * sittings without visitors watching it take shape. The editor still lists
+   * it, marked.
+   */
+  hidden: boolean
+  /** Which screens the row is drawn on. */
+  device: PublicDevice
 }
 
 export type FrontPageTestimonial = {
@@ -288,6 +301,10 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       )
         ? (source.layout as FrontPageRowLayout)
         : "wide",
+      // Only an explicit true hides a row. Every row saved before this switch
+      // existed has no value at all and has to stay on the page.
+      hidden: source.hidden === true,
+      device: normalizePublicDevice(source.device),
     } as const
     const rowBase = () => ({
       id: safeId(source.id, `front-page-row-${index + 1}`, usedIds),
@@ -315,6 +332,17 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
   }
 
   return rows
+}
+
+/**
+ * The rows a visitor may see. A hidden row is dropped here rather than left in
+ * and hidden with a class: a row that is not on the page cannot have its words
+ * read out of the page source before it is ready.
+ */
+export function visibleFrontPageRows(
+  rows: readonly FrontPageRow[]
+): FrontPageRow[] {
+  return rows.filter((row) => !row.hidden)
 }
 
 export function frontPageHasPlans(rows: readonly FrontPageRow[]) {

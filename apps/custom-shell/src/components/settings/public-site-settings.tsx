@@ -49,6 +49,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
+import {
+  normalizePublicDevice,
+  PUBLIC_DEVICE_HINTS,
+  PUBLIC_DEVICE_LABELS,
+  PUBLIC_DEVICES,
+  type PublicDevice,
+} from "@/lib/pages/public-device"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import {
@@ -382,6 +389,10 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
                     id={itemIds[index]}
                     link={item}
                     linkNoun={linkNoun}
+                    // The header menu is the one editor that allows groups
+                    // and the one that chooses screens. Two facts, one flag,
+                    // because only the header has either.
+                    perDevice={allowGroups}
                     dialogOpen={openIndex === index}
                     onDialogOpenChange={(open) =>
                       setOpenIndex(open ? index : null)
@@ -478,6 +489,7 @@ type PublicGroupDraftLink = PublicNavigationLink & { id: string }
 type PublicGroupDraft = {
   label: string
   links: PublicGroupDraftLink[]
+  device: PublicDevice
 }
 
 function PublicGroupChip({
@@ -627,6 +639,7 @@ function PublicGroupDialog({
         label: label.trim(),
         href: href.trim(),
       })),
+      device: draft.device,
     })
   }
 
@@ -677,6 +690,13 @@ function PublicGroupDialog({
                     Name is required.
                   </InlineError>
                 ) : null}
+                <PublicDeviceField
+                  id="public-menu-group-device"
+                  device={draft.device}
+                  onChange={(device) =>
+                    setDraft((current) => ({ ...current, device }))
+                  }
+                />
               </CardContent>
             </Card>
 
@@ -872,6 +892,7 @@ function createPublicGroupDraft(
     links: group
       ? group.links.map((link) => createPublicGroupDraftLink(link))
       : [createPublicGroupDraftLink()],
+    device: normalizePublicDevice(group?.device),
   }
 }
 
@@ -893,6 +914,7 @@ function publicGroupDraftIsDirty(
 
   return (
     draft.label !== group.label ||
+    draft.device !== normalizePublicDevice(group.device) ||
     draft.links.length !== group.links.length ||
     draft.links.some(
       (link, index) =>
@@ -953,6 +975,7 @@ function PublicLinkChip({
   id,
   link,
   linkNoun,
+  perDevice,
   dialogOpen,
   onDialogOpenChange,
   onChange,
@@ -962,6 +985,8 @@ function PublicLinkChip({
   id: string
   link: PublicNavigationLink
   linkNoun: string
+  /** Only the header menu chooses screens; see PublicDeviceField. */
+  perDevice: boolean
   dialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
   onChange: (patch: Partial<PublicNavigationLink>) => void
@@ -1071,6 +1096,13 @@ function PublicLinkChip({
                     }}
                   />
                 </div>
+                {perDevice ? (
+                  <PublicDeviceField
+                    id={`${id}-device`}
+                    device={link.device}
+                    onChange={(device) => onChange({ device })}
+                  />
+                ) : null}
               </CardContent>
             </Card>
           </DialogBody>
@@ -1098,6 +1130,46 @@ function PublicLinkChip({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/**
+ * Which screens a header menu item is drawn on. The footer never offers it:
+ * the footer is one list at every width, so there is nothing to choose
+ * between.
+ */
+function PublicDeviceField({
+  id,
+  device,
+  onChange,
+}: {
+  id: string
+  device: PublicDevice | undefined
+  onChange: (device: PublicDevice) => void
+}) {
+  const value = normalizePublicDevice(device)
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel htmlFor={id} hint={PUBLIC_DEVICE_HINTS[value]}>
+        Shown on
+      </FieldLabel>
+      <Select
+        value={value}
+        onValueChange={(next) => onChange(next as PublicDevice)}
+      >
+        <SelectTrigger id={id} className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PUBLIC_DEVICES.map((option) => (
+            <SelectItem key={option} value={option}>
+              {PUBLIC_DEVICE_LABELS[option]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

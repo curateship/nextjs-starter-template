@@ -55,6 +55,7 @@ import {
 } from "@/lib/public-font"
 import {
   normalizeFrontPageRows,
+  visibleFrontPageRows,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
@@ -186,7 +187,7 @@ export async function readBranding(
       publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
-      frontPageRows: globals.frontPageRows,
+      frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
       publicNavigation: workspaceDomainsEnabled
         ? []
@@ -231,7 +232,7 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    frontPageRows: globals.frontPageRows,
+    frontPageRows: visibleFrontPageRows(globals.frontPageRows),
     publicHeader: globals.publicHeader,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
