@@ -108,13 +108,20 @@ const placeSchema = z.object({
   overrode: overrodeSchema.optional(),
 })
 
-const cancelSchema = z.object({
+/**
+ * The price and size only go into the Journal line; the exchange cancels by
+ * id. So a zero is let through. On 22 Sep 2026 Lighter listed a USELESS close
+ * with nothing left on it, the chart drew it as "Sell $0.00", and a positive-
+ * only size here turned down every press of its × before the exchange was
+ * asked, leaving an order on the book that could not be taken off.
+ */
+export const cancelSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
   orderId: orderIdSchema,
   side: z.enum(["buy", "sell"]).optional(),
-  px: z.number().positive().finite().optional(),
-  sz: z.number().positive().finite().optional(),
+  px: z.number().nonnegative().finite().optional(),
+  sz: z.number().nonnegative().finite().optional(),
 })
 
 const targetSchema = z.object({
