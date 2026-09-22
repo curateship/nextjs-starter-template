@@ -102,6 +102,7 @@ export function PublicFooter({
   copyright,
   footerBorder,
   pageWidthStyle,
+  chromeBackground,
 }: {
   appName: string
   logo: string
@@ -112,6 +113,8 @@ export function PublicFooter({
   copyright: string
   footerBorder: boolean
   pageWidthStyle: { maxWidth: number } | undefined
+  /** Public styling's header and footer colour, or undefined for the theme's. */
+  chromeBackground: string | undefined
 }) {
   const copyrightText = renderCopyrightText(
     copyright,
@@ -121,7 +124,12 @@ export function PublicFooter({
 
   return (
     <footer
-      className={cn("bg-background pt-20 text-foreground", footerBorder && "border-t")}
+      className={cn(
+        "pt-20 text-foreground",
+        chromeBackground ? undefined : "bg-background",
+        footerBorder && "border-t"
+      )}
+      style={chromeBackground ? { backgroundColor: chromeBackground } : undefined}
     >
       <div
         className="mx-auto w-full max-w-6xl px-6"

@@ -82,6 +82,13 @@ import {
   publicThemeOverrides,
 } from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import {
+  MAX_CARD_BORDER_WIDTH,
+  MAX_CONTENT_GUTTER,
+  MAX_MODAL_PADDING,
+  MIN_CONTENT_GUTTER,
+  SHELL_BACKGROUND_MODES,
+} from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
 import {
@@ -246,16 +253,40 @@ const publicBrandOverridesSchema = z.object(
   >
 )
 
+/**
+ * One public colour. Only a custom colour carries a hex, and it is checked
+ * against the same pattern as the brand colour so a half-typed value cannot be
+ * saved. The strength behind the other two modes is still carried, because the
+ * picker remembers it when an admin switches back.
+ */
+const publicBackgroundSchema = z.object({
+  mode: z.enum(SHELL_BACKGROUND_MODES),
+  strength: z.number().int().min(0).max(100),
+  color: z.union([z.literal(""), z.string().regex(PUBLIC_BRAND_COLOR_PATTERN)]),
+})
+
 const publicThemeSchema = z.object({
   brandColor: z.union([
     z.literal(""),
     z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
   ]),
   brandOverrides: publicBrandOverridesSchema,
-  canvasColor: z.union([
-    z.literal(""),
-    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
-  ]),
+  canvasColor: publicBackgroundSchema,
+  chrome: publicBackgroundSchema,
+  gutter: z.number().int().min(MIN_CONTENT_GUTTER).max(MAX_CONTENT_GUTTER),
+  cardBorderWidth: z.number().int().min(0).max(MAX_CARD_BORDER_WIDTH),
+  cardBorderColor: publicBackgroundSchema,
+  dividerColor: publicBackgroundSchema,
+  modal: z.object({
+    background: publicBackgroundSchema,
+    borderWidth: z.number().int().min(0).max(MAX_CARD_BORDER_WIDTH),
+    borderColor: publicBackgroundSchema,
+    padding: z.number().int().min(0).max(MAX_MODAL_PADDING),
+    overlayOpacity: z.number().int().min(0).max(100),
+    cardBackground: publicBackgroundSchema,
+    cardBorderWidth: z.number().int().min(0).max(MAX_CARD_BORDER_WIDTH),
+    cardBorderColor: publicBackgroundSchema,
+  }),
   pageWidth: z
     .number()
     .int()

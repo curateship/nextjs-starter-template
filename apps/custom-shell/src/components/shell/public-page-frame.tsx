@@ -28,9 +28,19 @@ import {
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { pageForPath } from "@/lib/pages/page-registry"
 import {
+  DEFAULT_PUBLIC_GUTTER,
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
+  publicShellStyling,
+  type PublicTheme,
 } from "@/lib/public-theme"
+import {
+  BORDER_STYLE_VAR_NAMES,
+  getBorderStyleVars,
+  getModalStyleVars,
+  MODAL_STYLE_VAR_NAMES,
+  resolveBackground,
+} from "@/lib/layout/styling-values"
 import { cn } from "@/lib/utils"
 
 /**
@@ -64,6 +74,7 @@ export function PublicPageFrame({
   const publicSearchEnabled =
     publicSearchEnabledOverride ?? brandedPublicSearchEnabled
   const theme = usePublicTheme()
+  usePublicStyleVars(theme)
   const pathname = useLocation({ select: (location) => location.pathname })
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
     VisitorAnnouncement[]
@@ -100,9 +111,38 @@ export function PublicPageFrame({
     theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
       ? undefined
       : { paddingBlock: theme.mainSpacing }
-  const canvasStyle = theme.canvasColor
-    ? { backgroundColor: theme.canvasColor }
-    : undefined
+  const styling = publicShellStyling(theme)
+  const isFlat = theme.gutter === 0
+  // A gutter still on its starting number keeps the responsive classes, so a
+  // phone keeps its 8px gap. Moving the slider replaces both with one number.
+  const gutterChanged = theme.gutter !== DEFAULT_PUBLIC_GUTTER
+  const canvasBackground = resolveBackground(styling.content)
+  const chromeBackground = resolveBackground(styling.chrome, { opaque: true })
+  const cardBorderColor = resolveBackground(styling.cardBorderColor, {
+    base: "--muted-foreground",
+  })
+  const dividerColor = resolveBackground(styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  const canvasStyle = {
+    backgroundColor: canvasBackground,
+    "--shell-card-border-width": String(theme.cardBorderWidth),
+    ...(cardBorderColor
+      ? { "--shell-card-border-color": cardBorderColor }
+      : {}),
+    ...(dividerColor ? { "--border": dividerColor } : {}),
+    // Always set, so a container that reads the gutter gets the public number
+    // rather than the 24px fallback meant for content inside a modal.
+    "--shell-gutter": `${theme.gutter}px`,
+  } as React.CSSProperties
+  const mainStyle = {
+    ...mainSpacingStyle,
+    ...(gutterChanged ? { paddingInline: theme.gutter } : {}),
+  }
+  const contentStyle = {
+    ...pageWidthStyle,
+    ...(gutterChanged ? { gap: theme.gutter } : {}),
+  }
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
@@ -122,7 +162,12 @@ export function PublicPageFrame({
   return (
     <div
       data-public-canvas=""
-      className="flex min-h-screen flex-col bg-muted/60"
+      data-content-styling=""
+      data-flat={isFlat ? "true" : undefined}
+      className={cn(
+        "flex min-h-screen flex-col",
+        canvasBackground ? undefined : "bg-muted/60"
+      )}
       style={canvasStyle}
     >
       {visibleVisitorAnnouncements.length ? (
@@ -146,19 +191,26 @@ export function PublicPageFrame({
         menuAlignment={publicHeader.menuAlignment}
         headerBorder={theme.headerBorder}
         pageWidthStyle={pageWidthStyle}
+        chromeBackground={chromeBackground}
         showThemeToggle={visitorCanChooseTheme}
       />
       <main
-        className={cn("grid flex-1 px-4 py-10", mainLayoutClass, className)}
-        style={mainSpacingStyle}
+        className={cn(
+          "grid flex-1 py-10",
+          gutterChanged ? undefined : "px-4",
+          mainLayoutClass,
+          className
+        )}
+        style={mainStyle}
       >
         <div
           className={cn(
-            "group/public-content flex w-full max-w-6xl flex-col gap-2 md:gap-3",
+            "group/public-content flex w-full max-w-6xl flex-col",
+            gutterChanged ? undefined : "gap-2 md:gap-3",
             publicContentAlignmentClassNames[theme.contentAlignment]
           )}
           data-content-alignment={theme.contentAlignment}
-          style={pageWidthStyle}
+          style={contentStyle}
         >
           {children}
         </div>
@@ -173,7 +225,47 @@ export function PublicPageFrame({
         copyright={footerCopyright}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
+        chromeBackground={chromeBackground}
       />
     </div>
   )
+}
+
+const PUBLIC_STYLE_VAR_NAMES = [
+  ...BORDER_STYLE_VAR_NAMES,
+  ...MODAL_STYLE_VAR_NAMES,
+]
+
+/**
+ * Dialogs, dropdown menus, popovers and toasts portal to `document.body`,
+ * outside this frame, so the values they read have to sit on the document root
+ * where they can reach. ShellLayout does the same for the signed-in app.
+ *
+ * Both sets are cleared when the frame unmounts. An admin who opens a public
+ * page and then goes back into the app would otherwise carry the public
+ * dialog and border settings into every admin dialog for the rest of the
+ * visit, because nothing else on the page writes those values back.
+ */
+function usePublicStyleVars(theme: PublicTheme) {
+  React.useEffect(() => {
+    const styling = publicShellStyling(theme)
+    const vars = {
+      ...getBorderStyleVars(styling),
+      ...getModalStyleVars(styling.modal),
+    }
+    const root = document.documentElement
+    for (const name of PUBLIC_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of PUBLIC_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [theme])
 }

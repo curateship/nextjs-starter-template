@@ -163,6 +163,7 @@ export function PublicNavigation({
   menuAlignment,
   headerBorder,
   pageWidthStyle,
+  chromeBackground,
   showThemeToggle,
 }: {
   appName: string
@@ -174,6 +175,8 @@ export function PublicNavigation({
   menuAlignment: PublicHeaderMenuAlignment
   headerBorder: boolean
   pageWidthStyle: { maxWidth: number } | undefined
+  /** Public styling's header and footer colour, or undefined for the theme's. */
+  chromeBackground: string | undefined
   showThemeToggle: boolean
 }) {
   const pathname = useLocation({ select: (location) => location.pathname })
@@ -479,10 +482,14 @@ export function PublicNavigation({
       ref={headerRef}
       data-menu-alignment={menuAlignment}
       className={cn(
-        "z-40 w-full bg-background/90 backdrop-blur-xl",
+        "z-40 w-full backdrop-blur-xl",
+        // A chosen colour is drawn solid, the way the signed-in sidebar and
+        // sticky bar are, so the header reads the same over any page content.
+        chromeBackground ? undefined : "bg-background/90",
         headerBorder && "border-b",
         sticky && "sticky top-0"
       )}
+      style={chromeBackground ? { backgroundColor: chromeBackground } : undefined}
     >
       <nav data-state={menuState ? "active" : undefined} className="w-full">
         <div

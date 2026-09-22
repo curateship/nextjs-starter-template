@@ -5,6 +5,10 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { PublicNavigationItem } from "@/lib/pages/public-navigation"
+import {
+  createDefaultPublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 
 const router = vi.hoisted(() => ({ navigate: vi.fn(), pathname: "/" }))
 const publicSearch = vi.hoisted(() => ({ enabled: true }))
@@ -25,24 +29,7 @@ const publicHeader = vi.hoisted(() => ({
   },
 }))
 const publicTheme = vi.hoisted(() => ({
-  current: {
-    brandColor: "",
-    brandOverrides: {},
-    canvasColor: "",
-    pageWidth: 1152,
-    mainSpacing: 40,
-    contentAlignment: "center" as "left" | "center" | "right",
-    backgroundPattern: "none" as const,
-    backgroundPatternSize: "medium" as const,
-    backgroundPatternOpacity: 8,
-    buttonStyle: "solid" as const,
-    buttonCasing: "as-written" as const,
-    headerBorder: true,
-    footerBorder: true,
-    colorScheme: "system" as "system" | "light" | "dark",
-    font: "system" as const,
-    radius: 10,
-  },
+  current: null as unknown as PublicTheme,
 }))
 
 vi.mock("@tanstack/react-router", () => ({
@@ -135,24 +122,7 @@ describe("PublicPageFrame navigation", () => {
       menuAlignment: "left",
       logoSize: "standard",
     }
-    publicTheme.current = {
-      brandColor: "",
-      brandOverrides: {},
-      canvasColor: "",
-      pageWidth: 1152,
-      mainSpacing: 40,
-      contentAlignment: "center",
-      backgroundPattern: "none",
-      backgroundPatternSize: "medium",
-      backgroundPatternOpacity: 8,
-      buttonStyle: "solid",
-      buttonCasing: "as-written",
-      headerBorder: true,
-      footerBorder: true,
-      colorScheme: "system",
-      font: "system",
-      radius: 10,
-    }
+    publicTheme.current = createDefaultPublicTheme()
   })
 
   afterEach(() => {
@@ -286,7 +256,7 @@ describe("PublicPageFrame navigation", () => {
     router.pathname = "/login"
     publicTheme.current = {
       ...publicTheme.current,
-      canvasColor: "#abcdef",
+      canvasColor: { mode: "custom", strength: 60, color: "#abcdef" },
       pageWidth: 800,
       mainSpacing: 24,
       contentAlignment: "right",
@@ -321,6 +291,98 @@ describe("PublicPageFrame navigation", () => {
     expect(host.querySelector("header")?.className).not.toContain("border-b")
     expect(host.querySelector("footer")?.className).not.toContain("border-t")
     expect(host.textContent).not.toContain("Choose colour mode")
+
+    await act(async () => root.unmount())
+  })
+
+  it("carries the spacing, border and chrome settings onto the public frame", async () => {
+    publicTheme.current = {
+      ...publicTheme.current,
+      gutter: 24,
+      cardBorderWidth: 3,
+      cardBorderColor: { mode: "custom", strength: 60, color: "#112233" },
+      dividerColor: { mode: "custom", strength: 60, color: "#445566" },
+      chrome: { mode: "custom", strength: 60, color: "#778899" },
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const frame = host.firstElementChild as HTMLElement | null
+    const main = host.querySelector("main") as HTMLElement | null
+    const column = main?.firstElementChild as HTMLElement | null
+
+    expect(frame?.getAttribute("data-content-styling")).toBe("")
+    expect(frame?.getAttribute("data-flat")).toBeNull()
+    expect(frame?.style.getPropertyValue("--shell-card-border-width")).toBe("3")
+    expect(frame?.style.getPropertyValue("--shell-card-border-color")).toBe(
+      "#112233"
+    )
+    expect(frame?.style.getPropertyValue("--border")).toBe("#445566")
+    expect(frame?.style.getPropertyValue("--shell-gutter")).toBe("24px")
+    expect(main?.style.paddingInline).toBe("24px")
+    expect(column?.style.gap).toBe("24px")
+    expect(column?.className).not.toContain("gap-2")
+    expect(host.querySelector("header")?.style.backgroundColor).toBe(
+      "rgb(119, 136, 153)"
+    )
+    expect(host.querySelector("footer")?.style.backgroundColor).toBe(
+      "rgb(119, 136, 153)"
+    )
+    expect(document.documentElement.style.getPropertyValue("--border")).toBe(
+      "#445566"
+    )
+
+    await act(async () => root.unmount())
+
+    // Nothing writes these back, so an admin returning to the signed-in app
+    // would otherwise keep the public colours on every dialog and dropdown.
+    expect(document.documentElement.style.getPropertyValue("--border")).toBe("")
+    expect(
+      document.documentElement.style.getPropertyValue("--shell-modal-padding")
+    ).toBe("")
+  })
+
+  it("flattens the public frame when content spacing is zero", async () => {
+    publicTheme.current = { ...publicTheme.current, gutter: 0 }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const frame = host.firstElementChild as HTMLElement | null
+    const main = host.querySelector("main") as HTMLElement | null
+
+    expect(frame?.getAttribute("data-flat")).toBe("true")
+    expect(main?.style.paddingInline).toBe("0px")
+    expect(main?.className).not.toContain("px-4")
+
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the responsive gap while content spacing is untouched", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const main = host.querySelector("main") as HTMLElement | null
+    const column = main?.firstElementChild as HTMLElement | null
+
+    expect(main?.className).toContain("px-4")
+    expect(main?.style.paddingInline).toBe("")
+    expect(column?.className).toContain("gap-2 md:gap-3")
+    expect(column?.style.gap).toBe("")
 
     await act(async () => root.unmount())
   })

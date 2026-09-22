@@ -31,6 +31,19 @@ const appPublicTheme = vi.hoisted(() => ({
   radius: 4,
 }))
 
+/**
+ * The app fixture above as the shell reads it: every value the app names, over
+ * the shell's own starting look, with the app's plain canvas hex read as the
+ * custom colour it draws.
+ */
+function normalizedAppPublicTheme() {
+  return {
+    ...createDefaultPublicTheme(),
+    ...appPublicTheme,
+    canvasColor: { mode: "custom", strength: 60, color: "#f5f5f5" },
+  }
+}
+
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeader: (name: string) => (name === "host" ? request.host : null),
   getRequestProtocol: () => "http",
@@ -40,6 +53,7 @@ vi.mock("@/app/options", () => ({
   appOptions: { publicTheme: appPublicTheme, workspaces: workspaceOptions },
 }))
 
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
@@ -364,7 +378,7 @@ describe("public site branding", () => {
 
     const branding = await readBranding(database as unknown as CustomShellDb)
 
-    expect(branding.publicTheme).toEqual(appPublicTheme)
+    expect(branding.publicTheme).toEqual(normalizedAppPublicTheme())
   })
 
   it("combines saved app-wide values with the site's brand", async () => {
@@ -390,7 +404,7 @@ describe("public site branding", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicTheme).toEqual({
-      ...appPublicTheme,
+      ...normalizedAppPublicTheme(),
       brandColor: "#2563eb",
       brandOverrides: { hoverColor: "#1d4ed8" },
       font: "mono",
@@ -434,9 +448,11 @@ describe("public site branding", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicTheme).toEqual({
+      ...createDefaultPublicTheme(),
       brandColor: "#2563eb",
       brandOverrides: { hoverColor: "#1d4ed8" },
-      canvasColor: "#f1f5f9",
+      // Saved as a plain hex before the canvas gained its mode picker.
+      canvasColor: { mode: "custom", strength: 60, color: "#f1f5f9" },
       pageWidth: 960,
       mainSpacing: 24,
       contentAlignment: "right",
