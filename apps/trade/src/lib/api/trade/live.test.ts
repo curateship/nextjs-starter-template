@@ -114,3 +114,19 @@ describe("the live trading read", () => {
     expect(mocks.loadLivePortfolio).toHaveBeenCalledOnce()
   })
 })
+
+describe("cancelSchema", () => {
+  it("takes an order with nothing left on it, so its × can still cancel it", async () => {
+    const { cancelSchema } = await import("./live")
+    const zeroLeft = {
+      walletId: "wallet",
+      marketKey: "lighter:mainnet:USELESS",
+      orderId: "281476",
+      side: "sell" as const,
+      px: 0.29129,
+      sz: 0,
+    }
+    expect(cancelSchema.safeParse(zeroLeft).success).toBe(true)
+    expect(cancelSchema.safeParse({ ...zeroLeft, sz: -1 }).success).toBe(false)
+  })
+})

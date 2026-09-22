@@ -241,6 +241,12 @@ does not close the position immediately.
   answer, and a toast on every click of a trading screen is noise. Refusals
   still speak up, and so does the one case that must never pass quietly — a
   real order that went on without the protection asked for.
+- **An order with nothing left on it still cancels.** An exchange can list an
+  order whose remaining size is zero, and the chart draws it as "Sell $0.00".
+  Its × sends the cancel all the same, because the exchange cancels by the
+  order's id and the size only goes into the Journal line. On 22 Sep 2026 a
+  Lighter USELESS close like this could not be taken off, because the app
+  turned the cancel down for its zero size before the exchange was ever asked.
 
 ### One stop and one exit for the hand-placed orders that share them
 
