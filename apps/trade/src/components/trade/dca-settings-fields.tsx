@@ -1,5 +1,6 @@
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
+import { LeverageSlider } from "@/components/trade/leverage-slider"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import {
   rungFields,
@@ -72,6 +73,7 @@ export function DcaSettingsFields({
   busy,
   showValidation,
   inspection,
+  maxLeverage,
   suggestedSlPct,
   plannedRungs = [],
   volumeCapped = false,
@@ -88,6 +90,8 @@ export function DcaSettingsFields({
   busy: boolean
   showValidation: boolean
   inspection: DcaSettingsInspection
+  /** The highest whole leverage this market allows. */
+  maxLeverage: number
   suggestedSlPct: number
   plannedRungs?: readonly { dollars: number }[]
   volumeCapped?: boolean
@@ -264,24 +268,14 @@ export function DcaSettingsFields({
                 className="bg-background"
               />
             </div>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor={id("leverage")}
-                hint="How many dollars of coin each dollar of the account buys. 1 uses no borrowing. A higher choice lets the exchange close the position sooner if it falls."
-              >
-                Borrowing ×
-              </FieldLabel>
-              <Input
-                id={id("leverage")}
-                inputMode="numeric"
-                value={form.leverage}
-                disabled={busy}
-                aria-invalid={showValidation && inspection.invalid.leverage}
-                onChange={(event) => change("leverage", event.target.value)}
-                onBlur={onBlur}
-                className="bg-background"
-              />
-            </div>
+            <LeverageSlider
+              id={id("leverage")}
+              value={Number(form.leverage) || 1}
+              max={maxLeverage}
+              disabled={busy}
+              hint="How many dollars of coin each dollar of the account buys. 1 uses no borrowing. A higher choice lets the exchange close the position sooner if it falls."
+              onChange={(next) => change("leverage", String(next))}
+            />
           </div>
         </OptionCard>
       ) : null}

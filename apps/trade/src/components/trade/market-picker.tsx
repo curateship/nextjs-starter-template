@@ -838,7 +838,10 @@ function MarketPickerRow({
             }
             onCreate={(name) => folderActions.create(row.key, name)}
           />
-          <span className="min-w-0 truncate font-semibold">
+          <span
+            className="min-w-0 truncate font-semibold"
+            title={`${displaySymbol(row.symbol)}-${row.quoteAsset}`}
+          >
             {displaySymbol(row.symbol)}-{row.quoteAsset}
           </span>
           {row.caution ? <CautionBadge caution={row.caution} /> : null}

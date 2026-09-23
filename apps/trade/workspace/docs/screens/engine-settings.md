@@ -22,7 +22,17 @@ and engine both need the matching code for new failure times to reach the UI;
 no database migration is needed.
 
 Engine, Trading, and Restart stay together in the card's
-footer. The title row has no subheader and a divider separates it from the
+footer.
+
+Three switch moves ask "are you sure" before they happen, because one slip of
+the mouse would otherwise stop live trading or start spending real money:
+Engine off, Trading off, and Real money on. The question says what will
+happen. With the engine off or trading paused, running grids and ladders place
+no orders and price alerts do not fire. Stops drawn as lines on the chart still
+close their positions. The switch keeps showing its old position while the
+question is open, and Cancel or Escape leaves everything as it was. The safe
+direction of each switch, Engine on, Trading on and Real money off, still
+takes one click. Restart has always asked first. The title row has no subheader and a divider separates it from the
 status below. The title row uses the compact spacing left after the subheader
 was removed. The page does not print a separate "Read just now" line because
 Last heard from already gives the useful time.

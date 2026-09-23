@@ -9,8 +9,9 @@ ladder stores Hyperliquid's order IDs and reconciles exchange fills before it
 takes another action. If only part of a new ladder is accepted, those orders
 are cancelled and no ladder is saved.
 
-The ladder's Position card includes Borrowing. It starts at 1×, takes whole
-numbers and remembers the last number placed. The chosen number sizes the
+The ladder's Position card includes Leverage, the same slider every order
+window uses (see `leverage-control.md`). It starts at 1×, moves in whole
+steps and remembers the last number placed. The chosen number sizes the
 ladder on practice and real wallets as well as in a backtest. A market with a
 lower maximum uses its own number. The Ladder card and its rung rows show the
 amount of coin bought after borrowing, while the explanation says how much
@@ -64,7 +65,7 @@ price because the preview line already marks that price on the chart. A buy
 rung's chart tag also shows its order dollars. An exit tag instead says **Exit
 rung 3 for profit at +$…**, using that rung's buy price, coin size and exit
 price to show the projected gross profit. The Position card puts Max position,
-Size ramp and Borrowing on separate rows. The window no longer repeats the line
+Size ramp and Leverage on separate rows. The window no longer repeats the line
 saying where the ladder hangs.
 
 The Ladder card also has **Buy rung 1 at market now**. The choice starts off
@@ -313,13 +314,17 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   card's own header says how many; Share of account % stays, because it still
   sets the money. The Range card's readouts then say the smallest and biggest buy instead
   of one figure for each, since the levels are deliberately different sizes.
-- **Advanced settings** holds End Grid, Borrowing, Follow price up, Follow
+- **Advanced settings** holds End Grid, Follow price up, Follow
   price down, Levels spread and the liquidity guard. End Grid is a tick box,
-  on by default, with a "Grid ends at" line while it is on. Borrowing starts at 1× and accepts
-  whole numbers up to the coin's exchange limit. A grid paired with a DCA
-  ladder shows the ladder's borrowing and does not let the grid choose a second
-  number. A position already held by hand fixes the field in the same way. The
-  card has no following summary on its folded header.
+  on by default, with a "Grid ends at" line while it is on. The card has no
+  following summary on its folded header.
+- **Leverage** sits in the Range card under Share of account, because it
+  changes how much coin that share buys. Tyler asked for it there on 23 Sep
+  2026. It starts at 1× and the
+  slider runs in whole steps up to the coin's exchange limit. A grid paired with
+  a DCA ladder shows the ladder's leverage and does not let the grid choose a
+  second number. A position already held by hand locks the slider in the same
+  way.
   Each follow setting keeps its explanation in the tooltip beside its tick box.
   The window does not repeat that explanation underneath the switch. The Levels
   spread tooltip compares its two choices with prices. Dollar spacing can put
@@ -342,12 +347,12 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
 The gear on the grid's badge, at the middle of the range, opens the running
 grid settings to the left of the gear, vertically centred on it. The settings use the same draggable chart
 window, folding option cards and fixed bottom button as the right-click Grid
-order form. Slices includes Borrowing beside Levels and Share of account.
+order form. Slices includes Leverage beside Levels and Share of account.
 The Slices card is first, with no description above it. Levels, Share of
-account and Borrowing are editable while the grid holds no coin and still has
+account and Leverage are editable while the grid holds no coin and still has
 buys waiting. They lock while the grid holds coin because each one redraws or
 resizes every level. Their tooltips explain that the chart's range lines can
-still compress or expand around one open entry. Borrowing also locks when a DCA
+still compress or expand around one open entry. Leverage also locks when a DCA
 ladder shares the position. A **Rungs** card sits after Slices with the same
 rows as the placement window, filled from what the running levels actually
 hold. Its rows and its switch lock whenever the grid holds coin for the same

@@ -637,24 +637,31 @@ describe("the grid window's saved settings", () => {
     )
   })
 
-  it("keeps borrowing in Advanced settings and sends it with the grid", async () => {
+  it("keeps leverage in the Range card and sends it with the grid", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     const onPlace = vi.fn(async () => false)
     await renderDialog(onPlace)
 
-    expect(host.querySelector("#grid-leverage")).toBeNull()
-    await openAdvanced()
-
-    const borrowing = host.querySelector<HTMLInputElement>("#grid-leverage")
-    expect(borrowing?.value).toBe("1")
-    await act(async () => {
-      const set = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value"
-      )?.set
-      set?.call(borrowing, "3")
-      borrowing?.dispatchEvent(new Event("input", { bubbles: true }))
-    })
+    // Beside Share of account, without opening Advanced settings.
+    const leverage = host.querySelector<HTMLElement>("#grid-leverage")
+    expect(
+      leverage?.compareDocumentPosition(host.querySelector("#grid-pot")!) &
+        Node.DOCUMENT_POSITION_PRECEDING
+    ).toBeTruthy()
+    expect(
+      host.querySelector('button[aria-label="Show Advanced settings"]')
+    ).not.toBeNull()
+    expect(leverage?.getAttribute("role")).toBe("slider")
+    expect(leverage?.getAttribute("aria-label")).toBe("Leverage")
+    expect(leverage?.getAttribute("aria-valuenow")).toBe("1")
+    for (let step = 0; step < 2; step++) {
+      await act(async () => {
+        leverage?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+        )
+      })
+    }
+    expect(leverage?.getAttribute("aria-valuenow")).toBe("3")
 
     const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.includes("Place")
@@ -668,14 +675,13 @@ describe("the grid window's saved settings", () => {
     )
   })
 
-  it("uses the borrowing already fixed by a held position", async () => {
+  it("uses the leverage already fixed by a held position", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     await renderDialog(undefined, undefined, 2)
-    await openAdvanced()
 
-    const borrowing = host.querySelector<HTMLInputElement>("#grid-leverage")
-    expect(borrowing?.value).toBe("2")
-    expect(borrowing?.disabled).toBe(true)
+    const leverage = host.querySelector<HTMLElement>("#grid-leverage")
+    expect(leverage?.getAttribute("aria-valuenow")).toBe("2")
+    expect(leverage?.hasAttribute("data-disabled")).toBe(true)
   })
 
   it("keeps End Grid on when the grid follows price up", async () => {

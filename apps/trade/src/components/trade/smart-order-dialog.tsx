@@ -421,6 +421,7 @@ export function SmartOrderDialog({
             busy={busy}
             showValidation={showValidation}
             inspection={inspection}
+            maxLeverage={maxBorrowing}
             suggestedSlPct={suggestedSlPct}
             plannedRungs={plan?.rungs}
             volumeCapped={plan?.volumeCapped}

@@ -29,7 +29,11 @@ vi.mock("@/components/workers/aster-margin-settings", () => ({
 import { TradingEngineSettingsProvider } from "@/components/workers/trading-engine-settings-bootstrap"
 import WorkersSettings from "@/components/workers/workers-settings"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { loadWorkers } from "@/lib/api/trade/workers"
+import {
+  changeRealMoneySwitch,
+  changeWorkerSwitch,
+  loadWorkers,
+} from "@/lib/api/trade/workers"
 import { loadRememberedOrderStyle } from "@/lib/api/trade/quick-order"
 import type { WorkersDashboard } from "@/lib/trade/workers"
 
@@ -189,5 +193,116 @@ describe("the trading engine error", () => {
       element.className.includes("bg-destructive/10")
     )
     expect(notice?.className).toContain("text-destructive")
+  })
+})
+
+describe("the risky switches ask first", () => {
+  const dashboard = (
+    worker: { enabled: boolean; paused: boolean },
+    realMoney: boolean
+  ): WorkersDashboard => ({
+    checkedAt: "2026-09-23T12:00:00.000Z",
+    canControl: true,
+    realMoney: { masterAllowed: true, enabled: realMoney },
+    workers: [
+      {
+        kind: "ladders",
+        label: "Trading engine",
+        description: "Works ladders",
+        state: "running",
+        ...worker,
+        restartRequested: false,
+        online: true,
+        copies: 1,
+        role: "leader",
+        startedAt: "2026-09-23T10:00:00.000Z",
+        lastSeenAt: "2026-09-23T12:00:00.000Z",
+        activity: "Working",
+        latestError: null,
+        latestErrorAt: null,
+        host: "engine",
+        figures: [],
+      },
+    ],
+  })
+
+  const show = async (data: WorkersDashboard) => {
+    vi.mocked(loadWorkers).mockResolvedValue(data)
+    vi.mocked(loadRememberedOrderStyle).mockResolvedValue({
+      orderStyle: "rest",
+    })
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <WorkersSettings />
+        </TooltipProvider>
+      )
+    )
+  }
+  const switchFor = (id: string) =>
+    host.querySelector<HTMLButtonElement>(`#${id}`)!
+  const dialogButton = (label: string) =>
+    [...document.body.querySelectorAll('[role="dialog"] button')].find(
+      (button) => button.textContent === label
+    ) as HTMLButtonElement | undefined
+
+  it("asks before switching the engine off, and Cancel changes nothing", async () => {
+    await show(dashboard({ enabled: true, paused: false }, false))
+    await act(async () => switchFor("ladders-enabled").click())
+
+    expect(document.body.textContent).toContain("Switch the engine off?")
+    expect(changeWorkerSwitch).not.toHaveBeenCalled()
+    expect(switchFor("ladders-enabled").getAttribute("aria-checked")).toBe(
+      "true"
+    )
+
+    await act(async () => dialogButton("Cancel")!.click())
+    expect(changeWorkerSwitch).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain("Switch the engine off?")
+  })
+
+  it("pauses trading only once the question is confirmed", async () => {
+    const data = dashboard({ enabled: true, paused: false }, false)
+    await show(data)
+    vi.mocked(changeWorkerSwitch).mockResolvedValue(
+      dashboard({ enabled: true, paused: true }, false)
+    )
+    await act(async () => switchFor("ladders-trading").click())
+    expect(changeWorkerSwitch).not.toHaveBeenCalled()
+
+    await act(async () => dialogButton("Pause trading")!.click())
+    expect(changeWorkerSwitch).toHaveBeenCalledWith({
+      kind: "ladders",
+      change: { paused: true },
+    })
+    expect(document.body.textContent).not.toContain("Pause trading?")
+  })
+
+  it("switches trading and the engine back on in one click", async () => {
+    await show(dashboard({ enabled: true, paused: true }, false))
+    vi.mocked(changeWorkerSwitch).mockResolvedValue(
+      dashboard({ enabled: true, paused: false }, false)
+    )
+    await act(async () => switchFor("ladders-trading").click())
+    expect(changeWorkerSwitch).toHaveBeenCalledWith({
+      kind: "ladders",
+      change: { paused: false },
+    })
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it("asks before real money goes on, never before it goes off", async () => {
+    await show(dashboard({ enabled: true, paused: false }, false))
+    vi.mocked(changeRealMoneySwitch).mockResolvedValue(
+      dashboard({ enabled: true, paused: false }, true)
+    )
+    await act(async () => switchFor("real-money").click())
+    expect(changeRealMoneySwitch).not.toHaveBeenCalled()
+    await act(async () => dialogButton("Switch on")!.click())
+    expect(changeRealMoneySwitch).toHaveBeenCalledWith(true)
+
+    await act(async () => switchFor("real-money").click())
+    expect(changeRealMoneySwitch).toHaveBeenLastCalledWith(false)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
   })
 })

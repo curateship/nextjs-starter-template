@@ -270,6 +270,7 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
                   to="/flow-runs/$runId"
                   params={{ runId: row.id }}
                   className="min-w-0 truncate font-medium hover:underline"
+                  title={row.automationName}
                 >
                   {row.automationName}
                 </Link>
@@ -289,12 +290,11 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
                   </Badge>
                 ) : null}
               </div>
-              <p className="truncate text-xs text-muted-foreground">
-                {row.status === "running"
-                  ? `${row.coins} ${plural(row.coins, "coin", "coins")}`
-                  : row.status === "stopping"
-                    ? `${row.working} ${plural(row.working, "ladder", "ladders")} left to call off`
-                    : (row.stoppedReason ?? "Stopped.")}
+              <p
+                className="truncate text-xs text-muted-foreground"
+                title={statusLineOf(row)}
+              >
+                {statusLineOf(row)}
               </p>
             </TableCell>
             <TableCell column="meta">
@@ -429,4 +429,15 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
       />
     </>
   )
+}
+
+/** The line under a run's name. A stopped run's reason is usually the longest. */
+function statusLineOf(row: FlowRunListRow): string {
+  if (row.status === "running") {
+    return `${row.coins} ${plural(row.coins, "coin", "coins")}`
+  }
+  if (row.status === "stopping") {
+    return `${row.working} ${plural(row.working, "ladder", "ladders")} left to call off`
+  }
+  return row.stoppedReason ?? "Stopped."
 }

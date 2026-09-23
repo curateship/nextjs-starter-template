@@ -327,6 +327,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
                   to="/backtests/$groupId"
                   params={{ groupId: row.id }}
                   className="min-w-0 truncate font-medium hover:underline"
+                  title={nameOf(row)}
                 >
                   {nameOf(row)}
                 </Link>
@@ -336,10 +337,11 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
                   </Badge>
                 ) : null}
               </div>
-              <p className="truncate text-xs text-muted-foreground">
-                {row.automationName} · {row.spec.days}{" "}
-                {plural(row.spec.days, "day", "days")} of {row.spec.interval}{" "}
-                candles from {usd(row.spec.startingUsd)}
+              <p
+                className="truncate text-xs text-muted-foreground"
+                title={summaryOf(row)}
+              >
+                {summaryOf(row)}
               </p>
             </TableCell>
             <TableCell column="meta">{row.coinsTotal}</TableCell>
@@ -453,4 +455,8 @@ function nameOf(run: BacktestListRow): string {
     run.name ??
     `${run.coinsTotal} ${plural(run.coinsTotal, "market", "markets")}, ${run.spec.days} ${plural(run.spec.days, "day", "days")}`
   )
+}
+
+function summaryOf(run: BacktestListRow): string {
+  return `${run.automationName} · ${run.spec.days} ${plural(run.spec.days, "day", "days")} of ${run.spec.interval} candles from ${usd(run.spec.startingUsd)}`
 }

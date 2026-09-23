@@ -246,6 +246,7 @@ function SettingsForm({
             busy={busy}
             showValidation={showValidation}
             inspection={inspection}
+            maxLeverage={maxBorrowing}
             suggestedSlPct={suggestedSlPct}
             plannedRungs={
               preview?.rungs ??

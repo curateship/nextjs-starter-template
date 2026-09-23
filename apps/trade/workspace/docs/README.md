@@ -118,6 +118,7 @@ screen: anything not written there has not been agreed yet.
 
 ## orders/ — placing and protecting orders
 
+- `leverage-control.md` — the one Leverage slider every order window uses, its range, and when it locks.
 - `flip-trade.md` — reversing a position, the icon and confirmation, full-close checks, protection removal and partial-failure messages.
 
 - `smart-orders.md` — why a smart order sends nothing until the price is

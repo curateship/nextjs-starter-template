@@ -4,6 +4,7 @@ import type { Drawing } from "@/lib/trade/drawings"
 import * as React from "react"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
+import { LeverageSlider } from "@/components/trade/leverage-slider"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OptionCard } from "@/components/trade/option-card"
@@ -916,7 +917,7 @@ export function GridOrderDialog({
           : bottom >= top
             ? "The bottom of the grid has to be below the top."
             : borrowingInvalid
-              ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
+              ? `Leverage must be a whole number from 1× to ${maxBorrowing}× on this market.`
               : manualOn && badRung !== -1
                 ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a weight above zero and no more than 100.`
                 : manualOn && !rungsUsable
@@ -1223,6 +1224,20 @@ export function GridOrderDialog({
                 className="bg-background"
               />
             </div>
+            <LeverageSlider
+              id="grid-leverage"
+              value={borrowing ?? 1}
+              max={maxBorrowing}
+              disabled={busy || fixedLeverage !== null}
+              hint={
+                fixedLeverage === null
+                  ? "Dollars of coin per dollar behind the grid. 1 is cash; higher risks the exchange closing the position."
+                  : positionLeverage !== null
+                    ? "Fixed by the position already held on this coin. One position has one leverage."
+                    : "Fixed by the DCA ladder on this coin. One position has one leverage."
+              }
+              onChange={(next) => touched(setChosenLeverage)(String(next))}
+            />
             {/* What each level puts up and what the whole grid costs.
 
                 A hand-set grid's levels are deliberately different sizes, so
@@ -1523,32 +1538,6 @@ export function GridOrderDialog({
                 </span>
               </div>
             ) : null}
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="grid-leverage"
-                hint={
-                  fixedLeverage === null
-                    ? "Dollars of coin per dollar behind the grid. 1 is cash; higher risks the exchange closing the position."
-                    : positionLeverage !== null
-                      ? "Fixed by the position already held on this coin — one position, one borrowing."
-                      : "Fixed by the DCA ladder on this coin — one position, one borrowing."
-                }
-              >
-                Borrowing ×
-              </FieldLabel>
-              <Input
-                id="grid-leverage"
-                inputMode="numeric"
-                value={leverage}
-                disabled={busy || fixedLeverage !== null}
-                aria-invalid={showValidation && borrowingInvalid}
-                onChange={(event) =>
-                  touched(setChosenLeverage)(event.target.value)
-                }
-                onBlur={() => setShowValidation(true)}
-                className="bg-background"
-              />
-            </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="grid-follow"

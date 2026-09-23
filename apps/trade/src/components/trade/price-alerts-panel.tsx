@@ -312,7 +312,7 @@ function ActiveAlertsView({
             drawn line.
           </p>
         ) : (
-          <div className="grid">
+          <div className="grid grid-cols-1">
             {rows.map((row) => (
               <div
                 key={row.alert.id}
@@ -416,7 +416,7 @@ function FiredAlertsView({
             No alerts have fired yet.
           </p>
         ) : (
-          <div className="grid">
+          <div className="grid grid-cols-1">
             {rows.map((row) => (
               <div
                 key={row.alert.id}
@@ -496,6 +496,7 @@ function LineAlertRow({
   rightTitle?: string
   onSelect: (marketKey: string, id: string) => void
 }) {
+  const detail = `${alert.name ?? alert.kind}${alert.price === null ? "" : ` at ${formatPrice(alert.price)}`} · ${alert.direction}`
   return (
     <button
       type="button"
@@ -503,14 +504,14 @@ function LineAlertRow({
       onClick={() => onSelect(alert.marketKey, alert.id)}
     >
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="truncate font-medium">
+        <span className="shrink-0 font-medium">
           {marketSymbol(alert.marketKey)}
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {alert.name ?? alert.kind}
-          {alert.price === null ? "" : ` at ${formatPrice(alert.price)}`}
-          {" · "}
-          {alert.direction}
+        <span
+          className="min-w-0 truncate text-xs text-muted-foreground"
+          title={detail}
+        >
+          {detail}
         </span>
       </span>
       {rightText ? (
