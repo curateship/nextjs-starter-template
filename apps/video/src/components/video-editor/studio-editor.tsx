@@ -27,6 +27,7 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -56,6 +57,7 @@ import { useProjectExport } from "@/components/video-editor/use-project-export"
 import { StudioInspector } from "@/components/video-editor/studio-inspector"
 import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
+import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import "@/components/video-editor/studio.css"
 
 /**
@@ -141,8 +143,11 @@ export function StudioEditor({
   }, [reportSaveStatus, saveStatus])
   React.useEffect(() => () => reportSaveStatus(null), [reportSaveStatus])
 
+  const { copy, paste } = useClipClipboard()
+
   // Space plays and pauses, Delete removes the selected clip, Escape lets go of
-  // it. Typing anywhere is left alone.
+  // it, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
+  // so is copying words highlighted on the page.
   React.useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null
@@ -166,11 +171,24 @@ export function StudioEditor({
       } else if (event.key === "Escape") {
         dispatch({ type: "SELECT_CLIP", clipId: null })
         dispatch({ type: "SET_CUT_MODE", on: false })
+      } else if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey
+      ) {
+        const key = event.key.toLowerCase()
+        if (key === "c" && !window.getSelection()?.toString()) {
+          event.preventDefault()
+          copy()
+        } else if (key === "v") {
+          event.preventDefault()
+          void paste()
+        }
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [clock, dispatch, store])
+  }, [clock, copy, dispatch, paste, store])
 
   const contextPanel = (
     <div data-screen-label="Panel" className="flex h-full min-h-0">
@@ -378,7 +396,7 @@ function StageHeader() {
   }
 
   return (
-    <div className="grid h-[3.15rem] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-4 sm:px-5">
+    <DashboardCardHeader className="grid grid-cols-[1fr_auto_1fr]">
       <div className="flex min-w-0 items-center gap-2.5">
         <Button asChild variant="ghost" size="icon">
           <Link
@@ -448,7 +466,7 @@ function StageHeader() {
         job={job}
         onJobChange={setJob}
       />
-    </div>
+    </DashboardCardHeader>
   )
 }
 

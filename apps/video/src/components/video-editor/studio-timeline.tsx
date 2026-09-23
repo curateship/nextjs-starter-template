@@ -1,5 +1,7 @@
 import * as React from "react"
 import {
+  ClipboardPaste,
+  Copy,
   Eye,
   Film,
   Layers as LayersIcon,
@@ -65,6 +67,7 @@ import {
   type EditorClip,
   type EditorTrack,
 } from "@/components/video-editor/editor-store"
+import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 
 /**
  * The timeline: lanes of clips under a ruler, with a playhead.
@@ -745,8 +748,8 @@ const ClipChip = React.memo(function ClipChip({
   trackIndex: number
   accent: string
 }) {
-  const selected = useEditorSelector(
-    (state) => state.selectedClipId === clip.id
+  const selected = useEditorSelector((state) =>
+    state.selectedClipIds.includes(clip.id)
   )
   const pps = useEditorSelector((state) => state.pxPerSecond)
   const cutMode = useEditorSelector((state) => state.cutMode)
@@ -880,6 +883,12 @@ const ClipChip = React.memo(function ClipChip({
         clipId: clip.id,
         atMs: clip.startMs + pxToMs(event.clientX - rect.left, pps),
       })
+      return
+    }
+    // Shift or Cmd adds the clip to the group, or takes it out, and does not
+    // start a drag: the group is for copying, and moves one clip at a time.
+    if (mode === "move" && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+      dispatch({ type: "SELECT_CLIP", clipId: clip.id, additive: true })
       return
     }
     dispatch({ type: "SELECT_CLIP", clipId: clip.id })
@@ -1113,6 +1122,10 @@ const ClipChip = React.memo(function ClipChip({
         width,
         borderRadius: clip.kind === "text" ? 5 : 8,
         overflow: "hidden",
+        // A Shift-click to add a clip to the group would otherwise highlight
+        // the names between the two clicks as text, and Cmd+C would copy those
+        // words instead of the clips.
+        userSelect: "none",
         cursor: cutMode ? CUT_CURSOR : "grab",
         boxShadow: selected
           ? "0 0 0 2px var(--acc),0 8px 18px -6px color-mix(in oklch,var(--acc),transparent 50%)"
@@ -1389,6 +1402,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
   const cutMode = useEditorSelector((state) => state.cutMode)
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
   const { dispatch } = useEditorRuntime()
+  const { copy, paste } = useClipClipboard()
 
   function setZoom(value: number) {
     dispatch({
@@ -1434,6 +1448,12 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
             }
           >
             <Trash2 size={16} />
+          </ToolbarButton>
+          <ToolbarButton label="Copy the selected clips" onClick={copy}>
+            <Copy size={16} />
+          </ToolbarButton>
+          <ToolbarButton label="Paste clips at the playhead" onClick={paste}>
+            <ClipboardPaste size={16} />
           </ToolbarButton>
           <ToolbarButton
             label="Add a track"
