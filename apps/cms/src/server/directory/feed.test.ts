@@ -16,6 +16,8 @@ import {
 } from "@/server/directory/feed"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { directoryListings } from "@/server/directory/schema"
+import { createEvent, updateEvent } from "@/server/events/events"
+import { siteEvents } from "@/server/events/schema"
 import {
   createTestDatabase,
   insertWorkspace,
@@ -159,6 +161,55 @@ describe("one site's new-listing feed", () => {
     expect(feed).toHaveLength(DIRECTORY_FEED_LIMIT)
     expect(feed[0]?.path).toBe("/directory/listing-21")
     expect(feed.at(-1)?.path).toBe("/directory/listing-02")
+  })
+
+  it("places an event by the day it was published, not the day it happens", async () => {
+    const older = await listing(alpha, { title: "Older cafe", slug: "older" })
+    const newer = await listing(alpha, { title: "Newer cafe", slug: "newer" })
+    const created = await createEvent(
+      alpha,
+      {
+        title: "Night market",
+        when: { startDate: "2027-06-01", startTime: "18:00" },
+      },
+      database
+    )
+    await updateEvent(
+      alpha,
+      created.id,
+      { status: "published", summary: "Dumplings after dark." },
+      database
+    )
+    await createEvent(
+      alpha,
+      {
+        title: "Draft fair",
+        when: { startDate: "2026-10-01", startTime: "10:00" },
+      },
+      database
+    )
+    for (const [id, day] of [
+      [older.id, 1],
+      [newer.id, 3],
+    ] as const) {
+      await database
+        .update(directoryListings)
+        .set({ createdAt: new Date(Date.UTC(2026, 8, day)) })
+        .where(eq(directoryListings.id, id))
+    }
+    await database
+      .update(siteEvents)
+      .set({ publishedAt: new Date(Date.UTC(2026, 8, 2)) })
+      .where(eq(siteEvents.id, created.id))
+    resetPublicDirectoryCacheForTests()
+
+    const feed = await readDirectoryFeed(alpha, database)
+    expect(feed.map((entry) => entry.path)).toEqual([
+      "/directory/newer",
+      "/events/night-market",
+      "/directory/older",
+    ])
+    expect(feed[1]?.description).toBe("Dumplings after dark.")
   })
 
   it("does not query again for a repeated read", async () => {

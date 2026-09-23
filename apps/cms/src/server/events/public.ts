@@ -1,8 +1,37 @@
-import { and, asc, between, eq, isNull, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  between,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm"
 
+import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
+import {
+  DIRECTORY_SUGGESTION_EVENT_LIMIT,
+  DIRECTORY_SUGGESTION_MIN_LENGTH,
+} from "@/lib/directory/public-search"
 import { EVENTS_PAGE_SIZE, MAX_EVENTS_ON_A_DAY } from "@/lib/events/events-page"
-import { toClock, type EventWhen } from "@/lib/events/event-time"
-import { postListingIds, type PostBody } from "@/lib/posts/post-body"
+import { eventShareImageKicker } from "@/lib/events/event-share-image"
+import { toClock, wallClockAt, type EventWhen } from "@/lib/events/event-time"
+import {
+  searchSnippet,
+  siteSearchPattern,
+  type SiteSearchResult,
+} from "@/lib/pages/site-search"
+import {
+  cleanPostBody,
+  postBodyText,
+  postListingIds,
+  type PostBody,
+} from "@/lib/posts/post-body"
+import type { SitemapEntry } from "@/server/app-options"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -23,10 +52,15 @@ import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
  * the visited address and selects published events only, so a draft is
  * missing rather than hidden.
  *
- * The Events page's on/off switch is checked by the endpoint before this runs,
- * because a members-only switch depends on who is asking and this answer is
- * cached for everyone. Whether an event is over is worked out by the endpoint
- * too, after the cache, so a cached answer never says an event is still on.
+ * The event page and the Events page leave the on/off switch to their
+ * endpoint, because a members-only switch depends on who is asking and those
+ * answers are cached for everyone. Whether an event is over is worked out by
+ * the endpoint too, after the cache, so a cached answer never says an event is
+ * still on.
+ *
+ * Search, the suggestions, the sitemap and the feed are read by anyone, so they
+ * check `eventsArePublic` themselves and show nothing unless the Events page is
+ * open to everyone.
  */
 
 /** An event as a row in the Events page's list or a chip in its month. */
@@ -97,6 +131,8 @@ export type PublicEventPage = {
   timeZone: string
   /** Published listings the body's cards point at, as on a post. */
   listingCards: PublicListingCard[]
+  /** Names the drawn share card, so an edit gives it a new address. */
+  shareImageVersion: string
 }
 
 /** Published, on this site. The whole of what a visitor may read. */
@@ -105,6 +141,24 @@ function publishedEventsOnSite(siteId: string) {
     eq(siteEvents.workspaceId, siteId),
     eq(siteEvents.status, "published")
   )
+}
+
+/**
+ * Whether events may appear in places anyone can read without signing in:
+ * search, the search box's suggestions, the sitemap, the feed and the share
+ * card. Only when the Events page is open to everyone, the same rule posts
+ * follow.
+ */
+export async function eventsArePublic(
+  siteId: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  return (await readPageVisibility(siteId, "/events", database)) === "everyone"
+}
+
+/** The site's wall clock now, "2026-09-26T18:05". */
+async function siteNow(siteId: string, database: CustomShellDb, at: Date) {
+  return wallClockAt(await siteTimeZone(siteId, database), at)
 }
 
 async function readPublicEventUncached(
@@ -170,6 +224,13 @@ async function readPublicEventUncached(
     },
     timeZone,
     listingCards,
+    shareImageVersion: listingShareImageVersion({
+      title: event.title,
+      kicker: eventShareImageKicker(event),
+      siteName: site.name,
+      accentColor: site.accentColor ?? "",
+      updatedAt: event.updatedAt,
+    }),
   }
 }
 
@@ -182,7 +243,11 @@ export function readPublicEvent(
   return cachedPublicDirectoryRead(
     site.id,
     "event",
-    { site: { name: site.name, url: site.url }, slug },
+    {
+      site: { name: site.name, url: site.url },
+      accentColor: site.accentColor ?? "",
+      slug,
+    },
     () => readPublicEventUncached(site, slug, database)
   )
 }
@@ -290,4 +355,194 @@ export function readEventsBetween(
       return rows.map(toEventCard)
     }
   )
+}
+
+/**
+ * Published events for the shell's whole-site search. Past events are found
+ * too, because their pages still open.
+ */
+export async function eventSearchResults(
+  siteId: string,
+  rawQuery: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<SiteSearchResult[]> {
+  const query = rawQuery.trim()
+  if (!query || limit < 1) return []
+  if (!(await eventsArePublic(siteId, database))) return []
+
+  const pattern = siteSearchPattern(query)
+  // Only the text of written blocks: a listing card holds nothing but an id.
+  const bodyText = sql<string>`jsonb_path_query_array(${siteEvents.body}, '$.**.text')::text`
+  const rows = await database
+    .select({
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      body: siteEvents.body,
+    })
+    .from(siteEvents)
+    .where(
+      and(
+        publishedEventsOnSite(siteId),
+        or(
+          ilike(siteEvents.title, pattern),
+          ilike(siteEvents.summary, pattern),
+          ilike(siteEvents.placeName, pattern),
+          ilike(bodyText, pattern)
+        )
+      )
+    )
+    .orderBy(
+      desc(ilike(siteEvents.title, pattern)),
+      asc(siteEvents.title),
+      asc(siteEvents.id)
+    )
+    .limit(limit)
+
+  return rows.map((row) => ({
+    type: "Event",
+    title: row.title,
+    snippet: searchSnippet(
+      row.summary.trim() || postBodyText(cleanPostBody(row.body)),
+      query
+    ),
+    path: `/events/${row.slug}`,
+  }))
+}
+
+type EventSuggestion = { title: string; slug: string; startDate: string }
+
+/**
+ * The events the directory's search box offers as somebody types: ones not
+ * over yet by the site's clock, soonest first, matched on title and summary.
+ * A past event is left out, because somebody typing is after what is on.
+ */
+export async function readEventSuggestions(
+  siteId: string,
+  rawQuery: string,
+  at: Date,
+  database: CustomShellDb = db
+): Promise<EventSuggestion[]> {
+  const query = rawQuery.trim()
+  if (query.length < DIRECTORY_SUGGESTION_MIN_LENGTH) return []
+  if (!(await eventsArePublic(siteId, database))) return []
+
+  const [nowDay = "", nowTime = ""] = (
+    await siteNow(siteId, database, at)
+  ).split("T")
+  const pattern = siteSearchPattern(query)
+  return database
+    .select({
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      startDate: siteEvents.startDate,
+    })
+    .from(siteEvents)
+    .where(
+      and(
+        publishedEventsOnSite(siteId),
+        notOverAt(nowDay, nowTime),
+        or(ilike(siteEvents.title, pattern), ilike(siteEvents.summary, pattern))
+      )
+    )
+    .orderBy(...soonestFirst)
+    .limit(DIRECTORY_SUGGESTION_EVENT_LIMIT)
+}
+
+/** How long a past event stays in the sitemap after its last day. */
+const PAST_EVENT_SITEMAP_DAYS = 30
+
+/**
+ * Every published event's address for the flat sitemap file, until 30 days
+ * after its last day by the site's calendar. The page still opens after that;
+ * it is only no longer offered to search engines.
+ */
+export async function eventSitemapEntries(
+  siteId: string,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<SitemapEntry[]> {
+  if (!(await eventsArePublic(siteId, database))) return []
+  const today = (await siteNow(siteId, database, at)).slice(0, 10)
+  const lastDay = sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`
+  const rows = await database
+    .select({ slug: siteEvents.slug, updatedAt: siteEvents.updatedAt })
+    .from(siteEvents)
+    .where(
+      and(
+        publishedEventsOnSite(siteId),
+        gte(lastDay, sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`)
+      )
+    )
+    .orderBy(asc(siteEvents.slug))
+  return rows.map((row) => ({
+    path: `/events/${row.slug}`,
+    updatedAt: row.updatedAt,
+  }))
+}
+
+type EventFeedRow = {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  body: PostBody
+  publishedAt: Date
+  category: string | null
+}
+
+/**
+ * The most recently published events with their first category, for the
+ * feed. Ordered by the day each was published, not the day it happens.
+ */
+export async function newestEventsForFeed(
+  siteId: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<EventFeedRow[]> {
+  if (!(await eventsArePublic(siteId, database))) return []
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      body: siteEvents.body,
+      publishedAt: siteEvents.publishedAt,
+    })
+    .from(siteEvents)
+    .where(publishedEventsOnSite(siteId))
+    .orderBy(desc(siteEvents.publishedAt), asc(siteEvents.id))
+    .limit(limit)
+  if (rows.length === 0) return []
+
+  const categoryRows = await database
+    .select({ eventId: categoryRelationships.contentId, name: categories.name })
+    .from(categoryRelationships)
+    .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+        inArray(
+          categoryRelationships.contentId,
+          rows.map((row) => row.id)
+        )
+      )
+    )
+    .orderBy(asc(categories.name))
+  const categoryFor = new Map<string, string>()
+  for (const row of categoryRows) {
+    if (!categoryFor.has(row.eventId)) categoryFor.set(row.eventId, row.name)
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    body: cleanPostBody(row.body),
+    // The database refuses a published event with no date, so the fallback
+    // is never reached; it only satisfies the column's nullable type.
+    publishedAt: row.publishedAt ?? new Date(0),
+    category: categoryFor.get(row.id) ?? null,
+  }))
 }

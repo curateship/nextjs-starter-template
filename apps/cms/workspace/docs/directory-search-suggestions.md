@@ -1,7 +1,7 @@
 # Search suggestions on the directory
 
 The search box above a site's listings offers a few matches while somebody is
-still typing. Picking one goes straight to that page. Ignoring them and
+still typing: categories, listings, and events that are not over yet. Picking one goes straight to that page. Ignoring them and
 pressing Enter runs the ordinary search, exactly as the box did before the list
 existed.
 
@@ -9,15 +9,21 @@ existed.
 
 - **Two letters before anything is asked.** One letter would match most of the
   directory and tell the visitor nothing.
-- **Up to three categories, then up to five listings.** Categories are first
-  because a category is a page of results and a listing is one shop. Somebody
-  typing "pizz" usually wants Pizza before any single pizzeria.
+- **Up to three categories, then up to five listings, then up to three
+  events.** Categories are first because a category is a page of results and a
+  listing is one shop. Somebody typing "pizz" usually wants Pizza before any
+  single pizzeria. Events are last because Enter searches listings.
+- **Events show their start day on the right**, like "Sat, Sep 26", and only
+  events not over yet by the site's clock are offered, soonest first. They
+  match on title and summary, and only while the Events page is open to
+  everyone. `events.md` has the rest.
 - **Published listings on the visited site only.** A draft never appears, and
   neither does another site's listing.
 - **A category with nothing published in it is never offered.** Clicking it
   would open an empty page, which reads as a broken site.
 - **The same matching rules as the browse list**, on a listing's name and on
-  the line under it. A name match is above a description match, so "Luigi's
+  the line under it. This rule is about listings. Events and categories are
+  offered alongside, and Enter never searches them. A name match is above a description match, so "Luigi's
   Pizza" beats a bakery whose blurb mentions pizza. A visitor who ignores the
   list and presses Enter must not get a different set of results from the one
   they were being offered.
@@ -54,7 +60,7 @@ highlighted, through the box itself rather than through the list.
 
 ## The limit, and what a visitor sees when it bites
 
-One address may ask 60 times a minute. Past that the endpoint answers with two
+One address may ask 60 times a minute. Past that the endpoint answers with
 empty lists rather than an error, so the box is a plain search box with the
 suggestions switched off for a minute. A visitor who did nothing wrong is never
 shown a message about it, and pressing Enter still searches.

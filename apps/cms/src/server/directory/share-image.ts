@@ -27,7 +27,7 @@ const IMAGE_HEADERS = {
   "Content-Security-Policy": "default-src 'none'; style-src 'none'; sandbox",
 }
 
-type DrawShareImage = typeof renderListingShareImage
+export type DrawShareImage = typeof renderListingShareImage
 
 function imageResponse(svg: string): Response {
   return new Response(svg, {
@@ -88,7 +88,7 @@ async function drawPublishedListing(
 
   const input = {
     title: listing.title,
-    category: category?.name ?? null,
+    kicker: category?.name ?? null,
     siteName: site.name,
     accentColor: site.accentColor ?? "",
     updatedAt: listing.updatedAt,
@@ -99,15 +99,30 @@ async function drawPublishedListing(
   }
 }
 
-/** The public route's testable work, kept separate from request-host lookup. */
-export async function listingShareImageResponse(input: {
+/** A drawn card and the version its address carries. */
+type DrawnShareImage = { svg: string; version: string }
+
+/**
+ * The work every drawn share card's route shares: refuse a bad address, limit
+ * how often one visitor asks, hold the drawing in the public page cache, send
+ * an old or missing version to the current address, and serve the picture.
+ * Only what gets drawn differs between a listing and an event.
+ */
+export async function publicShareImageResponse(input: {
   request: Request
   site: VisitorSite | null
   slug: string
   requestAddress: string
   database?: CustomShellDb
   limit?: typeof enforceRateLimit
-  draw?: DrawShareImage
+  /** Names the rate limit and the cache entry, like "listing". */
+  kind: string
+  path: (slug: string, version: string) => string
+  read: (
+    site: VisitorSite,
+    slug: string,
+    database: CustomShellDb
+  ) => Promise<DrawnShareImage | null>
 }): Promise<Response> {
   if (!input.site || input.slug.length > 160 || slugProblem(input.slug)) {
     return notFound()
@@ -117,7 +132,7 @@ export async function listingShareImageResponse(input: {
   const limit = input.limit ?? enforceRateLimit
   try {
     await limit(
-      `directory-listing-share-image:${input.site.id}:${input.requestAddress}`,
+      `directory-${input.kind}-share-image:${input.site.id}:${input.requestAddress}`,
       { maxAttempts: 120, windowSeconds: 60 },
       database
     )
@@ -134,19 +149,13 @@ export async function listingShareImageResponse(input: {
   const site = input.site
   const drawn = await cachedPublicDirectoryRead(
     site.id,
-    "listing-share-image",
+    `${input.kind}-share-image`,
     {
       slug: input.slug,
       siteName: site.name,
       accentColor: site.accentColor ?? "",
     },
-    () =>
-      drawPublishedListing(
-        site,
-        input.slug,
-        database,
-        input.draw ?? renderListingShareImage
-      )
+    () => input.read(site, input.slug, database)
   )
   if (!drawn) return notFound()
 
@@ -155,13 +164,37 @@ export async function listingShareImageResponse(input: {
     return new Response(null, {
       status: 302,
       headers: {
-        Location: listingShareImagePath(input.slug, drawn.version),
+        Location: input.path(input.slug, drawn.version),
         "Cache-Control": LISTING_SHARE_IMAGE_NOT_FOUND_CACHE,
       },
     })
   }
 
   return imageResponse(drawn.svg)
+}
+
+/** The listing route's testable work, kept separate from request-host lookup. */
+export function listingShareImageResponse(input: {
+  request: Request
+  site: VisitorSite | null
+  slug: string
+  requestAddress: string
+  database?: CustomShellDb
+  limit?: typeof enforceRateLimit
+  draw?: DrawShareImage
+}): Promise<Response> {
+  return publicShareImageResponse({
+    ...input,
+    kind: "listing",
+    path: listingShareImagePath,
+    read: (site, slug, database) =>
+      drawPublishedListing(
+        site,
+        slug,
+        database,
+        input.draw ?? renderListingShareImage
+      ),
+  })
 }
 
 export function listingShareImageUnavailableResponse(): Response {

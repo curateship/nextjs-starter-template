@@ -14,7 +14,8 @@ const CHARACTER_WIDTH_RATIO = 1
 
 type ListingShareImageInput = {
   title: string
-  category: string | null
+  /** The coloured line above the title: a listing's category, an event's date. */
+  kicker: string | null
   siteName: string
   accentColor: string
 }
@@ -97,7 +98,7 @@ export function renderListingShareImage(input: ListingShareImageInput): string {
   const siteName = cleanText(input.siteName)
   const siteLabel = shorten(siteName, maximumCharacters(SITE_NAME_FONT_SIZE))
   const title = cleanText(input.title) || siteName
-  const category = cleanText(input.category ?? "")
+  const kicker = cleanText(input.kicker ?? "")
   const accent = /^#[0-9a-f]{6}$/i.test(input.accentColor)
     ? input.accentColor
     : "#2563eb"
@@ -117,10 +118,10 @@ export function renderListingShareImage(input: ListingShareImageInput): string {
     advance: number
     letterSpacing?: number
   }> = []
-  if (category) {
+  if (kicker) {
     rows.push({
       text: shorten(
-        category.toUpperCase(),
+        kicker.toUpperCase(),
         maximumCharacters(KICKER_FONT_SIZE, 3)
       ),
       size: KICKER_FONT_SIZE,
@@ -151,7 +152,7 @@ export function renderListingShareImage(input: ListingShareImageInput): string {
 
   return [
     `<svg width="${LISTING_SHARE_IMAGE_WIDTH}" height="${LISTING_SHARE_IMAGE_HEIGHT}" viewBox="0 0 ${LISTING_SHARE_IMAGE_WIDTH} ${LISTING_SHARE_IMAGE_HEIGHT}" xmlns="http://www.w3.org/2000/svg">`,
-    `<title>${escapeXml(`${title}${category ? ` · ${category}` : ""}`)}</title>`,
+    `<title>${escapeXml(`${title}${kicker ? ` · ${kicker}` : ""}`)}</title>`,
     `<rect width="${LISTING_SHARE_IMAGE_WIDTH}" height="${LISTING_SHARE_IMAGE_HEIGHT}" fill="#ffffff"/>`,
     `<circle cx="1145" cy="-60" r="280" fill="${accent}" opacity="0.1"/>`,
     `<text x="${MARGIN_X}" y="134" font-family="Arial, sans-serif" font-weight="600" font-size="${SITE_NAME_FONT_SIZE}" fill="#71717a">${escapeXml(siteLabel)}</text>`,
@@ -171,7 +172,7 @@ export function listingShareImageVersion(
       : input.updatedAt
   const value = [
     input.title,
-    input.category ?? "",
+    input.kicker ?? "",
     input.siteName,
     input.accentColor,
     updatedAt,

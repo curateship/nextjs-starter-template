@@ -5,6 +5,7 @@ import { CalendarIcon, MapPinIcon } from "lucide-react"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { JsonLd } from "@/components/directory/public/json-ld"
 import { PostBody } from "@/components/posts/public/post-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -13,6 +14,8 @@ import {
   directoryDescription,
   directoryHead,
   directoryTitle,
+  eventJsonLd,
+  eventPageShareImage,
 } from "@/lib/directory/public-seo"
 import { focusRing } from "@/lib/layout/focus-ring"
 
@@ -34,11 +37,16 @@ export const Route = createFileRoute("/events_/$slug")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {}
-    const { event, site } = loaderData
+    const { event, site, shareImageVersion } = loaderData
     return directoryHead(
       directoryTitle(event.title, site.name),
       directoryDescription(event.summary, `${event.title} on ${site.name}.`),
-      event.coverImage
+      eventPageShareImage({
+        coverImage: event.coverImage,
+        siteUrl: site.url,
+        slug: event.slug,
+        version: shareImageVersion,
+      })
     )
   },
   component: EventRoute,
@@ -47,10 +55,32 @@ export const Route = createFileRoute("/events_/$slug")({
 })
 
 function EventRoute() {
-  const { site, event, listingCards, ended, when } = Route.useLoaderData()
+  const {
+    site,
+    event,
+    listingCards,
+    ended,
+    when,
+    timeZone,
+    shareImageVersion,
+  } = Route.useLoaderData()
+  const shareImage = eventPageShareImage({
+    coverImage: event.coverImage,
+    siteUrl: site.url,
+    slug: event.slug,
+    version: shareImageVersion,
+  })
+  const jsonLd = eventJsonLd({
+    ...event,
+    siteName: site.name,
+    siteUrl: site.url,
+    timeZone,
+    image: typeof shareImage === "string" ? shareImage : shareImage.url,
+  })
 
   return (
     <DirectoryFrame>
+      {jsonLd ? <JsonLd data={jsonLd} /> : null}
       <DirectoryBreadcrumbs
         crumbs={[
           { label: site.name, home: true },

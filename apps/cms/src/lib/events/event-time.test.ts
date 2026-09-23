@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   eventHasEnded,
+  eventMomentText,
   eventWhenLines,
   formatEventStart,
   isKnownTimeZone,
@@ -152,5 +153,30 @@ describe("time zone names", () => {
     expect(isKnownTimeZone("America/Toronto")).toBe(true)
     expect(isKnownTimeZone("Mars/Olympus_Mons")).toBe(false)
     expect(isKnownTimeZone("")).toBe(false)
+  })
+})
+
+describe("one moment for a search engine", () => {
+  it("adds the site's offset on that day, and follows the clocks changing", () => {
+    expect(eventMomentText("2026-09-26", "18:00", "America/Toronto")).toBe(
+      "2026-09-26T18:00:00-04:00"
+    )
+    // Toronto goes back to standard time on 1 November 2026.
+    expect(eventMomentText("2026-11-07", "18:00", "America/Toronto")).toBe(
+      "2026-11-07T18:00:00-05:00"
+    )
+    // The night of the change, which happens at 2am: before it and after it.
+    expect(eventMomentText("2026-11-01", "00:30", "America/Toronto")).toBe(
+      "2026-11-01T00:30:00-04:00"
+    )
+    expect(eventMomentText("2026-11-01", "03:00", "America/Toronto")).toBe(
+      "2026-11-01T03:00:00-05:00"
+    )
+    expect(eventMomentText("2026-09-26", "18:00:00", "Asia/Kolkata")).toBe(
+      "2026-09-26T18:00:00+05:30"
+    )
+    expect(eventMomentText("2026-09-26", "18:00", "UTC")).toBe(
+      "2026-09-26T18:00:00+00:00"
+    )
   })
 })

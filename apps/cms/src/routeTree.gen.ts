@@ -87,6 +87,7 @@ import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/str
 import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
 import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_.share-image.$slug'
 import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
+import { Route as EventsShareImageSlugRouteImport } from './routes/events_.share-image.$slug'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -517,6 +518,11 @@ const EmbedListingListingIdRoute = EmbedListingListingIdRouteImport.update({
   path: '/embed/listing/$listingId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsShareImageSlugRoute = EventsShareImageSlugRouteImport.update({
+  id: '/events_/share-image/$slug',
+  path: '/events/share-image/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -657,6 +663,7 @@ export interface FileRoutesByFullPath {
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events/share-image/$slug': typeof EventsShareImageSlugRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -745,6 +752,7 @@ export interface FileRoutesByTo {
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events/share-image/$slug': typeof EventsShareImageSlugRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -837,6 +845,7 @@ export interface FileRoutesById {
   '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory_/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events_/share-image/$slug': typeof EventsShareImageSlugRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -929,6 +938,7 @@ export interface FileRouteTypes {
     | '/directory/category/$slug'
     | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
+    | '/events/share-image/$slug'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -1017,6 +1027,7 @@ export interface FileRouteTypes {
     | '/directory/category/$slug'
     | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
+    | '/events/share-image/$slug'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1108,6 +1119,7 @@ export interface FileRouteTypes {
     | '/directory_/category/$slug'
     | '/directory_/share-image/$slug'
     | '/embed/listing/$listingId'
+    | '/events_/share-image/$slug'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1161,6 +1173,7 @@ export interface RootRouteChildren {
   DirectoryCategorySlugRoute: typeof DirectoryCategorySlugRoute
   DirectoryShareImageSlugRoute: typeof DirectoryShareImageSlugRoute
   EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
+  EventsShareImageSlugRoute: typeof EventsShareImageSlugRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
@@ -1715,6 +1728,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedListingListingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events_/share-image/$slug': {
+      id: '/events_/share-image/$slug'
+      path: '/events/share-image/$slug'
+      fullPath: '/events/share-image/$slug'
+      preLoaderRoute: typeof EventsShareImageSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -1990,6 +2010,7 @@ const rootRouteChildren: RootRouteChildren = {
   DirectoryCategorySlugRoute: DirectoryCategorySlugRoute,
   DirectoryShareImageSlugRoute: DirectoryShareImageSlugRoute,
   EmbedListingListingIdRoute: EmbedListingListingIdRoute,
+  EventsShareImageSlugRoute: EventsShareImageSlugRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
