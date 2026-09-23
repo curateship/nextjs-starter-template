@@ -412,7 +412,7 @@ export async function readDirectorySuggestions(
   siteId: string,
   rawQuery: string,
   database: CustomShellDb = db
-): Promise<DirectorySuggestions> {
+): Promise<Omit<DirectorySuggestions, "events">> {
   const query = rawQuery.trim()
   if (query.length < DIRECTORY_SUGGESTION_MIN_LENGTH) {
     return { listings: [], categories: [] }
@@ -1240,7 +1240,7 @@ async function readPublicListingUncached(
     },
     shareImageVersion: listingShareImageVersion({
       title: row.title,
-      category: primary?.name ?? null,
+      kicker: primary?.name ?? null,
       siteName: site.name,
       accentColor: site.accentColor ?? "",
       updatedAt: row.updatedAt,

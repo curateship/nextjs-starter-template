@@ -12,7 +12,7 @@ describe("listing share pictures", () => {
     const svg = renderListingShareImage({
       title:
         "L'Étoile <script>alert('no')</script> and the exceptionally long restaurant name that must not leave its card",
-      category: "Cafés & bakeries",
+      kicker: "Cafés & bakeries",
       siteName: "Montréal's Guide",
       accentColor: "#c2410c",
     })
@@ -28,7 +28,7 @@ describe("listing share pictures", () => {
   it("uses one versioned address on the site being visited", () => {
     const input = {
       title: "Joe's Diner",
-      category: "Cafés",
+      kicker: "Cafés",
       siteName: "Alpha Guide",
       accentColor: "#2563eb",
       updatedAt: new Date("2026-08-15T12:00:00.000Z"),
@@ -53,7 +53,7 @@ describe("listing share pictures", () => {
     const wide = "W".repeat(200)
     const svg = renderListingShareImage({
       title: wide,
-      category: wide,
+      kicker: wide,
       siteName: wide,
       accentColor: "",
     })

@@ -5,6 +5,8 @@ import {
   directoryDescription,
   directoryHead,
   directoryTitle,
+  eventJsonLd,
+  eventPageShareImage,
   jsonLdText,
   listingJsonLd,
   listingPageShareImage,
@@ -50,7 +52,7 @@ describe("titles and descriptions", () => {
     expect(head.links).toContainEqual({
       rel: "alternate",
       type: "application/rss+xml",
-      title: "New listings and posts",
+      title: "New listings, posts and events",
       href: "/feed.xml",
     })
   })
@@ -243,6 +245,92 @@ describe("the block a search engine reads", () => {
     expect(text).not.toContain("<")
     expect(JSON.parse(text)).toMatchObject({
       "@graph": [{}, { name: "</script><img onerror=x>" }],
+    })
+  })
+})
+
+describe("an event's block", () => {
+  const nightMarket = {
+    siteName: "Alpha Guide",
+    siteUrl: "https://alpha.example.com",
+    timeZone: "America/Toronto",
+    title: "Night market",
+    slug: "night-market",
+    summary: "Dumplings after dark.",
+    image: "https://alpha.example.com/media/market.jpg",
+    startDate: "2026-09-26",
+    startTime: "18:00",
+    endDate: "2026-09-26",
+    endTime: "23:00",
+    placeName: "Trinity Bellwoods Park",
+    placeAddress: "790 Queen St W, Toronto",
+  }
+
+  function eventNode(input: Parameters<typeof eventJsonLd>[0]) {
+    const graph = eventJsonLd(input)?.["@graph"] as
+      Record<string, unknown>[] | undefined
+    return graph?.[1]
+  }
+
+  it("carries what Google needs, in the site's time zone, with the site as organiser", () => {
+    expect(eventNode(nightMarket)).toEqual({
+      "@type": "Event",
+      name: "Night market",
+      url: "https://alpha.example.com/events/night-market",
+      startDate: "2026-09-26T18:00:00-04:00",
+      endDate: "2026-09-26T23:00:00-04:00",
+      eventStatus: "https://schema.org/EventScheduled",
+      eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+      location: {
+        "@type": "Place",
+        name: "Trinity Bellwoods Park",
+        address: "790 Queen St W, Toronto",
+      },
+      organizer: {
+        "@type": "Organization",
+        name: "Alpha Guide",
+        url: "https://alpha.example.com",
+      },
+      description: "Dumplings after dark.",
+      image: "https://alpha.example.com/media/market.jpg",
+    })
+  })
+
+  it("sends an end day with no end time as the day alone, and no end as none", () => {
+    expect(
+      eventNode({ ...nightMarket, endDate: "2026-09-27", endTime: null })
+        ?.endDate
+    ).toBe("2026-09-27")
+    expect(
+      eventNode({ ...nightMarket, endDate: null, endTime: null })
+    ).not.toHaveProperty("endDate")
+  })
+
+  it("has no block at all without a place, and uses a lone place name as the address", () => {
+    expect(
+      eventJsonLd({ ...nightMarket, placeName: " ", placeAddress: "" })
+    ).toBeNull()
+    expect(eventNode({ ...nightMarket, placeAddress: "" })?.location).toEqual({
+      "@type": "Place",
+      name: "Trinity Bellwoods Park",
+      address: "Trinity Bellwoods Park",
+    })
+  })
+
+  it("shares the cover photo first, and otherwise the drawn card", () => {
+    const input = {
+      siteUrl: "https://alpha.example.com",
+      slug: "night-market",
+      version: "1-abc",
+    }
+    expect(
+      eventPageShareImage({ ...input, coverImage: "https://cdn/market.jpg" })
+    ).toBe("https://cdn/market.jpg")
+    expect(eventPageShareImage({ ...input, coverImage: "" })).toEqual({
+      url: "https://alpha.example.com/events/share-image/night-market?v=1-abc",
+      type: "image/svg+xml",
+      width: 1200,
+      height: 630,
     })
   })
 })

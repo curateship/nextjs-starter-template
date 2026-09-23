@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
@@ -8,11 +9,15 @@ import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cac
 import { saveDirectoryTimeZone } from "@/server/directory/settings"
 import { createEvent, updateEvent } from "@/server/events/events"
 import {
+  eventSearchResults,
+  eventSitemapEntries,
+  readEventSuggestions,
   readEventsBetween,
   readPublicEvent,
   readUpcomingEvents,
 } from "@/server/events/public"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
+import { customShellWorkspaces } from "@/server/schema"
 import {
   createTestDatabase,
   insertWorkspace,
@@ -244,5 +249,145 @@ describe("a day or a month", () => {
     expect(
       await readEventsBetween(site, "2026-08-30", "2026-10-03", database)
     ).toHaveLength(3)
+  })
+})
+
+describe("search, suggestions and the sitemap", () => {
+  // 3:00pm on Saturday 26 September 2026 in Toronto, the site's zone.
+  const at = new Date("2026-09-26T19:00:00Z")
+
+  async function everywhere(query: string) {
+    resetPublicDirectoryCacheForTests()
+    return {
+      search: (await eventSearchResults(site.id, query, 10, database)).map(
+        (result) => result.path
+      ),
+      suggestions: (
+        await readEventSuggestions(site.id, query, at, database)
+      ).map((row) => row.slug),
+      sitemap: (await eventSitemapEntries(site.id, database, at)).map(
+        (entry) => entry.path
+      ),
+    }
+  }
+
+  it("finds a published event by title, summary and place, and never a draft", async () => {
+    const live = await event(site.id, "Night market", "published")
+    await updateEvent(
+      site.id,
+      live.id,
+      { summary: "Dumplings and lanterns after dark" },
+      database
+    )
+    await event(site.id, "Night market draft", "draft")
+    await event(other.id, "Night market elsewhere", "published")
+
+    expect(await everywhere("night")).toEqual({
+      search: [`/events/${live.slug}`],
+      suggestions: [live.slug],
+      sitemap: [`/events/${live.slug}`],
+    })
+    expect((await everywhere("lanterns")).search).toEqual([
+      `/events/${live.slug}`,
+    ])
+    expect((await everywhere("bellwoods")).search).toEqual([
+      `/events/${live.slug}`,
+    ])
+    const [result] = await eventSearchResults(site.id, "night", 10, database)
+    expect(result).toMatchObject({ type: "Event", title: "Night market" })
+
+    await updateEvent(site.id, live.id, { status: "draft" }, database)
+    expect(await everywhere("night")).toEqual({
+      search: [],
+      suggestions: [],
+      sitemap: [],
+    })
+  })
+
+  it("keeps events out of all of it while the Events page is not open to everyone", async () => {
+    await event(site.id, "Hidden market", "published")
+    for (const visibility of ["off", "members"]) {
+      await database
+        .update(customShellWorkspaces)
+        .set({ settings: { pages: { "/events": { visibility } } } })
+        .where(eq(customShellWorkspaces.id, site.id))
+      expect(await everywhere("hidden")).toEqual({
+        search: [],
+        suggestions: [],
+        sitemap: [],
+      })
+    }
+  })
+
+  it("suggests only events not over yet, soonest first, three at most, from two letters", async () => {
+    await dated(site.id, "Market this morning", {
+      startDate: "2026-09-26",
+      startTime: "09:00",
+      endTime: "14:00",
+    })
+    const stillOn = await dated(site.id, "Market this afternoon", {
+      startDate: "2026-09-26",
+      startTime: "12:00",
+      endTime: "16:00",
+    })
+    const nextWeek = await dated(site.id, "Market next week", {
+      startDate: "2026-10-03",
+      startTime: "18:00",
+    })
+    const inTwoWeeks = await dated(site.id, "Market in two weeks", {
+      startDate: "2026-10-10",
+      startTime: "18:00",
+    })
+    await dated(site.id, "Market in a month", {
+      startDate: "2026-10-24",
+      startTime: "18:00",
+    })
+
+    const offered = await readEventSuggestions(site.id, "market", at, database)
+    expect(offered).toEqual([
+      {
+        title: "Market this afternoon",
+        slug: stillOn.slug,
+        startDate: "2026-09-26",
+      },
+      {
+        title: "Market next week",
+        slug: nextWeek.slug,
+        startDate: "2026-10-03",
+      },
+      {
+        title: "Market in two weeks",
+        slug: inTwoWeeks.slug,
+        startDate: "2026-10-10",
+      },
+    ])
+    expect(await readEventSuggestions(site.id, "m", at, database)).toEqual([])
+    // The full search still finds the one that is over.
+    expect(
+      await eventSearchResults(site.id, "morning", 10, database)
+    ).toHaveLength(1)
+  })
+
+  it("keeps a past event in the sitemap until 30 days after its last day", async () => {
+    const thirtyDays = await dated(site.id, "Ended 30 days ago", {
+      startDate: "2026-08-27",
+      startTime: "18:00",
+    })
+    await dated(site.id, "Ended 31 days ago", {
+      startDate: "2026-08-26",
+      startTime: "18:00",
+    })
+    const longRun = await dated(site.id, "Started long ago", {
+      startDate: "2026-07-01",
+      startTime: "10:00",
+      endDate: "2026-08-28",
+      endTime: "17:00",
+    })
+
+    expect(
+      (await eventSitemapEntries(site.id, database, at)).map(
+        (entry) => entry.path
+      )
+    ).toEqual([`/events/${longRun.slug}`, `/events/${thirtyDays.slug}`].sort())
   })
 })

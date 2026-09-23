@@ -17,6 +17,15 @@ published event has its own page at `/events/<address>`.
   and place inside one JSON field. Here each is its own column.
 - **No page templates.** The event page layout is fixed, the same way posts
   are.
+- **A past event stays in the sitemap for 30 days after it ends.** Chosen on
+  23 Sep 2026. The page itself keeps working after that.
+- **The feed places an event by the day it was published**, not the day it
+  happens. Chosen on 23 Sep 2026, so the feed stays "what is new on the site".
+- **The search box's suggestions offer only events that are not over yet.**
+  Chosen on 23 Sep 2026. The full search page still finds past events.
+- **No place, no Google block.** Chosen on 23 Sep 2026. Google refuses an
+  event without a place, so an event with neither a place name nor a street
+  address gets no event markup at all.
 
 ## What an event is
 
@@ -125,7 +134,69 @@ members like any other page. Every event's page follows the same switch.
   is read again at least once a minute, which is how an event drops off as it
   ends.
 
+## Where events appear
+
+A published event appears in all of these and a draft in none of them. All of
+them also need the Events page open to everyone. Switched off or kept for
+members, events leave search, the suggestions, the sitemap, the feed and the
+drawn share card, the same rule posts follow.
+
+- **Whole-site search at `/search`:** matches the title, summary, place name
+  and body words, labelled "Event". Past events are found too.
+- **The directory's search box:** from two letters, up to 3 events that are not
+  over yet, soonest first, matched on title and summary. They come after the
+  categories and listings, with the start day on the right, like
+  "Sat, Sep 26". The arrows, Enter and Escape work on them the same as on a
+  listing. `directory-search-suggestions.md` covers the box.
+- **The sitemap:** every published event in the flat part at
+  `/sitemap.xml?part=pages`, until 30 days after its last day by the site's
+  calendar. An event on 27 Aug is still there on 26 Sep and gone on 27 Sep.
+- **The feed at `/feed.xml`:** mixed in with listings and posts by the day it
+  was published, 20 entries in all. The feed is now called "New listings,
+  posts and events".
+- **How fast the switch reaches them:** search, the suggestions and the
+  sitemap follow a Pages switch change at once. The feed and the share card
+  can take up to two minutes, because the public page cache holds them that
+  long and the Pages screen belongs to the shell, which does not clear it.
+
+## Google's event markup
+
+Each event page carries a block Google reads to show the event in its event
+listings. It is written by `eventJsonLd` in `src/lib/directory/public-seo.ts`.
+
+- **What it says:** the name, the address of the page, the start, the end, the
+  place, the summary, a picture, and the site as the organiser.
+- **Times carry the site's offset on that day.** 6pm on 26 Sep 2026 in Toronto
+  goes out as `2026-09-26T18:00:00-04:00`, and 6pm on 7 Nov as `-05:00`,
+  because the clocks go back on 1 Nov. The helper is `eventMomentText` in
+  `src/lib/events/event-time.ts`.
+- **The end:** an end day and time go out as one moment. An end day with no
+  time goes out as the day alone. No end at all means no end in the block.
+- **The place:** the place name and the street address. With a place name and
+  no street address, the name is sent as the address too, because Google needs
+  an address and that is the only one the admin gave.
+- **No price yet.** Events have no price until paid tickets (task 32) exist.
+- **It always says "scheduled" and "in person".** Cancelled events (task 27)
+  and online events (task 29) change that later.
+- **The picture** is the cover photo, or the drawn share card when there is
+  none.
+
+## The share card
+
+An event with no cover photo is shared with a drawn card, the same card a
+listing gets, with the date where a listing shows its category, like
+"SAT, SEP 26 · 6:00 PM". An event over several days shows "SAT, SEP 26 TO MON,
+SEP 28" instead, because the time would not fit.
+
+- **Where:** `/events/share-image/<address>?v=<version>`. The version changes
+  whenever the title, date, site name, site colour or the event changes, so a
+  link preview never keeps an old card.
+- **An old or missing version** is sent on to the current one.
+- **A draft, another site's event, or an Events page not open to everyone**
+  answers not found.
+- **One visitor may ask 120 times a minute**, the same limit as listing cards.
+
 ## Not built yet
 
 These are later tasks in `workspace/tasks/events/`: filters on the Events page,
-search, the sitemap and feed, Google's event markup, sign-ups and repeats.
+sign-ups and repeats.

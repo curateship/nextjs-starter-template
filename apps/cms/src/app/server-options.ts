@@ -6,6 +6,7 @@ import {
 import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
+import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
 import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
 
 /**
@@ -29,17 +30,21 @@ export const appServerOptions: AppServerOptions = {
     onCopy: copyDirectoryWorkspace,
   },
   sitemap: {
-    // Category pages and posts. Listings are in the numbered files below.
+    // Category pages, posts and events. Listings are in the numbered files
+    // below.
     extraEntries: async (workspaceId) =>
       (
         await Promise.all([
           directorySitemapEntries(workspaceId),
           postSitemapEntries(workspaceId),
+          eventSitemapEntries(workspaceId),
         ])
       ).flat(),
     chunkFiles: directorySitemapChunkFiles,
   },
-  search: { sources: [directorySearchResults, postSearchResults] },
+  search: {
+    sources: [directorySearchResults, postSearchResults, eventSearchResults],
+  },
   background: {
     workers: [
       {

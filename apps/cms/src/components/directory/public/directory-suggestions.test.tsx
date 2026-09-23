@@ -55,6 +55,7 @@ beforeEach(async () => {
   vi.mocked(loadDirectorySuggestions).mockResolvedValue({
     categories: [{ title: "Pizza", slug: "pizza" }],
     listings: [{ title: "Luigi's Pizza", slug: "luigis" }],
+    events: [],
   })
   host = document.createElement("div")
   document.body.append(host)
@@ -169,6 +170,36 @@ describe("directory search suggestions", () => {
     expect(options()[0]?.getAttribute("href")).toBe("/directory/category/pizza")
   })
 
+  it("offers an event last, with its date, and the keyboard reaches it the same way", async () => {
+    vi.mocked(loadDirectorySuggestions).mockResolvedValue({
+      categories: [{ title: "Markets", slug: "markets" }],
+      listings: [{ title: "Night Owl Cafe", slug: "night-owl" }],
+      events: [
+        { title: "Night market", slug: "night-market", startDate: "2026-09-26" },
+      ],
+    })
+    await type("night")
+    await settle()
+    expect(options().map((item) => item.textContent)).toEqual([
+      "MarketsCategory",
+      "Night Owl Cafe",
+      "Night marketSat, Sep 26",
+    ])
+    expect(options()[2]?.getAttribute("href")).toBe("/events/night-market")
+
+    // Up from nothing wraps to the last row, which is the event.
+    await press("ArrowUp")
+    expect(options()[2]?.getAttribute("aria-selected")).toBe("true")
+    const opened = vi.fn()
+    options()[2]!.addEventListener("click", (event) => {
+      event.preventDefault()
+      opened()
+    })
+    await press("Enter")
+    expect(opened).toHaveBeenCalledTimes(1)
+    expect(onSearch).not.toHaveBeenCalled()
+  })
+
   it("runs the plain search on Enter with nothing highlighted", async () => {
     await type("pizza")
     await settle()
@@ -197,6 +228,7 @@ describe("directory search suggestions", () => {
     vi.mocked(loadDirectorySuggestions).mockResolvedValue({
       categories: [],
       listings: [],
+      events: [],
     })
     await type("pizza")
     await settle()

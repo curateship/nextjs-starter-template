@@ -12,6 +12,8 @@ import {
   LISTING_WEEKDAYS,
   LISTING_WEEKDAY_LABELS,
 } from "@/lib/directory/listing-details"
+import { eventShareImageUrl } from "@/lib/events/event-share-image"
+import { eventMomentText, type EventWhen } from "@/lib/events/event-time"
 
 /**
  * What a public directory page tells a browser and a search engine about
@@ -86,6 +88,22 @@ export function listingPageShareImage(input: {
   }
 }
 
+/** An event's cover photo first, otherwise its versioned drawn card. */
+export function eventPageShareImage(input: {
+  coverImage: string
+  siteUrl: string
+  slug: string
+  version: string
+}): DirectoryHeadImage {
+  if (input.coverImage) return input.coverImage
+  return {
+    url: eventShareImageUrl(input.siteUrl, input.slug, input.version),
+    type: LISTING_SHARE_IMAGE_TYPE,
+    width: LISTING_SHARE_IMAGE_WIDTH,
+    height: LISTING_SHARE_IMAGE_HEIGHT,
+  }
+}
+
 /** The meta tags a public page adds, in the shape a route's `head` wants. */
 export function directoryHead(
   title: string,
@@ -98,7 +116,7 @@ export function directoryHead(
       {
         rel: "alternate",
         type: "application/rss+xml",
-        title: "New listings and posts",
+        title: "New listings, posts and events",
         href: "/feed.xml",
       },
     ],
@@ -248,6 +266,66 @@ export function postJsonLd(input: {
     datePublished: asDate(input.publishedAt),
     dateModified: asDate(input.updatedAt),
     publisher: organisation,
+  }
+  if (input.summary) page.description = input.summary
+  if (input.image) page.image = input.image
+
+  return graph([organisation, page])
+}
+
+/**
+ * The same for an event: the site as its organiser, and the event itself,
+ * which is what Google reads to show it in its event listings.
+ *
+ * Times go out as one moment with the site's offset on that day, like
+ * 2026-09-26T18:00:00-04:00. An end day with no end time goes out as the day
+ * alone, and an event with no end at all has no `endDate`.
+ *
+ * Google refuses an event without a place, so an event with neither a place
+ * name nor a street address gets no block at all rather than one Google
+ * reports as broken. A place name with no street address is sent as the
+ * address too, because it is the only address the admin gave.
+ */
+export function eventJsonLd(
+  input: EventWhen & {
+    siteName: string
+    siteUrl: string
+    timeZone: string
+    title: string
+    slug: string
+    summary: string
+    image: string
+    placeName: string
+    placeAddress: string
+  }
+): JsonLdNode | null {
+  const placeName = input.placeName.trim()
+  const address = input.placeAddress.trim() || placeName
+  if (!address) return null
+
+  const organisation = organisationJsonLd(input.siteName, input.siteUrl)
+  const page: JsonLdNode = {
+    "@type": "Event",
+    name: input.title,
+    url: siteUrlFor(input.siteUrl, `/events/${input.slug}`),
+    startDate: eventMomentText(
+      input.startDate,
+      input.startTime,
+      input.timeZone
+    ),
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    location: {
+      "@type": "Place",
+      ...(placeName ? { name: placeName } : {}),
+      address,
+    },
+    organizer: organisation,
+  }
+  if (input.endDate) {
+    page.endDate = input.endTime
+      ? eventMomentText(input.endDate, input.endTime, input.timeZone)
+      : input.endDate
   }
   if (input.summary) page.description = input.summary
   if (input.image) page.image = input.image

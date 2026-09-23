@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { loadDirectorySuggestions } from "@/lib/api/directory/public"
+import { formatEventShortDay } from "@/lib/events/event-time"
 import {
   DIRECTORY_SUGGESTION_DELAY_MS,
   DIRECTORY_SUGGESTION_MIN_LENGTH,
@@ -11,8 +12,8 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * The short list of listings and categories the directory's search box offers
- * while somebody is still typing.
+ * The short list of listings, categories and events the directory's search box
+ * offers while somebody is still typing.
  *
  * Two halves that stay apart on purpose. `useDirectorySuggestions` holds the
  * asking, the remembering and the keyboard, and it touches no router, so the
@@ -237,9 +238,7 @@ export function DirectorySuggestionList({
                 aria-selected={index === active}
                 tabIndex={-1}
                 onMouseEnter={() => setActiveIndex(index)}
-                {...(row.kind === "category"
-                  ? { to: "/directory/category/$slug", params: { slug: row.slug } }
-                  : { to: "/directory/$slug", params: { slug: row.slug } })}
+                {...linkFor(row)}
                 className={cn(
                   "flex h-8 items-center justify-between gap-2 rounded-sm px-2 text-sm",
                   index === active
@@ -252,6 +251,10 @@ export function DirectorySuggestionList({
                   <span className="shrink-0 text-xs text-muted-foreground">
                     Category
                   </span>
+                ) : row.kind === "event" && row.startDate ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatEventShortDay(row.startDate)}
+                  </span>
                 ) : null}
               </Link>
             </li>
@@ -260,4 +263,16 @@ export function DirectorySuggestionList({
       ) : null}
     </>
   )
+}
+
+function linkFor(row: DirectorySuggestion) {
+  const params = { slug: row.slug }
+  switch (row.kind) {
+    case "category":
+      return { to: "/directory/category/$slug" as const, params }
+    case "event":
+      return { to: "/events/$slug" as const, params }
+    case "listing":
+      return { to: "/directory/$slug" as const, params }
+  }
 }

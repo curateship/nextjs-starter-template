@@ -35,7 +35,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   where posts appear once published.
 - `events.md` — each site's events: writing them, the Events page's list and
   month, the site's time zone and why times are stored as a day and a clock
-  time, when an event counts as over, and the event page.
+  time, when an event counts as over, the event page, where events appear in
+  search, the sitemap and the feed, Google's event markup, and the share card.
 
 ## Adding a doc
 

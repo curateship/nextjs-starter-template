@@ -82,8 +82,8 @@ A published post appears in all of these and a draft in none of them.
 - **Category pages:** the 6 newest posts filed under a category show below its
   listings, under "Posts about <category>". A category's listing count does not
   change, because every listing count reads only listing rows.
-- **The feed** at `/feed.xml`: the newest 20 listings and posts together,
-  newest first. It is now called "New listings and posts".
+- **The feed** at `/feed.xml`: the newest 20 listings, posts and events
+  together, newest first. It is called "New listings, posts and events".
 - **The sitemap:** `/posts` and every published post, in the flat file
   alongside the category pages.
 - **Whole-site search:** matches the title, summary and body words, labelled

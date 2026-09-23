@@ -27,6 +27,7 @@ import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { readEventSuggestions } from "@/server/events/public"
 
 import { createErrorMessage } from "../error-message"
 
@@ -148,10 +149,14 @@ export function loadDirectoryMap(input: {
 const readDirectorySuggestionsFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ query: z.string().max(120) }))
   .handler(async ({ data }): Promise<DirectorySuggestions> => {
-    // Two empty lists rather than null or an error, every time this answers
+    // Empty lists rather than null or an error, every time this answers
     // nothing. A refused burst then leaves the visitor with a plain search box
     // for a minute instead of a message about a mistake they did not make.
-    const nothing: DirectorySuggestions = { listings: [], categories: [] }
+    const nothing: DirectorySuggestions = {
+      listings: [],
+      categories: [],
+      events: [],
+    }
 
     const site = await visitorSite()
     if (!site) return nothing
@@ -165,10 +170,17 @@ const readDirectorySuggestionsFn = createServerFn({ method: "GET" })
       return nothing
     }
 
-    return readDirectorySuggestions(site.id, data.query)
+    const [directory, events] = await Promise.all([
+      readDirectorySuggestions(site.id, data.query),
+      readEventSuggestions(site.id, data.query, new Date()),
+    ])
+    return { ...directory, events }
   })
 
-/** The few listings and categories the search box offers as somebody types. */
+/**
+ * The few listings, categories and events the search box offers as somebody
+ * types.
+ */
 export function loadDirectorySuggestions(query: string) {
   return readDirectorySuggestionsFn({ data: { query } })
 }

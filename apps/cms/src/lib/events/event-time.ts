@@ -197,3 +197,39 @@ export function eventWhenLines(
     times: `${eventTimesText(when)}, ${zone}`,
   }
 }
+
+/** "GMT-04:00" read as minutes east of UTC, so -240. Plain "GMT" is 0. */
+function zoneOffsetMinutes(timeZone: string, at: Date): number {
+  const name =
+    new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
+      .formatToParts(at)
+      .find((part) => part.type === "timeZoneName")?.value ?? ""
+  const match = /([+-])(\d{2}):(\d{2})/.exec(name)
+  if (!match) return 0
+  const minutes = Number(match[2]) * 60 + Number(match[3])
+  return match[1] === "-" ? -minutes : minutes
+}
+
+/**
+ * "2026-09-26T18:00:00-04:00": a day and clock time on the site's calendar,
+ * with the zone's offset on that day, for a search engine that needs one
+ * moment rather than a wall clock.
+ *
+ * The offset is asked twice. Reading the wall time as if it were UTC gives an
+ * instant a few hours off, which lands on the wrong side of a clock change on
+ * the night of one; asking again at the corrected instant settles it.
+ */
+export function eventMomentText(
+  date: string,
+  clock: string,
+  timeZone: string
+): string {
+  const zone = isKnownTimeZone(timeZone) ? timeZone : DEFAULT_SITE_TIME_ZONE
+  const time = toClock(clock)
+  const asUtc = Date.parse(`${date}T${time}:00Z`)
+  const guess = zoneOffsetMinutes(zone, new Date(asUtc))
+  const offset = zoneOffsetMinutes(zone, new Date(asUtc - guess * 60_000))
+  const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0")
+  const minutes = String(Math.abs(offset) % 60).padStart(2, "0")
+  return `${date}T${time}:00${offset < 0 ? "-" : "+"}${hours}:${minutes}`
+}

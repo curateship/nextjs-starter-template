@@ -140,24 +140,31 @@ export const DIRECTORY_SUGGESTION_DELAY_MS = 200
 
 export const DIRECTORY_SUGGESTION_LISTING_LIMIT = 5
 export const DIRECTORY_SUGGESTION_CATEGORY_LIMIT = 3
+export const DIRECTORY_SUGGESTION_EVENT_LIMIT = 3
 
-/** One row under the search box: a published listing, or a category page. */
+/** One row under the search box: a listing, a category page, or an event. */
 export type DirectorySuggestion = {
-  kind: "listing" | "category"
+  kind: "listing" | "category" | "event"
   title: string
   slug: string
+  /** An event's first day, "2026-09-26", shown beside its title. */
+  startDate?: string
 }
 
 export type DirectorySuggestions = {
   listings: Array<{ title: string; slug: string }>
   categories: Array<{ title: string; slug: string }>
+  /** Events not over yet, soonest first. */
+  events: Array<{ title: string; slug: string; startDate: string }>
 }
 
 /**
- * Categories first, then listings.
+ * Categories first, then listings, then events.
  *
  * A category is a whole page of results and a listing is one shop, so somebody
  * typing "pizz" is more often after "Pizza" than after any single pizzeria.
+ * Events come last because the box sits above the listings, which are what it
+ * searches when Enter is pressed.
  */
 export function directorySuggestionRows(
   answer: DirectorySuggestions
@@ -165,5 +172,6 @@ export function directorySuggestionRows(
   return [
     ...answer.categories.map((row) => ({ kind: "category" as const, ...row })),
     ...answer.listings.map((row) => ({ kind: "listing" as const, ...row })),
+    ...answer.events.map((row) => ({ kind: "event" as const, ...row })),
   ]
 }
