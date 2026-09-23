@@ -418,7 +418,10 @@ function BotRow({
           )}
         >
           <span className="min-w-0">
-            <span className="block truncate text-sm font-medium hover:underline">
+            <span
+              className="block truncate text-sm font-medium hover:underline"
+              title={bot.name}
+            >
               {bot.name}
             </span>
             <span className="block truncate text-xs text-muted-foreground">

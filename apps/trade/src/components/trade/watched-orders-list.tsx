@@ -422,7 +422,10 @@ export function WatchedOrdersList({
                             symbol={row.symbol}
                             iconUrl={row.iconUrl}
                           />
-                          <span className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm">
+                          <span
+                            className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm"
+                            title={row.symbol}
+                          >
                             {row.symbol}
                           </span>
                         </div>

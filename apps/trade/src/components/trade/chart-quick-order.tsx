@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { LeverageSlider } from "@/components/trade/leverage-slider"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getLiveErrorMessage, loadSwapQuote } from "@/lib/api/trade/live"
 import { type MarketRow, type SwapQuote } from "@/lib/protocols/contracts"
@@ -690,27 +690,14 @@ export function ChartQuickOrder({
                 not change it
               </span>
             </div>
-          ) : maxLeverage > 1 ? (
-            <div className="grid gap-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <Label htmlFor="quick-leverage">Leverage</Label>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {leverage}×
-                </span>
-              </div>
-              <Slider
-                id="quick-leverage"
-                min={1}
-                max={maxLeverage}
-                step={1}
-                value={[leverage]}
-                onValueChange={([next]) => {
-                  setLeverage(next)
-                }}
-                aria-label="Leverage"
-              />
-            </div>
-          ) : null}
+          ) : (
+            <LeverageSlider
+              id="quick-leverage"
+              value={leverage}
+              max={maxLeverage}
+              onChange={setLeverage}
+            />
+          )}
 
           {swaps ? (
             <div className="grid gap-4">

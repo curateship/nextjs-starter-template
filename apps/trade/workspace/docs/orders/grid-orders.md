@@ -415,8 +415,9 @@ rather than a row it cannot parse. That also means the engine ships with the app
 or before it: an older engine strips the two fields when it saves a plan back,
 which would flatten a hand-set grid to equal shares on its next move.
 
-Borrowing sits in Advanced settings and starts at 1×. The account share is the
-cash behind the grid. Borrowing changes how many dollars of coin that cash
+Leverage sits in the Range card, under Share of account, and starts at 1×. The account share is the
+cash behind the grid. Leverage, which is how much the exchange lends on top of
+that cash, changes how many dollars of coin that cash
 buys. A grid using 20% of a $10,000 account puts $2,000 behind the range. At
 3×, the levels can hold $6,000 of coin while the margin stays $2,000. The
 window shows both the coin controlled by each buy and its margin.
@@ -835,14 +836,14 @@ practice book settles its own fills and cannot be behind.
 The gear on the grid's badge, at the middle of the range, opens Grid settings to the left of the gear,
 vertically centred on it. The settings use the same draggable chart window,
 folding option cards and fixed bottom button as the right-click Grid order
-form. It can change Levels, Share of account, Borrowing, End Grid, following
+form. It can change Levels, Share of account, Leverage, End Grid, following
 and the stop. The first thing inside is the Slices card, with no description
 above it. Clicking outside or pressing Escape closes it.
 End Grid can be switched on or off, and its percentage is measured above
 today's price or the top of the range just like placement.
 
-Changing Borrowing redraws every waiting level with the new amount of coin.
-Borrowing can change only while the grid holds no coin and still has buys
+Changing Leverage redraws every waiting level with the new amount of coin.
+Leverage can change only while the grid holds no coin and still has buys
 waiting. A held position has already fixed its borrowing, and a paired DCA
 ladder fixes the same number for their shared position.
 

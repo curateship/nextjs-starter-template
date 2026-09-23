@@ -4,6 +4,7 @@ import type { Drawing } from "@/lib/trade/drawings"
 import * as React from "react"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
+import { LeverageSlider } from "@/components/trade/leverage-slider"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import {
@@ -419,7 +420,7 @@ function StopForm({
     : badPot
       ? "Share of account % has to be a number above zero and no more than 100."
       : badLeverage
-        ? `Borrowing has to be a whole number between 1× and ${maxBorrowing}×.`
+        ? `Leverage has to be a whole number between 1× and ${maxBorrowing}×.`
         : manualOn && sliceSettingsChanged && badRung !== -1
           ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a weight above zero and no more than 100.`
           : manualOn && sliceSettingsChanged && badRungCount
@@ -616,35 +617,25 @@ function StopForm({
                 />
               </DisabledReason>
             </div>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="grid-edit-leverage"
-                hint={
-                  positionLeverage !== null
-                    ? "The position already held in this wallet fixed the borrowing for this coin. Grid buys add to the same position, so they must use the same number."
-                    : pairedLeverage !== null
-                      ? "The paired DCA ladder fixed the borrowing for this coin. The grid shares the same position, so both must use the same number."
-                      : canReshape
-                        ? "How many dollars of coin each dollar behind the grid buys. Changing borrowing redraws every waiting level."
-                        : "Borrowing can change only while the grid holds no coin and still has buys waiting."
-                }
-              >
-                Borrowing ×
-              </FieldLabel>
-              <Input
-                id="grid-edit-leverage"
-                inputMode="numeric"
-                value={fixedLeverage ?? leverage}
-                aria-invalid={showValidation && badLeverage}
-                disabled={busy || !canReshape || fixedLeverage !== null}
-                onChange={(event) => {
-                  setShowValidation(false)
-                  setLeverage(event.target.value)
-                }}
-                onBlur={() => setShowValidation(true)}
-                className="bg-background"
-              />
-            </div>
+            <LeverageSlider
+              id="grid-edit-leverage"
+              value={fixedLeverage ?? parsedLeverage}
+              max={maxBorrowing}
+              disabled={busy || !canReshape || fixedLeverage !== null}
+              hint={
+                positionLeverage !== null
+                  ? "The position already held in this wallet fixed the leverage for this coin. Grid buys add to the same position, so they must use the same number."
+                  : pairedLeverage !== null
+                    ? "The paired DCA ladder fixed the leverage for this coin. The grid shares the same position, so both must use the same number."
+                    : canReshape
+                      ? "How many dollars of coin each dollar behind the grid buys. Changing leverage redraws every waiting level."
+                      : "Leverage can change only while the grid holds no coin and still has buys waiting."
+              }
+              onChange={(next) => {
+                setShowValidation(false)
+                setLeverage(String(next))
+              }}
+            />
             {resliced ? (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Saving redraws every waiting level. Nothing buys until price

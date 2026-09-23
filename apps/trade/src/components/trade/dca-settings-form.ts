@@ -265,7 +265,7 @@ export function inspectDcaSettingsForm(
         : badMultiplier
           ? "Size ramp has to be from 1× to 10×."
           : badLeverage
-            ? `Borrowing has to be a whole number from 1× to ${maxBorrowing}× on this market.`
+            ? `Leverage has to be a whole number from 1× to ${maxBorrowing}× on this market.`
             : badTakeProfit
               ? "Target % has to be a number above zero and no more than 999%."
               : badExitGap

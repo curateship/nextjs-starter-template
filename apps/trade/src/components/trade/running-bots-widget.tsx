@@ -157,6 +157,7 @@ function BotRow({
           to="/flow-runs/$runId"
           params={{ runId: bot.runId }}
           className={cn("block max-w-48 truncate rounded-sm text-xs font-medium hover:underline", focusRing)}
+          title={bot.name}
         >
           {bot.name}
         </Link>

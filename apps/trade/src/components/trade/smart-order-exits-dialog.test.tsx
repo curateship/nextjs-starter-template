@@ -10,6 +10,15 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { baseStopDetection } from "@/lib/trade/dca"
 import type { SmartGrid, SmartLadder } from "@/lib/trade/smart-plan"
 
+// The leverage slider measures its thumb, and jsdom has no ResizeObserver.
+Object.assign(globalThis, {
+  ResizeObserver: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+})
+
 const shared = {
   walletId: "wallet",
   marketKey: "hyperliquid:mainnet:BTC",
@@ -137,6 +146,29 @@ function control(id: string): HTMLButtonElement | HTMLInputElement {
   return found
 }
 
+/** Whether a control is locked. The leverage slider's thumb says so with
+ * `data-disabled`, because a span has no `disabled` of its own. */
+function locked(id: string): boolean {
+  const found = document.getElementById(id)
+  if (found?.getAttribute("role") === "slider") {
+    return found.hasAttribute("data-disabled")
+  }
+  return control(id).disabled
+}
+
+/** Moves a slider one step with the keyboard, the way a person would. */
+async function press(id: string, key: "ArrowRight" | "ArrowLeft", times = 1) {
+  const thumb = document.getElementById(id)
+  if (thumb?.getAttribute("role") !== "slider") {
+    throw new Error(`${id} is not a slider`)
+  }
+  for (let step = 0; step < times; step++) {
+    await act(async () => {
+      thumb.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+    })
+  }
+}
+
 async function draw(kind: "ladder" | "grid", busy: boolean) {
   await act(async () => {
     root.render(
@@ -219,7 +251,7 @@ it("keeps money and level edits locked while one grid entry is open", async () =
 
   expect(control("grid-edit-levels").disabled).toBe(true)
   expect(control("grid-edit-pot").disabled).toBe(true)
-  expect(control("grid-edit-leverage").disabled).toBe(true)
+  expect(locked("grid-edit-leverage")).toBe(true)
 })
 
 describe.each([
@@ -253,14 +285,14 @@ describe.each([
 ] as const)("the %s settings window", (kind, controlIds) => {
   it("locks every saved value only while the save is running", async () => {
     await draw(kind, false)
-    for (const id of controlIds) expect(control(id).disabled).toBe(false)
+    for (const id of controlIds) expect(locked(id)).toBe(false)
 
     const changedId = kind === "ladder" ? "ladder-tp-pct" : "grid-edit-levels"
     const changedValue = kind === "ladder" ? "7" : "4"
     await type(changedId, changedValue)
 
     await draw(kind, true)
-    for (const id of controlIds) expect(control(id).disabled).toBe(true)
+    for (const id of controlIds) expect(locked(id)).toBe(true)
     expect((control(changedId) as HTMLInputElement).value).toBe(changedValue)
 
     const save = [
@@ -274,7 +306,7 @@ describe.each([
     expect(cancel).toBeUndefined()
 
     await draw(kind, false)
-    for (const id of controlIds) expect(control(id).disabled).toBe(false)
+    for (const id of controlIds) expect(locked(id)).toBe(false)
     expect((control(changedId) as HTMLInputElement).value).toBe(changedValue)
   })
 })
@@ -603,7 +635,7 @@ it("opens an untouched ladder beside its cog and saves every placement setting",
   await type("ladder-rung-1", "6")
   await type("ladder-pot", "30")
   await type("ladder-ramp", "3")
-  await type("ladder-leverage", "2")
+  await press("ladder-leverage", "ArrowRight")
   await type("ladder-sl-pct", "5%")
   await type("ladder-vol-guard", "1")
   await act(async () => control("ladder-two-green").click())
@@ -807,7 +839,7 @@ it("edits the mirrored exit gap without changing the other exit rules", async ()
   )
 })
 
-it("edits borrowing and End Grid from the grid gear window", async () => {
+it("edits leverage and End Grid from the grid gear window", async () => {
   const reshape = vi.fn(async () => true)
   const setEnd = vi.fn(async () => true)
 
@@ -829,9 +861,11 @@ it("edits borrowing and End Grid from the grid gear window", async () => {
     )
   })
 
-  expect((control("grid-edit-leverage") as HTMLInputElement).value).toBe("1")
+  expect(
+    document.getElementById("grid-edit-leverage")?.getAttribute("aria-valuenow")
+  ).toBe("1")
   expect(document.getElementById("grid-end-pct")).toBeNull()
-  await type("grid-edit-leverage", "3")
+  await press("grid-edit-leverage", "ArrowRight", 2)
   await act(async () => control("grid-end-on").click())
   await type("grid-end-pct", "7")
 

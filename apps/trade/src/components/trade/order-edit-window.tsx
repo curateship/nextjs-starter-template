@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
+import { LeverageSlider } from "@/components/trade/leverage-slider"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import {
   ORDER_WINDOW_HEIGHT,
@@ -10,8 +11,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
@@ -191,25 +190,14 @@ function OrderEditForm({
         </p>
       </div>
 
-      {brackets && maxLeverage > 1 ? (
-        <div className="grid gap-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <Label htmlFor="order-leverage">Leverage</Label>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {leverage}×
-            </span>
-          </div>
-          <Slider
-            id="order-leverage"
-            min={1}
-            max={maxLeverage}
-            step={1}
-            value={[leverage]}
-            disabled={busy}
-            onValueChange={([next]) => setLeverage(next)}
-            aria-label="Leverage"
-          />
-        </div>
+      {brackets ? (
+        <LeverageSlider
+          id="order-leverage"
+          value={leverage}
+          max={maxLeverage}
+          disabled={busy}
+          onChange={setLeverage}
+        />
       ) : null}
 
       {brackets ? (

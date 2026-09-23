@@ -200,6 +200,41 @@ export default function WorkersSettings() {
     }
   }
 
+  // The switch that is asking first. Engine off, Trading off and Real money
+  // on can each stop live trading or start spending real money, so one slip
+  // of the mouse must not do it. The switch keeps showing its old value while
+  // the question is open. The safe direction of each stays one click.
+  const [switchAsking, setSwitchAsking] = React.useState<SwitchQuestion | null>(
+    null
+  )
+  const [switchBusy, setSwitchBusy] = React.useState(false)
+  // The words stay on the window while it fades out after closing, instead
+  // of going blank for that moment.
+  const [shownQuestion, setShownQuestion] =
+    React.useState<SwitchQuestion["kind"]>("engine-off")
+  const askSwitch = (question: SwitchQuestion) => {
+    setShownQuestion(question.kind)
+    setSwitchAsking(question)
+  }
+
+  const confirmSwitch = async () => {
+    if (!switchAsking) return
+    setSwitchBusy(true)
+    try {
+      if (switchAsking.kind === "real-money-on") await flipRealMoney(true)
+      else
+        await flip(
+          switchAsking.worker,
+          switchAsking.kind === "engine-off"
+            ? { enabled: false }
+            : { paused: true }
+        )
+    } finally {
+      setSwitchBusy(false)
+      setSwitchAsking(null)
+    }
+  }
+
   if (!data) {
     return (
       <CardGroup>
@@ -317,14 +352,22 @@ export default function WorkersSettings() {
                 label="Engine"
                 checked={worker.enabled}
                 disabled={busy}
-                onChange={(on) => void flip(worker, { enabled: on })}
+                onChange={(on) =>
+                  on
+                    ? void flip(worker, { enabled: true })
+                    : askSwitch({ kind: "engine-off", worker })
+                }
               />
               <SwitchRow
                 id={`${worker.kind}-trading`}
                 label="Trading"
                 checked={worker.enabled && !worker.paused}
                 disabled={busy || !worker.enabled}
-                onChange={(on) => void flip(worker, { paused: !on })}
+                onChange={(on) =>
+                  on
+                    ? void flip(worker, { paused: false })
+                    : askSwitch({ kind: "trading-off", worker })
+                }
               />
               <Button
                 type="button"
@@ -365,7 +408,11 @@ export default function WorkersSettings() {
               label="Real money"
               checked={data.realMoney.enabled}
               disabled={busy}
-              onChange={(on) => void flipRealMoney(on)}
+              onChange={(on) =>
+                on
+                  ? askSwitch({ kind: "real-money-on" })
+                  : void flipRealMoney(false)
+              }
             />
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -438,8 +485,54 @@ export default function WorkersSettings() {
         loading={restartBusy}
         onConfirm={() => void confirmRestart()}
       />
+
+      <ConfirmDialog
+        open={switchAsking !== null}
+        onOpenChange={(open) => {
+          if (!open) setSwitchAsking(null)
+        }}
+        title={SWITCH_QUESTIONS[shownQuestion].title}
+        description={SWITCH_QUESTIONS[shownQuestion].description}
+        confirmLabel={SWITCH_QUESTIONS[shownQuestion].confirmLabel}
+        loading={switchBusy}
+        onConfirm={() => void confirmSwitch()}
+      />
     </CardGroup>
   )
+}
+
+type SwitchQuestion =
+  | { kind: "engine-off"; worker: WorkerStatus }
+  | { kind: "trading-off"; worker: WorkerStatus }
+  | { kind: "real-money-on" }
+
+/**
+ * What each risky switch says before it moves. With the engine off or trading
+ * paused, the engine's pass skips orders and price alerts and only closes
+ * positions whose stop is a line drawn on the chart (`ladder-worker.ts`).
+ */
+const SWITCH_QUESTIONS: Record<
+  SwitchQuestion["kind"],
+  { title: string; description: string; confirmLabel: string }
+> = {
+  "engine-off": {
+    title: "Switch the engine off?",
+    description:
+      "Running grids and ladders stop placing orders, and price alerts stop firing, until you switch this back on. Stops drawn as lines on the chart still close their positions.",
+    confirmLabel: "Switch off",
+  },
+  "trading-off": {
+    title: "Pause trading?",
+    description:
+      "Running grids and ladders stop placing orders, and price alerts stop firing, until you switch this back on. Stops drawn as lines on the chart still close their positions.",
+    confirmLabel: "Pause trading",
+  },
+  "real-money-on": {
+    title: "Switch real money on?",
+    description:
+      "Orders on real wallets go to the exchange and spend real money. Only have this on in one place at a time.",
+    confirmLabel: "Switch on",
+  },
 }
 
 function SwitchRow({
