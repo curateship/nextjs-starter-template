@@ -691,7 +691,9 @@ function AudioMediaCard({
           <Button
             type="button"
             size="icon-lg"
-            className="absolute top-1/2 left-0 z-10 -translate-y-1/2 rounded-full"
+            // Centred with margins, not a transform: the Button's own pressed
+            // nudge is a transform too, and would replace a centring one.
+            className="absolute inset-y-0 left-0 z-10 my-auto rounded-full"
             aria-label={active ? `Pause ${item.original_name}` : `Play ${item.original_name}`}
             title={active ? "Pause preview" : "Play preview"}
             onPointerDown={(event) => event.stopPropagation()}

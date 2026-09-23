@@ -59,6 +59,11 @@ import {
   type ScrollMetrics,
   type TimelineWindow,
 } from "@/lib/video/timeline-virtualization"
+import {
+  getWaveform,
+  waveformPlacement,
+  type Waveform,
+} from "@/lib/video/waveforms"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   useEditorDurationMs,
@@ -89,6 +94,10 @@ const RULER_H = 28
 // a useful size; it is still clamped to the store's hard limits.
 const ZOOM_MIN = Math.max(MIN_PX_PER_SECOND, 18)
 const ZOOM_MAX = Math.min(MAX_PX_PER_SECOND, 90)
+
+// The sound shape's colour, the same for the placeholder and the real thing so
+// nothing changes colour when the real shape arrives.
+const AUDIO_WAVE_COLOR = "#16a34a"
 
 const ACCENTS = {
   video: "var(--acc)",
@@ -782,6 +791,22 @@ const ClipChip = React.memo(function ClipChip({
     }
   }, [kind, mediaId, trimStartMs, sourceSpan])
 
+  // The real shape of the sound along an audio clip. Until it arrives the
+  // made-up pattern below stays, and the swap happens in one paint.
+  const [waveform, setWaveform] = React.useState<Waveform | null>(null)
+  React.useEffect(() => {
+    if (kind !== "audio" || !mediaId) return
+    let cancelled = false
+    getWaveform(mediaId)
+      .then((loaded) => {
+        if (!cancelled) setWaveform(loaded)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [kind, mediaId])
+
   const drag = React.useRef<null | {
     mode: "move" | "trim-start" | "trim-end"
     startX: number
@@ -839,16 +864,18 @@ const ClipChip = React.memo(function ClipChip({
       inset: 0,
       background: `color-mix(in oklch, ${accent}, var(--clip-fill-mix) 82%)`,
     }
-    overlay = {
-      position: "absolute",
-      inset: 0,
-      pointerEvents: "none",
-      background: waveformDataUrl("#16a34a"),
-      backgroundSize: "auto 56%",
-      backgroundRepeat: "repeat-x",
-      backgroundPosition: "left center",
-      opacity: 0.85,
-    }
+    overlay = waveform
+      ? null
+      : {
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          background: waveformDataUrl(AUDIO_WAVE_COLOR),
+          backgroundSize: "auto 56%",
+          backgroundRepeat: "repeat-x",
+          backgroundPosition: "left center",
+          opacity: 0.85,
+        }
     labelColor = `color-mix(in oklch, ${accent}, var(--clip-label-mix) 42%)`
   } else {
     fill = {
@@ -1160,6 +1187,27 @@ const ClipChip = React.memo(function ClipChip({
             />
           ))}
         </div>
+      ) : null}
+      {clip.kind === "audio" && waveform?.path ? (
+        <svg
+          aria-hidden
+          viewBox={`0 0 ${waveform.pointCount} 2`}
+          preserveAspectRatio="none"
+          style={{
+            position: "absolute",
+            top: "22%",
+            height: "56%",
+            ...waveformPlacement(
+              waveform,
+              { trimStartMs: clip.trimStartMs, speed: clipSpeed(clip) },
+              pps
+            ),
+            pointerEvents: "none",
+            opacity: 0.85,
+          }}
+        >
+          <path d={waveform.path} fill={AUDIO_WAVE_COLOR} />
+        </svg>
       ) : null}
       {overlay ? <div style={overlay} /> : null}
       {showLabel ? (
