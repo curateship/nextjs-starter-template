@@ -2077,6 +2077,40 @@ describe("membership section", () => {
       summary.planMembership.reduce((total, row) => total + row.people, 0)
     ).toBe(summary.revenue.totalUsers)
   })
+
+  it("draws the last 30 days of joining, and the running total", async () => {
+    const DAY_MS = 24 * 60 * 60 * 1000
+    // Two today, one ten days back, and one from before the line starts.
+    const joinedDaysAgo = [0, 0, 10, 45]
+    for (const [index, daysAgo] of joinedDaysAgo.entries()) {
+      const createdAt = new Date(Date.now() - daysAgo * DAY_MS)
+      await database.insert(customShellUsers).values({
+        id: uuid(),
+        email: `line-${index}@internal.dev`,
+        name: `line ${index}`,
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      })
+    }
+
+    const { last30Days, revenue } = await loadMembershipSummary(
+      database as unknown as CustomShellDb
+    )
+
+    expect(last30Days).toHaveLength(30)
+    expect(last30Days.at(-1)).toMatchObject({
+      joined: 2,
+      people: revenue.totalUsers,
+    })
+    expect(last30Days[29 - 10]).toMatchObject({
+      joined: 1,
+      people: revenue.totalUsers - 2,
+    })
+    // Before the ten-day-old account, only the one from before the line.
+    expect(last30Days[0].people).toBe(revenue.totalUsers - 3)
+  })
 })
 
 describe("overview link", () => {
@@ -4448,6 +4482,11 @@ describe("feeds section", () => {
       // One of the two has been replied to.
       noReply: 1,
     })
+    // The line: 30 days ending today, one today and one eight days back.
+    expect(summary.feedback.last30Days).toHaveLength(30)
+    expect(summary.feedback.last30Days.at(-1)).toBe(1)
+    expect(summary.feedback.last30Days[29 - 8]).toBe(1)
+    expect(summary.feedback.last30Days.reduce((a, b) => a + b, 0)).toBe(2)
   })
 })
 
