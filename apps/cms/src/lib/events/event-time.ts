@@ -47,7 +47,7 @@ const zoneNames = new Map<string, string>()
  * "Eastern Time" for America/Toronto. The generic name has no daylight-saving
  * half, so it is right on every day of the year.
  */
-function timeZoneLabel(timeZone: string): string {
+export function timeZoneLabel(timeZone: string): string {
   const cached = zoneNames.get(timeZone)
   if (cached) return cached
   let label = timeZone.replaceAll("_", " ")
@@ -133,6 +133,13 @@ const SHORT_DAY = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
 })
 
+const WEEKDAY_AND_DAY = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+})
+
 const CLOCK = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   hour: "numeric",
@@ -140,13 +147,24 @@ const CLOCK = new Intl.DateTimeFormat("en-US", {
 })
 
 /** "Saturday, September 27, 2026". */
-function formatEventDay(date: string): string {
+export function formatEventDay(date: string): string {
   return LONG_DAY.format(asPrintable(date))
 }
 
 /** "6:00 PM". */
-function formatEventClock(clock: string): string {
+export function formatEventClock(clock: string): string {
   return CLOCK.format(asPrintable("2000-01-01", toClock(clock)))
+}
+
+/** "Sat, Sep 26", for a row in the Events page's list. */
+export function formatEventShortDay(date: string): string {
+  return WEEKDAY_AND_DAY.format(asPrintable(date))
+}
+
+/** "6:00 PM to 11:00 PM", or "6:00 PM" with no end time. */
+export function eventTimesText(when: EventWhen): string {
+  const start = formatEventClock(when.startTime)
+  return when.endTime ? `${start} to ${formatEventClock(when.endTime)}` : start
 }
 
 /** "Sep 27, 2026, 6:00 PM", for a row in Admin → Events. */
@@ -176,6 +194,6 @@ export function eventWhenLines(
   }
   return {
     day: formatEventDay(when.startDate),
-    times: end ? `${start} to ${end}, ${zone}` : `${start}, ${zone}`,
+    times: `${eventTimesText(when)}, ${zone}`,
   }
 }

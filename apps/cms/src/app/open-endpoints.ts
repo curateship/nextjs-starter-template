@@ -47,6 +47,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "The Posts page is a public page, so its list of published posts has to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Posts page switched off or kept for members and the reader is signed out.",
   "posts/public.ts:readPostFn":
     "A post's own page is public. It answers with a published post on the visited site only, so a draft is missing rather than hidden, and it follows the Posts page's on/off switch before reading anything.",
+  "events/public.ts:readEventsPageFn":
+    "The Events page is a public page, so its list and month of published events have to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Events page switched off or kept for members and the reader is signed out.",
   "events/public.ts:readEventFn":
     "An event's own page is public. It answers with a published event on the visited site only, so a draft is missing rather than hidden, and it follows the Events page's on/off switch before reading anything.",
   "directory/public-profile.ts:readPublicSavedProfileFn":

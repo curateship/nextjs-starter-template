@@ -1,11 +1,5 @@
 import * as React from "react"
-import {
-  createFileRoute,
-  isRedirect,
-  Link,
-  notFound,
-  redirect,
-} from "@tanstack/react-router"
+import { createFileRoute, Link, notFound } from "@tanstack/react-router"
 import { CalendarIcon, MapPinIcon } from "lucide-react"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
@@ -32,16 +26,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
 export const Route = createFileRoute("/events_/$slug")({
   loader: async ({ params }) => {
     const [, page] = await Promise.all([
-      // A members-only switch sends a signed-out visitor to sign in and back
-      // to the switch's own address. /events has no list yet, so they are
-      // sent back to this event instead.
-      requirePageVisible("/events").catch((error: unknown) => {
-        if (!isRedirect(error)) throw error
-        throw redirect({
-          to: "/login",
-          search: { redirect: `/events/${params.slug}` },
-        })
-      }),
+      requirePageVisible("/events"),
       loadEvent(params.slug),
     ])
     if (!page) throw notFound()
@@ -67,7 +52,11 @@ function EventRoute() {
   return (
     <DirectoryFrame>
       <DirectoryBreadcrumbs
-        crumbs={[{ label: site.name, home: true }, { label: event.title }]}
+        crumbs={[
+          { label: site.name, home: true },
+          { label: "Events", events: true },
+          { label: event.title },
+        ]}
       />
 
       {ended ? (
