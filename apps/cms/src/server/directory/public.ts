@@ -28,8 +28,12 @@ import {
 import {
   RELATED_LISTING_COUNT,
   DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
+  DIRECTORY_SUGGESTION_CATEGORY_LIMIT,
+  DIRECTORY_SUGGESTION_LISTING_LIMIT,
+  DIRECTORY_SUGGESTION_MIN_LENGTH,
   type DirectorySort,
   type DirectoryNearPoint,
+  type DirectorySuggestions,
 } from "@/lib/directory/public-search"
 import {
   cleanWrittenPageBody,
@@ -392,6 +396,87 @@ export async function directorySearchResults(
     snippet: searchSnippet(row.metaDescription, query),
     path: `/directory/${row.slug}`,
   }))
+}
+
+/**
+ * The short list the search box offers while somebody is still typing.
+ *
+ * The same matching rules as the browse list, just fewer rows: a visitor who
+ * ignores the suggestions and presses Enter must not get a different set of
+ * results from the one they were being offered.
+ *
+ * The per-visitor limit is the endpoint's, not this function's, so the read
+ * itself stays a plain query a test can call a hundred times.
+ */
+export async function readDirectorySuggestions(
+  siteId: string,
+  rawQuery: string,
+  database: CustomShellDb = db
+): Promise<DirectorySuggestions> {
+  const query = rawQuery.trim()
+  if (query.length < DIRECTORY_SUGGESTION_MIN_LENGTH) {
+    return { listings: [], categories: [] }
+  }
+
+  const pattern = siteSearchPattern(query)
+
+  // A category with nothing published in it is never offered. Clicking it
+  // would land on an empty page, which reads as a broken site rather than as
+  // an empty category.
+  const publishedCategoryIds = database
+    .selectDistinct({ id: categoryRelationships.categoryId })
+    .from(categoryRelationships)
+    .innerJoin(
+      directoryListings,
+      eq(directoryListings.id, categoryRelationships.contentId)
+    )
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        publishedOnSite(siteId)
+      )
+    )
+
+  const [listings, categoryRows] = await Promise.all([
+    database
+      .select({
+        title: directoryListings.title,
+        slug: directoryListings.slug,
+      })
+      .from(directoryListings)
+      .where(
+        and(
+          publishedOnSite(siteId),
+          or(
+            ilike(directoryListings.title, pattern),
+            ilike(directoryListings.metaDescription, pattern)
+          )
+        )
+      )
+      // A name that matches beats a description that matches, so "Luigi's
+      // Pizza" is above a bakery whose blurb happens to mention pizza.
+      .orderBy(
+        desc(ilike(directoryListings.title, pattern)),
+        asc(directoryListings.title),
+        asc(directoryListings.id)
+      )
+      .limit(DIRECTORY_SUGGESTION_LISTING_LIMIT),
+    database
+      .select({ title: categories.name, slug: categories.slug })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.workspaceId, siteId),
+          ilike(categories.name, pattern),
+          inArray(categories.id, publishedCategoryIds)
+        )
+      )
+      .orderBy(asc(categories.name), asc(categories.id))
+      .limit(DIRECTORY_SUGGESTION_CATEGORY_LIMIT),
+  ])
+
+  return { listings, categories: categoryRows }
 }
 
 function orderFor(

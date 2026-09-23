@@ -125,3 +125,45 @@ export function formatDirectoryDistance(distanceKm: number | null | undefined) {
 
 /** How many "you might also like" listings a detail page shows. */
 export const RELATED_LISTING_COUNT = 3
+
+/**
+ * What the search box offers while somebody is still typing.
+ *
+ * Named here rather than in the endpoint because the box and the server both
+ * need the same two numbers: the box decides when a query is long enough to be
+ * worth asking about, and the server refuses anything shorter.
+ */
+export const DIRECTORY_SUGGESTION_MIN_LENGTH = 2
+
+/** How long typing has to stop before the box asks the server. */
+export const DIRECTORY_SUGGESTION_DELAY_MS = 200
+
+export const DIRECTORY_SUGGESTION_LISTING_LIMIT = 5
+export const DIRECTORY_SUGGESTION_CATEGORY_LIMIT = 3
+
+/** One row under the search box: a published listing, or a category page. */
+export type DirectorySuggestion = {
+  kind: "listing" | "category"
+  title: string
+  slug: string
+}
+
+export type DirectorySuggestions = {
+  listings: Array<{ title: string; slug: string }>
+  categories: Array<{ title: string; slug: string }>
+}
+
+/**
+ * Categories first, then listings.
+ *
+ * A category is a whole page of results and a listing is one shop, so somebody
+ * typing "pizz" is more often after "Pizza" than after any single pizzeria.
+ */
+export function directorySuggestionRows(
+  answer: DirectorySuggestions
+): DirectorySuggestion[] {
+  return [
+    ...answer.categories.map((row) => ({ kind: "category" as const, ...row })),
+    ...answer.listings.map((row) => ({ kind: "listing" as const, ...row })),
+  ]
+}

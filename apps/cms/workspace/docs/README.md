@@ -28,6 +28,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   and what happens at the edges of them.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what
   stops it being used for spam, and the admin queue the reports land in.
+- `directory-search-suggestions.md` — the listings and categories the public
+  search box offers as a visitor types, its keyboard, and how often it asks the
+  server.
 - `posts.md` — each site's Posts page: writing posts, listing cards in a post, and
   where posts appear once published.
 
