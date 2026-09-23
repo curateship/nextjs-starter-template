@@ -16,6 +16,7 @@ import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as EventsDoticsRouteImport } from './routes/events[.]ics'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
@@ -87,6 +88,7 @@ import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/str
 import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
 import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_.share-image.$slug'
 import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
+import { Route as EventsSlugCalendarDoticsRouteImport } from './routes/events_.$slug.calendar[.]ics'
 import { Route as EventsShareImageSlugRouteImport } from './routes/events_.share-image.$slug'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
@@ -132,6 +134,11 @@ const DirectoryRoute = DirectoryRouteImport.update({
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsDoticsRoute = EventsDoticsRouteImport.update({
+  id: '/events.ics',
+  path: '/events.ics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
@@ -518,6 +525,12 @@ const EmbedListingListingIdRoute = EmbedListingListingIdRouteImport.update({
   path: '/embed/listing/$listingId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsSlugCalendarDoticsRoute =
+  EventsSlugCalendarDoticsRouteImport.update({
+    id: '/calendar.ics',
+    path: '/calendar.ics',
+    getParentRoute: () => EventsSlugRoute,
+  } as any)
 const EventsShareImageSlugRoute = EventsShareImageSlugRouteImport.update({
   id: '/events_/share-image/$slug',
   path: '/events/share-image/$slug',
@@ -594,6 +607,7 @@ export interface FileRoutesByFullPath {
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
   '/events': typeof EventsRoute
+  '/events.ics': typeof EventsDoticsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -622,7 +636,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
-  '/events/$slug': typeof EventsSlugRoute
+  '/events/$slug': typeof EventsSlugRouteWithChildren
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -663,6 +677,7 @@ export interface FileRoutesByFullPath {
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/events/share-image/$slug': typeof EventsShareImageSlugRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -685,6 +700,7 @@ export interface FileRoutesByTo {
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
   '/events': typeof EventsRoute
+  '/events.ics': typeof EventsDoticsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -711,7 +727,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
-  '/events/$slug': typeof EventsSlugRoute
+  '/events/$slug': typeof EventsSlugRouteWithChildren
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -752,6 +768,7 @@ export interface FileRoutesByTo {
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/events/share-image/$slug': typeof EventsShareImageSlugRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
@@ -776,6 +793,7 @@ export interface FileRoutesById {
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
   '/events': typeof EventsRoute
+  '/events.ics': typeof EventsDoticsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -804,7 +822,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
-  '/events_/$slug': typeof EventsSlugRoute
+  '/events_/$slug': typeof EventsSlugRouteWithChildren
   '/posts_/$slug': typeof PostsSlugRoute
   '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -845,6 +863,7 @@ export interface FileRoutesById {
   '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory_/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events_/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/events_/share-image/$slug': typeof EventsShareImageSlugRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -869,6 +888,7 @@ export interface FileRouteTypes {
     | '/change-email'
     | '/directory'
     | '/events'
+    | '/events.ics'
     | '/feed.xml'
     | '/forgot-password'
     | '/login'
@@ -938,6 +958,7 @@ export interface FileRouteTypes {
     | '/directory/category/$slug'
     | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
+    | '/events/$slug/calendar.ics'
     | '/events/share-image/$slug'
     | '/admin/'
     | '/changelog/'
@@ -960,6 +981,7 @@ export interface FileRouteTypes {
     | '/change-email'
     | '/directory'
     | '/events'
+    | '/events.ics'
     | '/feed.xml'
     | '/forgot-password'
     | '/login'
@@ -1027,6 +1049,7 @@ export interface FileRouteTypes {
     | '/directory/category/$slug'
     | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
+    | '/events/$slug/calendar.ics'
     | '/events/share-image/$slug'
     | '/admin'
     | '/changelog'
@@ -1050,6 +1073,7 @@ export interface FileRouteTypes {
     | '/change-email'
     | '/directory'
     | '/events'
+    | '/events.ics'
     | '/feed.xml'
     | '/forgot-password'
     | '/login'
@@ -1119,6 +1143,7 @@ export interface FileRouteTypes {
     | '/directory_/category/$slug'
     | '/directory_/share-image/$slug'
     | '/embed/listing/$listingId'
+    | '/events_/$slug/calendar.ics'
     | '/events_/share-image/$slug'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
@@ -1143,6 +1168,7 @@ export interface RootRouteChildren {
   ChangeEmailRoute: typeof ChangeEmailRoute
   DirectoryRoute: typeof DirectoryRoute
   EventsRoute: typeof EventsRoute
+  EventsDoticsRoute: typeof EventsDoticsRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
@@ -1164,7 +1190,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
-  EventsSlugRoute: typeof EventsSlugRoute
+  EventsSlugRoute: typeof EventsSlugRouteWithChildren
   PostsSlugRoute: typeof PostsSlugRoute
   ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
@@ -1229,6 +1255,13 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events.ics': {
+      id: '/events.ics'
+      path: '/events.ics'
+      fullPath: '/events.ics'
+      preLoaderRoute: typeof EventsDoticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed.xml': {
@@ -1728,6 +1761,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedListingListingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events_/$slug/calendar.ics': {
+      id: '/events_/$slug/calendar.ics'
+      path: '/calendar.ics'
+      fullPath: '/events/$slug/calendar.ics'
+      preLoaderRoute: typeof EventsSlugCalendarDoticsRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
     '/events_/share-image/$slug': {
       id: '/events_/share-image/$slug'
       path: '/events/share-image/$slug'
@@ -1972,6 +2012,18 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface EventsSlugRouteChildren {
+  EventsSlugCalendarDoticsRoute: typeof EventsSlugCalendarDoticsRoute
+}
+
+const EventsSlugRouteChildren: EventsSlugRouteChildren = {
+  EventsSlugCalendarDoticsRoute: EventsSlugCalendarDoticsRoute,
+}
+
+const EventsSlugRouteWithChildren = EventsSlugRoute._addFileChildren(
+  EventsSlugRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
@@ -1980,6 +2032,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChangeEmailRoute: ChangeEmailRoute,
   DirectoryRoute: DirectoryRoute,
   EventsRoute: EventsRoute,
+  EventsDoticsRoute: EventsDoticsRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
@@ -2001,7 +2054,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
-  EventsSlugRoute: EventsSlugRoute,
+  EventsSlugRoute: EventsSlugRouteWithChildren,
   PostsSlugRoute: PostsSlugRoute,
   ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,

@@ -156,6 +156,23 @@ export async function eventsArePublic(
   return (await readPageVisibility(siteId, "/events", database)) === "everyone"
 }
 
+/**
+ * Whether this visitor may read the site's events, and why: "everyone" when
+ * the Events page is open to all, "members" when it is kept for members and
+ * they are signed in, and null otherwise. `isSignedIn` is only asked in the
+ * members case.
+ */
+export async function eventsAccessFor(
+  siteId: string,
+  isSignedIn: () => Promise<boolean>,
+  database: CustomShellDb = db
+): Promise<"everyone" | "members" | null> {
+  const visibility = await readPageVisibility(siteId, "/events", database)
+  if (visibility === "everyone") return "everyone"
+  if (visibility === "members" && (await isSignedIn())) return "members"
+  return null
+}
+
 /** The site's wall clock now, "2026-09-26T18:05". */
 async function siteNow(siteId: string, database: CustomShellDb, at: Date) {
   return wallClockAt(await siteTimeZone(siteId, database), at)
@@ -322,6 +339,61 @@ export function readUpcomingEvents(
       }
     }
   )
+}
+
+/** More upcoming events than a site plans, in a file a calendar app still reads. */
+const CALENDAR_FEED_LIMIT = 500
+
+type CalendarFeed = {
+  timeZone: string
+  events: (EventWhen & {
+    id: string
+    title: string
+    slug: string
+    summary: string
+    placeName: string
+    placeAddress: string
+  })[]
+}
+
+/**
+ * The events for the site's calendar subscription: published and not over
+ * yet by the site's clock, soonest first. Null unless the Events page is open
+ * to everyone, because a calendar app asking for the feed is never signed in.
+ */
+export async function readCalendarFeed(
+  siteId: string,
+  at: Date,
+  database: CustomShellDb = db
+): Promise<CalendarFeed | null> {
+  if (!(await eventsArePublic(siteId, database))) return null
+  const timeZone = await siteTimeZone(siteId, database)
+  const [nowDay = "", nowTime = ""] = wallClockAt(timeZone, at).split("T")
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      placeName: siteEvents.placeName,
+      placeAddress: siteEvents.placeAddress,
+      startDate: siteEvents.startDate,
+      startTime: siteEvents.startTime,
+      endDate: siteEvents.endDate,
+      endTime: siteEvents.endTime,
+    })
+    .from(siteEvents)
+    .where(and(publishedEventsOnSite(siteId), notOverAt(nowDay, nowTime)))
+    .orderBy(...soonestFirst)
+    .limit(CALENDAR_FEED_LIMIT)
+  return {
+    timeZone,
+    events: rows.map((row) => ({
+      ...row,
+      startTime: toClock(row.startTime),
+      endTime: row.endTime ? toClock(row.endTime) : null,
+    })),
+  }
 }
 
 /**

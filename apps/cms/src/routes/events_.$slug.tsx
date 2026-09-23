@@ -6,6 +6,7 @@ import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-br
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
+import { AddToCalendarMenu } from "@/components/events/public/calendar-menus"
 import { PostBody } from "@/components/posts/public/post-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -162,6 +163,13 @@ function EventRoute() {
               </p>
             ) : null}
           </div>
+
+          {ended ? null : (
+            <AddToCalendarMenu
+              event={{ ...event, url: `${site.url}/events/${event.slug}` }}
+              timeZone={timeZone}
+            />
+          )}
 
           {event.body.content?.length ? (
             <PostBody body={event.body} listingCards={listingCards} />

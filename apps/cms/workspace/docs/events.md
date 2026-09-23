@@ -196,6 +196,56 @@ SEP 28" instead, because the time would not fit.
   answers not found.
 - **One visitor may ask 120 times a minute**, the same limit as listing cards.
 
+## Adding an event to a calendar
+
+Each event page has an "Add to calendar" button, and the Events page has a
+"Subscribe" button. Both open a short menu with Google Calendar and "Apple
+Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
+
+- **One event:** Google opens its new-event form filled in, in a new tab. The
+  other choice downloads `/events/<address>/calendar.ics`, which a phone or a
+  computer opens in its own calendar app.
+- **Once an event is over,** the page has no "Add to calendar" button.
+- **Subscribe:** Google opens its "Add calendar" prompt. The other choice is a
+  `webcal://` link to `/events.ics`, which hands the address to the phone's or
+  computer's calendar app. After that, every event the site publishes shows up
+  in the visitor's calendar by itself.
+- **What the subscription holds:** every published event that is not over yet,
+  soonest first, 500 at most. An event drops out of it once it is over, so it
+  also leaves the subscriber's calendar at the next check.
+- **How fast a new event arrives:** Apple Calendar and Outlook are asked to
+  check every 6 hours. Google checks on its own timetable, usually within a
+  day, and ignores the request.
+- **Google's subscribe choice needs a real address.** Google fetches the file
+  from its own servers, so it cannot reach a site running on this computer.
+
+### Times in a calendar
+
+- **Every time goes out as one exact moment**, worked out from the event's day
+  and clock time in the site's time zone on that day. 6pm on 26 Sep in
+  Toronto goes out as 10pm UTC, and 6pm on 7 Nov as 11pm UTC, because the
+  clocks go back on 1 Nov. The visitor's calendar then shows it at their own
+  local time, which is 6pm for somebody in Toronto.
+- **The end is the event's real end.** With no end time, it runs to midnight
+  at the end of its last day, the same moment the site counts it as over. A
+  6pm event with no end time is 6pm to midnight in the calendar.
+- **Google's form** is also told the site's zone, so it shows the times the
+  way the event page does.
+- **Each event keeps the same id in every file**, so adding it a second time
+  updates it instead of making a copy.
+
+### Who can get the files
+
+- **One event's file** follows the event page's rule. With the Events page
+  kept for members, a signed-in member can download it and a signed-out
+  visitor gets not found.
+- **The subscription** exists only while the Events page is open to everyone,
+  because a calendar app asking for it is never signed in. Switched off or kept
+  for members, `/events.ics` is not found and the Events page has no Subscribe
+  button.
+- **A draft, another site's event and a made-up address** all get not found,
+  the same as the page.
+
 ## Not built yet
 
 These are later tasks in `workspace/tasks/events/`: filters on the Events page,
