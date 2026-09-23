@@ -11,14 +11,16 @@ import {
   createListing,
   setListingCategories,
 } from "@/server/directory/listings"
+import {
+  categoryIdsFor,
+  setContentCategories,
+} from "@/server/directory/content-categories"
 import { categoryRelationships } from "@/server/directory/schema"
 import {
-  categoryIdsForPost,
   createPost,
   deletePosts,
   findPost,
   listPosts,
-  setPostCategories,
   updatePost,
 } from "@/server/posts/posts"
 import { sitePosts, POST_CONTENT_TYPE } from "@/server/posts/schema"
@@ -154,13 +156,21 @@ describe("categories", () => {
     const mine = await createCategory(alpha, { name: "Bakeries" }, database)
     const theirs = await createCategory(beta, { name: "Cafes" }, database)
 
-    await setPostCategories(alpha, post.id, [mine.id, theirs.id], database)
-    expect(await categoryIdsForPost(alpha, post.id, database)).toEqual([
-      mine.id,
-    ])
+    await setContentCategories(
+      alpha,
+      POST_CONTENT_TYPE,
+      post.id,
+      [mine.id, theirs.id],
+      database
+    )
+    expect(
+      await categoryIdsFor(alpha, POST_CONTENT_TYPE, post.id, database)
+    ).toEqual([mine.id])
 
-    await setPostCategories(alpha, post.id, [], database)
-    expect(await categoryIdsForPost(alpha, post.id, database)).toEqual([])
+    await setContentCategories(alpha, POST_CONTENT_TYPE, post.id, [], database)
+    expect(
+      await categoryIdsFor(alpha, POST_CONTENT_TYPE, post.id, database)
+    ).toEqual([])
   })
 
   it("never changes a category's listing count", async () => {
@@ -168,7 +178,13 @@ describe("categories", () => {
     const listing = await createListing(alpha, { title: "Blackbird" }, database)
     await setListingCategories(alpha, listing.id, [bakeries.id], null, database)
     const post = await createPost(alpha, { title: "Best bakeries" }, database)
-    await setPostCategories(alpha, post.id, [bakeries.id], database)
+    await setContentCategories(
+      alpha,
+      POST_CONTENT_TYPE,
+      post.id,
+      [bakeries.id],
+      database
+    )
 
     const [category] = await listCategories(alpha, database)
     expect(category?.listingCount).toBe(1)
@@ -177,13 +193,20 @@ describe("categories", () => {
       children: 0,
       listings: 1,
       posts: 1,
+      events: 0,
     })
   })
 
   it("removes a deleted post's category rows with it", async () => {
     const bakeries = await createCategory(alpha, { name: "Bakeries" }, database)
     const post = await createPost(alpha, { title: "Short lived" }, database)
-    await setPostCategories(alpha, post.id, [bakeries.id], database)
+    await setContentCategories(
+      alpha,
+      POST_CONTENT_TYPE,
+      post.id,
+      [bakeries.id],
+      database
+    )
 
     expect(await deletePosts(alpha, [post.id, "missing"], database)).toEqual({
       done: [post.id],

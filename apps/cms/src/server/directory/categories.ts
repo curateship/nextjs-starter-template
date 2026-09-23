@@ -14,6 +14,7 @@ import {
   type CategoryRow,
 } from "@/server/directory/schema"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
 import { POST_CONTENT_TYPE } from "@/server/posts/schema"
 
 /**
@@ -326,14 +327,19 @@ export async function updateCategory(
 
 /**
  * What deleting this category takes with it, for the confirmation to say:
- * how many subcategories move up a level, and how many listings and posts
- * lose the tag.
+ * how many subcategories move up a level, and how many listings, posts and
+ * events lose the tag.
  */
 export async function categoryDeleteImpact(
   workspaceId: string,
   id: string,
   database: CustomShellDb = db
-): Promise<{ children: number; listings: number; posts: number }> {
+): Promise<{
+  children: number
+  listings: number
+  posts: number
+  events: number
+}> {
   const taggedWith = (contentType: string) =>
     database
       .select({ count: sql<number>`count(*)::int` })
@@ -345,7 +351,7 @@ export async function categoryDeleteImpact(
           eq(categoryRelationships.contentType, contentType)
         )
       )
-  const [[childRow], [listingRow], [postRow]] = await Promise.all([
+  const [[childRow], [listingRow], [postRow], [eventRow]] = await Promise.all([
     database
       .select({ count: sql<number>`count(*)::int` })
       .from(categories)
@@ -357,11 +363,13 @@ export async function categoryDeleteImpact(
       ),
     taggedWith(LISTING_CONTENT_TYPE),
     taggedWith(POST_CONTENT_TYPE),
+    taggedWith(EVENT_CONTENT_TYPE),
   ])
   return {
     children: childRow?.count ?? 0,
     listings: listingRow?.count ?? 0,
     posts: postRow?.count ?? 0,
+    events: eventRow?.count ?? 0,
   }
 }
 

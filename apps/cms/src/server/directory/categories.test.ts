@@ -127,6 +127,7 @@ describe("deleting", () => {
       children: 1,
       listings: 1,
       posts: 0,
+      events: 0,
     })
   })
 

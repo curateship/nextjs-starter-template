@@ -6,6 +6,10 @@ import {
   type DirectoryCategorySource,
 } from "@/lib/directory/category-cards"
 import {
+  DEFAULT_SITE_TIME_ZONE,
+  isKnownTimeZone,
+} from "@/lib/events/event-time"
+import {
   isDirectoryDefaultSort,
   type DirectoryDefaultSort,
 } from "@/lib/directory/public-search"
@@ -62,6 +66,8 @@ export type DirectorySettings = {
    * its own, by the one read that has a use for it.
    */
   hasMapKey: boolean
+  /** The zone every event's clock time is read in, like 'America/Toronto'. */
+  timeZone: string
 }
 
 /** The wording a site gets before anybody changes it. */
@@ -86,6 +92,7 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   browsePickedCategoryIds: [],
   neighbourhoodCategoryId: "",
   hasMapKey: false,
+  timeZone: DEFAULT_SITE_TIME_ZONE,
 }
 
 /**
@@ -177,6 +184,7 @@ export async function directorySettingsFor(
     neighbourhoodCategoryId: row.neighbourhoodCategoryId ?? "",
     mapEnabled: row.mapEnabled,
     hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
+    timeZone: row.timeZone,
   }
 }
 
@@ -345,6 +353,7 @@ export async function savedDirectorySettings(
         neighbourhoodCategoryId: row.neighbourhoodCategoryId ?? "",
         mapEnabled: row.mapEnabled,
         hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
+        timeZone: row.timeZone,
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
@@ -366,6 +375,7 @@ export async function savedDirectorySettings(
         browsePickedCategoryIds:
           DIRECTORY_SETTING_DEFAULTS.browsePickedCategoryIds,
         hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
+        timeZone: DIRECTORY_SETTING_DEFAULTS.timeZone,
       }
 }
 
@@ -562,4 +572,46 @@ export async function saveDirectoryBadgesEnabled(
     })
 
   return { badgesEnabled }
+}
+
+/** The zone this site's event times are read in. */
+export async function siteTimeZone(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<string> {
+  const [row] = await database
+    .select({ timeZone: directorySettings.timeZone })
+    .from(directorySettings)
+    .where(eq(directorySettings.workspaceId, workspaceId))
+    .limit(1)
+  return row?.timeZone ?? DEFAULT_SITE_TIME_ZONE
+}
+
+/**
+ * Changes only the site's time zone. Events keep their stored day and clock
+ * time, so "Saturday 6pm" stays Saturday 6pm and now means 6pm in the new zone.
+ */
+export async function saveDirectoryTimeZone(
+  workspaceId: string,
+  timeZone: string,
+  database: CustomShellDb = db
+): Promise<DirectorySettings> {
+  const chosen = timeZone.trim()
+  if (!isKnownTimeZone(chosen)) {
+    throw new Error("Choose a time zone from the list.")
+  }
+
+  const at = now()
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, timeZone: chosen, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { timeZone: chosen, updatedAt: at },
+    })
+
+  // An event page says whether the event is over and names the zone, and both
+  // are cached.
+  clearPublicDirectoryCache(workspaceId)
+  return directorySettingsFor(workspaceId, database)
 }

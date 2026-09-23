@@ -17,6 +17,7 @@ import {
   directoryGeocodingKeyStatus,
   directoryMapDisplayKeyStatus,
   saveDirectoryMapEnabled,
+  saveDirectoryTimeZone,
   type DirectorySettings,
 } from "@/server/directory/settings"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -36,6 +37,7 @@ export const getDirectorySettingsErrorMessage = createErrorMessage(
     "Choose at least one category, or show the top-level ones instead.":
       "Choose at least one category, or show the top-level ones instead.",
     "That category is not on this site.": "That category is not on this site.",
+    "Choose a time zone from the list.": "Choose a time zone from the list.",
   },
   "The directory settings could not be saved."
 )
@@ -166,6 +168,21 @@ const saveNeighbourhoodCategoryFn = createServerFn({ method: "POST" })
 /** Changes which parent category names a listing's neighbourhood. */
 export function saveNeighbourhoodCategory(neighbourhoodCategoryId: string) {
   return saveNeighbourhoodCategoryFn({ data: { neighbourhoodCategoryId } })
+}
+
+const saveTimeZoneFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ timeZone: z.string().min(1).max(64) }))
+  .handler(async ({ data, context }) =>
+    saveDirectoryTimeZone(
+      await workspaceIdForRequest(context.user.id),
+      data.timeZone
+    )
+  )
+
+/** Changes the zone this site's event times are read in. */
+export function saveTimeZone(timeZone: string) {
+  return saveTimeZoneFn({ data: { timeZone } })
 }
 
 export type { DirectorySettings }

@@ -256,14 +256,17 @@ export const IndicatorLayer = React.memo(function IndicatorLayer({
         )
       })}
 
-      {paint.marks.map((mark) => {
+      {paint.marks.map((mark, index) => {
         const y = surface.yOf(mark.price)
         if (y === null) return null
         const x = surface.xOf(mark.time)
         if (!onPlot(x)) return null
         return (
           <polygon
-            key={`${mark.side}-${mark.time}`}
+            // The position in the list as well: two price action patterns
+            // finishing on one candle are two arrows on the same side at the
+            // same time, and would otherwise share a key.
+            key={`${mark.side}-${mark.time}-${index}`}
             points={arrowPoints(x, y, mark.side)}
             className={colorOf(mark.side)}
             fill="currentColor"

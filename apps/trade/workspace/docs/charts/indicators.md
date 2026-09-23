@@ -94,3 +94,9 @@ they have arrived would be a guess. Set "Candles it must hold" below that and
 the settings panel says out loud what it is acting as. The arrow, the dash and
 the level a grid's stop rides all move together, because they all come out of
 this one pass.
+
+**The rest of the library has a doc each.** EMA 20 / 50 / 200 is in
+`ema-indicator.md`, the opening range is in `opening-range-indicator.md`, and
+Price action, which marks eighteen candle patterns with an arrow each, is in
+`price-action-indicator.md`. Base, EMA and Price action can call trades, so
+those three are the ones the automation Signals step offers.

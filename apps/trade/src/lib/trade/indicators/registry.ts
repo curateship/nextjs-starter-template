@@ -3,6 +3,7 @@ import { z } from "zod"
 import { baseIndicator } from "@/lib/trade/indicators/base"
 import { emaIndicator } from "@/lib/trade/indicators/ema"
 import { orbIndicator } from "@/lib/trade/indicators/orb"
+import { priceActionIndicator } from "@/lib/trade/indicators/price-action"
 import {
   defaultIndicatorParams,
   readIndicatorParams,
@@ -29,6 +30,7 @@ export const INDICATOR_LIST: readonly IndicatorModule[] = [
   baseIndicator,
   emaIndicator,
   orbIndicator,
+  priceActionIndicator,
 ]
 
 /**
@@ -50,7 +52,7 @@ export const SIGNAL_INDICATORS: readonly IndicatorModule[] =
  * The most indicators, or settings on one, a save may name.
  *
  * Generosity rather than a limit anybody meets — no indicator in the library
- * has more than nine settings. It is here because this is the only door into
+ * has more than 24 settings. It is here because this is the only door into
  * the row, and an unbounded one would let a made-up request hand the server a
  * hundred thousand entries to read before it throws them all away.
  */

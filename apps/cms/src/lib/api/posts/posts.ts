@@ -5,7 +5,10 @@ import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
 import { POST_SORT_COLUMNS, type PostSortColumn } from "@/lib/posts/post-sort"
 import { adminGet, adminPost } from "@/server/guards"
 import {
-  categoryIdsForPost,
+  categoryIdsFor,
+  setContentCategories,
+} from "@/server/directory/content-categories"
+import {
   createPost,
   deletePosts,
   findPost,
@@ -14,13 +17,13 @@ import {
   MAX_POST_SUMMARY,
   MAX_POST_TITLE,
   searchListingChoices,
-  setPostCategories,
   updatePost,
   type SitePost,
   type ListingChoice,
   type PostStatus,
   type PostSummary,
 } from "@/server/posts/posts"
+import { POST_CONTENT_TYPE } from "@/server/posts/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
@@ -95,7 +98,7 @@ const loadPostForEditFn = createServerFn({ method: "GET" })
     const site = await workspaceIdForRequest(context.user.id)
     const [post, categoryIds] = await Promise.all([
       findPost(site, data.id),
-      categoryIdsForPost(site, data.id),
+      categoryIdsFor(site, POST_CONTENT_TYPE, data.id),
     ])
     if (!post) return null
     return {
@@ -146,7 +149,7 @@ const updatePostFn = createServerFn({ method: "POST" })
     const site = await workspaceIdForRequest(context.user.id)
     const post = await updatePost(site, id, rest)
     if (categoryIds !== undefined) {
-      await setPostCategories(site, id, categoryIds)
+      await setContentCategories(site, POST_CONTENT_TYPE, id, categoryIds)
     }
     return post
   })
