@@ -40,6 +40,9 @@ export function FrontPageRows({
     >
       {rows.map((row, index) => {
         const Heading = index === 0 ? "h1" : "h2"
+        // The first row is what a visitor sees before scrolling, so its
+        // pictures load with the page. Every row after it waits to be reached.
+        const eager = index === 0
 
         return (
           <section
@@ -85,9 +88,9 @@ export function FrontPageRows({
             ) : row.kind === "faq" ? (
               <FrontPageFaq items={row.items} />
             ) : row.kind === "logos" ? (
-              <FrontPageLogos items={row.items} />
+              <FrontPageLogos items={row.items} eager={eager} />
             ) : row.kind === "screenshots" ? (
-              <FrontPageScreenshots items={row.items} />
+              <FrontPageScreenshots items={row.items} eager={eager} />
             ) : null}
           </section>
         )

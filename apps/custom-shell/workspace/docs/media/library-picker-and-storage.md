@@ -29,6 +29,10 @@ Uploads pass several checks:
 - The library creates thumbnails where possible and uses a type fallback when
   it cannot create a preview.
 
+Uploads are stored at the size they arrive. Smaller copies for public pages are
+cut on first request and described in
+[Picture sizes on public pages](image-sizes-on-public-pages.md).
+
 The public font upload uses the same object store but stays out of the image,
 video, and audio library. It accepts one WOFF2 file up to 1 MB. The server
 checks the WOFF2 header and its declared byte length before writing the file

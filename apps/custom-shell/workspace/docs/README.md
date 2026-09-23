@@ -57,6 +57,7 @@ local setup docs.
 
 - [Media library, picker, and storage](media/library-picker-and-storage.md)
 - [Where uploaded files are kept](media/storage-settings.md)
+- [Picture sizes on public pages](media/image-sizes-on-public-pages.md)
 
 ## Operations
 
