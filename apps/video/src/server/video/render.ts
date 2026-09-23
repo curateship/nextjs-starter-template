@@ -562,6 +562,14 @@ async function buildFfmpegCommand(options: {
     if (volume !== DEFAULT_CLIP_VOLUME) {
       stages.push(`volume=${volume.toFixed(3)}`)
     }
+    // Clip time, before the delay moves it into place. The input was cut to
+    // the clip with -ss and -t, so it starts at zero and ends at durationMs.
+    const fadeMs = Math.min(clip.fadeOutMs ?? 0, clip.durationMs)
+    if (fadeMs > 0) {
+      stages.push(
+        `afade=t=out:st=${((clip.durationMs - fadeMs) / 1000).toFixed(3)}:d=${(fadeMs / 1000).toFixed(3)}`
+      )
+    }
     stages.push(`adelay=${Math.round(clip.startMs)}:all=1`)
     if (duck && duckExpr) stages.push(`volume=eval=frame:volume='${duckExpr}'`)
     filters.push(`[${inputIdx}:a]${stages.join(",")}${label}`)

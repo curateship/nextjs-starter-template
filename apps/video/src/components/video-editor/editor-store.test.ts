@@ -630,3 +630,51 @@ describe("pasting copied clips", () => {
     expect(after).toBe(full)
   })
 })
+
+describe("laying music under the project", () => {
+  const music = (id: string, startMs: number, fadeOutMs?: number): EditorClip => ({
+    id,
+    kind: "audio",
+    name: "Song",
+    mediaId: "song",
+    startMs,
+    durationMs: 4_000,
+    trimStartMs: 0,
+    fadeOutMs,
+  })
+
+  it("adds one ducked lane at the bottom, and one undo takes it all away", () => {
+    const clips = [music("m1", 0), music("m2", 4_000, 2_000)]
+    const laid = editorReducer(START, { type: "ADD_MUSIC_TRACK", clips })
+
+    const lane = laid.tracks.at(-1)!
+    expect(laid.tracks).toHaveLength(START.tracks.length + 1)
+    expect(lane.duck).toBe(true)
+    expect(lane.clips.map((clip) => clip.id)).toEqual(["m1", "m2"])
+    expect(laid.selectedClipId).toBe("m1")
+
+    const undone = editorReducer(laid, { type: "UNDO" })
+    expect(undone.tracks).toEqual(START.tracks)
+  })
+
+  it("does nothing with no clips", () => {
+    expect(editorReducer(START, { type: "ADD_MUSIC_TRACK", clips: [] })).toBe(
+      START
+    )
+  })
+
+  it("keeps the fade on the end when a faded clip is split", () => {
+    const laid = editorReducer(START, {
+      type: "ADD_MUSIC_TRACK",
+      clips: [music("m1", 0, 2_000)],
+    })
+    const split = editorReducer(laid, {
+      type: "SPLIT_CLIP",
+      clipId: "m1",
+      atMs: 1_000,
+    })
+    const [left, right] = split.tracks.at(-1)!.clips
+    expect(left.fadeOutMs).toBeUndefined()
+    expect(right.fadeOutMs).toBe(2_000)
+  })
+})

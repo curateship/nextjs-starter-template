@@ -117,6 +117,66 @@ export const videoMediaFilmstrips = pgTable(
 )
 
 /**
+ * The shape of the sound in one audio or video file, for drawing along a sound
+ * clip. One byte per point, 0 to 255, where 255 is the loudest moment in that
+ * file. The points sit in the row as base64 rather than in a stored file: at
+ * most 30,000 points is about 40KB of text, and keeping it here saves a storage
+ * key to write, serve and clean up. A file with no sound track is ready with
+ * zero points, so nothing waits on it forever.
+ */
+export const videoMediaWaveforms = pgTable(
+  "video_media_waveforms",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    profile: varchar("profile", { length: 40 }).notNull(),
+    peaks: text("peaks"),
+    pointCount: integer("point_count"),
+    durationMs: integer("duration_ms"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_media_waveforms_status_check",
+      sql`${table.status} in ('queued', 'generating', 'ready', 'error')`
+    ),
+    check(
+      "video_media_waveforms_profile_check",
+      sql`${table.profile} = 'u8-peaks-25ps-v1'`
+    ),
+    check(
+      "video_media_waveforms_ready_check",
+      sql`${table.status} <> 'ready' or (${table.peaks} is not null and coalesce(${table.pointCount}, -1) >= 0 and (${table.pointCount} = 0 or coalesce(${table.durationMs}, 0) > 0))`
+    ),
+    check("video_media_waveforms_attempts_check", sql`${table.attempts} >= 0`),
+    index("ix_video_media_waveforms_status_created").on(
+      table.status,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
+ * Sound files marked as music, for the studio's Music panel. A mark on a file
+ * the media library already holds: the file's owner owns the mark, and
+ * deleting the file removes it.
+ */
+export const videoMusicTracks = pgTable("video_music_tracks", {
+  mediaId: varchar("media_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellMedia.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * Named groups for the media library — "B-roll", "Hooks" — owned per person.
  * The unique index is on the lowercased name so "b-roll" cannot sit beside
  * "B-Roll"; the server collapses whitespace before saving for the same reason.

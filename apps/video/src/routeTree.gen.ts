@@ -84,6 +84,7 @@ import { Route as ApiV1VideoActorsActorIdImageRouteImport } from './routes/api/v
 import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api/v1/video/exports/$exportId/cover'
 import { Route as ApiV1VideoExportsExportIdFileRouteImport } from './routes/api/v1/video/exports/$exportId/file'
 import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
+import { Route as ApiV1VideoMediaMediaIdWaveformRouteImport } from './routes/api/v1/video/media/$mediaId/waveform'
 import { Route as ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport } from './routes/api/v1/video/carousels/$carouselId/slides/$slideIndex'
 
 const IndexRoute = IndexRouteImport.update({
@@ -499,6 +500,12 @@ const ApiV1VideoMediaMediaIdFilmstripRoute =
     path: '/api/v1/video/media/$mediaId/filmstrip',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1VideoMediaMediaIdWaveformRoute =
+  ApiV1VideoMediaMediaIdWaveformRouteImport.update({
+    id: '/api/v1/video/media/$mediaId/waveform',
+    path: '/api/v1/video/media/$mediaId/waveform',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute =
   ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport.update({
     id: '/api/v1/video/carousels/$carouselId/slides/$slideIndex',
@@ -581,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
   '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRoutesByTo {
@@ -654,6 +662,7 @@ export interface FileRoutesByTo {
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
   '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRoutesById {
@@ -733,6 +742,7 @@ export interface FileRoutesById {
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
   '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRouteTypes {
@@ -812,6 +822,7 @@ export interface FileRouteTypes {
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
+    | '/api/v1/video/media/$mediaId/waveform'
     | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -885,6 +896,7 @@ export interface FileRouteTypes {
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
+    | '/api/v1/video/media/$mediaId/waveform'
     | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   id:
     | '__root__'
@@ -963,6 +975,7 @@ export interface FileRouteTypes {
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
+    | '/api/v1/video/media/$mediaId/waveform'
     | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   fileRoutesById: FileRoutesById
 }
@@ -997,6 +1010,7 @@ export interface RootRouteChildren {
   ApiV1VideoExportsExportIdCoverRoute: typeof ApiV1VideoExportsExportIdCoverRoute
   ApiV1VideoExportsExportIdFileRoute: typeof ApiV1VideoExportsExportIdFileRoute
   ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  ApiV1VideoMediaMediaIdWaveformRoute: typeof ApiV1VideoMediaMediaIdWaveformRoute
   ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute: typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 
@@ -1527,6 +1541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1VideoMediaMediaIdFilmstripRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/video/media/$mediaId/waveform': {
+      id: '/api/v1/video/media/$mediaId/waveform'
+      path: '/api/v1/video/media/$mediaId/waveform'
+      fullPath: '/api/v1/video/media/$mediaId/waveform'
+      preLoaderRoute: typeof ApiV1VideoMediaMediaIdWaveformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/video/carousels/$carouselId/slides/$slideIndex': {
       id: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
       path: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
@@ -1749,6 +1770,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1VideoExportsExportIdCoverRoute: ApiV1VideoExportsExportIdCoverRoute,
   ApiV1VideoExportsExportIdFileRoute: ApiV1VideoExportsExportIdFileRoute,
   ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,
+  ApiV1VideoMediaMediaIdWaveformRoute: ApiV1VideoMediaMediaIdWaveformRoute,
   ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute:
     ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute,
 }

@@ -9,13 +9,17 @@ import { db } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
 import { downloadToFile } from "@/server/video/storage-files"
+import {
+  waveformPeaks,
+  waveformPointCount,
+} from "@/server/video/waveform-peaks"
 
 /**
- * The background builder for playback proxies and filmstrips, riding the
- * shell's fifteen-second ticker as this app's one registered worker (see
- * `src/app/server-options.ts`).
+ * The background builder for playback proxies, filmstrips and waveforms,
+ * riding the shell's fifteen-second ticker as this app's one registered worker
+ * (see `src/app/server-options.ts`).
  *
- * The queue is the two side tables themselves. Discovery inserts a `queued`
+ * The queue is the three side tables themselves. Discovery inserts a `queued`
  * row for any library video that has none, claiming is one atomic UPDATE with
  * `for update skip locked`, and a claim holds a two-minute lease renewed by a
  * heartbeat — so a worker killed mid-build leaves a lease to reclaim, never a
@@ -26,6 +30,7 @@ import { downloadToFile } from "@/server/video/storage-files"
 
 export const MEDIA_PROXY_PROFILE = "h264-720p"
 export const MEDIA_FILMSTRIP_PROFILE = "jpeg-160h-v1"
+const MEDIA_WAVEFORM_PROFILE = "u8-peaks-25ps-v1"
 
 const MAX_ATTEMPTS = 3
 const LEASE_SECONDS = 120
@@ -38,7 +43,26 @@ const FILMSTRIP_MAX_FRAMES = 120
 const FILMSTRIP_SECONDS_PER_FRAME = 2
 const FILMSTRIP_MAX_COLUMNS = 10
 
-type JobKind = "proxy" | "filmstrip"
+// Low enough to keep a long file's decoded sound to a few megabytes a minute,
+// still far more samples than the 25 points a second the timeline draws.
+const WAVEFORM_SAMPLE_RATE = 8000
+const WAVEFORM_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
+
+type JobKind = "proxy" | "filmstrip" | "waveform"
+
+const JOB_KINDS: JobKind[] = ["proxy", "filmstrip", "waveform"]
+
+const JOB_TABLES = {
+  proxy: "video_media_proxies",
+  filmstrip: "video_media_filmstrips",
+  waveform: "video_media_waveforms",
+} as const satisfies Record<JobKind, string>
+
+const JOB_LABELS: Record<JobKind, string> = {
+  proxy: "Proxy",
+  filmstrip: "Filmstrip",
+  waveform: "Waveform",
+}
 
 type WorkerState = {
   active: number
@@ -71,14 +95,11 @@ export async function videoMediaTick() {
   await discoverNewVideos().catch((error) => {
     console.error("Video media discovery failed", error)
   })
-  await reclaimStaleJobs("video_media_proxies", "Proxy").catch((error) => {
-    console.error("Proxy reclaim failed", error)
-  })
-  await reclaimStaleJobs("video_media_filmstrips", "Filmstrip").catch(
-    (error) => {
-      console.error("Filmstrip reclaim failed", error)
-    }
-  )
+  for (const kind of JOB_KINDS) {
+    await reclaimStaleJobs(kind).catch((error) => {
+      console.error(`${JOB_LABELS[kind]} reclaim failed`, error)
+    })
+  }
   pumpQueue()
 }
 
@@ -88,9 +109,10 @@ export function kickVideoMediaWorker() {
 }
 
 /**
- * Any library video with no queue row gets one, queued. This is how uploads
- * enter the pipeline without touching the shell's upload code: within one
- * tick of arriving, a video is discovered here.
+ * Any library video with no queue row gets one, queued, and any video or
+ * sound file gets a waveform row. This is how uploads enter the pipeline
+ * without touching the shell's upload code: within one tick of arriving, a
+ * file is discovered here.
  */
 async function discoverNewVideos() {
   await db.execute(sql`
@@ -109,17 +131,22 @@ async function discoverNewVideos() {
       and not exists (select 1 from video_media_filmstrips f where f.media_id = m.id)
     on conflict (media_id) do nothing
   `)
+  await db.execute(sql`
+    insert into video_media_waveforms (media_id, status, profile, created_at, updated_at)
+    select m.id, 'queued', ${MEDIA_WAVEFORM_PROFILE}, now(), now()
+    from media m
+    where m.file_type in ('video', 'audio')
+      and not exists (select 1 from video_media_waveforms w where w.media_id = m.id)
+    on conflict (media_id) do nothing
+  `)
 }
 
-async function reclaimStaleJobs(
-  table: "video_media_proxies" | "video_media_filmstrips",
-  label: string
-) {
+async function reclaimStaleJobs(kind: JobKind) {
   await db.execute(sql`
-    update ${sql.raw(table)} set
+    update ${sql.raw(JOB_TABLES[kind])} set
       status = case when attempts < ${MAX_ATTEMPTS} then 'queued' else 'error' end,
       error = case when attempts < ${MAX_ATTEMPTS} then null
-        else ${`${label} generation was interrupted`} end,
+        else ${`${JOB_LABELS[kind]} generation was interrupted`} end,
       lease_token = null,
       lease_expires_at = null,
       updated_at = now()
@@ -167,16 +194,16 @@ type ClaimedJob = {
 }
 
 /**
- * Proxies and filmstrips alternate so one long backlog cannot starve the
- * other; when one queue is empty the other gets the slot.
+ * The three kinds take turns so one long backlog cannot starve the others;
+ * when a queue is empty the next kind in line gets the slot.
  */
 async function claimNextJob(state: WorkerState): Promise<ClaimedJob | null> {
-  const order: JobKind[] =
-    state.nextKind === "proxy" ? ["proxy", "filmstrip"] : ["filmstrip", "proxy"]
-  for (const kind of order) {
-    const job = await claimFromTable(kind)
+  const start = JOB_KINDS.indexOf(state.nextKind)
+  for (let offset = 0; offset < JOB_KINDS.length; offset += 1) {
+    const index = (start + offset) % JOB_KINDS.length
+    const job = await claimFromTable(JOB_KINDS[index])
     if (job) {
-      state.nextKind = kind === "proxy" ? "filmstrip" : "proxy"
+      state.nextKind = JOB_KINDS[(index + 1) % JOB_KINDS.length]
       return job
     }
   }
@@ -184,7 +211,7 @@ async function claimNextJob(state: WorkerState): Promise<ClaimedJob | null> {
 }
 
 async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
-  const table = kind === "proxy" ? "video_media_proxies" : "video_media_filmstrips"
+  const table = JOB_TABLES[kind]
   const leaseToken = uuid()
   const result = await db.execute(sql`
     update ${sql.raw(table)} t set
@@ -243,15 +270,16 @@ function startHeartbeat(table: string, job: ClaimedJob) {
 }
 
 async function runJob(job: ClaimedJob) {
-  const table =
-    job.kind === "proxy" ? "video_media_proxies" : "video_media_filmstrips"
+  const table = JOB_TABLES[job.kind]
   const heartbeat = startHeartbeat(table, job)
   const workDir = await mkdtemp(join(tmpdir(), "video-media-"))
   try {
     if (job.kind === "proxy") {
       await buildProxy(job, workDir)
-    } else {
+    } else if (job.kind === "filmstrip") {
       await buildFilmstrip(job, workDir)
+    } else {
+      await buildWaveform(job, workDir)
     }
   } catch (error) {
     await recordFailure(table, job, error)
@@ -266,10 +294,9 @@ async function recordFailure(table: string, job: ClaimedJob, error: unknown) {
     error instanceof Error &&
     (error.message === "ffmpeg is not installed" ||
       error.message === "ffprobe is not installed")
-  const label = job.kind === "proxy" ? "Proxy" : "Filmstrip"
   const message = known
     ? (error as Error).message
-    : `${label} generation failed`
+    : `${JOB_LABELS[job.kind]} generation failed`
   const retry = job.attempts < MAX_ATTEMPTS
   await db
     .execute(
@@ -427,6 +454,66 @@ async function buildFilmstrip(job: ClaimedJob, workDir: string) {
   if (!finished.rows.length) {
     await deleteFromR2(storagePath).catch(() => undefined)
   }
+}
+
+async function buildWaveform(job: ClaimedJob, workDir: string) {
+  // A video's proxy carries the same sound in a far smaller file. A sound file
+  // has no proxy, so this falls through to the upload itself.
+  const proxy = await db.execute(sql`
+    select storage_path from video_media_proxies
+    where media_id = ${job.mediaId} and status = 'ready' and storage_path is not null
+  `)
+  const sourcePath =
+    (proxy.rows[0] as { storage_path?: string } | undefined)?.storage_path ??
+    job.storagePath
+
+  const inputPath = join(workDir, "input")
+  await downloadToFile(sourcePath, inputPath)
+
+  let peaks = new Uint8Array(0)
+  let durationMs: number | null = null
+  if (await hasSoundTrack(inputPath)) {
+    const outputPath = join(workDir, "sound.raw")
+    await runCommand(
+      "ffmpeg",
+      ["-y", "-i", inputPath, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", String(WAVEFORM_SAMPLE_RATE), "-f", "s16le", "-c:a", "pcm_s16le", outputPath],
+      WAVEFORM_FFMPEG_TIMEOUT_MS
+    )
+    const pcm = await readFile(outputPath)
+    const sampleCount = Math.floor(pcm.byteLength / 2)
+    if (sampleCount > 0) {
+      durationMs = Math.max(
+        1,
+        Math.round((sampleCount / WAVEFORM_SAMPLE_RATE) * 1000)
+      )
+      peaks = waveformPeaks(pcm, waveformPointCount(durationMs))
+    }
+  }
+
+  await db.execute(sql`
+    update video_media_waveforms set
+      status = 'ready',
+      peaks = ${Buffer.from(peaks).toString("base64")},
+      point_count = ${peaks.length},
+      duration_ms = ${durationMs},
+      error = null,
+      lease_token = null,
+      lease_expires_at = null,
+      generated_at = now(),
+      updated_at = now()
+    where media_id = ${job.mediaId}
+      and lease_token = ${job.leaseToken}
+      and status = 'generating'
+  `)
+}
+
+async function hasSoundTrack(inputPath: string) {
+  const output = await runCommand(
+    "ffprobe",
+    ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=index", "-of", "json", inputPath],
+    FFPROBE_TIMEOUT_MS
+  )
+  return Boolean((JSON.parse(output) as { streams?: unknown[] }).streams?.length)
 }
 
 async function probeDurationSeconds(inputPath: string) {

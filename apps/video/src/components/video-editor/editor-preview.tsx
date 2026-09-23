@@ -14,6 +14,7 @@ import {
   clipVolume,
   sourceMsAt,
 } from "@/lib/video/clip-playback"
+import { clipFadeOutGain } from "@/lib/video/background-music"
 import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
   clipColour,
@@ -652,6 +653,7 @@ export function EditorPreview() {
         if (element.muted !== muted) element.muted = muted
         const volume =
           clipVolume(clip) *
+          clipFadeOutGain(clip, timeMs - clip.startMs) *
           (entry.track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
         if (element.volume !== volume) element.volume = volume
         const rate = clipSpeed(clip)
@@ -686,6 +688,7 @@ export function EditorPreview() {
         if (element.muted !== muted) element.muted = muted
         const volume =
           clipVolume(clip) *
+          clipFadeOutGain(clip, timeMs - clip.startMs) *
           (track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
         if (element.volume !== volume) element.volume = volume
         const rate = clipSpeed(clip)

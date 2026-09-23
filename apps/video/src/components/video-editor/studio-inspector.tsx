@@ -74,6 +74,7 @@ import {
   TRANSITION_OPTIONS,
   type TransitionKind,
 } from "@/lib/video/clip-transitions"
+import { MUSIC_FADE_OUT_MS } from "@/lib/video/background-music"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -684,6 +685,21 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           }
         />
         <VolumeField clip={clip} />
+        {clip.kind === "audio" || clip.kind === "video" ? (
+          <SwitchField
+            id="clip-fade-out"
+            label="Fade out at the end"
+            description="Its sound fades away over the last two seconds."
+            checked={!!clip.fadeOutMs}
+            onChange={(on) =>
+              dispatch({
+                type: "UPDATE_CLIP",
+                clipId: clip.id,
+                patch: { fadeOutMs: on ? MUSIC_FADE_OUT_MS : undefined },
+              })
+            }
+          />
+        ) : null}
         {track ? (
           <SwitchField
             id="track-duck"
