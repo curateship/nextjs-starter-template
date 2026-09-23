@@ -1778,6 +1778,7 @@ export async function reconcileLiveLaddersOnce(
           bumpOrders(heldBook)
           heldBook.goneOrderIds.add(orderId)
         },
+        buysLandNextPass: true,
         freeCash,
         insertOrder: async (input) => {
           const tempId = `pending:${randomUUID()}`

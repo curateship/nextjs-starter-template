@@ -2598,6 +2598,7 @@ function depsInto(saves: string[]): LadderEngineDeps {
       throw new Error("a grid with no read position must not trade")
     },
     dropOrder: () => {},
+    buysLandNextPass: false,
     freeCash: () => 10_000,
     insertOrder: async () => "order-1",
     saveLadder: async (_row, status) => {

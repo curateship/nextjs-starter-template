@@ -1942,6 +1942,44 @@ describe("live Smart orders", () => {
     expect(place).not.toHaveBeenCalled()
   })
 
+  it("buys a crossed rung before placing its previous-rung sell", async () => {
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ takeProfit: { mode: "prevRung", pct: 2 } }),
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    prices.mockResolvedValue(new Map([["BTC", 94]]))
+    // Aster refuses a reduce-only sell while nothing is held (code -2022),
+    // so a sell sent ahead of its buy never rests.
+    place.mockImplementation(async (_network, _key, request) => {
+      if (request.reduceOnly) {
+        throw new Error("ASTER_REFUSED:code -2022")
+      }
+      return {
+        status: "filled",
+        orderId: "rung-buy",
+        avgPx: 94,
+        filledSz: null,
+      }
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place.mock.calls[0]?.[2]).toMatchObject({ side: "buy" })
+    expect(place).not.toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ reduceOnly: true })
+    )
+    const plan = await ladder()
+    expect(plan.rungs[0]).toMatchObject({ status: "filled", sellOrderId: null })
+  })
+
   it("puts a rung back when the exchange definitely refused its buy", async () => {
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
@@ -2487,29 +2525,68 @@ describe("live Smart orders", () => {
     prices.mockResolvedValue(new Map([["BTC", 95]]))
     place
       .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "exit-1",
-        avgPx: null,
-        filledSz: null,
-      })
-      .mockResolvedValueOnce({
         status: "filled",
         orderId: "buy-1",
         avgPx: 95,
         filledSz: null,
       })
+      .mockResolvedValueOnce({
+        status: "resting",
+        orderId: "exit-1",
+        avgPx: null,
+        filledSz: null,
+      })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    // The buy goes out alone. Its exit waits for the exchange to report the
+    // coins, because a reduce-only sell sent first finds nothing to reduce.
+    const bought = await ladder()
+    expect(bought.rungs[0].status).toBe("filled")
+    expect(bought.exitRungs[0].orderId).toBeNull()
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place).toHaveBeenNthCalledWith(
+      1,
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ side: "buy" })
+    )
+
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: bought.rungs[0].sz,
+          entryPx: 95,
+          leverage: 1,
+          marginUsed: 95 * bought.rungs[0].sz,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
 
     await reconcileLiveLadders(userId, wallet)
 
     const plan = await ladder()
-    expect(plan.rungs[0].status).toBe("filled")
     expect(plan.exitRungs[0]).toMatchObject({
       status: "waiting",
       orderId: "exit-1",
       armedSz: plan.rungs[0].sz,
     })
     expect(place).toHaveBeenNthCalledWith(
-      1,
+      2,
       wallet.network,
       expect.anything(),
       expect.objectContaining({ side: "sell", reduceOnly: true })

@@ -715,7 +715,7 @@ export async function settleWallet(
     // book is saved, so their changes ride the same write.
     await advanceLadders(
       { tx, userId, book, marks, ladderBars: ladderBars as LadderBars, now, lineStopsOnly: shared?.lineStopsOnly },
-      { fill, dropOrder, freeCash }
+      { fill, dropOrder, buysLandNextPass: false, freeCash }
     )
     const moved = book.fills.length > 0 || book.goneOrderIds.size > 0
     await saveBook(tx, userId, book, catchingUp || moved ? new Date(now) : null)

@@ -692,6 +692,7 @@ export async function runBacktest(
       bumpOrders(heldBook)
       heldBook.goneOrderIds.add(orderId)
     },
+    buysLandNextPass: false,
     freeCash,
     insertOrder: async (order) => {
       const id = nextOrderId()

@@ -592,7 +592,16 @@ export async function advanceOne(
   // The placement choice makes rung 1 the one exception to the watched
   // prices. It spends that rung's fixed dollar budget at today's price, then
   // the rest of the ladder follows its ordinary watched or two-green rules.
-  let boughtMarketFirstThisPass = false
+  //
+  // A rung bought on this pass is only a shadow position until the exchange
+  // reports it on the next one, and the market buy goes out AFTER any resting
+  // order this pass queues. A reduce-only sell for that rung sent now reaches
+  // an exchange holding nothing, and Aster refuses it (code -2022), which
+  // fails the whole pass and takes the buy down with it. On 23 Sep 2026 the
+  // ARB ladder retried that every three seconds for hours and never bought.
+  // So on a real wallet the exits and brackets of a rung bought now wait one
+  // pass. The market-first rung waits on every wallet, as it always has.
+  const waitingBefore = plan.rungs.map((rung) => rung.status === "waiting")
   const firstRung = plan.rungs[0]
   if (
     plan.marketBuyFirst &&
@@ -607,7 +616,6 @@ export async function advanceOne(
       buyRungAtMark(plan, input, deps, row.marketKey, firstRung, mark)
     ) {
       changed = true
-      boughtMarketFirstThisPass = true
     }
   }
 
@@ -618,6 +626,15 @@ export async function advanceOne(
   } else if (plan.rungEntry === "market") {
     if (fireRungsOnMark(plan, input, deps, row.marketKey)) changed = true
   }
+  const boughtThisPass = new Set(
+    plan.rungs.flatMap((rung, index) =>
+      waitingBefore[index] &&
+      rung.status === "filled" &&
+      (deps.buysLandNextPass || (plan.marketBuyFirst && index === 0))
+        ? [index]
+        : []
+    )
+  )
 
   // ----- A stop took a rung, not the ladder ------------------------------
 
@@ -746,11 +763,11 @@ export async function advanceOne(
     // A hand that has just set this coin's stop or target outranks the aim: the
     // reading this pass is working from may be older than the change, and the
     // hand-moved test cannot tell those apart. See `HAND_PROTECTION_QUIET_MS`.
-    // A market-first buy is only a shadow position until the exchange reports
-    // it on the next pass. Sending protection now can be refused as missing,
-    // and an exit must never race the buy it belongs to.
+    // A rung bought on this pass is only a shadow position until the exchange
+    // reports it on the next pass. Sending protection now can be refused as
+    // missing, and an exit must never race the buy it belongs to.
     if (
-      !boughtMarketFirstThisPass &&
+      boughtThisPass.size === 0 &&
       !handProtectionSettling(plan, now) &&
       aimBrackets(plan, held, input.marks.get(row.marketKey) ?? null, roundPx)
     ) {
@@ -775,9 +792,9 @@ export async function advanceOne(
       const mark = input.marks.get(row.marketKey) ?? null
       for (const [index, rung] of plan.rungs.entries()) {
         if (rung.status !== "filled" || rung.sellOrderId) continue
-        // The market-first buy must reach the exchange before its sell. On the
-        // next pass the real position is visible and the sell can safely rest.
-        if (boughtMarketFirstThisPass && index === 0) continue
+        // A rung's buy must reach the exchange before its sell. On the next
+        // pass the real position is visible and the sell can safely rest.
+        if (boughtThisPass.has(index)) continue
         // At the rung above, or just beyond the market if price already passed
         // it. A post-only sell at the market is refused rather than rested.
         //
@@ -819,7 +836,7 @@ export async function advanceOne(
     if (
       plan.takeProfit?.mode === "exitLadder" &&
       !holdingOut &&
-      !boughtMarketFirstThisPass
+      boughtThisPass.size === 0
     ) {
       const exits = exitLadderLevels(plan)
       const mark = input.marks.get(row.marketKey) ?? null

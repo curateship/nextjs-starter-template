@@ -294,6 +294,18 @@ The ladder has been on watched levels since 14 Aug 2026. Placing one sends
 nothing anywhere, and each rung fires at market the moment the live price
 crosses it, checked every second, the same as the grid.
 
+**On a real wallet, a rung's sell goes out one pass after its buy.** The engine
+sends a pass's resting orders before its market buys, and the exchange only
+reports the new coins on the next read. A take-profit sell is reduce-only, so
+sent in the same pass as its buy it reaches an exchange holding nothing. Aster
+refuses that with code -2022, the refusal fails the whole pass, and the buy
+never goes out. Until 23 Sep 2026 that is what happened to every ladder on
+Aster whose price crossed a rung: the ARB ladder tried every three seconds for
+hours and bought nothing. The rung now buys on its own, and its sell, its exit
+ladder share and the stop follow on the next pass, about a second later. A
+practice wallet holds the coins the moment the buy is made, so it still places
+all of it in one pass.
+
 **The ladder's window follows the grid window's rules**, on Tyler's ask,
 1 Sep 2026. Nothing outside it closes it — the chart stays live for dragging
 the ladder's handles — and it closes from the × in its header or Escape. The

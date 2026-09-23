@@ -110,6 +110,16 @@ export type LadderEngineDeps = {
     }
   ) => void
   dropOrder: (book: WalletBook, orderId: string) => void
+  /**
+   * A buy made through `fill` reaches the exchange only after the pass's new
+   * orders do, and the position shows up on the next read.
+   *
+   * True on a real wallet only. A practice book or a replay holds the coins
+   * the moment `fill` returns, so its exits and stop can go out on the same
+   * pass. A real exchange refuses a reduce-only sell for coins it has not yet
+   * been sent the buy for.
+   */
+  buysLandNextPass: boolean
   freeCash: (book: WalletBook) => number
   /**
    * Writes one order down and answers with its id.
