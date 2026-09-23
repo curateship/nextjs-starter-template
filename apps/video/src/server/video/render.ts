@@ -29,6 +29,7 @@ import {
 } from "@/lib/video/clip-playback"
 import { clipFit, frameFitFilter } from "@/lib/video/clip-frame-fit"
 import { clipMotion, motionFilter } from "@/lib/video/clip-motion"
+import { clipColour, colourEqFilter } from "@/lib/video/clip-colour"
 import {
   captionExportWindows,
   captionWordAnimation,
@@ -619,15 +620,21 @@ async function buildFfmpegCommand(options: {
       // squeezes or stretches that back into the room the clip has.
       const speed = clip.kind === "image" ? 1 : clipSpeed(clip)
       // Fit leaves black where the shapes disagree; fill grows the picture
-      // past the frame and crops the overflow back off.
-      const fitFilter = frameFitFilter(clipFit(clip), size.width, size.height)
+      // past the frame and crops the overflow back off. Colour goes on after
+      // the fit, so `eq` works on a frame-sized picture rather than on a 4K
+      // original, and a clip left alone gets no colour stage at all.
       // A still that moves is drawn one frame per output frame, so the move
       // advances on every frame of the film rather than stepping at the
       // input's own 25 a second. A still that holds is left as it always was.
+      const colourFilter = colourEqFilter(clipColour(clip))
       const motion = clipMotion(clip)
-      const pictureFilter = motion
-        ? `${fitFilter},${motionFilter(motion, size.width, size.height, durS * OUTPUT_FPS)}`
-        : fitFilter
+      const pictureFilter = [
+        frameFitFilter(clipFit(clip), size.width, size.height),
+        ...(colourFilter ? [colourFilter] : []),
+        ...(motion
+          ? [motionFilter(motion, size.width, size.height, durS * OUTPUT_FPS)]
+          : []),
+      ].join(",")
       if (clip.kind === "image") {
         inputs.push(
           ...(motion ? ["-framerate", String(OUTPUT_FPS)] : []),

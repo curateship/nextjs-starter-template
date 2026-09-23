@@ -7,6 +7,14 @@ import {
   MIN_CLIP_VOLUME,
 } from "./clip-playback"
 import { CLIP_FITS } from "./clip-frame-fit"
+import {
+  MAX_CLIP_BRIGHTNESS,
+  MAX_CLIP_CONTRAST,
+  MAX_CLIP_SATURATION,
+  MIN_CLIP_BRIGHTNESS,
+  MIN_CLIP_CONTRAST,
+  MIN_CLIP_SATURATION,
+} from "./clip-colour"
 import { CLIP_MOTIONS } from "./clip-motion"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
@@ -59,6 +67,24 @@ const clipSchema = z
     // means it holds still, so a timeline saved before this reads unchanged.
     // Only picture clips move; the preview and the export ignore it elsewhere.
     motion: z.enum(CLIP_MOTIONS).optional(),
+    // Brightness, contrast and saturation, in ffmpeg's own `eq` numbers.
+    // Absent means no change (0, 1 and 1), so a timeline saved before these
+    // existed reads unchanged. Only video and picture clips use them.
+    brightness: z
+      .number()
+      .min(MIN_CLIP_BRIGHTNESS)
+      .max(MAX_CLIP_BRIGHTNESS)
+      .optional(),
+    contrast: z
+      .number()
+      .min(MIN_CLIP_CONTRAST)
+      .max(MAX_CLIP_CONTRAST)
+      .optional(),
+    saturation: z
+      .number()
+      .min(MIN_CLIP_SATURATION)
+      .max(MAX_CLIP_SATURATION)
+      .optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.

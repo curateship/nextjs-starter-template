@@ -16,6 +16,11 @@ import {
 } from "@/lib/video/clip-playback"
 import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
+  clipColour,
+  colourMatrix,
+  isColourTouched,
+} from "@/lib/video/clip-colour"
+import {
   clipMotion,
   motionPoseAt,
   motionTransformCss,
@@ -184,6 +189,20 @@ function registerRef<K, T extends HTMLElement>(
 
 function isActive(clip: EditorClip, timeMs: number) {
   return timeMs >= clip.startMs && timeMs < clip.startMs + clip.durationMs
+}
+
+// Brightness, contrast and saturation are drawn by an SVG colour matrix that
+// does the export's `eq` sums (see clip-colour.ts), one per clip that has any.
+// A clip left alone gets no filter, so it costs the browser nothing.
+function colourFilterId(clip: EditorClip) {
+  return `clip-colour-${clip.id}`
+}
+
+function colourFilterCss(clip: EditorClip) {
+  if (clip.kind !== "video" && clip.kind !== "image") return ""
+  return isColourTouched(clipColour(clip))
+    ? `url(#${colourFilterId(clip)})`
+    : ""
 }
 
 function clamp01(value: number) {
@@ -488,6 +507,7 @@ export function EditorPreview() {
     for (const element of videoRefs.current.values()) {
       if (element.style.opacity !== "0") element.style.opacity = "0"
       if (element.style.transform) element.style.transform = ""
+      if (element.style.filter) element.style.filter = ""
       if (!element.paused) element.pause()
     }
     for (const element of audioRefs.current.values()) {
@@ -625,6 +645,9 @@ export function EditorPreview() {
         if (element.style.objectFit !== objectFit) {
           element.style.objectFit = objectFit
         }
+        // Colour, for the same reason: it belongs to the clip, not the file.
+        const filter = colourFilterCss(clip)
+        if (element.style.filter !== filter) element.style.filter = filter
         const muted = entry.track.muted || !!clip.muted
         if (element.muted !== muted) element.muted = muted
         const volume =
@@ -836,6 +859,9 @@ export function EditorPreview() {
   }
 
   const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
+  const colouredClips = [...media, ...images]
+    .map((entry) => entry.clip)
+    .filter((clip) => colourFilterCss(clip) !== "")
   const textScale = stageHeight > 0 ? stageHeight / DESIGN_HEIGHT : 0
   const timeMs = clock.getTime()
 
@@ -884,6 +910,7 @@ export function EditorPreview() {
             className="absolute inset-0 h-full w-full"
             style={{
               objectFit: clipFit(clip),
+              filter: colourFilterCss(clip) || undefined,
               zIndex,
               visibility: isActive(clip, timeMs) ? "visible" : "hidden",
             }}
@@ -930,6 +957,24 @@ export function EditorPreview() {
             </div>
           )
         })}
+
+        {/* The colour matrices the clips above point at. `sRGB` makes the
+            sums run on the stored values, as `eq` does, rather than on the
+            browser's default linear light. */}
+        <svg aria-hidden="true" className="absolute size-0">
+          {colouredClips.map((clip) => (
+            <filter
+              key={clip.id}
+              id={colourFilterId(clip)}
+              colorInterpolationFilters="sRGB"
+            >
+              <feColorMatrix
+                type="matrix"
+                values={colourMatrix(clipColour(clip)).join(" ")}
+              />
+            </filter>
+          ))}
+        </svg>
 
         {/* The centre lines, only while a dragged overlay is locked onto one. */}
         <div
