@@ -217,7 +217,8 @@ always used.
 - `hyperliquid-refusals.md` — the Hyperliquid refusal phrases seen in the
   Journal and the next step Trade gives each one.
 - `aster.md` — Aster's public markets, charts, funding, networks, measured
-  catalogue size and the figures its public API does not state.
+  catalogue size, the figures its public API does not state, and how each
+  coin's leverage ceiling is read with a connected wallet's keys.
 - `dukascopy.md` — the stock, index, metal and currency-pair history feed:
   instrument naming, start dates, bid prices, hours, volume, request pacing
   and the measured numbers from the build.

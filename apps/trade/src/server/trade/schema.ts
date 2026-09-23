@@ -418,6 +418,29 @@ export const tradeLiquidationWarnings = pgTable(
 )
 
 /**
+ * Each market's highest leverage as one connected wallet's own keys read it,
+ * on an exchange whose public market list leaves it unknown (Aster). One row
+ * per wallet, replaced at most once a day. See `trade/leverage-ceilings.ts`.
+ */
+export const tradeLeverageCeilings = pgTable(
+  "trade_leverage_ceilings",
+  {
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    /** Market id to whole leverage, only for markets the exchange stated. */
+    ceilings: jsonb("ceilings").$type<Record<string, number>>().notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId] }),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
  * The order-number counter for real orders, one row per signing address and
  * network. The exchange requires every signed action's number to be higher
  * than the last; this row is bumped in ONE atomic statement

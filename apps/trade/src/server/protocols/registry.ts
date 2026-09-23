@@ -166,6 +166,7 @@ import {
 } from "@/server/protocols/aster/account"
 import { verifyAsterAgentKey } from "@/server/protocols/aster/agent"
 import { packAsterCredential } from "@/server/protocols/aster/client"
+import { fetchAsterLeverageCeilings } from "@/server/protocols/aster/leverage-ceilings"
 import {
   asterLivePricesFresh,
   openAsterLivePrices,
@@ -494,6 +495,18 @@ export type ProtocolEntry = {
       /** Server-verified wallet owner, for discovering tokens from saved fills. */
       owner?: { userId: string; walletId: string }
     ): Promise<WalletPortfolio>
+    /**
+     * Each market's highest leverage for this account, keyed by market id.
+     *
+     * Present only where the public market list cannot state it and a signed
+     * read can (Aster). The market list's own figure always wins; this fills
+     * only a market the list left unknown. See `trade/leverage-ceilings.ts`.
+     */
+    leverageCeilings?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<Map<string, number>>
   }
   /**
    * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
@@ -968,6 +981,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fetch: fetchAsterAccount,
       portfolio: fetchAsterPortfolio,
       profitPerSale: true,
+      leverageCeilings: fetchAsterLeverageCeilings,
     },
     agent: { permissions: readAsterKeyPermission, verify: verifyAsterAgentKey },
     credentials: {
