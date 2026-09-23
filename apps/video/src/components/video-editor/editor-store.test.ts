@@ -678,3 +678,129 @@ describe("laying music under the project", () => {
     expect(right.fadeOutMs).toBe(2_000)
   })
 })
+
+describe("adding words or a sticker", () => {
+  const sticker = (id: string): EditorClip => ({ ...caption(id, 0), text: "🔥" })
+
+  it("goes on a new lane at the top when the footage is under the playhead", () => {
+    const after = editorReducer(START, {
+      type: "ADD_OVERLAY",
+      clip: sticker("s1"),
+      atMs: 1_000,
+    })
+    expect(after.tracks).toHaveLength(2)
+    expect(after.tracks[0].clips.map((clip) => clip.id)).toEqual(["s1"])
+    expect(after.tracks[0].clips[0].startMs).toBe(1_000)
+    expect(after.tracks[1].id).toBe("footage")
+    expect(after.selectedClipId).toBe("s1")
+  })
+
+  it("reuses a lane above the footage that has room", () => {
+    const once = editorReducer(START, {
+      type: "ADD_OVERLAY",
+      clip: sticker("s1"),
+      atMs: 0,
+    })
+    const twice = editorReducer(once, {
+      type: "ADD_OVERLAY",
+      clip: sticker("s2"),
+      atMs: 5_000,
+    })
+    expect(twice.tracks).toHaveLength(2)
+    expect(twice.tracks[0].clips.map((clip) => clip.id)).toEqual(["s1", "s2"])
+  })
+
+  it("never takes an empty lane under the footage", () => {
+    const withLaneBelow = {
+      ...START,
+      tracks: [...START.tracks, { id: "below", muted: false, clips: [] }],
+    }
+    const after = editorReducer(withLaneBelow, {
+      type: "ADD_OVERLAY",
+      clip: sticker("s1"),
+      atMs: 0,
+    })
+    expect(after.tracks.map((track) => track.id).slice(1)).toEqual([
+      "footage",
+      "below",
+    ])
+    expect(after.tracks[0].clips.map((clip) => clip.id)).toEqual(["s1"])
+  })
+
+  it("can go under a lane that only holds sound", () => {
+    const soundOnTop = {
+      ...START,
+      tracks: [
+        {
+          id: "voice",
+          muted: false,
+          clips: [
+            {
+              id: "v1",
+              kind: "audio" as const,
+              name: "Voice",
+              mediaId: "m2",
+              startMs: 0,
+              durationMs: 8_000,
+              trimStartMs: 0,
+            },
+          ],
+        },
+        { id: "words", muted: false, clips: [] },
+        ...START.tracks,
+      ],
+    }
+    const after = editorReducer(soundOnTop, {
+      type: "ADD_OVERLAY",
+      clip: sticker("s1"),
+      atMs: 0,
+    })
+    expect(after.tracks).toHaveLength(3)
+    expect(after.tracks[1].clips.map((clip) => clip.id)).toEqual(["s1"])
+  })
+})
+
+describe("swapping a small picture for footage", () => {
+  it("puts the clip back to the full frame", () => {
+    const picture = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        {
+          id: "stickers",
+          muted: false,
+          clips: [
+            {
+              id: "logo",
+              kind: "image",
+              name: "logo.png",
+              mediaId: "m1",
+              scale: 0.3,
+              x: 0.2,
+              y: 0.8,
+              startMs: 0,
+              durationMs: 3_000,
+              trimStartMs: 0,
+            },
+          ],
+        },
+      ],
+    })
+    const swapped = (fileType: "image" | "video") =>
+      editorReducer(picture, {
+        type: "REPLACE_CLIP_MEDIA",
+        clipId: "logo",
+        media: {
+          mediaId: "m2",
+          url: "https://example.test/m2",
+          name: "new",
+          fileType,
+          sourceDurationMs: 10_000,
+        },
+      }).tracks[0].clips[0]
+    expect(swapped("image")).toMatchObject({ scale: 0.3, x: 0.2, y: 0.8 })
+    const video = swapped("video")
+    expect(video.scale).toBeUndefined()
+    expect(video.x).toBeUndefined()
+    expect(video.y).toBeUndefined()
+  })
+})

@@ -42,6 +42,13 @@ import {
   type ClipFit,
 } from "@/lib/video/clip-frame-fit"
 import {
+  CLIP_SCALE_STEP,
+  clipScale,
+  MAX_CLIP_SCALE,
+  MIN_CLIP_SCALE,
+  storedClipScale,
+} from "@/lib/video/clip-size"
+import {
   CLIP_COLOUR_STEP,
   clipColour,
   isColourTouched,
@@ -445,6 +452,10 @@ function SpeedSection({ clip }: { clip: EditorClip }) {
  * which is what a wide clip does in a tall project. Filling has no black and
  * pays for it by cutting the sides off. Only a clip with a picture gets the
  * choice.
+ *
+ * A still picture can also be smaller than the frame, which is how a picture
+ * sticker arrives. Below full size it is dragged around the preview like text.
+ * Video stays the whole frame (see clip-size.ts).
  */
 function FrameFitSection({ clip }: { clip: EditorClip }) {
   const { dispatch } = useEditorRuntime()
@@ -473,6 +484,25 @@ function FrameFitSection({ clip }: { clip: EditorClip }) {
           ))}
         </TabsList>
       </Tabs>
+      {clip.kind === "image" ? (
+        <FractionSliderField
+          id="clip-scale"
+          label="Size"
+          value={clipScale(clip)}
+          min={MIN_CLIP_SCALE}
+          max={MAX_CLIP_SCALE}
+          step={CLIP_SCALE_STEP}
+          format={formatPercent}
+          onChange={(scale, firstOfDrag) =>
+            dispatch({
+              type: "UPDATE_CLIP",
+              clipId: clip.id,
+              patch: { scale: storedClipScale(scale) },
+              transient: !firstOfDrag,
+            })
+          }
+        />
+      ) : null}
     </InspectorCard>
   )
 }

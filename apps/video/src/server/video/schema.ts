@@ -177,6 +177,20 @@ export const videoMusicTracks = pgTable("video_music_tracks", {
 })
 
 /**
+ * Each person's sticker list for the studio's Text panel (see
+ * `src/lib/video/stickers.ts`). The whole list is one JSON value read through
+ * `readStickerList`, because its order is the order the panel shows. No row
+ * means the person has never changed the built-in eight.
+ */
+export const videoStickerLists = pgTable("video_sticker_lists", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  stickers: jsonb("stickers").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * Named groups for the media library — "B-roll", "Hooks" — owned per person.
  * The unique index is on the lowercased name so "b-roll" cannot sit beside
  * "B-Roll"; the server collapses whitespace before saving for the same reason.

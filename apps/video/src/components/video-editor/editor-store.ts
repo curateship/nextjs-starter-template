@@ -58,6 +58,9 @@ export type EditorState = {
 export type EditorAction =
   | { type: "ADD_CLIP"; clip: EditorClip; atMs: number; trackId?: string }
   | { type: "ADD_CLIP_TO_NEW_TRACK"; clip: EditorClip; atMs: number }
+  // Words or a sticker from the Text panel. Unlike ADD_CLIP it never lands
+  // under a picture that would hide it.
+  | { type: "ADD_OVERLAY"; clip: EditorClip; atMs: number }
   | { type: "MOVE_CLIP"; clipId: string; toTrackId: string; startMs: number }
   // `transient` skips the undo snapshot — for edits that arrive in a stream
   // (typing into a text clip, dragging a slider) so one undo does not step
@@ -336,6 +339,49 @@ function placeClip(
   return placeClipInNewTrack(state, clip, desired)
 }
 
+/**
+ * Put words or a sticker where they will be seen. The top lane covers the ones
+ * below it, so a clip dropped onto a lower lane under a video or a picture is
+ * hidden behind it. This takes the highest lane with room at `atMs` that has
+ * no picture above it at those moments, and otherwise adds a new lane at the
+ * top. Sound on a lane above does not count: it has nothing to cover with.
+ */
+function placeOverlay(
+  state: EditorState,
+  clip: EditorClip,
+  atMs: number
+): EditorState {
+  const start = Math.max(0, atMs)
+  const end = start + clip.durationMs
+  const placed = { ...clip, startMs: start }
+  for (const track of state.tracks) {
+    if (fitsAt(track, null, start, clip.durationMs)) {
+      const tracks = withTrack(state.tracks, track.id, (lane) => ({
+        ...lane,
+        clips: sortClips([...lane.clips, placed]),
+      }))
+      return { ...pushUndo(state, tracks), selectedClipId: clip.id }
+    }
+    const covers = track.clips.some(
+      (other) =>
+        (other.kind === "video" || other.kind === "image") &&
+        other.startMs < end &&
+        other.startMs + other.durationMs > start
+    )
+    if (covers) break
+  }
+  // A project already at the most lanes a save allows takes it wherever it
+  // fits, the ordinary way, rather than a lane the save would refuse.
+  if (state.tracks.length >= MAX_TIMELINE_TRACKS) {
+    return placeClip(state, clip, start)
+  }
+  const track = { ...newTrack(), clips: [placed] }
+  return {
+    ...pushUndo(state, [track, ...state.tracks]),
+    selectedClipId: clip.id,
+  }
+}
+
 // Drop a copied group at `atMs`, starting on the lane `trackId` names. The
 // group lands only where every clip fits on the lane it is headed for; if any
 // one would overlap something, the whole group goes onto new lanes at the
@@ -411,6 +457,9 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
 
     case "ADD_CLIP_TO_NEW_TRACK":
       return placeClipInNewTrack(state, action.clip, action.atMs)
+
+    case "ADD_OVERLAY":
+      return placeOverlay(state, action.clip, action.atMs)
 
     case "ADD_TRACK":
       return pushUndo(state, [...state.tracks, newTrack()])
@@ -651,6 +700,11 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         // Only a picture moves, so a move does not carry over to footage.
         motion: fileType === "image" ? found.clip.motion : undefined,
+        // Only a picture can be smaller than the frame and placed on it, so a
+        // swap to footage goes back to the full frame.
+        ...(fileType === "image"
+          ? {}
+          : { scale: undefined, x: undefined, y: undefined }),
         // Sound has no picture, so colour does not carry over to it.
         ...(fileType === "audio"
           ? {

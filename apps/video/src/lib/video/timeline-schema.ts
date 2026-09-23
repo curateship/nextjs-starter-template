@@ -7,6 +7,7 @@ import {
   MIN_CLIP_VOLUME,
 } from "./clip-playback"
 import { CLIP_FITS } from "./clip-frame-fit"
+import { MAX_CLIP_SCALE, MIN_CLIP_SCALE } from "./clip-size"
 import {
   MAX_CLIP_BRIGHTNESS,
   MAX_CLIP_CONTRAST,
@@ -104,6 +105,10 @@ export const clipSchema = z
     // (0.5/0.5 = dead centre). Set by dragging the text on the preview.
     x: z.number().min(0).max(1).optional(),
     y: z.number().min(0).max(1).optional(),
+    // How big a picture is, as a share of the frame it was fitted to (see
+    // clip-size.ts). Absent means the full frame. A picture smaller than the
+    // frame is placed by `x` and `y`, the same as text.
+    scale: z.number().min(MIN_CLIP_SCALE).max(MAX_CLIP_SCALE).optional(),
     transition: clipTransitionSchema.optional(),
   })
   .strict()

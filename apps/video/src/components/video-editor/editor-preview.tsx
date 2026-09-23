@@ -17,6 +17,13 @@ import {
 import { clipFadeOutGain } from "@/lib/video/background-music"
 import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
+  clipScale,
+  containedShare,
+  isPlacedPicture,
+  pictureBoxCss,
+  type FrameShare,
+} from "@/lib/video/clip-size"
+import {
   clipColour,
   colourMatrix,
   isColourTouched,
@@ -235,10 +242,14 @@ export function EditorPreview() {
   // The black layer a dip-to-black seam drives.
   const dipRef = React.useRef<HTMLDivElement>(null)
   const syncFrameRef = React.useRef<() => void>(() => undefined)
-  // A text overlay being dragged. Its position moves directly on the element
-  // during the drag and is written to the store once, on release.
-  const textDragRef = React.useRef<{
+  // A text overlay, or a picture smaller than the frame, being dragged. Its
+  // position moves directly on the element during the drag and is written to
+  // the store once, on release. `scale` is set for a picture, whose element is
+  // placed by its corner rather than its middle.
+  const overlayDragRef = React.useRef<{
     clipId: string
+    scale: number | null
+    share: FrameShare
     offsetX: number
     offsetY: number
     startX: number
@@ -253,6 +264,11 @@ export function EditorPreview() {
     y: HTMLDivElement | null
   }>({ x: null, y: null })
   const [containerBox, setContainerBox] = React.useState({ w: 0, h: 0 })
+  // Each picture's own width over height, keyed by address, learned as it
+  // loads. A small picture's box hugs it once this is known.
+  const [pictureRatios, setPictureRatios] = React.useState(
+    () => new Map<string, number>()
+  )
 
   // Watch the space the stage has. The stage is sized in code because CSS
   // cannot fit a box to a shape against both a maximum width and height.
@@ -737,7 +753,13 @@ export function EditorPreview() {
           element.style.opacity = String(state.opacity)
           element.style.zIndex = String(entry.zIndex + 1)
           if (state.translateXPct) {
-            transform = `translateX(${state.translateXPct}%) ${moveCss}`.trim()
+            // The export starts a slide with the picture's left edge on the
+            // frame's right edge. A full-frame picture is that far from it by
+            // its own width; a small one has further to come.
+            const slide = isPlacedPicture(clip)
+              ? `${((stageRef.current?.clientWidth ?? 0) - element.offsetLeft) * (state.translateXPct / 100)}px`
+              : `${state.translateXPct}%`
+            transform = `translateX(${slide}) ${moveCss}`.trim()
           }
         } else {
           if (element.style.opacity !== "1") element.style.opacity = "1"
@@ -775,10 +797,35 @@ export function EditorPreview() {
     }
   }, [clock, playbackFrames, dips, duckEnvelope])
 
-  // --- Dragging a text overlay around the frame ----------------------------
-  // Grab it anywhere; the gap between the pointer and the text's middle is kept
-  // so it follows the cursor rather than jumping under it.
-  function handleTextDown(event: React.PointerEvent, clip: EditorClip) {
+  // How much of the frame a small picture covers once fitted, so its box can
+  // hug it. Only for a picture fitted inside and holding still: a filled one
+  // covers its whole box, and a moving one is moved as a whole frame, the way
+  // the export draws it.
+  function pictureShare(clip: EditorClip): FrameShare {
+    const pictureRatio = clip.url ? pictureRatios.get(clip.url) : undefined
+    if (!pictureRatio || clipFit(clip) !== "contain" || clipMotion(clip)) {
+      return { width: 1, height: 1 }
+    }
+    return containedShare(pictureRatio, ratio)
+  }
+
+  function learnPictureRatio(clip: EditorClip, element: HTMLImageElement) {
+    const url = clip.url
+    const { naturalWidth, naturalHeight } = element
+    if (!url || !naturalWidth || !naturalHeight) return
+    const pictureRatio = naturalWidth / naturalHeight
+    setPictureRatios((current) => {
+      if (current.get(url) === pictureRatio) return current
+      const next = new Map(current)
+      next.set(url, pictureRatio)
+      return next
+    })
+  }
+
+  // --- Dragging text, or a small picture, around the frame ------------------
+  // Grab it anywhere; the gap between the pointer and its middle is kept so it
+  // follows the cursor rather than jumping under it.
+  function handleOverlayDown(event: React.PointerEvent, clip: EditorClip) {
     if (event.button !== 0) return
     // Select it too, so the inspector opens on it — a plain click just selects,
     // and a drag past a few pixels moves it.
@@ -788,8 +835,10 @@ export function EditorPreview() {
     const rect = stage.getBoundingClientRect()
     const centerX = (clip.x ?? 0.5) * rect.width
     const centerY = (clip.y ?? 0.5) * rect.height
-    textDragRef.current = {
+    overlayDragRef.current = {
       clipId: clip.id,
+      scale: clip.kind === "image" ? clipScale(clip) : null,
+      share: pictureShare(clip),
       offsetX: centerX - (event.clientX - rect.left),
       offsetY: centerY - (event.clientY - rect.top),
       startX: event.clientX,
@@ -799,10 +848,10 @@ export function EditorPreview() {
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
   }
 
-  // Where the text would land, centre snapping included. Holding Alt sets the
+  // Where its middle would land, centre snapping included. Holding Alt sets the
   // threshold to zero, which is how the bypass works: nothing is ever within
   // zero of a centre line.
-  function resolveTextDrag(
+  function resolveOverlayDrag(
     drag: { offsetX: number; offsetY: number },
     event: React.PointerEvent,
     rect: DOMRect
@@ -823,8 +872,8 @@ export function EditorPreview() {
     if (y) y.style.display = showY ? "block" : "none"
   }
 
-  function handleTextMove(event: React.PointerEvent) {
-    const drag = textDragRef.current
+  function handleOverlayMove(event: React.PointerEvent) {
+    const drag = overlayDragRef.current
     const stage = stageRef.current
     if (!drag || !stage) return
     // A few pixels of slack, so a click never counts as a move.
@@ -835,25 +884,37 @@ export function EditorPreview() {
       return
     }
     drag.moved = true
-    const snapped = resolveTextDrag(drag, event, stage.getBoundingClientRect())
-    const element = textRefs.current.get(drag.clipId)
-    if (element) {
-      element.style.left = `${snapped.x * 100}%`
-      element.style.top = `${snapped.y * 100}%`
+    const snapped = resolveOverlayDrag(drag, event, stage.getBoundingClientRect())
+    if (drag.scale === null) {
+      const element = textRefs.current.get(drag.clipId)
+      if (element) {
+        element.style.left = `${snapped.x * 100}%`
+        element.style.top = `${snapped.y * 100}%`
+      }
+    } else {
+      const element = imageRefs.current.get(drag.clipId)
+      if (element) {
+        const box = pictureBoxCss(
+          { kind: "image", scale: drag.scale, x: snapped.x, y: snapped.y },
+          drag.share
+        )
+        element.style.left = box.left
+        element.style.top = box.top
+      }
     }
     paintCenterGuides(snapped.snappedX, snapped.snappedY)
   }
 
-  function handleTextUp(event: React.PointerEvent) {
-    const drag = textDragRef.current
-    textDragRef.current = null
+  function handleOverlayUp(event: React.PointerEvent) {
+    const drag = overlayDragRef.current
+    overlayDragRef.current = null
     const stage = stageRef.current
     if (!drag) return
     ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
     paintCenterGuides(false, false)
     if (!drag.moved || !stage) return
     // Write the final position once, as a single undo step.
-    const snapped = resolveTextDrag(drag, event, stage.getBoundingClientRect())
+    const snapped = resolveOverlayDrag(drag, event, stage.getBoundingClientRect())
     dispatch({
       type: "UPDATE_CLIP",
       clipId: drag.clipId,
@@ -903,22 +964,43 @@ export function EditorPreview() {
           />
         ))}
 
-        {images.map(({ clip, zIndex }) => (
-          <img
-            key={clip.id}
-            ref={registerRef(imageRefs, clip.id)}
-            src={clip.url}
-            alt={clip.name}
-            draggable={false}
-            className="absolute inset-0 h-full w-full"
-            style={{
-              objectFit: clipFit(clip),
-              filter: colourFilterCss(clip) || undefined,
-              zIndex,
-              visibility: isActive(clip, timeMs) ? "visible" : "hidden",
-            }}
-          />
-        ))}
+        {/* A picture smaller than the frame, such as a sticker, sits in a
+            box of its own and drags like text. A full-frame one does nothing
+            when clicked, the way it never has. */}
+        {images.map(({ clip, zIndex }) => {
+          const placed = isPlacedPicture(clip)
+          return (
+            <img
+              key={clip.id}
+              ref={registerRef(imageRefs, clip.id)}
+              src={clip.url}
+              alt={clip.name}
+              draggable={false}
+              onPointerDown={
+                placed ? (event) => handleOverlayDown(event, clip) : undefined
+              }
+              onPointerMove={placed ? handleOverlayMove : undefined}
+              onPointerUp={placed ? handleOverlayUp : undefined}
+              onPointerCancel={placed ? handleOverlayUp : undefined}
+              // Learned for every picture, so one that is shrunk later
+              // already knows its shape.
+              onLoad={(event) => learnPictureRatio(clip, event.currentTarget)}
+              title={placed ? "Drag to move" : undefined}
+              className={
+                placed
+                  ? "absolute cursor-move touch-none select-none"
+                  : "absolute"
+              }
+              style={{
+                ...pictureBoxCss(clip, pictureShare(clip)),
+                objectFit: clipFit(clip),
+                filter: colourFilterCss(clip) || undefined,
+                zIndex,
+                visibility: isActive(clip, timeMs) ? "visible" : "hidden",
+              }}
+            />
+          )
+        })}
 
         {/* Text overlays — drag to move. Anchored at their middle, wrapping at
             90% of the frame, and scaled from the 1080-tall design space so the
@@ -929,10 +1011,10 @@ export function EditorPreview() {
             <div
               key={clip.id}
               ref={registerRef(textRefs, clip.id)}
-              onPointerDown={(event) => handleTextDown(event, clip)}
-              onPointerMove={handleTextMove}
-              onPointerUp={handleTextUp}
-              onPointerCancel={handleTextUp}
+              onPointerDown={(event) => handleOverlayDown(event, clip)}
+              onPointerMove={handleOverlayMove}
+              onPointerUp={handleOverlayUp}
+              onPointerCancel={handleOverlayUp}
               title="Click to edit · drag to move"
               className="absolute max-w-[90%] cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
               style={{

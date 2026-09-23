@@ -42,6 +42,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { BrandKitDialog } from "@/components/video-editor/brand-kit-dialog"
 import { buildMediaClip } from "@/components/video-editor/media-clip"
+import { StickerShelf } from "@/components/video-editor/studio-stickers"
 import {
   findClip,
   useEditorRuntime,
@@ -823,8 +824,6 @@ const TEXT_PRESETS: {
   },
 ]
 
-const STICKERS = ["🔥", "✨", "👀", "☕", "💯", "➡️", "❤️", "⭐"]
-
 function TextPanel() {
   const { dispatch, clock } = useEditorRuntime()
 
@@ -835,7 +834,7 @@ function TextPanel() {
     y: number
   ) {
     dispatch({
-      type: "ADD_CLIP",
+      type: "ADD_OVERLAY",
       clip: {
         id: editorId(),
         kind: "text",
@@ -890,35 +889,7 @@ function TextPanel() {
       </div>
 
       <Label>Stickers</Label>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 9,
-        }}
-      >
-        {STICKERS.map((sticker) => (
-          <button
-            key={sticker}
-            type="button"
-            className="st-hovcard"
-            aria-label={`Add ${sticker}`}
-            onClick={() => addText(sticker, "inter", 90, 0.5)}
-            style={{
-              aspectRatio: "1",
-              display: "grid",
-              placeItems: "center",
-              fontSize: 22,
-              background: "var(--panel2)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              cursor: "pointer",
-            }}
-          >
-            {sticker}
-          </button>
-        ))}
-      </div>
+      <StickerShelf />
     </div>
   )
 }
