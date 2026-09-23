@@ -1,5 +1,6 @@
 import * as React from "react"
-import { FilmIcon, Replace, SlidersHorizontal } from "lucide-react"
+import { FilmIcon, Replace, RotateCcw, SlidersHorizontal } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   ColorField,
@@ -40,6 +41,19 @@ import {
   storedClipFit,
   type ClipFit,
 } from "@/lib/video/clip-frame-fit"
+import {
+  CLIP_COLOUR_STEP,
+  clipColour,
+  isColourTouched,
+  MAX_CLIP_BRIGHTNESS,
+  MAX_CLIP_CONTRAST,
+  MAX_CLIP_SATURATION,
+  MIN_CLIP_BRIGHTNESS,
+  MIN_CLIP_CONTRAST,
+  MIN_CLIP_SATURATION,
+  UNTOUCHED_COLOUR,
+  type ClipColour,
+} from "@/lib/video/clip-colour"
 import {
   clipMotion,
   CLIP_MOTION_OPTIONS,
@@ -505,6 +519,101 @@ function MotionSection({ clip }: { clip: EditorClip }) {
   )
 }
 
+function formatBrightness(value: number) {
+  const amount = Math.round(value * 100)
+  return amount > 0 ? `+${amount}` : String(amount)
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`
+}
+
+/**
+ * Brightness, contrast and saturation on a clip with a picture. The preview
+ * and the export use the same three numbers, so what is set here is what the
+ * finished film shows.
+ *
+ * Each slider is one undo step per drag, like volume. The reset clears all
+ * three in one step, so one undo brings all three back.
+ */
+function ColourSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+  const colour = clipColour(clip)
+
+  function set(key: keyof ClipColour, value: number, firstOfDrag: boolean) {
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: { [key]: storedPlaybackValue(value, UNTOUCHED_COLOUR[key]) },
+      transient: !firstOfDrag,
+    })
+  }
+
+  function reset() {
+    if (!isColourTouched(colour)) {
+      toast("This clip's colour is already untouched.")
+      return
+    }
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: {
+        brightness: undefined,
+        contrast: undefined,
+        saturation: undefined,
+      },
+    })
+  }
+
+  return (
+    <InspectorCard
+      title="Colour"
+      description="Lift a dark shot, or make the colours stronger or softer."
+    >
+      <FractionSliderField
+        id="clip-brightness"
+        label="Brightness"
+        value={colour.brightness}
+        min={MIN_CLIP_BRIGHTNESS}
+        max={MAX_CLIP_BRIGHTNESS}
+        step={CLIP_COLOUR_STEP}
+        format={formatBrightness}
+        onChange={(value, first) => set("brightness", value, first)}
+      />
+      <FractionSliderField
+        id="clip-contrast"
+        label="Contrast"
+        value={colour.contrast}
+        min={MIN_CLIP_CONTRAST}
+        max={MAX_CLIP_CONTRAST}
+        step={CLIP_COLOUR_STEP}
+        format={formatPercent}
+        onChange={(value, first) => set("contrast", value, first)}
+      />
+      <FractionSliderField
+        id="clip-saturation"
+        label="Saturation"
+        value={colour.saturation}
+        min={MIN_CLIP_SATURATION}
+        max={MAX_CLIP_SATURATION}
+        step={CLIP_COLOUR_STEP}
+        format={formatPercent}
+        onChange={(value, first) => set("saturation", value, first)}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={reset}
+      >
+        <RotateCcw />
+        Reset colour
+      </Button>
+    </InspectorCard>
+  )
+}
+
 function MediaInspector({ clip }: { clip: EditorClip }) {
   const track = useEditorSelector(
     (state) => findClip(state.tracks, clip.id)?.track
@@ -561,6 +670,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
       <FrameFitSection clip={clip} />
 
       <MotionSection clip={clip} />
+
+      <ColourSection clip={clip} />
 
       <InspectorCard title="Sound">
         <SwitchField

@@ -425,3 +425,75 @@ describe("playing a clip faster or slower", () => {
     expect(right.speed).toBe(2)
   })
 })
+
+describe("colour on a clip", () => {
+  function coloured() {
+    let state = START
+    for (const patch of [
+      { brightness: 0.2 },
+      { contrast: 1.1 },
+      { saturation: 1.3 },
+    ]) {
+      state = editorReducer(state, {
+        type: "UPDATE_CLIP",
+        clipId: "clip-1",
+        patch,
+      })
+    }
+    return state
+  }
+  const clipOf = (state: typeof START) => state.tracks[0].clips[0]
+
+  it("resets all three at once, and one undo brings all three back", () => {
+    const before = coloured()
+    const reset = editorReducer(before, {
+      type: "UPDATE_CLIP",
+      clipId: "clip-1",
+      patch: {
+        brightness: undefined,
+        contrast: undefined,
+        saturation: undefined,
+      },
+    })
+    expect(clipOf(reset)).toMatchObject({
+      brightness: undefined,
+      contrast: undefined,
+      saturation: undefined,
+    })
+    const undone = editorReducer(reset, { type: "UNDO" })
+    expect(clipOf(undone)).toMatchObject({
+      brightness: 0.2,
+      contrast: 1.1,
+      saturation: 1.3,
+    })
+  })
+
+  const media = {
+    mediaId: "media-2",
+    url: "https://example.test/new",
+    name: "New",
+    sourceDurationMs: 10_000,
+  }
+
+  it("keeps the colour when the footage is swapped for a picture", () => {
+    const after = editorReducer(coloured(), {
+      type: "REPLACE_CLIP_MEDIA",
+      clipId: "clip-1",
+      media: { ...media, fileType: "image" },
+    })
+    expect(clipOf(after).brightness).toBe(0.2)
+  })
+
+  it("drops the colour when the footage is swapped for sound", () => {
+    const after = editorReducer(coloured(), {
+      type: "REPLACE_CLIP_MEDIA",
+      clipId: "clip-1",
+      media: { ...media, fileType: "audio" },
+    })
+    expect(clipOf(after)).toMatchObject({
+      brightness: undefined,
+      contrast: undefined,
+      saturation: undefined,
+    })
+  })
+})

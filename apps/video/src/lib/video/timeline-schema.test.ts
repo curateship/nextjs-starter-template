@@ -87,6 +87,36 @@ describe("requireCanonicalTimeline", () => {
     ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
   })
 
+  it("still accepts a clip saved before colour existed", () => {
+    const parsed = requireCanonicalTimeline(timeline([VIDEO_CLIP]))
+    expect(parsed.tracks[0].clips[0]).toEqual(VIDEO_CLIP)
+  })
+
+  it("accepts a clip lifted and made stronger", () => {
+    const parsed = requireCanonicalTimeline(
+      timeline([
+        { ...VIDEO_CLIP, brightness: 0.2, contrast: 1.1, saturation: 1.4 },
+      ])
+    )
+    expect(parsed.tracks[0].clips[0]).toMatchObject({
+      brightness: 0.2,
+      contrast: 1.1,
+      saturation: 1.4,
+    })
+  })
+
+  it("rejects colour past the sliders' ends", () => {
+    for (const colour of [
+      { brightness: 0.8 },
+      { contrast: 0.1 },
+      { saturation: 3 },
+    ]) {
+      expect(() =>
+        requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, ...colour }]))
+      ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
+    }
+  })
+
   it("accepts a clip turned down and sped up", () => {
     const parsed = requireCanonicalTimeline(
       timeline([{ ...VIDEO_CLIP, volume: 0.2, speed: 2 }])
@@ -173,9 +203,7 @@ describe("requireCanonicalTimeline", () => {
 
   it("drops nothing silently — an unknown field is a refusal", () => {
     expect(() =>
-      requireCanonicalTimeline(
-        timeline([{ ...VIDEO_CLIP, brightness: 0.5 }])
-      )
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, hue: 0.5 }]))
     ).toThrowError(SAVED_TIMELINE_INVALID_MESSAGE)
   })
 

@@ -552,6 +552,14 @@ export function editorReducer(
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         // Only a picture moves, so a move does not carry over to footage.
         motion: fileType === "image" ? found.clip.motion : undefined,
+        // Sound has no picture, so colour does not carry over to it.
+        ...(fileType === "audio"
+          ? {
+              brightness: undefined,
+              contrast: undefined,
+              saturation: undefined,
+            }
+          : {}),
         trimStartMs: 0,
         // The new file has to cover the clip at whatever speed it is set to:
         // a clip playing at 2x needs twice its own length of recording.
