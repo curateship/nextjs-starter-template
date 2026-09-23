@@ -5,7 +5,7 @@ import { WARNING } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 export const marketHeaderIconButtonClassName =
-  "bg-muted/60 text-amber-600 hover:text-amber-700 disabled:opacity-100"
+  "bg-muted/60 text-amber-600 hover:text-amber-700"
 
 export function marketHeaderIconClassName(saved: boolean) {
   return cn("size-4", saved && `fill-amber-500 ${WARNING}`)

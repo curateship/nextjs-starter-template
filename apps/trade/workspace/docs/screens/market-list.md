@@ -218,6 +218,13 @@ Hyperliquid with no page errors or failed requests. The desktop picker measured
 stayed within the screen. Other exchange pages were not repeated for this change.
 The selected market's Favorite star and header pin sit on the same light-gray
 button surface as the other header controls. Both are amber before they are
-saved, then fill amber when saved. The gray button stays visible while Pin
-loads. The market-list row star stays a bare icon, so the list does not gain a
-second button shape.
+saved, then fill amber when saved. The market-list row star stays a bare icon,
+so the list does not gain a second button shape.
+
+The header pin fades to half strength while it is busy, the same as every other
+greyed-out button. It is busy while it reads the saved pins after the page opens
+and while it saves a click. Hovering or tabbing to the faded pin says which one
+is happening: "Saving header pins. Try again once it finishes." or "Reading
+header pins. The pin works once they load." A second click
+during a save does nothing, and the fade is what tells you so. The star is never
+greyed out, so it never fades.
