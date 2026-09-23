@@ -3,7 +3,6 @@ import { ListIcon } from "lucide-react"
 
 import {
   signedPct,
-  signedUsd,
   toneClass,
   usd,
 } from "@/components/backtest/backtest-kpi"
@@ -22,7 +21,7 @@ import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { tradeEndingLabel } from "@/lib/trade/live-trades"
-import { formatPrice } from "@/lib/trade/format"
+import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -107,7 +106,7 @@ export function FlowRunTradesPanel({
         meta={
           trades.length === 0
             ? "none finished yet"
-            : `${trades.length} finished · ${signedUsd(total)} banked`
+            : `${trades.length} finished · ${formatSignedUsd(total)} banked`
         }
       />
       {trades.length === 0 ? (
@@ -174,7 +173,7 @@ export function FlowRunTradesPanel({
                     column="meta"
                     className={cn("text-right tabular-nums", toneClass(trade.pnl))}
                   >
-                    {signedUsd(trade.pnl)}
+                    {formatSignedUsd(trade.pnl)}
                   </TableCell>
                   <TableCell
                     column="meta"
@@ -189,7 +188,7 @@ export function FlowRunTradesPanel({
                       toneClass(cumulative.get(trade.id) ?? 0)
                     )}
                   >
-                    {signedUsd(cumulative.get(trade.id) ?? 0)}
+                    {formatSignedUsd(cumulative.get(trade.id) ?? 0)}
                   </TableCell>
                 </TableRow>
               ))}

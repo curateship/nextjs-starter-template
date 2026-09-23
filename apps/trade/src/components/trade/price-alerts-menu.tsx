@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BellIcon } from "lucide-react"
+import { SirenIcon } from "lucide-react"
 
 import {
   PriceAlertsPanelContent,
@@ -18,7 +18,12 @@ import { clearAlerts, getClearAlertsErrorMessage } from "@/lib/api/trade/alerts"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-/** Active and fired chart alerts, opened from the bell beside the market. */
+/**
+ * Active and fired chart alerts, opened with a click on the siren beside the
+ * market. A siren, not a bell, so it never reads as the notifications bell a
+ * few buttons along, and a click, not a hover, so the pointer passing over the
+ * header on its way somewhere else opens nothing.
+ */
 export function PriceAlertsMenu({
   alerts,
   error,
@@ -41,7 +46,6 @@ export function PriceAlertsMenu({
   const [confirmClear, setConfirmClear] = React.useState<
     "active" | "fired" | null
   >(null)
-  const closeTimer = React.useRef<number | null>(null)
   const fired = useFiredPriceAlerts()
   const firedCount = fired.alerts.length + lines.fired.length
   const clear = React.useCallback(
@@ -59,22 +63,6 @@ export function PriceAlertsMenu({
     },
     [clearing, fired, onCleared]
   )
-  const cancelClose = React.useCallback(() => {
-    if (closeTimer.current === null) return
-    window.clearTimeout(closeTimer.current)
-    closeTimer.current = null
-  }, [])
-  const openFromHover = React.useCallback(() => {
-    cancelClose()
-    setOpen(true)
-  }, [cancelClose])
-  const closeFromHover = React.useCallback(() => {
-    cancelClose()
-    closeTimer.current = window.setTimeout(() => setOpen(false), 120)
-  }, [cancelClose])
-
-  React.useEffect(() => cancelClose, [cancelClose])
-
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
@@ -84,15 +72,13 @@ export function PriceAlertsMenu({
             variant="outline"
             size="icon"
             className="relative bg-muted/60 dark:bg-muted/60"
-            onMouseEnter={openFromHover}
-            onMouseLeave={closeFromHover}
             aria-label={
               firedCount > 0
                 ? `Open alerts, ${firedCount} fired`
                 : "Open alerts"
             }
           >
-            <BellIcon className="size-4" />
+            <SirenIcon className="size-4" />
             {firedCount > 0 ? (
               <Badge
                 variant="destructive"
@@ -112,8 +98,6 @@ export function PriceAlertsMenu({
             maxHeight: "var(--radix-popover-content-available-height)",
           }}
           className="h-[28rem] w-[calc(100vw-2rem)] max-w-96 gap-0 overflow-hidden p-0"
-          onMouseEnter={openFromHover}
-          onMouseLeave={closeFromHover}
         >
           <PriceAlertsPanelContent
             alerts={alerts}
@@ -121,7 +105,7 @@ export function PriceAlertsMenu({
             onRetry={onRetry}
             // Both of these put a market on the chart and leave the menu
             // up, so a list of alerts can be walked down one row at a time.
-            // Moving the pointer off the menu closes it, and so does Escape.
+            // A click outside the menu closes it, and so does Escape.
             // A row for another exchange is the exception: it opens that
             // exchange's screen, and the menu goes with the old page.
             onSelectMarket={onSelectMarket}

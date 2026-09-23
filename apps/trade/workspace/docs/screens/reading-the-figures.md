@@ -44,6 +44,9 @@ else formats one.
 - **Money someone owns** — `formatUsd`, to the cent: `$9,999.78`.
 - **A gain or a loss** — `formatSignedUsd`. The sign is always shown and the
   minus goes outside the dollar sign: `-$12.34`, never `$-12.34`.
+  Live runs and their Stats, Trades and Coins panels use it too, so a live
+  run's profit matches its P&L row to the cent. Backtests keep whole dollars
+  through `signedUsd`, because their made-up totals run to six figures.
 - **Whole dollars.** `formatWholeUsd` uses the same sign rule:
   `-$1,250`, never `$-1,250`. A loss that rounds to zero reads `$0`, not `-$0`.
 - **A big figure** — `formatCompactUsd`, lower case: `$1.24b`, `$88.6m`,

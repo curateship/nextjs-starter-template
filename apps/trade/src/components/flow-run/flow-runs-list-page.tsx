@@ -9,7 +9,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { signedUsd, toneClass } from "@/components/backtest/backtest-kpi"
+import { toneClass } from "@/components/backtest/backtest-kpi"
+import { formatSignedUsd } from "@/lib/trade/format"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
@@ -319,7 +320,7 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
               column="meta"
               className={cn("tabular-nums", toneClass(row.netUsd))}
             >
-              {row.tradesClosed === 0 ? "—" : signedUsd(row.netUsd)}
+              {row.tradesClosed === 0 ? "—" : formatSignedUsd(row.netUsd)}
               <span className="block text-xs text-muted-foreground">
                 {row.tradesClosed} {plural(row.tradesClosed, "trade", "trades")}
               </span>

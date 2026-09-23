@@ -4,13 +4,16 @@ A price alert is a one-use line on one market. Right-click or long-press the
 chart and choose **Alert at $X**. The alert works with or without a wallet
 selected. The wallet only decides whether the menu also offers order actions.
 
-The purple line and its row under the header's bell appear immediately. Its
+The purple line and its row under the header's siren appear immediately.
+The alerts button is a siren rather than a bell, so it never reads as the
+notifications bell a few buttons along. It opens on a click, Enter or Space,
+never on hover, so the pointer passing across the header opens nothing. Its
 dropdown has the same raised tab style as Smart orders. **Fired** is the first
 tab, it is the tab the dropdown opens on, and it holds the 100 most recent
 lines that already went off (Tyler, 13 Sep 2026). **Alert** is the second tab
 and holds the lines that are still waiting. Fired needs no press to fill: the
 fired list is read when the screen loads and again every two seconds. Each label has the same rounded count badge used by the
-Positions tab. The bell itself gets a red count badge whenever fired price or
+Positions tab. The siren itself gets a red count badge whenever fired price or
 drawing alerts are waiting in Fired.
 Selecting a row in either tab opens that market and leaves the dropdown open.
 Clicking a fired row also clears that fired entry and reduces the red count.
@@ -19,7 +22,7 @@ A failed clear restores the entry and reports the error. A refresh already
 in progress cannot bring a successfully cleared price alert back.
 The dropdown stays open
 so a list of alerts can be walked down one row at a time. The dropdown closes
-when the pointer leaves it, or on Escape. A row belonging to another exchange
+on a click outside it, or on Escape. A row belonging to another exchange
 is the exception: it opens that exchange's screen, and the dropdown goes with
 the old page. The chart line
 uses the same bar as an order: the dotted grip drags it to a new price and the
@@ -54,7 +57,7 @@ announce the same alert. The line and active row then leave on the next screen
 refresh, and the row moves to **Fired**. The two tab labels show their current
 row counts. A reload keeps an uncleared fired row without firing again. An open screen checks active alerts every two seconds while it has an
 alert to watch or a failed read to retry. Fired price alerts refresh every two
-seconds while the Trade page is visible, so the closed bell can gain its red
+seconds while the Trade page is visible, so the closed siren can gain its red
 badge as soon as one fires. The Fired tab also refreshes when opened.
 
 The bell and inbox say, for example, "ETH reached $3,600 (was rising)," and the
