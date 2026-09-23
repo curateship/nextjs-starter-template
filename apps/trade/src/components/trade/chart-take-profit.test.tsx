@@ -86,7 +86,7 @@ describe("the chart take-profit window", () => {
     expect(projected?.querySelector("span")?.className).toContain(
       "text-emerald"
     )
-    await act(async () => button("Set target").click())
+    await act(async () => button("Set exit").click())
 
     expect(onSave).toHaveBeenCalledWith({
       targets: [{ px: 120, sz: null }],
@@ -116,7 +116,7 @@ describe("the chart take-profit window", () => {
       expect(host.querySelector("span.text-destructive")?.textContent).toBe(
         "-$5.00"
       )
-      await act(async () => button("Set target").click())
+      await act(async () => button("Set exit").click())
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({ targets: [{ px, sz: null }] })
       )
@@ -139,7 +139,7 @@ describe("the chart take-profit window", () => {
 
     await act(async () => button("25%").click())
     expect(host.textContent).toContain("+$10.00")
-    await act(async () => button("Set target").click())
+    await act(async () => button("Set exit").click())
 
     expect(onSave).toHaveBeenCalledWith({
       targets: [{ px: 120, sz: 0.5 }],
@@ -166,7 +166,7 @@ describe("the chart take-profit window", () => {
     )
 
     expect(host.textContent).toContain("% of remaining")
-    await act(async () => button("Add target").click())
+    await act(async () => button("Add exit").click())
 
     expect(onSave).toHaveBeenCalledWith({
       targets: [
@@ -196,7 +196,7 @@ describe("the chart take-profit window", () => {
     )
 
     await act(async () => button("25%").click())
-    await act(async () => button("Add target").click())
+    await act(async () => button("Add exit").click())
 
     expect(onSave).toHaveBeenCalledWith({
       targets: [
@@ -225,7 +225,7 @@ describe("the chart take-profit window", () => {
       )
     )
 
-    const add = button("Add target")
+    const add = button("Add exit")
     expect(add.disabled).toBe(false)
     await setAmount("150")
     await act(async () => add.click())
@@ -234,6 +234,6 @@ describe("the chart take-profit window", () => {
     expect(
       host.querySelector("#chart-target-size")?.getAttribute("aria-invalid")
     ).toBe("true")
-    expect(host.textContent).toContain("0.25 is available for another target.")
+    expect(host.textContent).toContain("0.25 is available for another exit.")
   })
 })

@@ -2428,6 +2428,9 @@ export function ChartPanel({
       ) : null}
       <OrderEditWindow
         order={editing}
+        wallet={
+          editing ? (trading.walletNames.get(editing.walletId) ?? "") : ""
+        }
         anchor={editingAnchor}
         wide={wide}
         busy={trading.busy}

@@ -97,7 +97,7 @@ exit percentage, or the first entry gap when none has been saved. The exit
 percentage is separate from the entry gap and accepts values above zero up to
 999%. A $100 market purchase with 10% exits at $110. Neither the base price nor
 the extra exit gap adds to that target. The average-price mode already has its
-own Target % field and continues to use that field instead.
+own Exit % field and continues to use that field instead.
 
 The market buy goes first. Its sell waits until the exchange shows the new
 position. Previous-rung mode gives the first buy its own target. Nearest-rung
@@ -137,7 +137,7 @@ Waiting exits are faded and dashed; a funded reduce-only sell is solid. The
 same choice appears when editing a running ladder's exits. Its **Extra gap %**
 box starts at zero and moves the complete exit shape farther above the buys.
 The steps between the exits still match the steps between the buys. The Exit
-picker and its Target % or Extra gap % setting each use a full-width row, so
+picker and its Exit % or Extra gap % setting each use a full-width row, so
 neither control is squeezed against the edge of the order window. Their labels
 use the same field-label treatment as the rest of the order form.
 
@@ -453,6 +453,32 @@ Two rules decide what appears in the opened sale list.
   closed rather than per fill, and a grid selling part of what it holds never
   closes a position, so its sales arrive unpriced. The panel lists them, leaves
   the figure blank, and says underneath how many the total is short of.
+
+## One word for the exit
+
+Every order window calls the price that closes a trade at a profit the
+**Exit**. No window labels that field Target or Take profit, and no empty line
+says "No target set". The stored field names (`tpPx`, `targets`, `targetPct`)
+did not change, because renaming a saved field breaks records already saved.
+
+- **Quick order and Order settings:** the Exit box has the same Percent or
+  Price menu beside it that Stop loss has in the quick order. The label reads
+  Exit % or Exit price to match.
+- **Same order either way:** on a long placed at $100, an Exit of 10% and an
+  Exit price of $110 send the same $110 exit.
+- **Wrong side refused:** a price exit has to be above the entry on a long and
+  below it on a short. Anything else marks the box and says which side it has
+  to be on.
+- **Quick order remembers the choice:** it opens on Percent or Price the way it
+  was last left, like the stop. Settings saved before this change open on
+  Percent.
+- **Order settings starts both boxes from the order's exit:** switching to
+  Price shows the exit the order already has as a price, so nothing is lost.
+- **DCA window:** the Exit menu's percent field is Exit %. It has no Price
+  choice, because the average-price exit moves after every fill.
+- **Stop and exit window (Brackets):** its rows read Exit 1, Exit 2 and Exit 3,
+  each with a price and a dollar size. Whether it also gets a Percent choice is
+  still open.
 
 ## Floating window width
 

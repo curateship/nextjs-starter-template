@@ -432,9 +432,9 @@ const paperErrorMessage = createErrorMessage(
       "This exit will be at a loss.",
     PAPER_TAKE_PROFIT_SIZE:
       "The exit has to sell at least the market's smallest step and no more than the position holds.",
-    PAPER_TAKE_PROFIT_COUNT: "A position can have no more than three targets.",
+    PAPER_TAKE_PROFIT_COUNT: "A position can have no more than three exits.",
     PAPER_TAKE_PROFIT_LIST_SIZE:
-      "Each target needs its own size when a position has more than one target.",
+      "Each exit needs its own size when a position has more than one exit.",
     PAPER_STOP_SIDE:
       "A stop must stay beyond the current price — below it on a long, above it on a short.",
   },

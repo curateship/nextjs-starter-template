@@ -52,6 +52,10 @@ export const quickOrderPrefsSchema = z.object({
   stopPrice: z.string().max(24).default(""),
   stopPct: z.string().max(12),
   targetPct: z.string().max(12),
+  /** Whether the exit box holds a distance or the exact winning price. */
+  targetUnit: z.enum(["pct", "price"]).default("pct"),
+  /** The exact exit price, kept separately from the percent value. */
+  targetPrice: z.string().max(24).default(""),
   /**
    * The worst fill a swap may take, as a percent of the price, kept as
    * typed. Only a venue whose orders are swaps reads it (Solana through
@@ -76,6 +80,8 @@ export const DEFAULT_QUICK_ORDER: QuickOrderPrefs = {
   stopPrice: "",
   stopPct: "2",
   targetPct: "5",
+  targetUnit: "pct",
+  targetPrice: "",
   slippagePct: DEFAULT_SLIPPAGE_PCT,
 }
 

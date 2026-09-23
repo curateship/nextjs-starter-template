@@ -49,19 +49,24 @@ export function bracketPrice(input: {
 }
 
 /**
- * Reads an exact stop price and keeps it only when it is on the losing side of
- * the entry. A long loses below its entry; a short loses above it.
+ * Reads an exact stop or exit price and keeps it only when it is on the right
+ * side of the entry. A long's exit is above its entry and its stop below; on a
+ * short they swap.
  */
-export function absoluteStopPrice(input: {
+export function absoluteBracketPrice(input: {
   entryPx: number
   price: string
   long: boolean
+  /** The winning side — the exit — rather than the stop. */
+  winning: boolean
 }): number | null {
   const typed = input.price.trim()
   const price = Number(typed)
   if (typed === "" || !Number.isFinite(price) || price <= 0) return null
-  const losing = input.long ? price < input.entryPx : price > input.entryPx
-  return losing ? price : null
+  const above = price > input.entryPx
+  const below = price < input.entryPx
+  const up = input.winning === input.long
+  return (up ? above : below) ? price : null
 }
 
 /** Something was typed in the box and it does not work out to a price. */

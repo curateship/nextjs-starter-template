@@ -626,9 +626,9 @@ const LIVE_SENTENCES: Record<string, string> = {
     "This exit will be at a loss.",
   LIVE_TAKE_PROFIT_SIZE:
     "The exit cannot sell more than the position holds.",
-  LIVE_TAKE_PROFIT_COUNT: "A position can have no more than three targets.",
+  LIVE_TAKE_PROFIT_COUNT: "A position can have no more than three exits.",
   LIVE_TAKE_PROFIT_LIST_SIZE:
-    "Each target needs its own size when a position has more than one target.",
+    "Each exit needs its own size when a position has more than one exit.",
   LIVE_STOP_SIDE:
     "A stop must stay beyond the current price — below it on a long, above it on a short.",
   LIVE_STOP_SIZE: "The stop cannot sell more than the position holds.",

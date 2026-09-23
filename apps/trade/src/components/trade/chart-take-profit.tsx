@@ -187,9 +187,7 @@ export function ChartTakeProfit({
           }}
         >
           <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className={`${MADE_MONEY} text-sm font-semibold`}>
-            Exit
-          </span>
+          <span className={`${MADE_MONEY} text-sm font-semibold`}>Exit</span>
           <span className="ml-auto min-w-0 truncate text-xs font-medium text-muted-foreground">
             {wallet}
           </span>
@@ -278,17 +276,17 @@ export function ChartTakeProfit({
               className="text-xs text-muted-foreground tabular-nums"
             >
               {position.targets.length >= 3
-                ? "Three targets is the maximum."
+                ? "Three exits is the maximum."
                 : !validAmount
                   ? "Enter an amount greater than zero."
                   : coins > available * (1 + 1e-9)
-                    ? `${formatSize(available)} is available for another target.`
+                    ? `${formatSize(available)} is available for another exit.`
                     : wholePositionTarget && coins < held * (1 - 1e-9)
-                      ? `${formatSize(coins)} comes off here. The existing target keeps ${formatSize(held - coins)}.`
+                      ? `${formatSize(coins)} comes off here. The existing exit keeps ${formatSize(held - coins)}.`
                       : position.targets.length === 0 &&
                           coins >= held * (1 - 1e-9)
                         ? `The whole ${formatSize(held)} position closes.`
-                        : `${formatSize(coins)} comes off, worth ${formatUsd(coins * state.px)} at the target.`}
+                        : `${formatSize(coins)} comes off, worth ${formatUsd(coins * state.px)} at the exit.`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -301,7 +299,7 @@ export function ChartTakeProfit({
               Cancel
             </Button>
             <Button type="button" className="flex-1" onClick={submit}>
-              {position.targets.length === 0 ? "Set target" : "Add target"}
+              {position.targets.length === 0 ? "Set exit" : "Add exit"}
             </Button>
           </div>
         </div>

@@ -173,7 +173,10 @@ export function FloatingOrderWindow({
         {wallet || free !== undefined ? (
           <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
             {wallet ? (
-              <span className="min-w-0 truncate font-medium text-foreground">
+              <span
+                className="min-w-0 truncate font-medium text-foreground"
+                title={wallet}
+              >
                 {wallet}
               </span>
             ) : null}

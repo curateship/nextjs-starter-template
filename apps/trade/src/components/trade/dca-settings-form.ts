@@ -267,7 +267,7 @@ export function inspectDcaSettingsForm(
           : badLeverage
             ? `Leverage has to be a whole number from 1× to ${maxBorrowing}× on this market.`
             : badTakeProfit
-              ? "Target % has to be a number above zero and no more than 999%."
+              ? "Exit % has to be a number above zero and no more than 999%."
               : badExitGap
                 ? `Extra exit gap has to be from 0 to ${MAX_DCA_EXIT_GAP_PCT}%.`
                 : badStopLoss

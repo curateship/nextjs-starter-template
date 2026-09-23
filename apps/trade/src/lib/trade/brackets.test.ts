@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  absoluteStopPrice,
+  absoluteBracketPrice,
   bracketPercent,
   bracketPrice,
   bracketTyped,
@@ -69,25 +69,29 @@ describe("bracketPrice", () => {
   })
 })
 
-describe("absoluteStopPrice", () => {
-  it("accepts only the losing side of a long or short entry", () => {
-    expect(absoluteStopPrice({ entryPx: 100, price: "95", long: true })).toBe(
-      95
-    )
-    expect(absoluteStopPrice({ entryPx: 100, price: "105", long: false })).toBe(
-      105
-    )
-    expect(
-      absoluteStopPrice({ entryPx: 100, price: "105", long: true })
-    ).toBeNull()
-    expect(
-      absoluteStopPrice({ entryPx: 100, price: "95", long: false })
-    ).toBeNull()
+describe("absoluteBracketPrice", () => {
+  const at = (price: string, long: boolean, winning: boolean) =>
+    absoluteBracketPrice({ entryPx: 100, price, long, winning })
+
+  it("accepts a stop only on the losing side of a long or short entry", () => {
+    expect(at("95", true, false)).toBe(95)
+    expect(at("105", false, false)).toBe(105)
+    expect(at("105", true, false)).toBeNull()
+    expect(at("95", false, false)).toBeNull()
+  })
+
+  it("accepts an exit only on the winning side of a long or short entry", () => {
+    expect(at("110", true, true)).toBe(110)
+    expect(at("90", false, true)).toBe(90)
+    expect(at("90", true, true)).toBeNull()
+    expect(at("110", false, true)).toBeNull()
+    expect(at("100", true, true)).toBeNull()
   })
 
   it("refuses an empty, invalid, or zero price", () => {
     for (const price of ["", "nope", "0", "-1"]) {
-      expect(absoluteStopPrice({ entryPx: 100, price, long: true })).toBeNull()
+      expect(at(price, true, false)).toBeNull()
+      expect(at(price, false, true)).toBeNull()
     }
   })
 })

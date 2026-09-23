@@ -175,9 +175,9 @@ function BracketsForm({
   )
 
   const refusal = badTarget
-    ? "Each target needs a price and a dollar size above zero."
+    ? "Each exit needs a price and a dollar size above zero."
     : tooMuch
-      ? `The targets add up to ${formatUsd(parsedTargets.reduce((sum, target) => sum + target.dollars, 0))} at their prices, but the position holds ${formatUsd(heldSz * position.entryPx)} bought at the entry. Lower one or more target sizes.`
+      ? `The exits add up to ${formatUsd(parsedTargets.reduce((sum, target) => sum + target.dollars, 0))} at their prices, but the position holds ${formatUsd(heldSz * position.entryPx)} bought at the entry. Lower one or more exit sizes.`
       : badStop
         ? long
           ? "Stop loss % has to be above zero and under 100 — 100% below the entry is a price of nothing. Leave it empty for no stop."
@@ -204,7 +204,7 @@ function BracketsForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Stop and target for {symbol}</DialogTitle>
+        <DialogTitle>Stop and exit for {symbol}</DialogTitle>
         <DialogDescription>
           {long ? "Long" : "Short"} {Math.abs(position.szi)} at{" "}
           {formatPrice(position.entryPx)}, on {position.leverage}× leverage.
@@ -224,12 +224,12 @@ function BracketsForm({
                   className="grid gap-2 border-b pb-4 last:border-b-0 last:pb-0"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Target {index + 1}</p>
+                    <p className="text-sm font-medium">Exit {index + 1}</p>
                     <Button
                       type="button"
                       size="icon-sm"
                       variant="ghost"
-                      aria-label={`Remove target ${index + 1}`}
+                      aria-label={`Remove exit ${index + 1}`}
                       disabled={busy}
                       onClick={() =>
                         setTargets((current) =>
@@ -244,7 +244,7 @@ function BracketsForm({
                     <div className="grid gap-2">
                       <FieldLabel
                         htmlFor={`brackets-target-price-${target.id}`}
-                        hint={`The price where target ${index + 1} sells its slice.`}
+                        hint={`The price where exit ${index + 1} sells its slice.`}
                       >
                         Price
                       </FieldLabel>
@@ -272,9 +272,9 @@ function BracketsForm({
                     <div className="grid gap-2">
                       <FieldLabel
                         htmlFor={`brackets-target-size-${target.id}`}
-                        hint={`The dollar value target ${index + 1} sells at its target price.`}
+                        hint={`The dollar value exit ${index + 1} sells at its exit price.`}
                       >
-                        Size at target
+                        Size at exit
                       </FieldLabel>
                       <Input
                         id={`brackets-target-size-${target.id}`}
@@ -336,16 +336,16 @@ function BracketsForm({
                   }
                 >
                   <PlusIcon />
-                  Add target
+                  Add exit
                 </Button>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Three targets is the maximum.
+                  Three exits is the maximum.
                 </p>
               )}
               <p className="text-xs text-muted-foreground tabular-nums">
                 {targets.length === 0
-                  ? "No targets set."
+                  ? "No exits set."
                   : `${formatUsd(Math.min(coveredSz, heldSz) * position.entryPx)} of ${formatUsd(heldSz * position.entryPx)} covered at the entry price.`}
               </p>
             </div>
