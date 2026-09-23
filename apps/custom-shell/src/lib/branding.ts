@@ -9,6 +9,10 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  normalizePublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
   normalizePublicSystemCopy,
   type PublicSystemCopy,
 } from "@/lib/pages/public-metadata"
@@ -99,6 +103,16 @@ export function usePublicHeader(): PublicHeader {
   })
 
   return React.useMemo(() => normalizePublicHeader(saved), [saved])
+}
+
+/** Which kinds of public page show the breadcrumb trail. */
+export function usePublicBreadcrumbs(): PublicBreadcrumbs {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicBreadcrumbs,
+  })
+
+  return React.useMemo(() => normalizePublicBreadcrumbs(saved), [saved])
 }
 
 /** Whether the site's public search page may be offered to visitors. */

@@ -23,6 +23,10 @@ import {
   createDefaultPublicHeader,
   type PublicHeader,
 } from "@/lib/pages/public-header"
+import {
+  createDefaultPublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
 import type { PublicTheme } from "@/lib/public-theme"
 import {
   createDefaultPublicSeo,
@@ -186,6 +190,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicSystemCopy: PublicSystemCopy
     frontPageRows: FrontPageRow[]
     publicHeader: PublicHeader
+    publicBreadcrumbs: PublicBreadcrumbs
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
@@ -218,6 +223,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicSystemCopy: createDefaultPublicSystemCopy(),
         frontPageRows: [],
         publicHeader: createDefaultPublicHeader(),
+        publicBreadcrumbs: createDefaultPublicBreadcrumbs(),
         publicNavigation: createDefaultPublicNavigation(),
         publicFooter: [],
         publicFooterCopyright: "",

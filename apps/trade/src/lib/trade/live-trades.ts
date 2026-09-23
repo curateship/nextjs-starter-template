@@ -335,8 +335,11 @@ export type LiveFillMark = {
   detail: string | null
 }
 
-/** What one grid rung's own round trip made after both fees. */
-export type GridRoundTrip = { money: number; rung?: number }
+/**
+ * What one grid rung's own round trip made after both fees, and the price its
+ * own coins were bought at (sold at, on a selling grid).
+ */
+export type GridRoundTrip = { money: number; entryPx: number; rung?: number }
 
 /**
  * What each grid sell made on its OWN buy, rather than on the position average.
@@ -417,6 +420,7 @@ export function gridRoundTrips(
     let left = fill.sz
     let money = -fill.fee
     let matched = 0
+    let matchedDollars = 0
     const matchedRungs = new Set<number>()
     while (left > DUST && stack.length > 0) {
       const lot = stack[stack.length - 1]
@@ -426,6 +430,7 @@ export function gridRoundTrips(
       const moved =
         fillDirection === "long" ? fill.px - lot.px : lot.px - fill.px
       money += part * moved - lot.fee * share
+      matchedDollars += part * lot.px
       if (lot.rung !== undefined) matchedRungs.add(lot.rung)
       lot.fee -= lot.fee * share
       lot.sz -= part
@@ -437,6 +442,7 @@ export function gridRoundTrips(
     if (!fill.grid || left > DUST || matched <= DUST) continue
     out.set(fill.fillId, {
       money,
+      entryPx: matchedDollars / matched,
       rung:
         fill.gridRung ??
         (matchedRungs.size === 1 ? [...matchedRungs][0] : undefined),

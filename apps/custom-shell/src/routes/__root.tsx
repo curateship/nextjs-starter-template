@@ -49,6 +49,8 @@ import {
   publicStructuredDataText,
   type PublicStructuredDataInput,
 } from "@/lib/pages/public-structured-data"
+import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
+import type { PublicBreadcrumbItem } from "@/lib/pages/public-breadcrumbs"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { cn } from "@/lib/utils"
 import { ThemeProvider } from "@/components/shell/sticky-header/light-dark-switcher"
@@ -253,6 +255,9 @@ function RootComponent() {
     publicOrigin,
     hostIsUnknown,
   } = Route.useLoaderData()
+  // Built by the same function `PublicPageFrame` draws from, so the trail a
+  // visitor reads and the trail a search engine reads cannot drift apart.
+  const breadcrumbTrail = usePublicBreadcrumbTrail()
 
   return (
     <RootDocument
@@ -271,6 +276,7 @@ function RootComponent() {
                 url: publicOrigin,
               },
               pageOrigin: publicOrigin,
+              breadcrumbs: breadcrumbTrail,
             }
       }
     >
@@ -338,6 +344,7 @@ function RootDocument({
   structuredData?: {
     organization: PublicStructuredDataInput["organization"]
     pageOrigin: string
+    breadcrumbs: readonly PublicBreadcrumbItem[]
   } | null
 }>) {
   const signedInPage = useSignedInPage()
@@ -438,6 +445,7 @@ function usePublicStructuredDataText(
   input: {
     organization: PublicStructuredDataInput["organization"]
     pageOrigin: string
+    breadcrumbs: readonly PublicBreadcrumbItem[]
   } | null
 ) {
   return useRouterState({
@@ -459,6 +467,13 @@ function usePublicStructuredDataText(
           ...resolvedPublicPageMetadata(state.matches),
           url: publicPageUrl(input.pageOrigin, state.location.pathname),
         },
+        // A step with no address is the page itself, and `BreadcrumbList`
+        // accepts that, so an empty href stays empty rather than pointing at
+        // the site root.
+        breadcrumbs: input.breadcrumbs.map((step) => ({
+          name: step.label,
+          url: step.href ? publicPageUrl(input.pageOrigin, step.href) : "",
+        })),
       })
     },
   })
