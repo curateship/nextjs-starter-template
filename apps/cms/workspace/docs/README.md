@@ -33,6 +33,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   server.
 - `posts.md` — each site's Posts page: writing posts, listing cards in a post, and
   where posts appear once published.
+- `events.md` — each site's events: writing them, the site's time zone and why
+  times are stored as a day and a clock time, when an event counts as over, and
+  the event page.
 
 ## Adding a doc
 

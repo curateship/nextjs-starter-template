@@ -10,8 +10,10 @@ import {
   updateListing,
 } from "@/server/directory/listings"
 import { readPublicCategory, type VisitorSite } from "@/server/directory/public"
+import { setContentCategories } from "@/server/directory/content-categories"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
-import { createPost, setPostCategories, updatePost } from "@/server/posts/posts"
+import { createPost, updatePost } from "@/server/posts/posts"
+import { POST_CONTENT_TYPE } from "@/server/posts/schema"
 import {
   postSearchResults,
   postSitemapEntries,
@@ -123,7 +125,13 @@ describe("the Posts page's own switch", () => {
       database
     )
     const live = await post(site.id, "Hidden bakeries", "published")
-    await setPostCategories(site.id, live.id, [bakeries.id], database)
+    await setContentCategories(
+      site.id,
+      POST_CONTENT_TYPE,
+      live.id,
+      [bakeries.id],
+      database
+    )
     await database
       .update(customShellWorkspaces)
       .set({ settings: { pages: { "/posts": { visibility: "off" } } } })
@@ -176,8 +184,20 @@ describe("category pages", () => {
     )
     const live = await post(site.id, "Best bakeries", "published")
     const draft = await post(site.id, "Unfinished bakeries", "draft")
-    await setPostCategories(site.id, live.id, [bakeries.id], database)
-    await setPostCategories(site.id, draft.id, [bakeries.id], database)
+    await setContentCategories(
+      site.id,
+      POST_CONTENT_TYPE,
+      live.id,
+      [bakeries.id],
+      database
+    )
+    await setContentCategories(
+      site.id,
+      POST_CONTENT_TYPE,
+      draft.id,
+      [bakeries.id],
+      database
+    )
 
     const page = await readPublicCategory(
       site,

@@ -28,6 +28,7 @@ import {
   saveBrowseSettings,
   saveMapEnabled,
   saveNeighbourhoodCategory,
+  saveTimeZone,
   type DirectoryBrowseSettingsInput,
   type DirectorySettings as DirectorySettingsValue,
 } from "@/lib/api/directory/settings"
@@ -42,6 +43,7 @@ import {
 } from "@/lib/directory/public-search"
 import { loadCategories, type Category } from "@/lib/api/directory/categories"
 import type { DirectoryCategorySource } from "@/lib/directory/category-cards"
+import { timeZoneChoices } from "@/lib/events/event-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -118,6 +120,17 @@ export function DirectorySettings() {
     (neighbourhoodCategoryId: string) => {
       const queued = saveQueue.current.then(() =>
         save(() => saveNeighbourhoodCategory(neighbourhoodCategoryId))
+      )
+      saveQueue.current = queued
+      return queued
+    },
+    [save]
+  )
+
+  const persistTimeZone = React.useCallback(
+    (timeZone: string) => {
+      const queued = saveQueue.current.then(() =>
+        save(() => saveTimeZone(timeZone))
       )
       saveQueue.current = queued
       return queued
@@ -409,6 +422,51 @@ export function DirectorySettings() {
               {parentCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="directory-time-zone"
+        title="Time zone"
+        description="The zone every event's times are in. An event at 6pm starts at 6pm here."
+        contentClassName="space-y-4"
+      >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="directory-time-zone"
+            hint="Changing it keeps each event's day and clock time as written and reads them in the new zone. It also decides when an event counts as over, and the event page names it beside the times."
+          >
+            Time zone
+          </FieldLabel>
+          <Select
+            value={settings.timeZone}
+            disabled={saving}
+            onValueChange={(timeZone) => {
+              const previous = settings.timeZone
+              setSettings({ ...settings, timeZone })
+              void persistTimeZone(timeZone).then((saved) => {
+                if (!saved) {
+                  setSettings((current) =>
+                    current ? { ...current, timeZone: previous } : current
+                  )
+                }
+              })
+            }}
+          >
+            <SelectTrigger
+              id="directory-time-zone"
+              className="w-full sm:w-auto"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {timeZoneChoices(settings.timeZone).map((zone) => (
+                <SelectItem key={zone} value={zone}>
+                  {zone.replaceAll("_", " ")}
                 </SelectItem>
               ))}
             </SelectContent>

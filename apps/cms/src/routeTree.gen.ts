@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as DirectoryRouteImport } from './routes/directory'
+import { Route as EventsRouteImport } from './routes/events'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
@@ -43,6 +44,7 @@ import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-v
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
+import { Route as EventsSlugRouteImport } from './routes/events_.$slug'
 import { Route as PostsSlugRouteImport } from './routes/posts_.$slug'
 import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -54,6 +56,7 @@ import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
+import { Route as AuthenticatedAdminEventsRouteImport } from './routes/_authenticated/admin/events'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
 import { Route as AuthenticatedAdminListingFeaturedRouteImport } from './routes/_authenticated/admin/listing-featured'
@@ -123,6 +126,11 @@ const ChangeEmailRoute = ChangeEmailRouteImport.update({
 const DirectoryRoute = DirectoryRouteImport.update({
   id: '/directory',
   path: '/directory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
@@ -267,6 +275,11 @@ const DirectorySlugRoute = DirectorySlugRouteImport.update({
   path: '/directory/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsSlugRoute = EventsSlugRouteImport.update({
+  id: '/events_/$slug',
+  path: '/events/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostsSlugRoute = PostsSlugRouteImport.update({
   id: '/posts_/$slug',
   path: '/posts/$slug',
@@ -327,6 +340,12 @@ const AuthenticatedAdminDevOutboxRoute =
   AuthenticatedAdminDevOutboxRouteImport.update({
     id: '/dev-outbox',
     path: '/dev-outbox',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEventsRoute =
+  AuthenticatedAdminEventsRouteImport.update({
+    id: '/events',
+    path: '/events',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminFeedbackRoute =
@@ -568,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/events': typeof EventsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -596,6 +616,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/events/$slug': typeof EventsSlugRoute
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -606,6 +627,7 @@ export interface FileRoutesByFullPath {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/admin/events': typeof AuthenticatedAdminEventsRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
@@ -655,6 +677,7 @@ export interface FileRoutesByTo {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/events': typeof EventsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -681,6 +704,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/events/$slug': typeof EventsSlugRoute
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -691,6 +715,7 @@ export interface FileRoutesByTo {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/admin/events': typeof AuthenticatedAdminEventsRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
@@ -742,6 +767,7 @@ export interface FileRoutesById {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/events': typeof EventsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -770,6 +796,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
+  '/events_/$slug': typeof EventsSlugRoute
   '/posts_/$slug': typeof PostsSlugRoute
   '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -780,6 +807,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/_authenticated/admin/events': typeof AuthenticatedAdminEventsRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/_authenticated/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
@@ -831,6 +859,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/events'
     | '/feed.xml'
     | '/forgot-password'
     | '/login'
@@ -859,6 +888,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
+    | '/events/$slug'
     | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -869,6 +899,7 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
+    | '/admin/events'
     | '/admin/feedback'
     | '/admin/listing-claims'
     | '/admin/listing-featured'
@@ -918,6 +949,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/events'
     | '/feed.xml'
     | '/forgot-password'
     | '/login'
@@ -944,6 +976,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
+    | '/events/$slug'
     | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -954,6 +987,7 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
+    | '/admin/events'
     | '/admin/feedback'
     | '/admin/listing-claims'
     | '/admin/listing-featured'
@@ -1004,6 +1038,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/events'
     | '/feed.xml'
     | '/forgot-password'
     | '/login'
@@ -1032,6 +1067,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
+    | '/events_/$slug'
     | '/posts_/$slug'
     | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
@@ -1042,6 +1078,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
+    | '/_authenticated/admin/events'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/listing-claims'
     | '/_authenticated/admin/listing-featured'
@@ -1093,6 +1130,7 @@ export interface RootRouteChildren {
   AddListingRoute: typeof AddListingRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
   DirectoryRoute: typeof DirectoryRoute
+  EventsRoute: typeof EventsRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
@@ -1114,6 +1152,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
+  EventsSlugRoute: typeof EventsSlugRoute
   PostsSlugRoute: typeof PostsSlugRoute
   ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
@@ -1170,6 +1209,13 @@ declare module '@tanstack/react-router' {
       path: '/directory'
       fullPath: '/directory'
       preLoaderRoute: typeof DirectoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed.xml': {
@@ -1368,6 +1414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectorySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events_/$slug': {
+      id: '/events_/$slug'
+      path: '/events/$slug'
+      fullPath: '/events/$slug'
+      preLoaderRoute: typeof EventsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/posts_/$slug': {
       id: '/posts_/$slug'
       path: '/posts/$slug'
@@ -1443,6 +1496,13 @@ declare module '@tanstack/react-router' {
       path: '/dev-outbox'
       fullPath: '/admin/dev-outbox'
       preLoaderRoute: typeof AuthenticatedAdminDevOutboxRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/events': {
+      id: '/_authenticated/admin/events'
+      path: '/events'
+      fullPath: '/admin/events'
+      preLoaderRoute: typeof AuthenticatedAdminEventsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/feedback': {
@@ -1770,6 +1830,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
+  AuthenticatedAdminEventsRoute: typeof AuthenticatedAdminEventsRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
   AuthenticatedAdminListingFeaturedRoute: typeof AuthenticatedAdminListingFeaturedRoute
@@ -1809,6 +1870,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
+  AuthenticatedAdminEventsRoute: AuthenticatedAdminEventsRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminListingClaimsRoute: AuthenticatedAdminListingClaimsRoute,
   AuthenticatedAdminListingFeaturedRoute:
@@ -1897,6 +1959,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddListingRoute: AddListingRoute,
   ChangeEmailRoute: ChangeEmailRoute,
   DirectoryRoute: DirectoryRoute,
+  EventsRoute: EventsRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
@@ -1918,6 +1981,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
+  EventsSlugRoute: EventsSlugRoute,
   PostsSlugRoute: PostsSlugRoute,
   ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,

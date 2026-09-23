@@ -67,6 +67,7 @@ export function CategoriesDashboard({
     children: number
     listings: number
     posts: number
+    events: number
   } | null>(null)
 
   const rows = React.useMemo(() => {
@@ -265,6 +266,9 @@ export function CategoriesDashboard({
                   : null,
                 confirm.posts
                   ? `${confirm.posts} ${plural(confirm.posts, "post loses", "posts lose")} the tag too.`
+                  : null,
+                confirm.events
+                  ? `${confirm.events} ${plural(confirm.events, "event loses", "events lose")} the tag too.`
                   : null,
               ]
                 .filter(Boolean)

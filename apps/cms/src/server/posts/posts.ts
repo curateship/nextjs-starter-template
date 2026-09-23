@@ -1,15 +1,4 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  ne,
-  notInArray,
-  or,
-  sql,
-} from "drizzle-orm"
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core"
 
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
@@ -22,12 +11,12 @@ import {
 import type { PostSortColumn } from "@/lib/posts/post-sort"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
-  categories,
-  categoryRelationships,
-  directoryListings,
-} from "@/server/directory/schema"
+  categoryNamesFor,
+  deleteCategoryRowsFor,
+} from "@/server/directory/content-categories"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { directoryListings } from "@/server/directory/schema"
 import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
@@ -118,37 +107,6 @@ function cleanTitle(raw: string): string {
   return title
 }
 
-/** Category names for each of these posts, for the dashboard rows. */
-async function categoryNamesFor(
-  workspaceId: string,
-  postIds: string[],
-  database: CustomShellDb
-): Promise<Map<string, string[]>> {
-  if (postIds.length === 0) return new Map()
-
-  const rows = await database
-    .select({
-      contentId: categoryRelationships.contentId,
-      name: categories.name,
-    })
-    .from(categoryRelationships)
-    .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
-    .where(
-      and(
-        eq(categoryRelationships.workspaceId, workspaceId),
-        eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
-        inArray(categoryRelationships.contentId, postIds)
-      )
-    )
-    .orderBy(asc(categories.name))
-
-  const names = new Map<string, string[]>()
-  for (const row of rows) {
-    names.set(row.contentId, [...(names.get(row.contentId) ?? []), row.name])
-  }
-  return names
-}
-
 export async function listPosts(
   workspaceId: string,
   options: {
@@ -212,6 +170,7 @@ export async function listPosts(
 
   const names = await categoryNamesFor(
     workspaceId,
+    POST_CONTENT_TYPE,
     rows.map((row) => row.id),
     database
   )
@@ -235,25 +194,6 @@ export async function findPost(
     .where(and(eq(sitePosts.id, id), eq(sitePosts.workspaceId, workspaceId)))
     .limit(1)
   return row ? toPost(row) : null
-}
-
-/** Which categories a post is filed under. */
-export async function categoryIdsForPost(
-  workspaceId: string,
-  postId: string,
-  database: CustomShellDb = db
-): Promise<string[]> {
-  const rows = await database
-    .select({ categoryId: categoryRelationships.categoryId })
-    .from(categoryRelationships)
-    .where(
-      and(
-        eq(categoryRelationships.workspaceId, workspaceId),
-        eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
-        eq(categoryRelationships.contentId, postId)
-      )
-    )
-  return rows.map((row) => row.categoryId)
 }
 
 /** A new post: a title, a free address from it, born a draft. */
@@ -345,68 +285,6 @@ export async function updatePost(
 }
 
 /**
- * Makes the post's category rows match the form. A category from another site,
- * or one deleted since the form opened, is dropped rather than refused.
- */
-export async function setPostCategories(
-  workspaceId: string,
-  postId: string,
-  categoryIds: string[],
-  database: CustomShellDb = db
-): Promise<void> {
-  const wanted = [...new Set(categoryIds)].slice(0, 50)
-  const keep = wanted.length
-    ? (
-        await database
-          .select({ id: categories.id })
-          .from(categories)
-          .where(
-            and(
-              eq(categories.workspaceId, workspaceId),
-              inArray(categories.id, wanted)
-            )
-          )
-      ).map((row) => row.id)
-    : []
-
-  // Both statements or neither, so a post is never left half re-filed.
-  await database.transaction(async (tx) => {
-    const postRows = [
-      eq(categoryRelationships.workspaceId, workspaceId),
-      eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
-      eq(categoryRelationships.contentId, postId),
-    ]
-    await tx
-      .delete(categoryRelationships)
-      .where(
-        and(
-          ...postRows,
-          ...(keep.length
-            ? [notInArray(categoryRelationships.categoryId, keep)]
-            : [])
-        )
-      )
-    const current = new Set(await categoryIdsForPost(workspaceId, postId, tx))
-    const missing = keep.filter((categoryId) => !current.has(categoryId))
-    if (missing.length) {
-      const at = now()
-      await tx.insert(categoryRelationships).values(
-        missing.map((categoryId) => ({
-          id: uuid(),
-          workspaceId,
-          categoryId,
-          contentType: POST_CONTENT_TYPE,
-          contentId: postId,
-          isPrimary: false,
-          createdAt: at,
-        }))
-      )
-    }
-  })
-  clearPublicDirectoryCache(workspaceId)
-}
-
-/**
  * One request for the whole selection. The category rows go in the same
  * transaction: the relationship table has no foreign key to a post, so the
  * database would not remove them on its own.
@@ -426,17 +304,7 @@ export async function deletePosts(
       )
       .returning({ id: sitePosts.id })
     const removed = deleted.map((row) => row.id)
-    if (removed.length) {
-      await tx
-        .delete(categoryRelationships)
-        .where(
-          and(
-            eq(categoryRelationships.workspaceId, workspaceId),
-            eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
-            inArray(categoryRelationships.contentId, removed)
-          )
-        )
-    }
+    await deleteCategoryRowsFor(workspaceId, POST_CONTENT_TYPE, removed, tx)
     return removed
   })
 

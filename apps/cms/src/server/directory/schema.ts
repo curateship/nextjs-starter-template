@@ -558,6 +558,13 @@ export const directorySettings = pgTable(
     mapDisplayKeyEncrypted: varchar("map_display_key_encrypted", {
       length: 700,
     }),
+    /**
+     * The zone an event's clock times are read in, like 'America/Toronto'.
+     * Events store "Saturday 6pm", and this says where that 6pm is.
+     */
+    timeZone: varchar("time_zone", { length: 64 })
+      .notNull()
+      .default("America/Toronto"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
