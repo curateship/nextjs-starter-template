@@ -14,6 +14,7 @@ import {
   clipVolume,
   sourceMsAt,
 } from "@/lib/video/clip-playback"
+import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
   dipOpacityAt,
   resolveIncomingTransition,
@@ -612,6 +613,13 @@ export function EditorPreview() {
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
           if (element.style.transform) element.style.transform = ""
         }
+        // Fit or fill. Written here rather than on the element because clips
+        // of the same file share one element, and two clips of that file may
+        // be set differently.
+        const objectFit = clipFit(clip)
+        if (element.style.objectFit !== objectFit) {
+          element.style.objectFit = objectFit
+        }
         const muted = entry.track.muted || !!clip.muted
         if (element.muted !== muted) element.muted = muted
         const volume =
@@ -831,8 +839,8 @@ export function EditorPreview() {
               if (clock.playing) clock.pause()
             }}
             playsInline
-            className="absolute inset-0 h-full w-full object-contain"
-            style={{ opacity: 0 }}
+            className="absolute inset-0 h-full w-full"
+            style={{ opacity: 0, objectFit: "contain" }}
           />
         ))}
 
@@ -853,8 +861,9 @@ export function EditorPreview() {
             src={clip.url}
             alt={clip.name}
             draggable={false}
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full"
             style={{
+              objectFit: clipFit(clip),
               zIndex,
               visibility: isActive(clip, timeMs) ? "visible" : "hidden",
             }}

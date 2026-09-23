@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   CLIP_SPEED_STEP,
@@ -33,6 +34,12 @@ import {
   sourceSpanMs,
   storedPlaybackValue,
 } from "@/lib/video/clip-playback"
+import {
+  clipFit,
+  CLIP_FIT_OPTIONS,
+  storedClipFit,
+  type ClipFit,
+} from "@/lib/video/clip-frame-fit"
 import {
   CAPTION_ANIMATIONS,
   resolveCaptionAnimation,
@@ -411,6 +418,45 @@ function SpeedSection({ clip }: { clip: EditorClip }) {
   )
 }
 
+/**
+ * Whether this picture fits inside the frame or fills it.
+ *
+ * Fitting keeps all of the footage and pays for it with black at two edges,
+ * which is what a wide clip does in a tall project. Filling has no black and
+ * pays for it by cutting the sides off. Only a clip with a picture gets the
+ * choice.
+ */
+function FrameFitSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+
+  return (
+    <InspectorCard
+      title="The frame"
+      description="Filling crops whatever hangs over the edges."
+    >
+      <Tabs
+        value={clipFit(clip)}
+        onValueChange={(next) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: { fit: storedClipFit(next as ClipFit) },
+          })
+        }
+      >
+        <TabsList aria-label="How this clip meets the frame">
+          {CLIP_FIT_OPTIONS.map((option) => (
+            <TabsTrigger key={option.id} value={option.id}>
+              {option.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+    </InspectorCard>
+  )
+}
+
 function MediaInspector({ clip }: { clip: EditorClip }) {
   const track = useEditorSelector(
     (state) => findClip(state.tracks, clip.id)?.track
@@ -463,6 +509,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           Replace media
         </Button>
       </InspectorCard>
+
+      <FrameFitSection clip={clip} />
 
       <InspectorCard title="Sound">
         <SwitchField

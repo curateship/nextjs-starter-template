@@ -27,6 +27,7 @@ import {
   DEFAULT_CLIP_VOLUME,
   sourceSpanMs,
 } from "@/lib/video/clip-playback"
+import { clipFit, frameFitFilter } from "@/lib/video/clip-frame-fit"
 import {
   captionExportWindows,
   captionWordAnimation,
@@ -616,6 +617,9 @@ async function buildFfmpegCommand(options: {
       // reads however much recording its speed eats, and `setpts` below
       // squeezes or stretches that back into the room the clip has.
       const speed = clip.kind === "image" ? 1 : clipSpeed(clip)
+      // Fit leaves black where the shapes disagree; fill grows the picture
+      // past the frame and crops the overflow back off.
+      const fitFilter = frameFitFilter(clipFit(clip), size.width, size.height)
       if (clip.kind === "image") {
         inputs.push("-loop", "1", "-t", String(durS), "-i", file)
       } else {
@@ -640,7 +644,7 @@ async function buildFfmpegCommand(options: {
         const blend = reach.durationMs / 1000
         const drawStartS = startS - blend
         const chain = [
-          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease`,
+          `[${inputIndex}:v]${fitFilter}`,
           // Speed first, so the pad and the fade below are measured in the
           // seconds the finished film runs rather than the recording's own.
           ...(speedStage ? [speedStage] : []),
@@ -663,7 +667,7 @@ async function buildFfmpegCommand(options: {
         )
       } else {
         filters.push(
-          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
+          `[${inputIndex}:v]${fitFilter},setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
           `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }
