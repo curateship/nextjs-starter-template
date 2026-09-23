@@ -17,10 +17,12 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  categoryIdsFor,
   categoryNamesFor,
   deleteCategoryRowsFor,
 } from "@/server/directory/content-categories"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { categoryRelationships } from "@/server/directory/schema"
 import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
@@ -46,6 +48,9 @@ export const MAX_PLACE_ADDRESS = 300
 
 export type EventStatus = "draft" | "published"
 
+/** A private event's page opens from its link, but no public list shows it. */
+export type EventVisibility = "public" | "private"
+
 export type SiteEvent = EventWhen & {
   id: string
   title: string
@@ -54,6 +59,7 @@ export type SiteEvent = EventWhen & {
   summary: string
   body: PostBody
   status: EventStatus
+  visibility: EventVisibility
   publishedAt: Date | null
   placeName: string
   placeAddress: string
@@ -81,6 +87,7 @@ export function toEvent(row: EventRow): SiteEvent {
     summary: row.summary,
     body: cleanPostBody(row.body),
     status: row.status === "published" ? "published" : "draft",
+    visibility: row.visibility === "private" ? "private" : "public",
     publishedAt: row.publishedAt,
     startDate: row.startDate,
     startTime: toClock(row.startTime),
@@ -299,6 +306,7 @@ export async function updateEvent(
     summary?: string
     body?: unknown
     status?: EventStatus
+    visibility?: EventVisibility
     when?: EventWhenInput
     placeName?: string
     placeAddress?: string
@@ -333,6 +341,7 @@ export async function updateEvent(
   if (input.placeAddress !== undefined) {
     values.placeAddress = input.placeAddress.trim().slice(0, MAX_PLACE_ADDRESS)
   }
+  if (input.visibility !== undefined) values.visibility = input.visibility
   if (input.status !== undefined) {
     values.status = input.status
     // The first publish dates the event; later ones keep that date.
@@ -349,6 +358,86 @@ export async function updateEvent(
 
   if (!row) throw new Error("That event no longer exists.")
   clearPublicDirectoryCache(workspaceId)
+  return toEvent(row)
+}
+
+const COPY_SUFFIX = " (copy)"
+
+/**
+ * A copy to start from, for an event that happens again on a new day: the
+ * same content, when, where, categories and public or private setting,
+ * "(copy)" on the title, a fresh address from that title, and always a draft
+ * with no published date, so nothing new is public until the admin publishes
+ * it.
+ */
+export async function duplicateEvent(
+  workspaceId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<SiteEvent> {
+  const [source] = await database
+    .select()
+    .from(siteEvents)
+    .where(and(eq(siteEvents.id, id), eq(siteEvents.workspaceId, workspaceId)))
+    .limit(1)
+  if (!source) throw new Error("That event no longer exists.")
+
+  // Trimmed before the suffix, so a title at the limit still says "(copy)".
+  const title = `${source.title.slice(0, MAX_EVENT_TITLE - COPY_SUFFIX.length)}${COPY_SUFFIX}`
+  const slug = await firstFreeSlugRule(
+    slugFromTitle(title),
+    (candidate) => slugIsTaken(workspaceId, candidate, null, database),
+    EVENT_NOUN
+  )
+  const categoryIds = await categoryIdsFor(
+    workspaceId,
+    EVENT_CONTENT_TYPE,
+    id,
+    database
+  )
+
+  const at = now()
+  // The copy and its categories together, so a copy never looks untagged.
+  const row = await database.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(siteEvents)
+      .values({
+        id: uuid(),
+        workspaceId,
+        title,
+        slug,
+        coverImage: source.coverImage,
+        summary: source.summary,
+        body: source.body,
+        status: "draft",
+        visibility: source.visibility,
+        startDate: source.startDate,
+        startTime: source.startTime,
+        endDate: source.endDate,
+        endTime: source.endTime,
+        placeName: source.placeName,
+        placeAddress: source.placeAddress,
+        createdAt: at,
+        updatedAt: at,
+      })
+      .returning()
+    if (!created) throw new Error("The event was not copied.")
+
+    if (categoryIds.length) {
+      await tx.insert(categoryRelationships).values(
+        categoryIds.map((categoryId) => ({
+          id: uuid(),
+          workspaceId,
+          categoryId,
+          contentType: EVENT_CONTENT_TYPE,
+          contentId: created.id,
+          isPrimary: false,
+          createdAt: at,
+        }))
+      )
+    }
+    return created
+  })
   return toEvent(row)
 }
 

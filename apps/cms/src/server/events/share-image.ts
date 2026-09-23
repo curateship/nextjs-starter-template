@@ -27,6 +27,9 @@ import { siteEvents } from "@/server/events/schema"
  * Drawn only while the Events page is open to everyone, like the feed and the
  * sitemap: a card is fetched by a link preview that is never signed in, and a
  * members-only event should not describe itself to one.
+ *
+ * A private event keeps its card, because the card is the preview of the very
+ * link the event is shared by. The card is found only by that address.
  */
 async function drawPublishedEvent(
   site: VisitorSite,

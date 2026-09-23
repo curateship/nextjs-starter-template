@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   CalendarDaysIcon,
+  CopyIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -32,6 +33,7 @@ import {
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import type { Category } from "@/lib/api/directory/categories"
 import {
+  copyEvent,
   getEventErrorMessage,
   removeEvents,
   type EventsPage,
@@ -142,6 +144,17 @@ export function EventsDashboard({
     [navigate]
   )
   const openEditor = (event: EventSummary) => setOpen(event.id)
+
+  const [copy, copying] = useAsyncAction(getEventErrorMessage)
+  /** A draft copy, opened at once so the admin can change the date. */
+  const duplicate = (event: EventSummary) => {
+    void copy(async () => {
+      const made = await copyEvent(event.id)
+      await router.invalidate()
+      toast.success(`${made.title} was created as a draft.`)
+      setOpen(made.id)
+    })
+  }
 
   const confirmDelete = async () => {
     if (!confirm) return
@@ -297,11 +310,16 @@ export function EventsDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
-              {event.status === "published" ? (
-                <Badge variant="secondary">Published</Badge>
-              ) : (
-                <Badge variant="outline">Draft</Badge>
-              )}
+              <div className="flex items-center gap-1">
+                {event.status === "published" ? (
+                  <Badge variant="secondary">Published</Badge>
+                ) : (
+                  <Badge variant="outline">Draft</Badge>
+                )}
+                {event.visibility === "private" ? (
+                  <Badge variant="outline">Private</Badge>
+                ) : null}
+              </div>
             </TableCell>
             <TableCell column="meta">{formatEventStart(event)}</TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
@@ -309,6 +327,16 @@ export function EventsDashboard({
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Duplicate ${event.title}`}
+                  disabled={copying}
+                  onClick={() => duplicate(event)}
+                >
+                  <CopyIcon className="size-4" />
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"

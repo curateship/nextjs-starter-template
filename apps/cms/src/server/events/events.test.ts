@@ -20,9 +20,11 @@ import {
   cleanEventWhen,
   createEvent,
   deleteEvents,
+  duplicateEvent,
   findEvent,
   listEvents,
   updateEvent,
+  type EventWhenInput,
 } from "@/server/events/events"
 import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
 import { customShellWorkspaces } from "@/server/schema"
@@ -57,7 +59,7 @@ afterEach(async () => {
   await client.close()
 })
 
-function make(site: string, title: string, when = saturday) {
+function make(site: string, title: string, when: EventWhenInput = saturday) {
   return createEvent(site, { title, when }, database)
 }
 
@@ -188,6 +190,82 @@ describe("publishing", () => {
       database
     )
     expect(again.publishedAt?.getTime()).toBe(published.publishedAt?.getTime())
+  })
+})
+
+describe("duplicating", () => {
+  it("copies as a draft with a new address and leaves the original alone", async () => {
+    const food = await createCategory(alpha, { name: "Food" }, database)
+    const original = await make(alpha, "Trivia Night", {
+      startDate: "2026-09-24",
+      startTime: "19:00",
+      endDate: "2026-09-24",
+      endTime: "22:00",
+    })
+    await updateEvent(
+      alpha,
+      original.id,
+      {
+        status: "published",
+        summary: "Six rounds.",
+        coverImage: "https://images.example/trivia.jpg",
+        placeName: "The Local",
+        placeAddress: "1 King St W",
+      },
+      database
+    )
+    await setContentCategories(
+      alpha,
+      EVENT_CONTENT_TYPE,
+      original.id,
+      [food.id],
+      database
+    )
+    const before = await findEvent(alpha, original.id, database)
+
+    const copy = await duplicateEvent(alpha, original.id, database)
+    expect(copy.id).not.toBe(original.id)
+    expect(copy.title).toBe("Trivia Night (copy)")
+    expect(copy.slug).toBe("trivia-night-copy")
+    expect(copy.status).toBe("draft")
+    expect(copy.publishedAt).toBeNull()
+    expect(copy).toMatchObject({
+      summary: "Six rounds.",
+      coverImage: "https://images.example/trivia.jpg",
+      placeName: "The Local",
+      placeAddress: "1 King St W",
+      startDate: "2026-09-24",
+      startTime: "19:00",
+      endDate: "2026-09-24",
+      endTime: "22:00",
+    })
+    expect(
+      await categoryIdsFor(alpha, EVENT_CONTENT_TYPE, copy.id, database)
+    ).toEqual([food.id])
+    expect(await findEvent(alpha, original.id, database)).toEqual(before)
+
+    // A second copy of the same event gets the next free address.
+    expect((await duplicateEvent(alpha, original.id, database)).slug).toBe(
+      "trivia-night-copy-2"
+    )
+  })
+
+  it('keeps "(copy)" on a title already at the limit', async () => {
+    const long = await make(alpha, "x".repeat(200))
+    const copy = await duplicateEvent(alpha, long.id, database)
+    expect(copy.title).toHaveLength(200)
+    expect(copy.title.endsWith(" (copy)")).toBe(true)
+  })
+
+  it("will not copy another site's event, or one that is gone", async () => {
+    const theirs = await make(beta, "Beta's")
+    await expect(duplicateEvent(alpha, theirs.id, database)).rejects.toThrow(
+      "no longer exists"
+    )
+    await deleteEvents(beta, [theirs.id], database)
+    await expect(duplicateEvent(beta, theirs.id, database)).rejects.toThrow(
+      "no longer exists"
+    )
   })
 })
 
