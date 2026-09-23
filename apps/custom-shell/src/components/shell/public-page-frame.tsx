@@ -3,6 +3,8 @@ import { useLocation } from "@tanstack/react-router"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { publicContentAlignmentClassNames } from "@/components/shell/public-content-alignment"
+import { PublicBreadcrumbs } from "@/components/shell/public-breadcrumbs"
+import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
 import { PublicFooter } from "@/components/shell/public-footer"
 import { PublicNavigation } from "@/components/shell/public-navigation"
 import {
@@ -75,6 +77,7 @@ export function PublicPageFrame({
     publicSearchEnabledOverride ?? brandedPublicSearchEnabled
   const theme = usePublicTheme()
   usePublicStyleVars(theme)
+  const breadcrumbTrail = usePublicBreadcrumbTrail()
   const pathname = useLocation({ select: (location) => location.pathname })
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
     VisitorAnnouncement[]
@@ -212,6 +215,7 @@ export function PublicPageFrame({
           data-content-alignment={theme.contentAlignment}
           style={contentStyle}
         >
+          <PublicBreadcrumbs trail={breadcrumbTrail} />
           {children}
         </div>
       </main>

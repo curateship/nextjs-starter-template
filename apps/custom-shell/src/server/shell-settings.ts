@@ -36,6 +36,10 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  normalizePublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
   normalizeFaviconMode,
   normalizePublicFaviconSet,
   type FaviconMode,
@@ -142,6 +146,7 @@ export async function readBranding(
   publicSystemCopy: PublicSystemCopy
   frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
+  publicBreadcrumbs: PublicBreadcrumbs
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -189,6 +194,7 @@ export async function readBranding(
       publicSystemCopy: globals.publicSystemCopy,
       frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
+      publicBreadcrumbs: globals.publicBreadcrumbs,
       publicNavigation: workspaceDomainsEnabled
         ? []
         : globals.publicNavigation,
@@ -234,6 +240,7 @@ export async function readBranding(
     publicSystemCopy: globals.publicSystemCopy,
     frontPageRows: visibleFrontPageRows(globals.frontPageRows),
     publicHeader: globals.publicHeader,
+    publicBreadcrumbs: globals.publicBreadcrumbs,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -407,6 +414,7 @@ export function parseShellGlobals(value: unknown) {
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
@@ -499,6 +507,7 @@ export function pickShellGlobals(
     | "publicFooter"
     | "publicFooterCopyright"
     | "publicHeader"
+    | "publicBreadcrumbs"
     | "publicFont"
     | "publicTheme"
     | "publicThemePresets"
@@ -538,6 +547,7 @@ export function pickShellGlobals(
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     publicThemePresets: normalizePublicThemePresets(

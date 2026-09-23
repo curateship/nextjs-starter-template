@@ -61,6 +61,7 @@ import {
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
 } from "@/lib/pages/public-header"
+import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
 import { PUBLIC_DEVICES } from "@/lib/pages/public-device"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
@@ -509,6 +510,10 @@ const shellConfigSchema = z.object({
     menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
     logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
   }),
+  // Checked by the same function the reader uses, so an unknown or missing
+  // value saves as "every kind off" rather than refusing the whole settings
+  // save — which is what a tab left open across this change would send.
+  publicBreadcrumbs: z.unknown().transform(normalizePublicBreadcrumbs),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
   publicThemePresets: publicThemePresetsSchema,

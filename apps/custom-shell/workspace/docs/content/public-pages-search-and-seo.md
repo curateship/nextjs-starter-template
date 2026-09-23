@@ -78,6 +78,47 @@ Instagram, Threads, YouTube, TikTok, GitHub, Medium and Substack, and a generic
 globe for anything else. Nothing saves them yet, so the row draws nothing until
 Public > Footer gains a field for them.
 
+### Breadcrumbs
+
+A breadcrumb trail is the short line under the header that reads "Home /
+Pricing". It tells a visitor who arrived on a deep page from a search result
+where that page sits, and it gives search engines the same answer in a form
+they can read.
+
+The trail is switched on per kind of page in Public > Navigation > Breadcrumbs,
+and every kind starts switched off. There are three kinds: written pages, the
+search page, and the pricing page. Switching written pages on changes written
+pages only, and the other two stay as they were.
+
+The trail is always two levels: the front page, then the page the visitor is
+on. The shell's public pages sit flat under the front page, so a deeper trail
+would be invented rather than real.
+
+Four pages never show a trail, whatever the switches say.
+
+- The front page, because the trail would name the page the visitor is already
+  on and nothing else.
+- The sign-in, password and email-confirmation pages, because they are steps in
+  a job rather than places in the site.
+- The missing-page screen, because a dead address is not a place in the site.
+- Any address whose page has no title, which is how a written page that has been
+  removed behaves.
+
+The last step names the page: the registry name for the search and pricing
+pages, and the admin's own page title for a written page. It is deliberately the
+page title rather than the browser title, which carries the site name and the
+SEO wording after it. The first step is whatever the front page is called in its
+declaration, so renaming the front page renames the trail's first word.
+
+`src/lib/pages/public-breadcrumbs.ts` holds the settings and builds the trail,
+`src/lib/hooks/use-public-breadcrumb-trail.ts` works out which trail this page
+gets, `src/components/shell/public-breadcrumbs.tsx` draws it, and
+`src/components/shell/public-page-frame.tsx` puts it above the page content. The
+trail follows the Content alignment setting. A long page title wraps onto more
+lines, breaking mid-word if it has to, so no title can push the page sideways
+on a phone. A 103-character title takes three lines at 390px wide and the page
+still does not scroll sideways.
+
 Public > Navigation also controls the full header's layout across the app. The
 header can scroll with the page or stay at the top, and its desktop menu can sit
 in the normal header flow or in the exact centre of the page. Logo sizes are
@@ -206,7 +247,11 @@ refresh.
 Every real public page also includes one JSON-LD structured-data script in its
 first HTML response. The script holds one `Organization` record with the
 current site name and visited site address, plus one `WebPage` record with the
-resolved browser title, public address, and description. The same path covers
+resolved browser title, public address, and description. When a page shows a
+breadcrumb trail, the same script also holds a `BreadcrumbList` record built
+from that same trail, so the trail a visitor reads and the trail a search engine
+reads cannot say two different things. A page with no trail publishes no
+`BreadcrumbList`. The same path covers
 the front page, coded pages, and written pages, so their machine-readable text
 cannot drift from their visible search metadata. Signed-in screens, unknown
 domains, and missing pages do not claim to be public web pages. Empty optional

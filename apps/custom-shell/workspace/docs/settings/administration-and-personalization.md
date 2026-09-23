@@ -157,6 +157,11 @@ existing menu button. Small, standard, and large set the logo to 32px, 48px, or
 still shows the logo, site name, search, and colour-mode choice before any menu
 or footer links have been added.
 
+Public Navigation also has a Breadcrumbs card, one switch per kind of page:
+written pages, Search, and Pricing. Every switch starts off, so nothing on the
+public site changes until one is turned on. The trail itself is described in
+[Public pages, search, and SEO](../content/public-pages-search-and-seo.md).
+
 The Public menu card treats Search as a built-in draggable item. Its position
 among the link chips is the order visitors see in the desktop header. The phone
 menu puts a Search entry in the same order and opens the full search page.

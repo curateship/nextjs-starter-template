@@ -67,6 +67,12 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
+  PUBLIC_BREADCRUMB_HINTS,
+  PUBLIC_BREADCRUMB_KINDS,
+  PUBLIC_BREADCRUMB_LABELS,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
   type PublicHeader,
@@ -94,10 +100,12 @@ type PublicSiteSettingsProps = {
   footer: PublicNavigationLink[]
   footerCopyright: string
   publicHeader: PublicHeader
+  publicBreadcrumbs: PublicBreadcrumbs
   onNavigationChange: (items: PublicNavigationItem[]) => void
   onFooterChange: (links: PublicNavigationLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
   onPublicHeaderChange: (header: PublicHeader) => void
+  onPublicBreadcrumbsChange: (breadcrumbs: PublicBreadcrumbs) => void
   onSaveConfig: () => Promise<boolean>
 }
 
@@ -109,10 +117,12 @@ export function PublicSiteSettings({
   footer,
   footerCopyright,
   publicHeader,
+  publicBreadcrumbs,
   onNavigationChange,
   onFooterChange,
   onFooterCopyrightChange,
   onPublicHeaderChange,
+  onPublicBreadcrumbsChange,
   onSaveConfig,
 }: PublicSiteSettingsProps) {
   return (
@@ -129,6 +139,10 @@ export function PublicSiteSettings({
       <PublicHeaderSettings
         header={publicHeader}
         onChange={onPublicHeaderChange}
+      />
+      <PublicBreadcrumbSettings
+        breadcrumbs={publicBreadcrumbs}
+        onChange={onPublicBreadcrumbsChange}
       />
       <PublicLinkEditor
         id="public-footer"
@@ -157,6 +171,47 @@ export function PublicSiteSettings({
         </div>
       </CollapsibleSettingsCard>
     </CardGroup>
+  )
+}
+
+/**
+ * The per-kind switches for the "Home / Page" trail.
+ *
+ * One switch per kind rather than per page: the shell's public pages are flat,
+ * so a page list would be dozens of rows all saying the same thing.
+ */
+function PublicBreadcrumbSettings({
+  breadcrumbs,
+  onChange,
+}: {
+  breadcrumbs: PublicBreadcrumbs
+  onChange: (breadcrumbs: PublicBreadcrumbs) => void
+}) {
+  return (
+    <CollapsibleSettingsCard
+      storageId="public-breadcrumbs"
+      title="Breadcrumbs"
+      description="Show a short trail under the header, so a visitor arriving from a search result can see where they are. The front page never shows one."
+      contentClassName="grid gap-4"
+    >
+      {PUBLIC_BREADCRUMB_KINDS.map((kind) => (
+        <div key={kind} className="flex items-center justify-between gap-4">
+          <FieldLabel
+            htmlFor={`public-breadcrumbs-${kind}`}
+            hint={PUBLIC_BREADCRUMB_HINTS[kind]}
+          >
+            {PUBLIC_BREADCRUMB_LABELS[kind]}
+          </FieldLabel>
+          <Switch
+            id={`public-breadcrumbs-${kind}`}
+            checked={breadcrumbs[kind]}
+            onCheckedChange={(checked) =>
+              onChange({ ...breadcrumbs, [kind]: checked })
+            }
+          />
+        </div>
+      ))}
+    </CollapsibleSettingsCard>
   )
 }
 

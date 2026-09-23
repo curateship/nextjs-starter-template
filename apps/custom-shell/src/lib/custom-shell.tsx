@@ -21,6 +21,10 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  createDefaultPublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
   createDefaultPublicSeo,
   createDefaultPublicSystemCopy,
   DEFAULT_SOCIAL_CARD_TYPE,
@@ -488,6 +492,8 @@ export type ShellConfig = {
   publicFooterCopyright: string
   /** App-wide layout choices for the signed-out header. */
   publicHeader: PublicHeader
+  /** Which kinds of public page show the "Home / Page" trail. */
+  publicBreadcrumbs: PublicBreadcrumbs
   /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
   /** The admin's own saved public looks, applied from the Styling tab. */
@@ -750,6 +756,7 @@ export function createDefaultShellConfig(): ShellConfig {
     publicFooter: [],
     publicFooterCopyright: "",
     publicHeader: createDefaultPublicHeader(),
+    publicBreadcrumbs: createDefaultPublicBreadcrumbs(),
     publicTheme: createDefaultPublicTheme(),
     publicThemePresets: [],
     publicFont: null,

@@ -10,7 +10,14 @@ import {
   type PublicTheme,
 } from "@/lib/public-theme"
 
-const router = vi.hoisted(() => ({ navigate: vi.fn(), pathname: "/" }))
+const router = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  pathname: "/",
+  matches: [] as { routeId: string; status?: string; loaderData?: unknown }[],
+}))
+const publicBreadcrumbs = vi.hoisted(() => ({
+  current: { written: false, search: false, pricing: false },
+}))
 const publicSearch = vi.hoisted(() => ({ enabled: true }))
 const publicSite = vi.hoisted(() => ({
   navigation: [
@@ -65,6 +72,18 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: ({ select }: { select: (value: { pathname: string }) => string }) =>
     select({ pathname: router.pathname }),
   useNavigate: () => router.navigate,
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: {
+      location: { pathname: string }
+      matches: typeof router.matches
+    }) => unknown
+  }) =>
+    select({
+      location: { pathname: router.pathname },
+      matches: router.matches,
+    }),
 }))
 
 vi.mock("@/lib/branding", () => ({
@@ -77,6 +96,7 @@ vi.mock("@/lib/branding", () => ({
   usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicHeader: () => publicHeader.current,
   usePublicTheme: () => publicTheme.current,
+  usePublicBreadcrumbs: () => publicBreadcrumbs.current,
 }))
 
 vi.mock("@/lib/api/content/announcements", () => ({
@@ -123,10 +143,83 @@ describe("PublicPageFrame navigation", () => {
       logoSize: "standard",
     }
     publicTheme.current = createDefaultPublicTheme()
+    router.matches = []
+    publicBreadcrumbs.current = {
+      written: false,
+      search: false,
+      pricing: false,
+    }
   })
 
   afterEach(() => {
     document.body.replaceChildren()
+  })
+
+  it("shows no trail until a kind of page is switched on", async () => {
+    router.pathname = "/pricing"
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    expect(host.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull()
+  })
+
+  it("shows the trail on the kind that is switched on and no other", async () => {
+    router.pathname = "/pricing"
+    publicBreadcrumbs.current = {
+      written: false,
+      search: false,
+      pricing: true,
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const trail = host.querySelector('nav[aria-label="Breadcrumb"]')
+    expect(trail?.textContent).toBe("HomePricing")
+    expect(trail?.querySelector('[aria-current="page"]')?.textContent).toBe(
+      "Pricing"
+    )
+
+    router.pathname = "/search"
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+    expect(host.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull()
+  })
+
+  it("names a written page by its own title, not the browser title", async () => {
+    router.pathname = "/about"
+    router.matches = [
+      {
+        routeId: "/$",
+        loaderData: { source: "written", page: { title: "About us" } },
+      },
+    ]
+    publicBreadcrumbs.current = {
+      written: true,
+      search: false,
+      pricing: false,
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    expect(
+      host.querySelector('nav[aria-label="Breadcrumb"]')?.textContent
+    ).toBe("HomeAbout us")
   })
 
   it("uses router links on this site and keeps outside links as anchors", async () => {

@@ -59,6 +59,7 @@ import {
 } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
+import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
 import {
   normalizePublicSeo,
   normalizePublicSystemCopy,
@@ -781,6 +782,7 @@ function normalizeConfig(
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     publicThemePresets: normalizePublicThemePresets(

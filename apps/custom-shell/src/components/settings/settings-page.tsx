@@ -184,6 +184,7 @@ export function SettingsPage({
             footer={config.publicFooter}
             footerCopyright={config.publicFooterCopyright}
             publicHeader={config.publicHeader}
+            publicBreadcrumbs={config.publicBreadcrumbs}
             onNavigationChange={(publicNavigation) =>
               onConfigChange({ ...config, publicNavigation })
             }
@@ -195,6 +196,9 @@ export function SettingsPage({
             }
             onPublicHeaderChange={(publicHeader) =>
               onConfigChange({ ...config, publicHeader })
+            }
+            onPublicBreadcrumbsChange={(publicBreadcrumbs) =>
+              onConfigChange({ ...config, publicBreadcrumbs })
             }
             onSaveConfig={onSaveConfig}
           />
