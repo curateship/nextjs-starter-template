@@ -169,11 +169,16 @@ describe("the alerts menu", () => {
     expect(button("Open alerts, 1 fired").dataset.slot).toBe("popover-trigger")
     expect(button("Open alerts, 1 fired").textContent).toContain("1")
 
+    // Passing the pointer over the siren opens nothing. Only a click does.
     await act(async () => {
       button("Open alerts, 1 fired").dispatchEvent(
         new MouseEvent("mouseover", { bubbles: true })
       )
     })
+    expect(
+      document.body.querySelector('[data-slot="popover-content"]')
+    ).toBeNull()
+    await act(async () => button("Open alerts, 1 fired").click())
     expect(document.body.textContent).toContain("Alert")
     expect(document.body.textContent).toContain("Fired")
 
@@ -202,11 +207,7 @@ describe("the alerts menu", () => {
     expect(api.clear).toHaveBeenLastCalledWith("active")
     expect(onCleared).toHaveBeenCalledTimes(1)
 
-    await act(async () => {
-      button("Open alerts, 1 fired").dispatchEvent(
-        new MouseEvent("mouseover", { bubbles: true })
-      )
-    })
+    await act(async () => button("Open alerts, 1 fired").click())
     const firedTab = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     ).find((candidate) => candidate.textContent?.includes("Fired"))

@@ -91,3 +91,18 @@ describe("the live-runs table's actions", () => {
     )
   })
 })
+
+describe("the live-runs table's profit", () => {
+  // Real money is shown to the cent, the same as the P&L page, so one trade
+  // never reads +$12 here and +$12.34 there.
+  it.each([
+    [12.34, "+$12.34"],
+    [-0.5, "-$0.50"],
+    [0, "$0.00"],
+  ])("shows %d as %s", (netUsd, shown) => {
+    const html = renderToStaticMarkup(
+      <FlowRunsListPage initial={[row({ netUsd, tradesClosed: 3 })]} />
+    )
+    expect(html).toContain(shown)
+  })
+})

@@ -5,10 +5,10 @@ import {
   roundedPct,
   sharePct,
   signedPct,
-  signedUsd,
   toneClass,
   usd,
 } from "@/components/backtest/backtest-kpi"
+import { formatSignedUsd } from "@/lib/trade/format"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
@@ -80,7 +80,7 @@ export function FlowRunStatsPanel({
               worth is on the tile below, where it can be read as the guess it
               is until they close. */}
           <div className="pb-2">
-            <div className="mt-0.5 flex items-baseline gap-2">
+            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-xl font-semibold tracking-tight tabular-nums",
@@ -95,7 +95,7 @@ export function FlowRunStatsPanel({
                   toneClass(stats ? stats.net : banked)
                 )}
               >
-                {signedUsd(stats ? stats.net : banked)}
+                {formatSignedUsd(stats ? stats.net : banked)}
               </span>
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
@@ -135,7 +135,7 @@ export function FlowRunStatsPanel({
               sub={
                 report.positions.length === 0
                   ? "nothing held"
-                  : `${signedUsd(openUsd)} on paper`
+                  : `${formatSignedUsd(openUsd)} on paper`
               }
               tone={report.positions.length === 0 ? undefined : openUsd}
             />

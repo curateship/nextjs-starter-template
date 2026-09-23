@@ -70,7 +70,7 @@ export type FiredPriceAlertsControl = {
   remove: (id: string) => void
 }
 
-/** The fired list stays live so the bell can notify before its menu opens. */
+/** The fired list stays live so the siren can show its badge before its menu opens. */
 export function useFiredPriceAlerts(): FiredPriceAlertsControl {
   const [fired, setFired] = React.useState<FiredPriceAlert[]>([])
   const [firedError, setFiredError] = React.useState<string | null>(null)

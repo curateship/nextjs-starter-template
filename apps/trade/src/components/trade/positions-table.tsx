@@ -11,6 +11,7 @@ import {
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react"
 
 import {
@@ -659,35 +660,49 @@ function PositionRow({
                   <GaugeIcon className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Add margin</TooltipContent>
+              <TooltipContent>Leverage and margin</TooltipContent>
             </Tooltip>
           ) : null}
           {position.owned ? null : (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              aria-label={`Change the ${marketSymbol(position.marketKey)} stop and target`}
-              disabled={busy}
-              onClick={() => onEdit(position)}
-            >
-              <SettingsIcon className="size-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={`Change the ${marketSymbol(position.marketKey)} stop and target`}
+                  disabled={busy}
+                  onClick={() => onEdit(position)}
+                >
+                  <SettingsIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Stop and target</TooltipContent>
+            </Tooltip>
           )}
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy}
-            aria-label={
-              position.owned
-                ? `Sell all the ${marketSymbol(position.marketKey)} this wallet holds`
-                : `Close the ${marketSymbol(position.marketKey)} position`
-            }
-            onClick={() => onClose(position)}
-          >
-            <Trash2Icon className="size-4" />
-          </Button>
+          {/* An X, not a bin. Closing ends the trade, it does not delete a
+              record. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={
+                  position.owned
+                    ? `Sell all the ${marketSymbol(position.marketKey)} this wallet holds`
+                    : `Close the ${marketSymbol(position.marketKey)} position`
+                }
+                onClick={() => onClose(position)}
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {position.owned ? "Sell all" : "Close position"}
+            </TooltipContent>
+          </Tooltip>
         </span>
         </DisabledReason>
       </td>
@@ -1083,16 +1098,21 @@ export function OpenOrdersTable({
               {order.paused ? (
                 <ResumeOrderButton order={order} onResume={onResume} />
               ) : null}
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={busy}
-                aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
-                onClick={() => onCancel(order)}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
+                    onClick={() => onCancel(order)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Cancel order</TooltipContent>
+              </Tooltip>
             </span>
           </td>
         </TableRow>

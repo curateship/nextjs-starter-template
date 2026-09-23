@@ -40,7 +40,7 @@ these as well as an admin, and sees only their own wallets and orders there —
   a coin there changes the chart and leaves the menu open, so a folder can be
   read one coin at a time; the menu closes when the pointer leaves it, or on
   Escape. Its plus
-  creates a folder there and its cog opens the full manager. The bell opens the account's Alert and Fired lists;
+  creates a folder there and its cog opens the full manager. The siren opens the account's Alert and Fired lists on a click, never on hover;
   a red badge counts fired price and drawing alerts, and each tab can clear all
   of its own rows from the dropdown footer after confirmation. The Folders and
   Alerts buttons have no hover messages. Each outlined control uses the muted gray inside its

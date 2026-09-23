@@ -42,6 +42,24 @@ Open, history incomplete, shows the exchange's side, entry, and size, and cannot
 be selected or removed. Old incomplete history may be removed only with the
 same explicit confirmation as a finished trade.
 
+## What the row buttons say
+
+Every icon button in a position row and an open-order row names itself on
+hover and on keyboard focus (`positions-table.tsx`). A position row reads, left
+to right, Flip trade, Add to position, Leverage and margin, Stop and target and
+Close position. An owned coin's last button says Sell all. An open order's
+button says Cancel order.
+
+Close is an X, not a bin. Closing a position ends the trade, and a bin
+reads as deleting a record. The bin stays on Cancel order and on the Journal's
+Remove, where a row really is thrown away.
+
+The Leverage and margin tooltip used to say "Add margin". The window behind it
+changes leverage too, so the short name now matches what it opens.
+
+While the row waits on the exchange, the whole group of buttons says "Waiting
+on the exchange." instead of the button's own name.
+
 ## Where a height belongs on the shared frame
 
 A panel bounded by its own layout passes no height at all. A card sitting in a

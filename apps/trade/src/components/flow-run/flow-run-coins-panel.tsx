@@ -5,7 +5,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import * as React from "react"
 import { CoinsIcon, ListOrderedIcon } from "lucide-react"
 
-import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
+import { toneClass, usd } from "@/components/backtest/backtest-kpi"
 import {
   DashboardCardTab,
   DashboardCardTabsHeader,
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
-import { formatPrice } from "@/lib/trade/format"
+import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -248,7 +248,7 @@ export function FlowRunCoinsPanel({
                         usd(held.amountUsd)
                       ) : (
                         <>
-                          {signedUsd(held.unrealisedUsd)}
+                          {formatSignedUsd(held.unrealisedUsd)}
                           <span className="block text-[10px] text-muted-foreground">
                             {usd(held.amountUsd)} in
                           </span>
@@ -321,7 +321,7 @@ export function FlowRunCoinsPanel({
                         toneClass(coin.netUsd)
                       )}
                     >
-                      {signedUsd(coin.netUsd)}
+                      {formatSignedUsd(coin.netUsd)}
                     </TableCell>
                     <TableCell
                       column="meta"

@@ -295,7 +295,7 @@ describe("the bottom panel's tables say what they know", () => {
         onMargin={null}
       />
     )
-    const orders = renderToStaticMarkup(
+    const orders = draw(
       <OpenOrdersTable
         {...shared}
         orders={[liveOrder("mainnet")]}
@@ -325,7 +325,7 @@ describe("the bottom panel's tables say what they know", () => {
   })
 
   it("keeps the Testnet chip on exchange rows", () => {
-    const html = renderToStaticMarkup(
+    const html = draw(
       <OpenOrdersTable
         {...shared}
         orders={[liveOrder("testnet")]}
@@ -362,14 +362,16 @@ describe("the bottom panel's tables say what they know", () => {
 
     await act(async () => {
       root.render(
-        <OpenOrdersTable
-          {...shared}
-          orders={[live]}
-          settled={true}
-          failed={false}
-          onCancel={(order) => cancelled.push(order)}
-          onResume={async () => true}
-        />
+        <TooltipProvider>
+          <OpenOrdersTable
+            {...shared}
+            orders={[live]}
+            settled={true}
+            failed={false}
+            onCancel={(order) => cancelled.push(order)}
+            onResume={async () => true}
+          />
+        </TooltipProvider>
       )
     })
     const cancel = host.querySelector<HTMLButtonElement>(
@@ -456,17 +458,19 @@ describe("the bottom panel's tables say what they know", () => {
 
     await act(async () => {
       root.render(
-        <OpenOrdersTable
-          {...shared}
-          orders={[paused]}
-          settled={true}
-          failed={false}
-          onCancel={(order) => cancelled.push(order.id)}
-          onResume={async (order) => {
-            resumed.push(order.id)
-            return true
-          }}
-        />
+        <TooltipProvider>
+          <OpenOrdersTable
+            {...shared}
+            orders={[paused]}
+            settled={true}
+            failed={false}
+            onCancel={(order) => cancelled.push(order.id)}
+            onResume={async (order) => {
+              resumed.push(order.id)
+              return true
+            }}
+          />
+        </TooltipProvider>
       )
     })
     expect(host.textContent).toContain("Paused")
@@ -1149,7 +1153,7 @@ describe("position and order totals", () => {
 })
 
 describe("the flip position action", () => {
-  it("shows the flip, margin and add tooltips on keyboard focus", async () => {
+  it("shows a tooltip on every position button on keyboard focus", async () => {
     const host = document.createElement("div")
     document.body.append(host)
     const root = createRoot(host)
@@ -1163,8 +1167,10 @@ describe("the flip position action", () => {
       ))
       for (const [name, tooltip] of [
         ["Flip the BTC position to short", "Flip trade"],
-        ["Change the BTC leverage and margin", "Add margin"],
+        ["Change the BTC leverage and margin", "Leverage and margin"],
         ["Add to the BTC position", "Add to position"],
+        ["Change the BTC stop and target", "Stop and target"],
+        ["Close the BTC position", "Close position"],
       ]) {
         const button = host.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!
         await act(async () => {
@@ -1174,6 +1180,29 @@ describe("the flip position action", () => {
         expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(tooltip)
         await act(async () => button.blur())
       }
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  })
+
+  it("shows what an open order's cancel button does on keyboard focus", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    try {
+      await act(async () => root.render(
+        <TooltipProvider delayDuration={0}>
+          <OpenOrdersTable {...shared} orders={[liveOrder("mainnet")]}
+            settled failed={false} onCancel={() => {}} onResume={async () => true} />
+        </TooltipProvider>
+      ))
+      const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Cancel the "]')!
+      await act(async () => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
+        button.focus()
+      })
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Cancel order")
     } finally {
       await act(async () => root.unmount())
       host.remove()
