@@ -3,7 +3,10 @@ import { act, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/directory/public", () => ({ findDirectoryPlace: vi.fn() }))
+vi.mock("@/lib/api/directory/public", () => ({
+  findDirectoryPlace: vi.fn(),
+  loadDirectorySuggestions: vi.fn(),
+}))
 import { findDirectoryPlace } from "@/lib/api/directory/public"
 import { DirectoryToolbar } from "@/components/directory/public/directory-toolbar"
 import { TooltipProvider } from "@/components/ui/tooltip"

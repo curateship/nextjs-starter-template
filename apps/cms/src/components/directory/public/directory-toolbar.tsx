@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/select"
 import type { PublicCategory } from "@/lib/api/directory/public"
 import {
+  DirectorySuggestionList,
+  useDirectorySuggestions,
+} from "@/components/directory/public/directory-suggestions"
+import {
   DIRECTORY_NEAR_RADII_KM,
   DIRECTORY_SORTS,
   DIRECTORY_SORT_LABELS,
@@ -72,6 +76,14 @@ export function DirectoryToolbar({
   // keeps what is being typed, the address catches up once typing pauses, and
   // Back or a pasted link puts the box back in step.
   const [text, setText] = useSearchBoxText(current.q ?? "", onSearchChange)
+  // The matches offered under the box while the typing is still going on. The
+  // box below stays a plain search box: pressing Enter without picking one
+  // runs the search that was typed, which is what it did before there was a
+  // list at all.
+  const suggestions = useDirectorySuggestions({
+    text,
+    onSearch: () => onSearchChange(text),
+  })
   const [place, setPlace] = React.useState("")
   const [locationMessage, setLocationMessage] = React.useState("")
   const [searchingPlace, setSearchingPlace] = React.useState(false)
@@ -138,14 +150,19 @@ export function DirectoryToolbar({
   return (
     <div className="flex flex-col gap-2 md:gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Input
-          type="search"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="Search listings"
-          aria-label="Search listings"
-          className="sm:max-w-xs"
-        />
+        {/* `relative` because the suggestion list hangs off the bottom of the
+            box rather than pushing the controls below it down the page. */}
+        <div className="relative w-full min-w-0 sm:max-w-xs">
+          <Input
+            type="search"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Search listings"
+            aria-label="Search listings"
+            {...suggestions.inputProps}
+          />
+          <DirectorySuggestionList box={suggestions} />
+        </div>
         {/* Grid or map. Absent entirely on a site that has not switched the
             map on, rather than shown and refusing — a button that does nothing
             is worse than no button. */}

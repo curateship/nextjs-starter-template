@@ -4,12 +4,14 @@ import { z } from "zod"
 import {
   DIRECTORY_SORTS,
   type DirectorySort,
+  type DirectorySuggestions,
   parseDirectoryNearPoint,
   readDirectoryNearRadius,
 } from "@/lib/directory/public-search"
 import { findCurrentUser } from "@/server/auth/security"
 import {
   readDirectoryMap,
+  readDirectorySuggestions,
   readPublicBrowse,
   readPublicCategory,
   readPublicListing,
@@ -23,7 +25,8 @@ import { readDirectoryFrontPage } from "@/server/directory/front-page"
 import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
 import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
-import { requireAppOrigin } from "@/server/auth/origin"
+import { requireAppOrigin, requestIp } from "@/server/auth/origin"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 
 import { createErrorMessage } from "../error-message"
 
@@ -140,6 +143,34 @@ export function loadDirectoryMap(input: {
   radius?: number
 }) {
   return readDirectoryMapFn({ data: input })
+}
+
+const readDirectorySuggestionsFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ query: z.string().max(120) }))
+  .handler(async ({ data }): Promise<DirectorySuggestions> => {
+    // Two empty lists rather than null or an error, every time this answers
+    // nothing. A refused burst then leaves the visitor with a plain search box
+    // for a minute instead of a message about a mistake they did not make.
+    const nothing: DirectorySuggestions = { listings: [], categories: [] }
+
+    const site = await visitorSite()
+    if (!site) return nothing
+
+    try {
+      await enforceRateLimit(`directory-suggest:${requestIp()}`, {
+        maxAttempts: 60,
+        windowSeconds: 60,
+      })
+    } catch {
+      return nothing
+    }
+
+    return readDirectorySuggestions(site.id, data.query)
+  })
+
+/** The few listings and categories the search box offers as somebody types. */
+export function loadDirectorySuggestions(query: string) {
+  return readDirectorySuggestionsFn({ data: { query } })
 }
 
 const geocodeDirectoryPlaceFn = createServerFn({ method: "POST" })

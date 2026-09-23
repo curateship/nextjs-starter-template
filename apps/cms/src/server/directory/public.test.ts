@@ -16,6 +16,7 @@ import {
 import {
   directorySearchResults,
   publicCategories,
+  readDirectorySuggestions,
   readPublicBrowse,
   readPublicCategory,
   readPublicListing,
@@ -1130,5 +1131,103 @@ describe("the fields a site invented", () => {
     expect(page.categoryCards).toMatchObject([{ name: "Eat", listingCount: 1 }])
     // And it is this site's row only.
     expect((await browse(beta)).categoryCards).toEqual([])
+  })
+})
+
+/**
+ * What the search box offers as somebody types.
+ *
+ * The rule worth proving is the one that fails quietly: a draft or another
+ * site's listing appearing here would publish a title nobody meant to publish,
+ * even though its page still 404s.
+ */
+describe("search suggestions", () => {
+  async function filed(
+    site: { id: string },
+    category: { id: string },
+    input: { title: string; slug: string },
+    published = true
+  ) {
+    const listing = published
+      ? await publish(site, input)
+      : await createListing(site.id, input, database)
+    await setListingCategories(
+      site.id,
+      listing.id,
+      [category.id],
+      category.id,
+      database
+    )
+    return listing
+  }
+
+  it("offers this site's published listings and non-empty categories", async () => {
+    const pizza = await createCategory(
+      alpha.id,
+      { name: "Pizza", slug: "pizza" },
+      database
+    )
+    await filed(alpha, pizza, { title: "Luigi's Pizza", slug: "luigis" })
+
+    const betaPizza = await createCategory(
+      beta.id,
+      { name: "Pizza", slug: "pizza" },
+      database
+    )
+    await filed(beta, betaPizza, { title: "Beta Pizza", slug: "beta-pizza" })
+
+    const result = await readDirectorySuggestions(alpha.id, "pizz", database)
+
+    expect(result.categories).toEqual([{ title: "Pizza", slug: "pizza" }])
+    expect(result.listings).toEqual([
+      { title: "Luigi's Pizza", slug: "luigis" },
+    ])
+  })
+
+  it("never offers a draft, nor the category holding only drafts", async () => {
+    const pizza = await createCategory(
+      alpha.id,
+      { name: "Pizza", slug: "pizza" },
+      database
+    )
+    await filed(alpha, pizza, { title: "Pizza Draft", slug: "draft" }, false)
+
+    const result = await readDirectorySuggestions(alpha.id, "pizz", database)
+
+    expect(result.listings).toEqual([])
+    // The category exists, but clicking it would open an empty page.
+    expect(result.categories).toEqual([])
+  })
+
+  it("puts a name match above a description match and stops at five", async () => {
+    for (const index of [1, 2, 3, 4, 5]) {
+      await publish(alpha, {
+        title: `Pizza ${index}`,
+        slug: `pizza-${index}`,
+      })
+    }
+    await publish(alpha, {
+      title: "Bakery",
+      slug: "bakery",
+      metaDescription: "We also sell pizza",
+    })
+
+    const result = await readDirectorySuggestions(alpha.id, "pizza", database)
+
+    expect(result.listings).toHaveLength(5)
+    expect(result.listings.map((row) => row.slug)).not.toContain("bakery")
+  })
+
+  it("answers nothing for one letter, and treats a wildcard as a letter", async () => {
+    await publish(alpha, { title: "Pizza", slug: "pizza" })
+
+    expect(await readDirectorySuggestions(alpha.id, "p", database)).toEqual({
+      listings: [],
+      categories: [],
+    })
+    // A bare `%` would otherwise match every listing on the site.
+    expect(
+      (await readDirectorySuggestions(alpha.id, "%%", database)).listings
+    ).toEqual([])
   })
 })
