@@ -52,6 +52,12 @@ import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
  * the visited address and selects published events only, so a draft is
  * missing rather than hidden.
  *
+ * A private event is published but unlisted. Its own page opens from its
+ * link, and every list here leaves it out, because every list filters through
+ * `listedEventsOnSite`. The old Directory app let each list check for itself,
+ * and all but one forgot. `public.test.ts` fails when a new export here is not
+ * proven to drop private events.
+ *
  * The event page and the Events page leave the on/off switch to their
  * endpoint, because a members-only switch depends on who is asking and those
  * answers are cached for everyone. Whether an event is over is worked out by
@@ -122,6 +128,8 @@ export type PublicEvent = EventWhen & {
   placeName: string
   placeAddress: string
   categories: PublicCategoryLink[]
+  /** Left out of every list, and its page asks search engines to skip it. */
+  isPrivate: boolean
 }
 
 export type PublicEventPage = {
@@ -135,12 +143,23 @@ export type PublicEventPage = {
   shareImageVersion: string
 }
 
-/** Published, on this site. The whole of what a visitor may read. */
+/**
+ * Published, on this site. What a visitor with an event's link may open,
+ * private events included. Only a read of one event by its address uses this.
+ */
 function publishedEventsOnSite(siteId: string) {
   return and(
     eq(siteEvents.workspaceId, siteId),
     eq(siteEvents.status, "published")
   )
+}
+
+/**
+ * Published, on this site, and not private: what a visitor may find without
+ * the link. Every list of events goes through this one filter.
+ */
+function listedEventsOnSite(siteId: string) {
+  return and(publishedEventsOnSite(siteId), eq(siteEvents.visibility, "public"))
 }
 
 /**
@@ -238,6 +257,7 @@ async function readPublicEventUncached(
       placeName: event.placeName,
       placeAddress: event.placeAddress,
       categories: categoryRows,
+      isPrivate: event.visibility === "private",
     },
     timeZone,
     listingCards,
@@ -251,7 +271,7 @@ async function readPublicEventUncached(
   }
 }
 
-/** One published event by its address, or null. */
+/** One published event by its address, private ones included, or null. */
 export function readPublicEvent(
   site: VisitorSite,
   slug: string,
@@ -313,10 +333,7 @@ export function readUpcomingEvents(
     "upcoming-events",
     { site: { name: site.name, url: site.url }, page, now },
     async () => {
-      const where = and(
-        publishedEventsOnSite(site.id),
-        notOverAt(nowDay, nowTime)
-      )
+      const where = and(listedEventsOnSite(site.id), notOverAt(nowDay, nowTime))
       const [rows, [countRow]] = await Promise.all([
         database
           .select(eventCardColumns)
@@ -383,7 +400,7 @@ export async function readCalendarFeed(
       endTime: siteEvents.endTime,
     })
     .from(siteEvents)
-    .where(and(publishedEventsOnSite(siteId), notOverAt(nowDay, nowTime)))
+    .where(and(listedEventsOnSite(siteId), notOverAt(nowDay, nowTime)))
     .orderBy(...soonestFirst)
     .limit(CALENDAR_FEED_LIMIT)
   return {
@@ -417,7 +434,7 @@ export function readEventsBetween(
         .from(siteEvents)
         .where(
           and(
-            publishedEventsOnSite(site.id),
+            listedEventsOnSite(site.id),
             between(siteEvents.startDate, from, to)
           )
         )
@@ -456,7 +473,7 @@ export async function eventSearchResults(
     .from(siteEvents)
     .where(
       and(
-        publishedEventsOnSite(siteId),
+        listedEventsOnSite(siteId),
         or(
           ilike(siteEvents.title, pattern),
           ilike(siteEvents.summary, pattern),
@@ -513,7 +530,7 @@ export async function readEventSuggestions(
     .from(siteEvents)
     .where(
       and(
-        publishedEventsOnSite(siteId),
+        listedEventsOnSite(siteId),
         notOverAt(nowDay, nowTime),
         or(ilike(siteEvents.title, pattern), ilike(siteEvents.summary, pattern))
       )
@@ -543,7 +560,7 @@ export async function eventSitemapEntries(
     .from(siteEvents)
     .where(
       and(
-        publishedEventsOnSite(siteId),
+        listedEventsOnSite(siteId),
         gte(lastDay, sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`)
       )
     )
@@ -584,7 +601,7 @@ export async function newestEventsForFeed(
       publishedAt: siteEvents.publishedAt,
     })
     .from(siteEvents)
-    .where(publishedEventsOnSite(siteId))
+    .where(listedEventsOnSite(siteId))
     .orderBy(desc(siteEvents.publishedAt), asc(siteEvents.id))
     .limit(limit)
   if (rows.length === 0) return []

@@ -233,13 +233,17 @@ function buildOverviewFigures({
       to: "/admin/feedback",
       label: "Feedback this week",
       value: feeds.feedback.last7Days.toLocaleString(),
-      before: `${feeds.feedback.previous7Days.toLocaleString()} the week before`,
       change: percentChange(
         feeds.feedback.previous7Days,
         feeds.feedback.last7Days
       ),
       changeCaption: "vs last week",
+      changeNote: "None the week before",
+      trend: feeds.feedback.last30Days,
       footer: `${feeds.feedback.noReply.toLocaleString()} with no reply`,
+      // Feedback nobody has answered is the one thing on this row waiting on
+      // the admin, so it stands out while there is any.
+      footerTone: feeds.feedback.noReply > 0 ? "warning" : undefined,
     },
   ]
 }

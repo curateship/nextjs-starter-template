@@ -14,7 +14,8 @@ import {
 import { customShellWorkspaces } from "@/server/schema"
 
 /**
- * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`.
+ * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`, and
+ * `drizzle/0084_cms_events_visibility.sql` for `visibility`.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -38,6 +39,13 @@ export const siteEvents = pgTable(
     body: jsonb("body").notNull(),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
+    /**
+     * 'public' or 'private'. A private event's page opens from its link, but
+     * no public list shows it. See `listedEventsOnSite` in `public.ts`.
+     */
+    visibility: varchar("visibility", { length: 20 })
+      .notNull()
+      .default("public"),
     /** Set on first publish and kept. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     /** "2026-09-27", the day it starts on the site's calendar. */
@@ -65,6 +73,10 @@ export const siteEvents = pgTable(
     check(
       "events_status_check",
       sql`${table.status} IN ('draft', 'published')`
+    ),
+    check(
+      "events_visibility_check",
+      sql`${table.visibility} IN ('public', 'private')`
     ),
     check(
       "events_published_has_date_check",

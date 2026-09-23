@@ -57,6 +57,7 @@ type EventFields = {
   summary: string
   coverImage: string
   status: "draft" | "published"
+  visibility: "public" | "private"
   /** "2026-09-27", or empty while none is picked. */
   startDate: string
   /** "18:00", or empty. */
@@ -77,6 +78,7 @@ function blankFields(): EventFields {
     summary: "",
     coverImage: "",
     status: "draft",
+    visibility: "public",
     startDate: "",
     startTime: "",
     endDate: "",
@@ -96,6 +98,7 @@ function fieldsFrom(data: EventForEdit): EventFields {
     summary: event.summary,
     coverImage: event.coverImage,
     status: event.status,
+    visibility: event.visibility,
     startDate: event.startDate,
     startTime: event.startTime,
     // A same-day end is stored as the start day; the form shows it as empty,
@@ -343,7 +346,7 @@ export function EventDialog({
                     noFlashKey: basicsNoFlash,
                   }}
                   title="The event"
-                  description="The title, address, summary and cover image. A draft is never shown to a visitor."
+                  description="The title, address, summary, who can find it and cover image. A draft is never shown to a visitor."
                   contentClassName="grid gap-4"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -420,26 +423,56 @@ export function EventDialog({
                       }
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <FieldLabel htmlFor="event-status">Status</FieldLabel>
-                    <Select
-                      value={fields.status}
-                      disabled={saving}
-                      onValueChange={(value) =>
-                        update("status", value as "draft" | "published")
-                      }
-                    >
-                      <SelectTrigger
-                        id="event-status"
-                        className="w-full sm:w-fit"
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="event-status">Status</FieldLabel>
+                      <Select
+                        value={fields.status}
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          update("status", value as "draft" | "published")
+                        }
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="published">Published</SelectItem>
-                      </SelectContent>
-                    </Select>
+                        <SelectTrigger
+                          id="event-status"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="published">Published</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="event-visibility"
+                        hint="A private event's page opens for anyone with its link, but it stays off the Events page, the calendar, search, the sitemap, the feed and the calendar subscription. It is not a password."
+                      >
+                        Who can find it
+                      </FieldLabel>
+                      <Select
+                        value={fields.visibility}
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          update("visibility", value as "public" | "private")
+                        }
+                      >
+                        <SelectTrigger
+                          id="event-visibility"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="private">
+                            Private, link only
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <FieldLabel hint="Shown at the top of the event's page and when it is shared.">

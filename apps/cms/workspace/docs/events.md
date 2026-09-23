@@ -32,6 +32,8 @@ published event has its own page at `/events/<address>`.
 - **The table:** `events`, from `drizzle/0083_cms_events.sql`. An event has a
   title, an address, a cover image, a summary, a body, a status, a start day
   and time, an optional end day and time, a place name and a street address.
+  `drizzle/0084_cms_events_visibility.sql` adds `visibility`, which is
+  `public` or `private`. Every event made before it is public.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -39,6 +41,8 @@ published event has its own page at `/events/<address>`.
   like `night-market-2`.
 - **Draft or published:** a new event is a draft. A draft is never readable by
   a visitor. Unpublishing is setting it back to Draft.
+- **Public or private:** a new event is public. "Private events" below covers
+  the other kind.
 - **The published date:** set the first time an event is published and kept
   after that. It is not shown anywhere yet.
 - **Categories:** events use the same categories as listings and posts, filed
@@ -76,11 +80,60 @@ published event has its own page at `/events/<address>`.
 - **The list:** search by title, address or place, filter by status, sort by
   title, status, event date or last change. It opens on the latest event date
   first, and the Date column shows the event's own start, not when it was
-  edited.
-- **The window:** the event (title, address, summary, status, cover image),
+  edited. A private event has a "Private" label beside its status.
+- **The window:** the event (title, address, summary, status, who can find it,
+  cover image),
   when and where (start day, start time, end day, end time, place, street
   address), categories and the body. A new event needs a title, a start day and
   a start time before it saves.
+
+## Duplicating an event
+
+Each row in Admin → Events has a Duplicate button before the cog. It is for an
+event that happens again on no fixed pattern, like a trivia night most
+Thursdays. Repeating events are task 09.
+
+- **One click:** the copy is made and its window opens straight away, so the
+  admin can change the date and save.
+- **What comes across:** the summary, cover image, body, start and end, place,
+  street address, categories and the public or private setting.
+- **The new title and address:** " (copy)" goes on the end of the title, so
+  "Trivia night" becomes "Trivia night (copy)". The address comes from that
+  title, like `trivia-night-copy`, and `trivia-night-copy-2` when that is taken.
+- **Always a draft:** the copy has no published date, so nothing new is public
+  until the admin publishes it.
+- **The original is not touched.** Closing the copy's window without saving
+  keeps the copy as a draft. Delete it from the list if it is not wanted.
+- **Where it lives:** `duplicateEvent` in `src/server/events/events.ts`.
+
+## Private events
+
+A private event has a page anyone with the link can open, and no list on the
+site shows it. It is for something like a members' dinner whose link goes out
+by email. It is not a password.
+
+- **The switch:** "Who can find it" in the event window, Public or "Private,
+  link only". It can be changed at any time, on a draft or a published event.
+- **Left out of:** the Events page's list, the month, one day's list, the
+  whole-site search, the search box's suggestions, the sitemap, the feed and
+  the calendar subscription.
+- **Still working:** the event's own page, its "Add to calendar" file and its
+  drawn share card. The share card is the preview of the very link the event
+  is sent by, so it stays.
+- **Search engines:** a private event's page carries
+  `<meta name="robots" content="noindex">`, which asks them not to list it.
+  Switching the event back to Public removes the tag.
+- **The Events page's switch still counts.** With the Events page off, a
+  private event's page is not found either, the same as every event page.
+- **One filter for every list:** every public list of events filters through
+  `listedEventsOnSite` in `src/server/events/public.ts`. Only reading one event
+  by its address skips it. The old Directory app let each list check for
+  itself, and only search remembered.
+- **The test that keeps it that way:** `src/server/events/private.test.ts`
+  runs every function `public.ts` exports and fails if one shows a private
+  event, or if a new export is missing from its list. It also fails if any
+  file besides the admin code, `public.ts` and the share card reads the events
+  table, so a new list has to be written in `public.ts`.
 
 ## The event page
 
@@ -99,6 +152,7 @@ published event has its own page at `/events/<address>`.
 the month. The view, the month and a chosen day all live in the address, so a
 shared link opens the same view.
 
+- **Private events** are in none of these views.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
   on today, stays until it is over.
@@ -136,9 +190,9 @@ members like any other page. Every event's page follows the same switch.
 
 ## Where events appear
 
-A published event appears in all of these and a draft in none of them. All of
-them also need the Events page open to everyone. Switched off or kept for
-members, events leave search, the suggestions, the sitemap, the feed and the
+A published public event appears in all of these. A draft or a private event
+appears in none of them. All of them also need the Events page open to
+everyone. Switched off or kept for members, events leave search, the suggestions, the sitemap, the feed and the
 drawn share card, the same rule posts follow.
 
 - **Whole-site search at `/search`:** matches the title, summary, place name
@@ -210,8 +264,8 @@ Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
   `webcal://` link to `/events.ics`, which hands the address to the phone's or
   computer's calendar app. After that, every event the site publishes shows up
   in the visitor's calendar by itself.
-- **What the subscription holds:** every published event that is not over yet,
-  soonest first, 500 at most. An event drops out of it once it is over, so it
+- **What the subscription holds:** every published public event that is not
+  over yet, soonest first, 500 at most. An event drops out of it once it is over, so it
   also leaves the subscriber's calendar at the next check.
 - **How fast a new event arrives:** Apple Calendar and Outlook are asked to
   check every 6 hours. Google checks on its own timetable, usually within a

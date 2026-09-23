@@ -14,6 +14,7 @@ import {
 import {
   createEvent,
   deleteEvents,
+  duplicateEvent,
   findEvent,
   listEvents,
   MAX_EVENT_SUMMARY,
@@ -23,6 +24,7 @@ import {
   updateEvent,
   type EventStatus,
   type EventSummary,
+  type EventVisibility,
   type EventWhenInput,
   type SiteEvent,
 } from "@/server/events/events"
@@ -156,6 +158,7 @@ const updateEventFn = createServerFn({ method: "POST" })
       coverImage: z.string().max(600).optional(),
       summary: z.string().max(MAX_EVENT_SUMMARY).optional(),
       status: z.enum(["draft", "published"]).optional(),
+      visibility: z.enum(["public", "private"]).optional(),
       when: whenInput.optional(),
       placeName: z.string().max(MAX_PLACE_NAME).optional(),
       placeAddress: z.string().max(MAX_PLACE_ADDRESS).optional(),
@@ -182,6 +185,7 @@ export function saveEvent(input: {
   coverImage?: string
   summary?: string
   status?: EventStatus
+  visibility?: EventVisibility
   when?: EventWhenInput
   placeName?: string
   placeAddress?: string
@@ -189,6 +193,18 @@ export function saveEvent(input: {
   categoryIds?: string[]
 }) {
   return updateEventFn({ data: input })
+}
+
+const duplicateEventFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: idInput }))
+  .handler(async ({ data, context }): Promise<SiteEvent> => {
+    return duplicateEvent(await workspaceIdForRequest(context.user.id), data.id)
+  })
+
+/** A draft copy of the event, for the editor to open straight away. */
+export function copyEvent(id: string) {
+  return duplicateEventFn({ data: { id } })
 }
 
 const deleteEventsFn = createServerFn({ method: "POST" })
