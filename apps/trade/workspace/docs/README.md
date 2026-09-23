@@ -126,7 +126,7 @@ screen: anything not written there has not been agreed yet.
   looks, how repeated failures are counted, how a DCA ladder sells back up its
   mirrored exits, how one extra gap moves those exits together, and what a
   backtest does differently.
-- `smart-order-windows.md` — 32px secondary buttons, floating form width and long wallet labels; percentage stops below the last DCA rung, combined stop-loss dollars and chart dragging, the separate Rung 1 exit % for market buys and
+- `smart-order-windows.md` — one word, Exit, in every order window and its Percent or Price choice; 32px secondary buttons, floating form width and long wallet labels; percentage stops below the last DCA rung, combined stop-loss dollars and chart dragging, the separate Rung 1 exit % for market buys and
   the windows a smart order is placed from: the
   floating frame, synchronized DCA entry and exit dragging, the draggable
   ladder summary, red DCA exit lines and labels, the DCA exit choices and draggable exit gap, the base stop,

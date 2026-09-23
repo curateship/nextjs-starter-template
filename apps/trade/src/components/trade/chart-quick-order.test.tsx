@@ -61,6 +61,8 @@ const prefs: QuickOrderPrefs = {
   stopPrice: "",
   stopPct: "2",
   targetPct: "5",
+  targetUnit: "pct",
+  targetPrice: "",
   slippagePct: "0.5",
 }
 
@@ -504,6 +506,58 @@ describe("the chart's Long, Short and Market window", () => {
     expect(
       host
         .querySelector<HTMLInputElement>("#quick-stop")
+        ?.getAttribute("aria-invalid")
+    ).toBe("true")
+  })
+
+  it("places the same exit from a price as from a percent", async () => {
+    const byPercent = await draw({ initialPrefs: { ...prefs, targetOn: true } })
+    await place()
+    await act(async () => root.unmount())
+    root = createRoot(host)
+
+    const byPrice = await draw({
+      initialPrefs: {
+        ...prefs,
+        targetOn: true,
+        targetUnit: "price",
+        targetPrice: "115.5",
+      },
+    })
+    expect(host.textContent).toContain("Exit price")
+    await place()
+
+    expect(byPercent.onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ tpPx: 115.5 })
+    )
+    expect(byPrice.onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ tpPx: 115.5 })
+    )
+    expect(byPrice.onRemember).toHaveBeenCalledWith(
+      expect.objectContaining({ targetUnit: "price", targetPrice: "115.5" })
+    )
+  })
+
+  it("refuses an exit price on the losing side of a short", async () => {
+    const { onPlace } = await draw({
+      side: "sell",
+      initialPrefs: {
+        ...prefs,
+        targetOn: true,
+        targetUnit: "price",
+        targetPrice: "95",
+      },
+    })
+
+    await place()
+
+    expect(onPlace).not.toHaveBeenCalled()
+    expect(host.textContent).toContain(
+      "Exit price has to be below the entry at"
+    )
+    expect(
+      host
+        .querySelector<HTMLInputElement>("#quick-target")
         ?.getAttribute("aria-invalid")
     ).toBe("true")
   })

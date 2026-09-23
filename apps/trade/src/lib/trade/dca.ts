@@ -264,7 +264,7 @@ export const DCA_TP_MODE_LABELS: Record<DcaTpMode, string> = {
 /** What each mode does, for the tooltip beside the picker. */
 export const DCA_TP_MODE_HINTS: Record<DcaTpMode, string> = {
   average:
-    "The target sits the chosen percent above the average buy price, and is re-aimed after every fill.",
+    "The exit sits the chosen percent above the average buy price, and is re-aimed after every fill.",
   prevRung:
     "Each buy sells at the price of the buy above it — the first at the clicked price itself.",
   nearestRung:

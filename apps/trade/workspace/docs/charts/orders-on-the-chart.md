@@ -72,7 +72,7 @@ on every one that has none, and each acts on one side only. See
 costs.** The exit reads "Exit at +6%" and the stop reads "Stop loss at -2%",
 measured from where the trade got in, which is a position's entry price or the
 price a waiting order will fill at. That is the same thing the order settings
-window means by its Exit % and Stop loss % boxes. The exit always carries its
+window means by its Exit % and Stop loss % boxes, with Exit set to Percent. The exit always carries its
 sign, so an exit dropped on the losing side of the entry reads "Exit at -3.1%"
 and one on the winning side reads "Exit at +3.1%". The alert row reads "Alert
 5% above", measured from the price the market is at right now, and it does not
@@ -212,7 +212,10 @@ does not close the position immediately.
   cog as the Grid bar and other editable orders, tucked directly after the
   order label with the Grid bar's small gap. Its compact settings window opens
   beside that cog and leaves the chart visible; it is not a page modal. Its
-  header only says Order settings, without repeating a long wallet name. The
+  header says Order settings on the left and the order's wallet on the right,
+  the way the quick order does. The title is green on a long and red on a
+  short. A long wallet name is cut off and shows in full on hover. An order
+  whose wallet is not loaded shows no name rather than a wrong one. The
   window's leverage slider changes both the saved order and the amount of your
   own cash shown under its size.
 - **Placing an order does not wait for the exchange, and does not say so

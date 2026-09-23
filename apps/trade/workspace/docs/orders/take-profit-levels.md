@@ -4,8 +4,8 @@ A live or practice position can hold up to three Exit targets. Each row
 sets the exact price and dollar amount sold there. The sizes together may cover
 all or part of the position, but never more than the position holds.
 
-The stop-and-target window shows the profit banked by each row and the running
-dollar coverage at the entry price. The chart draws one green line per target.
+The Stop and exit window names its rows Exit 1 to Exit 3. It shows the profit
+banked by each row and the running dollar coverage at the entry price. The chart draws one green line per target.
 Each line names its sale value and profit. Dragging or removing one line changes
 only that target and keeps the others.
 

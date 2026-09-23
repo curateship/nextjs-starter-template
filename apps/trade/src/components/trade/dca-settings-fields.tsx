@@ -204,7 +204,7 @@ export function DcaSettingsFields({
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor={id("market-first-exit")}
-                hint="The exit above rung 1's actual market purchase price. A $100 buy with 10% exits at $110. The entry gap and extra exit gap do not add to this target."
+                hint="The exit above rung 1's actual market purchase price. A $100 buy with 10% exits at $110. The entry gap and extra exit gap do not add to this exit."
               >
                 Rung 1 exit %
               </FieldLabel>
@@ -293,8 +293,8 @@ export function DcaSettingsFields({
       >
         {takeProfitFixed ? (
           <p className="text-xs text-muted-foreground">
-            The target was moved by hand and sits where it was put. Saving puts
-            it back under a rule.
+            The exit was moved by hand and sits where it was put. Saving puts it
+            back under a rule.
           </p>
         ) : null}
         {form.tpOn ? (
@@ -322,9 +322,9 @@ export function DcaSettingsFields({
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor={id("tp-pct")}
-                  hint="How far above the average buy the ladder takes profit."
+                  hint="How far above the average buy the ladder exits."
                 >
-                  Target
+                  Exit %
                 </FieldLabel>
                 <PercentField
                   id={id("tp-pct")}

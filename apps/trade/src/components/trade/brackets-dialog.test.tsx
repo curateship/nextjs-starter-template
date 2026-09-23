@@ -89,7 +89,7 @@ describe("the stop-and-target window says why it will not save", () => {
     expect(saveButton()?.disabled).toBe(false)
 
     const add = [...document.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Add target"
+      (button) => button.textContent?.trim() === "Add exit"
     )
     await act(async () => add?.click())
     await type('[id^="brackets-target-price-"]', "0")
@@ -97,7 +97,7 @@ describe("the stop-and-target window says why it will not save", () => {
     await act(async () => saveButton()?.click())
     const refusal = document.getElementById("brackets-refusal")
     expect(refusal?.textContent).toContain(
-      "Each target needs a price and a dollar size above zero."
+      "Each exit needs a price and a dollar size above zero."
     )
     expect(
       document
@@ -143,7 +143,7 @@ describe("loss-taking exit targets", () => {
         )
       )
       const add = [...document.querySelectorAll("button")].find(
-        (button) => button.textContent?.trim() === "Add target"
+        (button) => button.textContent?.trim() === "Add exit"
       )
       await act(async () => add?.click())
       const target = direction > 0 ? 95 : 105
@@ -207,7 +207,7 @@ describe("several take-profit levels", () => {
 
     for (let index = 0; index < 3; index += 1) {
       const add = [...document.querySelectorAll("button")].find(
-        (button) => button.textContent?.trim() === "Add target"
+        (button) => button.textContent?.trim() === "Add exit"
       )
       await act(async () => add?.click())
     }
@@ -226,7 +226,7 @@ describe("several take-profit levels", () => {
     expect(sizes).toHaveLength(3)
     expect(
       [...document.querySelectorAll("button")].some(
-        (button) => button.textContent?.trim() === "Add target"
+        (button) => button.textContent?.trim() === "Add exit"
       )
     ).toBe(false)
 

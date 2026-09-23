@@ -21,7 +21,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getLiveErrorMessage, loadSwapQuote } from "@/lib/api/trade/live"
 import { type MarketRow, type SwapQuote } from "@/lib/protocols/contracts"
-import { absoluteStopPrice, bracketPrice } from "@/lib/trade/brackets"
+import { absoluteBracketPrice, bracketPrice } from "@/lib/trade/brackets"
 import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
@@ -223,6 +223,8 @@ export function ChartQuickOrder({
   const [stopPrice, setStopPrice] = React.useState(prefs.stopPrice)
   const [stopPct, setStopPct] = React.useState(prefs.stopPct)
   const [targetPct, setTargetPct] = React.useState(prefs.targetPct)
+  const [targetUnit, setTargetUnit] = React.useState(prefs.targetUnit)
+  const [targetPrice, setTargetPrice] = React.useState(prefs.targetPrice)
   const [reduceOnly, setReduceOnly] = React.useState(false)
   const [slippagePct, setSlippagePct] = React.useState(
     prefs.slippagePct ?? DEFAULT_SLIPPAGE_PCT
@@ -257,11 +259,23 @@ export function ChartQuickOrder({
 
   const stopPx = wantsStop
     ? stopUnit === "price"
-      ? absoluteStopPrice({ entryPx, price: stopPrice, long: buy })
+      ? absoluteBracketPrice({
+          entryPx,
+          price: stopPrice,
+          long: buy,
+          winning: false,
+        })
       : bracketPrice({ entryPx, percent: stopPct, long: buy, winning: false })
     : null
   const targetPx = wantsTarget
-    ? bracketPrice({ entryPx, percent: targetPct, long: buy, winning: true })
+    ? targetUnit === "price"
+      ? absoluteBracketPrice({
+          entryPx,
+          price: targetPrice,
+          long: buy,
+          winning: true,
+        })
+      : bracketPrice({ entryPx, percent: targetPct, long: buy, winning: true })
     : null
   const badStop = wantsStop && stopPx === null
   const badTarget = wantsTarget && targetPx === null
@@ -416,9 +430,13 @@ export function ChartQuickOrder({
             ? "Stop loss % has to be above zero and under 100. A price cannot fall below zero."
             : "Stop loss % has to be a number above zero. A short's stop loss sits above the entry."
         : badTarget
-          ? buy
-            ? "Exit % has to be a number above zero. A long's exit sits above the entry."
-            : "Exit % has to be above zero and under 100. A price cannot fall below zero."
+          ? targetUnit === "price"
+            ? buy
+              ? `Exit price has to be above the entry at ${formatPrice(entryPx)}.`
+              : `Exit price has to be below the entry at ${formatPrice(entryPx)}.`
+            : buy
+              ? "Exit % has to be a number above zero. A long's exit sits above the entry."
+              : "Exit % has to be above zero and under 100. A price cannot fall below zero."
           : sizeCoin <= 0
             ? byRisk
               ? `There is nothing in ${wallet} to risk a share of — it is worth ${formatUsd(equity)}.`
@@ -479,6 +497,8 @@ export function ChartQuickOrder({
       stopPrice,
       stopPct,
       targetPct,
+      targetUnit,
+      targetPrice,
       slippagePct,
     })
     onClose()
@@ -823,19 +843,44 @@ export function ChartQuickOrder({
                 {wantsTarget ? (
                   <div className="grid gap-2">
                     <Label htmlFor="quick-target" className="text-xs">
-                      Exit %
+                      {targetUnit === "price" ? "Exit price" : "Exit %"}
                     </Label>
-                    <Input
-                      id="quick-target"
-                      inputMode="decimal"
-                      value={targetPct}
-                      onChange={(event) => {
-                        setShowValidation(false)
-                        setTargetPct(event.target.value)
-                      }}
-                      onBlur={() => setShowValidation(true)}
-                      aria-invalid={showValidation && badTarget}
-                    />
+                    <div className="flex items-start gap-2">
+                      <Input
+                        id="quick-target"
+                        inputMode="decimal"
+                        className="min-w-0 flex-1"
+                        value={targetUnit === "price" ? targetPrice : targetPct}
+                        onChange={(event) => {
+                          setShowValidation(false)
+                          if (targetUnit === "price") {
+                            setTargetPrice(event.target.value)
+                          } else {
+                            setTargetPct(event.target.value)
+                          }
+                        }}
+                        onBlur={() => setShowValidation(true)}
+                        aria-invalid={showValidation && badTarget}
+                      />
+                      <Select
+                        value={targetUnit}
+                        onValueChange={(next) => {
+                          setShowValidation(false)
+                          setTargetUnit(next as QuickOrderPrefs["targetUnit"])
+                        }}
+                      >
+                        <SelectTrigger
+                          className="w-fit"
+                          aria-label="How exit is measured"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pct">Percent</SelectItem>
+                          <SelectItem value="price">Price</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
                     </span>
