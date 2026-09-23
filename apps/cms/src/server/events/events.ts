@@ -2,6 +2,7 @@ import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core"
 
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
+import { isValidDateString } from "@/lib/events/calendar-grid"
 import {
   DEFAULT_EVENT_SORT,
   eventSortDirection,
@@ -94,18 +95,7 @@ export function toEvent(row: EventRow): SiteEvent {
 
 const EVENT_NOUN = { one: "event", many: "events" }
 
-const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const CLOCK_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
-
-/** A real calendar day: "2026-02-30" has the right shape and is not one. */
-function isRealDay(value: string): boolean {
-  if (!DAY_PATTERN.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return (
-    !Number.isNaN(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === value
-  )
-}
 
 /**
  * The start and end as they are stored, or a refusal the admin can act on.
@@ -117,7 +107,9 @@ function isRealDay(value: string): boolean {
 export function cleanEventWhen(input: EventWhenInput): EventWhen {
   const startDate = input.startDate.trim()
   const startTime = input.startTime.trim()
-  if (!isRealDay(startDate)) throw new Error("Pick the day the event starts.")
+  if (!isValidDateString(startDate)) {
+    throw new Error("Pick the day the event starts.")
+  }
   if (!CLOCK_PATTERN.test(startTime)) {
     throw new Error("Give the time the event starts.")
   }
@@ -127,7 +119,7 @@ export function cleanEventWhen(input: EventWhenInput): EventWhen {
     throw new Error("The end time is not a time of day.")
   }
   let endDate = input.endDate?.trim() || null
-  if (endDate && !isRealDay(endDate)) {
+  if (endDate && !isValidDateString(endDate)) {
     throw new Error("The end day is not a real day.")
   }
   if (endTime && !endDate) endDate = startDate

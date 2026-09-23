@@ -7,7 +7,11 @@ import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { saveDirectoryTimeZone } from "@/server/directory/settings"
 import { createEvent, updateEvent } from "@/server/events/events"
-import { readPublicEvent } from "@/server/events/public"
+import {
+  readEventsBetween,
+  readPublicEvent,
+  readUpcomingEvents,
+} from "@/server/events/public"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
 import {
   createTestDatabase,
@@ -108,5 +112,137 @@ describe("an event's page", () => {
       { name: "Markets", slug: markets.slug },
     ])
     expect(page?.timeZone).toBe("America/Vancouver")
+  })
+})
+
+async function dated(
+  siteId: string,
+  title: string,
+  when: {
+    startDate: string
+    startTime: string
+    endDate?: string
+    endTime?: string
+  },
+  status: "draft" | "published" = "published"
+) {
+  const created = await createEvent(siteId, { title, when }, database)
+  return updateEvent(siteId, created.id, { status }, database)
+}
+
+describe("the upcoming list", () => {
+  // The site's wall clock: Saturday 26 September 2026, 3:00pm.
+  const now = "2026-09-26T15:00"
+
+  it("leaves out an event that ended an hour ago and keeps one still on", async () => {
+    await dated(site.id, "Morning market", {
+      startDate: "2026-09-26",
+      startTime: "09:00",
+      endTime: "14:00",
+    })
+    const stillOn = await dated(site.id, "Afternoon fair", {
+      startDate: "2026-09-26",
+      startTime: "12:00",
+      endTime: "16:00",
+    })
+    const noEnd = await dated(site.id, "All day sale", {
+      startDate: "2026-09-26",
+      startTime: "08:00",
+    })
+    const later = await dated(site.id, "Night market", {
+      startDate: "2026-10-03",
+      startTime: "18:00",
+    })
+    await dated(site.id, "Last week", {
+      startDate: "2026-09-19",
+      startTime: "18:00",
+    })
+
+    const { events, total } = await readUpcomingEvents(site, 1, now, database)
+    expect(events.map((event) => event.slug)).toEqual([
+      noEnd.slug,
+      stillOn.slug,
+      later.slug,
+    ])
+    expect(total).toBe(3)
+  })
+
+  it("keeps an event running past midnight until its end day's end time", async () => {
+    const lateShow = await dated(site.id, "Late show", {
+      startDate: "2026-09-25",
+      startTime: "22:00",
+      endDate: "2026-09-26",
+      endTime: "16:00",
+    })
+    expect(
+      (await readUpcomingEvents(site, 1, now, database)).events.map(
+        (event) => event.slug
+      )
+    ).toEqual([lateShow.slug])
+    resetPublicDirectoryCacheForTests()
+    expect(
+      (await readUpcomingEvents(site, 1, "2026-09-26T16:00", database)).events
+    ).toEqual([])
+  })
+
+  it("never lists a draft or another site's event, and pages twelve at a time", async () => {
+    await dated(
+      site.id,
+      "Unfinished",
+      { startDate: "2026-10-01", startTime: "10:00" },
+      "draft"
+    )
+    await dated(other.id, "Beta's", {
+      startDate: "2026-10-01",
+      startTime: "10:00",
+    })
+    for (let day = 1; day <= 13; day++) {
+      await dated(site.id, `Day ${day}`, {
+        startDate: `2026-11-${String(day).padStart(2, "0")}`,
+        startTime: "10:00",
+      })
+    }
+
+    const first = await readUpcomingEvents(site, 1, now, database)
+    const second = await readUpcomingEvents(site, 2, now, database)
+    expect(first.total).toBe(13)
+    expect(first.events).toHaveLength(12)
+    expect(second.events.map((event) => event.title)).toEqual(["Day 13"])
+  })
+})
+
+describe("a day or a month", () => {
+  it("holds every published event starting in it, including ones that are over", async () => {
+    const early = await dated(site.id, "Early", {
+      startDate: "2026-09-26",
+      startTime: "09:00",
+    })
+    const late = await dated(site.id, "Late", {
+      startDate: "2026-09-26",
+      startTime: "20:00",
+    })
+    await dated(site.id, "Next day", {
+      startDate: "2026-09-27",
+      startTime: "09:00",
+    })
+    await dated(
+      site.id,
+      "Draft",
+      { startDate: "2026-09-26", startTime: "12:00" },
+      "draft"
+    )
+    await dated(other.id, "Beta's", {
+      startDate: "2026-09-26",
+      startTime: "12:00",
+    })
+
+    expect(
+      (await readEventsBetween(site, "2026-09-26", "2026-09-26", database)).map(
+        (event) => event.slug
+      )
+    ).toEqual([early.slug, late.slug])
+    expect(
+      await readEventsBetween(site, "2026-08-30", "2026-10-03", database)
+    ).toHaveLength(3)
   })
 })

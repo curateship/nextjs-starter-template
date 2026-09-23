@@ -84,21 +84,48 @@ published event has its own page at `/events/<address>`.
 - **A draft, another site's event and a made-up address** all answer the same
   not-found page.
 
+## The Events page
+
+`/events` is what is on. It opens on the list, and a switch above it changes to
+the month. The view, the month and a chosen day all live in the address, so a
+shared link opens the same view.
+
+- **The list:** events that are not over yet, soonest first, 12 to a page. An
+  event that ended an hour ago is gone. One still running, or with no end time
+  on today, stays until it is over.
+- **The month:** `?view=month&month=2026-10`. Previous and next move a month,
+  Today goes back to the site's current month, and the site's today has a ring.
+  Each day shows up to three events and "+2 more". Events that are over still
+  show, because a month is a record of what happened.
+- **One day:** `?day=2026-10-03`, reached from "+2 more" or a day on a phone.
+  It shows every event starting that day, soonest first. Ones that are over are
+  marked "Ended", so a past day is never an empty page. It is not paged.
+- **On a phone** the month is a small grid of day numbers with a dot on days
+  that have events. Tapping a day with a dot opens that day.
+- **Whose today:** "today" and "now" are the site's own clock, read in its time
+  zone by the server on every visit and handed to the page. The visitor's clock
+  is never asked, so a visitor in Vancouver sees the same today as one in
+  Toronto.
+- **The zone** is named once under the heading: "All times are Eastern Time."
+- **An event on several days** shows on its first day only in the month, and a
+  day's list holds the events that start that day. Task 08 changes both.
+- **The helpers** for the grid are copied from the old Directory app with their
+  tests, in `src/lib/events/calendar-grid.ts`.
+
 ## The Events page's on/off switch
 
 `/events` is a page on the Pages screen, so it can be switched off or kept for
-members like any other page.
+members like any other page. Every event's page follows the same switch.
 
-- **Switched off:** every event page is not found.
-- **Members only:** a signed-out visitor is sent to sign in, and comes back
-  to the event afterwards rather than to `/events`, which has no list yet.
-- **`/events` itself** answers not-found for now, because the list of events
-  that belongs there is task 02. It only exists so the switch has a page to
-  belong to.
-- **How fast:** event pages follow a switch change at once.
+- **Switched off:** `/events` and every event page are not found.
+- **Members only:** a signed-out visitor is sent to sign in, then back to
+  `/events`.
+- **How fast:** the pages follow a switch change at once, and saving an event
+  clears the public page cache, so an edit shows at once too. The upcoming list
+  is read again at least once a minute, which is how an event drops off as it
+  ends.
 
 ## Not built yet
 
-These are later tasks in `workspace/tasks/events/`: the `/events` list and
-calendar, search, the sitemap and feed, Google's event markup, sign-ups and
-repeats.
+These are later tasks in `workspace/tasks/events/`: filters on the Events page,
+search, the sitemap and feed, Google's event markup, sign-ups and repeats.

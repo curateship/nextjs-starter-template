@@ -4,7 +4,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
  * Where a page sits: site home → Directory → its category → itself, or site
- * home → Posts → the post.
+ * home → Posts → the post, or site home → Events → the event.
  *
  * The last step is the page you are on, so it is plain text with
  * `aria-current` rather than a link back to where you already are.
@@ -14,6 +14,7 @@ export type Crumb = {
   categorySlug?: string
   home?: boolean
   posts?: boolean
+  events?: boolean
 }
 
 export function DirectoryBreadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
@@ -53,6 +54,13 @@ function CrumbLink({ crumb }: { crumb: Crumb }) {
   if (crumb.posts) {
     return (
       <Link to="/posts" search={{}} className={className}>
+        {crumb.label}
+      </Link>
+    )
+  }
+  if (crumb.events) {
+    return (
+      <Link to="/events" search={{}} className={className}>
         {crumb.label}
       </Link>
     )
