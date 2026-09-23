@@ -154,6 +154,34 @@ describe("header market pins", () => {
     expect(host.textContent).toContain("Home")
     expect(host.textContent).not.toContain("+1.20%")
   })
+  it("fades the pin while it saves and lets the keyboard reach the reason", async () => {
+    await mount()
+    let finish = () => {}
+    api.save.mockImplementation(
+      (marketKey: string) =>
+        new Promise((resolve) => {
+          finish = () => {
+            pins = [...pins, marketKey]
+            resolve({ pins, error: null })
+          }
+        })
+    )
+    await click("Pin to header")
+    const saving = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Unpin from header"]'
+    )!
+    expect(saving.disabled).toBe(true)
+    // Button's own disabled:opacity-50 does the fading; nothing overrides it.
+    expect(saving.className).not.toContain("disabled:opacity-100")
+    expect(saving.parentElement?.tagName).toBe("SPAN")
+    expect(saving.parentElement?.getAttribute("tabindex")).toBe("0")
+    await act(async () => finish())
+    const saved = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Unpin from header"]'
+    )!
+    expect(saved.disabled).toBe(false)
+    expect(saved.parentElement?.getAttribute("tabindex")).toBeNull()
+  })
   it("pushes the pins to the far right of the header", async () => {
     await mount()
     await click("Pin to header")
