@@ -13,8 +13,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   one clip plays, why volume stops at full, and how a speed other than 1x
   changes every sum that turns clip time into file time.
 - [clip-frame-fit.md](clip-frame-fit.md) — the choice between fitting a clip
-  inside the frame and filling it, why fitting is the default, and exactly how
-  much of a wide shot filling cuts off.
+  inside the frame and filling it, why fitting is the default, exactly how
+  much of a wide shot filling cuts off, and a picture's Size slider.
 - [clip-colour.md](clip-colour.md) — what the brightness, contrast and
   saturation sliders do, and how the preview matches the export's `eq` filter
   to within a few levels.
@@ -33,6 +33,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [remembered-view.md](remembered-view.md) — how a project reopens with the
   left panel, playhead, zoom, scroll and selected clip you left it at, where
   that is kept, and what it does not survive.
+- [stickers.md](stickers.md) — the Text panel's stickers: each person's own
+  emoji and pictures, where the list is stored, where a sticker lands, and
+  what happens to a project whose picture sticker's file is deleted.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

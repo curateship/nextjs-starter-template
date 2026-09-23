@@ -25,6 +25,36 @@ The crop is always taken from the middle. There is no way to slide it, so a
 subject standing at the far left of a wide shot is cut off by filling. That is
 the trade, and it is why the choice is per clip rather than per project.
 
+## Size, for pictures only
+
+A picture clip also has a **Size** slider in the same card, from 10% to 100%.
+Below 100% the picture is smaller than the frame and can be dragged around the
+preview like text. This is how a picture sticker arrives, at 30% (see
+[stickers.md](stickers.md)).
+
+- **What the number means:** the picture is first fitted or filled as above,
+  then shrunk to that share of the frame. At 30%, a square logo fitted inside a
+  1080x1920 reel is 1080 wide, then shrunk to 324 wide.
+- **Where it sits:** the middle of the picture goes where it was dragged,
+  saved as `x` and `y` from 0 to 1, the same two numbers text uses. A picture
+  that has never been dragged sits in the middle.
+- **At 100% nothing changes:** the picture fills its frame in the middle as it
+  always has, cannot be dragged, and nothing new is saved. Every project made
+  before this looks and exports the same.
+- **Only pictures:** a video always fills the whole frame. The preview plays
+  every clip of one file through one shared player, which cannot be two sizes
+  at once. Replacing a small picture with a video puts the clip back to the
+  full frame.
+- **Where it lives:** `src/lib/video/clip-size.ts`. The export shrinks the
+  fitted picture last, after colour and movement, and overlays it with its
+  middle on the same spot (`src/server/video/render.ts`). The preview gives the
+  picture a box of the same size in the same place
+  (`src/components/video-editor/editor-preview.tsx`).
+- **Checked against a real export:** a picture dragged to 25% across and 71%
+  down at 40% size came out of the export 432 pixels wide out of 1080, with
+  its middle at 270 across and 1362 down out of 1920. That matches the
+  preview.
+
 ## Fit is the default, and it stays the default
 
 A clip with nothing saved fits inside. Two reasons.

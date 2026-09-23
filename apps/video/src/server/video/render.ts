@@ -28,6 +28,10 @@ import {
   sourceSpanMs,
 } from "@/lib/video/clip-playback"
 import { clipFit, frameFitFilter } from "@/lib/video/clip-frame-fit"
+import {
+  pictureOverlayPosition,
+  pictureScaleFilter,
+} from "@/lib/video/clip-size"
 import { clipMotion, motionFilter } from "@/lib/video/clip-motion"
 import { clipColour, colourEqFilter } from "@/lib/video/clip-colour"
 import {
@@ -634,15 +638,21 @@ async function buildFfmpegCommand(options: {
       // A still that moves is drawn one frame per output frame, so the move
       // advances on every frame of the film rather than stepping at the
       // input's own 25 a second. A still that holds is left as it always was.
+      // A picture smaller than the frame is shrunk last, after it has been
+      // fitted, coloured and moved as a whole frame, so it is the same
+      // picture at a smaller size (see clip-size.ts).
       const colourFilter = colourEqFilter(clipColour(clip))
       const motion = clipMotion(clip)
+      const scaleFilter = pictureScaleFilter(clip)
       const pictureFilter = [
         frameFitFilter(clipFit(clip), size.width, size.height),
         ...(colourFilter ? [colourFilter] : []),
         ...(motion
           ? [motionFilter(motion, size.width, size.height, durS * OUTPUT_FPS)]
           : []),
+        ...(scaleFilter ? [scaleFilter] : []),
       ].join(",")
+      const place = pictureOverlayPosition(clip)
       if (clip.kind === "image") {
         inputs.push(
           ...(motion ? ["-framerate", String(OUTPUT_FPS)] : []),
@@ -690,16 +700,16 @@ async function buildFfmpegCommand(options: {
         chain.push(`setpts=PTS-STARTPTS+${drawStartS.toFixed(3)}/TB`)
         const xExpr =
           reach.kind === "slide"
-            ? `'if(gte(t,${startS.toFixed(3)}),(W-w)/2,(W-w)/2+(W-(W-w)/2)*((${startS.toFixed(3)}-t)/${blend.toFixed(3)}))'`
-            : "(W-w)/2"
+            ? `'if(gte(t,${startS.toFixed(3)}),${place.x},${place.x}+(W-(${place.x}))*((${startS.toFixed(3)}-t)/${blend.toFixed(3)}))'`
+            : place.x
         filters.push(
           `${chain.join(",")}[l${visualStep}]`,
-          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y=(H-h)/2:enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
+          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y=${place.y}:enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
         )
       } else {
         filters.push(
           `[${inputIndex}:v]${pictureFilter},setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
-          `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+          `[v${visualStep}][l${visualStep}]overlay=x=${place.x}:y=${place.y}:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
