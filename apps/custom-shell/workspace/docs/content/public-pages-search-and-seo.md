@@ -244,6 +244,48 @@ image is the same app-wide image used by Open Graph and X preview tags, and the
 server changes its address when an admin replaces it so cached previews can
 refresh.
 
+### Keeping one page out of search
+
+A written page has two search-engine settings of its own, in the Search engines
+card at the bottom of the page window. Neither is a lock. Both are instructions
+handed to Google about one address, and the page still opens for anyone holding
+the link.
+
+**Hide from search engines** puts `noindex` in the page's head and takes the
+page out of `sitemap.xml`. It is for a page that should exist without being
+found: a thank-you page after a form, a campaign landing page, a half-public
+draft. Hiding the page from *people* is the visibility setting on the Pages
+list, which is a different switch and says so. Switching the setting back off
+puts the page back in the sitemap.
+
+The site's own search at `/search` still finds a hidden page, on purpose. The
+setting is about Google, not about the site, and a thank-you page that people
+inside the site cannot look up is a different request.
+
+**Canonical address** names the address that counts when the same words answer
+on more than one address, so the site does not compete with itself in search
+results. Left empty, which is how every page starts, the page emits no
+canonical tag at all and counts as itself. The field takes either an address on
+this site, like `/about`, or a full one, like `https://example.com/about`. An
+address on this site is stored as a path and turned into a full address on the
+domain the visitor actually used, so a deployment answering on several domains
+never points one site's canonical tag at another's.
+
+Anything that is neither of those two forms is refused when the window is
+saved, with the reason shown in the error toast and the field marked, rather
+than being stored and quietly dropped. `javascript:` addresses, protocol
+relative `//example.com`, and an address carrying a username and password are
+all refused. A stored value is cleaned again on its way out of the database, so
+a row edited straight in SQL cannot reach a canonical tag either.
+
+`src/lib/pages/page-indexing.ts` holds both rules. The columns are
+`hidden_from_search` and `canonical_url` on `written_pages`, the tags are drawn
+by the catch-all route in `src/routes/$.tsx`, and the sitemap skips hidden
+pages in `listWrittenPageSitemapEntries`.
+
+Coded pages have neither setting. An admin cannot create their addresses
+freely, so the problem both settings solve does not arise there.
+
 Every real public page also includes one JSON-LD structured-data script in its
 first HTML response. The script holds one `Organization` record with the
 current site name and visited site address, plus one `WebPage` record with the
@@ -309,7 +351,9 @@ these rows.
 
 `robots.txt` and `sitemap.xml` come from the public page registry and the active
 site configuration. The sitemap includes public pages, can split a large set
-into chunks, and excludes member-only or disabled pages. The repo's
+into chunks, and excludes member-only or disabled pages and any written page
+hidden from search engines. `robots.txt` stays app-wide. There are no per-page
+entries in it, because the `noindex` tag on the page does that job. The repo's
 `docs/shell/public-files.md` holds the exact discovery and multi-site rules.
 
 See [Public page load errors](public-page-load-errors.md) for the difference

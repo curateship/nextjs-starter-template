@@ -1367,6 +1367,20 @@ export const customShellWrittenPages = pgTable(
     path: varchar("path", { length: 160 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
     body: jsonb("body").notNull(),
+    /**
+     * True puts `noindex` in the page's head and drops it from the sitemap.
+     * It does not hide the page from people: the link still works. Who may
+     * open the page is the visibility setting, which is a different switch.
+     */
+    hiddenFromSearch: boolean("hidden_from_search").notNull().default(false),
+    /**
+     * The address that counts when the same words answer on two addresses.
+     * Empty is the normal case and emits no tag. A value starting with "/" is
+     * an address on this same site; anything else is a full web address.
+     */
+    canonicalUrl: varchar("canonical_url", { length: 2048 })
+      .notNull()
+      .default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
