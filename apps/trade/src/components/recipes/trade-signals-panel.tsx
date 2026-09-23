@@ -106,7 +106,7 @@ export default function TradeSignalsFields({
             // The library describes what an indicator DRAWS, which is the right
             // sentence on a chart and the wrong one here. What matters on this
             // step is which way each arrow reads as an instruction.
-            description="A confirmed floor is a buy. A confirmed ceiling sells the whole position."
+            description="An up arrow is a buy. A down arrow sells the whole position."
             onOpenChange={(open) => setIndicator(module.kind, { open })}
             onCardOpenChange={(title, open) =>
               setIndicator(module.kind, {

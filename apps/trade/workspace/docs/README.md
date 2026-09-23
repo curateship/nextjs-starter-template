@@ -115,6 +115,8 @@ screen: anything not written there has not been agreed yet.
 - `opening-range-indicator.md` — what the opening range is, its volume filter
   and settings, and the rules for breaks, gaps and the session in progress.
 - `ema-indicator.md` — the three EMA lines and the 50 / 200 crossover rule.
+- `price-action-indicator.md` — the eighteen candle patterns, what each number
+  setting means, and why touching counts as a gap.
 
 ## orders/ — placing and protecting orders
 
