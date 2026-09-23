@@ -3,7 +3,13 @@ import { CaptionsIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -13,41 +19,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getAiToolErrorMessage,
   writeCaptions,
   type AiToolsAvailability,
 } from "@/lib/api/video/ai-tools"
 import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
+import { CaptionLookFields } from "@/components/video-editor/caption-look-fields"
+import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
-import {
-  CAPTION_ANIMATIONS,
-  DEFAULT_CAPTION_ANIMATION,
-  resolveCaptionAnimation,
-  type CaptionAnimationId,
-} from "@/lib/video/caption-animations"
-import { CAPTION_DEFAULTS, captionClipName } from "@/lib/video/captions"
+import { captionClipStyle } from "@/lib/video/caption-look"
+import { captionClipName } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 
 /**
  * Writing the captions, and how they should look when they land.
  *
- * The choices sit here rather than in the panel because they belong to this
- * one job: they are what the captions will be, and they are only ever read the
- * moment the button is pressed. Any of them can be changed afterwards on a
- * single caption in the inspector.
+ * The look starts from the one saved in the brand kit every time the window
+ * opens. A change made here is for this one run and is not saved back; the
+ * brand kit is where the look is kept. Any of it can still be changed
+ * afterwards on a single caption in the inspector.
  */
 export function CaptionsDialog({
   open,
@@ -59,17 +53,11 @@ export function CaptionsDialog({
   available: AiToolsAvailability | null
 }) {
   const { projectId, dispatch, saveNow } = useEditorRuntime()
-  const [entrance, setEntrance] = React.useState<CaptionAnimationId>(
-    DEFAULT_CAPTION_ANIMATION
-  )
-  const [fontSize, setFontSize] = React.useState<number>(
-    CAPTION_DEFAULTS.fontSize
-  )
-  const [color, setColor] = React.useState<string>(CAPTION_DEFAULTS.color)
-  const [boxed, setBoxed] = React.useState(true)
+  const [look, setLook] = useSavedCaptionLook(open)
   const [writing, setWriting] = React.useState(false)
 
   async function write() {
+    if (!look) return
     setWriting(true)
     try {
       // The server reads the saved timeline, so anything still waiting to be
@@ -83,18 +71,10 @@ export function CaptionsDialog({
           kind: "text" as const,
           name: captionClipName(line.text),
           text: line.text,
-          fontId: "inter" as const,
-          animation: entrance,
           startMs: line.startMs,
           durationMs: line.endMs - line.startMs,
           trimStartMs: 0,
-          fontSize,
-          color,
-          highlightColor: boxed
-            ? CAPTION_DEFAULTS.backgroundColor
-            : undefined,
-          x: CAPTION_DEFAULTS.x,
-          y: CAPTION_DEFAULTS.y,
+          ...captionClipStyle(look),
         })),
       })
       dismissErrorToast()
@@ -132,64 +112,21 @@ export function CaptionsDialog({
           <Card size="sm">
             <CardHeader>
               <CardTitle>How they look</CardTitle>
+              <CardDescription>
+                Starts from the look saved in the brand kit. Changes here are
+                for this time only.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid gap-2.5">
-                <div className="flex items-baseline justify-between gap-3">
-                  <Label htmlFor="captions-size">Size</Label>
-                  <span className="text-sm text-muted-foreground tabular-nums">
-                    {fontSize} px
-                  </span>
-                </div>
-                <Slider
-                  id="captions-size"
-                  min={40}
-                  max={140}
-                  step={2}
-                  value={[fontSize]}
-                  onValueChange={([next]) => setFontSize(next)}
+            <CardContent>
+              {look ? (
+                <CaptionLookFields
+                  idPrefix="captions"
+                  look={look}
+                  onChange={setLook}
                 />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Label htmlFor="captions-colour">Colour</Label>
-                <Input
-                  id="captions-colour"
-                  type="color"
-                  className="w-16 p-1"
-                  value={color}
-                  onChange={(event) => setColor(event.target.value)}
-                />
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={boxed}
-                    onChange={(event) => setBoxed(event.target.checked)}
-                  />
-                  On a dark block
-                </label>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="captions-entrance">How they arrive</Label>
-                <Select
-                  value={entrance}
-                  onValueChange={(next) =>
-                    setEntrance(resolveCaptionAnimation(next))
-                  }
-                >
-                  <SelectTrigger id="captions-entrance" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CAPTION_ANIMATIONS.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label} — {option.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              ) : (
+                <LoadingRow label="Reading the saved look…" />
+              )}
             </CardContent>
           </Card>
         </DialogBody>
@@ -201,7 +138,11 @@ export function CaptionsDialog({
           >
             Cancel
           </Button>
-          <Button type="button" disabled={writing} onClick={() => void write()}>
+          <Button
+            type="button"
+            disabled={writing || !look}
+            onClick={() => void write()}
+          >
             {writing ? (
               <Loader2Icon className="animate-spin" />
             ) : (

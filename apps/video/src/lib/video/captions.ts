@@ -42,16 +42,6 @@ export type CaptionsResult = {
 export const CAPTION_MAX_WORDS = 4
 export const CAPTION_MAX_MS = 1_500
 
-/** How big captions are drawn, and where they sit, unless somebody moves them. */
-export const CAPTION_DEFAULTS = {
-  fontSize: 64,
-  color: "#ffffff",
-  backgroundColor: "#000000",
-  /** Down near the bottom, out of the way of a face. */
-  y: 0.78,
-  x: 0.5,
-} as const
-
 export const CAPTIONS_NOT_POSSIBLE_MESSAGE =
   "There is nothing on the timeline with sound in it to caption"
 export const CAPTIONS_NONE_HEARD_MESSAGE =

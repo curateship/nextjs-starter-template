@@ -10,6 +10,11 @@
  */
 
 import { DEFAULT_NORMALIZE_LOUDNESS } from "./audio-loudness"
+import {
+  DEFAULT_CAPTION_LOOK,
+  normalizeCaptionLook,
+  type CaptionLook,
+} from "./caption-look"
 
 export type BrandColor = { name: string; value: string }
 
@@ -52,6 +57,8 @@ export type VideoBrandKit = {
   }
   /** Level every export to what the platforms play videos at. */
   normalizeLoudness: boolean
+  /** How new captions look when they land (see caption-look.ts). */
+  captions: CaptionLook
 }
 
 export const MAX_BRAND_COLORS = 12
@@ -87,6 +94,7 @@ export function createDefaultBrandKit(): VideoBrandKit {
       ctaText: "",
     },
     normalizeLoudness: DEFAULT_NORMALIZE_LOUDNESS,
+    captions: { ...DEFAULT_CAPTION_LOOK },
   }
 }
 
@@ -183,5 +191,6 @@ export function normalizeBrandKit(value: unknown): VideoBrandKit {
       typeof saved.normalizeLoudness === "boolean"
         ? saved.normalizeLoudness
         : fallback.normalizeLoudness,
+    captions: normalizeCaptionLook(saved.captions),
   }
 }

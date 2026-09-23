@@ -36,6 +36,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [stickers.md](stickers.md) — the Text panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
+- [caption-look.md](caption-look.md) — the caption look saved in the brand
+  kit, which captions start from it, and why captions already on a project
+  never change.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 
