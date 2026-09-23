@@ -7,6 +7,7 @@ import {
   MIN_CLIP_VOLUME,
 } from "./clip-playback"
 import { CLIP_FITS } from "./clip-frame-fit"
+import { CLIP_MOTIONS } from "./clip-motion"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { TEXT_FONT_IDS } from "./text-fonts"
@@ -54,6 +55,10 @@ const clipSchema = z
     // with black at the edges, or fills it and loses the overflow. Absent
     // means "contain", so a timeline saved before this reads unchanged.
     fit: z.enum(CLIP_FITS).optional(),
+    // A slow move across a still picture over its time on screen. Absent
+    // means it holds still, so a timeline saved before this reads unchanged.
+    // Only picture clips move; the preview and the export ignore it elsewhere.
+    motion: z.enum(CLIP_MOTIONS).optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.

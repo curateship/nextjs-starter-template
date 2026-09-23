@@ -26,6 +26,17 @@ const VIDEO_CLIP = {
   url: "https://example.test/hook.mp4",
 }
 
+const IMAGE_CLIP = {
+  id: "clip-2",
+  kind: "image",
+  name: "Beach.jpg",
+  startMs: 0,
+  durationMs: 4000,
+  trimStartMs: 0,
+  mediaId: "22222222-2222-4222-8222-222222222222",
+  url: "https://example.test/beach.jpg",
+}
+
 describe("requireCanonicalTimeline", () => {
   it("accepts a plain video timeline", () => {
     const parsed = requireCanonicalTimeline(timeline([VIDEO_CLIP]))
@@ -54,6 +65,25 @@ describe("requireCanonicalTimeline", () => {
   it("rejects a frame choice it does not know", () => {
     expect(() =>
       requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, fit: "stretch" }]))
+    ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
+  })
+
+  it("still accepts a picture saved before it could move", () => {
+    const parsed = requireCanonicalTimeline(timeline([IMAGE_CLIP]))
+    expect(parsed.tracks[0].clips[0]).toEqual(IMAGE_CLIP)
+    expect(parsed.tracks[0].clips[0].motion).toBeUndefined()
+  })
+
+  it("accepts a picture set to push in", () => {
+    const parsed = requireCanonicalTimeline(
+      timeline([{ ...IMAGE_CLIP, motion: "push-in" }])
+    )
+    expect(parsed.tracks[0].clips[0].motion).toBe("push-in")
+  })
+
+  it("rejects a move it does not know", () => {
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...IMAGE_CLIP, motion: "spin" }]))
     ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
   })
 

@@ -28,6 +28,7 @@ import {
   sourceSpanMs,
 } from "@/lib/video/clip-playback"
 import { clipFit, frameFitFilter } from "@/lib/video/clip-frame-fit"
+import { clipMotion, motionFilter } from "@/lib/video/clip-motion"
 import {
   captionExportWindows,
   captionWordAnimation,
@@ -620,8 +621,23 @@ async function buildFfmpegCommand(options: {
       // Fit leaves black where the shapes disagree; fill grows the picture
       // past the frame and crops the overflow back off.
       const fitFilter = frameFitFilter(clipFit(clip), size.width, size.height)
+      // A still that moves is drawn one frame per output frame, so the move
+      // advances on every frame of the film rather than stepping at the
+      // input's own 25 a second. A still that holds is left as it always was.
+      const motion = clipMotion(clip)
+      const pictureFilter = motion
+        ? `${fitFilter},${motionFilter(motion, size.width, size.height, durS * OUTPUT_FPS)}`
+        : fitFilter
       if (clip.kind === "image") {
-        inputs.push("-loop", "1", "-t", String(durS), "-i", file)
+        inputs.push(
+          ...(motion ? ["-framerate", String(OUTPUT_FPS)] : []),
+          "-loop",
+          "1",
+          "-t",
+          String(durS),
+          "-i",
+          file
+        )
       } else {
         inputs.push(
           "-ss",
@@ -644,7 +660,7 @@ async function buildFfmpegCommand(options: {
         const blend = reach.durationMs / 1000
         const drawStartS = startS - blend
         const chain = [
-          `[${inputIndex}:v]${fitFilter}`,
+          `[${inputIndex}:v]${pictureFilter}`,
           // Speed first, so the pad and the fade below are measured in the
           // seconds the finished film runs rather than the recording's own.
           ...(speedStage ? [speedStage] : []),
@@ -667,7 +683,7 @@ async function buildFfmpegCommand(options: {
         )
       } else {
         filters.push(
-          `[${inputIndex}:v]${fitFilter},setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
+          `[${inputIndex}:v]${pictureFilter},setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
           `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }

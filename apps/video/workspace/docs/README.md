@@ -15,6 +15,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [clip-frame-fit.md](clip-frame-fit.md) — the choice between fitting a clip
   inside the frame and filling it, why fitting is the default, and exactly how
   much of a wide shot filling cuts off.
+- [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
+  make across its time on screen, and why the export draws them with
+  `perspective` rather than `zoompan`.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

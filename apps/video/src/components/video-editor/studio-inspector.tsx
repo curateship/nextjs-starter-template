@@ -41,6 +41,11 @@ import {
   type ClipFit,
 } from "@/lib/video/clip-frame-fit"
 import {
+  clipMotion,
+  CLIP_MOTION_OPTIONS,
+  type ClipMotion,
+} from "@/lib/video/clip-motion"
+import {
   CAPTION_ANIMATIONS,
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
@@ -457,6 +462,49 @@ function FrameFitSection({ clip }: { clip: EditorClip }) {
   )
 }
 
+/**
+ * A slow move across a still picture. Only a picture gets the choice: footage
+ * already moves, and sound and text have no picture to move.
+ */
+function MotionSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "image") return null
+
+  return (
+    <InspectorCard
+      title="Movement"
+      description="A slow move across the picture while it is on screen."
+    >
+      <div className="grid gap-2.5">
+        <FieldLabel htmlFor="clip-motion">Move</FieldLabel>
+        <Select
+          value={clipMotion(clip) ?? "none"}
+          onValueChange={(next) =>
+            dispatch({
+              type: "UPDATE_CLIP",
+              clipId: clip.id,
+              patch: {
+                motion: next === "none" ? undefined : (next as ClipMotion),
+              },
+            })
+          }
+        >
+          <SelectTrigger id="clip-motion" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CLIP_MOTION_OPTIONS.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </InspectorCard>
+  )
+}
+
 function MediaInspector({ clip }: { clip: EditorClip }) {
   const track = useEditorSelector(
     (state) => findClip(state.tracks, clip.id)?.track
@@ -511,6 +559,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
       </InspectorCard>
 
       <FrameFitSection clip={clip} />
+
+      <MotionSection clip={clip} />
 
       <InspectorCard title="Sound">
         <SwitchField

@@ -16,6 +16,11 @@ import {
 } from "@/lib/video/clip-playback"
 import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
+  clipMotion,
+  motionPoseAt,
+  motionTransformCss,
+} from "@/lib/video/clip-motion"
+import {
   dipOpacityAt,
   resolveIncomingTransition,
   transitionReachState,
@@ -677,29 +682,44 @@ export function EditorPreview() {
       }
 
       // A picture reaching back fades or slides in exactly like a video; it
-      // simply holds its one frame throughout.
+      // simply holds its one frame throughout. A picture set to move is
+      // placed from the same numbers the export draws with, and holds its
+      // first pose while it is still reaching back.
       for (const entry of frame.images.values()) {
-        const transition = entry.transition
-        if (!transition || transition.kind === "dip") continue
-        const element = imageRefs.current.get(entry.clip.id)
+        const { clip } = entry
+        const transition =
+          entry.transition && entry.transition.kind !== "dip"
+            ? entry.transition
+            : null
+        const motion = clipMotion(clip)
+        if (!transition && !motion) continue
+        const element = imageRefs.current.get(clip.id)
         if (!element) continue
-        if (timeMs < entry.clip.startMs) {
+        const moveCss = motion
+          ? motionTransformCss(
+              motionPoseAt(motion, timeMs - clip.startMs, clip.durationMs)
+            )
+          : ""
+        let transform = moveCss
+        if (transition && timeMs < clip.startMs) {
           const state = transitionReachState(
             transition.kind,
-            entry.clip.startMs,
+            clip.startMs,
             transition.durationMs,
             timeMs
           )
           element.style.opacity = String(state.opacity)
           element.style.zIndex = String(entry.zIndex + 1)
-          element.style.transform = state.translateXPct
-            ? `translateX(${state.translateXPct}%)`
-            : ""
+          if (state.translateXPct) {
+            transform = `translateX(${state.translateXPct}%) ${moveCss}`.trim()
+          }
         } else {
           if (element.style.opacity !== "1") element.style.opacity = "1"
           const zIndex = String(entry.zIndex)
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
-          if (element.style.transform) element.style.transform = ""
+        }
+        if (element.style.transform !== transform) {
+          element.style.transform = transform
         }
       }
 
