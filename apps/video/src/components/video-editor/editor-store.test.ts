@@ -330,3 +330,98 @@ describe("dropping captions onto the timeline", () => {
     expect(after.selectedClipId).toBeNull()
   })
 })
+
+describe("playing a clip faster or slower", () => {
+  function speedState(clips: EditorClip[]) {
+    return createInitialEditorState({
+      aspect: "9:16",
+      tracks: [{ id: "footage", muted: false, clips }],
+    })
+  }
+
+  const eightSecondTake: EditorClip = {
+    id: "clip-1",
+    kind: "video",
+    name: "Talking",
+    mediaId: "media-1",
+    startMs: 0,
+    durationMs: 8_000,
+    trimStartMs: 0,
+    sourceDurationMs: 8_000,
+  }
+
+  it("gives a clip at twice the speed half the timeline room", () => {
+    const after = editorReducer(speedState([eightSecondTake]), {
+      type: "SET_CLIP_SPEED",
+      clipId: "clip-1",
+      speed: 2,
+    })
+    const clip = after.tracks[0].clips[0]
+    expect(clip.speed).toBe(2)
+    expect(clip.durationMs).toBe(4_000)
+  })
+
+  it("keeps the same stretch of recording when the speed changes", () => {
+    const after = editorReducer(speedState([eightSecondTake]), {
+      type: "SET_CLIP_SPEED",
+      clipId: "clip-1",
+      speed: 0.5,
+    })
+    const clip = after.tracks[0].clips[0]
+    expect(clip.durationMs * (clip.speed ?? 1)).toBe(8_000)
+  })
+
+  it("stores nothing when the speed is put back to normal", () => {
+    const sped = editorReducer(speedState([eightSecondTake]), {
+      type: "SET_CLIP_SPEED",
+      clipId: "clip-1",
+      speed: 2,
+    })
+    const back = editorReducer(sped, {
+      type: "SET_CLIP_SPEED",
+      clipId: "clip-1",
+      speed: 1,
+    })
+    expect(back.tracks[0].clips[0].speed).toBeUndefined()
+    expect(back.tracks[0].clips[0].durationMs).toBe(8_000)
+  })
+
+  it("takes only the room up to the next clip when it is slowed down", () => {
+    const next: EditorClip = {
+      id: "clip-2",
+      kind: "video",
+      name: "Next",
+      mediaId: "media-2",
+      startMs: 10_000,
+      durationMs: 2_000,
+      trimStartMs: 0,
+    }
+    const after = editorReducer(speedState([eightSecondTake, next]), {
+      type: "SET_CLIP_SPEED",
+      clipId: "clip-1",
+      speed: 0.5,
+    })
+    // Sixteen seconds is what it wanted; ten is what there was.
+    expect(after.tracks[0].clips[0].durationMs).toBe(10_000)
+    expect(after.tracks[0].clips[1].startMs).toBe(10_000)
+  })
+
+  it("splits a sped-up clip at the right moment of the recording", () => {
+    const sped = editorReducer(speedState([eightSecondTake]), {
+      type: "SET_CLIP_SPEED",
+      clipId: "clip-1",
+      speed: 2,
+    })
+    // The clip now holds 4s of timeline. Cutting 1s in is 2s into the file.
+    const after = editorReducer(sped, {
+      type: "SPLIT_CLIP",
+      clipId: "clip-1",
+      atMs: 1_000,
+    })
+    const [left, right] = after.tracks[0].clips
+    expect(left.durationMs).toBe(1_000)
+    expect(right.trimStartMs).toBe(2_000)
+    expect(right.durationMs).toBe(3_000)
+    expect(right.speed).toBe(2)
+  })
+})

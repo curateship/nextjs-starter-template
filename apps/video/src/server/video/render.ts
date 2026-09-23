@@ -21,6 +21,13 @@ import {
 } from "@/lib/video/audio-loudness"
 import type { VideoBrandKit } from "@/lib/video/brand-kit"
 import {
+  atempoFilters,
+  clipSpeed,
+  clipVolume,
+  DEFAULT_CLIP_VOLUME,
+  sourceSpanMs,
+} from "@/lib/video/clip-playback"
+import {
   captionExportWindows,
   captionWordAnimation,
   isAnimatedCaption,
@@ -514,10 +521,13 @@ async function buildFfmpegCommand(options: {
     startMs: clip.startMs,
     endMs: clip.startMs + clip.durationMs,
   })
-  const carriesSound = ({ clip }: RenderClip) =>
-    clip.kind === "audio"
-      ? !!clip.mediaId
-      : clip.kind === "video" && !!clip.mediaId && !!audioPresence.get(clip.mediaId)
+  // A clip turned all the way down is silence, so it neither ducks anything
+  // nor counts as the thing to duck under.
+  const carriesSound = ({ clip }: RenderClip) => {
+    if (clipVolume(clip) === 0 || !clip.mediaId) return false
+    if (clip.kind === "audio") return true
+    return clip.kind === "video" && !!audioPresence.get(clip.mediaId)
+  }
 
   const voiceIntervals: Interval[] = []
   for (const entry of [...audio, ...visuals]) {
@@ -530,15 +540,28 @@ async function buildFfmpegCommand(options: {
   const duckExpr =
     hasDuckSource && voiceIntervals.length && duckingGain < 1
       ? duckEnvelopeToVolumeExpr(
-          computeDuckEnvelope({ voiceIntervals, durationMs, duckGain: duckingGain })
+          computeDuckEnvelope({
+            voiceIntervals,
+            durationMs,
+            duckGain: duckingGain,
+          })
         )
       : null
 
-  const pushAudio = (inputIdx: number, startMs: number, duck: boolean) => {
+  // Order matters: the speed change comes first so the sound is the right
+  // length, then the clip's own level, then the delay that puts it in place,
+  // and only then the ducking curve, which is written against timeline time.
+  const pushAudio = (inputIdx: number, clip: EditorClip, duck: boolean) => {
     const label = `[a${audioLabels.length}]`
-    const stages = [`[${inputIdx}:a]adelay=${Math.round(startMs)}:all=1`]
+    const speed = clipSpeed(clip)
+    const volume = clipVolume(clip)
+    const stages = [...atempoFilters(speed)]
+    if (volume !== DEFAULT_CLIP_VOLUME) {
+      stages.push(`volume=${volume.toFixed(3)}`)
+    }
+    stages.push(`adelay=${Math.round(clip.startMs)}:all=1`)
     if (duck && duckExpr) stages.push(`volume=eval=frame:volume='${duckExpr}'`)
-    filters.push(`${stages.join(",")}${label}`)
+    filters.push(`[${inputIdx}:a]${stages.join(",")}${label}`)
     audioLabels.push(label)
   }
 
@@ -571,7 +594,14 @@ async function buildFfmpegCommand(options: {
         await writeFile(file, png)
         const fromS = startS + window.fromMs / 1000
         const toS = startS + window.toMs / 1000
-        inputs.push("-loop", "1", "-t", String((window.toMs - window.fromMs) / 1000), "-i", file)
+        inputs.push(
+          "-loop",
+          "1",
+          "-t",
+          String((window.toMs - window.fromMs) / 1000),
+          "-i",
+          file
+        )
         filters.push(
           `[${inputIndex + index}:v]format=rgba,setpts=PTS-STARTPTS+${fromS}/TB[l${step}]`,
           `[v${step}][l${step}]overlay=x=0:y=0:enable='between(t,${fromS},${toS})'[v${step + 1}]`
@@ -582,6 +612,10 @@ async function buildFfmpegCommand(options: {
       inputIndex += windows.length - 1
     } else {
       const file = sourceFiles.get(clip.mediaId!)!
+      // A still has no speed: there is nothing moving to play faster. A video
+      // reads however much recording its speed eats, and `setpts` below
+      // squeezes or stretches that back into the room the clip has.
+      const speed = clip.kind === "image" ? 1 : clipSpeed(clip)
       if (clip.kind === "image") {
         inputs.push("-loop", "1", "-t", String(durS), "-i", file)
       } else {
@@ -589,11 +623,12 @@ async function buildFfmpegCommand(options: {
           "-ss",
           String(clip.trimStartMs / 1000),
           "-t",
-          String(durS),
+          String(sourceSpanMs(clip) / 1000),
           "-i",
           file
         )
       }
+      const speedStage = speed === 1 ? null : `setpts=(PTS-STARTPTS)/${speed}`
       const reach = transition && transition.kind !== "dip" ? transition : null
       if (transition?.kind === "dip") {
         dipSeams.push({ seamS: startS, halfS: transition.durationMs / 2000 })
@@ -606,6 +641,9 @@ async function buildFfmpegCommand(options: {
         const drawStartS = startS - blend
         const chain = [
           `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease`,
+          // Speed first, so the pad and the fade below are measured in the
+          // seconds the finished film runs rather than the recording's own.
+          ...(speedStage ? [speedStage] : []),
           `tpad=start_duration=${blend.toFixed(3)}:start_mode=clone`,
         ]
         if (reach.kind === "crossfade") {
@@ -625,12 +663,12 @@ async function buildFfmpegCommand(options: {
         )
       } else {
         filters.push(
-          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
+          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
           `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
-        pushAudio(inputIndex, clip.startMs, duck)
+        pushAudio(inputIndex, clip, duck)
       }
     }
     inputIndex += 1
@@ -656,11 +694,11 @@ async function buildFfmpegCommand(options: {
       "-ss",
       String(clip.trimStartMs / 1000),
       "-t",
-      String(clip.durationMs / 1000),
+      String(sourceSpanMs(clip) / 1000),
       "-i",
       file
     )
-    pushAudio(inputIndex, clip.startMs, duck)
+    pushAudio(inputIndex, clip, duck)
     inputIndex += 1
   }
 
@@ -754,7 +792,9 @@ async function buildFfmpegCommand(options: {
     scriptFile,
     "-map",
     `[${finalVideo}]`,
-    ...(hasAudio ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE] : []),
+    ...(hasAudio
+      ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE]
+      : []),
     "-c:v",
     "libx264",
     "-preset",
@@ -911,7 +951,11 @@ async function renderEndCardTextPng(
 
   let fontSize = size.height * 0.06
   const wrap = () =>
-    wrapTextLines(endCard.ctaText.trim(), fontSize * font.widthRatio, size.width * 0.8)
+    wrapTextLines(
+      endCard.ctaText.trim(),
+      fontSize * font.widthRatio,
+      size.width * 0.8
+    )
   let lines = wrap()
   // Shrink until the line fits the third of the card it is allowed.
   while (

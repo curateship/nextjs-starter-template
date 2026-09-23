@@ -11,6 +11,8 @@
  * awkward cases can be checked without an editor open.
  */
 
+import { clipMsAt, sourceEndMs, sourceMsAt } from "@/lib/video/clip-playback"
+
 export type TranscriptWord = {
   text: string
   startMs: number
@@ -26,6 +28,8 @@ export type TranscriptSource = {
   startMs: number
   durationMs: number
   trimStartMs: number
+  /** How fast it was playing, so clip time and file time can be told apart. */
+  speed?: number
 }
 
 type TranscriptTrack = {
@@ -37,6 +41,7 @@ type TranscriptTrack = {
     startMs: number
     durationMs: number
     trimStartMs: number
+    speed?: number
   }[]
 }
 
@@ -50,7 +55,7 @@ function getTranscriptSourceClips(
   tracks: TranscriptTrack[]
 ) {
   const sourceTimelineEndMs = source.startMs + source.durationMs
-  const sourceMediaEndMs = source.trimStartMs + source.durationMs
+  const sourceMediaEndMs = sourceEndMs(source)
   return (
     tracks
       .find((track) => track.id === source.trackId)
@@ -76,19 +81,21 @@ export function getTranscriptWordPlacement(
   source: TranscriptSource,
   tracks: TranscriptTrack[]
 ) {
-  const sourceStartMs = source.trimStartMs + (word.startMs - source.startMs)
-  const sourceEndMs = source.trimStartMs + (word.endMs - source.startMs)
+  // The word's times are along the timeline; the piece of recording it names
+  // is found by walking into the file at the clip's own speed.
+  const wordSourceStartMs = sourceMsAt(source, word.startMs - source.startMs)
+  const wordSourceEndMs = sourceMsAt(source, word.endMs - source.startMs)
   const clip = getTranscriptSourceClips(source, tracks).find(
     (candidate) =>
       candidate.kind === source.kind &&
       candidate.mediaId === source.mediaId &&
-      candidate.trimStartMs <= sourceStartMs &&
-      candidate.trimStartMs + candidate.durationMs >= sourceEndMs
+      candidate.trimStartMs <= wordSourceStartMs &&
+      sourceEndMs(candidate) >= wordSourceEndMs
   )
   if (!clip) return null
 
-  const clipStartMs = sourceStartMs - clip.trimStartMs
-  const clipEndMs = sourceEndMs - clip.trimStartMs
+  const clipStartMs = clipMsAt(clip, wordSourceStartMs)
+  const clipEndMs = clipMsAt(clip, wordSourceEndMs)
   return {
     clipId: clip.id,
     clipStartMs,

@@ -1,5 +1,11 @@
 import { z } from "zod"
 
+import {
+  MAX_CLIP_SPEED,
+  MAX_CLIP_VOLUME,
+  MIN_CLIP_SPEED,
+  MIN_CLIP_VOLUME,
+} from "./clip-playback"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { TEXT_FONT_IDS } from "./text-fonts"
@@ -37,6 +43,12 @@ const clipSchema = z
     mediaId: z.string().max(36).optional(),
     url: z.string().max(2048).optional(),
     muted: z.boolean().optional(),
+    // How loud this clip's own sound plays, 0 silent and 1 as recorded. Absent
+    // means 1, so every timeline saved before this existed still reads.
+    volume: z.number().min(MIN_CLIP_VOLUME).max(MAX_CLIP_VOLUME).optional(),
+    // How fast it plays. 2 is twice as fast, which is half the timeline room.
+    // Absent means 1.
+    speed: z.number().min(MIN_CLIP_SPEED).max(MAX_CLIP_SPEED).optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.

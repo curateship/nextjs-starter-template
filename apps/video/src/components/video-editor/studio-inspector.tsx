@@ -9,6 +9,7 @@ import {
   SwitchField,
 } from "@/components/broadcasts/inspector-fields"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Slider } from "@/components/ui/slider"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,6 +20,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  CLIP_SPEED_STEP,
+  CLIP_VOLUME_STEP,
+  clipSpeed,
+  clipVolume,
+  DEFAULT_CLIP_VOLUME,
+  MAX_CLIP_SPEED,
+  MAX_CLIP_VOLUME,
+  MIN_CLIP_SPEED,
+  MIN_CLIP_VOLUME,
+  sourceSpanMs,
+  storedPlaybackValue,
+} from "@/lib/video/clip-playback"
 import {
   CAPTION_ANIMATIONS,
   resolveCaptionAnimation,
@@ -242,6 +256,161 @@ function TextInspector({ clip }: { clip: EditorClip }) {
   )
 }
 
+/**
+ * A setting that lives between two fractions, with its value spelled out.
+ *
+ * The panel's own `SliderField` steps in whole numbers, which is right for a
+ * font size and useless for a volume between 0 and 1. This is the same row in
+ * the same sizes, taking a step and writing the number the way that setting is
+ * read: "20%" of full, "2x" as fast.
+ *
+ * `onChange` is told whether this is the first value of a drag. Only that
+ * first one is worth remembering for undo: it is the moment the clip still
+ * held the value it started with, so one press of undo puts the whole drag
+ * back rather than the last position the handle passed through.
+ */
+function FractionSliderField({
+  id,
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  format: (value: number) => string
+  onChange: (value: number, firstOfDrag: boolean) => void
+}) {
+  const dragging = React.useRef(false)
+
+  return (
+    <div className="grid gap-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <span className="text-[15px] text-muted-foreground tabular-nums">
+          {format(value)}
+        </span>
+      </div>
+      <Slider
+        id={id}
+        aria-label={label}
+        aria-valuetext={format(value)}
+        min={min}
+        max={max}
+        step={step}
+        value={[value]}
+        onValueChange={([next]) => {
+          const first = !dragging.current
+          dragging.current = true
+          onChange(round(next), first)
+        }}
+        onValueCommit={() => {
+          dragging.current = false
+        }}
+      />
+    </div>
+  )
+}
+
+/** Slider maths lands on values like 0.30000000000000004. */
+function round(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function formatVolume(value: number) {
+  return `${Math.round(value * 100)}%`
+}
+
+function formatSpeed(value: number) {
+  return `${value.toFixed(2).replace(/\.?0+$/, "")}x`
+}
+
+/**
+ * How loud this clip's own sound plays. Nothing for a picture, which has none.
+ *
+ * Full is as loud as it goes, because that is as loud as the browser can play
+ * a file in the preview, and a slider that promised more would be right only
+ * after an export.
+ *
+ * The slider reports while it is dragged and again when it is let go. The
+ * reports during the drag are marked as one continuous edit, so undo steps
+ * back over the whole drag rather than over every value it passed through.
+ */
+function VolumeField({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "audio") return null
+
+  return (
+    <FractionSliderField
+      id="clip-volume"
+      label="Volume"
+      value={clipVolume(clip)}
+      min={MIN_CLIP_VOLUME}
+      max={MAX_CLIP_VOLUME}
+      step={CLIP_VOLUME_STEP}
+      format={formatVolume}
+      onChange={(volume, firstOfDrag) =>
+        dispatch({
+          type: "UPDATE_CLIP",
+          clipId: clip.id,
+          patch: { volume: storedPlaybackValue(volume, DEFAULT_CLIP_VOLUME) },
+          transient: !firstOfDrag,
+        })
+      }
+    />
+  )
+}
+
+/**
+ * How fast this clip plays, and therefore how much of the timeline it takes.
+ *
+ * The line under the slider is the point: the clip keeps the same stretch of
+ * recording and changes how long it takes to play it, so the number people
+ * actually want to see is the new length.
+ */
+function SpeedSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "audio") return null
+
+  return (
+    <InspectorCard
+      title="Speed"
+      description="Playing it faster leaves it less room on the timeline."
+    >
+      <FractionSliderField
+        id="clip-speed"
+        label="How fast"
+        value={clipSpeed(clip)}
+        min={MIN_CLIP_SPEED}
+        max={MAX_CLIP_SPEED}
+        step={CLIP_SPEED_STEP}
+        format={formatSpeed}
+        onChange={(speed, firstOfDrag) =>
+          dispatch({
+            type: "SET_CLIP_SPEED",
+            clipId: clip.id,
+            speed,
+            transient: !firstOfDrag,
+          })
+        }
+      />
+      <ReadOnlyRows
+        rows={[
+          ["Footage used", `${(sourceSpanMs(clip) / 1000).toFixed(1)}s`],
+          ["Room on the timeline", `${(clip.durationMs / 1000).toFixed(1)}s`],
+        ]}
+      />
+    </InspectorCard>
+  )
+}
+
 function MediaInspector({ clip }: { clip: EditorClip }) {
   const track = useEditorSelector(
     (state) => findClip(state.tracks, clip.id)?.track
@@ -305,6 +474,7 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
             dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { muted } })
           }
         />
+        <VolumeField clip={clip} />
         {track ? (
           <SwitchField
             id="track-duck"
@@ -317,6 +487,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           />
         ) : null}
       </InspectorCard>
+
+      <SpeedSection clip={clip} />
 
       <TransitionSection clip={clip} />
 

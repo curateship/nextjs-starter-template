@@ -178,6 +178,7 @@ export async function writeProjectCaptions(
     startMs: chosen.clip.startMs,
     durationMs: chosen.clip.durationMs,
     trimStartMs: chosen.clip.trimStartMs,
+    speed: chosen.clip.speed,
   }
 
   // Whichever AI has been chosen writes it down. Whisper hands back words with

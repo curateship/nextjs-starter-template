@@ -1,5 +1,14 @@
 import * as React from "react"
 
+import {
+  clipSpeed,
+  DEFAULT_CLIP_SPEED,
+  MAX_CLIP_SPEED,
+  MIN_CLIP_SPEED,
+  sourceMsAt,
+  sourceSpanMs,
+  storedPlaybackValue,
+} from "@/lib/video/clip-playback"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import type {
   AspectRatio,
@@ -53,6 +62,9 @@ export type EditorAction =
       patch: Partial<EditorClip>
       transient?: boolean
     }
+  // Playing a clip faster or slower changes how much timeline room it needs,
+  // which is why it is its own action rather than a patch on UPDATE_CLIP.
+  | { type: "SET_CLIP_SPEED"; clipId: string; speed: number; transient?: boolean }
   | { type: "SPLIT_CLIP"; clipId: string; atMs: number }
   | { type: "DUPLICATE_CLIP"; clipId: string }
   // Swap the footage in a clip; it keeps its place and (clamped) length.
@@ -354,7 +366,7 @@ export function editorReducer(
           id: isFirst ? found.clip.id : editorId(),
           startMs: timelineCursorMs,
           durationMs,
-          trimStartMs: found.clip.trimStartMs + sourceCursorMs,
+          trimStartMs: sourceMsAt(found.clip, sourceCursorMs),
           // Only the first piece keeps the blend coming into it. The rest butt
           // against a cut in the same footage, where a dissolve makes no sense.
           transition: isFirst ? found.clip.transition : undefined,
@@ -429,7 +441,7 @@ export function editorReducer(
                 id: editorId(),
                 startMs: clip.startMs + openingMs,
                 durationMs: rest,
-                trimStartMs: clip.trimStartMs + openingMs,
+                trimStartMs: sourceMsAt(clip, openingMs),
                 transition: undefined,
               },
             ]
@@ -539,8 +551,13 @@ export function editorReducer(
         name: action.media.name,
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         trimStartMs: 0,
+        // The new file has to cover the clip at whatever speed it is set to:
+        // a clip playing at 2x needs twice its own length of recording.
         durationMs: isTimed
-          ? Math.min(found.clip.durationMs, action.media.sourceDurationMs)
+          ? Math.min(
+              found.clip.durationMs,
+              action.media.sourceDurationMs / clipSpeed(found.clip)
+            )
           : found.clip.durationMs,
       }
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({
@@ -566,6 +583,52 @@ export function editorReducer(
       return action.transient ? { ...state, tracks } : pushUndo(state, tracks)
     }
 
+    case "SET_CLIP_SPEED": {
+      const found = findClip(state.tracks, action.clipId)
+      if (!found) return state
+      const { clip } = found
+      const speed = Math.min(
+        Math.max(action.speed, MIN_CLIP_SPEED),
+        MAX_CLIP_SPEED
+      )
+      if (speed === clipSpeed(clip)) return state
+
+      // The clip keeps pointing at the same stretch of the recording; only the
+      // room it needs to play it changes. Slowing a clip down can run it into
+      // whatever is next on its lane, so it takes the space up to that clip and
+      // no more, which means a slowed clip may show less of the recording than
+      // it did. Speeding up always fits.
+      const wantedMs = sourceSpanMs(clip) / speed
+      const nextOnLane = found.track.clips
+        .filter(
+          (other) => other.id !== clip.id && other.startMs >= clip.startMs
+        )
+        .reduce<number | null>(
+          (closest, other) =>
+            closest === null ? other.startMs : Math.min(closest, other.startMs),
+          null
+        )
+      const roomMs =
+        nextOnLane === null ? wantedMs : nextOnLane - clip.startMs
+      const durationMs = Math.max(MIN_CLIP_MS, Math.min(wantedMs, roomMs))
+
+      const tracks = withTrack(state.tracks, found.track.id, (track) => ({
+        ...track,
+        clips: track.clips.map((candidate) =>
+          candidate.id === clip.id
+            ? {
+                ...candidate,
+                speed: storedPlaybackValue(speed, DEFAULT_CLIP_SPEED),
+                durationMs,
+              }
+            : candidate
+        ),
+      }))
+      return action.transient
+        ? { ...state, tracks }
+        : pushUndo(state, tracks)
+    }
+
     case "SPLIT_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
@@ -585,7 +648,7 @@ export function editorReducer(
         id: editorId(),
         startMs: clip.startMs + offset,
         durationMs: clip.durationMs - offset,
-        trimStartMs: clip.trimStartMs + offset,
+        trimStartMs: sourceMsAt(clip, offset),
         transition: undefined,
       }
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({

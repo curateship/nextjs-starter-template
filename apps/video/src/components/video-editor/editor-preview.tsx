@@ -9,6 +9,12 @@ import {
   type Interval,
 } from "@/lib/video/audio-ducking"
 import {
+  clipMsAt,
+  clipSpeed,
+  clipVolume,
+  sourceMsAt,
+} from "@/lib/video/clip-playback"
+import {
   dipOpacityAt,
   resolveIncomingTransition,
   transitionReachState,
@@ -377,7 +383,10 @@ export function EditorPreview() {
     for (const track of tracks) {
       if (track.muted) continue
       const audible = track.clips.filter(
-        (clip) => (clip.kind === "audio" || clip.kind === "video") && !clip.muted
+        (clip) =>
+          (clip.kind === "audio" || clip.kind === "video") &&
+          !clip.muted &&
+          clipVolume(clip) > 0
       )
       if (track.duck) {
         if (audible.length) hasDuckedLane = true
@@ -431,7 +440,7 @@ export function EditorPreview() {
         }
         if (element.seeking || element.readyState < 2 || element.paused) continue
         const timelineTime =
-          clip.startMs + (element.currentTime * 1000 - clip.trimStartMs)
+          clip.startMs + clipMsAt(clip, element.currentTime * 1000)
         if (timelineTime > timeMs) return timelineTime
       }
       if (endedAudioTime != null) return Math.max(timeMs, endedAudioTime)
@@ -454,8 +463,7 @@ export function EditorPreview() {
       }
       return Math.max(
         timeMs,
-        entry.clip.startMs +
-          (element.currentTime * 1000 - entry.clip.trimStartMs)
+        entry.clip.startMs + clipMsAt(entry.clip, element.currentTime * 1000)
       )
     })
     return () => clock.setTimeSource(null)
@@ -606,15 +614,17 @@ export function EditorPreview() {
         }
         const muted = entry.track.muted || !!clip.muted
         if (element.muted !== muted) element.muted = muted
-        const volume = entry.track.duck
-          ? sampleEnvelope(duckEnvelope, timeMs)
-          : 1
+        const volume =
+          clipVolume(clip) *
+          (entry.track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
         if (element.volume !== volume) element.volume = volume
+        const rate = clipSpeed(clip)
+        if (element.playbackRate !== rate) element.playbackRate = rate
         // Hold the first frame through the blend, so the picture is continuous
         // once real playback starts at the seam.
         const targetS = reaching
           ? clip.trimStartMs / 1000
-          : (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
+          : sourceMsAt(clip, timeMs - clip.startMs) / 1000
         if ((!playing || reaching) && !element.paused) element.pause()
         // A different piece of the same file: jump to it exactly. Letting the
         // usual drift allowance decide would play a short cut straight through
@@ -638,9 +648,13 @@ export function EditorPreview() {
         if (!element) continue
         const muted = track.muted || !!clip.muted
         if (element.muted !== muted) element.muted = muted
-        const volume = track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1
+        const volume =
+          clipVolume(clip) *
+          (track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
         if (element.volume !== volume) element.volume = volume
-        const targetS = (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
+        const rate = clipSpeed(clip)
+        if (element.playbackRate !== rate) element.playbackRate = rate
+        const targetS = sourceMsAt(clip, timeMs - clip.startMs) / 1000
         if (!playing && !element.paused) element.pause()
         seekPreviewMedia(
           element,

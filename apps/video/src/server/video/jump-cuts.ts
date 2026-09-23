@@ -4,6 +4,7 @@ import path from "node:path"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { clipSpeed, sourceSpanMs } from "@/lib/video/clip-playback"
 import type { FillerWord } from "@/lib/video/filler-words"
 import { sanitizeFillerTerms } from "@/lib/video/filler-words"
 import {
@@ -114,7 +115,27 @@ export type ClipTranscript = {
     startMs: number
     durationMs: number
     trimStartMs: number
+    speed?: number
   }
+}
+
+/**
+ * The sound that was listened to runs at the recording's own pace, whatever
+ * speed the clip plays it at. A clip at 2x reaches each of those moments half
+ * as far along itself, so every time is squeezed into clip time here, once,
+ * and everything downstream works in the clip's own milliseconds.
+ */
+function toClipTimes<T extends { startMs: number; endMs: number }>(
+  ranges: T[],
+  clip: { speed?: number }
+): T[] {
+  const speed = clipSpeed(clip)
+  if (speed === 1) return ranges
+  return ranges.map((range) => ({
+    ...range,
+    startMs: range.startMs / speed,
+    endMs: range.endMs / speed,
+  }))
 }
 
 export type JumpCutAnalysis = {
@@ -204,14 +225,17 @@ async function run({
       ],
       JUMP_CUT_FAILED_MESSAGE
     )
-    const silenceRanges = parseSilencedetectOutput(noise)
+    const silenceRanges = toClipTimes(parseSilencedetectOutput(noise), clip)
 
     if (mode === "filler") {
-      const words = await transcribeWords(
-        userId,
-        projectId,
-        await readFile(wav),
-        Math.round(clip.durationMs)
+      const words = toClipTimes(
+        await transcribeWords(
+          userId,
+          projectId,
+          await readFile(wav),
+          Math.round(sourceSpanMs(clip))
+        ),
+        clip
       )
       return {
         clipId,
@@ -317,12 +341,12 @@ export async function transcribeClip({
         userId,
         projectId,
         await readFile(wav),
-        Math.round(clip.durationMs)
+        Math.round(sourceSpanMs(clip))
       )
       return {
         clipId,
-        words,
-        silences: parseSilencedetectOutput(noise),
+        words: toClipTimes(words, clip),
+        silences: toClipTimes(parseSilencedetectOutput(noise), clip),
         source: {
           clipId: clip.id,
           trackId,
@@ -331,6 +355,7 @@ export async function transcribeClip({
           startMs: clip.startMs,
           durationMs: clip.durationMs,
           trimStartMs: clip.trimStartMs,
+          speed: clip.speed,
         },
       }
     } finally {
@@ -454,7 +479,10 @@ async function findClipAndMedia({
   ) {
     throw new Error(JUMP_CUT_NO_CLIP_MESSAGE)
   }
-  if (found.clip.durationMs > JUMP_CUT_MAX_WINDOW_MS) {
+  // Measured against the recording, not the room the clip takes. A clip at 4x
+  // holds four times its own length of sound, and it is the sound that is
+  // extracted, listened to and paid to have written down.
+  if (sourceSpanMs(found.clip) > JUMP_CUT_MAX_WINDOW_MS) {
     throw new Error(JUMP_CUT_TOO_LONG_MESSAGE)
   }
 
@@ -497,7 +525,7 @@ async function extractClipAudio(
       "-ss",
       String(clip.trimStartMs / 1000),
       "-t",
-      String(clip.durationMs / 1000),
+      String(sourceSpanMs(clip) / 1000),
       "-i",
       source,
       "-vn",
@@ -522,4 +550,3 @@ function findClipOnTrack(
   }
   return null
 }
-

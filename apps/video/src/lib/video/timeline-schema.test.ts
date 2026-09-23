@@ -33,6 +33,35 @@ describe("requireCanonicalTimeline", () => {
     expect(parsed.aspect).toBe("9:16")
   })
 
+  it("still accepts a timeline saved before volume and speed existed", () => {
+    const parsed = requireCanonicalTimeline(timeline([VIDEO_CLIP]))
+    expect(parsed.tracks[0].clips[0].volume).toBeUndefined()
+    expect(parsed.tracks[0].clips[0].speed).toBeUndefined()
+  })
+
+  it("accepts a clip turned down and sped up", () => {
+    const parsed = requireCanonicalTimeline(
+      timeline([{ ...VIDEO_CLIP, volume: 0.2, speed: 2 }])
+    )
+    expect(parsed.tracks[0].clips[0].volume).toBe(0.2)
+    expect(parsed.tracks[0].clips[0].speed).toBe(2)
+  })
+
+  it("refuses a volume louder than the file, which nothing can play", () => {
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, volume: 2 }]))
+    ).toThrowError(SAVED_TIMELINE_INVALID_MESSAGE)
+  })
+
+  it("refuses a speed beyond what the players allow", () => {
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, speed: 8 }]))
+    ).toThrowError(SAVED_TIMELINE_INVALID_MESSAGE)
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, speed: 0.1 }]))
+    ).toThrowError(SAVED_TIMELINE_INVALID_MESSAGE)
+  })
+
   it("refuses a clip kind the editor cannot draw", () => {
     expect(() =>
       requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, kind: "sticker" }]))
@@ -97,7 +126,7 @@ describe("requireCanonicalTimeline", () => {
   it("drops nothing silently — an unknown field is a refusal", () => {
     expect(() =>
       requireCanonicalTimeline(
-        timeline([{ ...VIDEO_CLIP, volume: 0.5 }])
+        timeline([{ ...VIDEO_CLIP, brightness: 0.5 }])
       )
     ).toThrowError(SAVED_TIMELINE_INVALID_MESSAGE)
   })

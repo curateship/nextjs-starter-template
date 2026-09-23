@@ -1,4 +1,5 @@
 import type { CaptionAnimationId } from "@/lib/video/caption-animations"
+import { clipMsAt } from "@/lib/video/clip-playback"
 
 /**
  * What captions are, on both sides of the wire.
@@ -24,6 +25,8 @@ export type CaptionSource = {
   startMs: number
   durationMs: number
   trimStartMs: number
+  /** How fast the clip was playing, so the times land in the right place. */
+  speed?: number
 }
 
 export type CaptionsResult = {
@@ -97,15 +100,22 @@ export type CaptionStyleChoice = {
  */
 export function mapCaptionsToTimeline(
   lines: CaptionLine[],
-  source: { startMs: number; durationMs: number; trimStartMs: number }
+  source: {
+    startMs: number
+    durationMs: number
+    trimStartMs: number
+    speed?: number
+  }
 ): CaptionLine[] {
   const clipEndMs = source.startMs + source.durationMs
   const mapped: CaptionLine[] = []
   for (const line of [...lines].sort((a, b) => a.startMs - b.startMs)) {
     // The transcript is timed from the start of the FILE, and the clip may
-    // begin further in, so the trim comes off first.
-    const startMs = source.startMs + (line.startMs - source.trimStartMs)
-    const endMs = source.startMs + (line.endMs - source.trimStartMs)
+    // begin further in, so the trim comes off first. A clip playing at 2x
+    // reaches a word half as far along the timeline as it sits in the file,
+    // which is what `clipMsAt` divides out.
+    const startMs = source.startMs + clipMsAt(source, line.startMs)
+    const endMs = source.startMs + clipMsAt(source, line.endMs)
     const text = line.text.trim()
     if (!text) continue
 

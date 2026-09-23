@@ -18,6 +18,7 @@ import {
   VolumeX,
 } from "lucide-react"
 
+import { clipSpeed, sourceSpanMs } from "@/lib/video/clip-playback"
 import {
   resolveIncomingTransition,
   TRANSITION_OPTIONS,
@@ -756,12 +757,17 @@ const ClipChip = React.memo(function ClipChip({
   // Real frames along a video clip, sampled across the part of the file this
   // clip uses. Until they arrive the flat placeholder shows through.
   const [frames, setFrames] = React.useState<FilmstripFrame[]>([])
+  // The file, and the stretch of it this strip covers. Pulled out of the clip
+  // here so the effect below only reruns when one of them really changes; the
+  // clip object itself is new on every drag.
+  const { kind, mediaId, trimStartMs } = clip
+  const sourceSpan = sourceSpanMs(clip)
   React.useEffect(() => {
-    if (clip.kind !== "video" || !clip.mediaId) return
+    if (kind !== "video" || !mediaId) return
     const controller = new AbortController()
     getVideoFilmstrip(
-      clip.mediaId,
-      { startMs: clip.trimStartMs, durationMs: clip.durationMs },
+      mediaId,
+      { startMs: trimStartMs, durationMs: sourceSpan },
       controller.signal
     )
       .then((loaded) => {
@@ -771,7 +777,7 @@ const ClipChip = React.memo(function ClipChip({
     return () => {
       controller.abort()
     }
-  }, [clip.kind, clip.mediaId, clip.trimStartMs, clip.durationMs])
+  }, [kind, mediaId, trimStartMs, sourceSpan])
 
   const drag = React.useRef<null | {
     mode: "move" | "trim-start" | "trim-end"
@@ -926,22 +932,28 @@ const ClipChip = React.memo(function ClipChip({
     }
 
     const candidates = candidatesForTrack(active.snap, trackIndex)
+    const speed = clipSpeed(clip)
     if (active.mode === "trim-start") {
       const snapped = snapEdge({
         candidates,
         valueMs: active.origin.startMs + deltaMs,
         thresholdMs,
       })
+      // Dragging the left edge back walks into the file, and the file has a
+      // beginning: at 2x every millisecond of timeline costs two of recording,
+      // so the edge stops twice as soon.
+      const earliestMs =
+        active.origin.startMs - active.origin.trimStartMs / speed
       const startMs = Math.min(
         active.origin.startMs + active.origin.durationMs - MIN_CLIP_MS,
-        Math.max(0, snapped.ms)
+        Math.max(0, earliestMs, snapped.ms)
       )
       const delta = startMs - active.origin.startMs
       return {
         kind: "trim-start" as const,
         startMs,
         durationMs: active.origin.durationMs - delta,
-        trimStartMs: Math.max(0, active.origin.trimStartMs + delta),
+        trimStartMs: Math.max(0, active.origin.trimStartMs + delta * speed),
         // A snap the clamp then overrode is no longer on the line, so the
         // guide has to go with it.
         guideMs: startMs === snapped.ms ? snapped.guideMs : null,
@@ -954,7 +966,13 @@ const ClipChip = React.memo(function ClipChip({
       thresholdMs,
     })
     const wanted = snapped.ms - active.origin.startMs
-    const durationMs = Math.max(MIN_CLIP_MS, wanted)
+    // What is left of the file after the trim, in timeline room. A still has
+    // no end to run past, so only timed media is capped.
+    const longestMs =
+      clip.sourceDurationMs && clip.kind !== "image"
+        ? (clip.sourceDurationMs - active.origin.trimStartMs) / speed
+        : Number.POSITIVE_INFINITY
+    const durationMs = Math.max(MIN_CLIP_MS, Math.min(wanted, longestMs))
     return {
       kind: "trim-end" as const,
       durationMs,
