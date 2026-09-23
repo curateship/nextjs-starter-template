@@ -26,6 +26,7 @@ import {
 import { createOwnedCarousel } from "@/server/video/carousels"
 import {
   attachMediaToScope,
+  attachPastedMediaToProject,
   deleteMediaFromScope,
   listVideoMedia,
 } from "@/server/video/media-list"
@@ -409,5 +410,43 @@ describe("the media list with video extras", () => {
     const listed = await listVideoMedia({ userId: user.id, database })
     expect(listed.media[0].playback_url).toBe(listed.media[0].url)
     expect(listed.media[0].proxy_status).toBeNull()
+  })
+
+  it("puts pasted files on the new project's shelf and names the missing ones", async () => {
+    const stranger = await insertUser(database)
+    const project = await createOwnedProject(user.id, "Project", database)
+    const mine = await insertMedia(user.id)
+    const theirs = await insertMedia(stranger.id)
+    const deletedId = uuid()
+
+    const result = await attachPastedMediaToProject(
+      user.id,
+      project.id,
+      [mine.id, theirs.id, deletedId, mine.id],
+      database
+    )
+
+    expect(result.missingMediaIds).toEqual([theirs.id, deletedId])
+    const shelf = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "project", id: project.id },
+      database,
+    })
+    expect(shelf.media.map((item) => item.id)).toEqual([mine.id])
+
+    // Pasting the same file again is not an error.
+    await expect(
+      attachPastedMediaToProject(user.id, project.id, [mine.id], database)
+    ).resolves.toEqual({ missingMediaIds: [] })
+  })
+
+  it("refuses to paste into somebody else's project", async () => {
+    const stranger = await insertUser(database)
+    const theirProject = await createOwnedProject(stranger.id, "Private", database)
+    const mine = await insertMedia(user.id)
+
+    await expect(
+      attachPastedMediaToProject(user.id, theirProject.id, [mine.id], database)
+    ).rejects.toThrowError("Project not found")
   })
 })

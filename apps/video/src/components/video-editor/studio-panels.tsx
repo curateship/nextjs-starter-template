@@ -45,6 +45,7 @@ import {
   findClip,
   useEditorRuntime,
   useEditorSelector,
+  useEditorStoreSelector,
 } from "@/components/video-editor/editor-store"
 
 /**
@@ -130,6 +131,10 @@ function MediaPanel() {
     null
   )
   const [refresh, setRefresh] = React.useState(0)
+  const shelfVersion = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.mediaShelfVersion
+  )
   const [uploading, setUploading] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
@@ -183,7 +188,7 @@ function MediaPanel() {
     return () => {
       active = false
     }
-  }, [collectionFilter, filter, debounced, projectId, refresh])
+  }, [collectionFilter, filter, debounced, projectId, refresh, shelfVersion])
 
   async function addItem(item: VideoMediaItem, atMs: number, trackId?: string) {
     try {

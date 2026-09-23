@@ -37,7 +37,7 @@ const clipTransitionSchema = z
   })
   .strict()
 
-const clipSchema = z
+export const clipSchema = z
   .object({
     id: z.string().min(1).max(64),
     kind: z.enum(["video", "audio", "image", "text"]),
@@ -113,6 +113,9 @@ const clipSchema = z
     }
   })
 
+export const MAX_TIMELINE_TRACKS = 50
+export const MAX_TRACK_CLIPS = 500
+
 export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3"] as const
 export type AspectRatio = (typeof ASPECT_RATIOS)[number]
 
@@ -127,11 +130,11 @@ export const timelineSchema = z
             // When set, this track's audio is lowered under any overlapping
             // audio on other tracks ("duck under voice").
             duck: z.boolean().optional(),
-            clips: z.array(clipSchema).max(500),
+            clips: z.array(clipSchema).max(MAX_TRACK_CLIPS),
           })
           .strict()
       )
-      .max(50),
+      .max(MAX_TIMELINE_TRACKS),
     aspect: z.enum(ASPECT_RATIOS),
   })
   .strict()

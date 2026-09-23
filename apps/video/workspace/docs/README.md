@@ -21,6 +21,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
   make across its time on screen, and why the export draws them with
   `perspective` rather than `zoompan`.
+- [copy-clips-between-projects.md](copy-clips-between-projects.md) — copying
+  clips out of one project and pasting them into another, where they land,
+  and what travels with them.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

@@ -9,10 +9,13 @@ import {
   sourceSpanMs,
   storedPlaybackValue,
 } from "@/lib/video/clip-playback"
+import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { PlaybackClock } from "@/lib/video/playback-clock"
-import type {
-  AspectRatio,
-  ProjectTimeline,
+import {
+  MAX_TIMELINE_TRACKS,
+  MAX_TRACK_CLIPS,
+  type AspectRatio,
+  type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -38,7 +41,10 @@ export type { AspectRatio }
 
 export type EditorState = {
   tracks: EditorTrack[]
+  // The clip the inspector shows. It is always the last of `selectedClipIds`,
+  // which is every clip picked with Shift or Cmd held, for copying as a group.
   selectedClipId: string | null
+  selectedClipIds: string[]
   pxPerSecond: number
   aspect: AspectRatio
   // The cut tool: clicking a clip splits it where the pointer is.
@@ -123,7 +129,13 @@ export type EditorAction =
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
   | { type: "TOGGLE_TRACK_MUTE"; trackId: string }
   | { type: "TOGGLE_TRACK_DUCK"; trackId: string }
-  | { type: "SELECT_CLIP"; clipId: string | null }
+  // Clips copied out of a project (see clip-clipboard.ts), dropped as one
+  // block: each keeps its distance from the others and its lane relative to
+  // them. One action, one undo.
+  | { type: "PASTE_CLIPS"; clips: ClipboardClip[]; atMs: number; trackId?: string }
+  // `additive` is a click with Shift or Cmd held: the clip joins the group, or
+  // leaves it if it was already in.
+  | { type: "SELECT_CLIP"; clipId: string | null; additive?: boolean }
   | { type: "SET_CUT_MODE"; on: boolean }
   | { type: "SET_ZOOM"; pxPerSecond: number }
   | { type: "SET_ASPECT"; aspect: AspectRatio }
@@ -147,6 +159,7 @@ export function createInitialEditorState(
       ? timeline.tracks
       : [newTrack(), newTrack(), newTrack()],
     selectedClipId: null,
+    selectedClipIds: [],
     pxPerSecond: DEFAULT_PX_PER_SECOND,
     aspect: timeline?.aspect ?? "9:16",
     cutMode: false,
@@ -320,10 +333,75 @@ function placeClip(
   return placeClipInNewTrack(state, clip, desired)
 }
 
+// Drop a copied group at `atMs`, starting on the lane `trackId` names. The
+// group lands only where every clip fits on the lane it is headed for; if any
+// one would overlap something, the whole group goes onto new lanes at the
+// bottom instead, so the gaps between the clips are never squeezed.
+function pasteClips(
+  state: EditorState,
+  clips: ClipboardClip[],
+  atMs: number,
+  trackId?: string
+): EditorState {
+  if (!clips.length) return state
+  const desired = Math.max(0, atMs)
+  const laneCount = Math.max(...clips.map((entry) => entry.lane)) + 1
+  const firstLane = Math.max(
+    0,
+    state.tracks.findIndex((track) => track.id === trackId)
+  )
+  const fitsInPlace = clips.every(({ clip, lane }) => {
+    const track = state.tracks[firstLane + lane]
+    return !track || fitsAt(track, null, desired + clip.startMs, clip.durationMs)
+  })
+
+  const start = fitsInPlace ? firstLane : state.tracks.length
+  // A timeline holds so many lanes, and a lane so many clips. A paste that
+  // would pass either is refused whole, because the save would refuse it.
+  if (start + laneCount > MAX_TIMELINE_TRACKS) return state
+  const tracks = [...state.tracks]
+  while (tracks.length < start + laneCount) tracks.push(newTrack())
+  for (let lane = 0; lane < laneCount; lane++) {
+    const landing = clips
+      .filter((entry) => entry.lane === lane)
+      .map(({ clip }) => ({ ...clip, startMs: desired + clip.startMs }))
+    if (!landing.length) continue
+    const track = tracks[start + lane]
+    if (track.clips.length + landing.length > MAX_TRACK_CLIPS) return state
+    tracks[start + lane] = {
+      ...track,
+      clips: sortClips([...track.clips, ...landing]),
+    }
+  }
+  const pastedIds = clips.map(({ clip }) => clip.id)
+  return {
+    ...pushUndo(state, tracks),
+    selectedClipId: pastedIds.at(-1) ?? null,
+    selectedClipIds: pastedIds,
+  }
+}
+
 export function editorReducer(
   state: EditorState,
   action: EditorAction
 ): EditorState {
+  const next = reduceEditor(state, action)
+  // Every action that moves the selection without saying what the group is —
+  // a new clip dropped on, a delete, an undo — leaves just that one clip
+  // selected, so the group can never name a clip the inspector is not on.
+  if (
+    next.selectedClipId !== state.selectedClipId &&
+    next.selectedClipIds === state.selectedClipIds
+  ) {
+    return {
+      ...next,
+      selectedClipIds: next.selectedClipId ? [next.selectedClipId] : [],
+    }
+  }
+  return next
+}
+
+function reduceEditor(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case "ADD_CLIP":
       return placeClip(state, action.clip, action.atMs, action.trackId)
@@ -333,6 +411,9 @@ export function editorReducer(
 
     case "ADD_TRACK":
       return pushUndo(state, [...state.tracks, newTrack()])
+
+    case "PASTE_CLIPS":
+      return pasteClips(state, action.clips, action.atMs, action.trackId)
 
     case "APPLY_JUMP_CUTS": {
       const found = findClip(state.tracks, action.clipId)
@@ -731,8 +812,24 @@ export function editorReducer(
         })),
       }
 
-    case "SELECT_CLIP":
-      return { ...state, selectedClipId: action.clipId }
+    case "SELECT_CLIP": {
+      const { clipId } = action
+      if (!action.additive || !clipId) {
+        return {
+          ...state,
+          selectedClipId: clipId,
+          selectedClipIds: clipId ? [clipId] : [],
+        }
+      }
+      const selectedClipIds = state.selectedClipIds.includes(clipId)
+        ? state.selectedClipIds.filter((id) => id !== clipId)
+        : [...state.selectedClipIds, clipId]
+      return {
+        ...state,
+        selectedClipId: selectedClipIds.at(-1) ?? null,
+        selectedClipIds,
+      }
+    }
 
     case "SET_CUT_MODE":
       return { ...state, cutMode: action.on }
@@ -780,6 +877,9 @@ type EditorStoreSnapshot = {
   // Edits stay on screen, but nothing is sent again until a reload.
   hasConflict: boolean
   projectName: string
+  // Goes up by one whenever something outside the media panel puts files on
+  // this project's shelf, such as a paste, so the panel knows to read it again.
+  mediaShelfVersion: number
 }
 
 export type EditorStore = {
@@ -789,6 +889,7 @@ export type EditorStore = {
   setSaveStatus: (status: SaveStatus) => void
   setHasConflict: () => void
   setProjectName: (name: string) => void
+  refreshMediaShelf: () => void
 }
 
 export function createEditorStore(
@@ -801,6 +902,7 @@ export function createEditorStore(
     saveStatus: "saved",
     hasConflict: false,
     projectName,
+    mediaShelfVersion: 0,
   }
   const listeners = new Set<() => void>()
   const update = (next: EditorStoreSnapshot) => {
@@ -832,6 +934,11 @@ export function createEditorStore(
       update({ ...snapshot, hasConflict: true, saveStatus: "error" })
     },
     setProjectName: (projectName) => update({ ...snapshot, projectName }),
+    refreshMediaShelf: () =>
+      update({
+        ...snapshot,
+        mediaShelfVersion: snapshot.mediaShelfVersion + 1,
+      }),
   }
 }
 

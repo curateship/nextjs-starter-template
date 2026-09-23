@@ -46,11 +46,17 @@ unaffected, because the lanes are already taller than that.
 
 ## The parts the editor borrows from the shell
 
-Every panel header in the studio and in the carousel studio is the shell's
-`DashboardCardTitleHeader` from `src/components/shared/dashboard-card-header.tsx`.
-The editor has no header of its own, so a header in the studio and a header on
-the contacts page are the same height, the same type and the same line
-underneath, and a change to the shell's reaches both at once.
+Every panel header in the studio and in the carousel studio comes from the
+shell's `src/components/shared/dashboard-card-header.tsx`. The side panels use
+`DashboardCardTitleHeader`. The middle panel, with the way back, the project
+name and the Export button, uses the plain `DashboardCardHeader` frame laid out
+as three columns (`StageHeader` in `studio-editor.tsx`, `CarouselStageHeader` in
+`carousel-studio.tsx`). The frame owns the 57px height, so a header in the
+studio and a header on the contacts page are the same height and have the same
+line underneath, and a change to the shell's reaches both at once.
+
+Until 23 Sep 2026 the middle header set its own height of 3.15rem, about 50px,
+so its line sat 7px higher than the lines under the panels on either side.
 
 Failures the editor cannot put right itself go to the shared error toast through
 `useErrorToast` from `src/lib/toast/error-toast.ts`. Two of them exist: a

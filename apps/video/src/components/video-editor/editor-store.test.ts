@@ -497,3 +497,136 @@ describe("colour on a clip", () => {
     })
   })
 })
+
+describe("picking several clips", () => {
+  const three = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "words",
+        muted: false,
+        clips: [caption("a", 0), caption("b", 1_000), caption("c", 2_000)],
+      },
+    ],
+  })
+
+  it("adds a clip with Shift held, and the inspector moves to it", () => {
+    let state = editorReducer(three, { type: "SELECT_CLIP", clipId: "a" })
+    state = editorReducer(state, {
+      type: "SELECT_CLIP",
+      clipId: "c",
+      additive: true,
+    })
+    expect(state.selectedClipIds).toEqual(["a", "c"])
+    expect(state.selectedClipId).toBe("c")
+  })
+
+  it("takes a clip back out when it is clicked again with Shift", () => {
+    let state = editorReducer(three, { type: "SELECT_CLIP", clipId: "a" })
+    state = editorReducer(state, { type: "SELECT_CLIP", clipId: "c", additive: true })
+    state = editorReducer(state, { type: "SELECT_CLIP", clipId: "c", additive: true })
+    expect(state.selectedClipIds).toEqual(["a"])
+    expect(state.selectedClipId).toBe("a")
+  })
+
+  it("drops the group when anything else moves the selection", () => {
+    let state = editorReducer(three, { type: "SELECT_CLIP", clipId: "a" })
+    state = editorReducer(state, { type: "SELECT_CLIP", clipId: "b", additive: true })
+    state = editorReducer(state, { type: "DELETE_CLIP", clipId: "b" })
+    expect(state.selectedClipId).toBeNull()
+    expect(state.selectedClipIds).toEqual([])
+  })
+})
+
+describe("pasting copied clips", () => {
+  // Three clips with a one-second gap and then a two-second gap between them.
+  const copied = [
+    { clip: caption("p1", 0), lane: 0 },
+    { clip: caption("p2", 1_800), lane: 0 },
+    { clip: caption("p3", 4_600), lane: 0 },
+  ]
+  const empty = createInitialEditorState()
+
+  it("keeps the gaps between the clips, starting at the playhead", () => {
+    const after = editorReducer(empty, {
+      type: "PASTE_CLIPS",
+      clips: copied,
+      atMs: 5_000,
+    })
+    expect(after.tracks[0].clips.map((clip) => clip.startMs)).toEqual([
+      5_000, 6_800, 9_600,
+    ])
+    expect(after.selectedClipIds).toEqual(["p1", "p2", "p3"])
+    expect(after.past).toHaveLength(1)
+  })
+
+  it("lands on the lane it is aimed at, and lower lanes follow it", () => {
+    const after = editorReducer(empty, {
+      type: "PASTE_CLIPS",
+      clips: [
+        { clip: caption("top", 0), lane: 0 },
+        { clip: caption("under", 0), lane: 1 },
+      ],
+      atMs: 0,
+      trackId: empty.tracks[1].id,
+    })
+    expect(after.tracks[1].clips.map((clip) => clip.id)).toEqual(["top"])
+    expect(after.tracks[2].clips.map((clip) => clip.id)).toEqual(["under"])
+  })
+
+  it("goes onto a new lane whole when one clip would overlap", () => {
+    const busy = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [{ id: "words", muted: false, clips: [caption("in-the-way", 7_000)] }],
+    })
+    const after = editorReducer(busy, {
+      type: "PASTE_CLIPS",
+      clips: copied,
+      atMs: 5_000,
+      trackId: "words",
+    })
+    expect(after.tracks[0].clips.map((clip) => clip.id)).toEqual(["in-the-way"])
+    expect(after.tracks[1].clips.map((clip) => clip.startMs)).toEqual([
+      5_000, 6_800, 9_600,
+    ])
+  })
+
+  it("is refused whole when a lane would pass its clip limit", () => {
+    const crowded = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        {
+          id: "words",
+          muted: false,
+          clips: Array.from({ length: 499 }, (_, index) =>
+            caption(`c-${index}`, index * 1_000)
+          ),
+        },
+      ],
+    })
+    const after = editorReducer(crowded, {
+      type: "PASTE_CLIPS",
+      clips: copied,
+      atMs: 600_000,
+      trackId: "words",
+    })
+    expect(after).toBe(crowded)
+  })
+
+  it("is refused whole when there is no room for another lane", () => {
+    const full = createInitialEditorState({
+      aspect: "9:16",
+      tracks: Array.from({ length: 50 }, (_, index) => ({
+        id: `lane-${index}`,
+        muted: false,
+        clips: [caption(`c-${index}`, 0)],
+      })),
+    })
+    const after = editorReducer(full, {
+      type: "PASTE_CLIPS",
+      clips: copied,
+      atMs: 0,
+    })
+    expect(after).toBe(full)
+  })
+})

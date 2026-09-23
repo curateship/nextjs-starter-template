@@ -248,6 +248,47 @@ export async function attachMediaToScope(
     .onConflictDoNothing()
 }
 
+/**
+ * Put every file that clips pasted into a project use on that project's shelf,
+ * and name the ones that could not be. A file that has been deleted, or that
+ * belongs to somebody else, is reported back rather than thrown: one missing
+ * file must not stop the rest of a paste from landing.
+ */
+export async function attachPastedMediaToProject(
+  userId: string,
+  projectId: string,
+  mediaIds: string[],
+  database: CustomShellDb = db
+): Promise<{ missingMediaIds: string[] }> {
+  const [project] = await database
+    .select({ id: videoProjects.id })
+    .from(videoProjects)
+    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
+    .limit(1)
+  if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+
+  const wanted = Array.from(new Set(mediaIds))
+  if (!wanted.length) return { missingMediaIds: [] }
+  const owned = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.userId, userId),
+        inArray(customShellMedia.id, wanted)
+      )
+    )
+  if (owned.length) {
+    const createdAt = now()
+    await database
+      .insert(videoProjectMedia)
+      .values(owned.map((row) => ({ projectId, mediaId: row.id, createdAt })))
+      .onConflictDoNothing()
+  }
+  const found = new Set(owned.map((row) => row.id))
+  return { missingMediaIds: wanted.filter((id) => !found.has(id)) }
+}
+
 /** Delete one owned file that is visible on the requested editor shelf. */
 export async function deleteMediaFromScope(
   userId: string,

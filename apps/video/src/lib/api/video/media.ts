@@ -22,6 +22,7 @@ import {
 } from "@/server/video/media-collections"
 import {
   attachMediaToScope,
+  attachPastedMediaToProject,
   deleteMediaFromScope,
   listVideoMedia as listVideoMediaQuery,
   type MediaScope,
@@ -99,6 +100,13 @@ const attachMediaSchema = z.object({
 
 const deleteMediaSchema = attachMediaSchema
 
+// A timeline holds at most 50 lanes of 500 clips, but a paste is what one
+// person selected, so a few hundred files is already far more than real use.
+const pastedMediaSchema = z.object({
+  projectId: z.string().min(1).max(36),
+  mediaIds: z.array(z.string().min(1).max(36)).max(500),
+})
+
 const listVideoMediaFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(listVideoMediaSchema)
@@ -119,6 +127,17 @@ const attachMediaFn = createServerFn({ method: "POST" })
   .inputValidator(attachMediaSchema)
   .handler(async ({ data, context }) => {
     await attachMediaToScope(context.user.id, data.scope, data.mediaId)
+  })
+
+const attachPastedMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(pastedMediaSchema)
+  .handler(async ({ data, context }) => {
+    return attachPastedMediaToProject(
+      context.user.id,
+      data.projectId,
+      data.mediaIds
+    )
   })
 
 const deleteMediaFn = createServerFn({ method: "POST" })
@@ -210,6 +229,11 @@ export function listVideoMedia({
 
 export function attachEditorMedia(scope: MediaScope, mediaId: string) {
   return attachMediaFn({ data: { scope, mediaId } })
+}
+
+/** Shelve the files pasted clips use; answers with the ones that are gone. */
+export function attachPastedMedia(projectId: string, mediaIds: string[]) {
+  return attachPastedMediaFn({ data: { projectId, mediaIds } })
 }
 
 export function deleteEditorMedia(scope: MediaScope, mediaId: string) {

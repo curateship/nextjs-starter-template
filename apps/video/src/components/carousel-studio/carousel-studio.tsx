@@ -34,7 +34,10 @@ import {
 } from "lucide-react"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import {
+  DashboardCardHeader,
+  DashboardCardTitleHeader,
+} from "@/components/shared/dashboard-card-header"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import {
   InspectorCard,
@@ -809,7 +812,7 @@ function CarouselStageHeader({
   onExport: () => void
 }) {
   return (
-    <div className="grid h-[3.15rem] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-4 sm:px-5">
+    <DashboardCardHeader className="grid grid-cols-[1fr_auto_1fr]">
       <div className="flex min-w-0 items-center gap-2.5">
         <Button asChild variant="ghost" size="icon">
           <Link
@@ -895,7 +898,7 @@ function CarouselStageHeader({
           Export
         </Button>
       </div>
-    </div>
+    </DashboardCardHeader>
   )
 }
 
