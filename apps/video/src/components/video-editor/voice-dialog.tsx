@@ -37,9 +37,9 @@ import {
   CAPTION_ANIMATIONS,
   DEFAULT_CAPTION_ANIMATION,
   resolveCaptionAnimation,
-  type CaptionAnimationId,
 } from "@/lib/video/caption-animations"
-import { CAPTION_DEFAULTS, captionClipName } from "@/lib/video/captions"
+import { captionClipStyle } from "@/lib/video/caption-look"
+import { captionClipName } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
 import {
   createDefaultVoiceSettings,
@@ -50,6 +50,7 @@ import {
   type VoiceModelId,
 } from "@/lib/video/voice"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
 
 /**
  * Having something read aloud.
@@ -73,9 +74,9 @@ export function VoiceDialog({
     "eleven_multilingual_v2"
   )
   const [speed, setSpeed] = React.useState(1)
-  const [entrance, setEntrance] = React.useState<CaptionAnimationId>(
-    DEFAULT_CAPTION_ANIMATION
-  )
+  // The captions that come with the voice take the brand kit's look. Only the
+  // entrance is offered here; the rest can be changed per caption afterwards.
+  const [look, setLook] = useSavedCaptionLook(open)
   const [speaking, setSpeaking] = React.useState(false)
   const [voicesRefused, setVoicesRefused] = React.useState(false)
   // Nothing to keep in step: it is fetching exactly while the window is open,
@@ -116,6 +117,7 @@ export function VoiceDialog({
   }, [open, voices])
 
   async function speak() {
+    if (!look) return
     setSpeaking(true)
     try {
       const result = await readAloud({
@@ -142,16 +144,10 @@ export function VoiceDialog({
           kind: "text" as const,
           name: captionClipName(line.text),
           text: line.text,
-          fontId: "inter" as const,
-          animation: entrance,
           startMs: line.startMs,
           durationMs: line.endMs - line.startMs,
           trimStartMs: 0,
-          fontSize: CAPTION_DEFAULTS.fontSize,
-          color: CAPTION_DEFAULTS.color,
-          highlightColor: CAPTION_DEFAULTS.backgroundColor,
-          x: CAPTION_DEFAULTS.x,
-          y: CAPTION_DEFAULTS.y,
+          ...captionClipStyle(look),
         })),
       })
       dismissErrorToast()
@@ -184,7 +180,7 @@ export function VoiceDialog({
     }
   }
 
-  const ready = !!script.trim() && !!voiceId && !speaking
+  const ready = !!script.trim() && !!voiceId && !!look && !speaking
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -287,9 +283,16 @@ export function VoiceDialog({
               <div className="grid gap-2">
                 <Label htmlFor="voice-entrance">How the words arrive</Label>
                 <Select
-                  value={entrance}
+                  value={look?.animation ?? DEFAULT_CAPTION_ANIMATION}
+                  disabled={!look}
                   onValueChange={(next) =>
-                    setEntrance(resolveCaptionAnimation(next))
+                    setLook(
+                      (current) =>
+                        current && {
+                          ...current,
+                          animation: resolveCaptionAnimation(next),
+                        }
+                    )
                   }
                 >
                   <SelectTrigger id="voice-entrance" className="w-full">

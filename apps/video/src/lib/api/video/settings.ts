@@ -9,6 +9,13 @@ import {
   MAX_BRAND_COLORS,
   type VideoBrandKit,
 } from "@/lib/video/brand-kit"
+import { CAPTION_ANIMATION_IDS } from "@/lib/video/caption-animations"
+import {
+  CAPTION_FONT_SIZE_MAX,
+  CAPTION_FONT_SIZE_MIN,
+  CAPTION_Y_MAX,
+  CAPTION_Y_MIN,
+} from "@/lib/video/caption-look"
 import { adminPost, userGet } from "@/server/guards"
 import { getVideoBrandKit, saveVideoBrandKit } from "@/server/video/settings"
 
@@ -48,6 +55,18 @@ const brandKitSchema = z.object({
     ctaText: z.string().max(END_CARD_TEXT_MAX),
   }),
   normalizeLoudness: z.boolean(),
+  captions: z.object({
+    fontSize: z
+      .number()
+      .int()
+      .min(CAPTION_FONT_SIZE_MIN)
+      .max(CAPTION_FONT_SIZE_MAX),
+    color: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/),
+    boxed: z.boolean(),
+    boxColor: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/),
+    animation: z.enum(CAPTION_ANIMATION_IDS),
+    y: z.number().min(CAPTION_Y_MIN).max(CAPTION_Y_MAX),
+  }),
 })
 
 const getBrandKitFn = createServerFn({ method: "GET" })

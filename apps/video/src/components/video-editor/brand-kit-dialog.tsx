@@ -3,6 +3,7 @@ import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
+import { CaptionLookFields } from "@/components/video-editor/caption-look-fields"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -107,6 +108,7 @@ export function BrandKitDialog({
         watermark: draft.watermark,
         endCard: draft.endCard,
         normalizeLoudness: draft.normalizeLoudness,
+        captions: draft.captions,
       })
       dismissErrorToast()
       onSaved(saved)
@@ -245,6 +247,24 @@ export function BrandKitDialog({
                     disabled={saving}
                     onChange={(logoUrl) =>
                       setDraft((current) => ({ ...current, logoUrl }))
+                    }
+                  />
+                </CardContent>
+              </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Captions</CardTitle>
+                  <CardDescription>
+                    How captions look when they are written. Captions already on
+                    a project keep the look they have.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CaptionLookFields
+                    idPrefix="brand-captions"
+                    look={draft.captions}
+                    onChange={(captions) =>
+                      setDraft((current) => ({ ...current, captions }))
                     }
                   />
                 </CardContent>
