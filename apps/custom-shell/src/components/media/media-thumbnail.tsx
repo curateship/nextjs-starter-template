@@ -1,6 +1,7 @@
 import * as React from "react"
 import { AudioLinesIcon, FileQuestionIcon, PlayIcon } from "lucide-react"
 
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { videoPosterSrc } from "@/lib/media/media-upload"
 import { cn } from "@/lib/utils"
 
@@ -22,6 +23,8 @@ export function MediaThumbnail({
   fit = "contain",
   compact = false,
   showPlayBadge = true,
+  sizes,
+  eager = false,
 }: {
   url: string
   fileType: "image" | "video" | "audio"
@@ -32,6 +35,18 @@ export function MediaThumbnail({
   compact?: boolean
   /** Turn off where the caller puts a real play button in the same spot. */
   showPlayBadge?: boolean
+  /**
+   * How wide this picture is drawn, in CSS terms, such as `"112px"` or
+   * `"(min-width: 768px) 50vw, 100vw"`. Given one, the browser downloads the
+   * smallest stored copy that still covers the box on this screen. Left out,
+   * it downloads the file that was uploaded, at whatever size that is.
+   */
+  sizes?: string
+  /**
+   * For a picture on the first screenful. It then loads with the page instead
+   * of waiting to be scrolled to, which is what the reader is looking at.
+   */
+  eager?: boolean
 }) {
   // Remembering which address failed, rather than a plain yes/no, is what lets
   // a new file in the same slot have its own go at loading.
@@ -73,13 +88,18 @@ export function MediaThumbnail({
       ) : (
         <img
           src={url}
+          // Only offered when the caller says how wide the box is. Without
+          // that, a browser assumes the picture fills the window and picks the
+          // widest copy, which is worse than asking for the original once.
+          srcSet={sizes ? mediaImageSrcSet(url) : undefined}
+          sizes={sizes}
           alt={alt}
           className={cn("h-full w-full", fitClass)}
           // A grid of these is mostly below the fold. Left to itself the browser
           // starts every original at once; asked to wait, it fetches a tile when
           // the tile is scrolled to. The box is already sized by its caller, so
           // nothing moves when the picture finally lands.
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
           decoding="async"
           onError={() => setFailedUrl(url)}
         />

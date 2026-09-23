@@ -619,6 +619,9 @@ function MediaTile({
               fileType={item.file_type}
               alt={item.alt_text ?? item.original_name}
               className="h-full w-full"
+              // Four tiles to a row at the dialog's widest, so no tile is ever
+              // much over 200px.
+              sizes="220px"
               showPlayBadge={false}
             />
           </button>

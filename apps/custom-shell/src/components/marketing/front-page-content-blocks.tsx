@@ -40,6 +40,12 @@ export function FrontPageTestimonials({
             >
               <Avatar size="lg">
                 {item.picture ? (
+                  // No `srcSet` here, deliberately. `AvatarImage` decides
+                  // whether to show the initial instead by loading `src` on a
+                  // bare `new Image()` first, and that pre-load cannot read a
+                  // `srcSet`. Offering one downloads the uploaded file and
+                  // then a smaller copy as well, which is worse than the
+                  // uploaded file on its own.
                   <AvatarImage src={item.picture} alt={item.name} />
                 ) : null}
                 <AvatarFallback>{item.name.slice(0, 1)}</AvatarFallback>
@@ -86,7 +92,13 @@ export function FrontPageFaq({ items }: { items: FrontPageFaqItem[] }) {
   )
 }
 
-export function FrontPageLogos({ items }: { items: FrontPageLogo[] }) {
+export function FrontPageLogos({
+  items,
+  eager = false,
+}: {
+  items: FrontPageLogo[]
+  eager?: boolean
+}) {
   return (
     <Card size="sm" className="w-full">
       <CardContent
@@ -103,6 +115,8 @@ export function FrontPageLogos({ items }: { items: FrontPageLogo[] }) {
             alt={item.alt}
             fit="contain"
             className="h-14 w-28 bg-muted/50"
+            sizes="112px"
+            eager={eager}
           />
         ))}
       </CardContent>
@@ -112,8 +126,10 @@ export function FrontPageLogos({ items }: { items: FrontPageLogo[] }) {
 
 export function FrontPageScreenshots({
   items,
+  eager = false,
 }: {
   items: FrontPageScreenshot[]
+  eager?: boolean
 }) {
   return (
     <div
@@ -135,6 +151,11 @@ export function FrontPageScreenshots({
               alt={item.caption}
               fit="contain"
               className="aspect-video w-full bg-muted/50"
+              // Two to a row on desktop, one to a row on a phone. The row is
+              // inside the page's own reading width, so half the window is the
+              // widest this ever gets.
+              sizes="(min-width: 768px) 50vw, 100vw"
+              eager={eager}
             />
             <figcaption className="px-3 text-sm text-muted-foreground">
               {item.caption}
