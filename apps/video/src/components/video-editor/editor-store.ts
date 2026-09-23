@@ -124,6 +124,9 @@ export type EditorAction =
   // Every caption at once, onto a lane of their own. One action so one press
   // of undo takes the whole lot back off again.
   | { type: "INSERT_CAPTIONS"; captions: EditorClip[] }
+  // A music track under the whole project, on a lane of its own at the bottom
+  // with ducking on (see background-music.ts). One action, one undo.
+  | { type: "ADD_MUSIC_TRACK"; clips: EditorClip[] }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -577,6 +580,21 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       }
     }
 
+    case "ADD_MUSIC_TRACK": {
+      if (!action.clips.length || state.tracks.length >= MAX_TIMELINE_TRACKS) {
+        return state
+      }
+      const music: EditorTrack = {
+        ...newTrack(),
+        duck: true,
+        clips: action.clips,
+      }
+      return {
+        ...pushUndo(state, [...state.tracks, music]),
+        selectedClipId: action.clips[0].id,
+      }
+    }
+
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
@@ -732,8 +750,14 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
 
       // The left half keeps the blend coming into it — its seam with the clip
       // before is untouched. The right half's new edge is a cut through the
-      // middle of one piece of footage, so it must not carry that blend.
-      const left: EditorClip = { ...clip, durationMs: offset }
+      // middle of one piece of footage, so it must not carry that blend. A
+      // fade at the end belongs to the right half for the same reason: the
+      // left half now ends in the middle, where a fade would be a dip.
+      const left: EditorClip = {
+        ...clip,
+        durationMs: offset,
+        fadeOutMs: undefined,
+      }
       const right: EditorClip = {
         ...clip,
         id: editorId(),

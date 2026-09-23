@@ -85,6 +85,10 @@ export const clipSchema = z
       .min(MIN_CLIP_SATURATION)
       .max(MAX_CLIP_SATURATION)
       .optional(),
+    // How long the sound takes to fade away at the clip's end. Set on music
+    // laid under a project and cut short (see background-music.ts). Absent
+    // means it stops where the clip stops, as every clip always did.
+    fadeOutMs: z.number().nonnegative().finite().optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.

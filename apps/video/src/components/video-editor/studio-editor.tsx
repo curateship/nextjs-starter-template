@@ -8,6 +8,7 @@ import {
   CaptionsIcon,
   LayoutGrid,
   Loader2Icon,
+  Music,
   Share2,
   SparklesIcon,
   Type,
@@ -84,6 +85,7 @@ const LAYOUT_KEY = {
 /** The panels on the rail, in the order they appear on it. */
 const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "media", label: "Media", Icon: FilmIcon },
+  { id: "music", label: "Music", Icon: Music },
   { id: "text", label: "Text", Icon: Type },
   { id: "brand", label: "Brand", Icon: LayoutGrid },
   { id: "ai", label: "AI", Icon: SparklesIcon },

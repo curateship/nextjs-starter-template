@@ -27,6 +27,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [waveforms.md](waveforms.md) — the shape of the sound drawn along a sound
   clip, how the background worker builds it, and why trimming slides the shape
   instead of squashing it.
+- [background-music.md](background-music.md) — the Music panel: where the
+  tracks come from, why a track arrives ducked and at a quarter volume, and
+  what happens when the music and the video are different lengths.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 
