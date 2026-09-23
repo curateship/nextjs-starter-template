@@ -16,8 +16,10 @@ import {
   sweepWaitMs,
 } from "@/server/trade/live-fills"
 import {
+  tradeGridOrderRungs,
   tradeLiveFills,
   tradeLiveTriggers,
+  tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
 
@@ -536,6 +538,108 @@ describe("live fill storage", () => {
     // $20 banked on 2 coins sold at $100 each puts the entry at $90.
     expect(bodies[0]).toContain("average entry of $90")
     expect(bodies[1]).not.toContain("average entry")
+  })
+
+  it("measures a grid sale against its own rung, not the position average", async () => {
+    // Two rungs holding, bought at $1.00 and $0.90. The cheaper one sells at
+    // $0.95 for $5 more than it paid, and the venue books it against the
+    // $0.95 average of both, so it says nothing was made. The bell says what
+    // the rung made, the same figure the chart arrow and the P&L page show.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x4444444444444444444444444444444444444444",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-1",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values(
+      [
+        ["buy-rung-1", 1],
+        ["buy-rung-2", 2],
+        ["sell-rung-2", 2],
+      ].map(([orderId, rung]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: orderId as string,
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: rung as number,
+      }))
+    )
+    await database.insert(tradeLiveFills).values(
+      [
+        ["buy-1", "buy-rung-1", 1, now - 50_000],
+        ["buy-2", "buy-rung-2", 0.9, now - 40_000],
+      ].map(([fillId, orderId, px, at]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: fillId as string,
+        orderId: orderId as string,
+        marketKey: BTC,
+        side: "buy" as const,
+        px: px as number,
+        sz: 100,
+        at: at as number,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      }))
+    )
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "sell-2",
+        orderId: "sell-rung-2",
+        marketId: "BTC",
+        side: "sell",
+        px: 0.95,
+        sz: 100,
+        at: now,
+        // The venue's figure: nothing made, against the $0.95 average.
+        closedPnl: 0,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
+    expect(notice.body).toBe(
+      "Made $5.00 on this close, after fees. Measured against rung 2, which bought these coins at $0.9."
+    )
+    expect(notice.level).toBe("info")
   })
 
   it("reads fills for newly learnt triggers in one query", async () => {

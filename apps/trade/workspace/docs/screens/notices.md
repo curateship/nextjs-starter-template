@@ -130,6 +130,13 @@ always carry the dollars, the price and the wallet's own label:
   main)", with what it banked in the body — "Lost $55.00
   on this close. That is measured against the whole position's average entry
   of $95.00, not the last buy." A loss is level `warning`.
+- **A grid's sale:** measured against its own rung, never the position's
+  average. Tyler's rule, 22 Sep 2026: "It should measure against its own
+  rung." The body reads "Made $5.00 on this close, after fees. Measured
+  against rung 2, which bought these coins at $0.9." The dollars are the
+  same figure the chart arrow, the overview and the P&L page show
+  (`gridRoundTrips`). A sale whose buy is not in the stored fills keeps the
+  exchange's wording above.
 - **A liquidation:** "The exchange liquidated ETH: exited $500 at $90 …".
   Level `critical`.
 - **A practice wallet** says so in the label: "(Test wallet, practice)".

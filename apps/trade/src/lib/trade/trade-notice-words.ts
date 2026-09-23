@@ -123,6 +123,12 @@ export function fillNoticeWords(fill: {
    * be said. Null leaves the sentence at the dollars alone.
    */
   entryPx?: number | null
+  /**
+   * What the grid rung that sold made on its own coins, when a grid sold
+   * this. Wins over the exchange's figure and its average. See
+   * `gridRoundTrips`.
+   */
+  ownRung?: GridSaleMoney | null
   liquidation: boolean
   walletLabel: string
   practice: boolean
@@ -145,6 +151,13 @@ export function fillNoticeWords(fill: {
   }
 
   const title = `${did}: ${usd} of ${coin} at ${price} ${tag}`
+  if (fill.ownRung) {
+    return {
+      title,
+      body: rungGainWords(fill.ownRung, fill.side),
+      level: fill.ownRung.money < 0 ? "warning" : "info",
+    }
+  }
   if (fill.closedPnl !== 0) {
     return {
       title,
@@ -201,6 +214,33 @@ export function triggerNoticeWords(input: {
         : "The target order fired and took the profit.",
     level: input.kind === "stop" && input.closedPnl < 0 ? "warning" : "info",
   }
+}
+
+/** A grid sale priced on the coins its own rung bought. */
+export type GridSaleMoney = {
+  /** After both fees, the same figure the chart arrow and the P&L page show. */
+  money: number
+  /** What the rung paid for the coins it sold, or sold them at on a short. */
+  entryPx: number
+  /** Counted from one. Absent when the sale closed coins of several rungs. */
+  rung?: number
+}
+
+/**
+ * "Made $1.20 on this close, after fees. Measured against rung 3, which bought
+ * these coins at $0.169."
+ *
+ * **A grid sale is never measured against the position's average.** Tyler's
+ * rule, 22 Sep 2026: it measures against its own rung. On 22 Sep an ANSEM
+ * grid sale rang the bell with "Made $1.81 … against the whole
+ * position's average entry", the venue's figure, while the rungs still
+ * holding held that average up. Each rung buys its own coins and sells those
+ * same coins, so its own buy is the only honest "before".
+ */
+function rungGainWords(sale: GridSaleMoney, side: "buy" | "sell"): string {
+  const money = `${sale.money < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(sale.money))} on this close, after fees.`
+  const which = sale.rung === undefined ? "its own rungs" : `rung ${sale.rung}`
+  return `${money} Measured against ${which}, which ${side === "sell" ? "bought" : "sold"} these coins at ${formatPrice(sale.entryPx)}.`
 }
 
 /**

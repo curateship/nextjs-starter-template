@@ -23,6 +23,7 @@ import {
 import {
   buildLiveTrades,
   fillsOutsideTrades,
+  gridRoundTrips,
   journalPageCursor,
   journalTradePageCursor,
   type LiveFill,
@@ -34,8 +35,10 @@ import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
 import type { TradeSide } from "@/lib/trade/paper"
 import {
   fillNoticeWords,
+  fillWasExit,
   ladderFillNoticeWords,
   triggerNoticeWords,
+  type GridSaleMoney,
 } from "@/lib/trade/trade-notice-words"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { writeTradeNotice } from "@/server/trade/notices"
@@ -62,6 +65,7 @@ import {
   tradeLiveJournal,
   tradeLiveTriggers,
   tradeGridOrderRungs,
+  tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
@@ -430,6 +434,12 @@ async function announceFills(
   // made just now is worth a notice.
   const recent = fresh.filter((fill) => fill.at >= cutoff)
   if (recent.length === 0) return
+  const gridSales = await gridSaleMoneyByOrder(userId, wallet, recent).catch(
+    (error) => {
+      recordEngineError("live-fills", "grid sale money read failed", error)
+      return new Map<string, GridSaleMoney>()
+    }
+  )
   const knownByOrder = await triggerRowsByOrder(
     userId,
     wallet.id,
@@ -479,7 +489,9 @@ async function announceFills(
     const groupedOrderIds = new Set<string>()
     for (const fill of orders) {
       const ladderId = ladderByOrder.get(fill.orderId)
-      if (!ladderId || fill.closedPnl !== 0 || fill.liquidation) continue
+      // A grid rung's sale is an exit even when the venue booked it at $0,
+      // and it gets its own notice priced on the rung.
+      if (!ladderId || fillWasExit(fill) || fill.liquidation) continue
       const key = `${ladderId}:${fill.marketId}:${Math.floor(fill.at / 60_000)}`
       const group = grouped.get(key) ?? {
         ladderId,
@@ -553,6 +565,9 @@ async function announceFills(
               closedPnl: fill.closedPnl,
               dir: fill.dir,
               entryPx: averageEntryOf(wallet.protocol, fill),
+              ownRung: fill.liquidation
+                ? null
+                : gridSales.get(`${key} ${fill.orderId}`),
               liquidation: fill.liquidation,
               walletLabel: wallet.label,
               practice,
@@ -584,6 +599,111 @@ async function announceFills(
       }
     }
   })
+}
+
+/**
+ * What each fresh grid sale made on its own rung, keyed by market and order.
+ *
+ * The same arithmetic as the chart arrows, the overview and the P&L page
+ * (`gridRoundTrips`), so the bell never names a figure those screens would
+ * contradict. The whole stored history of the market is read, because the buy
+ * a rung sells is usually hours or days older than the sale. An order whose
+ * pieces are not every one of them a grid sale with its buy on hand keeps the
+ * exchange's figure: half an answer would be worse than the one it replaced.
+ */
+async function gridSaleMoneyByOrder(
+  userId: string,
+  wallet: TradeWallet,
+  fresh: readonly WalletOrderFill[]
+): Promise<Map<string, GridSaleMoney>> {
+  const out = new Map<string, GridSaleMoney>()
+  const closes = fresh.filter(
+    (fill) => fill.orderId && !fill.liquidation && fillWasExit(fill)
+  )
+  if (closes.length === 0) return out
+  const keyOf = (marketId: string) =>
+    marketKey({
+      protocol: wallet.protocol,
+      network: wallet.network,
+      marketId,
+    })
+  const marketKeys = [...new Set(closes.map((fill) => keyOf(fill.marketId)))]
+  // Most fills are a ladder's or a hand's. Only a market that has ever run a
+  // grid is worth reading its whole history for.
+  const gridMarkets = await db
+    .selectDistinct({ marketKey: tradeSmartLadders.marketKey })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, wallet.id),
+        inArray(tradeSmartLadders.marketKey, marketKeys),
+        eq(tradeSmartLadders.kind, "grid")
+      )
+    )
+  if (gridMarkets.length === 0) return out
+  const rows = await db
+    .select()
+    .from(tradeLiveFills)
+    .where(
+      and(
+        eq(tradeLiveFills.userId, userId),
+        eq(tradeLiveFills.walletId, wallet.id),
+        eq(tradeLiveFills.hidden, false),
+        inArray(
+          tradeLiveFills.marketKey,
+          gridMarkets.map((row) => row.marketKey)
+        )
+      )
+    )
+  const stamped = await stampGridFills(
+    userId,
+    [wallet.id],
+    rows.map((row) => ({
+      fillId: row.fillId,
+      orderId: row.orderId,
+      walletId: row.walletId,
+      marketKey: row.marketKey,
+      side: row.side as TradeSide,
+      px: row.px,
+      sz: row.sz,
+      at: Number(row.at),
+      closedPnl: row.closedPnl,
+      fee: row.fee,
+      dir: row.dir,
+      liquidation: row.liquidation,
+    }))
+  )
+  const trips = gridRoundTrips(stamped)
+  const wanted = new Set(
+    closes.map((fill) => `${keyOf(fill.marketId)} ${fill.orderId}`)
+  )
+  const piecesByOrder = new Map<string, typeof stamped>()
+  for (const fill of stamped) {
+    const key = `${fill.marketKey} ${fill.orderId}`
+    if (!wanted.has(key)) continue
+    const pieces = piecesByOrder.get(key)
+    if (pieces) pieces.push(fill)
+    else piecesByOrder.set(key, [fill])
+  }
+  for (const [key, pieces] of piecesByOrder) {
+    const priced = pieces.map((fill) => trips.get(fill.fillId))
+    if (priced.some((trip) => trip === undefined)) continue
+    const sz = pieces.reduce((sum, fill) => sum + fill.sz, 0)
+    if (sz <= 0) continue
+    const rungs = new Set(priced.map((trip) => trip?.rung))
+    const [rung] = rungs
+    out.set(key, {
+      money: priced.reduce((sum, trip) => sum + (trip?.money ?? 0), 0),
+      entryPx:
+        pieces.reduce(
+          (sum, fill, index) => sum + fill.sz * (priced[index]?.entryPx ?? 0),
+          0
+        ) / sz,
+      rung: rungs.size === 1 ? rung : undefined,
+    })
+  }
+  return out
 }
 
 /** Read totals from stored fills, including pieces delivered by earlier calls. */
