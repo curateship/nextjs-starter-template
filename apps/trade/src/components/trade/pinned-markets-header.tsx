@@ -19,6 +19,7 @@ import { formatChange } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
+import { PageLoadingBar } from "@/components/trade/page-loading-bar"
 
 export default function PinnedMarketsHeader({
   fallback,
@@ -74,6 +75,9 @@ export default function PinnedMarketsHeader({
   */
   return (
     <>
+      {/* Also not about pinned markets: it is here for the same reason as
+          `useHidePnlSync` above, since every signed-in page draws this. */}
+      <PageLoadingBar />
       {fallback}
       {pins.length ? (
         <ScrollArea className="mr-2 ml-auto max-w-full min-w-0">

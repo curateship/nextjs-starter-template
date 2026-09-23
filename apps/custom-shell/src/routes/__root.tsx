@@ -12,6 +12,7 @@ import {
 
 import "@/styles.css"
 import { BrandLogo } from "@/components/shell/brand-logo"
+import { PageLoadingBar } from "@/components/shell/page-loading-bar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Toaster } from "@/components/ui/sonner"
@@ -293,6 +294,7 @@ function RootComponent() {
             {hostIsUnknown ? <UnknownHost /> : <Outlet />}
           </div>
           <Toaster />
+          <PageLoadingBar />
         </TooltipProvider>
       </ThemeProvider>
     </RootDocument>

@@ -80,6 +80,7 @@ local setup docs.
 - [Home and dashboards](ui/home-and-dashboards.md)
 - [Dashboard controls](ui/dashboard-controls.md)
 - [Forms, tables, dialogs, and accessibility](ui/forms-tables-dialogs-and-accessibility.md)
+- [The bar while a page loads](ui/page-loading-bar.md)
 
 ## Adding a doc
 

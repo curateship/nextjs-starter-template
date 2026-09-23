@@ -32,6 +32,8 @@ screen: anything not written there has not been agreed yet.
 
 ## screens/ — what each screen shows
 
+- `page-loading-bar.md` — the thin line at the top of the window while the
+  next page loads, the 200ms wait before it shows, and what never shows it.
 - `hiding-profit-and-loss.md` — the one switch in the header's settings cog
   that blurs every figure saying what you made or lost, what it deliberately
   leaves readable, and how it is remembered.

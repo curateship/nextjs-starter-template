@@ -21,6 +21,9 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
+vi.mock("@/components/trade/page-loading-bar", () => ({
+  PageLoadingBar: () => null,
+}))
 import PinnedMarketsHeader from "@/components/trade/pinned-markets-header"
 import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
 import { TooltipProvider } from "@/components/ui/tooltip"
