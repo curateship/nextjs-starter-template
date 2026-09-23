@@ -6,6 +6,7 @@ import {
   MIN_CLIP_SPEED,
   MIN_CLIP_VOLUME,
 } from "./clip-playback"
+import { CLIP_FITS } from "./clip-frame-fit"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { TEXT_FONT_IDS } from "./text-fonts"
@@ -49,6 +50,10 @@ const clipSchema = z
     // How fast it plays. 2 is twice as fast, which is half the timeline room.
     // Absent means 1.
     speed: z.number().min(MIN_CLIP_SPEED).max(MAX_CLIP_SPEED).optional(),
+    // Whether a picture that is not the project's shape fits inside the frame
+    // with black at the edges, or fills it and loses the overflow. Absent
+    // means "contain", so a timeline saved before this reads unchanged.
+    fit: z.enum(CLIP_FITS).optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.

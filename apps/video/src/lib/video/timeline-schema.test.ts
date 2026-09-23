@@ -39,6 +39,24 @@ describe("requireCanonicalTimeline", () => {
     expect(parsed.tracks[0].clips[0].speed).toBeUndefined()
   })
 
+  it("still accepts a timeline saved before the frame choice existed", () => {
+    const parsed = requireCanonicalTimeline(timeline([VIDEO_CLIP]))
+    expect(parsed.tracks[0].clips[0].fit).toBeUndefined()
+  })
+
+  it("accepts a clip set to fill the frame", () => {
+    const parsed = requireCanonicalTimeline(
+      timeline([{ ...VIDEO_CLIP, fit: "cover" }])
+    )
+    expect(parsed.tracks[0].clips[0].fit).toBe("cover")
+  })
+
+  it("rejects a frame choice it does not know", () => {
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, fit: "stretch" }]))
+    ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
+  })
+
   it("accepts a clip turned down and sped up", () => {
     const parsed = requireCanonicalTimeline(
       timeline([{ ...VIDEO_CLIP, volume: 0.2, speed: 2 }])
