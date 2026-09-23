@@ -18,12 +18,16 @@ import {
  * is the form AND the validator. Adding a setting is one entry in one list.
  */
 
-/** Price-only indicators can omit volume; volume filters require it. */
+/**
+ * Price-only indicators can omit volume; volume filters require it. The open is
+ * optional for the same reason: only an indicator that reads a candle's shape,
+ * such as Price action, needs it, and every real candle source carries it.
+ */
 export type IndicatorCandle = Pick<
   CandleBar,
   "openTime" | "high" | "low" | "close"
 > &
-  Partial<Pick<CandleBar, "volume">>
+  Partial<Pick<CandleBar, "open" | "volume">>
 
 /**
  * Which way a shape reads — up is a floor and a green arrow under the candle,

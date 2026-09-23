@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
+import { MusicPanel } from "@/components/video-editor/studio-music-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import {
   attachEditorMedia,
@@ -53,10 +54,17 @@ import {
  * everything each of them needs is loaded here.
  */
 
-export type StudioPanel = "media" | "text" | "brand" | "ai" | "transcript"
+export type StudioPanel =
+  | "media"
+  | "music"
+  | "text"
+  | "brand"
+  | "ai"
+  | "transcript"
 
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
+  music: "Music",
   text: "Text",
   brand: "Brand kit",
   ai: "AI",
@@ -67,6 +75,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // Media has search and upload buttons to put in its header, so it draws its
   // own; the other two only need a title.
   if (panel === "media") return <MediaPanel />
+  if (panel === "music") return <MusicPanel />
   // The AI panel draws its own header too, so its tools can say what they need.
   if (panel === "ai") return <AiPanel />
   if (panel === "transcript") return <TranscriptPanel />

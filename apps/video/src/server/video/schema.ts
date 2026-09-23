@@ -165,6 +165,18 @@ export const videoMediaWaveforms = pgTable(
 )
 
 /**
+ * Sound files marked as music, for the studio's Music panel. A mark on a file
+ * the media library already holds: the file's owner owns the mark, and
+ * deleting the file removes it.
+ */
+export const videoMusicTracks = pgTable("video_music_tracks", {
+  mediaId: varchar("media_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellMedia.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * Named groups for the media library — "B-roll", "Hooks" — owned per person.
  * The unique index is on the lowercased name so "b-roll" cannot sit beside
  * "B-Roll"; the server collapses whitespace before saving for the same reason.
