@@ -59,6 +59,7 @@ import { StudioInspector } from "@/components/video-editor/studio-inspector"
 import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
+import { useRememberedRailPanel } from "@/components/video-editor/use-remembered-view"
 import "@/components/video-editor/studio.css"
 
 /**
@@ -92,6 +93,10 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
 ]
 
+function isRailPanel(name: string): name is StudioPanel {
+  return RAIL.some((item) => item.id === name)
+}
+
 export function StudioEditor({
   timelineError,
 }: {
@@ -103,6 +108,7 @@ export function StudioEditor({
   const saveStatus = useEditorSaveStatus()
   const desktop = useWideScreen()
   const [panel, setPanel] = React.useState<StudioPanel>("media")
+  useRememberedRailPanel(panel, setPanel, isRailPanel)
 
   // Two things the editor cannot put right on its own, said once and left in
   // the shared error toast until they are dealt with.

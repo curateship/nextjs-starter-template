@@ -73,6 +73,7 @@ import {
   type EditorTrack,
 } from "@/components/video-editor/editor-store"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
+import { useRememberedTimelineView } from "@/components/video-editor/use-remembered-view"
 
 /**
  * The timeline: lanes of clips under a ruler, with a playhead.
@@ -94,6 +95,9 @@ const RULER_H = 28
 // a useful size; it is still clamped to the store's hard limits.
 const ZOOM_MIN = Math.max(MIN_PX_PER_SECOND, 18)
 const ZOOM_MAX = Math.min(MAX_PX_PER_SECOND, 90)
+function clampZoom(pxPerSecond: number) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pxPerSecond))
+}
 
 // The sound shape's colour, the same for the placeholder and the real thing so
 // nothing changes colour when the real shape arrives.
@@ -214,9 +218,7 @@ export function StudioTimeline() {
     const scroll = scrollRef.current
     if (!scroll || durationMs <= 0) return
     const laneWidth = scroll.clientWidth - GUTTER - 48
-    const next = Math.round(
-      Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, laneWidth / (durationMs / 1000)))
-    )
+    const next = Math.round(clampZoom(laneWidth / (durationMs / 1000)))
     dispatch({ type: "SET_ZOOM", pxPerSecond: next })
   }, [dispatch, durationMs])
 
@@ -225,6 +227,8 @@ export function StudioTimeline() {
     fittedRef.current = true
     fit()
   }, [durationMs, fit])
+
+  useRememberedTimelineView({ scrollRef, fittedRef, pps, clampZoom })
 
   // --- Scrubbing on the ruler and the empty parts of a lane ----------------
   const scrub = React.useRef<{ pointerId: number; lastMs: number } | null>(null)
@@ -1455,7 +1459,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
   function setZoom(value: number) {
     dispatch({
       type: "SET_ZOOM",
-      pxPerSecond: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)),
+      pxPerSecond: clampZoom(value),
     })
   }
 
@@ -1518,7 +1522,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
             min={ZOOM_MIN}
             max={ZOOM_MAX}
             step={1}
-            value={Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pps))}
+            value={clampZoom(pps)}
             onChange={(event) => setZoom(Number(event.target.value))}
             aria-label="Zoom"
             style={{
@@ -1580,9 +1584,5 @@ function ToolbarButton({
 }
 
 function zoomPct(pps: number) {
-  return Math.round(
-    ((Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pps)) - ZOOM_MIN) /
-      (ZOOM_MAX - ZOOM_MIN)) *
-      100
-  )
+  return Math.round(((clampZoom(pps) - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100)
 }
