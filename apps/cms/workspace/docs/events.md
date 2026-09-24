@@ -71,8 +71,9 @@ published event has its own page at `/events/<address>`.
 - **With no end time:** it ends at midnight at the end of its last day.
 - **Past midnight:** an event from 10pm to 2am needs the next day as its end
   day. Admin → Events refuses an end that comes before the start and says so.
-- **Several days:** an end day can be later than the start day. The page then
-  shows both days. The calendar and lists that task 08 adds are not built.
+- **Several days:** an end day can be later than the start day, like a food
+  festival from Friday to Sunday. It is still one event, with one page. "An
+  event over several days" below says where it shows.
 
 ## Writing an event
 
@@ -155,13 +156,14 @@ shared link opens the same view.
 - **Private events** are in none of these views.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
-  on today, stays until it is over.
+  on today, stays until it is over. A festival stays until its last day ends.
 - **The month:** `?view=month&month=2026-10`. Previous and next move a month,
   Today goes back to the site's current month, and the site's today has a ring.
   Each day shows up to three events and "+2 more". Events that are over still
   show, because a month is a record of what happened.
 - **One day:** `?day=2026-10-03`, reached from "+2 more" or a day on a phone.
-  It shows every event starting that day, soonest first. Ones that are over are
+  It shows every event on that day, soonest first, festivals that started on
+  an earlier day included. Ones that are over are
   marked "Ended", so a past day is never an empty page. It is not paged.
 - **On a phone** the month is a small grid of day numbers with a dot on days
   that have events. Tapping a day with a dot opens that day.
@@ -170,10 +172,42 @@ shared link opens the same view.
   is never asked, so a visitor in Vancouver sees the same today as one in
   Toronto.
 - **The zone** is named once under the heading: "All times are Eastern Time."
-- **An event on several days** shows on its first day only in the month, and a
-  day's list holds the events that start that day. Task 08 changes both.
 - **The helpers** for the grid are copied from the old Directory app with their
   tests, in `src/lib/events/calendar-grid.ts`.
+
+## An event over several days
+
+A festival from Fri 30 Oct to Sun 1 Nov is entered once and has one page. It
+is not different hours on each day. A festival with different hours each day
+is three events, or a repeating event once task 09 exists.
+
+- **The event page:** the day line names both days, "Friday, October 30 to
+  Sunday, November 1, 2026", with the year said once when both days share it.
+  The time line reads "Starts 12:00 PM, ends 8:00 PM, Eastern Time". A one-day
+  event still reads as one day.
+- **A row in the list:** each time sits beside its own day, "Fri, Oct 30,
+  12:00 PM to Sun, Nov 1, 8:00 PM", because the times are when the festival
+  starts and ends, not its hours on each day. A one-day row still reads
+  "Sat, Sep 26 · 6:00 PM to 11:00 PM". The date square on the left is the
+  first day.
+- **The month:** the festival is on every day it covers. The start time shows
+  on its first day only. A festival across a month's end shows in both months,
+  so 30 and 31 Oct are in October and 1 Nov is in November. On a phone each of
+  those days gets a dot.
+- **Order within a day:** a festival that started on an earlier day sits above
+  the events that start on the day, because it is already running.
+- **Leaving the lists:** it stays in the upcoming list, the calendar
+  subscription and the search box's suggestions until its last day ends. The
+  sitemap counts its 30 days from the last day too.
+- **The calendar file and Google:** both carry the real start and the real end,
+  so a calendar app shows one block from noon Friday to 8pm Sunday.
+- **Where the rules live:** `daysCovered` in `src/lib/events/calendar-grid.ts`
+  lists the days an event covers inside one grid. `readEventsBetween` in
+  `src/server/events/public.ts` finds every event with any day inside the grid,
+  not only the ones that start in it. `eventRowText` and `eventWhenLines` in
+  `src/lib/events/event-time.ts` write the words.
+- **Sign-ups:** once sign-ups exist (task 24), one sign-up covers the whole
+  festival. A ticket for one day would be a ticket type (task 33).
 
 ## The Events page's on/off switch
 

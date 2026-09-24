@@ -190,6 +190,28 @@ describe("the upcoming list", () => {
     ).toEqual([])
   })
 
+  it("keeps a festival until its last day ends", async () => {
+    const festival = await dated(site.id, "Food festival", {
+      startDate: "2026-09-25",
+      startTime: "12:00",
+      endDate: "2026-09-27",
+      endTime: "20:00",
+    })
+    expect(
+      (await readUpcomingEvents(site, 1, now, database)).events.map(
+        (event) => event.slug
+      )
+    ).toEqual([festival.slug])
+    resetPublicDirectoryCacheForTests()
+    expect(
+      (await readUpcomingEvents(site, 1, "2026-09-27T19:59", database)).total
+    ).toBe(1)
+    resetPublicDirectoryCacheForTests()
+    expect(
+      (await readUpcomingEvents(site, 1, "2026-09-27T20:00", database)).total
+    ).toBe(0)
+  })
+
   it("never lists a draft or another site's event, and pages twelve at a time", async () => {
     await dated(
       site.id,
@@ -217,7 +239,7 @@ describe("the upcoming list", () => {
 })
 
 describe("a day or a month", () => {
-  it("holds every published event starting in it, including ones that are over", async () => {
+  it("holds every published event on it, including ones that are over", async () => {
     const early = await dated(site.id, "Early", {
       startDate: "2026-09-26",
       startTime: "09:00",
@@ -249,6 +271,28 @@ describe("a day or a month", () => {
     expect(
       await readEventsBetween(site, "2026-08-30", "2026-10-03", database)
     ).toHaveLength(3)
+  })
+})
+
+describe("an event over several days", () => {
+  it("is on every day it covers, and in both months when it crosses a month's end", async () => {
+    const festival = await dated(site.id, "Food festival", {
+      startDate: "2026-10-30",
+      startTime: "12:00",
+      endDate: "2026-11-01",
+      endTime: "20:00",
+    })
+    const slugs = async (from: string, to: string) =>
+      (await readEventsBetween(site, from, to, database)).map(
+        (event) => event.slug
+      )
+
+    // October's grid ends on 31 Oct, November's starts on 1 Nov.
+    expect(await slugs("2026-09-27", "2026-10-31")).toEqual([festival.slug])
+    expect(await slugs("2026-11-01", "2026-12-05")).toEqual([festival.slug])
+    expect(await slugs("2026-10-31", "2026-10-31")).toEqual([festival.slug])
+    expect(await slugs("2026-10-29", "2026-10-29")).toEqual([])
+    expect(await slugs("2026-11-02", "2026-11-02")).toEqual([])
   })
 })
 

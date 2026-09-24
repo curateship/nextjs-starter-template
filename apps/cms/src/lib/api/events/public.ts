@@ -89,7 +89,7 @@ export type EventsPageData = EventsPageCommon &
     | {
         view: "month"
         month: YearMonth
-        /** Every event starting in the grid's weeks, soonest first. */
+        /** Every event on any day of the grid's weeks, soonest first. */
         events: PublicEventCard[]
       }
   )

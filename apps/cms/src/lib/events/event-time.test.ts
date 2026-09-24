@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   eventHasEnded,
   eventMomentText,
+  eventDaysText,
+  eventRowText,
   eventWhenLines,
   formatEventStart,
   isKnownTimeZone,
@@ -138,9 +140,35 @@ describe("the words on the page", () => {
         "America/Toronto"
       )
     ).toEqual({
-      day: "Saturday, September 26, 2026 to Sunday, September 27, 2026",
+      day: "Saturday, September 26 to Sunday, September 27, 2026",
       times: "Starts 10:00 PM, ends 2:00 AM, Eastern Time",
     })
+  })
+
+  it("names the year on both days when the event crosses New Year", () => {
+    expect(
+      eventWhenLines(
+        {
+          startDate: "2026-12-31",
+          startTime: "20:00",
+          endDate: "2027-01-01",
+          endTime: "01:00",
+        },
+        "America/Toronto"
+      ).day
+    ).toBe("Thursday, December 31, 2026 to Friday, January 1, 2027")
+  })
+
+  it("keeps an end on the same day as one day", () => {
+    expect(eventWhenLines(nightMarket, "America/Toronto").day).toBe(
+      "Saturday, September 26, 2026"
+    )
+    expect(
+      eventWhenLines(
+        { ...nightMarket, endDate: nightMarket.startDate },
+        "America/Toronto"
+      ).day
+    ).toBe("Saturday, September 26, 2026")
   })
 
   it("prints the stored day whatever zone the reader is in", () => {
@@ -178,5 +206,32 @@ describe("one moment for a search engine", () => {
     expect(eventMomentText("2026-09-26", "18:00", "UTC")).toBe(
       "2026-09-26T18:00:00+00:00"
     )
+  })
+})
+
+describe("a row in the Events page's list", () => {
+  const festival = {
+    startDate: "2026-10-02",
+    startTime: "12:00",
+    endDate: "2026-10-04",
+    endTime: "20:00",
+  }
+
+  it("shows one day's times after the day", () => {
+    expect(eventRowText(nightMarket)).toBe("Sat, Sep 26 · 6:00 PM to 11:00 PM")
+  })
+
+  it("puts each time beside its own day over several days", () => {
+    expect(eventRowText(festival)).toBe(
+      "Fri, Oct 2, 12:00 PM to Sun, Oct 4, 8:00 PM"
+    )
+    expect(eventRowText({ ...festival, endTime: null })).toBe(
+      "Fri, Oct 2, 12:00 PM to Sun, Oct 4"
+    )
+  })
+
+  it("names both days, or one", () => {
+    expect(eventDaysText(festival)).toBe("Fri, Oct 2 to Sun, Oct 4")
+    expect(eventDaysText(nightMarket)).toBe("Sat, Sep 26")
   })
 })

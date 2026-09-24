@@ -4,7 +4,7 @@ import { MapPinIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ListedEvent } from "@/lib/api/events/public"
-import { eventTimesText, formatEventShortDay } from "@/lib/events/event-time"
+import { eventRowText, formatEventShortDay } from "@/lib/events/event-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
@@ -73,8 +73,7 @@ export function EventList({
                   ) : null}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {formatEventShortDay(event.startDate)} ·{" "}
-                  {eventTimesText(event)}
+                  {eventRowText(event)}
                 </p>
                 {event.placeName ? (
                   <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">

@@ -12,6 +12,7 @@ import {
 import type { PublicEventCard } from "@/lib/api/events/public"
 import {
   addMonths,
+  daysCovered,
   formatMonthLabel,
   monthMatrix,
   toMonthString,
@@ -26,7 +27,8 @@ import { cn } from "@/lib/utils"
 /**
  * The Events page's month. On a wide screen each day shows up to three events
  * and "+2 more"; on a phone each day shows only its number and a dot when it
- * has events. Either way a day with more to see opens that day's list.
+ * has events. Either way a day with more to see opens that day's list. An
+ * event over several days shows on every one of them.
  *
  * "Today" is the site's today, sent by the server, so the ring lands on the
  * same day for every visitor wherever they are.
@@ -41,15 +43,22 @@ export function EventMonth({
   today: string
 }) {
   const cells = React.useMemo(() => monthMatrix(month), [month])
+  // An event over several days goes on each of its days in the grid. The
+  // events arrive soonest first, so one still running from an earlier day
+  // sits above the ones that start on the day.
   const byDay = React.useMemo(() => {
     const days = new Map<string, PublicEventCard[]>()
+    const from = cells[0]!.date
+    const to = cells[cells.length - 1]!.date
     for (const event of events) {
-      days.set(event.startDate, [...(days.get(event.startDate) ?? []), event])
+      for (const day of daysCovered(event.startDate, event.endDate, from, to)) {
+        days.set(day, [...(days.get(day) ?? []), event])
+      }
     }
     return days
-  }, [events])
-  const inMonth = events.some((event) =>
-    event.startDate.startsWith(toMonthString(month))
+  }, [cells, events])
+  const inMonth = cells.some(
+    (cell) => cell.inCurrentMonth && byDay.has(cell.date)
   )
 
   return (
@@ -88,9 +97,12 @@ export function EventMonth({
                       focusRing
                     )}
                   >
-                    <span className="mr-1 text-muted-foreground">
-                      {formatEventClock(event.startTime)}
-                    </span>
+                    {/* The start time goes on the first day only. */}
+                    {event.startDate === cell.date ? (
+                      <span className="mr-1 text-muted-foreground">
+                        {formatEventClock(event.startTime)}
+                      </span>
+                    ) : null}
                     {event.title}
                   </Link>
                 ))}
