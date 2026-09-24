@@ -26,6 +26,12 @@ published event has its own page at `/events/<address>`.
 - **No place, no Google block.** Chosen on 23 Sep 2026. Google refuses an
   event without a place, so an event with neither a place name nor a street
   address gets no event markup at all.
+- **A repeating event is one row in Admin → Events.** Chosen on 23 Sep 2026,
+  so a weekly trivia night does not add 52 rows a year. Its dates open from
+  the main event's window.
+- **Deleting the main event deletes every date.** Chosen on 23 Sep 2026.
+  Setting the repeat to "Does not repeat" is how an admin stops a series and
+  keeps the dates that have been.
 
 ## What an event is
 
@@ -34,6 +40,8 @@ published event has its own page at `/events/<address>`.
   and time, an optional end day and time, a place name and a street address.
   `drizzle/0084_cms_events_visibility.sql` adds `visibility`, which is
   `public` or `private`. Every event made before it is public.
+  `drizzle/0085_cms_event_repeats.sql` adds the repeat columns that
+  "Repeating events" below describes.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -92,7 +100,7 @@ published event has its own page at `/events/<address>`.
 
 Each row in Admin → Events has a Duplicate button before the cog. It is for an
 event that happens again on no fixed pattern, like a trivia night most
-Thursdays. Repeating events are task 09.
+Thursdays. An event on a fixed pattern is a repeating event instead.
 
 - **One click:** the copy is made and its window opens straight away, so the
   admin can change the date and save.
@@ -105,7 +113,94 @@ Thursdays. Repeating events are task 09.
   until the admin publishes it.
 - **The original is not touched.** Closing the copy's window without saving
   keeps the copy as a draft. Delete it from the list if it is not wanted.
+- **A copy never repeats.** Copying a repeating event copies the event and not
+  its repeat or its dates.
 - **Where it lives:** `duplicateEvent` in `src/server/events/events.ts`.
+
+## Repeating events
+
+An event can repeat every week on chosen days, or every month on a day like
+"the first Tuesday" or "the last Friday", with an optional end day. It is for
+something like a trivia night every Thursday: the admin sets it up once, and
+the coming Thursdays are always on the calendar.
+
+- **The main event is the first date.** It holds the repeat, in the Repeat
+  card of its window. Every later date is its own event, with its own page and
+  its own address, like `/events/trivia-night-2026-10-08`.
+- **The Repeat card:** "Does not repeat", "Every week" with the days ticked, or
+  "Every month" with the week and the day, plus an Until day. It starts from
+  the event's own weekday. Under it is the plain sentence, like "Every Tuesday
+  and Thursday", and the first four dates, worked out by the same code that
+  makes them.
+- **The repeat has to fall on the start day.** An event starting on a Thursday
+  cannot repeat "Every Tuesday", because the sentence would then describe dates
+  that are not the ones made. The card says so, and saving is refused in the
+  same words.
+- **How far ahead:** the next 8 dates, counting the main event while it is to
+  come, and never more than 3 months past today. A weekly event has its next 8
+  weeks; a monthly one has its next 3 months.
+- **Topping up:** a background job checks every 15 minutes and makes the
+  dates that are now due. Saving the main event makes them at once.
+- **Never twice:** each date is made for one day of the repeat, and the
+  database refuses a second date for the same day, so two runs at once never
+  make a date twice. A date the admin deleted is not made again. The next day
+  of the repeat takes its place instead.
+- **What a date copies:** the title, summary, cover image, body, status, who
+  can find it, times, place, street address and categories. An event over
+  several days keeps its length on every date.
+
+### Editing a repeating event
+
+- **Editing the main event** changes every future date that was not changed on
+  its own. Each keeps its own day and its own address. Past dates are left as
+  they were.
+- **Editing one date** changes that date only. The date is marked "Changed on
+  its own", and later changes to the main event skip it.
+- **Changing the repeat or the start day** deletes the future dates that were
+  not changed on their own and makes them again from the new repeat. A future
+  date that was changed on its own is kept, and a message after saving names
+  it, like "Thu, Oct 29 was changed on its own, so it was kept as it is."
+- **Stopping:** "Does not repeat" deletes the future dates that were not
+  changed on their own and makes no more. The past dates stay, and so does any
+  future date changed on its own.
+- **Deleting the main event** deletes every date with it, and the warning
+  counts them: "Trivia night and its 7 later dates go for good." Deleting one
+  date deletes only that date.
+
+### In Admin → Events
+
+- **One row per repeating event.** The dates are not rows. The main event's row
+  says "Repeats" beside its status, and under its title "Every Thursday · 7
+  more dates coming". After the repeat is stopped it says "No longer repeats ·
+  12 later dates". The Date column is the main event's own day.
+- **Later dates:** the main event's window lists every later date, soonest
+  first, marked "Past", "Draft" or "Changed on its own" where that is true.
+  Clicking one swaps the window to that date. With unsaved edits the window
+  asks before it swaps.
+- **One date's window** has no Repeat card. It says whose date it is and has an
+  "Open main event" button.
+
+### On the site
+
+Every date is an ordinary event to a visitor. Each shows in the Events page's
+list and month, search, the sitemap, the feed and the calendar subscription,
+and each has its own page, calendar file and Google markup.
+
+### Where it lives
+
+- **The rules:** `src/lib/events/event-repeat.ts`, copied from the old
+  Directory app with its tests. "The last Friday" in a month with five Fridays
+  is the fifth one.
+- **Making, copying and clearing dates:** `src/server/events/repeats.ts`.
+  `saveEventAndDates` saves an event and its dates in one transaction, so a
+  refused repeat leaves nothing half saved. `runRepeatTopUps` is the background
+  job, listed in `src/app/server-options.ts`.
+- **The columns:** `repeat_rule` and `repeat_made_until` on the main event;
+  `series_id`, `series_date` and `edited_alone` on each date.
+- **The background job needs a restart to start.** The shell's loop keeps the
+  list of jobs it had when the server started, so a server running before this
+  change never tops up until it restarts. Saving the main event still makes
+  its dates.
 
 ## Private events
 
@@ -179,7 +274,7 @@ shared link opens the same view.
 
 A festival from Fri 30 Oct to Sun 1 Nov is entered once and has one page. It
 is not different hours on each day. A festival with different hours each day
-is three events, or a repeating event once task 09 exists.
+is three events, or a repeating event.
 
 - **The event page:** the day line names both days, "Friday, October 30 to
   Sunday, November 1, 2026", with the year said once when both days share it.
@@ -336,5 +431,6 @@ Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
 
 ## Not built yet
 
-These are later tasks in `workspace/tasks/events/`: filters on the Events page,
-sign-ups and repeats.
+These are later tasks in `workspace/tasks/events/`: filters on the Events page
+and sign-ups. Task 07, the site's own extra fields, is not built either. When
+it is, those fields need copying to a repeating event's dates like the rest.

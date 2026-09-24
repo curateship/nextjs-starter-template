@@ -162,6 +162,7 @@ describe("the events table", () => {
   const allowed = [
     "server/events/events.ts", // Admin → Events, which shows everything.
     "server/events/public.ts", // Every public read, through the one filter.
+    "server/events/repeats.ts", // Admin: a repeating event's dates.
     "server/events/schema.ts",
     "server/events/share-image.ts", // One event's card, found by its address.
   ]

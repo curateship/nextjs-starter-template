@@ -6,11 +6,9 @@ import {
   EVENT_SORT_COLUMNS,
   type EventSortColumn,
 } from "@/lib/events/event-sort"
+import type { RepeatRule } from "@/lib/events/event-repeat"
 import { adminGet, adminPost } from "@/server/guards"
-import {
-  categoryIdsFor,
-  setContentCategories,
-} from "@/server/directory/content-categories"
+import { categoryIdsFor } from "@/server/directory/content-categories"
 import {
   createEvent,
   deleteEvents,
@@ -21,20 +19,22 @@ import {
   MAX_EVENT_TITLE,
   MAX_PLACE_ADDRESS,
   MAX_PLACE_NAME,
-  updateEvent,
+  seriesForEdit,
+  type EventSeries,
   type EventStatus,
   type EventSummary,
   type EventVisibility,
   type EventWhenInput,
   type SiteEvent,
 } from "@/server/events/events"
+import { saveEventAndDates } from "@/server/events/repeats"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
 import { listingChoicesForBody, type ListingChoice } from "@/server/posts/posts"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
 
-export type { EventSummary }
+export type { EventSeries, EventSummary }
 
 /**
  * The Events screen's doors. All admin-only, and all work on the site the
@@ -99,11 +99,15 @@ export function loadEventsPage(input: {
   return loadEventsPageFn({ data: input })
 }
 
-/** The editor's whole load: the event, its categories, and its cards' listings. */
+/**
+ * The editor's whole load: the event, its categories, its cards' listings,
+ * and its place in a repeating event.
+ */
 export type EventForEdit = {
   event: SiteEvent
   categoryIds: string[]
   listings: ListingChoice[]
+  series: EventSeries
 }
 
 const loadEventForEditFn = createServerFn({ method: "GET" })
@@ -116,11 +120,11 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       categoryIdsFor(site, EVENT_CONTENT_TYPE, data.id),
     ])
     if (!event) return null
-    return {
-      event,
-      categoryIds,
-      listings: await listingChoicesForBody(site, event.body),
-    }
+    const [listings, series] = await Promise.all([
+      listingChoicesForBody(site, event.body),
+      seriesForEdit(site, event),
+    ])
+    return { event, categoryIds, listings, series }
   })
 
 export function loadEventForEdit(id: string) {
@@ -166,17 +170,20 @@ const updateEventFn = createServerFn({ method: "POST" })
       // cleaner says better than a schema.
       body: z.unknown().optional(),
       categoryIds: z.array(idInput).max(50).optional(),
+      // Checked by `parseRepeatRule`, which refuses anything else in words.
+      repeat: z.unknown().optional(),
     })
   )
-  .handler(async ({ data, context }): Promise<SiteEvent> => {
-    const { id, categoryIds, ...rest } = data
-    const site = await workspaceIdForRequest(context.user.id)
-    const event = await updateEvent(site, id, rest)
-    if (categoryIds !== undefined) {
-      await setContentCategories(site, EVENT_CONTENT_TYPE, id, categoryIds)
-    }
-    return event
+  .handler(async ({ data, context }): Promise<SavedEvent> => {
+    const { id, ...rest } = data
+    return saveEventAndDates(await workspaceIdForRequest(context.user.id), id, rest)
   })
+
+/**
+ * The saved event, and the days of any future dates of a repeating event that
+ * were saved by themselves and kept when its repeat or start day changed.
+ */
+export type SavedEvent = { event: SiteEvent; keptDates: string[] }
 
 export function saveEvent(input: {
   id: string
@@ -191,6 +198,8 @@ export function saveEvent(input: {
   placeAddress?: string
   body?: unknown
   categoryIds?: string[]
+  /** Null stops repeating; left out keeps the repeat as it is. */
+  repeat?: RepeatRule | null
 }) {
   return updateEventFn({ data: input })
 }
