@@ -1,7 +1,6 @@
 import { z } from "zod"
 import {
   decodeFunctionData,
-  formatUnits,
   parseAbi,
   type Address,
   type Hex,
@@ -16,10 +15,12 @@ import {
   requestSignal,
   READ_TIMEOUT_MS,
 } from "@/server/protocols/request-timeout"
+import { routeQuote } from "./route-quote"
+import type { SwapRouter } from "./swap"
 
 const DEFAULT_SLIPPAGE = 0.005
 /** Named on every request, because KyberSwap limits anonymous callers harder. */
-export const KYBER_CLIENT_ID = "nodabot-trade"
+const KYBER_CLIENT_ID = "nodabot-trade"
 
 /** What KyberSwap needs to know about one chain. */
 type KyberChain = {
@@ -71,7 +72,7 @@ const buildSchema = z.object({
     transactionValue: integer,
   }),
 })
-export type KyberRoute = {
+type KyberRoute = {
   quote: SwapQuote
   summary: z.infer<typeof summarySchema>
   router: Address
@@ -203,53 +204,19 @@ export function kyberSwap(chain: KyberChain) {
       throw evmRefused(
         "KyberSwap returned a route for different coins or amounts. Nothing was signed."
       )
-    const sz = Number(
-      formatUnits(
-        BigInt(buy ? summary.amountOut : summary.amountIn),
-        input.decimals
-      )
-    )
-    const usd = Number(
-      formatUnits(
-        BigInt(buy ? summary.amountIn : summary.amountOut),
-        dollarDecimals
-      )
-    )
-    if (!(sz > 0 && usd > 0) || !Number.isFinite(usd / sz))
-      throw new Error("LIVE_SIZE")
-    // Kyber supplies the two dollar valuations, not a priceImpact field.
-    const priceImpact = Math.max(
-      0,
-      1 - Number(summary.amountOutUsd) / Number(summary.amountInUsd)
-    )
-    const price = usd / sz
-    let refusal: string | null = null
-    if (priceImpact > input.slippage)
-      refusal =
-        "This swap's price impact exceeds the worst-fill allowance. Lower the size or adjust the allowance."
-    if (
-      input.px !== null &&
-      (buy
-        ? price > input.px * (1 + input.slippage)
-        : price < input.px * (1 - input.slippage))
-    )
-      refusal =
-        "KyberSwap's quote is worse than the order price allows. Nothing was signed. Wait for the price or adjust the order."
     return {
       summary,
       router,
-      quote: {
+      quote: routeQuote({
         provider: "KyberSwap",
-        sz,
-        usd,
-        price,
-        priceImpact,
-        route:
-          [...new Set(summary.route.flat().map((hop) => hop.exchange))].join(
-            " → "
-          ) || "KyberSwap",
-        refusal,
-      },
+        pools: summary.route.flat().map((hop) => hop.exchange),
+        swap: input,
+        dollarDecimals,
+        amountIn: BigInt(summary.amountIn),
+        amountOut: BigInt(summary.amountOut),
+        inUsd: Number(summary.amountInUsd),
+        outUsd: Number(summary.amountOutUsd),
+      }),
     }
   }
 
@@ -305,4 +272,55 @@ export function kyberSwap(chain: KyberChain) {
   }
 
   return { request, parseRoute, validateBuild }
+}
+
+/**
+ * KyberSwap as one of a chain's routers: a route for the swap, and a build
+ * that is checked before anything is signed. `kyber` is a chain's own
+ * KyberSwap, so its requests count against that chain's allowance.
+ */
+export function kyberRouter(
+  kyber: Pick<
+    ReturnType<typeof kyberSwap>,
+    "request" | "parseRoute" | "validateBuild"
+  >,
+  dollarCoin: Address
+): SwapRouter {
+  return async (input, priority) => {
+    const raw = await kyber.request(
+      "routes",
+      {
+        tokenIn: input.side === "buy" ? dollarCoin : input.token,
+        tokenOut: input.side === "buy" ? input.token : dollarCoin,
+        amountIn: String(input.amount),
+      },
+      priority
+    )
+    const route = kyber.parseRoute(raw, input)
+    return {
+      quote: route.quote,
+      amountOut: BigInt(route.summary.amountOut),
+      async build({ wallet, bps, deadline }) {
+        const built = kyber.validateBuild(
+          await kyber.request(
+            "route/build",
+            {
+              routeSummary: route.summary,
+              sender: wallet,
+              recipient: wallet,
+              slippageTolerance: bps,
+              deadline,
+              source: KYBER_CLIENT_ID,
+              ignoreCappedSlippage: true,
+            },
+            "order"
+          ),
+          route,
+          wallet,
+          bps / 10_000
+        )
+        return { data: built.data, to: built.router }
+      },
+    }
+  }
 }

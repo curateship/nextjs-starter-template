@@ -1,5 +1,7 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 
+import { CharacterCount } from "@/components/shared/character-count"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,38 +18,37 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { CharacterCount } from "@/components/shared/character-count"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { SubmissionDetail as Detail } from "@/components/directory/submission-dialog"
+import { getAdminSubmissionErrorMessage } from "@/lib/api/directory/submissions"
 import {
-  decideSubmission,
-  getAdminSubmissionErrorMessage,
-} from "@/lib/api/directory/submissions"
-import type { SubmissionSummary } from "@/lib/api/directory/submissions"
-import { REVIEW_STATUS_LABELS } from "@/lib/directory/review-status"
+  decideSuggestedEvent,
+  type EventSubmission,
+} from "@/lib/api/events/submissions"
+import { submissionWhen } from "@/lib/events/event-submission-fields"
+import { eventRowText } from "@/lib/events/event-time"
 import { formatDate } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
+const DECIDED_LABELS = { approved: "Approved", rejected: "Rejected" }
+
 /**
- * One submission, read in full, with the two answers under it.
+ * One suggested event, read in full, with the two answers under it.
  *
- * Approving creates the listing — published, with the categories the sender
- * picked — so the window says so before the button rather than after. A
- * submission that has already been dealt with opens read-only: it is a record
- * of what happened, not a decision to make again.
+ * Approving makes a draft, never a published event, so the window says so
+ * before the button. A suggestion already dealt with opens read-only: it is a
+ * record of what happened, not a decision to make again.
  */
-export function SubmissionDialog({
+export function EventSubmissionDialog({
   open,
   submission,
-  listing,
   onClose,
   onDecided,
 }: {
   open: boolean
-  submission: SubmissionSummary | null
-  /** The listing an approved one became, when it has one. */
-  listing: { title: string; slug: string } | null
+  submission: EventSubmission | null
   onClose: () => void
   /** `emailed` is whether the sender was actually told, not whether we tried. */
   onDecided: (decision: "approve" | "reject", emailed: boolean) => void
@@ -62,14 +63,15 @@ export function SubmissionDialog({
     setNote("")
   }
 
-  const decided = submission ? submission.status !== "pending_review" : false
+  const decided =
+    submission && submission.status !== "pending" ? submission.status : null
 
   async function decide(decision: "approve" | "reject") {
     if (!submission) return
     dismissErrorToast()
     setBusy(true)
     try {
-      const { emailed } = await decideSubmission({
+      const { emailed } = await decideSuggestedEvent({
         id: submission.id,
         decision,
         note,
@@ -92,15 +94,15 @@ export function SubmissionDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{submission?.businessName ?? "Submission"}</DialogTitle>
+            <DialogTitle>{submission?.title ?? "Suggestion"}</DialogTitle>
             <DialogDescription>
               {decided && submission
-                ? `${REVIEW_STATUS_LABELS[submission.status]}${
+                ? `${DECIDED_LABELS[decided]}${
                     submission.reviewedAt
                       ? ` on ${formatDate(submission.reviewedAt)}`
                       : ""
                   }.`
-                : "Approving creates a published listing straight away, with the categories below."}
+                : "Approving saves it as a draft event with everything below. Nothing is public until you publish it."}
             </DialogDescription>
           </DialogHeader>
 
@@ -110,45 +112,80 @@ export function SubmissionDialog({
                 <CardTitle>What was sent</CardTitle>
                 {submission ? (
                   <CardDescription>
-                    Confirmed by email
-                    {submission.verifiedAt
-                      ? ` on ${formatDate(submission.verifiedAt)}`
-                      : ""}
-                    .
+                    Sent on {formatDate(submission.createdAt)}.
                   </CardDescription>
                 ) : null}
               </CardHeader>
               <CardContent className="grid gap-4">
-                <SubmissionDetail label="Contact email" value={submission?.contactEmail} />
-                <SubmissionDetail label="Address" value={submission?.address} />
-                <SubmissionDetail label="Phone" value={submission?.phone} />
-                <SubmissionDetail label="Website" value={submission?.website} />
-                <SubmissionDetail
-                  label="Categories"
-                  value={submission?.categoryNames.join(", ")}
+                <Detail
+                  label="When"
+                  value={
+                    submission
+                      ? eventRowText(submissionWhen(submission))
+                      : undefined
+                  }
                 />
-                <SubmissionDetail
+                <Detail label="Place" value={submission?.placeName} />
+                <Detail
+                  label="Street address"
+                  value={submission?.placeAddress}
+                />
+                <Detail
                   label="Description"
                   value={submission?.description}
                   multiline
                 />
+                {submission?.photoUrl ? (
+                  <div className="grid gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Photo
+                    </span>
+                    <img
+                      src={submission.photoUrl}
+                      alt={`The photo sent with ${submission.title}`}
+                      className="aspect-video w-full rounded-md border bg-muted/50 object-cover"
+                    />
+                  </div>
+                ) : (
+                  <Detail label="Photo" value={undefined} />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Who sent it</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <Detail label="Name" value={submission?.submitterName} />
+                <Detail label="Email" value={submission?.submitterEmail} />
               </CardContent>
             </Card>
 
             {decided ? (
-              submission?.reviewNote ? (
+              submission?.reviewNote || submission?.eventId ? (
                 <Card size="sm">
                   <CardHeader>
-                    <CardTitle>The note that was sent</CardTitle>
+                    <CardTitle>
+                      {submission.reviewNote
+                        ? "The note that was sent"
+                        : "What it became"}
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {submission.reviewNote}
-                    </p>
-                    {listing ? (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        It became {listing.title}.
+                  <CardContent className="grid gap-2">
+                    {submission.reviewNote ? (
+                      <p className="text-sm whitespace-pre-wrap">
+                        {submission.reviewNote}
                       </p>
+                    ) : null}
+                    {submission.eventId ? (
+                      <Link
+                        to="/admin/events"
+                        search={{ open: submission.eventId }}
+                        className="w-fit text-sm underline-offset-4 hover:underline"
+                      >
+                        Open the draft event
+                      </Link>
                     ) : null}
                   </CardContent>
                 </Card>
@@ -165,11 +202,13 @@ export function SubmissionDialog({
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
                     <div className="flex items-center justify-between gap-2">
-                      <FieldLabel htmlFor="submission-note">Note</FieldLabel>
+                      <FieldLabel htmlFor="event-submission-note">
+                        Note
+                      </FieldLabel>
                       <CharacterCount value={note} max={500} />
                     </div>
                     <Textarea
-                      id="submission-note"
+                      id="event-submission-note"
                       rows={1}
                       maxLength={500}
                       value={note}
@@ -210,7 +249,7 @@ export function SubmissionDialog({
                   disabled={busy}
                   onClick={() => void decide("approve")}
                 >
-                  Approve and publish
+                  Approve as a draft
                 </Button>
               </>
             )}
@@ -218,33 +257,5 @@ export function SubmissionDialog({
         </DialogContent>
       )}
     </FormDialog>
-  )
-}
-
-/**
- * One read-only line. Empty answers say so rather than leaving a gap. The
- * event suggestions window uses it too.
- */
-export function SubmissionDetail({
-  label,
-  value,
-  multiline,
-}: {
-  label: string
-  value?: string
-  multiline?: boolean
-}) {
-  return (
-    <div className="grid gap-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <p
-        className={`text-sm ${multiline ? "whitespace-pre-wrap" : "truncate"} ${
-          value ? "" : "text-muted-foreground"
-        }`}
-        title={multiline ? undefined : value}
-      >
-        {value || "Not given"}
-      </p>
-    </div>
   )
 }

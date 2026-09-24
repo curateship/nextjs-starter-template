@@ -24,6 +24,17 @@ import {
   fetchRobinhoodAccount,
   fetchRobinhoodPortfolio,
 } from "@/server/protocols/robinhood/account"
+import { fetchRobinhoodOrderFills } from "@/server/protocols/robinhood/fills"
+import {
+  cancelRobinhoodOrder,
+  closeRobinhoodPosition,
+  fetchRobinhoodOrderInfo,
+  modifyRobinhoodOrder,
+  placeRobinhoodOrder,
+  quoteRobinhoodSwap,
+  setRobinhoodBrackets,
+} from "@/server/protocols/robinhood/orders"
+import { robinhoodExecutionNotes } from "@/server/protocols/robinhood-ledger"
 import {
   fetchRobinhoodCandles,
   fetchRobinhoodCandleHistory,
@@ -1264,7 +1275,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * Markets, a wallet and its holdings. No orders yet.
+   * Markets, a wallet, its holdings, and swaps.
    *
    * Robinhood Chain is BNB Chain's twin: an Ethereum-shaped chain where the
    * app holds its own wallet, and both share `evm-chain/`. The market list is
@@ -1275,7 +1286,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * A stock token's older years come from Dukascopy and ETH's from Binance,
    * through `lib/protocols/robinhood/history.ts`. Holdings are read off the
    * chain by address, with the explorer saying which tokens to ask about.
-   * There is no orders block, so nothing here can be bought yet.
+   * Every order is a swap through KyberSwap or Velora, whichever gives more,
+   * approving each swap's exact amount. Nothing rests, so cancel, modify and
+   * brackets refuse in plain words.
    */
   robinhood: {
     ...protocolCore("robinhood"),
@@ -1305,6 +1318,18 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       form: protocolDescription("robinhood").credentialForm!,
       pack: packRobinhoodCredential,
       make: makeEvmWallet,
+    },
+    orders: {
+      quote: quoteRobinhoodSwap,
+      place: placeRobinhoodOrder,
+      cancel: cancelRobinhoodOrder,
+      modify: modifyRobinhoodOrder,
+      close: closeRobinhoodPosition,
+      setBrackets: setRobinhoodBrackets,
+      portfolio: fetchRobinhoodPortfolio,
+      fills: fetchRobinhoodOrderFills,
+      orderInfo: fetchRobinhoodOrderInfo,
+      executionNotes: robinhoodExecutionNotes,
     },
   },
 }

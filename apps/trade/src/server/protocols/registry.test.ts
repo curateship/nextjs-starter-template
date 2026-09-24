@@ -92,19 +92,23 @@ describe("the protocol registry", () => {
     expect(entry.markets.recordsOwnBars).toBe(true)
   })
 
-  it("lists Robinhood Chain's markets and reads a wallet's holdings, with nothing to trade yet", async () => {
+  it("lists Robinhood Chain's markets, reads a wallet's holdings and swaps", async () => {
     const entry = getProtocol("robinhood")
     expect(entry.networks).toEqual(["mainnet"])
     expect(entry.capabilities).toMatchObject({
       markets: true,
       accounts: true,
-      orders: false,
+      orders: true,
+      ordersAreSwaps: true,
+      gridStop: "watched",
     })
     expect(entry.account?.fetch).toBeTypeOf("function")
     expect(entry.account?.portfolio).toBeTypeOf("function")
     // The chain states no profit on a sale, so a zero is "not stated".
     expect(entry.account?.profitPerSale).toBe(false)
-    expect(entry.orders).toBeUndefined()
+    expect(entry.orders?.quote).toBeTypeOf("function")
+    expect(entry.orders?.fills).toBeTypeOf("function")
+    expect(entry.orders?.executionNotes).toBeTypeOf("function")
     expect(entry.markets.search).toBeTypeOf("function")
     // Pool candles are stored, recorded prices fill a coin no pool answers
     // for, and backtests stay off the chain.

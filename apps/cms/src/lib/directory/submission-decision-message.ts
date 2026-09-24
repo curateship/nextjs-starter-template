@@ -14,10 +14,26 @@ export function submissionDecisionMessage(
   decision: "approve" | "reject",
   emailed: boolean
 ): string {
+  return decisionMessage("The listing is live", decision, emailed)
+}
+
+/** The same wording for a suggested event, which approving makes a draft. */
+export function eventSubmissionDecisionMessage(
+  decision: "approve" | "reject",
+  emailed: boolean
+): string {
+  return decisionMessage("The event is saved as a draft", decision, emailed)
+}
+
+function decisionMessage(
+  made: string,
+  decision: "approve" | "reject",
+  emailed: boolean
+): string {
   if (decision === "approve") {
     return emailed
-      ? "Approved. The listing is live and the sender has been emailed."
-      : "Approved. The listing is live, but the email to the sender could not be sent."
+      ? `Approved. ${made} and the sender has been emailed.`
+      : `Approved. ${made}, but the email to the sender could not be sent.`
   }
 
   return emailed

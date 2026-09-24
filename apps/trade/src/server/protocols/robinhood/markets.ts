@@ -4,6 +4,7 @@ import {
   evmMarkets,
   type VettedToken,
 } from "@/server/protocols/evm-chain/markets"
+import { evmRefused } from "@/server/protocols/evm-chain/refusals"
 import {
   ROBINHOOD_CHAIN_ID,
   ROBINHOOD_STOCK_FACTORY,
@@ -140,3 +141,18 @@ export const searchRobinhoodMarkets = markets.search
 export const fetchRobinhoodPrices = markets.prices
 export const robinhoodPricesWereRationed = markets.pricesWereRationed
 export const robinhoodAccountMarkets = markets.accountMarkets
+export const robinhoodBuyRefusal = markets.buyRefusal
+
+/** ETH's dollar price, to value network fees. A refusal when there is none. */
+export async function robinhoodEthPrice(): Promise<number> {
+  const known = (await markets.accountMarkets()).prices.get(ROBINHOOD_WETH)
+  const price =
+    known ??
+    (await markets.prices("mainnet", [ROBINHOOD_WETH])).get(ROBINHOOD_WETH)
+  if (!(price && Number.isFinite(price) && price > 0))
+    throw evmRefused(
+      "ETH's price is unavailable, so the fee cannot be valued. Nothing was signed. Try again shortly."
+    )
+  return price
+}
+export const robinhoodKnownUnsellable = markets.knownUnsellable

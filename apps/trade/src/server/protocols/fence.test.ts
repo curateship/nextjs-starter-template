@@ -131,10 +131,10 @@ describe("the protocol fence", () => {
   })
 
   it("keeps the chains' shared service addresses inside the chain folders", () => {
-    // BNB Chain and Robinhood Chain both ask these four services, so each
+    // BNB Chain and Robinhood Chain both ask these services, so each
     // chain's client may name them. Nothing else may.
     const addresses =
-      /kyberswap\.com|dexscreener\.com|geckoterminal\.com|gopluslabs\.io/
+      /kyberswap\.com|paraswap\.io|dexscreener\.com|geckoterminal\.com|gopluslabs\.io/
     const offenders = sources
       .filter(({ path }) => !CHAIN_HOMES.some((home) => path.startsWith(home + sep)))
       .filter(({ path }) => path !== relative(SRC, __filename))

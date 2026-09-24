@@ -32,17 +32,33 @@ import {
   type EvmRefusalDetail,
   type EvmRefusals,
 } from "./refusals"
-import {
-  evmSlippage,
-  evmUnits,
-  KYBER_CLIENT_ID,
-  type KyberRoute,
-  type KyberRouteInput,
-  type kyberSwap,
-} from "./kyber"
+import { evmSlippage, evmUnits, type KyberRouteInput } from "./kyber"
 import type { evmReceipts } from "./receipts"
 
 type Owner = { userId: string; walletId: string }
+
+/** One router's route for a swap, and how to turn it into a transaction. */
+type RouterQuote = {
+  quote: SwapQuote
+  /** Coins the route expects to deliver, in base units. */
+  amountOut: bigint
+  /**
+   * The checked, unsigned transaction. `to` is the router's contract, which
+   * is also what the wallet approves to spend its coins.
+   */
+  build(input: {
+    wallet: Address
+    /** Worst fill allowed, in basis points. */
+    bps: number
+    /** Unix seconds after which the router must refuse the swap. */
+    deadline: number
+  }): Promise<{ data: Hash; to: Address }>
+}
+/** Asks one router for a route. Throws a refusal when it has none. */
+export type SwapRouter = (
+  input: KyberRouteInput,
+  priority: "read" | "order"
+) => Promise<RouterQuote>
 /** One confirmed approval, its fee in the chain's fee coin. */
 type SwapApproval = { hash: string; fee: number }
 
@@ -84,7 +100,23 @@ type SwapChain = {
   wrappedNative: Address
   unsupportedNetwork: string
   refusals: EvmRefusals
-  kyber: ReturnType<typeof kyberSwap>
+  /**
+   * The routers asked for every swap. Each is asked at once; the route that
+   * is not refused and delivers the most coins is used.
+   */
+  routers: readonly SwapRouter[]
+  /**
+   * What the wallet lets a router spend. "unlimited" approves once per coin
+   * and router; "exact" approves each swap's own amount, so a router bug can
+   * never take more than one swap's worth.
+   */
+  approval: "unlimited" | "exact"
+  /** How long to wait for a sent transaction's receipt. */
+  receiptWait: {
+    confirmations: number
+    pollingInterval: number
+    timeout: number
+  }
   receipts: ReturnType<typeof evmReceipts>
   wallet: {
     verify(
@@ -126,13 +158,13 @@ export function transferFromFailed(error: unknown): boolean {
 }
 
 /**
- * A spot swap through KyberSwap, signed on the server with the wallet's key.
+ * A spot swap through a router, signed on the server with the wallet's key.
  *
  * Nothing rests: every order is a swap that fills when it is sent, so cancel,
  * modify and brackets refuse in plain words. The key never leaves the server.
  */
 export function evmSwaps(chain: SwapChain) {
-  const { refusals, kyber, receipts, ledger, feeCoin } = chain
+  const { refusals, receipts, ledger, feeCoin } = chain
 
   function inputs(
     network: NetworkId,
@@ -152,21 +184,41 @@ export function evmSwaps(chain: SwapChain) {
     }
   }
 
+  /**
+   * Every router asked at once. A route that is not refused beats one that
+   * is, then the one delivering more coins wins. With every router refusing,
+   * the most telling refusal is the one reported: a router with no pool says
+   * more than a router that was busy or would not answer.
+   */
   async function route(
     input: KyberRouteInput,
     priority: "read" | "order"
-  ): Promise<KyberRoute> {
+  ): Promise<RouterQuote> {
     if (input.amount <= 0n) throw new Error("LIVE_SIZE")
-    const raw = await kyber.request(
-      "routes",
-      {
-        tokenIn: input.side === "buy" ? chain.dollarCoin : input.token,
-        tokenOut: input.side === "buy" ? input.token : chain.dollarCoin,
-        amountIn: String(input.amount),
-      },
-      priority
+    const answers = await Promise.allSettled(
+      chain.routers.map((router) => router(input, priority))
     )
-    return kyber.parseRoute(raw, input)
+    const found = answers.flatMap((answer) =>
+      answer.status === "fulfilled" ? [answer.value] : []
+    )
+    if (!found.length) {
+      const errors = answers.flatMap((answer) =>
+        answer.status === "rejected" ? [answer.reason as unknown] : []
+      )
+      const telling = errors.find((error) => {
+        const code = (error as { code?: unknown })?.code
+        return (
+          typeof code === "string" &&
+          !["unknown", "kyber-busy", "node-busy"].includes(code)
+        )
+      })
+      throw telling ?? errors[0]
+    }
+    return found.reduce((best, next) => {
+      if (Boolean(best.quote.refusal) !== Boolean(next.quote.refusal))
+        return best.quote.refusal ? next : best
+      return next.amountOut > best.amountOut ? next : best
+    })
   }
 
   async function quote(
@@ -273,7 +325,7 @@ export function evmSwaps(chain: SwapChain) {
             : found.quote.sz * params.px * (1 - slippage),
           params.side === "buy" ? decimals : chain.dollarDecimals
         ) + 1n
-      const out = BigInt(found.summary.amountOut)
+      const out = found.amountOut
       buildBps = Math.min(buildBps, Number(((out - minimum) * 10_000n) / out))
       if (minimum > out || buildBps < 0)
         throw evmRefused(
@@ -281,24 +333,11 @@ export function evmSwaps(chain: SwapChain) {
         )
     }
     const deadline = Math.floor(Date.now() / 1000) + 120
-    const built = kyber.validateBuild(
-      await kyber.request(
-        "route/build",
-        {
-          routeSummary: found.summary,
-          sender: wallet,
-          recipient: wallet,
-          slippageTolerance: buildBps,
-          deadline,
-          source: KYBER_CLIENT_ID,
-          ignoreCappedSlippage: true,
-        },
-        "order"
-      ),
-      found,
-      wallet,
-      buildBps / 10_000
-    )
+    const built = await found.build({ wallet, bps: buildBps, deadline })
+    // The coin the wallet pays with, which the router must be allowed to spend.
+    const tokenIn = params.side === "buy" ? chain.dollarCoin : token
+    const tokenInDecimals =
+      params.side === "buy" ? chain.dollarDecimals : decimals
     const feePrice = await chain.feeCoinPrice()
     await assertRealMoneyAllowed(network)
     if (!auth.owner) throw new Error("LIVE_WALLET_NOT_FOUND")
@@ -383,18 +422,30 @@ export function evmSwaps(chain: SwapChain) {
         try {
           await writer.sendRawTransaction({ serializedTransaction: signed })
         } catch (error) {
+          const code = nodeRefusalCode(error)
+          if (code === "gas") {
+            // The node turned it away for lack of fee money, so it never
+            // reached the chain. Left pending, no receipt would ever come,
+            // and every later swap from this wallet would be refused as
+            // unconfirmed. Any other failure may still have gone out, and
+            // stays pending for the sweep to settle.
+            detail.pending = false
+            detail.hash = undefined
+            const note = refusals.sentence("gas", detail)
+            await ledger.finish(owner, hash, "failed", note)
+            await ledger.note(owner, token, note)
+            throw refusals.error("gas", detail)
+          }
           return {
             hash,
             receipt: null,
-            note: refusals.sentence(nodeRefusalCode(error), detail),
+            note: refusals.sentence(code, detail),
           }
         }
         try {
           const receipt = await client.waitForTransactionReceipt({
             hash,
-            confirmations: 2,
-            timeout: 30_000,
-            pollingInterval: 1_000,
+            ...chain.receiptWait,
           })
           if (
             receipt.transactionHash &&
@@ -427,11 +478,11 @@ export function evmSwaps(chain: SwapChain) {
       }
       const approve = async () => {
         const sent = await signSend(
-          found.summary.tokenIn,
+          tokenIn,
           encodeFunctionData({
             abi: erc20Abi,
             functionName: "approve",
-            args: [built.router, maxUint256],
+            args: [built.to, chain.approval === "exact" ? amount : maxUint256],
           }),
           "approval"
         )
@@ -456,10 +507,10 @@ export function evmSwaps(chain: SwapChain) {
         detail.feeWei = undefined
         detail.hash = undefined
         const allowance = await client.readContract({
-          address: found.summary.tokenIn,
+          address: tokenIn,
           abi: erc20Abi,
           functionName: "allowance",
-          args: [wallet, built.router],
+          args: [wallet, built.to],
         })
         if (allowance < amount)
           throw refusals.error("approval", { ...detail, hash: sent.hash })
@@ -468,21 +519,21 @@ export function evmSwaps(chain: SwapChain) {
         )
         approvals.push({ hash: sent.hash, fee })
         approvalFee += fee * feePrice
-        approvalNote += ` Unlimited approval confirmed for ${found.summary.tokenIn} to router ${built.router}, transaction ${sent.hash}, fee ${fee} ${feeCoin}.`
+        approvalNote += ` ${chain.approval === "exact" ? `Approval of exactly ${formatUnits(amount, tokenInDecimals)}` : "Unlimited approval"} confirmed for ${tokenIn} to router ${built.to}, transaction ${sent.hash}, fee ${fee} ${feeCoin}.`
         await ledger.note(owner, token, approvalNote.trim())
       }
       const allowance = await client.readContract({
-        address: found.summary.tokenIn,
+        address: tokenIn,
         abi: erc20Abi,
         functionName: "allowance",
-        args: [wallet, built.router],
+        args: [wallet, built.to],
       })
       if (allowance < amount) await approve()
       let gas: bigint
       try {
         gas = await client.estimateGas({
           account,
-          to: built.router,
+          to: built.to,
           data: built.data,
           value: 0n,
         })
@@ -492,7 +543,7 @@ export function evmSwaps(chain: SwapChain) {
         try {
           gas = await client.estimateGas({
             account,
-            to: built.router,
+            to: built.to,
             data: built.data,
             value: 0n,
           })
@@ -501,7 +552,7 @@ export function evmSwaps(chain: SwapChain) {
         }
       }
       const sent = await signSend(
-        built.router,
+        built.to,
         built.data,
         "swap",
         gas + gas / 5n
@@ -523,7 +574,7 @@ export function evmSwaps(chain: SwapChain) {
         try {
           await client.call({
             account: wallet,
-            to: built.router,
+            to: built.to,
             data: built.data,
             value: 0n,
             blockNumber: sent.receipt.blockNumber,

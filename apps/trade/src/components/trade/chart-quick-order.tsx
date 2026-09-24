@@ -752,7 +752,7 @@ export function ChartQuickOrder({
                     ? "Getting a swap quote…"
                     : shownQuote.state === "failed"
                       ? shownQuote.message
-                      : `${shownQuote.quote.provider ?? "Jupiter"}: ${shownQuote.quote.sz.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${market.symbol} for ${formatUsd(shownQuote.quote.usd)} at ${formatPrice(shownQuote.quote.price)}, price impact ${(shownQuote.quote.priceImpact * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })}%, via ${shownQuote.quote.route}.${shownQuote.quote.refusal ? ` ${shownQuote.quote.refusal}` : ""}`}
+                      : `${shownQuote.quote.provider ?? "Jupiter"}: ${shownQuote.quote.sz.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${market.symbol} for ${formatUsd(shownQuote.quote.usd)} at ${formatPrice(shownQuote.quote.price)}, price impact ${(shownQuote.quote.priceImpact * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })}%, via ${shownQuote.quote.route}.${shownQuote.quote.refusal ? ` ${shownQuote.quote.refusal}` : ""}${shownQuote.quote.note ? ` ${shownQuote.quote.note}` : ""}`}
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
                 The chain holds no stop or exit. To get out at a price, place a

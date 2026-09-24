@@ -112,3 +112,32 @@ export async function tellAdminsAboutListingReport(
     // over.
   }
 }
+
+/**
+ * A suggestion from the Suggest an event page. Wrapped whole for the same
+ * reason as a listing report: the suggestion is already saved, and a failed
+ * admin lookup must not answer the person with a failure.
+ */
+export async function tellAdminsAboutEventSubmission(
+  workspaceId: string,
+  eventTitle: string,
+  database: CustomShellDb = db
+) {
+  try {
+    await notifyAdmins(
+      {
+        workspaceId,
+        subject: `New event suggested: ${eventTitle}`,
+        lines: [
+          `Somebody suggested ${eventTitle} on the Suggest an event page.`,
+          "It is waiting in the event suggestions queue.",
+        ],
+        url: appUrlFor("/admin/event-submissions"),
+      },
+      await adminEmails(database),
+      database
+    )
+  } catch {
+    // The suggestion is in the queue either way.
+  }
+}

@@ -1719,3 +1719,49 @@ export const tradeBnbTransactions = pgTable(
     index("trade_bnb_transactions_address_idx").on(table.address, table.state),
   ]
 )
+
+/** Robinhood Chain's signed transactions, saved before broadcast like BNB Chain's. */
+export const tradeRobinhoodTransactions = pgTable(
+  "trade_robinhood_transactions",
+  {
+    hash: varchar("hash", { length: 66 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    address: varchar("address", { length: 42 }).notNull(),
+    marketId: varchar("market_id", { length: 42 }).notNull(),
+    kind: varchar("kind", { length: 8 }).$type<"approval" | "swap">().notNull(),
+    state: varchar("state", { length: 10 })
+      .$type<"pending" | "confirmed" | "failed">()
+      .notNull(),
+    note: text("note"),
+    /** Confirmed approvals paid for this swap, their fees in ETH. */
+    approvals: jsonb("approvals")
+      .$type<{ hash: string; feeEth: number }[]>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "trade_robinhood_transactions_kind_check",
+      sql`${table.kind} IN ('approval', 'swap')`
+    ),
+    check(
+      "trade_robinhood_transactions_state_check",
+      sql`${table.state} IN ('pending', 'confirmed', 'failed')`
+    ),
+    index("trade_robinhood_transactions_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.state
+    ),
+    index("trade_robinhood_transactions_address_idx").on(
+      table.address,
+      table.state
+    ),
+  ]
+)

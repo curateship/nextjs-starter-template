@@ -32,6 +32,16 @@ published event has its own page at `/events/<address>`.
 - **Deleting the main event deletes every date.** Chosen on 23 Sep 2026.
   Setting the repeat to "Does not repeat" is how an admin stops a series and
   keeps the dates that have been.
+- **A suggested event goes straight to the queue.** Chosen on 24 Sep 2026.
+  There is no email to confirm first, unlike Add your listing. The hidden box
+  and five an hour from one address keep spam down.
+- **The Suggest an event form has a fixed list of required boxes**: the name,
+  the day, the start time and the email. Chosen on 24 Sep 2026, over a setting
+  where the admin picks. The server checks the same list as the browser.
+- **The photo comes with the form**, and is filed in the Media library only
+  when the suggestion is approved. Chosen on 24 Sep 2026.
+- **The Events page has a "Suggest an event" button** while the Suggest an
+  event page is on. Chosen on 24 Sep 2026. The page starts on for every site.
 
 ## What an event is
 
@@ -705,6 +715,131 @@ Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
   button.
 - **A draft, another site's event and a made-up address** all get not found,
   the same as the page.
+
+## Suggested events
+
+Anybody can suggest an event at `/add-event`, like a band that used to email
+the site owner about every gig. The suggestion waits in Admin → Event
+suggestions, at `/admin/event-submissions`, until an admin says yes or no.
+Yes makes a draft event. The person is emailed either way.
+
+The queue has no sidebar link of its own, the same rule as Events. Add it to
+the sidebar in Settings, or open it from the link in the email admins get
+about each new suggestion.
+
+### The form
+
+- **Where:** `/add-event`, reached from the "Suggest an event" button beside
+  Subscribe on the Events page. The button shows only while the Suggest an
+  event page is open to the visitor.
+- **Two switches:** the page follows its own switch on the Pages screen and
+  the Events page's. With either off, the page is not found and its endpoint
+  refuses a send, so a direct call cannot get round it.
+- **The boxes:** the name of the event, a description, a photo, the day, a
+  start and an end time, the place, the street address, and the person's name
+  and email. The name, the day, the start time and the email are required.
+- **The day:** the same date picker as Admin → Events. A day before the site's
+  today is refused with "That day has already been. Pick today or a later
+  day." Today itself is fine. "Today" is the site's calendar, never the
+  visitor's.
+- **Past midnight:** an end time earlier than the start time means the next
+  day, so a gig from 9:00 PM to 1:00 AM is typed as it is said. The hint on
+  Ends says so. An end time equal to the start time is refused.
+- **The photo:** one JPG, PNG or WebP up to 5 MB. The box is the form's own,
+  drawn like the shared image box, because that one needs an account. The
+  photo stays in the browser until Send. It shows only while the site has file
+  storage set up in Settings → Storage.
+- **The check is shared.** `eventSubmissionProblems` in
+  `src/lib/events/event-submission-fields.ts` is what the form shows under each
+  box and what the server refuses with. The old Directory app checked its
+  required boxes in the browser only.
+- **After Send:** "Thank you", naming the event and the email the answer goes
+  to, with "Suggest another event", which keeps the name and email, and "Back
+  to events".
+
+### Spam
+
+- **A hidden box:** the form has a box no person sees or reaches. A bot fills
+  every box, and a send with that one filled is told it worked and is thrown
+  away.
+- **Five an hour:** one internet address may send five suggestions an hour to
+  one site. The sixth is refused with "You have sent 5 events in the last hour,
+  which is as many as this site takes. Please try again in an hour." Another
+  site, or another address, has its own five.
+- **A refused answer does not count.** A day that has been, or a missing email,
+  is refused before the five are counted, so fixing a typo costs nothing.
+- **A double click is one suggestion.** The same title from the same email
+  inside a day, while the first is still waiting, writes nothing new and says
+  it arrived.
+- **Admins are emailed** about each new suggestion, with a link to the queue,
+  the same way as a new listing. A failed email to them never fails the send.
+
+### The queue
+
+- **Three tabs:** Pending, which it opens on and which shows how many are
+  waiting, Approved and Rejected, with a search over the event's name, the
+  email and the person's name. The tab, the search and an open suggestion all
+  live in the address.
+- **No selection column,** the same as Listing submissions: approving in bulk
+  would make events nobody read.
+- **The window** shows everything that was sent, the photo included, and a
+  note back. Pending ones end with Cancel, Reject and "Approve as a draft".
+  Decided ones open read-only with Done, the note that was sent, and "Open the
+  draft event" for an approved one. The row's "The event" does the same.
+
+### Approving and rejecting
+
+- **Approving makes a draft event with every field filled:** the title, the
+  day and times, the place, the street address, the description as the body,
+  its first paragraph as the summary, and the photo as the cover. Nothing is
+  public until an admin publishes it.
+- **The photo joins the Media library** on approval, under the admin who
+  approved it. Until then it waits in the site's storage under
+  `event-submissions/`, which the Media screen's orphan scan leaves alone
+  because it is not a person's folder. The person who sent it is never told
+  where it is kept.
+- **No map lookup on approval.** The street address is looked up the first time
+  the admin saves the draft in the event window, as "The map on the event page"
+  says.
+- **Once only.** Approving twice, or two admins at the same moment, makes one
+  event. The second is told "Somebody has already dealt with this one."
+- **Rejecting** keeps the suggestion as a record with its note, makes nothing,
+  and deletes the photo from storage.
+- **Only this site's.** A suggestion sent to one site is never in another
+  site's queue and cannot be decided from it.
+
+### The email back
+
+The same rule as a listing's, in `submission-review-email.md`: the decision is
+saved first, and a failed email never undoes it.
+
+- **Approved:** "<title> has been accepted", saying it will be on the Events
+  page once it is published, with the admin's note if there is one.
+- **Rejected:** "About your event, <title>", with the admin's note, or "If you
+  think this is a mistake, reply to this email." when there is none.
+- **The admin is told which happened:** "Approved. The event is saved as a
+  draft and the sender has been emailed." in green, or "…but the email to the
+  sender could not be sent." in amber. A local site with no Resend key always
+  shows the amber one.
+
+### Where it lives
+
+- **The table:** `event_submissions`, from
+  `drizzle/0089_cms_event_submissions.sql`.
+- **The rules:** `src/server/events/submissions.ts` (`createEventSubmission`,
+  `reviewEventSubmission`, and `decideEventSubmission` for the decision and the
+  email together). The boxes and the check:
+  `src/lib/events/event-submission-fields.ts`.
+- **The doors:** `src/lib/api/events/submissions.ts`, with the two public ones
+  written down in `src/app/open-endpoints.ts`.
+- **The screens:** `src/routes/add-event.tsx` with
+  `src/components/events/public/event-submission-form.tsx`, and
+  `src/routes/_authenticated/admin/event-submissions.tsx` with
+  `src/components/events/event-submissions-dashboard.tsx` and
+  `event-submission-dialog.tsx`.
+- **Not built:** the person cannot change or withdraw a suggestion after
+  sending it, and has no account, as task 16 said. A site deleted with
+  suggestions still waiting leaves their photos in storage.
 
 ## Not built yet
 

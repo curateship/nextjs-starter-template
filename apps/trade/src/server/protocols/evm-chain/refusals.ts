@@ -23,6 +23,8 @@ export type EvmRefusalDetail = {
   approvalFeeWei?: bigint
   pending?: boolean
   approval?: boolean
+  /** The router a no-route or bad-request refusal came from. KyberSwap unless named. */
+  router?: string
   /**
    * This was a history read, not a transaction.
    *
@@ -183,19 +185,19 @@ export function evmRefusals(words: EvmChainWords) {
     switch (code) {
       case "no-route":
         said =
-          "KyberSwap found no pool with enough money for this size. Try a smaller size or a coin that trades more."
+          `${detail.router ?? "KyberSwap"} found no pool with enough money for this size. Try a smaller size or a coin that trades more.`
         break
       case "unknown-token":
         said =
-          "KyberSwap does not know this coin. Check its contract address or choose another coin."
+          `${detail.router ?? "KyberSwap"} does not know this coin. Check its contract address or choose another coin.`
         break
       case "maximum":
         said =
-          "This size is above KyberSwap's maximum. Lower the size and ask for another quote."
+          `This size is above ${detail.router ?? "KyberSwap"}'s maximum. Lower the size and ask for another quote.`
         break
       case "malformed":
         said =
-          "KyberSwap could not read the swap request. Check the coin and size, then request a fresh quote."
+          `${detail.router ?? "KyberSwap"} could not read the swap request. Check the coin and size, then request a fresh quote.`
         break
       case "kyber-busy":
         said =
