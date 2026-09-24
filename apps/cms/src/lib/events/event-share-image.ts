@@ -1,6 +1,8 @@
 import {
+  eventDaysText,
   formatEventClock,
   formatEventShortDay,
+  spansSeveralDays,
   type EventWhen,
 } from "@/lib/events/event-time"
 
@@ -15,9 +17,7 @@ import {
  * several days, where the start time would not fit on the card's one line.
  */
 export function eventShareImageKicker(when: EventWhen): string {
-  if (when.endDate && when.endDate !== when.startDate) {
-    return `${formatEventShortDay(when.startDate)} to ${formatEventShortDay(when.endDate)}`
-  }
+  if (spansSeveralDays(when)) return eventDaysText(when)
   return `${formatEventShortDay(when.startDate)} · ${formatEventClock(when.startTime)}`
 }
 

@@ -15,6 +15,7 @@ import {
 import { userGet, userPost } from "@/server/guards"
 import { loadRawMarketCatalog } from "@/server/protocols/market-catalog"
 import { getProtocol } from "@/server/protocols/registry"
+import { withLeverageCeilings } from "@/server/trade/leverage-ceilings"
 import { recordMinuteBars } from "@/server/trade/recorded-candles"
 import {
   loadLastMarketKey,
@@ -63,7 +64,9 @@ const loadMarketsFn = createServerFn({ method: "GET" })
         throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
       }
       const [catalog, minimumVolumeUsd] = await Promise.all([
-        loadRawMarketCatalog(data.protocol, data.network),
+        loadRawMarketCatalog(data.protocol, data.network).then((raw) =>
+          withLeverageCeilings(context.user.id, raw)
+        ),
         loadMinimumMarketVolume(context.user.id),
       ])
       return {

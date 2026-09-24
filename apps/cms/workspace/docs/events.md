@@ -26,12 +26,22 @@ published event has its own page at `/events/<address>`.
 - **No place, no Google block.** Chosen on 23 Sep 2026. Google refuses an
   event without a place, so an event with neither a place name nor a street
   address gets no event markup at all.
+- **A repeating event is one row in Admin → Events.** Chosen on 23 Sep 2026,
+  so a weekly trivia night does not add 52 rows a year. Its dates open from
+  the main event's window.
+- **Deleting the main event deletes every date.** Chosen on 23 Sep 2026.
+  Setting the repeat to "Does not repeat" is how an admin stops a series and
+  keeps the dates that have been.
 
 ## What an event is
 
 - **The table:** `events`, from `drizzle/0083_cms_events.sql`. An event has a
   title, an address, a cover image, a summary, a body, a status, a start day
   and time, an optional end day and time, a place name and a street address.
+  `drizzle/0084_cms_events_visibility.sql` adds `visibility`, which is
+  `public` or `private`. Every event made before it is public.
+  `drizzle/0085_cms_event_repeats.sql` adds the repeat columns that
+  "Repeating events" below describes.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -39,6 +49,8 @@ published event has its own page at `/events/<address>`.
   like `night-market-2`.
 - **Draft or published:** a new event is a draft. A draft is never readable by
   a visitor. Unpublishing is setting it back to Draft.
+- **Public or private:** a new event is public. "Private events" below covers
+  the other kind.
 - **The published date:** set the first time an event is published and kept
   after that. It is not shown anywhere yet.
 - **Categories:** events use the same categories as listings and posts, filed
@@ -67,8 +79,9 @@ published event has its own page at `/events/<address>`.
 - **With no end time:** it ends at midnight at the end of its last day.
 - **Past midnight:** an event from 10pm to 2am needs the next day as its end
   day. Admin → Events refuses an end that comes before the start and says so.
-- **Several days:** an end day can be later than the start day. The page then
-  shows both days. The calendar and lists that task 08 adds are not built.
+- **Several days:** an end day can be later than the start day, like a food
+  festival from Friday to Sunday. It is still one event, with one page. "An
+  event over several days" below says where it shows.
 
 ## Writing an event
 
@@ -76,11 +89,147 @@ published event has its own page at `/events/<address>`.
 - **The list:** search by title, address or place, filter by status, sort by
   title, status, event date or last change. It opens on the latest event date
   first, and the Date column shows the event's own start, not when it was
-  edited.
-- **The window:** the event (title, address, summary, status, cover image),
+  edited. A private event has a "Private" label beside its status.
+- **The window:** the event (title, address, summary, status, who can find it,
+  cover image),
   when and where (start day, start time, end day, end time, place, street
   address), categories and the body. A new event needs a title, a start day and
   a start time before it saves.
+
+## Duplicating an event
+
+Each row in Admin → Events has a Duplicate button before the cog. It is for an
+event that happens again on no fixed pattern, like a trivia night most
+Thursdays. An event on a fixed pattern is a repeating event instead.
+
+- **One click:** the copy is made and its window opens straight away, so the
+  admin can change the date and save.
+- **What comes across:** the summary, cover image, body, start and end, place,
+  street address, categories and the public or private setting.
+- **The new title and address:** " (copy)" goes on the end of the title, so
+  "Trivia night" becomes "Trivia night (copy)". The address comes from that
+  title, like `trivia-night-copy`, and `trivia-night-copy-2` when that is taken.
+- **Always a draft:** the copy has no published date, so nothing new is public
+  until the admin publishes it.
+- **The original is not touched.** Closing the copy's window without saving
+  keeps the copy as a draft. Delete it from the list if it is not wanted.
+- **A copy never repeats.** Copying a repeating event copies the event and not
+  its repeat or its dates.
+- **Where it lives:** `duplicateEvent` in `src/server/events/events.ts`.
+
+## Repeating events
+
+An event can repeat every week on chosen days, or every month on a day like
+"the first Tuesday" or "the last Friday", with an optional end day. It is for
+something like a trivia night every Thursday: the admin sets it up once, and
+the coming Thursdays are always on the calendar.
+
+- **The main event is the first date.** It holds the repeat, in the Repeat
+  card of its window. Every later date is its own event, with its own page and
+  its own address, like `/events/trivia-night-2026-10-08`.
+- **The Repeat card:** "Does not repeat", "Every week" with the days ticked, or
+  "Every month" with the week and the day, plus an Until day. It starts from
+  the event's own weekday. Under it is the plain sentence, like "Every Tuesday
+  and Thursday", and the first four dates, worked out by the same code that
+  makes them.
+- **The repeat has to fall on the start day.** An event starting on a Thursday
+  cannot repeat "Every Tuesday", because the sentence would then describe dates
+  that are not the ones made. The card says so, and saving is refused in the
+  same words.
+- **How far ahead:** the next 8 dates, counting the main event while it is to
+  come, and never more than 3 months past today. A weekly event has its next 8
+  weeks; a monthly one has its next 3 months.
+- **Topping up:** a background job checks every 15 minutes and makes the
+  dates that are now due. Saving the main event makes them at once.
+- **Never twice:** each date is made for one day of the repeat, and the
+  database refuses a second date for the same day, so two runs at once never
+  make a date twice. A date the admin deleted is not made again. The next day
+  of the repeat takes its place instead.
+- **What a date copies:** the title, summary, cover image, body, status, who
+  can find it, times, place, street address and categories. An event over
+  several days keeps its length on every date.
+
+### Editing a repeating event
+
+- **Editing the main event** changes every future date that was not changed on
+  its own. Each keeps its own day and its own address. Past dates are left as
+  they were.
+- **Editing one date** changes that date only. The date is marked "Changed on
+  its own", and later changes to the main event skip it.
+- **Changing the repeat or the start day** deletes the future dates that were
+  not changed on their own and makes them again from the new repeat. A future
+  date that was changed on its own is kept, and a message after saving names
+  it, like "Thu, Oct 29 was changed on its own, so it was kept as it is."
+- **Stopping:** "Does not repeat" deletes the future dates that were not
+  changed on their own and makes no more. The past dates stay, and so does any
+  future date changed on its own.
+- **Deleting the main event** deletes every date with it, and the warning
+  counts them: "Trivia night and its 7 later dates go for good." Deleting one
+  date deletes only that date.
+
+### In Admin → Events
+
+- **One row per repeating event.** The dates are not rows. The main event's row
+  says "Repeats" beside its status, and under its title "Every Thursday · 7
+  more dates coming". After the repeat is stopped it says "No longer repeats ·
+  12 later dates". The Date column is the main event's own day.
+- **Later dates:** the main event's window lists every later date, soonest
+  first, marked "Past", "Draft" or "Changed on its own" where that is true.
+  Clicking one swaps the window to that date. With unsaved edits the window
+  asks before it swaps.
+- **One date's window** has no Repeat card. It says whose date it is and has an
+  "Open main event" button.
+
+### On the site
+
+Every date is an ordinary event to a visitor. Each shows in the Events page's
+list and month, search, the sitemap, the feed and the calendar subscription,
+and each has its own page, calendar file and Google markup.
+
+### Where it lives
+
+- **The rules:** `src/lib/events/event-repeat.ts`, copied from the old
+  Directory app with its tests. "The last Friday" in a month with five Fridays
+  is the fifth one.
+- **Making, copying and clearing dates:** `src/server/events/repeats.ts`.
+  `saveEventAndDates` saves an event and its dates in one transaction, so a
+  refused repeat leaves nothing half saved. `runRepeatTopUps` is the background
+  job, listed in `src/app/server-options.ts`.
+- **The columns:** `repeat_rule` and `repeat_made_until` on the main event;
+  `series_id`, `series_date` and `edited_alone` on each date.
+- **The background job needs a restart to start.** The shell's loop keeps the
+  list of jobs it had when the server started, so a server running before this
+  change never tops up until it restarts. Saving the main event still makes
+  its dates.
+
+## Private events
+
+A private event has a page anyone with the link can open, and no list on the
+site shows it. It is for something like a members' dinner whose link goes out
+by email. It is not a password.
+
+- **The switch:** "Who can find it" in the event window, Public or "Private,
+  link only". It can be changed at any time, on a draft or a published event.
+- **Left out of:** the Events page's list, the month, one day's list, the
+  whole-site search, the search box's suggestions, the sitemap, the feed and
+  the calendar subscription.
+- **Still working:** the event's own page, its "Add to calendar" file and its
+  drawn share card. The share card is the preview of the very link the event
+  is sent by, so it stays.
+- **Search engines:** a private event's page carries
+  `<meta name="robots" content="noindex">`, which asks them not to list it.
+  Switching the event back to Public removes the tag.
+- **The Events page's switch still counts.** With the Events page off, a
+  private event's page is not found either, the same as every event page.
+- **One filter for every list:** every public list of events filters through
+  `listedEventsOnSite` in `src/server/events/public.ts`. Only reading one event
+  by its address skips it. The old Directory app let each list check for
+  itself, and only search remembered.
+- **The test that keeps it that way:** `src/server/events/private.test.ts`
+  runs every function `public.ts` exports and fails if one shows a private
+  event, or if a new export is missing from its list. It also fails if any
+  file besides the admin code, `public.ts` and the share card reads the events
+  table, so a new list has to be written in `public.ts`.
 
 ## The event page
 
@@ -99,15 +248,17 @@ published event has its own page at `/events/<address>`.
 the month. The view, the month and a chosen day all live in the address, so a
 shared link opens the same view.
 
+- **Private events** are in none of these views.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
-  on today, stays until it is over.
+  on today, stays until it is over. A festival stays until its last day ends.
 - **The month:** `?view=month&month=2026-10`. Previous and next move a month,
   Today goes back to the site's current month, and the site's today has a ring.
   Each day shows up to three events and "+2 more". Events that are over still
   show, because a month is a record of what happened.
 - **One day:** `?day=2026-10-03`, reached from "+2 more" or a day on a phone.
-  It shows every event starting that day, soonest first. Ones that are over are
+  It shows every event on that day, soonest first, festivals that started on
+  an earlier day included. Ones that are over are
   marked "Ended", so a past day is never an empty page. It is not paged.
 - **On a phone** the month is a small grid of day numbers with a dot on days
   that have events. Tapping a day with a dot opens that day.
@@ -116,10 +267,42 @@ shared link opens the same view.
   is never asked, so a visitor in Vancouver sees the same today as one in
   Toronto.
 - **The zone** is named once under the heading: "All times are Eastern Time."
-- **An event on several days** shows on its first day only in the month, and a
-  day's list holds the events that start that day. Task 08 changes both.
 - **The helpers** for the grid are copied from the old Directory app with their
   tests, in `src/lib/events/calendar-grid.ts`.
+
+## An event over several days
+
+A festival from Fri 30 Oct to Sun 1 Nov is entered once and has one page. It
+is not different hours on each day. A festival with different hours each day
+is three events, or a repeating event.
+
+- **The event page:** the day line names both days, "Friday, October 30 to
+  Sunday, November 1, 2026", with the year said once when both days share it.
+  The time line reads "Starts 12:00 PM, ends 8:00 PM, Eastern Time". A one-day
+  event still reads as one day.
+- **A row in the list:** each time sits beside its own day, "Fri, Oct 30,
+  12:00 PM to Sun, Nov 1, 8:00 PM", because the times are when the festival
+  starts and ends, not its hours on each day. A one-day row still reads
+  "Sat, Sep 26 · 6:00 PM to 11:00 PM". The date square on the left is the
+  first day.
+- **The month:** the festival is on every day it covers. The start time shows
+  on its first day only. A festival across a month's end shows in both months,
+  so 30 and 31 Oct are in October and 1 Nov is in November. On a phone each of
+  those days gets a dot.
+- **Order within a day:** a festival that started on an earlier day sits above
+  the events that start on the day, because it is already running.
+- **Leaving the lists:** it stays in the upcoming list, the calendar
+  subscription and the search box's suggestions until its last day ends. The
+  sitemap counts its 30 days from the last day too.
+- **The calendar file and Google:** both carry the real start and the real end,
+  so a calendar app shows one block from noon Friday to 8pm Sunday.
+- **Where the rules live:** `daysCovered` in `src/lib/events/calendar-grid.ts`
+  lists the days an event covers inside one grid. `readEventsBetween` in
+  `src/server/events/public.ts` finds every event with any day inside the grid,
+  not only the ones that start in it. `eventRowText` and `eventWhenLines` in
+  `src/lib/events/event-time.ts` write the words.
+- **Sign-ups:** once sign-ups exist (task 24), one sign-up covers the whole
+  festival. A ticket for one day would be a ticket type (task 33).
 
 ## The Events page's on/off switch
 
@@ -136,9 +319,9 @@ members like any other page. Every event's page follows the same switch.
 
 ## Where events appear
 
-A published event appears in all of these and a draft in none of them. All of
-them also need the Events page open to everyone. Switched off or kept for
-members, events leave search, the suggestions, the sitemap, the feed and the
+A published public event appears in all of these. A draft or a private event
+appears in none of them. All of them also need the Events page open to
+everyone. Switched off or kept for members, events leave search, the suggestions, the sitemap, the feed and the
 drawn share card, the same rule posts follow.
 
 - **Whole-site search at `/search`:** matches the title, summary, place name
@@ -196,7 +379,58 @@ SEP 28" instead, because the time would not fit.
   answers not found.
 - **One visitor may ask 120 times a minute**, the same limit as listing cards.
 
+## Adding an event to a calendar
+
+Each event page has an "Add to calendar" button, and the Events page has a
+"Subscribe" button. Both open a short menu with Google Calendar and "Apple
+Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
+
+- **One event:** Google opens its new-event form filled in, in a new tab. The
+  other choice downloads `/events/<address>/calendar.ics`, which a phone or a
+  computer opens in its own calendar app.
+- **Once an event is over,** the page has no "Add to calendar" button.
+- **Subscribe:** Google opens its "Add calendar" prompt. The other choice is a
+  `webcal://` link to `/events.ics`, which hands the address to the phone's or
+  computer's calendar app. After that, every event the site publishes shows up
+  in the visitor's calendar by itself.
+- **What the subscription holds:** every published public event that is not
+  over yet, soonest first, 500 at most. An event drops out of it once it is over, so it
+  also leaves the subscriber's calendar at the next check.
+- **How fast a new event arrives:** Apple Calendar and Outlook are asked to
+  check every 6 hours. Google checks on its own timetable, usually within a
+  day, and ignores the request.
+- **Google's subscribe choice needs a real address.** Google fetches the file
+  from its own servers, so it cannot reach a site running on this computer.
+
+### Times in a calendar
+
+- **Every time goes out as one exact moment**, worked out from the event's day
+  and clock time in the site's time zone on that day. 6pm on 26 Sep in
+  Toronto goes out as 10pm UTC, and 6pm on 7 Nov as 11pm UTC, because the
+  clocks go back on 1 Nov. The visitor's calendar then shows it at their own
+  local time, which is 6pm for somebody in Toronto.
+- **The end is the event's real end.** With no end time, it runs to midnight
+  at the end of its last day, the same moment the site counts it as over. A
+  6pm event with no end time is 6pm to midnight in the calendar.
+- **Google's form** is also told the site's zone, so it shows the times the
+  way the event page does.
+- **Each event keeps the same id in every file**, so adding it a second time
+  updates it instead of making a copy.
+
+### Who can get the files
+
+- **One event's file** follows the event page's rule. With the Events page
+  kept for members, a signed-in member can download it and a signed-out
+  visitor gets not found.
+- **The subscription** exists only while the Events page is open to everyone,
+  because a calendar app asking for it is never signed in. Switched off or kept
+  for members, `/events.ics` is not found and the Events page has no Subscribe
+  button.
+- **A draft, another site's event and a made-up address** all get not found,
+  the same as the page.
+
 ## Not built yet
 
-These are later tasks in `workspace/tasks/events/`: filters on the Events page,
-sign-ups and repeats.
+These are later tasks in `workspace/tasks/events/`: filters on the Events page
+and sign-ups. Task 07, the site's own extra fields, is not built either. When
+it is, those fields need copying to a repeating event's dates like the rest.

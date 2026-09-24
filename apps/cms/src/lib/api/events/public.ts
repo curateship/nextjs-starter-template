@@ -15,7 +15,6 @@ import {
   wallClockAt,
 } from "@/lib/events/event-time"
 import { findCurrentUser } from "@/server/auth/security"
-import { readPageVisibility } from "@/server/content/pages"
 import {
   visitorSite,
   type PublicSite,
@@ -23,6 +22,7 @@ import {
 } from "@/server/directory/public"
 import { siteTimeZone } from "@/server/directory/settings"
 import {
+  eventsAccessFor,
   readEventsBetween,
   readPublicEvent,
   readUpcomingEvents,
@@ -46,16 +46,16 @@ import {
  * never asked.
  */
 
-async function siteWithOpenEvents(): Promise<VisitorSite | null> {
+async function siteWithOpenEvents(): Promise<{
+  site: VisitorSite
+  access: "everyone" | "members"
+} | null> {
   const site = await visitorSite()
   if (!site) return null
-  const visibility = await readPageVisibility(site.id, "/events")
-  if (visibility === "off") return null
-  if (visibility === "members") {
-    const viewer = await findCurrentUser().catch(() => null)
-    if (!viewer) return null
-  }
-  return site
+  const access = await eventsAccessFor(site.id, async () =>
+    Boolean(await findCurrentUser().catch(() => null))
+  )
+  return access ? { site, access } : null
 }
 
 /** An event in a list, marked when it is already over. */
@@ -67,6 +67,12 @@ type EventsPageCommon = {
   zone: string
   /** "2026-09-23", the site's today. */
   today: string
+  /**
+   * The site's calendar subscription address, like
+   * https://site.test/events.ics. Null unless the Events page is open to
+   * everyone, because a calendar app asking for it is never signed in.
+   */
+  calendarFeedUrl: string | null
 }
 
 export type EventsPageData = EventsPageCommon &
@@ -83,7 +89,7 @@ export type EventsPageData = EventsPageCommon &
     | {
         view: "month"
         month: YearMonth
-        /** Every event starting in the grid's weeks, soonest first. */
+        /** Every event on any day of the grid's weeks, soonest first. */
         events: PublicEventCard[]
       }
   )
@@ -98,8 +104,9 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     })
   )
   .handler(async ({ data }): Promise<EventsPageData | null> => {
-    const site = await siteWithOpenEvents()
-    if (!site) return null
+    const open = await siteWithOpenEvents()
+    if (!open) return null
+    const { site } = open
 
     const timeZone = await siteTimeZone(site.id)
     const at = new Date()
@@ -108,6 +115,8 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       site: { name: site.name, url: site.url },
       zone: timeZoneLabel(timeZone),
       today: now.slice(0, 10),
+      calendarFeedUrl:
+        open.access === "everyone" ? `${site.url}/events.ics` : null,
     }
 
     if (data.view === "month") {
@@ -175,10 +184,10 @@ type PublicEventView = PublicEventPage & {
 const readEventFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ slug: z.string().min(1).max(160) }))
   .handler(async ({ data }): Promise<PublicEventView | null> => {
-    const site = await siteWithOpenEvents()
-    if (!site) return null
+    const open = await siteWithOpenEvents()
+    if (!open) return null
 
-    const page = await readPublicEvent(site, data.slug)
+    const page = await readPublicEvent(open.site, data.slug)
     if (!page) return null
     // Worked out on every request, after the cache, by the site's clock.
     return {

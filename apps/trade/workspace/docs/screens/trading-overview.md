@@ -2,19 +2,31 @@
 
 `/admin/trading-overview` answers the account-wide money question without
 belonging to one exchange. PnL Graph, short for profit and loss, is the main
-card. Its heading uses the shared dashboard card header. Made or lost replaces
-the wallet count beside the title, with its share of the current shown balance
-in a green, red, or neutral badge. Both use 20px type that fits inside the
-header's 32px content row, so the standard 57px header does not grow. No
-percentage appears when the shown balance is zero or below. The chart's top row
-names Balance, Settled, Open, and Fees in that order. The age stays on the left.
-The figures and the warning about trades with unstated money align to the right.
-A light gray row and bottom divider keep this account summary apart from the
-chart. The gray chart row and the wallet column header are both 40px high. The
-old "made or lost" label and the breakdown below the wallet list are gone. The
-old headline figures, Wallets card, and Money over time card are gone too. Their
-answers now share this one card, so a wallet and the line it produced can be
-read together. The age does not repeat under the result.
+card. Its layout copies the design Tyler sent on 23 Sep 2026
+(`workspace/docs/assets/pasted-image-1790208001182205000.png`).
+
+- **The header:** a small grey line reads "Profit and loss · All wallets", or
+  the selected wallet's name in place of All wallets. Under it sits the made or
+  lost figure in 30px monospace type, with its share of the shown balance in a
+  green, red or grey badge. No percentage appears when that balance is zero or
+  below. The header is taller than the standard 57px card header because the
+  figure is the card's headline.
+- **The whole card follows the selected row:** picking a wallet changes the
+  header figure, the badge, the four figures above the chart and the chart
+  line to that wallet's own. All wallets puts the account totals back.
+- **The four figures:** Balance, Settled, Open and Fees sit in a row above the
+  chart, each an 11.2px grey label over a 12.8px monospace figure, with 25.6px
+  between them. Tyler had the row made 20% smaller on 23 Sep 2026. The warning
+  about trades with unstated money sits at the right end of that row.
+- **The chart:** one black line for the selected row, with a faint grey fill
+  under it and a dashed line at $0. The dollar labels on the left are
+  monospace. Five dates run along the bottom, the first and last flush with the
+  line's ends. A chart narrower than 480px shows only the first, middle and last
+  date so the labels never touch. The other wallets' lines are not drawn.
+- **What the card leaves out on purpose:** the "PnL Graph" title and its icon, the
+  grey subheader bars, the small line in each wallet row, the coloured wallet
+  squares, and the "7 days ago · last read just now" line. The dates button
+  names the period instead.
 
 Overview panels size themselves to their contents. There are no draggable
 panel dividers or saved panel sizes. Populated tables grow with their rows;
@@ -28,50 +40,48 @@ The two lower columns use a fixed 55/45 split on wide screens and stack below
 ordering are still managed in dashboard settings.
 
 The left side starts with All wallets and then lists each real mainnet wallet.
-Every answered row has the wallet's balance, Made or lost, and a small line over
-time. The graph pane stays clear for the money-over-time chart. Switched-off
-wallets stay out of PnL Graph. A wallet whose exchange did not answer stays
-named as a failed answer. It never
-becomes a row of zeroes. The All wallets row starts selected. The selected row
-has no background fill. A 2px medium-gray right border and a heavier wallet name
-show the selection. Every row reserves
-the border's width so changing the selection does not shift its contents. Every
-answered wallet row has a hand cursor and can be selected by mouse or keyboard.
-Every wallet row keeps its bottom divider, including the final row.
-Selecting one makes its chart line strong and quietens the other lines. The
-right side draws the All wallets line strongly
-and each answered wallet as a lighter line. Hovering the chart names the date
-and the amount for every line. Hovering a wallet's small line keeps its dot and
-opens a readout with the date and that wallet's result at the marked point.
-The mini graph is a plain line and does not draw a filled block when it is
-clicked.
-The graph panel names the live age, such as "7 days ago", instead of the fixed
-"Money over time" label.
-The same line names when the whole overview last answered. The overview asks
-Trade's server again every fifteen seconds while the browser tab is visible.
-One answer updates every placed widget. Active Trades reads positions only
-when that widget is placed, and Running bots follows the same rule for bot
-runs. Hiding the tab stops the clock. Showing it makes one catch-up read and
-starts the clock again, without replaying missed turns. A failed read keeps the
-last answer and its older read time on screen.
-The Wallets and Made or lost headings sort the wallet rows in either direction.
-All wallets is an account summary and stays pinned first. Unavailable results
-stay at the bottom when sorting by money. The last sort is remembered in this
-browser.
+
+- **A row:** the wallet's name with Made or lost on the right, and the exchange
+  with the balance under it in grey. All wallets names how many wallets
+  answered, and how many are missing when some did not.
+- **The selected row:** a rounded grey fill. Every row has a hand cursor and
+  can be picked by mouse or keyboard.
+- **Empty wallets:** a wallet whose balance and made or lost both round to
+  $0.00 is folded away under "Show 3 empty wallets" at the foot of the list.
+  Clicking it shows them and the link then reads "Hide 3 empty wallets". Hiding
+  them while one is selected puts the selection back on All wallets. The choice
+  is not remembered after a reload.
+- **Switched-off and failed wallets:** switched-off wallets stay out of PnL
+  Graph. A wallet whose exchange did not answer stays named with "did not
+  answer" under it. It never becomes a row of zeroes and never counts as empty.
+- **Sorting:** the Wallets and Made or lost headings sort the rows either way.
+  All wallets stays pinned first. Unavailable results stay at the bottom when
+  sorting by money. The last sort is remembered in this browser.
+
+The overview asks Trade's server again every fifteen seconds while the browser
+tab is visible. One answer updates every placed widget. Active Trades reads
+positions only when that widget is placed, and Running bots follows the same
+rule for bot runs. Hiding the tab stops the clock. Showing it makes one
+catch-up read and starts the clock again, without replaying missed turns. A
+failed read keeps the last answer on screen.
 
 The graph records results from midnight on 20 August 2026 in Toronto through
-the latest account read. Controls in the card's top-right space show today, one
-week, one month, three months, six months, or all recorded results. Today means
-the current calendar day from midnight, not the last 24 hours. The two calendar
-fields set an exact start and end date, and Reset returns to All. Each
-date picker has a visible From or To label. With no profit history, hovering
-or focusing either disabled picker's wrapper explains that there is no history
-to choose a range from yet. The pickers, presets and Reset use their standard
-32px controls. Keyboard focus moves through From, To and Reset.
-Every wallet line changes together. Filtering crops the graph without changing the current
-account and wallet figures. Dates outside recorded history show that no results
-fall inside the range. The graph does not carry the last known result into days
-the app has not read.
+the latest account read. The card's top right holds the period tabs and a
+dates button.
+
+- **The tabs:** 1D, 1W, 1M, 3M, 6M and All. 1D means the current calendar day
+  from midnight, not the last 24 hours.
+- **The dates button:** it names the period on screen, such as "Aug 20 – Sep
+  23, 2026", or one date when the period is a single day. Clicking it opens a
+  small window with labelled From and To date pickers, Reset and Done.
+- **Picking a date:** the chart changes at once. Done only closes the window.
+  Reset returns to All and closes it.
+- **No history yet:** the dates button is greyed out, and hovering or focusing
+  it explains that there is no history to pick a range from yet.
+- **What the dates change:** only the chart. The header figure and the four
+  figures above the chart always describe the whole record. Dates outside the
+  recorded history show that no results fall inside the range. The graph does
+  not carry the last known result into days the app has not read.
 
 Rows directly below a panel title and summary rows at the bottom use one panel
 bar treatment. The bar has the muted light-gray fill and one divider on its top

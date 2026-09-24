@@ -107,6 +107,34 @@ export function monthMatrix({ year, month }: YearMonth): CalendarDayCell[] {
   return cells
 }
 
+/**
+ * Every day an event covers that falls between `from` and `to`, both
+ * included, first to last. An event with no end day covers its start day
+ * only. Clamping to the window keeps a year-long event to one grid's days.
+ */
+export function daysCovered(
+  startDate: string,
+  endDate: string | null,
+  from: string,
+  to: string
+): string[] {
+  const first = startDate > from ? startDate : from
+  const lastDay = endDate && endDate > startDate ? endDate : startDate
+  const last = lastDay < to ? lastDay : to
+  const days: string[] = []
+  const [year, month, day] = first.split("-").map(Number)
+  for (let step = 0; ; step++) {
+    const at = new Date(Date.UTC(year, month - 1, day + step))
+    const date = toDateString(
+      at.getUTCFullYear(),
+      at.getUTCMonth() + 1,
+      at.getUTCDate()
+    )
+    if (date > last) return days
+    days.push(date)
+  }
+}
+
 const MONTH_LABEL = new Intl.DateTimeFormat("en-US", {
   month: "long",
   year: "numeric",

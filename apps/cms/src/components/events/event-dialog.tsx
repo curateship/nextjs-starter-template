@@ -4,12 +4,18 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CategoryChecklist } from "@/components/directory/category-checklist"
+import {
+  EventDatesCard,
+  EventRepeatCard,
+  SeriesDateCard,
+} from "@/components/events/event-repeat-cards"
 import { PostEditor } from "@/components/posts/post-editor"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
 import {
   DialogBody,
@@ -41,6 +47,8 @@ import {
 import type { ListingChoice } from "@/lib/api/posts/posts"
 import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
+import type { RepeatRule } from "@/lib/events/event-repeat"
+import { formatEventShortDay } from "@/lib/events/event-time"
 import { emptyPostBody, type PostBody } from "@/lib/posts/post-body"
 import {
   collapseStorageKey,
@@ -57,6 +65,7 @@ type EventFields = {
   summary: string
   coverImage: string
   status: "draft" | "published"
+  visibility: "public" | "private"
   /** "2026-09-27", or empty while none is picked. */
   startDate: string
   /** "18:00", or empty. */
@@ -68,6 +77,8 @@ type EventFields = {
   placeAddress: string
   body: PostBody
   categoryIds: string[]
+  /** Only ever set on an event that is not itself one date of a repeat. */
+  repeat: RepeatRule | null
 }
 
 function blankFields(): EventFields {
@@ -77,6 +88,7 @@ function blankFields(): EventFields {
     summary: "",
     coverImage: "",
     status: "draft",
+    visibility: "public",
     startDate: "",
     startTime: "",
     endDate: "",
@@ -85,6 +97,7 @@ function blankFields(): EventFields {
     placeAddress: "",
     body: emptyPostBody(),
     categoryIds: [],
+    repeat: null,
   }
 }
 
@@ -96,6 +109,7 @@ function fieldsFrom(data: EventForEdit): EventFields {
     summary: event.summary,
     coverImage: event.coverImage,
     status: event.status,
+    visibility: event.visibility,
     startDate: event.startDate,
     startTime: event.startTime,
     // A same-day end is stored as the start day; the form shows it as empty,
@@ -108,7 +122,16 @@ function fieldsFrom(data: EventForEdit): EventFields {
     body: event.body,
     // Sorted so ticking a box off and on again is not read as an edit.
     categoryIds: [...data.categoryIds].sort(),
+    repeat: event.repeat,
   }
+}
+
+/** "Thu, Oct 29", "Thu, Oct 29 and Thu, Nov 5", "a, b and c". */
+function listOfDays(days: string[]): string {
+  const names = days.map(formatEventShortDay)
+  return names.length === 1
+    ? (names[0] ?? "")
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
 }
 
 /** The picker hands back a day at local midnight; the event stores the day. */
@@ -134,6 +157,7 @@ export function EventDialog({
   preview,
   onClose,
   onSaved,
+  onOpenEvent,
 }: {
   open: boolean
   /** The event to edit, or null to create one. */
@@ -144,6 +168,8 @@ export function EventDialog({
   onClose: () => void
   /** A save landed, so the list behind the window is stale. */
   onSaved: () => void
+  /** Swaps the window to another event: a date of this one, or its main. */
+  onOpenEvent: (id: string) => void
 }) {
   const [loaded, setLoaded] = React.useState<{
     forId: string
@@ -161,6 +187,8 @@ export function EventDialog({
     () => new Map()
   )
   const [saving, setSaving] = React.useState(false)
+  /** Another event asked for while this one has unsaved edits. */
+  const [leaveFor, setLeaveFor] = React.useState<string | null>(null)
   const [basicsOpen, setBasicsOpen, basicsNoFlash] = useRememberedCollapse(
     collapseStorageKey.settingsCard("event-basics")
   )
@@ -243,6 +271,12 @@ export function EventDialog({
     seededFor === seedKey &&
     JSON.stringify(fields) !== openedWith
 
+  const series = ready && loaded ? loaded.data.series : null
+  const openOther = (id: string) => {
+    if (dirty) setLeaveFor(id)
+    else onOpenEvent(id)
+  }
+
   const update = <Key extends keyof EventFields>(
     key: Key,
     value: EventFields[Key]
@@ -262,8 +296,19 @@ export function EventDialog({
     setSaving(true)
     try {
       let id = eventId ?? createdId
-      const { title, slug, startDate, startTime, endDate, endTime, ...rest } =
-        fields
+      let saved: Awaited<ReturnType<typeof saveEvent>>
+      const {
+        title,
+        slug,
+        startDate,
+        startTime,
+        endDate,
+        endTime,
+        repeat,
+        ...rest
+      } = fields
+      // One date of a repeat never carries a rule of its own.
+      const repeatChange = series?.main ? {} : { repeat }
       const when = {
         startDate,
         startTime,
@@ -284,12 +329,21 @@ export function EventDialog({
           title: created.title,
           slug: created.slug,
         }))
-        await saveEvent({ id, ...rest })
+        saved = await saveEvent({ id, ...rest, ...repeatChange })
       } else {
-        await saveEvent({ id, title, slug, when, ...rest })
+        saved = await saveEvent({ id, title, slug, when, ...rest, ...repeatChange })
       }
       onSaved()
       toast.success(eventId ? "Event saved." : "Event created.")
+      if (saved.keptDates.length) {
+        const days = listOfDays(saved.keptDates)
+        toast.warning(
+          saved.keptDates.length === 1
+            ? `${days} was changed on its own, so it was kept as it is. Open it under Later dates to change or delete it.`
+            : `${days} were changed on their own, so they were kept as they are. Open them under Later dates to change or delete them.`,
+          { duration: 15_000 }
+        )
+      }
       onClose()
     } catch (error) {
       // Every refusal is about the title, the address or the times.
@@ -343,7 +397,7 @@ export function EventDialog({
                     noFlashKey: basicsNoFlash,
                   }}
                   title="The event"
-                  description="The title, address, summary and cover image. A draft is never shown to a visitor."
+                  description="The title, address, summary, who can find it and cover image. A draft is never shown to a visitor."
                   contentClassName="grid gap-4"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -420,26 +474,56 @@ export function EventDialog({
                       }
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <FieldLabel htmlFor="event-status">Status</FieldLabel>
-                    <Select
-                      value={fields.status}
-                      disabled={saving}
-                      onValueChange={(value) =>
-                        update("status", value as "draft" | "published")
-                      }
-                    >
-                      <SelectTrigger
-                        id="event-status"
-                        className="w-full sm:w-fit"
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="event-status">Status</FieldLabel>
+                      <Select
+                        value={fields.status}
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          update("status", value as "draft" | "published")
+                        }
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="published">Published</SelectItem>
-                      </SelectContent>
-                    </Select>
+                        <SelectTrigger
+                          id="event-status"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="published">Published</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="event-visibility"
+                        hint="A private event's page opens for anyone with its link, but it stays off the Events page, the calendar, search, the sitemap, the feed and the calendar subscription. It is not a password."
+                      >
+                        Who can find it
+                      </FieldLabel>
+                      <Select
+                        value={fields.visibility}
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          update("visibility", value as "public" | "private")
+                        }
+                      >
+                        <SelectTrigger
+                          id="event-visibility"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="private">
+                            Private, link only
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <FieldLabel hint="Shown at the top of the event's page and when it is shared.">
@@ -581,6 +665,30 @@ export function EventDialog({
                   </div>
                 </CollapsibleSettingsCard>
 
+                {series?.main ? (
+                  <SeriesDateCard
+                    main={series.main}
+                    editedAlone={loaded?.data.event.editedAlone ?? false}
+                    disabled={saving}
+                    onOpenMain={() => openOther(series.main!.id)}
+                  />
+                ) : (
+                  <EventRepeatCard
+                    repeat={fields.repeat}
+                    startDate={fields.startDate}
+                    disabled={saving}
+                    onChange={(repeat) => update("repeat", repeat)}
+                  />
+                )}
+
+                {series?.dates.length ? (
+                  <EventDatesCard
+                    series={series}
+                    disabled={saving}
+                    onOpenDate={openOther}
+                  />
+                ) : null}
+
                 <CollapsibleSettingsCard
                   size="sm"
                   storageId="event-categories"
@@ -645,6 +753,21 @@ export function EventDialog({
               {eventId ? "Save changes" : "Create event"}
             </Button>
           </DialogFooter>
+          <ConfirmDialog
+            open={leaveFor !== null}
+            onOpenChange={(next) => {
+              if (!next) setLeaveFor(null)
+            }}
+            title="Discard changes?"
+            description="This window has edits that have not been saved. Opening another date now throws them away."
+            confirmLabel="Discard changes"
+            cancelLabel="Keep editing"
+            onConfirm={() => {
+              const id = leaveFor
+              setLeaveFor(null)
+              if (id) onOpenEvent(id)
+            }}
+          />
         </DialogContent>
       )}
     </FormDialog>

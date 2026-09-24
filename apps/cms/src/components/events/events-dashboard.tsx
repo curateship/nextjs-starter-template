@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   CalendarDaysIcon,
+  CopyIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -32,6 +33,7 @@ import {
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import type { Category } from "@/lib/api/directory/categories"
 import {
+  copyEvent,
   getEventErrorMessage,
   removeEvents,
   type EventsPage,
@@ -47,6 +49,7 @@ import {
   eventSortDirection,
   type EventSortColumn,
 } from "@/lib/events/event-sort"
+import { describeRepeat } from "@/lib/events/event-repeat"
 import { formatEventStart } from "@/lib/events/event-time"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
@@ -113,7 +116,17 @@ export function EventsDashboard({
   const [confirm, setConfirm] = React.useState<{
     ids: string[]
     title: string | null
+    /** Later dates of repeating events among them, which go too. */
+    dates: number
   } | null>(null)
+  const askToDelete = (ids: string[], title: string | null) =>
+    setConfirm({
+      ids,
+      title,
+      dates: data.events
+        .filter((event) => ids.includes(event.id))
+        .reduce((sum, event) => sum + event.seriesDates.total, 0),
+    })
 
   const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${data.page}|${data.pageSize}`
   useClearSelectionOnListChange(selection.setSelected, listKey)
@@ -142,6 +155,17 @@ export function EventsDashboard({
     [navigate]
   )
   const openEditor = (event: EventSummary) => setOpen(event.id)
+
+  const [copy, copying] = useAsyncAction(getEventErrorMessage)
+  /** A draft copy, opened at once so the admin can change the date. */
+  const duplicate = (event: EventSummary) => {
+    void copy(async () => {
+      const made = await copyEvent(event.id)
+      await router.invalidate()
+      toast.success(`${made.title} was created as a draft.`)
+      setOpen(made.id)
+    })
+  }
 
   const confirmDelete = async () => {
     if (!confirm) return
@@ -186,9 +210,7 @@ export function EventsDashboard({
                 type="button"
                 variant="destructive"
                 disabled={deleting}
-                onClick={() =>
-                  setConfirm({ ids: [...selectedIds], title: null })
-                }
+                onClick={() => askToDelete([...selectedIds], null)}
               >
                 <Trash2Icon className="size-4" />
                 Delete ({selectedIds.size})
@@ -290,18 +312,25 @@ export function EventsDashboard({
                 {event.title}
               </button>
               <span className="block max-w-96 truncate text-xs text-muted-foreground">
-                {event.placeName ||
+                {repeatLine(event) ||
+                  event.placeName ||
                   (event.categories.length
                     ? event.categories.join(", ")
                     : `/events/${event.slug}`)}
               </span>
             </TableCell>
             <TableCell column="meta">
-              {event.status === "published" ? (
-                <Badge variant="secondary">Published</Badge>
-              ) : (
-                <Badge variant="outline">Draft</Badge>
-              )}
+              <div className="flex items-center gap-1">
+                {event.status === "published" ? (
+                  <Badge variant="secondary">Published</Badge>
+                ) : (
+                  <Badge variant="outline">Draft</Badge>
+                )}
+                {event.visibility === "private" ? (
+                  <Badge variant="outline">Private</Badge>
+                ) : null}
+                {event.repeat ? <Badge variant="outline">Repeats</Badge> : null}
+              </div>
             </TableCell>
             <TableCell column="meta">{formatEventStart(event)}</TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
@@ -309,6 +338,16 @@ export function EventsDashboard({
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Duplicate ${event.title}`}
+                  disabled={copying}
+                  onClick={() => duplicate(event)}
+                >
+                  <CopyIcon className="size-4" />
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -324,9 +363,7 @@ export function EventsDashboard({
                   size="icon"
                   aria-label={`Delete ${event.title}`}
                   disabled={deleting}
-                  onClick={() =>
-                    setConfirm({ ids: [event.id], title: event.title })
-                  }
+                  onClick={() => askToDelete([event.id], event.title)}
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
@@ -349,6 +386,7 @@ export function EventsDashboard({
           else setOpen(undefined)
         }}
         onSaved={() => void router.invalidate()}
+        onOpenEvent={setOpen}
       />
 
       <ConfirmDialog
@@ -363,9 +401,7 @@ export function EventsDashboard({
         }
         description={
           confirm
-            ? confirm.ids.length === 1
-              ? `${confirm.title ?? "The event"} goes for good, and its page stops existing. The listings and categories it points at stay.`
-              : `${confirm.ids.length} events go for good, and their pages stop existing. The listings and categories they point at stay.`
+            ? deleteWarning(confirm)
             : null
         }
         confirmLabel={
@@ -378,4 +414,40 @@ export function EventsDashboard({
       />
     </>
   )
+}
+
+/** What the delete window says goes, dates of repeating events included. */
+function deleteWarning(confirm: {
+  ids: string[]
+  title: string | null
+  dates: number
+}): string {
+  const keeps = "The listings and categories they point at stay."
+  if (confirm.ids.length > 1) {
+    const dates = confirm.dates
+      ? ` So do ${datesText(confirm.dates)} of the repeating events among them.`
+      : ""
+    return `${confirm.ids.length} events go for good, and their pages stop existing.${dates} ${keeps}`
+  }
+  const title = confirm.title ?? "The event"
+  if (confirm.dates) {
+    return `${title} and its ${datesText(confirm.dates)} go for good, and their pages stop existing. ${keeps}`
+  }
+  return `${title} goes for good, and its page stops existing. The listings and categories it points at stay.`
+}
+
+function datesText(count: number): string {
+  return `${count} later ${count === 1 ? "date" : "dates"}`
+}
+
+/**
+ * A main event's line under its title: "Every Thursday · 7 more dates coming",
+ * or "No longer repeats · 12 later dates" once its repeat is stopped.
+ */
+function repeatLine(event: EventSummary): string | null {
+  const { total, upcoming } = event.seriesDates
+  if (event.repeat) {
+    return `${describeRepeat(event.repeat)} · ${upcoming} more ${upcoming === 1 ? "date" : "dates"} coming`
+  }
+  return total ? `No longer repeats · ${datesText(total)}` : null
 }

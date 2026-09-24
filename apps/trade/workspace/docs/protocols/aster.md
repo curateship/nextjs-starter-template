@@ -23,9 +23,36 @@ the app assumes will stay fixed.
   saves a watched order. A ladder or grid whose split puts any level below the
   floor is refused whole.
 - Aster's public market response does not state a trustworthy top leverage.
-  The two margin percentage fields are marked "ignore" in Aster's V3 docs, and
-  the leverage bracket needs a signed account request. Trade prints "Not
-  stated publicly" instead of working out a number Aster may not enforce.
+  The two margin percentage fields are marked "ignore" in Aster's V3 docs.
+  Trade never works out a number from them.
+
+## Leverage ceilings
+
+- The real top leverage per coin comes from Aster's signed
+  `GET /fapi/v3/leverageBrackets`. Asked with no coin named, it returns every
+  coin in one answer for one request unit, per Aster's V3 reference. Trade
+  takes the highest bracket's number, rounded down to a whole leverage.
+- Trade asks only for a person with a switched-on Aster wallet holding a key on
+  that network. The answer is stored per wallet in `trade_leverage_ceilings`
+  and asked for again after a day, so a restart does not ask again. Two screens
+  opening at once share one request.
+- The market list the trading screen gets carries those numbers for that
+  person only. The Aster order window then draws the leverage slider from 1x
+  up to that coin's ceiling, the same way it does on Hyperliquid. The market
+  header shows the number instead of "Not stated publicly".
+- Without a keyed wallet nothing is asked. The market list keeps the unknown,
+  the header says "Not stated publicly" and the window stays at 1x with no
+  slider.
+- A refused or empty answer changes nothing on screen and is not stored. Trade
+  waits ten minutes before asking with that wallet again. A day-old stored
+  answer is kept when the next day's read fails.
+- A practice order and a watched order check the chosen leverage against the
+  stored ceiling, so they accept what the slider offered. Placing an order
+  never spends a signed read on this. A real-money order sends the chosen
+  leverage to Aster before the entry, as described under "Orders, leverage and
+  protection", and Aster refuses anything above its own cap.
+- The other exchanges state their ceilings in public market data, and Trade
+  never replaces a stated number.
 
 ## The two prices
 
@@ -175,6 +202,7 @@ the app assumes will stay fixed.
   asks for a fresh list and chart after data resumes. The server keeps one
   all-market mark stream per network for the engine and treats it as stale
   after twelve quiet seconds.
+- The leverage ceiling read costs 1 unit, at most once a day per wallet.
 - An account-total read costs 5 units and a position read costs 5. Verifying a
   new key adds one 30-unit position-mode read. Three active
   wallets read every fifteen seconds spend 120 signed units a minute. Including

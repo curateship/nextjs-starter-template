@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   addMonths,
+  daysCovered,
   formatMonthLabel,
   isValidDateString,
   monthMatrix,
@@ -84,5 +85,46 @@ describe("the grid", () => {
     const cells = monthMatrix({ year: 2026, month: 2 })
     const firstIndex = cells.findIndex((cell) => cell.date === "2026-02-01")
     expect(firstIndex).toBe(new Date("2026-02-01T00:00:00Z").getUTCDay())
+  })
+})
+
+describe("the days an event covers", () => {
+  it("is the start day alone with no end day, or an end on the same day", () => {
+    expect(daysCovered("2026-10-03", null, "2026-09-27", "2026-11-07")).toEqual(
+      ["2026-10-03"]
+    )
+    expect(
+      daysCovered("2026-10-03", "2026-10-03", "2026-09-27", "2026-11-07")
+    ).toEqual(["2026-10-03"])
+  })
+
+  it("is every day from the first to the last", () => {
+    expect(
+      daysCovered("2026-10-02", "2026-10-04", "2026-09-27", "2026-11-07")
+    ).toEqual(["2026-10-02", "2026-10-03", "2026-10-04"])
+  })
+
+  it("crosses the end of a month and keeps to the window it is asked about", () => {
+    // October's grid runs 27 Sep to 7 Nov, November's 1 Nov to 5 Dec.
+    const october = daysCovered(
+      "2026-10-30",
+      "2026-11-02",
+      "2026-09-27",
+      "2026-10-31"
+    )
+    const november = daysCovered(
+      "2026-10-30",
+      "2026-11-02",
+      "2026-11-01",
+      "2026-12-05"
+    )
+    expect(october).toEqual(["2026-10-30", "2026-10-31"])
+    expect(november).toEqual(["2026-11-01", "2026-11-02"])
+  })
+
+  it("is empty for an event outside the window", () => {
+    expect(
+      daysCovered("2026-12-24", "2026-12-26", "2026-09-27", "2026-11-07")
+    ).toEqual([])
   })
 })

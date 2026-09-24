@@ -1,13 +1,13 @@
 import {
   and,
   asc,
-  between,
   desc,
   eq,
   gte,
   ilike,
   inArray,
   isNull,
+  lte,
   or,
   sql,
 } from "drizzle-orm"
@@ -51,6 +51,12 @@ import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
  * What a visitor may read of a site's events. Every read takes the site from
  * the visited address and selects published events only, so a draft is
  * missing rather than hidden.
+ *
+ * A private event is published but unlisted. Its own page opens from its
+ * link, and every list here leaves it out, because every list filters through
+ * `listedEventsOnSite`. The old Directory app let each list check for itself,
+ * and all but one forgot. `public.test.ts` fails when a new export here is not
+ * proven to drop private events.
  *
  * The event page and the Events page leave the on/off switch to their
  * endpoint, because a members-only switch depends on who is asking and those
@@ -122,6 +128,8 @@ export type PublicEvent = EventWhen & {
   placeName: string
   placeAddress: string
   categories: PublicCategoryLink[]
+  /** Left out of every list, and its page asks search engines to skip it. */
+  isPrivate: boolean
 }
 
 export type PublicEventPage = {
@@ -135,12 +143,23 @@ export type PublicEventPage = {
   shareImageVersion: string
 }
 
-/** Published, on this site. The whole of what a visitor may read. */
+/**
+ * Published, on this site. What a visitor with an event's link may open,
+ * private events included. Only a read of one event by its address uses this.
+ */
 function publishedEventsOnSite(siteId: string) {
   return and(
     eq(siteEvents.workspaceId, siteId),
     eq(siteEvents.status, "published")
   )
+}
+
+/**
+ * Published, on this site, and not private: what a visitor may find without
+ * the link. Every list of events goes through this one filter.
+ */
+function listedEventsOnSite(siteId: string) {
+  return and(publishedEventsOnSite(siteId), eq(siteEvents.visibility, "public"))
 }
 
 /**
@@ -154,6 +173,23 @@ export async function eventsArePublic(
   database: CustomShellDb = db
 ): Promise<boolean> {
   return (await readPageVisibility(siteId, "/events", database)) === "everyone"
+}
+
+/**
+ * Whether this visitor may read the site's events, and why: "everyone" when
+ * the Events page is open to all, "members" when it is kept for members and
+ * they are signed in, and null otherwise. `isSignedIn` is only asked in the
+ * members case.
+ */
+export async function eventsAccessFor(
+  siteId: string,
+  isSignedIn: () => Promise<boolean>,
+  database: CustomShellDb = db
+): Promise<"everyone" | "members" | null> {
+  const visibility = await readPageVisibility(siteId, "/events", database)
+  if (visibility === "everyone") return "everyone"
+  if (visibility === "members" && (await isSignedIn())) return "members"
+  return null
 }
 
 /** The site's wall clock now, "2026-09-26T18:05". */
@@ -221,6 +257,7 @@ async function readPublicEventUncached(
       placeName: event.placeName,
       placeAddress: event.placeAddress,
       categories: categoryRows,
+      isPrivate: event.visibility === "private",
     },
     timeZone,
     listingCards,
@@ -234,7 +271,7 @@ async function readPublicEventUncached(
   }
 }
 
-/** One published event by its address, or null. */
+/** One published event by its address, private ones included, or null. */
 export function readPublicEvent(
   site: VisitorSite,
   slug: string,
@@ -296,10 +333,7 @@ export function readUpcomingEvents(
     "upcoming-events",
     { site: { name: site.name, url: site.url }, page, now },
     async () => {
-      const where = and(
-        publishedEventsOnSite(site.id),
-        notOverAt(nowDay, nowTime)
-      )
+      const where = and(listedEventsOnSite(site.id), notOverAt(nowDay, nowTime))
       const [rows, [countRow]] = await Promise.all([
         database
           .select(eventCardColumns)
@@ -324,10 +358,67 @@ export function readUpcomingEvents(
   )
 }
 
+/** More upcoming events than a site plans, in a file a calendar app still reads. */
+const CALENDAR_FEED_LIMIT = 500
+
+type CalendarFeed = {
+  timeZone: string
+  events: (EventWhen & {
+    id: string
+    title: string
+    slug: string
+    summary: string
+    placeName: string
+    placeAddress: string
+  })[]
+}
+
 /**
- * Every published event that starts between two days, both included, soonest
+ * The events for the site's calendar subscription: published and not over
+ * yet by the site's clock, soonest first. Null unless the Events page is open
+ * to everyone, because a calendar app asking for the feed is never signed in.
+ */
+export async function readCalendarFeed(
+  siteId: string,
+  at: Date,
+  database: CustomShellDb = db
+): Promise<CalendarFeed | null> {
+  if (!(await eventsArePublic(siteId, database))) return null
+  const timeZone = await siteTimeZone(siteId, database)
+  const [nowDay = "", nowTime = ""] = wallClockAt(timeZone, at).split("T")
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      placeName: siteEvents.placeName,
+      placeAddress: siteEvents.placeAddress,
+      startDate: siteEvents.startDate,
+      startTime: siteEvents.startTime,
+      endDate: siteEvents.endDate,
+      endTime: siteEvents.endTime,
+    })
+    .from(siteEvents)
+    .where(and(listedEventsOnSite(siteId), notOverAt(nowDay, nowTime)))
+    .orderBy(...soonestFirst)
+    .limit(CALENDAR_FEED_LIMIT)
+  return {
+    timeZone,
+    events: rows.map((row) => ({
+      ...row,
+      startTime: toClock(row.startTime),
+      endTime: row.endTime ? toClock(row.endTime) : null,
+    })),
+  }
+}
+
+/**
+ * Every published event on any day between two days, both included, soonest
  * first: one day's list when the two are the same, or a month grid's weeks.
- * Events that are over are included; the page marks them.
+ * An event over several days is in the answer when any one of its days falls
+ * in the window, so a festival that started last month still shows this
+ * month. Events that are over are included; the page marks them.
  */
 export function readEventsBetween(
   site: VisitorSite,
@@ -345,8 +436,12 @@ export function readEventsBetween(
         .from(siteEvents)
         .where(
           and(
-            publishedEventsOnSite(site.id),
-            between(siteEvents.startDate, from, to)
+            listedEventsOnSite(site.id),
+            lte(siteEvents.startDate, to),
+            gte(
+              sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`,
+              from
+            )
           )
         )
         .orderBy(...soonestFirst)
@@ -384,7 +479,7 @@ export async function eventSearchResults(
     .from(siteEvents)
     .where(
       and(
-        publishedEventsOnSite(siteId),
+        listedEventsOnSite(siteId),
         or(
           ilike(siteEvents.title, pattern),
           ilike(siteEvents.summary, pattern),
@@ -441,7 +536,7 @@ export async function readEventSuggestions(
     .from(siteEvents)
     .where(
       and(
-        publishedEventsOnSite(siteId),
+        listedEventsOnSite(siteId),
         notOverAt(nowDay, nowTime),
         or(ilike(siteEvents.title, pattern), ilike(siteEvents.summary, pattern))
       )
@@ -471,7 +566,7 @@ export async function eventSitemapEntries(
     .from(siteEvents)
     .where(
       and(
-        publishedEventsOnSite(siteId),
+        listedEventsOnSite(siteId),
         gte(lastDay, sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`)
       )
     )
@@ -512,7 +607,7 @@ export async function newestEventsForFeed(
       publishedAt: siteEvents.publishedAt,
     })
     .from(siteEvents)
-    .where(publishedEventsOnSite(siteId))
+    .where(listedEventsOnSite(siteId))
     .orderBy(desc(siteEvents.publishedAt), asc(siteEvents.id))
     .limit(limit)
   if (rows.length === 0) return []

@@ -44,6 +44,7 @@ import {
 } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
+import { userMarketRules } from "@/server/trade/leverage-ceilings"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   cancelLadderRestPlan,
@@ -1477,7 +1478,7 @@ export async function placeWatchOrder(
     throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
   }
   const [rules, prices] = await Promise.all([
-    marketRules(wallet.protocol, wallet.network, ref.marketId),
+    userMarketRules(userId, wallet.protocol, wallet.network, ref.marketId),
     protocol.markets.prices(wallet.network, [ref.marketId]),
   ])
   if (!rules) throw new Error("PAPER_MARKET")

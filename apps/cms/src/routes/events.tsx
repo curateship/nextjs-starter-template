@@ -5,6 +5,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { EventList } from "@/components/events/public/event-list"
+import { SubscribeMenu } from "@/components/events/public/calendar-menus"
 import { EventMonth } from "@/components/events/public/event-month"
 import { EventViewSwitch } from "@/components/events/public/event-view-switch"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -62,14 +63,19 @@ function EventsRoute() {
             All times are {data.zone}.
           </p>
         </div>
-        <EventViewSwitch
-          current={data.view}
-          month={
-            data.view === "list" && data.day
-              ? toMonthString(parseYearMonth(data.day)!)
-              : undefined
-          }
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {data.calendarFeedUrl ? (
+            <SubscribeMenu feedUrl={data.calendarFeedUrl} />
+          ) : null}
+          <EventViewSwitch
+            current={data.view}
+            month={
+              data.view === "list" && data.day
+                ? toMonthString(parseYearMonth(data.day)!)
+                : undefined
+            }
+          />
+        </div>
       </header>
 
       {data.view === "month" ? (

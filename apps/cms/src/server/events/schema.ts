@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm"
 import {
+  type AnyPgColumn,
+  boolean,
   check,
   date,
   index,
@@ -14,7 +16,9 @@ import {
 import { customShellWorkspaces } from "@/server/schema"
 
 /**
- * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`.
+ * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`,
+ * `drizzle/0084_cms_events_visibility.sql` for `visibility`, and
+ * `drizzle/0085_cms_event_repeats.sql` for the repeat columns.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -38,6 +42,13 @@ export const siteEvents = pgTable(
     body: jsonb("body").notNull(),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
+    /**
+     * 'public' or 'private'. A private event's page opens from its link, but
+     * no public list shows it. See `listedEventsOnSite` in `public.ts`.
+     */
+    visibility: varchar("visibility", { length: 20 })
+      .notNull()
+      .default("public"),
     /** Set on first publish and kept. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     /** "2026-09-27", the day it starts on the site's calendar. */
@@ -52,6 +63,22 @@ export const siteEvents = pgTable(
     placeAddress: varchar("place_address", { length: 300 })
       .notNull()
       .default(""),
+    /**
+     * A main event's repeat, read by `parseRepeatRule` in
+     * `lib/events/event-repeat.ts`. Null on every other event.
+     */
+    repeatRule: jsonb("repeat_rule"),
+    /** The last day the rule has been worked through, so none is made twice. */
+    repeatMadeUntil: date("repeat_made_until", { mode: "string" }),
+    /** On a date a repeat made: its main event. Deleting that deletes this. */
+    seriesId: varchar("series_id", { length: 36 }).references(
+      (): AnyPgColumn => siteEvents.id,
+      { onDelete: "cascade" }
+    ),
+    /** The day the rule made this date for. Set with `seriesId`. */
+    seriesDate: date("series_date", { mode: "string" }),
+    /** Saved by itself, so changes to the main event skip it. */
+    editedAlone: boolean("edited_alone").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -62,9 +89,22 @@ export const siteEvents = pgTable(
       table.status,
       table.startDate
     ),
+    uniqueIndex("ux_events_series_date").on(table.seriesId, table.seriesDate),
+    check(
+      "events_series_date_check",
+      sql`(${table.seriesId} IS NULL) = (${table.seriesDate} IS NULL)`
+    ),
+    check(
+      "events_series_rule_check",
+      sql`${table.seriesId} IS NULL OR ${table.repeatRule} IS NULL`
+    ),
     check(
       "events_status_check",
       sql`${table.status} IN ('draft', 'published')`
+    ),
+    check(
+      "events_visibility_check",
+      sql`${table.visibility} IN ('public', 'private')`
     ),
     check(
       "events_published_has_date_check",

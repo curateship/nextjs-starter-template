@@ -7,6 +7,7 @@ import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
+import { runRepeatTopUps } from "@/server/events/repeats"
 import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
 
 /**
@@ -50,6 +51,10 @@ export const appServerOptions: AppServerOptions = {
       {
         name: "directory featured renewal reminders",
         tick: runFeaturedRenewalReminders,
+      },
+      {
+        name: "repeating events top-up",
+        tick: runRepeatTopUps,
       },
     ],
   },

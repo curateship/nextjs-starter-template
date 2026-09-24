@@ -6,6 +6,7 @@ import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-br
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
+import { AddToCalendarMenu } from "@/components/events/public/calendar-menus"
 import { PostBody } from "@/components/posts/public/post-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -21,7 +22,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
  * One event's page at /events/<address>. It follows the Events page's on/off
- * switch.
+ * switch. A private event's page opens the same way, for anyone with the link.
  *
  * No such address, a draft, and another site's event all answer the same
  * not-found page, so a draft cannot be told apart from an event never written.
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/events_/$slug")({
   head: ({ loaderData }) => {
     if (!loaderData) return {}
     const { event, site, shareImageVersion } = loaderData
-    return directoryHead(
+    const head = directoryHead(
       directoryTitle(event.title, site.name),
       directoryDescription(event.summary, `${event.title} on ${site.name}.`),
       eventPageShareImage({
@@ -48,6 +49,14 @@ export const Route = createFileRoute("/events_/$slug")({
         version: shareImageVersion,
       })
     )
+    // A private event is for people sent the link, so search engines are
+    // asked not to list it. Its preview card still works for that link.
+    return event.isPrivate
+      ? {
+          ...head,
+          meta: [...head.meta, { name: "robots", content: "noindex" }],
+        }
+      : head
   },
   component: EventRoute,
   // A visitor must never be shown the server's own words for a failure.
@@ -162,6 +171,13 @@ function EventRoute() {
               </p>
             ) : null}
           </div>
+
+          {ended ? null : (
+            <AddToCalendarMenu
+              event={{ ...event, url: `${site.url}/events/${event.slug}` }}
+              timeZone={timeZone}
+            />
+          )}
 
           {event.body.content?.length ? (
             <PostBody body={event.body} listingCards={listingCards} />

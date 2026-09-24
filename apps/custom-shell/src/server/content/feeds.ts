@@ -1,4 +1,4 @@
-import { desc, eq, notExists, sql } from "drizzle-orm"
+import { and, desc, eq, gte, notExists, sql } from "drizzle-orm"
 
 import type { NotificationItem } from "@/lib/api/notification"
 import { now } from "@/server/auth/security"
@@ -14,6 +14,8 @@ import {
 const LATEST_ACTIVITY = 40
 const ACTIVITY_ROWS_SCANNED = 400
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+/** How many days the line on the feedback figure covers. */
+const LINE_DAYS = 30
 
 export type FeedsSummary = {
   notifications: { latest: NotificationItem[] }
@@ -21,6 +23,8 @@ export type FeedsSummary = {
     last7Days: number
     previous7Days: number
     noReply: number
+    /** Feedback left on each of the last 30 UTC days, oldest first. */
+    last30Days: number[]
   }
 }
 
@@ -39,6 +43,16 @@ export async function loadFeedsSummary(
   const today = now()
   const weekAgo = new Date(today.getTime() - WEEK_MS)
   const twoWeeksAgo = new Date(today.getTime() - 2 * WEEK_MS)
+  const lineStart = new Date(
+    Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() - (LINE_DAYS - 1)
+    )
+  )
+  // `at time zone 'UTC'` so the days land in the same buckets as the dates
+  // built from UTC below, whatever the database session's own timezone is.
+  const feedbackDay = sql<string>`to_char(${customShellFeedback.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`
   const hasNoReply = notExists(
     database
       .select({ one: sql`1` })
@@ -48,7 +62,10 @@ export async function loadFeedsSummary(
       )
   )
 
-  const [notificationRows, feedbackCountRows] = await Promise.all([
+  // Three reads at once. The pool stands five, and the busy stage is the
+  // notification wording after these, which runs on its own.
+  const [notificationRows, feedbackCountRows, feedbackDayRows] =
+    await Promise.all([
     database
       .select({ notification: customShellNotifications })
       .from(customShellNotifications)
@@ -71,6 +88,19 @@ export async function loadFeedsSummary(
       })
       .from(customShellFeedback)
       .where(eq(customShellFeedback.workspaceId, workspaceId)),
+    database
+      .select({
+        day: feedbackDay,
+        count: sql`count(*)`.mapWith(Number),
+      })
+      .from(customShellFeedback)
+      .where(
+        and(
+          eq(customShellFeedback.workspaceId, workspaceId),
+          gte(customShellFeedback.createdAt, lineStart)
+        )
+      )
+      .groupBy(feedbackDay),
   ])
 
   const [feedback] = feedbackCountRows
@@ -85,8 +115,22 @@ export async function loadFeedsSummary(
       last7Days: feedback?.last7Days ?? 0,
       previous7Days: feedback?.previous7Days ?? 0,
       noReply: feedback?.noReply ?? 0,
+      last30Days: countsByDay(feedbackDayRows, lineStart, LINE_DAYS),
     },
   }
+}
+
+/** One count per day from `start`, with the days nobody left any as zero. */
+function countsByDay(
+  rows: { day: string; count: number }[],
+  start: Date,
+  days: number
+) {
+  const byDay = new Map(rows.map((row) => [row.day, row.count]))
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(start.getTime() + index * 24 * 60 * 60 * 1000)
+    return byDay.get(date.toISOString().slice(0, 10)) ?? 0
+  })
 }
 
 /** Collapse broadcasts sent to many people into one activity event. */

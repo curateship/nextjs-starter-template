@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm"
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core"
 
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
@@ -8,7 +20,8 @@ import {
   eventSortDirection,
   type EventSortColumn,
 } from "@/lib/events/event-sort"
-import { toClock, type EventWhen } from "@/lib/events/event-time"
+import { parseRepeatRule, type RepeatRule } from "@/lib/events/event-repeat"
+import { toClock, wallClockAt, type EventWhen } from "@/lib/events/event-time"
 import {
   cleanPostBody,
   emptyPostBody,
@@ -17,10 +30,13 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  categoryIdsFor,
   categoryNamesFor,
   deleteCategoryRowsFor,
 } from "@/server/directory/content-categories"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { categoryRelationships } from "@/server/directory/schema"
+import { siteTimeZone } from "@/server/directory/settings"
 import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
@@ -37,6 +53,10 @@ import {
  *
  * Saving or deleting an event clears the public page cache, because the event
  * page is cached.
+ *
+ * A repeating event's later dates are rows here too, made by
+ * `server/events/repeats.ts`. The list shows only the main event, and
+ * deleting the main event deletes every date.
  */
 
 export const MAX_EVENT_TITLE = 200
@@ -46,6 +66,9 @@ export const MAX_PLACE_ADDRESS = 300
 
 export type EventStatus = "draft" | "published"
 
+/** A private event's page opens from its link, but no public list shows it. */
+export type EventVisibility = "public" | "private"
+
 export type SiteEvent = EventWhen & {
   id: string
   title: string
@@ -54,15 +77,28 @@ export type SiteEvent = EventWhen & {
   summary: string
   body: PostBody
   status: EventStatus
+  visibility: EventVisibility
   publishedAt: Date | null
   placeName: string
   placeAddress: string
+  /** The repeat, on a main event only. */
+  repeat: RepeatRule | null
+  /** On a date a repeat made: its main event's id. */
+  seriesId: string | null
+  /** A date saved by itself, which changes to the main event skip. */
+  editedAlone: boolean
   createdAt: Date
   updatedAt: Date
 }
 
-/** An Events screen row: the event without its body, plus its category names. */
-export type EventSummary = Omit<SiteEvent, "body"> & { categories: string[] }
+/**
+ * An Events screen row: the event without its body, plus its category names
+ * and, on a main event, how many dates it has made and how many are to come.
+ */
+export type EventSummary = Omit<SiteEvent, "body"> & {
+  categories: string[]
+  seriesDates: { total: number; upcoming: number }
+}
 
 /** When an event happens, as a form sends it. Empty ends mean "no end". */
 export type EventWhenInput = {
@@ -81,6 +117,7 @@ export function toEvent(row: EventRow): SiteEvent {
     summary: row.summary,
     body: cleanPostBody(row.body),
     status: row.status === "published" ? "published" : "draft",
+    visibility: row.visibility === "private" ? "private" : "public",
     publishedAt: row.publishedAt,
     startDate: row.startDate,
     startTime: toClock(row.startTime),
@@ -88,6 +125,9 @@ export function toEvent(row: EventRow): SiteEvent {
     endTime: row.endTime ? toClock(row.endTime) : null,
     placeName: row.placeName,
     placeAddress: row.placeAddress,
+    repeat: parseRepeatRule(row.repeatRule),
+    seriesId: row.seriesId,
+    editedAlone: row.editedAlone,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -136,6 +176,19 @@ export function cleanEventWhen(input: EventWhenInput): EventWhen {
   return { startDate, startTime, endDate, endTime }
 }
 
+/** A free address on this site, numbered when the one wanted is taken. */
+export function firstFreeEventSlug(
+  workspaceId: string,
+  wanted: string,
+  database: CustomShellDb = db
+): Promise<string> {
+  return firstFreeSlugRule(
+    wanted,
+    (candidate) => slugIsTaken(workspaceId, candidate, null, database),
+    EVENT_NOUN
+  )
+}
+
 async function slugIsTaken(
   workspaceId: string,
   slug: string,
@@ -178,7 +231,11 @@ export async function listEvents(
   const offset = Math.max(options.offset ?? 0, 0)
   const search = options.search?.trim()
 
-  const filters = [eq(siteEvents.workspaceId, workspaceId)]
+  // A repeating event is one row: its dates open from the main event's window.
+  const filters = [
+    eq(siteEvents.workspaceId, workspaceId),
+    isNull(siteEvents.seriesId),
+  ]
   if (search) {
     const pattern = `%${search}%`
     const match = or(
@@ -223,19 +280,58 @@ export async function listEvents(
       .where(where),
   ])
 
-  const names = await categoryNamesFor(
-    workspaceId,
-    EVENT_CONTENT_TYPE,
-    rows.map((row) => row.id),
-    database
-  )
+  const ids = rows.map((row) => row.id)
+  const [names, dateCounts] = await Promise.all([
+    categoryNamesFor(workspaceId, EVENT_CONTENT_TYPE, ids, database),
+    seriesDateCounts(workspaceId, ids, database),
+  ])
   return {
     events: rows.map((row) => {
       const { body: _body, ...rest } = toEvent(row)
-      return { ...rest, categories: names.get(row.id) ?? [] }
+      return {
+        ...rest,
+        categories: names.get(row.id) ?? [],
+        seriesDates: dateCounts.get(row.id) ?? { total: 0, upcoming: 0 },
+      }
     }),
     total: countRow?.total ?? 0,
   }
+}
+
+/**
+ * How many dates each of these main events has made, and how many are today
+ * or later by the site's calendar. Events with none are left out.
+ */
+async function seriesDateCounts(
+  workspaceId: string,
+  mainIds: string[],
+  database: CustomShellDb
+): Promise<Map<string, { total: number; upcoming: number }>> {
+  if (mainIds.length === 0) return new Map()
+  const today = wallClockAt(
+    await siteTimeZone(workspaceId, database),
+    new Date()
+  ).slice(0, 10)
+  const rows = await database
+    .select({
+      mainId: siteEvents.seriesId,
+      total: count(),
+      upcoming: sql<number>`count(*) filter (where ${siteEvents.seriesDate} >= ${today}::date)::int`,
+    })
+    .from(siteEvents)
+    .where(
+      and(
+        eq(siteEvents.workspaceId, workspaceId),
+        inArray(siteEvents.seriesId, mainIds)
+      )
+    )
+    .groupBy(siteEvents.seriesId)
+  return new Map(
+    rows.map((row) => [
+      row.mainId ?? "",
+      { total: row.total, upcoming: row.upcoming },
+    ])
+  )
 }
 
 export async function findEvent(
@@ -249,6 +345,74 @@ export async function findEvent(
     .where(and(eq(siteEvents.id, id), eq(siteEvents.workspaceId, workspaceId)))
     .limit(1)
   return row ? toEvent(row) : null
+}
+
+/** One date of a repeating event, as its main event's window lists it. */
+export type EventSeriesDate = {
+  id: string
+  startDate: string
+  startTime: string
+  status: EventStatus
+  editedAlone: boolean
+}
+
+/** Where an event sits in a repeating event, for its window. */
+export type EventSeries = {
+  /** On a date a repeat made: the main event it follows. */
+  main: { id: string; title: string } | null
+  /** On a main event: every date it has made, soonest first. */
+  dates: EventSeriesDate[]
+  /** The site's today, "2026-09-23", so past dates can be told apart. */
+  today: string
+}
+
+export async function seriesForEdit(
+  workspaceId: string,
+  event: SiteEvent,
+  database: CustomShellDb = db
+): Promise<EventSeries> {
+  const today = wallClockAt(
+    await siteTimeZone(workspaceId, database),
+    new Date()
+  ).slice(0, 10)
+  if (event.seriesId) {
+    const [main] = await database
+      .select({ id: siteEvents.id, title: siteEvents.title })
+      .from(siteEvents)
+      .where(
+        and(
+          eq(siteEvents.id, event.seriesId),
+          eq(siteEvents.workspaceId, workspaceId)
+        )
+      )
+      .limit(1)
+    return { main: main ?? null, dates: [], today }
+  }
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      startDate: siteEvents.startDate,
+      startTime: siteEvents.startTime,
+      status: siteEvents.status,
+      editedAlone: siteEvents.editedAlone,
+    })
+    .from(siteEvents)
+    .where(
+      and(
+        eq(siteEvents.workspaceId, workspaceId),
+        eq(siteEvents.seriesId, event.id)
+      )
+    )
+    .orderBy(asc(siteEvents.seriesDate))
+  return {
+    main: null,
+    dates: rows.map((row) => ({
+      ...row,
+      startTime: toClock(row.startTime),
+      status: row.status === "published" ? "published" : "draft",
+    })),
+    today,
+  }
 }
 
 /** A new event: a title, a free address from it, a start, born a draft. */
@@ -299,6 +463,7 @@ export async function updateEvent(
     summary?: string
     body?: unknown
     status?: EventStatus
+    visibility?: EventVisibility
     when?: EventWhenInput
     placeName?: string
     placeAddress?: string
@@ -333,6 +498,9 @@ export async function updateEvent(
   if (input.placeAddress !== undefined) {
     values.placeAddress = input.placeAddress.trim().slice(0, MAX_PLACE_ADDRESS)
   }
+  if (input.visibility !== undefined) values.visibility = input.visibility
+  // A date of a repeating event saved by itself stops following the main one.
+  values.editedAlone = sql`${siteEvents.seriesId} IS NOT NULL`
   if (input.status !== undefined) {
     values.status = input.status
     // The first publish dates the event; later ones keep that date.
@@ -352,9 +520,91 @@ export async function updateEvent(
   return toEvent(row)
 }
 
+const COPY_SUFFIX = " (copy)"
+
+/**
+ * A copy to start from, for an event that happens again on a new day: the
+ * same content, when, where, categories and public or private setting,
+ * "(copy)" on the title, a fresh address from that title, and always a draft
+ * with no published date, so nothing new is public until the admin publishes
+ * it.
+ */
+export async function duplicateEvent(
+  workspaceId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<SiteEvent> {
+  const [source] = await database
+    .select()
+    .from(siteEvents)
+    .where(and(eq(siteEvents.id, id), eq(siteEvents.workspaceId, workspaceId)))
+    .limit(1)
+  if (!source) throw new Error("That event no longer exists.")
+
+  // Trimmed before the suffix, so a title at the limit still says "(copy)".
+  const title = `${source.title.slice(0, MAX_EVENT_TITLE - COPY_SUFFIX.length)}${COPY_SUFFIX}`
+  const slug = await firstFreeSlugRule(
+    slugFromTitle(title),
+    (candidate) => slugIsTaken(workspaceId, candidate, null, database),
+    EVENT_NOUN
+  )
+  const categoryIds = await categoryIdsFor(
+    workspaceId,
+    EVENT_CONTENT_TYPE,
+    id,
+    database
+  )
+
+  const at = now()
+  // The copy and its categories together, so a copy never looks untagged.
+  const row = await database.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(siteEvents)
+      .values({
+        id: uuid(),
+        workspaceId,
+        title,
+        slug,
+        coverImage: source.coverImage,
+        summary: source.summary,
+        body: source.body,
+        status: "draft",
+        visibility: source.visibility,
+        startDate: source.startDate,
+        startTime: source.startTime,
+        endDate: source.endDate,
+        endTime: source.endTime,
+        placeName: source.placeName,
+        placeAddress: source.placeAddress,
+        createdAt: at,
+        updatedAt: at,
+      })
+      .returning()
+    if (!created) throw new Error("The event was not copied.")
+
+    if (categoryIds.length) {
+      await tx.insert(categoryRelationships).values(
+        categoryIds.map((categoryId) => ({
+          id: uuid(),
+          workspaceId,
+          categoryId,
+          contentType: EVENT_CONTENT_TYPE,
+          contentId: created.id,
+          isPrimary: false,
+          createdAt: at,
+        }))
+      )
+    }
+    return created
+  })
+  return toEvent(row)
+}
+
 /**
  * One request for the whole selection. The category rows go in the same
  * transaction, because the relationship table has no foreign key to an event.
+ * A main event takes every one of its dates with it; `done` names only the
+ * events asked for.
  */
 export async function deleteEvents(
   workspaceId: string,
@@ -364,6 +614,23 @@ export async function deleteEvents(
   if (ids.length === 0) return { done: [], kept: [] }
 
   const done = await database.transaction(async (tx) => {
+    const dates = await tx
+      .select({ id: siteEvents.id })
+      .from(siteEvents)
+      .where(
+        and(
+          eq(siteEvents.workspaceId, workspaceId),
+          inArray(siteEvents.seriesId, ids)
+        )
+      )
+    // The database deletes the dates with their main event; their category
+    // rows have no such link, so they go here.
+    await deleteCategoryRowsFor(
+      workspaceId,
+      EVENT_CONTENT_TYPE,
+      dates.map((row) => row.id),
+      tx
+    )
     const deleted = await tx
       .delete(siteEvents)
       .where(
