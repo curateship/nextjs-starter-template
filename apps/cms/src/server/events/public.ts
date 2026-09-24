@@ -334,17 +334,40 @@ export function readPublicEvent(
   )
 }
 
+/** An event's last day: its end day, or its start day when it has none. */
+const lastDayOfEvent = sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`
+
+/** Filed under one category on this site, not under one of its children. */
+function inCategory(
+  siteId: string,
+  categoryId: string | typeof categories.id,
+  database: CustomShellDb
+) {
+  return exists(
+    database
+      .select({ one: sql`1` })
+      .from(categoryRelationships)
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, siteId),
+          eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+          eq(categoryRelationships.contentId, siteEvents.id),
+          eq(categoryRelationships.categoryId, categoryId)
+        )
+      )
+  )
+}
+
 /**
  * Not over yet by the site's clock: the last day is after today, or it is
  * today and the end time, if there is one, has not come. The same rule as
  * `eventHasEnded`, written for the database.
  */
 function notOverAt(nowDay: string, nowTime: string) {
-  const lastDay = sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`
   return or(
-    sql`${lastDay} > ${nowDay}::date`,
+    sql`${lastDayOfEvent} > ${nowDay}::date`,
     and(
-      sql`${lastDay} = ${nowDay}::date`,
+      sql`${lastDayOfEvent} = ${nowDay}::date`,
       or(
         isNull(siteEvents.endTime),
         sql`${siteEvents.endTime} > ${nowTime}::time`
@@ -366,43 +389,48 @@ export type UpcomingEvents = {
  * site's wall clock, "2026-09-26T18:05", so an answer is cached for a minute
  * at most. `only` narrows it to the events held at one listing, for a
  * listing's "What's on here" and the Events page's "At The Rex", or to the
- * events filed under one category, for a category page and a home page row.
- * A category means its own events, not its children's, the same as listings.
+ * events filed under one category, for a category page, a home page row and
+ * the Events page's category filter. A category means its own events, not its
+ * children's, the same as listings. `from` and `to` keep the events with any
+ * day inside those days, both included, for the Events page's date filters.
  */
 export function readUpcomingEvents(
   site: VisitorSite,
   page: number,
   now: string,
   database: CustomShellDb = db,
-  only: { placeId?: string; categoryId?: string } = {}
+  only: {
+    placeId?: string
+    categoryId?: string
+    from?: string
+    to?: string
+  } = {}
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
   const placeId = only.placeId ?? null
   const categoryId = only.categoryId ?? null
+  const from = only.from ?? null
+  const to = only.to ?? null
   return cachedPublicDirectoryRead(
     site.id,
     "upcoming-events",
-    { site: { name: site.name, url: site.url }, page, now, placeId, categoryId },
+    {
+      site: { name: site.name, url: site.url },
+      page,
+      now,
+      placeId,
+      categoryId,
+      from,
+      to,
+    },
     async () => {
       const where = and(
         listedEventsOnSite(site.id),
         notOverAt(nowDay, nowTime),
         placeId ? eq(siteEvents.listingId, placeId) : undefined,
-        categoryId
-          ? exists(
-              database
-                .select({ one: sql`1` })
-                .from(categoryRelationships)
-                .where(
-                  and(
-                    eq(categoryRelationships.workspaceId, site.id),
-                    eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
-                    eq(categoryRelationships.contentId, siteEvents.id),
-                    eq(categoryRelationships.categoryId, categoryId)
-                  )
-                )
-            )
-          : undefined
+        categoryId ? inCategory(site.id, categoryId, database) : undefined,
+        to ? lte(siteEvents.startDate, to) : undefined,
+        from ? gte(lastDayOfEvent, from) : undefined
       )
       const [rows, [countRow]] = await Promise.all([
         database
@@ -455,6 +483,47 @@ export async function findEventPlace(
     )
     .limit(1)
   return row ?? null
+}
+
+export type EventCategory = { id: string; name: string; slug: string }
+
+/**
+ * The categories the Events page offers as filters: every category on this
+ * site with at least one listed event filed under it, over or not, because
+ * the month shows past events too. A category holding only drafts or private
+ * events is left out, so a filter never gives either away. In the order the
+ * admin set for categories.
+ */
+export function readEventCategories(
+  siteId: string,
+  database: CustomShellDb = db
+): Promise<EventCategory[]> {
+  return cachedPublicDirectoryRead(siteId, "event-categories", {}, () =>
+    database
+      .select({
+        id: categories.id,
+        name: categories.name,
+        slug: categories.slug,
+      })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.workspaceId, siteId),
+          exists(
+            database
+              .select({ one: sql`1` })
+              .from(siteEvents)
+              .where(
+                and(
+                  listedEventsOnSite(siteId),
+                  inCategory(siteId, categories.id, database)
+                )
+              )
+          )
+        )
+      )
+      .orderBy(asc(categories.displayOrder), asc(categories.name))
+  )
 }
 
 /** More upcoming events than a site plans, in a file a calendar app still reads. */
@@ -518,18 +587,21 @@ export async function readCalendarFeed(
  * first: one day's list when the two are the same, or a month grid's weeks.
  * An event over several days is in the answer when any one of its days falls
  * in the window, so a festival that started last month still shows this
- * month. Events that are over are included; the page marks them.
+ * month. Events that are over are included; the page marks them. `only`
+ * narrows it to one category's own events, for the Events page's filter.
  */
 export function readEventsBetween(
   site: VisitorSite,
   from: string,
   to: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  only: { categoryId?: string } = {}
 ): Promise<PublicEventCard[]> {
+  const categoryId = only.categoryId ?? null
   return cachedPublicDirectoryRead(
     site.id,
     "events-between",
-    { from, to },
+    { from, to, categoryId },
     async () => {
       const rows = await database
         .select(eventCardColumns)
@@ -539,10 +611,8 @@ export function readEventsBetween(
           and(
             listedEventsOnSite(site.id),
             lte(siteEvents.startDate, to),
-            gte(
-              sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`,
-              from
-            )
+            gte(lastDayOfEvent, from),
+            categoryId ? inCategory(site.id, categoryId, database) : undefined
           )
         )
         .orderBy(...soonestFirst)
@@ -662,14 +732,16 @@ export async function eventSitemapEntries(
 ): Promise<SitemapEntry[]> {
   if (!(await eventsArePublic(siteId, database))) return []
   const today = (await siteNow(siteId, database, at)).slice(0, 10)
-  const lastDay = sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`
   const rows = await database
     .select({ slug: siteEvents.slug, updatedAt: siteEvents.updatedAt })
     .from(siteEvents)
     .where(
       and(
         listedEventsOnSite(siteId),
-        gte(lastDay, sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`)
+        gte(
+          lastDayOfEvent,
+          sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`
+        )
       )
     )
     .orderBy(asc(siteEvents.slug))

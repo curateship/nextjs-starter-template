@@ -1,5 +1,4 @@
 import * as React from "react"
-import { format } from "date-fns"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -50,6 +49,7 @@ import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { formatEventShortDay } from "@/lib/events/event-time"
+import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
 import { emptyPostBody, type PostBody } from "@/lib/posts/post-body"
 import {
   collapseStorageKey,
@@ -160,16 +160,6 @@ function listOfDays(days: string[]): string {
 }
 
 /** The picker hands back a day at local midnight; the event stores the day. */
-function dayFromPicker(date: Date | undefined): string {
-  return date ? format(date, "yyyy-MM-dd") : ""
-}
-
-function dayForPicker(day: string): Date | undefined {
-  if (!day) return undefined
-  const [year, month, date] = day.split("-").map(Number)
-  return new Date(year, month - 1, date)
-}
-
 /**
  * One event's window, opened over the Events list, for editing and for
  * creating. It loads its own record from the id, so a link straight to

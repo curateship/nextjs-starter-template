@@ -211,6 +211,8 @@ export type DirectoryFrontPageRow =
       count: number
       /** Only events filed under this category, or null for every event. */
       categoryId: string | null
+      /** That category's address, for "See all events" to carry. */
+      categorySlug: string | null
       /** Filled after the page's cache, by the site's clock, soonest first. */
       events: DirectoryFrontPageEvent[]
       /** "Eastern Time", the zone the times are in. Filled with the events. */
