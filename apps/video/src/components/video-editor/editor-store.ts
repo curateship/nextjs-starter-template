@@ -972,13 +972,19 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
 /** What the status bar says about the last save. */
 export type SaveStatus = "saved" | "saving" | "error"
 
+/**
+ * Why this window has stopped saving, if it has. "read-only" is chosen when
+ * the project is already being edited in another window. "conflict" is forced
+ * when a save is refused because another window saved first.
+ */
+export type EditorLock = "read-only" | "conflict"
+
 type EditorStoreSnapshot = {
   state: EditorState
   durationMs: number
   saveStatus: SaveStatus
-  // Set once a save is refused because the project changed somewhere else.
-  // Edits stay on screen, but nothing is sent again until a reload.
-  hasConflict: boolean
+  // Set, the timeline cannot be changed and nothing is sent until a reload.
+  lock: EditorLock | null
   projectName: string
   // Goes up by one whenever something outside the media panel puts files on
   // this project's shelf, such as a paste, so the panel knows to read it again.
@@ -990,20 +996,32 @@ export type EditorStore = {
   subscribe: (listener: () => void) => () => void
   dispatch: React.Dispatch<EditorAction>
   setSaveStatus: (status: SaveStatus) => void
-  setHasConflict: () => void
+  setLock: (lock: EditorLock) => void
+  /**
+   * True, and says why, when the window is locked. For work that costs
+   * something before it reaches the timeline, such as an AI tool, so it is
+   * stopped before it runs rather than refused after.
+   */
+  refuseIfLocked: () => boolean
   setProjectName: (name: string) => void
   refreshMediaShelf: () => void
 }
 
+/**
+ * `onLockedEdit` hears about every change to the timeline refused because the
+ * window is locked. Selecting, zooming and moving the playhead are not changes
+ * to the timeline and always go through.
+ */
 export function createEditorStore(
   state: EditorState,
-  projectName: string
+  projectName: string,
+  onLockedEdit: () => void = () => undefined
 ): EditorStore {
   let snapshot: EditorStoreSnapshot = {
     state,
     durationMs: timelineDurationMs(state.tracks),
     saveStatus: "saved",
-    hasConflict: false,
+    lock: null,
     projectName,
     mediaShelfVersion: 0,
   }
@@ -1022,6 +1040,14 @@ export function createEditorStore(
     dispatch: (action) => {
       const nextState = editorReducer(snapshot.state, action)
       if (nextState === snapshot.state) return
+      if (
+        snapshot.lock &&
+        (nextState.tracks !== snapshot.state.tracks ||
+          nextState.aspect !== snapshot.state.aspect)
+      ) {
+        onLockedEdit()
+        return
+      }
       update({
         ...snapshot,
         state: nextState,
@@ -1032,9 +1058,19 @@ export function createEditorStore(
       })
     },
     setSaveStatus: (saveStatus) => update({ ...snapshot, saveStatus }),
-    setHasConflict: () => {
-      if (snapshot.hasConflict) return
-      update({ ...snapshot, hasConflict: true, saveStatus: "error" })
+    setLock: (lock) => {
+      // A clash outranks a choice, and neither is ever taken back in place.
+      if (snapshot.lock === "conflict" || snapshot.lock === lock) return
+      update({
+        ...snapshot,
+        lock,
+        saveStatus: lock === "conflict" ? "error" : snapshot.saveStatus,
+      })
+    },
+    refuseIfLocked: () => {
+      if (!snapshot.lock) return false
+      onLockedEdit()
+      return true
     },
     setProjectName: (projectName) => update({ ...snapshot, projectName }),
     refreshMediaShelf: () =>
@@ -1095,9 +1131,9 @@ export function useEditorSaveStatus() {
   return useEditorStoreSelector(store, (snapshot) => snapshot.saveStatus)
 }
 
-export function useEditorHasConflict() {
+export function useEditorLock() {
   const { store } = useEditorRuntime()
-  return useEditorStoreSelector(store, (snapshot) => snapshot.hasConflict)
+  return useEditorStoreSelector(store, (snapshot) => snapshot.lock)
 }
 
 export function useEditorProjectName() {

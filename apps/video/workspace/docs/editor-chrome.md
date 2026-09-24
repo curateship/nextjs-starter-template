@@ -58,11 +58,14 @@ line underneath, and a change to the shell's reaches both at once.
 Until 23 Sep 2026 the middle header set its own height of 3.15rem, about 50px,
 so its line sat 7px higher than the lines under the panels on either side.
 
-Failures the editor cannot put right itself go to the shared error toast through
-`useErrorToast` from `src/lib/toast/error-toast.ts`. Two of them exist: a
-timeline that will not parse, and a project that changed in another window so
-this one has stopped saving. Neither draws anything in the editor, because a
-banner above the stage would shrink the picture every time something went wrong.
+Failures the editor cannot put right itself go to the shared error toast from
+`src/lib/toast/error-toast.ts`. Two of them exist: a timeline that will not
+parse, and a project that another window saved first so this one has stopped
+saving (`two-windows.md` says what happens to that window's work). Neither
+draws a banner in the editor, because a banner above the stage would shrink the
+picture every time something went wrong. A window that is not saving shows a
+lock button beside the project name instead, which is 32px wide and reloads the
+page.
 
 Both were named differently until 20 Sep 2026, `WorkspacePanelHeader` and
 `ErrorBanner`, and both lived in files the app carried its own copy of. The

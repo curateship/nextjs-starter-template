@@ -1,7 +1,9 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 
 import {
   getProjectErrorMessage,
+  keepRefusedProjectTimeline,
   saveProjectTimeline,
 } from "@/lib/api/video/projects"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -15,6 +17,7 @@ import {
   createInitialEditorState,
   EditorContext,
   useEditorStoreSelector,
+  type EditorStore,
 } from "@/components/video-editor/editor-store"
 
 // How long after the last edit the timeline is saved.
@@ -23,6 +26,21 @@ const AUTOSAVE_DEBOUNCE_MS = 1500
 /** One way of writing a timeline out, so two of them can be compared. */
 function serializeTimeline(timeline: ProjectTimeline) {
   return JSON.stringify({ tracks: timeline.tracks, aspect: timeline.aspect })
+}
+
+const CONFLICT_NOTICE =
+  "Another window saved this project first, so this one stopped saving."
+
+function showReadOnlyNotice() {
+  showErrorToast("This window is read-only, so that change was not made.", {
+    label: "Reload to edit",
+    onClick: () => window.location.reload(),
+  })
+}
+
+function timelineOf(store: EditorStore): ProjectTimeline {
+  const { tracks, aspect } = store.getSnapshot().state
+  return { tracks, aspect }
 }
 
 /** The project the editor opens on. */
@@ -40,8 +58,10 @@ export type EditorDocument = {
  * Saving has two rules worth knowing. Saves run one at a time, because two in
  * flight together would each carry the same version and the editor would clash
  * with itself. And once the server says the project changed somewhere else,
- * saving stops for good — the edits stay on screen, and the banner asks for a
- * reload rather than pretending a retry could win.
+ * saving stops for good. The window locks, what it has on screen is kept as a
+ * new project beside the original, and a reload picks up the other window's
+ * version. A retry could never win, and a reload alone would throw the work
+ * away.
  */
 export function EditorProvider({
   document,
@@ -50,12 +70,56 @@ export function EditorProvider({
   document: EditorDocument
   children: React.ReactNode
 }) {
+  const navigate = useNavigate()
+  // What a refused edit repeats back. Set once the window locks, and replaced
+  // as keeping the copy moves on, so it always says where the work is now.
+  const lockNoticeRef = React.useRef<(() => void) | null>(null)
   const [store] = React.useState(() =>
     createEditorStore(
       createInitialEditorState(document.timeline),
-      document.name
+      document.name,
+      () => (lockNoticeRef.current ?? showReadOnlyNotice)()
     )
   )
+
+  /**
+   * Keeps what this window has as a new project, and says where it went. A
+   * failure keeps the work on screen and offers to try again, because the
+   * window is locked and nothing else will save it.
+   */
+  const keepRefusedWork = React.useCallback(async () => {
+    const say = (notice: () => void) => {
+      lockNoticeRef.current = notice
+      notice()
+    }
+    say(() => showErrorToast(`${CONFLICT_NOTICE} Keeping your work here as a new project.`))
+    try {
+      const copy = await keepRefusedProjectTimeline(
+        document.id,
+        timelineOf(store)
+      )
+      say(() =>
+        showErrorToast(
+          `${CONFLICT_NOTICE} Your work here is kept as "${copy.name}".`,
+          {
+            label: "Open it",
+            onClick: () =>
+              void navigate({
+                to: "/admin/video-editor/$projectId",
+                params: { projectId: copy.id },
+              }),
+          }
+        )
+      )
+    } catch (error) {
+      say(() =>
+        showErrorToast(
+          `${CONFLICT_NOTICE} Keeping your work here as a new project failed: ${getProjectErrorMessage(error)}`,
+          { label: "Try again", onClick: () => void keepRefusedWork() }
+        )
+      )
+    }
+  }, [document.id, navigate, store])
   const tracks = useEditorStoreSelector(
     store,
     (snapshot) => snapshot.state.tracks
@@ -85,8 +149,12 @@ export function EditorProvider({
               error instanceof Error &&
               error.message === PROJECT_CONFLICT_MESSAGE
             ) {
-              // The banner says this one, and says it once.
-              store.setHasConflict()
+              // Only the first refusal keeps a copy. Later ones were already
+              // in the queue behind it and carry nothing newer.
+              if (store.getSnapshot().lock !== "conflict") {
+                store.setLock("conflict")
+                void keepRefusedWork()
+              }
             } else {
               showErrorToast(getProjectErrorMessage(error))
             }
@@ -96,7 +164,7 @@ export function EditorProvider({
       saveQueueRef.current = run
       return run
     },
-    [document.id, store]
+    [document.id, keepRefusedWork, store]
   )
 
   // One clock per editor. It lives outside React so a frame tick never
@@ -118,9 +186,9 @@ export function EditorProvider({
     store,
     (snapshot) => snapshot.durationMs
   )
-  const hasConflict = useEditorStoreSelector(
+  const locked = useEditorStoreSelector(
     store,
-    (snapshot) => snapshot.hasConflict
+    (snapshot) => snapshot.lock !== null
   )
 
   // Keep the clock inside the current length of the project.
@@ -142,7 +210,7 @@ export function EditorProvider({
    */
   const saveNow = React.useCallback(async () => {
     const snapshot = pendingRef.current
-    if (!snapshot || store.getSnapshot().hasConflict) return
+    if (!snapshot || store.getSnapshot().lock) return
     pendingRef.current = null
     store.setSaveStatus("saving")
     try {
@@ -166,13 +234,13 @@ export function EditorProvider({
     if (serialized === lastSavedRef.current) return
     pendingRef.current = snapshot
 
-    // Keep the edit on screen, but do not send one the server will refuse.
-    if (hasConflict) return
+    // A locked window sends nothing. Its work is already in the kept copy.
+    if (locked) return
 
     const timer = setTimeout(() => void saveNow(), AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [saveNow, tracks, aspect, hasConflict])
+  }, [saveNow, tracks, aspect, locked])
 
   // Work still inside the debounce window when the editor closes — going back
   // to the list, say — is sent on the way out.
@@ -181,7 +249,7 @@ export function EditorProvider({
       const snapshot = pendingRef.current
       // Read the flag from the store rather than a dependency, so this only
       // ever runs on a real unmount.
-      if (snapshot && !store.getSnapshot().hasConflict) {
+      if (snapshot && !store.getSnapshot().lock) {
         void saveTimeline(snapshot).catch(() => undefined)
       }
     }

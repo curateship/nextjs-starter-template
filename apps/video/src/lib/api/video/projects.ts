@@ -20,6 +20,7 @@ import {
   deleteOwnedProjects,
   duplicateOwnedProject,
   getOwnedProjectDetail,
+  keepRefusedTimeline,
   listOwnedProjects,
   renameOwnedProject,
   writeProjectTimeline,
@@ -144,6 +145,13 @@ const saveProjectTimelineFn = createServerFn({ method: "POST" })
     )
   })
 
+const keepRefusedTimelineFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectIdSchema.extend({ timeline: timelineSchema }))
+  .handler(async ({ data, context }) => {
+    return keepRefusedTimeline(context.user.id, data.projectId, data.timeline)
+  })
+
 export function listProjects({
   page = 1,
   pageSize = 24,
@@ -185,4 +193,12 @@ export function saveProjectTimeline(
   version: number
 ) {
   return saveProjectTimelineFn({ data: { projectId, timeline, version } })
+}
+
+/** Keeps a refused save as a new project beside the original. */
+export function keepRefusedProjectTimeline(
+  projectId: string,
+  timeline: ProjectTimeline
+) {
+  return keepRefusedTimelineFn({ data: { projectId, timeline } })
 }

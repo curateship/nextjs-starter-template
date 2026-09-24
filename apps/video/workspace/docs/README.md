@@ -90,6 +90,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [project-folders.md](project-folders.md) — folders on the projects list:
   whose they are, why a project sits in one folder at most, where the buttons
   are, and why deleting a folder never deletes a project.
+- [two-windows.md](two-windows.md) — one project open in two windows: the
+  warning the second window shows, what read-only stops, and the
+  "(unsaved edits)" project that keeps the work of whichever window saves
+  second.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

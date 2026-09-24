@@ -173,7 +173,8 @@ export const SAVED_TIMELINE_INVALID_MESSAGE =
 
 // Thrown when a save is based on a version the project has since moved past
 // (another tab, or a second window). Shared so the editor can recognise the
-// rejection and raise the conflict banner instead of retrying forever.
+// rejection, stop saving and keep its work as a new project instead of
+// retrying forever.
 export const PROJECT_CONFLICT_MESSAGE =
   "This project changed elsewhere — reload to continue"
 

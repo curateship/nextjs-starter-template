@@ -9,3 +9,10 @@
 export const PROJECT_NOT_FOUND_MESSAGE = "Project not found"
 export const PROJECT_NAME_REQUIRED_MESSAGE = "Project name is required"
 export const PROJECT_NAME_MAX = 200
+
+/**
+ * Put after the name of the new project that keeps a window's work when its
+ * save was refused, so it sits beside the original on the list and says what
+ * it is.
+ */
+export const REFUSED_COPY_SUFFIX = "(unsaved edits)"
