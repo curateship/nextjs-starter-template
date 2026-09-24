@@ -37,7 +37,16 @@ referral's audit history and appear as a timeline in the admin activity row.
 A conversion creates a pending reward. The Referrals page at `/admin/referrals`
 shows the platform totals, both people involved, the current progress, and the
 reward state. Administrators can open the page from Plans and add the free month
-with one click.
+from a waiting reward's row.
+
+"Add free month" asks first, because the credit cannot be taken back from that
+screen. The question names the referrer and the amount, such as "Add a free
+month ($20) to Sam's next bill?". The page works out that amount with the same
+rule the grant uses, `freeMonthFor` in `src/server/billing/referrals.ts`, so the
+question and the credit match. When the referrer had no paid Stripe plan as the
+page loaded, the question leaves the amount out and says the reward may keep
+waiting. Cancel changes nothing. While the grant runs, both buttons lock and the
+dialog cannot close, so a double-click adds one credit.
 
 The app applies the reward as Stripe customer credit on the referrer's next
 invoice. A monthly subscription earns its monthly plan price. A yearly
@@ -66,6 +75,7 @@ events already required by billing:
 Test the complete path with Stripe test keys. Copy member A's Home page invite
 link, register and verify member B, subscribe member B with a Stripe test card,
 then confirm that member A sees a converted referral. Grant the pending reward
-from the admin Referrals page and check Stripe's customer balance for member A.
+from the admin Referrals page. The question must name member A and the credit,
+and Stripe's customer balance for member A must move by that amount.
 Fully refund member B's qualifying charge and confirm the reward changes to
 reversed and the credit is offset.

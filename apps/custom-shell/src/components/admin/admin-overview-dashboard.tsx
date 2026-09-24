@@ -69,7 +69,11 @@ import {
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { formatSharePercent } from "@/lib/format/format-number"
-import { buildMembershipFigures } from "@/lib/billing/membership-figures"
+import {
+  buildMembershipFigures,
+  JOINED_CHANGE_CAPTION,
+  joinedChange,
+} from "@/lib/billing/membership-figures"
 import { cancellationReasonLabel } from "@/lib/billing/cancellation"
 import { percentChange } from "@/lib/format/percent-change"
 import { plural } from "@/lib/format/plural"
@@ -408,7 +412,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
     current: point.thisMonth,
     previous: point.lastMonth,
   }))
-  const change = percentChange(membership.newLastMonth, membership.newThisMonth)
+  const change = joinedChange(membership)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5">
@@ -417,7 +421,9 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
           <p className="font-mono text-3xl leading-tight font-semibold tracking-tight tabular-nums">
             {membership.newThisMonth.toLocaleString()}
           </p>
-          {change ? <ChangeBadge change={change} /> : null}
+          {change ? (
+            <ChangeBadge change={change} caption={JOINED_CHANGE_CAPTION} />
+          ) : null}
         </div>
         <div className="hidden items-center gap-4 lg:flex">
           <LegendDot colour="var(--primary)" label="This month" />

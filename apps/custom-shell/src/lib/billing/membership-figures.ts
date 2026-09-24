@@ -14,6 +14,28 @@ import { plural } from "@/lib/format/plural"
  */
 const NO_HISTORY = "No history kept"
 
+/** What "Joined this month" is compared with, said wherever its change is. */
+export const JOINED_CHANGE_CAPTION = "vs same days last month"
+
+/**
+ * "Joined this month" against the same stretch of last month: on the 5th, the
+ * 1st to the 5th of each. Comparing part of a month with all of the last one
+ * started every month in the red.
+ *
+ * The same day means the same date. `signupsByDay` runs from the 1st to today,
+ * and a date last month did not have, such as 30 February, counts nobody. So
+ * on 30 or 31 March the comparison is all of February and never more.
+ */
+export function joinedChange(
+  summary: Pick<MembershipSummary, "signupsByDay" | "newThisMonth">
+) {
+  const sameDaysLastMonth = summary.signupsByDay.reduce(
+    (sum, day) => sum + day.lastMonth,
+    0
+  )
+  return percentChange(sameDaysLastMonth, summary.newThisMonth)
+}
+
 /** The four member-and-money figures the Overview's stat strip opens with. */
 export function buildMembershipFigures(
   summary: MembershipSummary
@@ -39,9 +61,9 @@ export function buildMembershipFigures(
       to: "/admin/users",
       label: "Joined this month",
       value: summary.newThisMonth.toLocaleString(),
-      change: percentChange(summary.newLastMonth, summary.newThisMonth),
-      changeCaption: "vs last month",
-      changeNote: "None last month",
+      change: joinedChange(summary),
+      changeCaption: JOINED_CHANGE_CAPTION,
+      changeNote: "None in the same days last month",
       trend: summary.last30Days.map((day) => day.joined),
       footer: `${summary.newThisMonth.toLocaleString()} of ${revenue.totalUsers.toLocaleString()} ${plural(revenue.totalUsers, "person", "people")}`,
     },
