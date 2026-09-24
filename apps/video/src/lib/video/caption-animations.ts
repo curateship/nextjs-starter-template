@@ -21,7 +21,7 @@ export const CAPTION_ANIMATIONS: {
   label: string
   description: string
 }[] = [
-  { id: "none", label: "None", description: "The word just lights up" },
+  { id: "none", label: "None", description: "The line just appears" },
   { id: "pop", label: "Pop", description: "Lands big, then settles" },
   { id: "rise", label: "Rise", description: "Slides up as it fades in" },
   { id: "bounce", label: "Bounce", description: "Swells once as it lands" },

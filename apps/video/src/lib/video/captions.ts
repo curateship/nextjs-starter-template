@@ -1,4 +1,5 @@
 import type { CaptionAnimationId } from "@/lib/video/caption-animations"
+import type { CaptionWordTime } from "@/lib/video/caption-words"
 import { clipMsAt } from "@/lib/video/clip-playback"
 
 /**
@@ -14,6 +15,8 @@ export type CaptionLine = {
   startMs: number
   endMs: number
   text: string
+  /** When each word of `text` is said, in the same time as the line. */
+  words?: CaptionWordTime[]
 }
 
 /** The clip the words came out of, as it stood when they were transcribed. */
@@ -109,7 +112,7 @@ export function mapCaptionsToTimeline(
     const text = line.text.trim()
     if (!text) continue
 
-    const clamped = {
+    const clamped: CaptionLine = {
       startMs: Math.max(source.startMs, Math.round(startMs)),
       endMs: Math.min(clipEndMs, Math.round(endMs)),
       text,
@@ -120,6 +123,21 @@ export function mapCaptionsToTimeline(
     if (previous && clamped.startMs < previous.endMs) {
       clamped.startMs = previous.endMs
       if (clamped.endMs <= clamped.startMs) continue
+    }
+    // The words move the same way, and stay inside the line they belong to.
+    if (line.words?.length) {
+      const inLine = (ms: number) =>
+        Math.min(
+          clamped.endMs,
+          Math.max(
+            clamped.startMs,
+            Math.round(source.startMs + clipMsAt(source, ms))
+          )
+        )
+      clamped.words = line.words.map((word) => ({
+        startMs: inLine(word.startMs),
+        endMs: inLine(word.endMs),
+      }))
     }
     mapped.push(clamped)
   }

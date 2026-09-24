@@ -82,6 +82,10 @@ import {
   type TransitionKind,
 } from "@/lib/video/clip-transitions"
 import { MUSIC_FADE_OUT_MS } from "@/lib/video/background-music"
+import {
+  captionWordsMatchTimes,
+  DEFAULT_CAPTION_WORD_COLOR,
+} from "@/lib/video/caption-words"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -268,6 +272,8 @@ function TextInspector({ clip }: { clip: EditorClip }) {
         </div>
       </InspectorCard>
 
+      {clip.wordTimes?.length ? <WordByWord clip={clip} /> : null}
+
       <InspectorCard title="Behind it">
         <SwitchField
           id="clip-highlight"
@@ -287,6 +293,53 @@ function TextInspector({ clip }: { clip: EditorClip }) {
 
       <Timing clip={clip} />
     </>
+  )
+}
+
+/**
+ * Lighting up each word as it is said. Only a caption written from speech
+ * knows when its words are said, so only those show this card.
+ */
+function WordByWord({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const lit = !!clip.activeWordColor
+
+  // The switch is one press, so it is one step of undo. The colour arrives
+  // in a stream while the picker is dragged, so it is not, the same as every
+  // other colour in this panel.
+  function patch(next: Partial<EditorClip>, transient: boolean) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <InspectorCard
+      title="Word by word"
+      description={
+        captionWordsMatchTimes(clip)
+          ? undefined
+          : "The words were edited to a different number than were said, so no word lights up. Put the same number back to bring it back."
+      }
+    >
+      <SwitchField
+        id="clip-word-highlight"
+        label="Light up each word"
+        description="The word being said turns a colour of its own."
+        checked={lit}
+        onChange={(on) =>
+          patch(
+            { activeWordColor: on ? DEFAULT_CAPTION_WORD_COLOR : undefined },
+            false
+          )
+        }
+      />
+      {lit ? (
+        <ColorField
+          label="Spoken word colour"
+          value={clip.activeWordColor ?? DEFAULT_CAPTION_WORD_COLOR}
+          onChange={(activeWordColor) => patch({ activeWordColor }, true)}
+        />
+      ) : null}
+    </InspectorCard>
   )
 }
 

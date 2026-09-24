@@ -1,5 +1,8 @@
 import { z } from "zod"
 
+import { alignWordTimes } from "@/lib/video/caption-words"
+import type { CaptionLine } from "@/lib/video/captions"
+
 /**
  * Reading a script aloud.
  *
@@ -117,7 +120,7 @@ export type VoiceoverResult = {
   name: string
   durationMs: number
   /** The words as they are said, ready to become captions. */
-  captions: { startMs: number; endMs: number; text: string }[]
+  captions: CaptionLine[]
 }
 
 /** A remembered choice: whose voice, which one, at what quality, how fast. */
@@ -248,14 +251,17 @@ export function spreadCaptionsEvenly(text: string, durationMs: number) {
   )
 }
 
-/** Words become the short lines that go on screen as they are spoken. */
-export function wordsToCaptions(words: SpokenWord[]) {
-  const lines: { startMs: number; endMs: number; text: string }[] = []
+/**
+ * Words become the short lines that go on screen as they are spoken. Each line
+ * keeps the times of its own words, which is what lights them up one by one.
+ */
+export function wordsToCaptions(words: SpokenWord[]): CaptionLine[] {
+  const lines: CaptionLine[] = []
   let run: SpokenWord[] = []
 
   const flush = () => {
     if (!run.length) return
-    lines.push({
+    const line = {
       startMs: run[0].startMs,
       endMs: run[run.length - 1].endMs,
       // Punctuation belongs against the word before it, not adrift.
@@ -263,7 +269,8 @@ export function wordsToCaptions(words: SpokenWord[]) {
         .map((word) => word.text)
         .join(" ")
         .replace(/\s+([,.!?;:])/g, "$1"),
-    })
+    }
+    lines.push({ ...line, words: alignWordTimes(line, run) })
     run = []
   }
 

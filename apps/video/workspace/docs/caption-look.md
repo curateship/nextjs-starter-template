@@ -5,8 +5,9 @@ writes from then on starts from it. Captions already on a timeline never change.
 
 ## What the look is
 
-- **Six settings:** the size, the colour of the words, whether they sit on a
-  box, the box colour, how they arrive (None, Pop, Rise or Bounce), and how far
+- **Eight settings:** the size, the colour of the words, whether they sit on a
+  box, the box colour, how they arrive (None, Pop, Rise or Bounce), whether
+  each word lights up as it is said, the colour it lights up in, and how far
   down the frame they sit. They are always centred across.
 - **Where it is set:** Brand panel, then Edit brand kit, then the Captions card.
   The card draws a sample caption on a small tall frame beside the controls.
@@ -15,7 +16,7 @@ writes from then on starts from it. Captions already on a timeline never change.
   `src/lib/video/caption-look.ts`.
 - **A kit saved before the look existed:** reads back as the look captions
   always had, which is white 64 px words on a black box, 78% of the way down,
-  with no entrance. There was no migration. The reader fills in any setting
+  with no entrance and no word lit. There was no migration. The reader fills in any setting
   that is missing or unusable.
 
 ## Which captions use it
@@ -56,7 +57,21 @@ measures all text in. The entrance plays with the numbers in
 Checked on 23 Sep 2026 with 100 px pink words on a green box, 30% down. On a
 256-pixel sample the words were 23.7 pixels tall. On a 463-pixel preview they
 were 42.9 pixels tall. Both are 9.26 pixels of text for every 100 pixels of
-frame, and both wrapped the test line onto three lines.
+frame.
+
+- **Where a line wraps:** at 90% of the frame's width, in the sample, the
+  preview and the export alike.
+- **Why that needed a fix:** until 23 Sep 2026 the sample and the preview
+  wrapped at half the frame. A box placed from the middle of the frame only
+  grows into the right half unless it is told to size itself to its words,
+  which is what the `w-max` class on both does now. On a 222-pixel preview,
+  "plain old line" sat on two lines while the export drew it on one. It now
+  sits on one line in both.
+- **The one case that can still differ:** the export guesses each letter's
+  width from an average, so a line that only just fits may still break one
+  word earlier or later in the export.
+- **Light up each word:** the seventh setting. It is covered in
+  [word-by-word-captions.md](word-by-word-captions.md).
 
 The sample is always the tall 9:16 shape, because most captioned video is made
 for phones. On a wide project the same caption takes up less of the width.

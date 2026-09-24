@@ -20,6 +20,8 @@ describe("reading the saved caption look", () => {
       boxed: false,
       boxColor: "#123456",
       animation: "pop",
+      wordHighlight: true,
+      wordColor: "#22c55e",
       y: 0.2,
     }
     expect(normalizeCaptionLook(saved)).toEqual(saved)
@@ -33,6 +35,8 @@ describe("reading the saved caption look", () => {
         boxed: "yes",
         boxColor: "#00ff00",
         animation: "spin",
+        wordHighlight: "on",
+        wordColor: "yellow",
         y: Number.NaN,
       })
     ).toEqual({ ...DEFAULT_CAPTION_LOOK, boxColor: "#00ff00" })
@@ -59,5 +63,18 @@ describe("turning the look into a caption clip", () => {
     const style = captionClipStyle({ ...DEFAULT_CAPTION_LOOK, y: 0.3 })
     expect(style.x).toBe(0.5)
     expect(style.y).toBe(0.3)
+  })
+
+  it("lights up each word only when the look says so", () => {
+    expect(
+      captionClipStyle(DEFAULT_CAPTION_LOOK).activeWordColor
+    ).toBeUndefined()
+    expect(
+      captionClipStyle({
+        ...DEFAULT_CAPTION_LOOK,
+        wordHighlight: true,
+        wordColor: "#22c55e",
+      }).activeWordColor
+    ).toBe("#22c55e")
   })
 })
