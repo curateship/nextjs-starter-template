@@ -22,6 +22,25 @@ export const RENDER_QUALITIES: {
 ]
 
 /**
+ * How many pictures a second the file shows. Thirty is the default because
+ * every export was 30 before there was a choice. Sixty only helps footage shot
+ * at sixty, and the renderer draws twice the frames for it
+ * (`workspace/docs/frame-rate.md` has the measured numbers).
+ */
+export type RenderFrameRate = 30 | 60
+
+export const RENDER_FRAME_RATES: {
+  id: RenderFrameRate
+  label: string
+  note: string
+}[] = [
+  { id: 30, label: "30 frames a second", note: "What most videos use" },
+  { id: 60, label: "60 frames a second", note: "Smoother movement, larger file" },
+]
+
+export const DEFAULT_FRAME_RATE: RenderFrameRate = 30
+
+/**
  * The shapes one press of Export can make, in the order the dialog lists them.
  * Every shape a project can be is here, so the project's own is always ticked.
  */
@@ -71,19 +90,24 @@ const EVEN_SOUND_SECONDS_PER_MINUTE = 3.2
 
 /**
  * About how long these exports will take once they start, one after another.
- * The time spent waiting behind other exports is not in it.
+ * The time spent waiting behind other exports is not in it. Every render above
+ * was made at 30 frames a second, so there is no estimate at 60 until one is
+ * timed on the server that renders.
  */
 export function estimateExportSeconds({
   projectMs,
   quality,
+  frameRate,
   aspects,
   normalizeLoudness,
 }: {
   projectMs: number
   quality: RenderQuality
+  frameRate: RenderFrameRate
   aspects: AspectRatio[]
   normalizeLoudness: boolean
 }) {
+  if (frameRate !== DEFAULT_FRAME_RATE) return null
   const minutes = projectMs / 60_000
   const sound = normalizeLoudness ? EVEN_SOUND_SECONDS_PER_MINUTE : 0
   return aspects.reduce(
@@ -94,11 +118,14 @@ export function estimateExportSeconds({
 }
 
 /**
- * What the export window says about the wait, or null when it would be under a
- * minute and not worth a line.
+ * What the export window says about the wait, or null when there is no
+ * estimate or it would be under a minute and not worth a line.
  */
-export function exportEstimateSentence(seconds: number, shapeCount: number) {
-  if (seconds < 60) return null
+export function exportEstimateSentence(
+  seconds: number | null,
+  shapeCount: number
+) {
+  if (seconds === null || seconds < 60) return null
   const minutes = Math.round(seconds / 60)
   const time = minutes === 1 ? "about a minute" : `about ${minutes} minutes`
   return shapeCount > 1

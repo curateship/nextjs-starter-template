@@ -135,6 +135,8 @@ sound switch change.
 - **It is left out under a minute,** which covers most short projects.
 - **It does not count exports waiting ahead.** Once the export is queued, the
   window already says how many are ahead of it.
+- **It is left out at 60 frames a second.** Every render above was made at
+  30, and 60 has not been timed yet ([frame-rate.md](frame-rate.md)).
 - **It assumes a picture that moves the whole time.** Stills are quicker.
   Captions add about 2 to 4 seconds a minute
   ([word-by-word-captions.md](word-by-word-captions.md)).

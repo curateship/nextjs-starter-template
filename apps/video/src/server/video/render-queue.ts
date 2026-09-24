@@ -9,6 +9,7 @@ import {
   QUEUE_FULL_MESSAGE,
   RENDER_NOT_FOUND_MESSAGE,
   shapeBusyMessage,
+  type RenderFrameRate,
   type RenderQuality,
   type RenderStatus,
 } from "@/lib/video/render"
@@ -78,6 +79,7 @@ export type RenderJobSummary = {
   status: RenderStatus
   quality: RenderQuality
   aspect: AspectRatio
+  frame_rate: RenderFrameRate
   error_message: string | null
   /** Where this sits in the person's own queue, while it is waiting. */
   queue_position: number | null
@@ -105,6 +107,7 @@ export function serializeRenderJob(
     status: row.status as RenderStatus,
     quality: row.quality as RenderQuality,
     aspect: row.aspect as AspectRatio,
+    frame_rate: row.frameRate as RenderFrameRate,
     error_message: row.errorMessage,
     queue_position: null,
     title: row.title,
@@ -243,6 +246,7 @@ export async function enqueueRenderJobs({
   projectId,
   aspects,
   quality,
+  frameRate,
   normalizeLoudness,
   title,
   database = db,
@@ -251,6 +255,7 @@ export async function enqueueRenderJobs({
   projectId: string
   aspects: AspectRatio[]
   quality: RenderQuality
+  frameRate: RenderFrameRate
   normalizeLoudness?: boolean
   /** What to call them. Left out, they take the project's name. */
   title?: string
@@ -283,6 +288,7 @@ export async function enqueueRenderJobs({
         status: "queued",
         quality,
         aspect,
+        frameRate,
         normalizeLoudness: normalize,
         title: name,
         createdAt: timestamp,
@@ -408,6 +414,7 @@ type ClaimedJob = {
   project_id: string
   quality: RenderQuality
   aspect: AspectRatio
+  frame_rate: RenderFrameRate
   normalize_loudness: boolean
   lease_token: string
 }
@@ -473,7 +480,7 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
       limit 1
       for update skip locked
     )
-    returning id, user_id, project_id, quality, aspect, normalize_loudness, lease_token
+    returning id, user_id, project_id, quality, aspect, frame_rate, normalize_loudness, lease_token
   `)
   return (result.rows[0] as ClaimedJob | undefined) ?? null
 }
@@ -552,6 +559,7 @@ async function runJob(job: ClaimedJob) {
       timeline: project.timeline,
       aspect: job.aspect,
       quality: job.quality,
+      frameRate: job.frame_rate,
       brandKit: await getVideoBrandKit(),
       normalizeLoudness: job.normalize_loudness,
       signal: stop.signal,

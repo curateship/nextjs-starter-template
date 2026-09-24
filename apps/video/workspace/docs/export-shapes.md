@@ -14,6 +14,10 @@ export now, not only to the project.
 - **One press, several files.** The button reads "Export 3 shapes" when three
   are ticked. Each shape becomes its own row in `video_render_jobs` with the same
   name, quality and sound setting. They wait in the queue like any other export.
+- **Export or Re-export.** Once every ticked shape has been exported before,
+  the button reads "Re-export", or "Re-export 3 shapes" for several. If any
+  ticked shape has never been exported, it reads "Export". A failed or stopped
+  export counts as exported, because pressing again makes that shape anew.
 - **Watching them.** The window lists the newest export in each shape the
   project has ever been exported in, with its progress and its own download
   button. That list comes from `getLatestRenderJobs` in
