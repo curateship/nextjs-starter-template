@@ -16,6 +16,7 @@ import {
   TIMELINE_TOO_LONG_MESSAGE,
   type RenderFrameRate,
 } from "@/lib/video/render"
+import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
 import {
   ASPECT_RATIOS,
   SAVED_TIMELINE_INVALID_MESSAGE,
@@ -50,6 +51,7 @@ export type { ExportListResponse, RenderJobSummary }
 export type ExportListWithShares = ExportListResponse & { shared_ids: string[] }
 
 const KNOWN_MESSAGES = new Set([
+  FRAME_FAILED_MESSAGE,
   PROJECT_NOT_FOUND_MESSAGE,
   RENDER_NOT_FOUND_MESSAGE,
   NOTHING_TO_EXPORT_MESSAGE,

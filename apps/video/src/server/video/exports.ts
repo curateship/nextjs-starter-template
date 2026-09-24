@@ -5,6 +5,7 @@ import {
   EXPORT_TITLE_MAX,
   RENDER_NOT_FOUND_MESSAGE,
 } from "@/lib/video/render"
+import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
@@ -160,7 +161,7 @@ export async function setOwnedExportCover({
   }
 
   const frame = await extractCoverFrameFromStorage(row.storagePath, atMs)
-  if (!frame) throw new Error("That moment could not be turned into a picture")
+  if (!frame) throw new Error(FRAME_FAILED_MESSAGE)
 
   // A new name each time, so no cache anywhere can keep handing back the old
   // cover after somebody has changed it.

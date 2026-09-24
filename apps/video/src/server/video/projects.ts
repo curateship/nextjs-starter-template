@@ -84,10 +84,10 @@ export function summarizeTimeline(timeline: ProjectTimeline) {
   return { clipCount, durationMs }
 }
 
-async function getOwnedProject(
+export async function getOwnedProject(
   userId: string,
   projectId: string,
-  database: CustomShellDb
+  database: CustomShellDb = db
 ) {
   const [row] = await database
     .select()
