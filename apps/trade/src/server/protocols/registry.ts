@@ -265,6 +265,44 @@ import {
   setLighterLeverage,
 } from "@/server/protocols/lighter/orders"
 import {
+  APEX_HISTORY_BATCH_BARS,
+  apexHistoryFloor,
+  fetchApexCandleHistory,
+  fetchApexCandles,
+} from "@/server/protocols/apex/candles"
+import {
+  apexFundingIntervalMs,
+  fetchApexFunding,
+} from "@/server/protocols/apex/funding"
+import {
+  apexLivePricesFresh,
+  openApexLivePrices,
+  readApexLivePrices,
+} from "@/server/protocols/apex/live-prices"
+import { fetchApexAccount } from "@/server/protocols/apex/account"
+import { verifyApexAgentKey } from "@/server/protocols/apex/agent"
+import {
+  cancelApexOrder,
+  closeApexPosition,
+  fetchApexOrderInfo,
+  fetchApexPortfolio,
+  modifyApexOrder,
+  placeApexOrder,
+  setApexBrackets,
+  setApexLeverage,
+} from "@/server/protocols/apex/orders"
+import {
+  apexFillsNeedRecovery,
+  fetchApexOrderFills,
+  watchApexFills,
+} from "@/server/protocols/apex/private-feed"
+import { packApexCredential } from "@/server/protocols/apex/client"
+import {
+  apexPricesWereRationed,
+  fetchApexMarkets,
+  fetchApexPrices,
+} from "@/server/protocols/apex/markets"
+import {
   fetchSolanaMarkets,
   fetchSolanaPrices,
   searchSolanaMarkets,
@@ -1126,6 +1164,67 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     credentials: {
       form: protocolDescription("lighter").credentialForm!,
       pack: packLighterCredential,
+    },
+  },
+  /**
+   * ApeX Omni's perpetual and stock contracts, charts, funding, a connected
+   * wallet and orders on the perpetuals. Stock contracts are listed and
+   * charted but not traded: ApeX trades them from a separate RWA account.
+   *
+   * ApeX publishes its limits, 600 requests a minute per address and per
+   * account 300 POST and 600 GET, and every request goes through
+   * `apex/budget.ts`. One socket topic carries every market's figures, so
+   * the market list and the engine read prices pushed rather than asked.
+   * Mainnet only (Tyler, 5 Sep 2026).
+   */
+  apex: {
+    ...protocolCore("apex"),
+    markets: {
+      fetch: fetchApexMarkets,
+      candles: fetchApexCandles,
+      history: fetchApexCandleHistory,
+      historyBatchBars: APEX_HISTORY_BATCH_BARS,
+      historyFloor: apexHistoryFloor,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchApexPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: apexPricesWereRationed,
+    },
+    livePrices: {
+      open: openApexLivePrices,
+      read: readApexLivePrices,
+      fresh: apexLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchApexFunding,
+      intervalMs: apexFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchApexAccount,
+      // ApeX's fills state their fee but no profit; profit is stated only
+      // per whole close. Counting an unstated zero as "made nothing" would
+      // report a day of trading as flat, so this stays false until a real
+      // fill shows otherwise (`apex-omni.md`).
+      profitPerSale: false,
+    },
+    agent: { verify: verifyApexAgentKey },
+    credentials: {
+      form: protocolDescription("apex").credentialForm!,
+      pack: packApexCredential,
+    },
+    orders: {
+      place: placeApexOrder,
+      cancel: cancelApexOrder,
+      // ApeX has no amend: cancel, then place.
+      modify: modifyApexOrder,
+      close: closeApexPosition,
+      setLeverage: setApexLeverage,
+      setBrackets: setApexBrackets,
+      portfolio: fetchApexPortfolio,
+      fills: fetchApexOrderFills,
+      orderInfo: fetchApexOrderInfo,
+      watchFills: watchApexFills,
+      fillsNeedRecovery: apexFillsNeedRecovery,
     },
   },
   binance: {

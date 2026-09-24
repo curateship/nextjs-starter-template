@@ -59,6 +59,11 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
       // Lighter's spot pairs carry a slash and are not perpetuals.
       if (ref.marketId.includes("/")) return null
       return bareNameSource(ref.marketId)
+    case "apex":
+      // Stock contracts and coins are both spelled NAMEUSDT and the key does
+      // not say which is which, so the name decides, as on Lighter. The
+      // server then checks the source really lists it (`resolveHistorySource`).
+      return bareNameSource(ref.marketId.replace(/USDT$/, ""))
     case "kucoin":
       // KuCoin calls Bitcoin XBT in its ids and lists coins only.
       return coinSource(

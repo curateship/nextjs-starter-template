@@ -11,5 +11,12 @@ export default defineNitroConfig({
       dir: "src/server/protocols/lighter/signer/assets",
       pattern: "lighter-signer.wasm",
     },
+    {
+      // ApeX Omni's zkLink signer and its glue, read as data by
+      // `apex/signer/index.ts`; see `PROVENANCE.md` there.
+      baseName: "apex-signer",
+      dir: "src/server/protocols/apex/signer/assets",
+      pattern: "zklink-sdk-node*",
+    },
   ],
 })

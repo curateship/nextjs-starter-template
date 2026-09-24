@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 
+import type { MarketRow } from "@/lib/protocols/contracts"
 import {
   allCatalogMarketRows,
+  busiestMarketKey,
   catalogMarketRow,
   filterMarketsByVolume,
   marketMeetsVolumeCutoff,
@@ -68,5 +70,36 @@ describe("the market volume cutoff", () => {
     expect(allCatalogMarketRows(filtered)).toEqual([rows[1], rows[0]])
     expect(catalogMarketRow(filtered, "thin")).toBe(rows[0])
     expect(catalogMarketRow(filtered, "kept")).toBe(rows[1])
+  })
+})
+
+describe("the market a bare visit opens", () => {
+  const row = (key: string, volume24hUsd: number) =>
+    ({ key, volume24hUsd }) as MarketRow
+  const catalog = (
+    protocol: string,
+    rows: MarketRow[],
+    hiddenByVolumeRows: MarketRow[] = []
+  ) =>
+    ({ protocol, network: "mainnet", rows, hiddenByVolumeRows }) as unknown as Parameters<
+      typeof busiestMarketKey
+    >[0][number]
+
+  it("is this exchange's busiest listed market", () => {
+    const catalogs = [
+      catalog("hyperliquid", [row("hyperliquid:mainnet:BTC", 9e9)]),
+      catalog("apex", [row("apex:mainnet:ETHUSDT", 1e7), row("apex:mainnet:BTCUSDT", 3e8)]),
+    ]
+    expect(busiestMarketKey(catalogs, "apex", "mainnet")).toBe("apex:mainnet:BTCUSDT")
+  })
+
+  it("uses the hidden rows only when the volume setting hides every market", () => {
+    const catalogs = [catalog("apex", [], [row("apex:mainnet:SOLUSDT", 5)])]
+    expect(busiestMarketKey(catalogs, "apex", "mainnet")).toBe("apex:mainnet:SOLUSDT")
+  })
+
+  it("is nothing while the list has not arrived", () => {
+    expect(busiestMarketKey([], "apex", "mainnet")).toBeNull()
+    expect(busiestMarketKey([catalog("apex", [])], "apex", "testnet")).toBeNull()
   })
 })

@@ -24,6 +24,7 @@ import {
   lighterSendTx,
 } from "@/server/protocols/lighter/client"
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
+import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import {
   fetchLighterPortfolio,
   readLighterMarginPosition,
@@ -152,6 +153,14 @@ async function send(
   txType: number,
   sign: (nonce: number) => Promise<{ txInfo: string }>
 ): Promise<void> {
+  /**
+   * **Both real-money switches, before anything is numbered or signed.**
+   * Every Lighter change comes through here, so this one line is the gate
+   * for orders, cancels, leverage, margin, stops and closes alike. Until
+   * 24 Sep 2026 it was missing: Lighter orders went out whatever the master
+   * lock and the Settings toggle said, the only venue that did.
+   */
+  await assertRealMoneyAllowed(network)
   /**
    * **Whatever is held is about to stop being true.** Anything sent here
    * changes what the account holds, so the brief REST hold is dropped before

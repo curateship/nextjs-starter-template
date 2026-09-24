@@ -274,7 +274,7 @@ describe("the protocol registry", () => {
       .sort()
 
     expect(pushed).toEqual(
-      ["aster", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
+      ["apex", "aster", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
     )
     for (const id of ["hyperliquid", "kucoin", "phemex"] as const) {
       expect(getProtocol(id).orders?.fillsNeedRecovery).toBeTypeOf("function")
@@ -322,6 +322,7 @@ describe("the protocol registry", () => {
     expect(named).toContain("KuCoin")
     expect(named).toContain("Aster")
     expect(named).toContain("Lighter")
+    expect(named).toContain("ApeX Omni")
   })
 })
 
@@ -331,6 +332,15 @@ it("offers both Lighter position controls with registered commands", () => {
   expect(lighter.capabilities.adjustMargin).toEqual({ can: true })
   expect(lighter.orders?.setLeverage).toBeTypeOf("function")
   expect(lighter.orders?.adjustMargin).toBeTypeOf("function")
+})
+
+it("offers ApeX Omni leverage and says why its margin cannot be moved", () => {
+  const apex = getProtocol("apex")
+  expect(apex.capabilities.changeLeverage).toEqual({ can: true })
+  expect(apex.orders?.setLeverage).toBeTypeOf("function")
+  expect(apex.capabilities.adjustMargin).toMatchObject({ can: false })
+  expect(apex.orders?.adjustMargin).toBeUndefined()
+  expect(apex.account?.profitPerSale).toBe(false)
 })
 
 it("rests Lighter grid stops on the exchange with explicit size tracking", () => {

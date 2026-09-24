@@ -1,4 +1,4 @@
-type TouchedVenue = "kucoin" | "phemex"
+type TouchedVenue = "kucoin" | "phemex" | "apex"
 
 const scope = globalThis as {
   __tradeTouchedAt?: Map<TouchedVenue, number>

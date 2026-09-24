@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { OrderAuth, PlaceOrderParams } from "@/lib/protocols/contracts"
+import { placeApexOrder } from "@/server/protocols/apex/orders"
 import { placeAsterOrder } from "@/server/protocols/aster/orders"
 import { placeHyperliquidOrder } from "@/server/protocols/hyperliquid/orders"
 import { placeKucoinOrder } from "@/server/protocols/kucoin/orders"
@@ -32,6 +33,7 @@ const placers = [
   ["KuCoin", placeKucoinOrder],
   ["Aster", placeAsterOrder],
   ["Lighter", placeLighterOrder],
+  ["ApeX Omni", placeApexOrder],
 ] as const
 
 describe.each(placers)("%s order values", (_name, place) => {

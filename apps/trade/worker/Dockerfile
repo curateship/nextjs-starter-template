@@ -53,6 +53,7 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 # image gets only the three programs Node opens, never their debugging files.
 COPY --from=build /app/apps/trade/worker/dist/*.mjs ./worker/dist/
 COPY --from=build /app/apps/trade/worker/dist/lighter-signer.wasm ./worker/dist/
+COPY --from=build /app/apps/trade/worker/dist/zklink-sdk-node.js /app/apps/trade/worker/dist/zklink-sdk-node_bg.wasm ./worker/dist/
 COPY --from=build /app/apps/trade/package.json ./package.json
 
 # No port and no health endpoint on purpose: it serves nothing. Whether it is

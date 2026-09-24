@@ -90,3 +90,12 @@ await copyFile(
   ),
   path.join(outdir, "lighter-signer.wasm")
 )
+
+// ApeX Omni's signer reads both of its files as data, so both go beside the
+// bundle too. See `src/server/protocols/apex/signer/PROVENANCE.md`.
+for (const name of ["zklink-sdk-node.js", "zklink-sdk-node_bg.wasm"]) {
+  await copyFile(
+    path.join(root, "src/server/protocols/apex/signer/assets", name),
+    path.join(outdir, name)
+  )
+}

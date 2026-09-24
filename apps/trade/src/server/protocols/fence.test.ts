@@ -95,6 +95,18 @@ const CHAIN_NAMES = /bnb|bsc|binance|pancake|robinhood|usdt|usdg|https?:\/\//i
  */
 const SIGNER_HOME = join("server", "protocols", "lighter", "signer")
 
+/**
+ * ApeX Omni's addresses, and the only folders that may name them: its server
+ * folder, which reads them from `.env`, and its browser folder, which opens
+ * the public quote socket.
+ */
+const APEX_HOMES = [
+  join("server", "protocols", "apex"),
+  join("lib", "protocols", "apex"),
+]
+const APEX_ADDRESSES = /apex\.exchange/
+const APEX_SIGNER_HOME = join("server", "protocols", "apex", "signer")
+
 /** Where naming a concrete protocol id is legitimate. */
 const PROTOCOL_AWARE = [
   join("server", "protocols") + sep,
@@ -184,7 +196,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb|robinhood)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb|robinhood)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|dukascopy|solana|bnb|robinhood)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|dukascopy|solana|bnb|robinhood)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))
@@ -217,6 +229,27 @@ describe("the protocol fence", () => {
       .filter(({ path }) => !path.startsWith(SOLANA_HOME + sep))
       .filter(({ path }) => path !== relative(SRC, __filename))
       .filter(({ text }) => SOLANA_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps ApeX Omni's vendored signer inside its own folder", () => {
+    // The same rule as Lighter's: one door to the signing path, so an omni
+    // key only ever goes through `apex/signer/index.ts`.
+    const loadsSigner = /zklink-sdk-node/
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(APEX_SIGNER_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => loadsSigner.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps ApeX Omni's addresses inside its own folders", () => {
+    const offenders = sources
+      .filter(({ path }) => !APEX_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => APEX_ADDRESSES.test(text))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })

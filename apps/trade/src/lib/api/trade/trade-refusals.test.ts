@@ -223,3 +223,21 @@ describe("a refusal that carries its own figures", () => {
     )
   })
 })
+
+it("prints an unanswered order's own sentence, never the generic try again", () => {
+  const said = getLiveErrorMessage(
+    new Error(
+      "LIVE_NO_ANSWER:ApeX Omni took the order (901) but its result could not be read, so whether it filled is unknown. Check Positions and Open orders before placing it again."
+    )
+  )
+  expect(said).toBe(
+    "ApeX Omni took the order (901) but its result could not be read, so whether it filled is unknown. Check Positions and Open orders before placing it again."
+  )
+  expect(said).not.toMatch(/Try it again/)
+})
+
+it("prints the whole sentence when a move came half done", () => {
+  expect(
+    getLiveErrorMessage(new Error("LIVE_MOVE_HALF_DONE:The old order came off, but ApeX Omni refused the new one. No order is resting there now."))
+  ).toBe("The old order came off, but ApeX Omni refused the new one. No order is resting there now.")
+})

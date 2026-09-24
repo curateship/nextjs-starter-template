@@ -83,6 +83,7 @@ a screen comparing exchange names is what the protocol fence forbids.
 | Phemex      | Yes, on the matching long or short side                               | Add or take back margin on an isolated position |
 | KuCoin      | Cross margin only                                                     | Add or take back margin on an isolated position |
 | Lighter     | Yes, preserving cross or isolated mode                                | Add or take back margin on an isolated position |
+| ApeX Omni   | Yes, a setting per market, read back after the change                 | No: one margin pool for the whole account       |
 
 **Aster's refusal is the venue's, not this app's.** It answers with its own
 code, which `refusals.ts` already turns into "Aster will not lower isolated
@@ -112,6 +113,19 @@ words when it cannot.
 negative amount takes cash back. Aster refuses the change on a cross position,
 when there is not enough free cash, or when taking cash back would leave too
 little behind the position. Its named refusal is the text the window shows.
+
+**ApeX Omni's leverage is a setting per market.** Trade sends the margin rate,
+one over the leverage (5x is 0.2), with `POST /v3/set-initial-margin-rate`,
+then reads the account again and refuses if ApeX still holds the old rate.
+The same call runs before the first order on a market, so an order goes out at
+the leverage on screen. A leverage past the market's ceiling is refused before
+anything is sent. ApeX's docs describe one margin pool for the whole account,
+liquidated as a whole, and list no call that adds or takes back cash behind
+one position, so the margin half of the window says: "ApeX Omni holds every
+position on the account's one shared margin, so there is no cash behind a
+single position to add to or take back." ApeX states no liquidation price per
+position either, so the row shows none. Measured against the docs only: no
+real ApeX account has been read yet.
 
 After every accepted change, Trade clears any held account answer and reads the
 position again. The row always shows the exchange's leverage, margin and

@@ -182,7 +182,8 @@ screen: anything not written there has not been agreed yet.
   anything is sold, what a refused cancel stops, and how it differs from Close
   all. The details footer includes Done and a separate Empty wallet action.
 - `position-margin.md` — changing leverage and the cash behind an open
-  position, Lighter signed changes and testing steps, exchange limits,
+  position, Lighter signed changes and testing steps, ApeX Omni's per-market
+  leverage and its one margin pool, exchange limits,
   withdrawal refusals and the estimated liquidation figure.
 - `stuck-wallet-warning.md` — when a wallet turn is called stuck, what the
   Workers screen says, and why the engine does not cancel the turn.
@@ -192,8 +193,8 @@ screen: anything not written there has not been agreed yet.
 
 ## protocols/ — the venues
 
-Protocol, not exchange: Hyperliquid, Phemex, KuCoin, Aster and Lighter are
-exchanges, Solana, BNB Chain and Robinhood Chain are chains, and protocol is the word that is
+Protocol, not exchange: Hyperliquid, Phemex, KuCoin, Aster, Lighter and ApeX
+Omni are exchanges, Solana, BNB Chain and Robinhood Chain are chains, and protocol is the word that is
 true of all of them. It is what the ids, the tables and the addresses have
 always used.
 
@@ -235,6 +236,17 @@ always used.
   the account is pushed down a socket rather than polled, how leverage is
   stated, signed leverage and margin request shapes, resting grid stops and
   their measured request costs, and why it is mainnet only.
+- `apex-omni.md` — ApeX Omni's 127 perpetual and stock contracts and why the
+  prediction markets are left out, the two spellings of each market, figures
+  from one socket topic instead of a read per market, hourly funding, the
+  no-`limit` candle rule and the 15 June 2024 start, the published request
+  windows and how they are split, the clock, signing in with four values and
+  the omni-key proof, the vendored zkLink signer, the account read, why stock
+  contracts are listed but not traded, orders capped 3% through the price,
+  stops placed before the old ones come off, leverage per market, no margin
+  moves, and fills pushed over the private socket.
+- `apex-omni-refusals.md` — every ApeX Omni refusal as one sentence, why
+  ApeX's own message is never shown, and what is refused before sending.
 - `phemex-refusals.md` — Phemex refusal codes in plain words, with the action
   each one asks for.
 - `kucoin.md` — which KuCoin stop rows count as open, the refusal codes seen

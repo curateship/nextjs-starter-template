@@ -175,6 +175,47 @@ export const PROTOCOL_DESCRIPTIONS = [
         "key.",
     },
   },
+  /**
+   * ApeX Omni: a decentralised perpetuals exchange built on zkLink, the
+   * Lighter kind of venue. Not the Variational Omni in `Protocols/Omni/`,
+   * which is a different product. Mainnet only (Tyler, 5 Sep 2026).
+   */
+  {
+    id: "apex",
+    label: "ApeX Omni",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      ordersAreSwaps: false,
+      // Stops rest on ApeX as its own conditional orders.
+      gridStop: "exchange",
+      // Leverage is a per-market setting ApeX takes at any time.
+      changeLeverage: { can: true },
+      // ApeX's docs describe one margin for the whole account, liquidated
+      // as a whole, and list no call that moves cash behind one position.
+      adjustMargin: {
+        can: false,
+        because:
+          "ApeX Omni holds every position on the account's one shared margin, so there is no cash behind a single position to add to or take back.",
+      },
+    },
+    credentialForm: {
+      addressLabel: "Wallet address",
+      addressHint: "0x…",
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+      secretLabel: "API values",
+      needsPassphrase: true,
+      // Not an Ethereum agent key: turning this on would run the 64-hex
+      // agent-key check on ApeX's three values and refuse every real paste.
+      secretIsAgentKey: false,
+      canMakeWallet: false,
+      keyHelp:
+        "Open API management on ApeX Omni and copy three values into API values, separated by spaces: the API key, the secret and the omni key. The passphrase goes in its own box. The first field takes the wallet address you sign in to ApeX with. Trade never asks for that wallet's own key, so it can trade but never withdraw.",
+    },
+  },
   {
     id: "binance",
     label: "Binance",
