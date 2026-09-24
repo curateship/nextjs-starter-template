@@ -20,7 +20,10 @@ import {
   type PublicSite,
   type VisitorSite,
 } from "@/server/directory/public"
-import { siteTimeZone } from "@/server/directory/settings"
+import {
+  directoryMapDisplayKey,
+  siteTimeZone,
+} from "@/server/directory/settings"
 import {
   eventsAccessFor,
   readEventsBetween,
@@ -179,6 +182,12 @@ type PublicEventView = PublicEventPage & {
    * never name the time zone in two different ways.
    */
   when: { day: string; times: string }
+  /**
+   * The site's Google Maps key for drawing the map, the same browser key the
+   * directory's map uses. Null when the event has no position or the site has
+   * no key, and then the page draws no map.
+   */
+  mapKey: string | null
 }
 
 const readEventFn = createServerFn({ method: "GET" })
@@ -194,6 +203,9 @@ const readEventFn = createServerFn({ method: "GET" })
       ...page,
       ended: eventHasEnded(page.event, page.timeZone, new Date()),
       when: eventWhenLines(page.event, page.timeZone),
+      mapKey: page.event.position
+        ? await directoryMapDisplayKey(open.site.id)
+        : null,
     }
   })
 

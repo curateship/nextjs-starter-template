@@ -63,6 +63,7 @@ import {
   listingViewTotal,
 } from "@/server/directory/views"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { keepListingPlaceOnEvents } from "@/server/events/events"
 import { customShellTrafficDailyFacts } from "@/server/schema"
 
 /**
@@ -637,6 +638,8 @@ export async function deleteListings(
   // deleted listing — a failure between the two would leave rows pointing at
   // something that is gone, which every later impact summary would count.
   const done = await database.transaction(async (tx) => {
+    // An event held at one of these keeps its name and address as text.
+    await keepListingPlaceOnEvents(workspaceId, ids, tx)
     const deleted = await tx
       .delete(directoryListings)
       .where(

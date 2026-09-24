@@ -19,6 +19,7 @@ import {
 import { CLIP_MOTIONS } from "./clip-motion"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
+import { MAX_CAPTION_WORDS } from "./caption-words"
 import { TEXT_FONT_IDS } from "./text-fonts"
 
 /**
@@ -101,6 +102,23 @@ export const clipSchema = z
     highlightColor: z.string().max(32).optional(),
     // How the words arrive on screen. Unset means they simply appear.
     animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
+    // When each word of the text is said, matched to the words by position
+    // and measured from the clip's own start (see caption-words.ts). Only
+    // captions written from speech carry them.
+    wordTimes: z
+      .array(
+        z
+          .object({
+            startMs: z.number().finite(),
+            endMs: z.number().finite(),
+          })
+          .strict()
+      )
+      .max(MAX_CAPTION_WORDS)
+      .optional(),
+    // The colour the word being said turns. Unset means no word lights up,
+    // which is how every caption drew before this existed.
+    activeWordColor: z.string().max(32).optional(),
     // Where the middle of the text sits on the frame, 0–1 in each direction
     // (0.5/0.5 = dead centre). Set by dragging the text on the preview.
     x: z.number().min(0).max(1).optional(),

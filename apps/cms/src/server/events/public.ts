@@ -42,9 +42,18 @@ import {
   type VisitorSite,
 } from "@/server/directory/public"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
-import { categories, categoryRelationships } from "@/server/directory/schema"
+import {
+  categories,
+  categoryRelationships,
+  directoryListings,
+} from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import { toEvent } from "@/server/events/events"
+import {
+  listingOfEvent,
+  livePlaceAddress,
+  livePlaceName,
+} from "@/server/events/place"
 import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
 
 /**
@@ -85,7 +94,7 @@ const eventCardColumns = {
   slug: siteEvents.slug,
   summary: siteEvents.summary,
   coverImage: siteEvents.coverImage,
-  placeName: siteEvents.placeName,
+  placeName: livePlaceName,
   startDate: siteEvents.startDate,
   startTime: siteEvents.startTime,
   endDate: siteEvents.endDate,
@@ -130,6 +139,16 @@ export type PublicEvent = EventWhen & {
   categories: PublicCategoryLink[]
   /** Left out of every list, and its page asks search engines to skip it. */
   isPrivate: boolean
+  /**
+   * The listing the place links to, when the place is a published listing and
+   * the directory is open to everyone. Otherwise the place is plain text.
+   */
+  placeListingSlug: string | null
+  /**
+   * Where the place is on a map: the listing's own pin when the place is a
+   * listing, or the typed address as looked up. Null draws no map.
+   */
+  position: { latitude: number; longitude: number } | null
 }
 
 export type PublicEventPage = {
@@ -202,12 +221,23 @@ async function readPublicEventUncached(
   slug: string,
   database: CustomShellDb
 ): Promise<PublicEventPage | null> {
-  const [row] = await database
-    .select()
+  const [found] = await database
+    .select({
+      row: siteEvents,
+      placeName: livePlaceName,
+      placeAddress: livePlaceAddress,
+      listingId: directoryListings.id,
+      listingSlug: directoryListings.slug,
+      listingStatus: directoryListings.status,
+      listingLatitude: directoryListings.latitude,
+      listingLongitude: directoryListings.longitude,
+    })
     .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
     .where(and(publishedEventsOnSite(site.id), eq(siteEvents.slug, slug)))
     .limit(1)
-  if (!row) return null
+  if (!found) return null
+  const { row } = found
 
   const event = toEvent(row)
   const [categoryRows, timeZone, directoryVisibility] = await Promise.all([
@@ -254,10 +284,24 @@ async function readPublicEventUncached(
       startTime: event.startTime,
       endDate: event.endDate,
       endTime: event.endTime,
-      placeName: event.placeName,
-      placeAddress: event.placeAddress,
+      placeName: found.placeName,
+      placeAddress: found.placeAddress,
       categories: categoryRows,
       isPrivate: event.visibility === "private",
+      // A draft listing, or a directory kept from visitors, is never linked.
+      placeListingSlug:
+        found.listingStatus === "published" &&
+        directoryVisibility === "everyone"
+          ? found.listingSlug
+          : null,
+      position: found.listingId
+        ? found.listingLatitude !== null && found.listingLongitude !== null
+          ? {
+              latitude: found.listingLatitude,
+              longitude: found.listingLongitude,
+            }
+          : null
+        : event.position,
     },
     timeZone,
     listingCards,
@@ -338,6 +382,7 @@ export function readUpcomingEvents(
         database
           .select(eventCardColumns)
           .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
           .where(where)
           .orderBy(...soonestFirst)
           .limit(EVENTS_PAGE_SIZE)
@@ -392,14 +437,15 @@ export async function readCalendarFeed(
       title: siteEvents.title,
       slug: siteEvents.slug,
       summary: siteEvents.summary,
-      placeName: siteEvents.placeName,
-      placeAddress: siteEvents.placeAddress,
+      placeName: livePlaceName,
+      placeAddress: livePlaceAddress,
       startDate: siteEvents.startDate,
       startTime: siteEvents.startTime,
       endDate: siteEvents.endDate,
       endTime: siteEvents.endTime,
     })
     .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
     .where(and(listedEventsOnSite(siteId), notOverAt(nowDay, nowTime)))
     .orderBy(...soonestFirst)
     .limit(CALENDAR_FEED_LIMIT)
@@ -434,6 +480,7 @@ export function readEventsBetween(
       const rows = await database
         .select(eventCardColumns)
         .from(siteEvents)
+        .leftJoin(directoryListings, listingOfEvent)
         .where(
           and(
             listedEventsOnSite(site.id),
@@ -477,13 +524,14 @@ export async function eventSearchResults(
       body: siteEvents.body,
     })
     .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
     .where(
       and(
         listedEventsOnSite(siteId),
         or(
           ilike(siteEvents.title, pattern),
           ilike(siteEvents.summary, pattern),
-          ilike(siteEvents.placeName, pattern),
+          ilike(livePlaceName, pattern),
           ilike(bodyText, pattern)
         )
       )

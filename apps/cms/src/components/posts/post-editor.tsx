@@ -21,13 +21,12 @@ import {
   LinkIcon,
   ListIcon,
   ListOrderedIcon,
-  Loader2Icon,
-  PlusIcon,
   StoreIcon,
   TextQuoteIcon,
   Trash2Icon,
 } from "lucide-react"
 
+import { ListingPicker } from "@/components/directory/listing-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,14 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  findListingChoices,
-  getPostErrorMessage,
-  type ListingChoice,
-} from "@/lib/api/posts/posts"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { SEARCH_SETTLE_MS } from "@/lib/nav/list-search"
+import type { ListingChoice } from "@/lib/api/posts/posts"
 import {
   cleanPostBody,
   LISTING_CARD_NODE,
@@ -138,7 +130,10 @@ export function PostEditor({
         {editor && !disabled ? (
           <>
             <div className="flex items-center gap-2 border-b p-2">
-              <ListingCardPicker
+              <ListingPicker
+                label="Listing card"
+                inputId="post-listing-card-search"
+                size="sm"
                 onPick={(listing) => {
                   onListingPicked(listing)
                   editor
@@ -262,104 +257,6 @@ function ListingCardView({
 }
 
 /** Searches this site's listings and hands back the one picked. */
-function ListingCardPicker({
-  onPick,
-}: {
-  onPick: (listing: ListingChoice) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [query, setQuery] = React.useState("")
-  const [results, setResults] = React.useState<ListingChoice[] | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    const timer = setTimeout(
-      () => {
-        findListingChoices(query).then(
-          (found) => {
-            if (cancelled) return
-            setResults(found)
-            setError(null)
-          },
-          (failure: unknown) => {
-            if (!cancelled) setError(getPostErrorMessage(failure))
-          }
-        )
-      },
-      query ? SEARCH_SETTLE_MS : 0
-    )
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [open, query])
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
-          <PlusIcon className="size-4" />
-          Listing card
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-3" align="start">
-        <div className="grid gap-2">
-          <Label htmlFor="post-listing-card-search">Find a listing</Label>
-          <Input
-            id="post-listing-card-search"
-            value={query}
-            placeholder="Search by name…"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : results === null ? (
-            <div className="flex h-16 items-center justify-center">
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : results.length === 0 ? (
-            <p className="py-2 text-sm text-muted-foreground">
-              {query.trim()
-                ? "No listing on this site matches that name."
-                : "This site has no listings yet."}
-            </p>
-          ) : (
-            <ScrollArea className="max-h-64">
-              <ul className="grid gap-1">
-                {results.map((listing) => (
-                  <li key={listing.id}>
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                        focusRing
-                      )}
-                      onClick={() => {
-                        onPick(listing)
-                        setOpen(false)
-                        setQuery("")
-                      }}
-                    >
-                      <span className="truncate">{listing.title}</span>
-                      {listing.status === "draft" ? (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          Draft
-                        </span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </ScrollArea>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 function ToolbarButton({
   label,
   active,

@@ -42,6 +42,12 @@ import {
   type CaptionWordAnimation,
 } from "@/lib/video/caption-animations"
 import {
+  captionWordHighlight,
+  litWordRuns,
+  splitWindowsByLitWord,
+} from "@/lib/video/caption-words"
+import { captionLayerSegments } from "@/server/video/caption-layer"
+import {
   resolveIncomingTransition,
   type ClipTransition,
 } from "@/lib/video/clip-transitions"
@@ -584,47 +590,117 @@ async function buildFfmpegCommand(options: {
   // through black rather than showing whatever is on a lane underneath.
   const dipSeams: { seamS: number; halfS: number }[] = []
 
-  for (const { clip, muted, duck, transition } of visuals) {
+  // Captions with nothing else between them in the stack are drawn as one
+  // layer, keyed by the first of them (see caption-layer.ts). A layer per
+  // caption ran a long captioned export past its time limit.
+  const captionRuns = new Map<RenderClip, RenderClip[]>()
+  let run: RenderClip[] | null = null
+  for (const entry of visuals) {
+    if (entry.clip.kind !== "text") {
+      run = null
+      continue
+    }
+    if (!run) {
+      run = []
+      captionRuns.set(entry, run)
+    }
+    run.push(entry)
+  }
+
+  for (const entry of visuals) {
+    const { clip, muted, duck, transition } = entry
     const startS = clip.startMs / 1000
     const endS = (clip.startMs + clip.durationMs) / 1000
     const durS = clip.durationMs / 1000
 
     if (clip.kind === "text") {
-      const animation = resolveCaptionAnimation(clip.animation)
-      // A still line is one picture shown for its whole turn. An animated one
-      // is a few pictures across its entrance and then one still — the same
-      // windows the preview moves through, drawn instead of tweened.
-      const windows = isAnimatedCaption(animation)
-        ? captionExportWindows(0, clip.durationMs, 0)
-        : [{ fromMs: 0, toMs: clip.durationMs, progress: 1 }]
+      // A run of captions is one layer, laid down where its first caption
+      // sits in the stack; the rest of the run is already in it.
+      const run = captionRuns.get(entry)
+      if (!run) continue
+      const parts = new Map<string, string>()
+      const segments = captionLayerSegments(
+        run.map(({ clip: caption }, captionIndex) => {
+          const animation = resolveCaptionAnimation(caption.animation)
+          // A still line is one picture for its whole turn. An animated one
+          // is a few pictures across its entrance and then one still — the
+          // same windows the preview moves through, drawn instead of tweened.
+          const entrance = isAnimatedCaption(animation)
+            ? captionExportWindows(0, caption.durationMs, 0)
+            : [{ fromMs: 0, toMs: caption.durationMs, progress: 1 }]
+          // A caption lit word by word is cut again wherever the lit word
+          // changes: the preview's colour change, drawn.
+          const highlight = captionWordHighlight(caption)
+          const windows = highlight
+            ? splitWindowsByLitWord(
+                entrance,
+                litWordRuns(caption, highlight.times)
+              )
+            : entrance.map((window) => ({ ...window, lit: -1 }))
+          return {
+            startMs: caption.startMs,
+            durationMs: caption.durationMs,
+            pieces: windows.map((window, windowIndex) => {
+              const id = `${captionIndex}-${windowIndex}`
+              parts.set(
+                id,
+                textSvgPart(
+                  caption,
+                  size,
+                  captionWordAnimation(animation, window.progress),
+                  window.lit
+                )
+              )
+              return { fromMs: window.fromMs, toMs: window.toMs, picture: id }
+            }),
+          }
+        }),
+        OUTPUT_FPS
+      )
+      if (!segments.length) continue
 
-      let step = visualStep
-      for (const [index, window] of windows.entries()) {
-        const png = await renderTextPng(
-          clip,
-          size,
-          captionWordAnimation(animation, window.progress)
+      // One picture per stretch, drawn once however often it comes back, and
+      // listed for ffmpeg's `concat` reader counting in the film's frames.
+      const pictures = new Map<string, string>()
+      const option = `option framerate ${OUTPUT_FPS}`
+      const lines = ["ffconcat version 1.0"]
+      for (const segment of segments) {
+        const key = segment.pictures.join("+")
+        let file = pictures.get(key)
+        if (!file) {
+          file = path.join(dir, `captions-${visualStep}-${pictures.size}.png`)
+          await writeFile(
+            file,
+            renderTextLayerPng(
+              segment.pictures.map((id) => parts.get(id)!),
+              size
+            )
+          )
+          pictures.set(key, file)
+        }
+        lines.push(
+          `file '${path.basename(file)}'`,
+          option,
+          `duration ${((segment.toFrame - segment.fromFrame) / OUTPUT_FPS).toFixed(6)}`
         )
-        const file = path.join(dir, `text-${visualStep}-${index}.png`)
-        await writeFile(file, png)
-        const fromS = startS + window.fromMs / 1000
-        const toS = startS + window.toMs / 1000
-        inputs.push(
-          "-loop",
-          "1",
-          "-t",
-          String((window.toMs - window.fromMs) / 1000),
-          "-i",
-          file
-        )
-        filters.push(
-          `[${inputIndex + index}:v]format=rgba,setpts=PTS-STARTPTS+${fromS}/TB[l${step}]`,
-          `[v${step}][l${step}]overlay=x=0:y=0:enable='between(t,${fromS},${toS})'[v${step + 1}]`
-        )
-        step += 1
       }
-      visualStep = step - 1
-      inputIndex += windows.length - 1
+      // The reader ignores the last picture's time unless it is named again.
+      lines.push(lines.at(-3)!, option)
+      const listFile = path.join(dir, `captions-${visualStep}.txt`)
+      await writeFile(listFile, `${lines.join("\n")}\n`)
+      // One decoding thread: by default an input takes one per core. The
+      // reader's safe mode refuses the `option` lines, so it is off; the list
+      // is written here and names only the pictures drawn beside it.
+      inputs.push("-threads", "1", "-f", "concat", "-safe", "0", "-i", listFile)
+
+      const firstFrame = segments[0].fromFrame
+      const endFrame = segments.at(-1)!.toFrame
+      // On from its first frame, off before the frame after its last: the
+      // half frames keep either edge from landing on a rounding error.
+      filters.push(
+        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${firstFrame / OUTPUT_FPS}/TB[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / OUTPUT_FPS},${(endFrame - 0.5) / OUTPUT_FPS})'[v${visualStep + 1}]`
+      )
     } else {
       const file = sourceFiles.get(clip.mediaId!)!
       // A still has no speed: there is nothing moving to play faster. A video
@@ -905,18 +981,19 @@ function requireRenderFont() {
 }
 
 /**
- * One text clip as a full-frame see-through picture, matching the preview:
- * centred on its own position, 1.15 line height, a soft shadow unless it sits
- * on a block of colour, and the size scaled from the 1080-tall design space.
+ * One text clip's part of a picture, matching the preview: centred on its own
+ * position, 1.15 line height, a soft shadow unless it sits on a block of
+ * colour, and the size scaled from the 1080-tall design space.
  */
-async function renderTextPng(
+function textSvgPart(
   clip: EditorClip,
   size: { width: number; height: number },
   /** Where the words are in their entrance; left out means fully arrived. */
-  entrance: CaptionWordAnimation = { scale: 1, opacity: 1, dyEm: 0 }
+  entrance: CaptionWordAnimation = { scale: 1, opacity: 1, dyEm: 0 },
+  /** Which word of the text is being said, or -1 for none. */
+  litWord = -1
 ) {
   const font = requireTextFont(clip.fontId)
-  const fontFile = requireRenderFont()
 
   const scale = size.height / DESIGN_HEIGHT
   const fontSize = (clip.fontSize ?? 80) * scale
@@ -935,10 +1012,33 @@ async function renderTextPng(
   const firstBaseline =
     centerY - blockHeight / 2 + lineHeight / 2 + fontSize * 0.36
 
+  // The lit word gets a fill of its own inside its line. Words are counted
+  // across the lines in the order they were wrapped, which is the order the
+  // word times are matched to them.
+  const litColor = captionWordHighlight(clip)?.color ?? ""
+  const litFill = litWord >= 0 && HEX_COLOR.test(litColor) ? litColor : null
+  let wordIndex = 0
+  const drawLine = (line: string) => {
+    if (!litFill) return escapeXml(line) || " "
+    return (
+      line
+        .split(/(\s+)/)
+        .map((part) => {
+          if (!part || /^\s+$/.test(part)) return escapeXml(part)
+          const lit = wordIndex === litWord
+          wordIndex += 1
+          return lit
+            ? `<tspan fill="${litFill}">${escapeXml(part)}</tspan>`
+            : escapeXml(part)
+        })
+        .join("") || " "
+    )
+  }
+
   let maxLineWidth = 0
   const spans = lines.map((line, index) => {
     maxLineWidth = Math.max(maxLineWidth, line.length * charWidth)
-    return `<tspan x="${centerX.toFixed(1)}" y="${(firstBaseline + index * lineHeight).toFixed(1)}">${escapeXml(line) || " "}</tspan>`
+    return `<tspan x="${centerX.toFixed(1)}" y="${(firstBaseline + index * lineHeight).toFixed(1)}">${drawLine(line)}</tspan>`
   })
 
   const highlight =
@@ -967,12 +1067,25 @@ async function renderTextPng(
     : ""
   const closeGroup = entering ? "</g>" : ""
 
+  return `${openGroup}${highlightRect}
+  <text${textFilter} text-anchor="middle" font-family="Inter" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>${closeGroup}`
+}
+
+/**
+ * Text clips' parts drawn together as one full-frame see-through picture, the
+ * first one lowest. No parts at all is a clear picture.
+ */
+function renderTextLayerPng(
+  parts: string[],
+  size: { width: number; height: number }
+) {
+  const fontFile = requireRenderFont()
+  const scale = size.height / DESIGN_HEIGHT
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
   <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
-  ${openGroup}${highlightRect}
-  <text${textFilter} text-anchor="middle" font-family="Inter" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>${closeGroup}
+  ${parts.join("\n  ")}
 </svg>`
 
   const { Resvg } = loadResvg()

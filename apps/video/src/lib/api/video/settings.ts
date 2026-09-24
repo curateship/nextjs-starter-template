@@ -65,6 +65,8 @@ const brandKitSchema = z.object({
     boxed: z.boolean(),
     boxColor: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/),
     animation: z.enum(CAPTION_ANIMATION_IDS),
+    wordHighlight: z.boolean(),
+    wordColor: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/),
     y: z.number().min(CAPTION_Y_MIN).max(CAPTION_Y_MAX),
   }),
 })

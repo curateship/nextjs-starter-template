@@ -19,6 +19,7 @@ import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import type { EditorClip } from "@/components/video-editor/editor-store"
 import { pickTranscriber } from "@/lib/video/ai-choices"
+import { alignWordTimes } from "@/lib/video/caption-words"
 import { wordsToCaptions } from "@/lib/video/voice"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
@@ -61,6 +62,18 @@ const captionsSchema = z.object({
         startMs: z.number().finite(),
         endMs: z.number().finite(),
         text: z.string().max(200),
+        // Estimates, like every time Gemini gives. Missing or mismatched,
+        // the line's time is shared out evenly across its words instead.
+        words: z
+          .array(
+            z.object({
+              text: z.string().max(200),
+              startMs: z.number().finite(),
+              endMs: z.number().finite(),
+            })
+          )
+          .max(200)
+          .optional(),
       })
     )
     .max(1000),
@@ -72,12 +85,13 @@ function captionsPrompt(durationMs: number) {
 The sound is ${durationMs} milliseconds long. Every time you give must be a whole number of milliseconds between 0 and ${durationMs}, measured from the start of the sound.
 
 Answer with JSON only, in exactly this shape, and nothing else:
-{ "captions": [{ "startMs": 0, "endMs": 900, "text": "..." }] }
+{ "captions": [{ "startMs": 0, "endMs": 900, "text": "...", "words": [{ "text": "...", "startMs": 0, "endMs": 300 }] }] }
 
 Rules:
 - Write down only what is spoken. Ignore music, sound effects and any words shown on screen.
 - Break the speech into chunks of at most ${CAPTION_MAX_WORDS} words, each lasting at most ${CAPTION_MAX_MS} milliseconds.
 - Follow the real timing of the speech. Chunks must never overlap.
+- List every word of the chunk's text under "words", in order, with when it was said. Together they must spell out the text exactly.
 - Keep the language and the capitalisation as spoken.
 - If nobody speaks, answer { "captions": [] }.`
 }
@@ -242,7 +256,10 @@ export async function writeProjectCaptions(
           })
       )
       return {
-        result: result.value.captions,
+        result: result.value.captions.map(({ words, ...line }) => ({
+          ...line,
+          words: alignWordTimes(line, words),
+        })),
         usage: {
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,

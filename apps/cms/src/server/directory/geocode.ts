@@ -1,5 +1,6 @@
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { requestIp } from "@/server/auth/origin"
+import { db, type CustomShellDb } from "@/server/db"
 import { directoryGeocodingKey } from "@/server/directory/settings"
 
 export type GeocodedDirectoryPlace = {
@@ -72,16 +73,7 @@ export async function geocodeDirectoryPlace(
   }
 
   try {
-    const params = new URLSearchParams({ address: normalized, key: apiKey })
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?${params}`,
-      { signal: AbortSignal.timeout(5_000) }
-    )
-    if (!response.ok) throw new Error("Geocoding failed")
-    const body = (await response.json()) as GoogleGeocodingResponse
-    if (body.status !== "OK" && body.status !== "ZERO_RESULTS") {
-      throw new Error("Geocoding provider rejected the request")
-    }
+    const body = await askGoogle(apiKey, normalized)
     const place = parseGeocodedDirectoryPlace(body, normalized)
     while (cache.size >= MAX_CACHE_ENTRIES)
       cache.delete(cache.keys().next().value!)
@@ -95,6 +87,68 @@ export async function geocodeDirectoryPlace(
   } catch {
     return { place: null, error: "We could not look up that place. Try again." }
   }
+}
+
+/**
+ * Google's answer for one address. Throws when Google could not be reached or
+ * refused the request; "found nothing" is an answer, not an error.
+ */
+async function askGoogle(
+  apiKey: string,
+  address: string
+): Promise<GoogleGeocodingResponse> {
+  const params = new URLSearchParams({ address, key: apiKey })
+  const response = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?${params}`,
+    { signal: AbortSignal.timeout(5_000) }
+  )
+  if (!response.ok) throw new Error("Geocoding failed")
+  const body = (await response.json()) as GoogleGeocodingResponse
+  if (body.status !== "OK" && body.status !== "ZERO_RESULTS") {
+    throw new Error("Geocoding provider rejected the request")
+  }
+  return body
+}
+
+/**
+ * Where an event's typed street address is, for the map on its page.
+ *
+ * "not-found" is Google's own answer and is kept, so the same address is not
+ * asked about again. "unavailable" is no key, no network or a refusal, which
+ * the next save tries again. Kept to six decimal places, about a hand's width,
+ * because a pin for a door has to be closer than the browse page's town.
+ */
+export async function locateAddress(
+  workspaceId: string,
+  address: string,
+  database: CustomShellDb = db
+): Promise<
+  | { found: true; latitude: number; longitude: number }
+  | { found: false; reason: "not-found" | "unavailable" }
+> {
+  const apiKey = await directoryGeocodingKey(workspaceId, database).catch(
+    () => null
+  )
+  if (!apiKey) return { found: false, reason: "unavailable" }
+  let body: GoogleGeocodingResponse
+  try {
+    body = await askGoogle(apiKey, address.slice(0, 300))
+  } catch {
+    return { found: false, reason: "unavailable" }
+  }
+  const location = body.results?.[0]?.geometry?.location
+  const latitude = location?.lat
+  const longitude = location?.lng
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  ) {
+    return { found: false, reason: "not-found" }
+  }
+  const round = (value: number) => Math.round(value * 1_000_000) / 1_000_000
+  return { found: true, latitude: round(latitude), longitude: round(longitude) }
 }
 
 /** Turns Google's response into the only public fields the browse page needs. */

@@ -55,7 +55,17 @@ describe("words becoming captions", () => {
   it("breaks at four words", () => {
     const lines = wordsToCaptions(words)
     expect(lines).toHaveLength(2)
-    expect(lines[0]).toEqual({ startMs: 0, endMs: 800, text: "one two three four" })
+    expect(lines[0]).toEqual({
+      startMs: 0,
+      endMs: 800,
+      text: "one two three four",
+      words: [
+        { startMs: 0, endMs: 200 },
+        { startMs: 200, endMs: 400 },
+        { startMs: 400, endMs: 600 },
+        { startMs: 600, endMs: 800 },
+      ],
+    })
     expect(lines[1].text).toBe("five")
   })
 
@@ -68,13 +78,17 @@ describe("words becoming captions", () => {
   })
 
   it("tucks punctuation against the word before it", () => {
-    expect(
-      wordsToCaptions([
-        { text: "well", startMs: 0, endMs: 200 },
-        { text: ",", startMs: 200, endMs: 210 },
-        { text: "yes", startMs: 210, endMs: 400 },
-      ])[0].text
-    ).toBe("well, yes")
+    const [line] = wordsToCaptions([
+      { text: "well", startMs: 0, endMs: 200 },
+      { text: ",", startMs: 200, endMs: 210 },
+      { text: "yes", startMs: 210, endMs: 400 },
+    ])
+    expect(line.text).toBe("well, yes")
+    // Two words on screen, so two times: the comma rides on "well,".
+    expect(line.words).toEqual([
+      { startMs: 0, endMs: 210 },
+      { startMs: 210, endMs: 400 },
+    ])
   })
 
   it("has nothing to show for nothing said", () => {

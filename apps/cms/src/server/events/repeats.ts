@@ -22,6 +22,7 @@ import { categoryRelationships } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import {
   firstFreeEventSlug,
+  positionForSave,
   updateEvent,
   type SiteEvent,
 } from "@/server/events/events"
@@ -141,8 +142,12 @@ function sharedWithDates(main: EventRow, at: Date) {
     publishedAt: main.status === "published" ? at : null,
     startTime: main.startTime,
     endTime: main.endTime,
+    listingId: main.listingId,
     placeName: main.placeName,
     placeAddress: main.placeAddress,
+    latitude: main.latitude,
+    longitude: main.longitude,
+    locatedFor: main.locatedFor,
   }
 }
 
@@ -205,8 +210,8 @@ export async function topUpSeries(
 
 /**
  * Copies the main event onto its future dates that were not saved by
- * themselves: the content, status, who can find it, times, place and
- * categories. Each keeps its own day, and an event over several days keeps
+ * themselves: the content, status, who can find it, times, place (a listing
+ * or a typed one, with its map position) and categories. Each keeps its own day, and an event over several days keeps
  * its length.
  */
 async function copyMainToDates(
@@ -347,6 +352,7 @@ export async function saveEventAndDates(
   at: Date = new Date()
 ): Promise<{ event: SiteEvent; keptDates: string[] }> {
   const { categoryIds, repeat: rawRepeat, ...fields } = input
+  const position = await positionForSave(workspaceId, id, fields, database)
   return database.transaction(async (tx) => {
     const before = await readRow(workspaceId, id, tx)
     const oldRule = parseRepeatRule(before.repeatRule)
@@ -365,7 +371,18 @@ export async function saveEventAndDates(
       )
     }
 
-    const event = await updateEvent(workspaceId, id, fields, tx)
+    let event = await updateEvent(workspaceId, id, fields, tx)
+    if (position) {
+      await tx.update(siteEvents).set(position).where(eq(siteEvents.id, id))
+      event = {
+        ...event,
+        locatedFor: position.locatedFor,
+        position:
+          position.latitude !== null && position.longitude !== null
+            ? { latitude: position.latitude, longitude: position.longitude }
+            : null,
+      }
+    }
     if (categoryIds !== undefined) {
       await setContentCategories(
         workspaceId,
