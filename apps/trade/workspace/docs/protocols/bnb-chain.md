@@ -464,6 +464,12 @@ requires migration `0172_trade_bnb_swaps.sql` before mainnet can be enabled.
   a preflight `TRANSFER_FROM_FAILED` error. Broadcasts never retry.
 - **Buy guard:** a GoPlus honeypot or sell tax over 10% refuses the buy before
   any approval or swap. Sells do not consult the buy guard.
+- **Buys capped at the wallet's USDT:** the app reads the wallet's USDT before
+  asking KyberSwap. A $10 buy from a wallet holding $3.50 is refused with
+  "This wallet holds $3.50 to buy with, and this buy needs $10.00. Nothing
+  was signed." The check comes before the approval because an approval for
+  a buy the wallet cannot pay for still costs a fee. The swap would then fail
+  its simulation with `TRANSFER_FROM_FAILED` and send the one extra approval.
 - **Sells:** a fresh token balance caps a reduce-only sell. Without that
   checkbox, an oversell is refused. Native BNB remains available for fees;
   a WBNB sell spends only wrapped BNB, although the holdings card combines
@@ -477,6 +483,13 @@ requires migration `0172_trade_bnb_swaps.sql` before mainnet can be enabled.
   journal records submission without inventing a price or size. A hash that
   never appears on chain requires investigation before releasing the pending
   record; the app deliberately has no automatic resend or expiry.
+- **A confirmed swap that reads as no one trade is closed, not left pending.**
+  A receipt whose wallet movements are several coins, or not the coin that
+  was saved, gets no fill. The app marks it confirmed with the note "Swap
+  confirmed as <hash>, but its coin movements do not read as one buy or
+  sell, so the Journal has no fill for it." Left pending, it would refuse
+  every later swap from the wallet forever. The swap itself and the sweep
+  both close it, in `evm-chain/swap.ts` and `bnb/fills.ts`.
 - **Receipts:** two confirmations are required. Net wallet Transfer logs
   include refunds and token taxes. USDT divided by actual coins gives the
   fill price. A multi-token bundle is not guessed into one swap. Gas used

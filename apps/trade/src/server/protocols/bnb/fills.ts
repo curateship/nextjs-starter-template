@@ -2,7 +2,10 @@ import { parseAbiItem, type Address, type Hash } from "viem"
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
 import { BNB_USDT, BNB_WRAPPED_NATIVE } from "./client"
 import { bnbLogsClient, bnbTokenDecimals } from "./rpc"
-import { evmTransfers } from "@/server/protocols/evm-chain/receipts"
+import {
+  evmTransfers,
+  unreadableSwapNote,
+} from "@/server/protocols/evm-chain/receipts"
 import { bnbReceiptFailure, bnbReceiptFill } from "./receipts"
 import { bnbAccountMarkets } from "./markets"
 import {
@@ -159,7 +162,16 @@ async function readBnbOrderFills(
     const tokens = [...evmTransfers(receipt, wallet).keys()].filter(
       (token) => token !== BNB_USDT
     )
-    if (tokens.length !== 1) continue
+    // The app's own swap that confirmed but reads as no one trade is closed,
+    // so it stops blocking every later swap from the wallet.
+    const unreadable = async () => {
+      if (known)
+        await finishBnbSend(owner, hash, "confirmed", unreadableSwapNote(hash))
+    }
+    if (tokens.length !== 1) {
+      await unreadable()
+      continue
+    }
     const token = tokens[0] as Address
     const decimals = await bnbTokenDecimals(token)
     const fill = bnbReceiptFill(
@@ -170,7 +182,10 @@ async function readBnbOrderFills(
       price,
       known?.marketId
     )
-    if (!fill) continue
+    if (!fill) {
+      await unreadable()
+      continue
+    }
     for (const approval of known?.approvals ?? []) {
       fill.fee += approval.feeBnb * price
       fill.executionNote += ` Unlimited approval confirmed, transaction ${approval.hash}, fee ${approval.feeBnb} BNB.`

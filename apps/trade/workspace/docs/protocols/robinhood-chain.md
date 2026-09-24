@@ -272,7 +272,11 @@ watched here and swapped when the market gets there.
 - **Carried over from BNB Chain:** a buy of a coin GoPlus flags is refused and
   a sell never is; a sell above the holding is refused unless "Sell only what
   I hold" is ticked; the real-money switch is checked twice before signing;
-  a failed swap moves no coins but the fee is paid, and the sentence says so.
+  a failed swap moves no coins but the fee is paid, and the sentence says so;
+  a buy bigger than the wallet's USDG is refused before the approval, so no
+  fee is spent on it; a swap that confirmed but does not read as one buy or
+  sell is closed with a note instead of staying pending. BNB Chain's doc
+  explains the last two.
 - **Velora's allowance** is not published and it sent no limit headers. The
   app allows itself 60 requests a minute, 20 of them kept for swaps.
 - **No practice network.** The first swap is a small real one, placed by

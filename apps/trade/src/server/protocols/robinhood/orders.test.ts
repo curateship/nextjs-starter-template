@@ -136,7 +136,10 @@ beforeEach(() => {
   m.decimals.mockResolvedValue(18)
   m.risk.mockResolvedValue(null)
   m.pending.mockResolvedValue([])
-  m.read.mockResolvedValue(0n)
+  // $10 of USDG to buy with, and no allowance to any router yet.
+  m.read.mockImplementation(async ({ functionName }: { functionName: string }) =>
+    functionName === "balanceOf" ? 10_000_000n : 0n
+  )
   m.estimate.mockResolvedValue(300_000n)
   m.prepare.mockImplementation(async (request) => request)
   m.sign.mockResolvedValue("0x1234")
@@ -202,7 +205,10 @@ it("says who may hold Stock Tokens on a stock-token buy only", async () => {
 })
 
 it("approves the router the winning route came from, for exactly this swap's USDG", async () => {
-  m.read.mockResolvedValueOnce(0n).mockResolvedValue(10_000_000n)
+  m.read
+    .mockResolvedValueOnce(10_000_000n)
+    .mockResolvedValueOnce(0n)
+    .mockResolvedValue(10_000_000n)
   await placeRobinhoodOrder("mainnet", auth, params)
   const approval = m.prepare.mock.calls[0][0]
   expect(approval.to).toBe(USDG)
