@@ -128,6 +128,13 @@ const LONG_DAY = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 })
 
+const LONG_DAY_NO_YEAR = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+})
+
 const SHORT_DAY = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   dateStyle: "medium",
@@ -161,6 +168,36 @@ export function formatEventShortDay(date: string): string {
   return WEEKDAY_AND_DAY.format(asPrintable(date))
 }
 
+/** Whether the event ends on a later day than it starts. */
+export function spansSeveralDays(when: EventWhen): boolean {
+  return Boolean(when.endDate && when.endDate !== when.startDate)
+}
+
+/** "Sat, Sep 26", or "Fri, Oct 2 to Sun, Oct 4" over several days. */
+export function eventDaysText(when: EventWhen): string {
+  const start = formatEventShortDay(when.startDate)
+  return spansSeveralDays(when) && when.endDate
+    ? `${start} to ${formatEventShortDay(when.endDate)}`
+    : start
+}
+
+/**
+ * The line under a title in the Events page's list. One day reads
+ * "Sat, Sep 26 · 6:00 PM to 11:00 PM". Several days put each time beside its
+ * own day, "Fri, Oct 2, 6:00 PM to Sun, Oct 4, 11:00 PM", because the times
+ * are when the event starts and ends, not its hours on each day.
+ */
+export function eventRowText(when: EventWhen): string {
+  if (!spansSeveralDays(when) || !when.endDate) {
+    return `${formatEventShortDay(when.startDate)} · ${eventTimesText(when)}`
+  }
+  const start = `${formatEventShortDay(when.startDate)}, ${formatEventClock(when.startTime)}`
+  const end = formatEventShortDay(when.endDate)
+  return when.endTime
+    ? `${start} to ${end}, ${formatEventClock(when.endTime)}`
+    : `${start} to ${end}`
+}
+
 /** "6:00 PM to 11:00 PM", or "6:00 PM" with no end time. */
 export function eventTimesText(when: EventWhen): string {
   const start = formatEventClock(when.startTime)
@@ -184,9 +221,14 @@ export function eventWhenLines(
   const start = formatEventClock(when.startTime)
   const end = when.endTime ? formatEventClock(when.endTime) : null
 
-  if (when.endDate && when.endDate !== when.startDate) {
+  if (spansSeveralDays(when) && when.endDate) {
+    // The year is said once when both days share it.
+    const first =
+      when.startDate.slice(0, 4) === when.endDate.slice(0, 4)
+        ? LONG_DAY_NO_YEAR.format(asPrintable(when.startDate))
+        : formatEventDay(when.startDate)
     return {
-      day: `${formatEventDay(when.startDate)} to ${formatEventDay(when.endDate)}`,
+      day: `${first} to ${formatEventDay(when.endDate)}`,
       times: end
         ? `Starts ${start}, ends ${end}, ${zone}`
         : `Starts ${start}, ${zone}`,

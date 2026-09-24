@@ -1,13 +1,13 @@
 import {
   and,
   asc,
-  between,
   desc,
   eq,
   gte,
   ilike,
   inArray,
   isNull,
+  lte,
   or,
   sql,
 } from "drizzle-orm"
@@ -414,9 +414,11 @@ export async function readCalendarFeed(
 }
 
 /**
- * Every published event that starts between two days, both included, soonest
+ * Every published event on any day between two days, both included, soonest
  * first: one day's list when the two are the same, or a month grid's weeks.
- * Events that are over are included; the page marks them.
+ * An event over several days is in the answer when any one of its days falls
+ * in the window, so a festival that started last month still shows this
+ * month. Events that are over are included; the page marks them.
  */
 export function readEventsBetween(
   site: VisitorSite,
@@ -435,7 +437,11 @@ export function readEventsBetween(
         .where(
           and(
             listedEventsOnSite(site.id),
-            between(siteEvents.startDate, from, to)
+            lte(siteEvents.startDate, to),
+            gte(
+              sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`,
+              from
+            )
           )
         )
         .orderBy(...soonestFirst)

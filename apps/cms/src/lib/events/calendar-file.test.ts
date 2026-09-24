@@ -72,6 +72,21 @@ describe("when an event starts and ends", () => {
     expect(eventCalendarTimes(festival, TORONTO).end).toBe("20260929T040000Z")
   })
 
+  it("spans every day of a festival from its start to its end", () => {
+    // Noon on Fri 2 Oct to 8pm on Sun 4 Oct in Toronto.
+    const festival = {
+      ...nightMarket,
+      startDate: "2026-10-02",
+      startTime: "12:00",
+      endDate: "2026-10-04",
+      endTime: "20:00",
+    }
+    expect(eventCalendarTimes(festival, TORONTO)).toEqual({
+      start: "20261002T160000Z",
+      end: "20261005T000000Z",
+    })
+  })
+
   it("keeps each end of an event across a clock change at its own offset", () => {
     // The clocks go back at 2am on 1 Nov 2026. 10pm on 31 Oct is still
     // daylight time (UTC-4); 3am on 1 Nov is standard time (UTC-5).
