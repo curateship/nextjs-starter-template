@@ -63,6 +63,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "The Suggest an event page is for people with no account, so the site's name, its today and whether photos are taken have to be readable without one. It answers nothing while the page or the Events page is switched off.",
   "events/submissions.ts:submitEventFn":
     "Anybody may suggest an event, which is the whole feature. It still checks the request came from this app's own pages and that the page is switched on, runs the same required-field check as the form, takes five an hour from one address per site, and writes a row only an admin can read.",
+  "events/reports.ts:reportEventProblemFn":
+    "Anybody may say an event is wrong, which is the whole feature: the visitor who turned up to find nothing happening has no account. It still checks the request came from this app's own pages and that the Events page is open to them, shares the listing reports' limits per page, per address and per site, writes a row no visitor can ever read back, and changes nothing on the event it is about.",
   "directory/reports.ts:reportListingProblemFn":
     "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
 }

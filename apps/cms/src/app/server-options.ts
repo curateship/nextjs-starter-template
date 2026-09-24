@@ -6,9 +6,11 @@ import {
 import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
+import { executeDraftEventsStep } from "@/server/events/ai-drafts"
 import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
 import { runRepeatTopUps } from "@/server/events/repeats"
 import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
+import { DRAFT_EVENTS_KIND } from "@/lib/events/draft-events-step"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -26,6 +28,9 @@ import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  automations: {
+    executors: { [DRAFT_EVENTS_KIND]: executeDraftEventsStep },
+  },
   workspaces: {
     copyChoices: [{ key: "listings", label: "Copy listings" }],
     onCopy: copyDirectoryWorkspace,

@@ -54,6 +54,13 @@ export const EVENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024
 /** How many suggestions one internet address may send to one site an hour. */
 export const EVENT_SUBMISSIONS_PER_HOUR = 5
 
+/**
+ * How many events one listing owner may send an hour. More than the public's
+ * five, because an owner filling in a month of nights is ordinary, and each
+ * one still waits for an admin.
+ */
+export const OWNER_EVENTS_PER_HOUR = 20
+
 export function emptyEventSubmission(): EventSubmissionValues {
   return {
     title: "",

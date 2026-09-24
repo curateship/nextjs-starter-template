@@ -55,6 +55,7 @@ import {
   MAX_TIMELINE_MS,
   NOTHING_TO_EXPORT_MESSAGE,
   TIMELINE_TOO_LONG_MESSAGE,
+  type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
 import { requireTextFont } from "@/lib/video/text-fonts"
@@ -71,6 +72,7 @@ import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
 import {
   FFMPEG_MISSING_MESSAGE,
+  FFMPEG_TIMEOUT_MS,
   runFfmpeg as runFfmpegCommand,
 } from "@/server/video/ffmpeg"
 import { downloadToFile } from "@/server/video/storage-files"
@@ -103,7 +105,6 @@ const QUALITY_PRESETS: Record<RenderQuality, { scale: number; crf: number }> = {
   low: { scale: 4 / 9, crf: 28 },
 }
 
-const OUTPUT_FPS = 30
 const AUDIO_BITRATE = "192k"
 // Text sizes are authored against a 1080-tall frame in the editor.
 const DESIGN_HEIGHT = 1080
@@ -162,6 +163,17 @@ export function renderSize(aspect: AspectRatio, quality: RenderQuality) {
  */
 export function exportDurationMs(timelineMs: number, endCardMs: number) {
   return Math.round(timelineMs + endCardMs)
+}
+
+/**
+ * How long each ffmpeg run of one export may take: as long as the finished
+ * file plays, and never less than ten minutes. That is the allowance a
+ * ten-minute export always had. The heaviest export timed on a Mac used about
+ * a third of it (see `workspace/docs/long-exports.md`). The Hetzner server
+ * that renders has not been timed yet. A stuck run is still stopped.
+ */
+export function exportTimeoutMs(exportMs: number) {
+  return Math.max(FFMPEG_TIMEOUT_MS, exportMs)
 }
 
 /** Where the last clip ends — how long the export runs for. */
@@ -254,6 +266,7 @@ export async function renderTimeline({
   timeline: rawTimeline,
   aspect,
   quality,
+  frameRate,
   brandKit,
   normalizeLoudness,
   signal,
@@ -263,6 +276,8 @@ export async function renderTimeline({
   /** The export's own shape, which need not be the project's. */
   aspect: AspectRatio
   quality: RenderQuality
+  /** Frames a second in the file, and the clock everything timed in frames counts on. */
+  frameRate: RenderFrameRate
   brandKit: VideoBrandKit
   normalizeLoudness: boolean
   /** Stops the render partway; the scratch folder still goes. */
@@ -341,22 +356,26 @@ export async function renderTimeline({
         ? { ...brandKit.endCard, logoFile }
         : null,
       crf: QUALITY_PRESETS[quality].crf,
+      fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
     })
-
-    const outFile = path.join(dir, "out.mp4")
-    await runFfmpeg([...command, outFile], signal)
-    const finalFile = normalizeLoudness
-      ? await normalizeExportLoudness(dir, outFile, signal)
-      : outFile
 
     const endCardMs = brandKit.endCard.enabled
       ? brandKit.endCard.durationSeconds * 1000
       : 0
+    const exportMs = exportDurationMs(durationMs, endCardMs)
+    const timeoutMs = exportTimeoutMs(exportMs)
+
+    const outFile = path.join(dir, "out.mp4")
+    await runFfmpeg([...command, outFile], signal, timeoutMs)
+    const finalFile = normalizeLoudness
+      ? await normalizeExportLoudness(dir, outFile, signal, timeoutMs)
+      : outFile
+
     return {
       bytes: await readFile(finalFile),
       thumbnail: await extractCoverFrame(dir, finalFile, 0, signal),
-      durationMs: exportDurationMs(durationMs, endCardMs),
+      durationMs: exportMs,
       width: size.width,
       height: size.height,
     }
@@ -373,7 +392,8 @@ export async function renderTimeline({
 async function normalizeExportLoudness(
   dir: string,
   file: string,
-  signal?: AbortSignal
+  signal: AbortSignal | undefined,
+  timeoutMs: number
 ) {
   if (!(await hasAudioStream(file))) return file
 
@@ -386,7 +406,7 @@ async function normalizeExportLoudness(
     "-f",
     "null",
     "-",
-  ], signal)
+  ], signal, timeoutMs)
   const measurement = parseLoudnormMeasurement(stderr)
   if (!measurement) {
     console.warn("Loudness could not be measured; keeping the mix as it is")
@@ -408,7 +428,7 @@ async function normalizeExportLoudness(
     "-movflags",
     "+faststart",
     normalized,
-  ], signal)
+  ], signal, timeoutMs)
   return normalized
 }
 
@@ -513,6 +533,7 @@ async function buildFfmpegCommand(options: {
   watermark: RenderWatermark | null
   endCard: RenderEndCard | null
   crf: number
+  fps: RenderFrameRate
   duckingGain: number
 }) {
   const {
@@ -526,13 +547,14 @@ async function buildFfmpegCommand(options: {
     watermark,
     endCard,
     crf,
+    fps,
     duckingGain,
   } = options
   const durationS = durationMs / 1000
   const outputDurationS = durationS + (endCard?.durationSeconds ?? 0)
   const inputs: string[] = []
   const filters: string[] = [
-    `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${outputDurationS}[v0]`,
+    `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS}[v0]`,
   ]
   const audioLabels: string[] = []
   let inputIndex = 0
@@ -666,14 +688,14 @@ async function buildFfmpegCommand(options: {
             }),
           }
         }),
-        OUTPUT_FPS
+        fps
       )
       if (!segments.length) continue
 
       // One picture per stretch, drawn once however often it comes back, and
       // listed for ffmpeg's `concat` reader counting in the film's frames.
       const pictures = new Map<string, string>()
-      const option = `option framerate ${OUTPUT_FPS}`
+      const option = `option framerate ${fps}`
       const lines = ["ffconcat version 1.0"]
       for (const segment of segments) {
         const key = segment.pictures.join("+")
@@ -692,7 +714,7 @@ async function buildFfmpegCommand(options: {
         lines.push(
           `file '${path.basename(file)}'`,
           option,
-          `duration ${((segment.toFrame - segment.fromFrame) / OUTPUT_FPS).toFixed(6)}`
+          `duration ${((segment.toFrame - segment.fromFrame) / fps).toFixed(6)}`
         )
       }
       // The reader ignores the last picture's time unless it is named again.
@@ -709,8 +731,8 @@ async function buildFfmpegCommand(options: {
       // On from its first frame, off before the frame after its last: the
       // half frames keep either edge from landing on a rounding error.
       filters.push(
-        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${firstFrame / OUTPUT_FPS}/TB[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / OUTPUT_FPS},${(endFrame - 0.5) / OUTPUT_FPS})'[v${visualStep + 1}]`
+        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${firstFrame / fps}/TB[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
       )
     } else {
       const file = sourceFiles.get(clip.mediaId!)!
@@ -735,14 +757,14 @@ async function buildFfmpegCommand(options: {
         frameFitFilter(clipFit(clip), size.width, size.height),
         ...(colourFilter ? [colourFilter] : []),
         ...(motion
-          ? [motionFilter(motion, size.width, size.height, durS * OUTPUT_FPS)]
+          ? [motionFilter(motion, size.width, size.height, durS * fps)]
           : []),
         ...(scaleFilter ? [scaleFilter] : []),
       ].join(",")
       const place = pictureOverlayPosition(clip)
       if (clip.kind === "image") {
         inputs.push(
-          ...(motion ? ["-framerate", String(OUTPUT_FPS)] : []),
+          ...(motion ? ["-framerate", String(fps)] : []),
           "-loop",
           "1",
           "-t",
@@ -811,7 +833,7 @@ async function buildFfmpegCommand(options: {
     const fromS = seamS - halfS
     const toS = seamS + halfS
     filters.push(
-      `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
+      `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
       `[dipsrc${visualStep}]format=yuva420p,fade=t=in:st=0:d=${halfS.toFixed(3)}:alpha=1,fade=t=out:st=${halfS.toFixed(3)}:d=${halfS.toFixed(3)}:alpha=1,setpts=PTS-STARTPTS+${fromS.toFixed(3)}/TB[dip${visualStep}]`,
       `[v${visualStep}][dip${visualStep}]overlay=x=0:y=0:enable='between(t,${fromS.toFixed(3)},${toS.toFixed(3)})'[v${visualStep + 1}]`
     )
@@ -863,7 +885,7 @@ async function buildFfmpegCommand(options: {
     const backgroundColor = endCard.backgroundColor.replace("#", "0x")
     let cardStep = 0
     filters.push(
-      `color=c=${backgroundColor}:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${cardDuration}[ec0]`
+      `color=c=${backgroundColor}:s=${size.width}x${size.height}:r=${fps}:d=${cardDuration}[ec0]`
     )
 
     if (endCard.logoFile) {
@@ -936,7 +958,7 @@ async function buildFfmpegCommand(options: {
     "-pix_fmt",
     "yuv420p",
     "-r",
-    String(OUTPUT_FPS),
+    String(fps),
     "-t",
     String(outputDurationS),
     "-movflags",
@@ -1189,6 +1211,6 @@ function hasAudioStream(file: string) {
 }
 
 /** Every ffmpeg run in the exporter says the same thing when it fails. */
-function runFfmpeg(args: string[], signal?: AbortSignal) {
-  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal)
+function runFfmpeg(args: string[], signal?: AbortSignal, timeoutMs?: number) {
+  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal, timeoutMs)
 }

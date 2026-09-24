@@ -443,9 +443,13 @@ describe("the email back", () => {
 })
 
 describe("the queue", () => {
-  it("searches the title, the email and the name inside one tab", async () => {
+  it("searches the title, the email, the name and the place inside one tab", async () => {
     await sent({ title: "Jazz night", submitterName: "Alex" })
-    await sent({ title: "Poetry slam", submitterEmail: "poet@example.com" })
+    await sent({
+      title: "Poetry slam",
+      submitterEmail: "poet@example.com",
+      placeName: "Massey Hall",
+    })
     const find = async (search: string) =>
       (
         await listEventSubmissions(
@@ -457,6 +461,7 @@ describe("the queue", () => {
     expect(await find("jazz")).toEqual(["Jazz night"])
     expect(await find("poet@")).toEqual(["Poetry slam"])
     expect(await find("alex")).toEqual(["Jazz night"])
+    expect(await find("massey")).toEqual(["Poetry slam"])
     expect(
       (
         await listEventSubmissions(

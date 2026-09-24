@@ -127,8 +127,9 @@ export function ListingSidebar({
             page. */}
         <ReportProblemButton
           asRow
-          listingId={listing.id}
-          listingTitle={listing.title}
+          kind="listing"
+          subjectId={listing.id}
+          title={listing.title}
         />
       </div>
     </Card>

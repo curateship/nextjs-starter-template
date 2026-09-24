@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { RENDER_QUALITIES } from "@/lib/video/render"
 import {
   exportDurationMs,
+  exportTimeoutMs,
   renderSize,
   timelineEndMs,
 } from "@/server/video/render"
@@ -52,5 +53,15 @@ describe("the size of the picture", () => {
         expect(Number.isInteger(size.height)).toBe(true)
       }
     }
+  })
+})
+
+describe("how long ffmpeg may take over one export", () => {
+  it("is never less than ten minutes, however short the export", () => {
+    expect(exportTimeoutMs(5_000)).toBe(10 * 60_000)
+  })
+
+  it("grows with the export, so thirty minutes gets thirty", () => {
+    expect(exportTimeoutMs(30 * 60_000)).toBe(30 * 60_000)
   })
 })

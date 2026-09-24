@@ -13,11 +13,11 @@ import { spawn } from "node:child_process"
 export const FFMPEG_MISSING_MESSAGE = "ffmpeg is not installed on this server"
 
 /**
- * How long any one run may take before it is given up on. Ten minutes is what
- * the exporter has always allowed itself, and it is the longest job here — a
- * clip being listened to is capped at ten minutes of sound and takes seconds.
+ * How long one run may take before it is given up on, unless the caller says
+ * otherwise. A clip being listened to is capped at ten minutes of sound and
+ * takes seconds. Only an export can run longer, and it passes its own limit.
  */
-const FFMPEG_TIMEOUT_MS = 10 * 60_000
+export const FFMPEG_TIMEOUT_MS = 10 * 60_000
 
 /**
  * `signal` stops the run partway. ffmpeg is killed outright, since whatever it
@@ -29,12 +29,13 @@ const FFMPEG_TIMEOUT_MS = 10 * 60_000
 export async function runFfmpeg(
   args: string[],
   failureMessage: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  timeoutMs: number = FFMPEG_TIMEOUT_MS
 ): Promise<string> {
   signal?.throwIfAborted()
   return new Promise<string>((resolve, reject) => {
     const child = spawn("ffmpeg", ["-y", ...args], {
-      timeout: FFMPEG_TIMEOUT_MS,
+      timeout: timeoutMs,
       signal,
       killSignal: "SIGKILL",
     })

@@ -42,6 +42,22 @@ published event has its own page at `/events/<address>`.
   when the suggestion is approved. Chosen on 24 Sep 2026.
 - **The Events page has a "Suggest an event" button** while the Suggest an
   event page is on. Chosen on 24 Sep 2026. The page starts on for every site.
+- **Approving a listing owner's event publishes it.** Chosen on 24 Sep 2026,
+  because the owner wrote it for their own place. A public suggestion still
+  becomes a draft.
+- **Every owner's event is reviewed,** however many were approved before.
+  Chosen on 24 Sep 2026. No owner is trusted to skip the queue.
+- **An owner sends one date at a time.** Chosen on 24 Sep 2026. An admin can
+  make an owner's event repeat in the event window after approving it.
+- **An AI-written event is always a draft.** No setting changes that. An event
+  the Draft events automation step wrote never reaches a visitor before a
+  person has looked at it.
+- **Each AI draft keeps the page it came from**, in its own field, shown in the
+  event's window and never to a visitor. Chosen on 24 Sep 2026.
+- **An event the page gives no start time for is skipped, not guessed.** Chosen
+  on 24 Sep 2026. The run history names it and says why.
+- **The Draft events step has the same provider and model choice as the AI
+  step.** Chosen on 24 Sep 2026.
 
 ## What an event is
 
@@ -414,6 +430,8 @@ by email. It is not a password.
   so a cached page never says an event is still on.
 - **A draft, another site's event and a made-up address** all answer the same
   not-found page.
+- **"Report a problem"** is a small link at the foot of the event's card.
+  "Reporting a problem on an event" below covers it.
 
 ## The Events page
 
@@ -778,21 +796,27 @@ about each new suggestion.
 
 - **Three tabs:** Pending, which it opens on and which shows how many are
   waiting, Approved and Rejected, with a search over the event's name, the
-  email and the person's name. The tab, the search and an open suggestion all
+  email, the person's name and the place, so an owner's events are found by
+  their listing's name. The tab, the search and an open suggestion all
   live in the address.
 - **No selection column,** the same as Listing submissions: approving in bulk
   would make events nobody read.
 - **The window** shows everything that was sent, the photo included, and a
-  note back. Pending ones end with Cancel, Reject and "Approve as a draft".
-  Decided ones open read-only with Done, the note that was sent, and "Open the
-  draft event" for an approved one. The row's "The event" does the same.
+  note back. Pending ones end with Cancel, Reject and "Approve as a draft", or
+  "Approve and publish" for a listing owner's. Decided ones open read-only
+  with Done, the note that was sent, and "Open the event" for an approved one.
+  The row's "The event" does the same.
+- **A listing owner's event** is marked "From the owner" on its row, with the
+  listing under its name, and the window says who sent it and that approving
+  publishes it. "Events from a listing's owner" below covers them.
 
 ### Approving and rejecting
 
-- **Approving makes a draft event with every field filled:** the title, the
-  day and times, the place, the street address, the description as the body,
-  its first paragraph as the summary, and the photo as the cover. Nothing is
-  public until an admin publishes it.
+- **Approving a public suggestion makes a draft event with every field
+  filled:** the title, the day and times, the place, the street address, the
+  description as the body, its first paragraph as the summary, and the photo
+  as the cover. Nothing is public until an admin publishes it. A listing
+  owner's is published instead, as "Events from a listing's owner" says.
 - **The photo joins the Media library** on approval, under the admin who
   approved it. Until then it waits in the site's storage under
   `event-submissions/`, which the Media screen's orphan scan leaves alone
@@ -822,6 +846,49 @@ saved first, and a failed email never undoes it.
   sender could not be sent." in amber. A local site with no Resend key always
   shows the amber one.
 
+### Events from a listing's owner
+
+The owner of a claimed listing adds events at their own place from My
+listings, like a café adding its Friday open mic, without emailing anyone.
+They go into the same queue, and every one is read by an admin.
+
+- **Where:** each listing on My listings has an "Events at Café Luna" card
+  under it, with "Add event". The card lists the events that account sent for
+  that listing, newest first, 20 at most.
+- **The window:** the name of the event, a description, a photo, the day, and
+  a start and an end time, with the same check and the same past-midnight rule
+  as the Suggest an event page. The place is not a box: it says "Café Luna.
+  Your events are always at your listing." The name and email are the
+  account's.
+- **The photo** is the shared image box, because an owner has an account. It
+  goes into their own Media library, and the server refuses a picture that is
+  not one of theirs.
+- **Only their own listing.** The listing comes from the owner's approved
+  claim, found by the claim and the account together, so another owner's
+  claim, or a claim still waiting, is refused with "You do not look after that
+  listing."
+- **The Events page's switch counts.** While the site has its Events page off,
+  the card says so and has no "Add event", and the server refuses a send.
+- **Twenty an hour** from one owner, more than the public's five, because
+  filling in a month of nights is ordinary and each one still waits for an
+  admin.
+- **Admins are emailed** with "New event from the owner of Café Luna" and a
+  link to the queue.
+- **Approving publishes it,** with the listing as the place, so the event page
+  links to the listing and uses its pin, and it is on the Events page at once.
+  The owner is emailed "<title> is on the Events page". Rejecting emails the
+  note, the same as a public suggestion.
+- **What the owner sees:** each event with "Waiting for approval", "Approved"
+  with "See its page", or "Not approved" with the admin's note.
+- **Only their own.** An owner sees the events their own account sent, never
+  another owner's. A listing that changes hands shows its new owner none of
+  the old owner's events.
+- **Where it lives:** `drizzle/0090_cms_owner_event_submissions.sql` adds
+  `from_owner`, `owner_user_id`, `listing_id` and `cover_image` to
+  `event_submissions`. `sendOwnerEvent` and `ownerEventsFor` are in
+  `src/server/events/owner-submissions.ts`, and the card and window are
+  `src/components/events/owner-events.tsx`.
+
 ### Where it lives
 
 - **The table:** `event_submissions`, from
@@ -840,6 +907,168 @@ saved first, and a failed email never undoes it.
 - **Not built:** the person cannot change or withdraw a suggestion after
   sending it, and has no account, as task 16 said. A site deleted with
   suggestions still waiting leaves their photos in storage.
+
+## Events drafted by an automation
+
+The automation palette has a **Draft events** step, under AI. A flow reaches
+it, and it reads one web page or feed, asks an AI which events are on it, and
+writes each new one as a draft event on the flow's site. The use it was built
+for is a weekly flow that reads a venue's gigs page, so the admin only approves.
+
+### Its settings
+
+- **Page address:** the page or feed to read. It must start with `https://`.
+  An address inside the server's own network is refused when it is typed and
+  again when the step runs, after every DNS answer and every redirect is
+  checked.
+- **Category:** every draft from the page is filed under it, or under none.
+  If the category is deleted, the step stops before reading the page and says
+  so.
+- **Notes for the AI:** optional, for anything the AI should know about the
+  page, like "every show is at The Horseshoe".
+- **Provider and model:** the same choice as the AI step. The call runs with
+  the key saved in Settings → AI, counts against the flow author's monthly AI
+  allowance, and shows on the AI usage page as "draft-events". When that
+  allowance is used up, the step stops and says so.
+- **An answer that was cut off still counts.** A page with too many events can
+  run the AI out of room. The step then stops and says so, and the usage page
+  still shows what that answer cost, because the provider charged for it.
+
+### What it writes
+
+- **Always a draft,** with the title, start day and time, end time, place name
+  and address, a summary from the first paragraph and the description as the
+  body. The page address is saved as the event's source.
+- **The event's window says where it came from:** "An automation drafted this
+  from <page>. Check the day and time against that page before publishing."
+- **An end time earlier than the start runs into the next day**, the same as a
+  suggested event, so a 10pm to 2am set ends at 2am the next morning.
+
+### What it leaves out
+
+Each one is named in the run history with the reason.
+
+- **No exact day.** "Every Friday" or "this spring" is not a day.
+- **No start time.**
+- **Already over.** An event whose start day is before today on the site's
+  clock.
+- **Already on the site.** Same title, ignoring capitals and spacing, on the
+  same start day, as any event on the site, draft or published. A page that
+  lists the same event twice gives one draft. This is why running the step
+  twice on the same page makes no new drafts.
+- **Past the cap.** One run drafts at most 25. The cap counts only new events,
+  after duplicates are skipped, so a page with 40 new events gives 25 on the
+  first run and the other 15 on the next. The run history says how many were
+  left.
+
+### Choices made while building it
+
+These were not asked for in the task. Each can be changed.
+
+- **A page that leaves out the year** is read as the first matching day on or
+  after today. The AI is told today's date on the site's clock.
+- **A past event is skipped.** A venue page often still lists last month's
+  shows, and a draft of those is only noise.
+- **Only `https://` addresses.** A plain `http://` page cannot be read.
+- **The page is cut at 120,000 characters** before the AI sees it, which is
+  far more than any events page. The event markup a site writes for Google is
+  kept, because it holds the most exact dates on the page.
+
+### The run history
+
+A finished step shows "Drafted 2 events. Skipped 1." with the page it read,
+each draft's day and title, and a list headed "Left out" with each reason.
+Each title links to Admin → Events with the Draft filter on and that event's
+window open. A step that fails, like one with no AI key, shows the reason,
+for example "No Anthropic key is saved, so the AI could not read the page. Add
+one in Settings → AI." The engine tries a failed step three times before the
+run stops.
+
+### Where it lives
+
+- **The step:** `src/lib/events/draft-events-step.ts` (the palette card and
+  settings rules), `src/components/events/draft-events-step-panel.tsx` (the
+  settings) and `src/components/events/draft-events-step-result.tsx` (the run
+  history view). Registered in `src/app/options.ts`.
+- **What it does:** `src/server/events/ai-drafts.ts`, registered under the same
+  kind, `draftEvents`, in `src/app/server-options.ts`. The page reader is
+  `src/server/events/source-page.ts` and the AI call is
+  `src/server/events/ai-json.ts`.
+- **The source column:** `source_url` on `events`, from
+  `drizzle/0091_cms_event_source_link.sql`. A duplicated event starts with none.
+
+## Reporting a problem on an event
+
+A visitor who turns up and finds nothing happening can tell the site. They pick
+what is wrong, add a line, and it lands in the same admin queue as problems
+reported on listings. The event does not change, and nothing the visitor wrote
+is ever shown on the site. `listing-problem-reports.md` has the rules both kinds
+share: the queue, the admin email, and two admins closing the same report.
+
+### What a visitor sees
+
+- **Where:** "Report a problem" is the last line of the event's card, under the
+  body. It stays there after the event is over, because an event that says it
+  ended yesterday when it is really next week is exactly what somebody needs to
+  report.
+- **The reasons:** wrong date or time, cancelled, wrong place, something else.
+  They are an event's own list, separate from a listing's list, which offers
+  wrong opening hours, wrong phone or address, and closed for good.
+- **The note:** up to 1000 characters. It is needed only for "Something else",
+  and sending that without one is refused with "Tell us in a line or two what
+  is wrong."
+- **Their email:** optional. It is there so an admin can ask a follow-up
+  question by hand, and nothing is ever sent to it automatically.
+- **No account needed.** Once it is sent, the link is replaced by "Thank you.
+  Somebody who looks after this site will read it."
+- **A private event** can be reported too, because anybody with its link can
+  open its page.
+
+### What stops it being used for spam
+
+- **The Events page's switch:** the form is refused while the Events page is
+  switched off, or kept for members and the visitor is signed out. That is the
+  same rule the event page follows.
+- **One report per event per hour, per visitor.** A second one is refused with
+  "You have already sent a report about this event. Give it a while before
+  sending another."
+- **Ten an hour per visitor, fifty an hour per site.** These two limits are
+  shared with listing reports, so ten reports on listings use up a visitor's
+  hour for events too. The site limit exists because every report emails the
+  admins, whatever it is about.
+- **Words are checked before counting.** A forgotten note is refused before any
+  limit is counted, so fixing it costs nothing.
+- **Only a published event on this site** can be reported. A draft answers
+  "That event is no longer on this site", the same as an event that does not
+  exist, so a report can never confirm that a draft's id is real.
+
+### In the queue
+
+Admin → Reported problems, at `/admin/listing-reports`.
+
+- **The Kind column** says Listing or Event on every row.
+- **The Kind filter** picks between "Listings and events", which it opens on,
+  "Listings" and "Events". It lives in the address as `?kind=event`.
+- **The search** matches the event's title as well as the note.
+- **The window** links to "Edit the event", which opens it in Admin → Events,
+  and "See the page", which opens the event's public page.
+- **Mark fixed and Dismiss** only close the report. The event is corrected in
+  its own editor.
+
+### Where it lives
+
+- **The reasons:** `src/lib/directory/report-reasons.ts`, beside the listing
+  reasons.
+- **The form:** `src/components/directory/public/report-problem-button.tsx`,
+  shared with listings, on `src/routes/events_.$slug.tsx`.
+- **The door:** `src/lib/api/events/reports.ts`. The listing's door is
+  `src/lib/api/directory/reports.ts`, and both count through
+  `countReportAttempt` in `src/server/directory/reports.ts`.
+- **The table:** a report is a row in `directory_listing_reports`, with
+  `event_id` set instead of `listing_id`, from
+  `drizzle/0092_cms_event_reports.sql`. A check in the database makes sure
+  exactly one of the two is set, and that the reason comes from that kind's
+  list. Deleting an event deletes its reports.
 
 ## Not built yet
 

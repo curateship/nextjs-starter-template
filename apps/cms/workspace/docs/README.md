@@ -27,7 +27,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `sitemap-files.md` — the numbered sitemap files a site's listings come in,
   and what happens at the edges of them.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what
-  stops it being used for spam, and the admin queue the reports land in.
+  stops it being used for spam, and the admin queue that listing and event
+  reports land in.
 - `directory-search-suggestions.md` — the listings and categories the public
   search box offers as a visitor types, its keyboard, and how often it asks the
   server.
@@ -38,7 +39,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   time, when an event counts as over, the event page, where events appear in
   search, the sitemap and the feed, Google's event markup, the share card,
   adding events to a calendar or subscribing to them, duplicating an event,
-  private events, and the Suggest an event form with its review queue.
+  private events, the Suggest an event form with its review queue,
+  listing owners adding events from My listings, the Draft events
+  automation step that reads a page and drafts the events on it, and
+  reporting a problem on an event.
 
 ## Adding a doc
 

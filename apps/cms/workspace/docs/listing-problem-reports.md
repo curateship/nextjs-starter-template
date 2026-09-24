@@ -4,6 +4,10 @@ A visitor who spots something wrong on a listing can tell the site. They pick
 what is wrong, add a line about it, and it lands in an admin queue. The listing
 does not change, and nothing the visitor wrote is ever shown to the public.
 
+Events have the same link, feeding the same queue. "Reporting a problem on an
+event" in `events.md` covers what is different about them: their reasons, the
+Events page's switch, and the queue's Kind filter.
+
 ## What a visitor sees
 
 "Report a problem" sits at the bottom of a listing's page, under the written
@@ -39,10 +43,10 @@ trusting the page that called it.
   signed-in POST runs.
 - **One report per listing per hour, per visitor.** Sending a second one right
   away is refused with a plain sentence, not an error.
-- **Ten reports an hour per visitor** across all listings, so one person cannot
-  report fifty pages.
-- **Fifty reports an hour for the whole site**, because every report puts one
-  email in an admin's inbox.
+- **Ten reports an hour per visitor** across all listings and events, so one
+  person cannot report fifty pages.
+- **Fifty reports an hour for the whole site**, listings and events together,
+  because every report puts one email in an admin's inbox.
 
 Each of the three says something different when it refuses, because they mean
 different things. Being told "you have already reported this listing" when you
@@ -65,7 +69,7 @@ never written.
 ## What the admins are told
 
 Every report puts one line in each admin's inbox, through the same sender the
-submission and claim queues use. It names the listing and the reason, says
+submission and claim queues use. It names the listing or event and the reason, says
 nothing on the page has changed, and links to the queue.
 
 A failed email never loses the report. The row is written first, and the whole
@@ -85,9 +89,11 @@ admin has here is what is left to do. Choosing All in the status filter is what
 asks for the history. The filter, the search box and the page all live in the
 address, so a filtered view can be reloaded or handed to somebody else.
 
-Each row shows the listing, the first line of the note, the reason, the status
-and the date. Opening a row shows the whole note, the reporter's email if they
-left one, a button to edit the listing and a button to see the public page.
+Each row shows the listing or event, the first line of the note, whether it is
+a listing or an event, the reason, the status and the date. The Kind filter
+narrows the list to listings or to events. Opening a row shows the whole note,
+the reporter's email if they left one, a button to edit the listing or event
+and a button to see the public page.
 
 Two answers close a report.
 
@@ -117,7 +123,7 @@ site, so another site's admin cannot close a report that is not theirs.
 
 ## What deleting takes with it
 
-Deleting a listing deletes its reports. Deleting a site deletes all of its
-reports. Both are foreign keys in the database rather than checks the app has to
+Deleting a listing deletes its reports, and deleting an event deletes its
+reports. Deleting a site deletes all of its reports. Both are foreign keys in the database rather than checks the app has to
 remember, because a report about a page that no longer exists is a row nobody
 can act on.

@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { EventSubmissionDialog } from "@/components/events/event-submission-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   TableCell,
@@ -70,7 +71,7 @@ export function EventSubmissionsDashboard({
           <>
             <DashboardToolbarSearch
               name="event-submission-search"
-              aria-label="Search suggestions by event, email or name"
+              aria-label="Search suggestions by event, email, name or place"
               placeholder="Search suggestions…"
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
@@ -141,21 +142,30 @@ export function EventSubmissionsDashboard({
             rowAction={() => setListSearch({ open: submission.id })}
           >
             <TableCell column="main">
-              <button
-                type="button"
-                className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
-                onClick={() => setListSearch({ open: submission.id })}
-                title={submission.title}
-              >
-                {submission.title}
-              </button>
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
+                  onClick={() => setListSearch({ open: submission.id })}
+                  title={submission.title}
+                >
+                  {submission.title}
+                </button>
+                {submission.fromOwner ? (
+                  <Badge variant="outline" className="shrink-0">
+                    From the owner
+                  </Badge>
+                ) : null}
+              </div>
               <span
                 className="block max-w-96 truncate text-xs text-muted-foreground"
                 title={submission.submitterEmail}
               >
-                {submission.submitterName
-                  ? `${submission.submitterName} · ${submission.submitterEmail}`
-                  : submission.submitterEmail}
+                {submission.fromOwner
+                  ? `At ${submission.placeName} · ${submission.submitterEmail}`
+                  : submission.submitterName
+                    ? `${submission.submitterName} · ${submission.submitterEmail}`
+                    : submission.submitterEmail}
               </span>
             </TableCell>
             <TableCell column="meta">
@@ -200,7 +210,11 @@ export function EventSubmissionsDashboard({
         onDecided={(decision, emailed) => {
           // Amber, not green, when the sender was not reached. The decision
           // held, so it is not a failure, but it is not finished either.
-          const message = eventSubmissionDecisionMessage(decision, emailed)
+          const message = eventSubmissionDecisionMessage(
+            decision,
+            emailed,
+            open?.fromOwner
+          )
           if (emailed) toast.success(message)
           else toast.warning(message)
           // The list is read again before the window closes, so the row does

@@ -87,9 +87,10 @@ export async function tellAdminsAboutEditRequest(
  * the next hour. The row is in the queue either way, which is the promise
  * `workspace/docs/listing-problem-reports.md` makes.
  */
-export async function tellAdminsAboutListingReport(
+export async function tellAdminsAboutReport(
   workspaceId: string,
-  listingTitle: string,
+  /** The listing's or event's title. */
+  subjectTitle: string,
   reasonLabel: string,
   database: CustomShellDb = db
 ) {
@@ -97,9 +98,9 @@ export async function tellAdminsAboutListingReport(
     await notifyAdmins(
       {
         workspaceId,
-        subject: `Problem reported on ${listingTitle}`,
+        subject: `Problem reported on ${subjectTitle}`,
         lines: [
-          `A visitor says something is wrong with ${listingTitle}: ${reasonLabel}.`,
+          `A visitor says something is wrong with ${subjectTitle}: ${reasonLabel}.`,
           "Nothing on the page has changed. It is waiting in the reports queue.",
         ],
         url: appUrlFor("/admin/listing-reports"),
@@ -114,22 +115,29 @@ export async function tellAdminsAboutListingReport(
 }
 
 /**
- * A suggestion from the Suggest an event page. Wrapped whole for the same
+ * A suggestion from the Suggest an event page, or an event a listing's owner
+ * sent from My listings. Wrapped whole for the same
  * reason as a listing report: the suggestion is already saved, and a failed
  * admin lookup must not answer the person with a failure.
  */
 export async function tellAdminsAboutEventSubmission(
   workspaceId: string,
   eventTitle: string,
+  /** The listing, when its owner sent it from My listings. */
+  ownerOf?: string,
   database: CustomShellDb = db
 ) {
   try {
     await notifyAdmins(
       {
         workspaceId,
-        subject: `New event suggested: ${eventTitle}`,
+        subject: ownerOf
+          ? `New event from the owner of ${ownerOf}: ${eventTitle}`
+          : `New event suggested: ${eventTitle}`,
         lines: [
-          `Somebody suggested ${eventTitle} on the Suggest an event page.`,
+          ownerOf
+            ? `The owner of ${ownerOf} sent ${eventTitle} from My listings. Approving it publishes it.`
+            : `Somebody suggested ${eventTitle} on the Suggest an event page.`,
           "It is waiting in the event suggestions queue.",
         ],
         url: appUrlFor("/admin/event-submissions"),

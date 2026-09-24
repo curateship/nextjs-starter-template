@@ -59,6 +59,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [export-shapes.md](export-shapes.md) — exporting one project in several
   shapes from one press, the one-per-shape rule, and why words need checking
   by eye in each shape.
+- [long-exports.md](long-exports.md) — why a project can be up to thirty
+  minutes and no longer, what moved with the limit, the measured render
+  times, and how the export window's time estimate is worked out.
+- [frame-rate.md](frame-rate.md) — the choice of 30 or 60 frames a second on
+  export, what it does to footage shot at each, the measured file sizes, and
+  why 30 stays the default.
 - [retrying-an-export.md](retrying-an-export.md) — the Try again button on a
   failed export: when it is allowed, and what it resets.
 - [share-links.md](share-links.md) — a link to one finished export that

@@ -6,6 +6,7 @@ import {
   getClaimErrorMessage,
   loadMyListings,
 } from "@/lib/api/directory/claims"
+import { loadMyListingEvents } from "@/lib/api/events/submissions"
 
 /**
  * The listings a signed-in account looks after.
@@ -37,12 +38,24 @@ export const Route = createFileRoute("/_authenticated/my-listings")({
         : undefined,
     featured_checkout: search.featured_checkout === "cancelled" ? "cancelled" : undefined,
   }),
-  loader: () => loadMyListings(),
+  loader: async () => {
+    const [listings, ownerEvents] = await Promise.all([
+      loadMyListings(),
+      loadMyListingEvents(),
+    ])
+    return { listings, ownerEvents }
+  },
   component: MyListingsRoute,
   errorComponent: routeErrorComponent(getClaimErrorMessage),
 })
 
 function MyListingsRoute() {
-  const listings = Route.useLoaderData()
-  return <MyListings listings={listings} checkout={Route.useSearch()} />
+  const { listings, ownerEvents } = Route.useLoaderData()
+  return (
+    <MyListings
+      listings={listings}
+      ownerEvents={ownerEvents}
+      checkout={Route.useSearch()}
+    />
+  )
 }

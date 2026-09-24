@@ -50,4 +50,10 @@ describe("what the admin is told after deciding a suggested event", () => {
       "Rejected, but the email to the sender could not be sent."
     )
   })
+
+  it("says a listing owner's event is live, because approving publishes it", () => {
+    expect(eventSubmissionDecisionMessage("approve", true, true)).toBe(
+      "Approved. The event is live and the sender has been emailed."
+    )
+  })
 })
