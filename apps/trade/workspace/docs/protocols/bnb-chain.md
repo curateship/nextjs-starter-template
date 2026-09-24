@@ -105,6 +105,15 @@ only a display name, so two coins called BTR remain separate markets.
   catalogue lasts one minute. A failed refresh keeps the last good list.
   A cold failure names the failed service through `MARKETS_UNAVAILABLE`.
   Current-price reads ask DexScreener separately and never fall back to the list.
+- **Shared with Robinhood Chain:** the list building, DexScreener pairs,
+  GoPlus checks, pool pages, search and price pages live in
+  `server/protocols/evm-chain/markets.ts`. BNB's `markets.ts` hands it
+  PancakeSwap's list and BNB's addresses. Both chains count against one
+  allowance per outside service, so GeckoTerminal's two pages a minute are
+  shared between them.
+- **Pool ids:** a Uniswap v4 or PancakeSwap Infinity pool is named by a
+  64-character hash instead of a 40-character address. The pair check accepts
+  both. Until 23 Sep 2026 one such pair made DexScreener's whole page fail.
 - **Search:** the existing Find button asks DexScreener by name or address,
   keeps only BNB results, and requests GoPlus checks immediately. An exact
   address query cannot return a different same-name coin. Found tokens join

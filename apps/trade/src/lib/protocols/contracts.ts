@@ -307,8 +307,12 @@ export type MarketRow = {
   marketId: string
   /** What to print. The same as marketId on Hyperliquid. */
   symbol: string
-  /** The dollar token printed beside the market, such as USDC or USDT. Plain USD on a price feed that settles nothing. */
-  quoteAsset: "USDC" | "USDT" | "USD"
+  /**
+   * The dollar token printed beside the market, such as USDC or USDT. USDG is
+   * Paxos's, the one Robinhood Chain's pools use. Plain USD on a price feed
+   * that settles nothing.
+   */
+  quoteAsset: "USDC" | "USDT" | "USDG" | "USD"
   /**
    * The sub-exchange this market trades on, by its full name — the extra
    * venues an exchange hosts beside its main one — or null on the main one.

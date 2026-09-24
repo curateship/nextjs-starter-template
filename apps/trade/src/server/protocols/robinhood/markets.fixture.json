@@ -1,0 +1,880 @@
+{
+ "measuredOn": "2026-09-23",
+ "factoryPages": [
+  {
+   "items": [
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x000000000000000000000000000000006604af6b5c4a4031a29417ec8c2f8c53",
+      null,
+      null
+     ],
+     "data": "0x0000000000000000000000002f62fc9fabb470c690f141c28340ed832bb27020000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000003256616e677561726420546f74616c20426f6e64204d61726b65742045544620e280a220526f62696e686f6f6420546f6b656e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003424e440000000000000000000000000000000000000000000000000000000000",
+     "block_number": 21689593
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x000000000000000000000000000000001db61e88b20b481093c556e4d07195b5",
+      null,
+      null
+     ],
+     "data": "0x000000000000000000000000c9a981fee1f9dec688bb123ccdecc63d0debfc4e000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000235350445220476f6c6420547275737420e280a220526f62696e686f6f6420546f6b656e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003474c440000000000000000000000000000000000000000000000000000000000",
+     "block_number": 20947470
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x00000000000000000000000000000000343e7beca03644bcba2e50b8236784f5",
+      null,
+      null
+     ],
+     "data": "0x000000000000000000000000c0d6457c16cc70d6790dd43521c899c87ce02f35000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000224d65746120506c6174666f726d7320e280a220526f62696e686f6f6420546f6b656e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044d45544100000000000000000000000000000000000000000000000000000000",
+     "block_number": 48281
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x00000000000000000000000000000000c5ac9420091c4f9eb3ff1fdd1d2b60c6",
+      null,
+      null
+     ],
+     "data": "0x0000000000000000000000001b0e319c6a659f002271b69db8a7df2f911c153e000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000001c47616d6553746f7020e280a220526f62696e686f6f6420546f6b656e000000000000000000000000000000000000000000000000000000000000000000000003474d450000000000000000000000000000000000000000000000000000000000",
+     "block_number": 48258
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x00000000000000000000000000000000915f477416294f5099a5e0e09f327ce5",
+      null,
+      null
+     ],
+     "data": "0x000000000000000000000000d0601ce157db5bdc3162bbac2a2c8af5320d9eec000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000001a4e564944494120e280a220526f62696e686f6f6420546f6b656e00000000000000000000000000000000000000000000000000000000000000000000000000044e56444100000000000000000000000000000000000000000000000000000000",
+     "block_number": 45898
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x00000000000000000000000000000000cfece3244ea34bb29414dd9488b32d9f",
+      null,
+      null
+     ],
+     "data": "0x000000000000000000000000322f0929c4625ed5bad873c95208d54e1c003b2d000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000195465736c6120e280a220526f62696e686f6f6420546f6b656e00000000000000000000000000000000000000000000000000000000000000000000000000000454534c4100000000000000000000000000000000000000000000000000000000",
+     "block_number": 34767
+    }
+   ],
+   "next_page_params": {
+    "index": 36,
+    "block_number": 20948804,
+    "items_count": 50
+   }
+  },
+  {
+   "items": [
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xd9b0c6a1c0de228715ad0fa09f3259686ee84f8cc675e03ef7e47a9cdafa76d6",
+      "0x000000000000000000000000000000000a924e0d878747e586c22887bc2d82b1",
+      null,
+      null
+     ],
+     "data": "0x000000000000000000000000c583c60aef9dc401da72cec1b404743a93cea1cc000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000022442d57617665205175616e74756d20e280a220526f62696e686f6f6420546f6b656e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045142545300000000000000000000000000000000000000000000000000000000",
+     "block_number": 46113
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+      "0x000000000000000000000000ee351e53bce6aaf106428358838197c91e36ee0e",
+      null,
+      null
+     ],
+     "data": "0x",
+     "block_number": 645152
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2",
+      null,
+      null,
+      null
+     ],
+     "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+     "block_number": 7791
+    },
+    {
+     "address": {
+      "hash": "0x4783C67b63dE2B358Ac5951a7D41F47A38F3C046"
+     },
+     "topics": [
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+      "0x000000000000000000000000ee351e53bce6aaf106428358838197c91e36ee0e",
+      null,
+      null
+     ],
+     "data": "0x",
+     "block_number": 7791
+    }
+   ],
+   "next_page_params": null
+  }
+ ],
+ "pools": {
+  "data": [
+   {
+    "id": "robinhood_0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x16679e2ac1a798865ecf1c1639e67693ddb1c220",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x7a35168956f129c032ec035cc47383a605a71df0",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xf4d0171f995d576b972aa982080eaf4da456cf9e",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x69bfaf19c9f377bb306a89aed9f6b07e2c1a8d9a",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x8068ab043efd411b87506c41be1add38faaf18c0af0016c663ca92feff0b8159",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xf2a0be59ab76b96f957bd5e5b967f2b75e8db269",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xfae65eaa11943f45e83d5b45dc7a7c801c51bfb0",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x6c96006423d90e4aca950b72e50b143db065917b28537c7ca8fe7cd7d6e30022",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xe2b46c905e12ab8e2f864e4821a4325884c1b126",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x1e3ba04aa20ecccfb9a174a5b2cb15c81f2c9c2c20cf40e895fadfdf33367c4f",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x5eac4195930d5ff8b7a34a347f2bde951c42eb730d6e26075bea3dd7c66feb40",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x40a433930370f6cdf0a78debc2c6dd599c23bd428c0d67dd8b5373e4f101557f",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xd4eb21209c4d6093f80b5b84f5c45cc093ea14a3",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xaf69d9d9d0dbeaaa2e03eddbd7971d5b536627ba",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x93cc54eb4e1928e841cb8b2e488bd82e8d97d56e0aab16cf078ef71c576dcded",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0x90691314f1bca335cf43fa9444a314ec15b2a0d82d644a9ace7e3acde70e1cd5",
+    "type": "pool"
+   },
+   {
+    "id": "robinhood_0xa6e013da812a4f2e151e2c08aa05d53a67ad84487e35d60a0b5b7456066fad78",
+    "type": "pool"
+   }
+  ],
+  "included": [
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+     "symbol": "USDG",
+     "decimals": 6,
+     "image_url": "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png?1730484111"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+     "symbol": "WETH",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102174283/large/weth-robinhood.jpeg?1782924507"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x0000000000000000000000000000000000000000",
+     "symbol": "WETH",
+     "decimals": 18,
+     "image_url": "https://assets.geckoterminal.com/7l7tdohmj7ud6i62llktrh18kcj6"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+     "symbol": "META",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102174122/large/0xc0d6457c16cc70d6790dd43521c899c87ce02f35.png?1782444595"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+     "symbol": "PONS",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102174571/large/jhitvkisdq8fhxvimdkpcw7y3dx5.?1784093932"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x39679b59289cce7c7f6e0feacdf39a1e543de751",
+     "symbol": "CREDITS",
+     "decimals": 18,
+     "image_url": null
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+     "symbol": "GME",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102174150/large/0x1b0e319c6a659f002271b69db8a7df2f911c153e.png?1782444670"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x7c2ce195c5260c45d0980d21a2822df6a35d9a80",
+     "symbol": "SI",
+     "decimals": 18,
+     "image_url": null
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x11b70d0243baf75e85ce03201a92b5b7c33beb59",
+     "symbol": "ROBIN",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102176757/large/Robin_RH.png?1788645572"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x91a2dae9699f0b82540b5886b0d8759c22820ba3",
+     "symbol": "musebook",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102178465/large/musebook.png?1789657052"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+     "symbol": "NVDA",
+     "decimals": 18,
+     "image_url": "https://coin-images.coingecko.com/coins/images/102174110/large/0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec.png?1782444565"
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0xa2508b15ab16826c720631b9afa0a90c453ae8a4",
+     "symbol": "Euler",
+     "decimals": 18,
+     "image_url": null
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0xe34f03f4f36e842c8817ac635162a2cc67e03c8a",
+     "symbol": "CDS",
+     "decimals": 18,
+     "image_url": null
+    }
+   },
+   {
+    "type": "token",
+    "attributes": {
+     "address": "0x14234588ebf2e8cdd8e95baa518bca3ba29a1e18",
+     "symbol": "LILY",
+     "decimals": 18,
+     "image_url": null
+    }
+   }
+  ]
+ },
+ "pairs": [
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x7A6A053eCCf1446A2633E05aA6D40D09381997ec",
+   "baseToken": {
+    "address": "0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e",
+    "name": "SPDR Gold Trust \u2022 Robinhood Token",
+    "symbol": "GLD"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "393.27",
+   "priceChange": {
+    "h1": -0.11,
+    "h6": 0.01,
+    "h24": -1.35
+   },
+   "volume": {
+    "h24": 990587.65,
+    "h6": 202864.84,
+    "h1": 37377.99,
+    "m5": 111.43
+   },
+   "liquidity": {
+    "usd": 3423540.51,
+    "base": 6187.7901,
+    "quote": 990010
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+   "baseToken": {
+    "address": "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35",
+    "name": "Meta Platforms \u2022 Robinhood Token",
+    "symbol": "META"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "741.24",
+   "priceChange": {
+    "h1": -0.12,
+    "h6": -0.79,
+    "h24": 0.27
+   },
+   "volume": {
+    "h24": 10191858.07,
+    "h6": 4414008.41,
+    "h1": 232029.57,
+    "m5": 3333.9
+   },
+   "liquidity": {
+    "usd": 4205207.89,
+    "base": 2222.8462,
+    "quote": 2557542
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0xE2b46c905E12Ab8E2f864e4821a4325884C1B126",
+   "baseToken": {
+    "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+    "name": "GameStop \u2022 Robinhood Token",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "24.15",
+   "priceChange": {
+    "h1": -0.15,
+    "h6": -0.22,
+    "h24": 0.36
+   },
+   "volume": {
+    "h24": 5771313.89,
+    "h6": 577290.38,
+    "h1": 59324.29,
+    "m5": 269.27
+   },
+   "liquidity": {
+    "usd": 375610.47,
+    "base": 3816.8648,
+    "quote": 283428
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0xd4EB21209C4D6093f80B5b84f5C45cc093EA14a3",
+   "baseToken": {
+    "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+    "name": "NVIDIA \u2022 Robinhood Token",
+    "symbol": "NVDA"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "225.60",
+   "priceChange": {
+    "m5": 0.09,
+    "h1": 0.22,
+    "h6": 0.06,
+    "h24": -1.24
+   },
+   "volume": {
+    "h24": 13825273.67,
+    "h6": 1346577.36,
+    "h1": 308110.61,
+    "m5": 75239.63
+   },
+   "liquidity": {
+    "usd": 5704205.32,
+    "base": 7715.1572,
+    "quote": 3963608
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0xA953CA88ff430e9487c60cA34d757414f4efdA07",
+   "baseToken": {
+    "address": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d",
+    "name": "Tesla \u2022 Robinhood Token",
+    "symbol": "TSLA"
+   },
+   "quoteToken": {
+    "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "name": "WETH",
+    "symbol": "WETH"
+   },
+   "priceUsd": "380.50",
+   "priceChange": {
+    "m5": 0.02,
+    "h1": 0.41,
+    "h6": 0.19,
+    "h24": 0.21
+   },
+   "volume": {
+    "h24": 317982.22,
+    "h6": 35172.42,
+    "h1": 13797.06,
+    "m5": 0.2
+   },
+   "liquidity": {
+    "usd": 377572.81,
+    "base": 625.7295,
+    "quote": 51.9286
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x29f9c0665fd943433148f6173826a54d69135a74994dc53101605b30568cf362",
+   "baseToken": {
+    "address": "0xC583c60aeF9Dc401Da72cEC1B404743a93cea1Cc",
+    "name": "D-Wave Quantum Inc. Common Stock \u2022 Robinhood Token",
+    "symbol": "QBTS"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "18.083",
+   "priceChange": {
+    "h6": -0.36,
+    "h24": 3.37
+   },
+   "volume": {
+    "h24": 171.4,
+    "h6": 9.91,
+    "h1": 0,
+    "m5": 0
+   },
+   "liquidity": {
+    "usd": 1679.62,
+    "base": 82.551,
+    "quote": 186.8479
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+   "baseToken": {
+    "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "name": "WETH",
+    "symbol": "WETH"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "2685.45",
+   "priceChange": {
+    "m5": 0.03,
+    "h1": 0.41,
+    "h6": 0.56,
+    "h24": -2.76
+   },
+   "volume": {
+    "h24": 397688626.57,
+    "h6": 67277705.1,
+    "h1": 13751284.19,
+    "m5": 384079.63
+   },
+   "liquidity": {
+    "usd": 19014683.71,
+    "base": 3097.4937,
+    "quote": 10696499
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x10CC6BD38112cAc182db90B6a71d8Bb5939526bA",
+   "baseToken": {
+    "address": "0x39dBED3a2bd333467115dE45665cC57F813C4571",
+    "name": "Pons",
+    "symbol": "PONS"
+   },
+   "quoteToken": {
+    "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "name": "WETH",
+    "symbol": "WETH"
+   },
+   "priceUsd": "0.6409",
+   "priceChange": {
+    "m5": 0.05,
+    "h1": 0.71,
+    "h6": 0.48,
+    "h24": -12.41
+   },
+   "volume": {
+    "h24": 1581657.57,
+    "h6": 219481.69,
+    "h1": 102551.1,
+    "m5": 2213.62
+   },
+   "liquidity": {
+    "usd": 4552692.71,
+    "base": 3645444,
+    "quote": 825.07742
+   },
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/dkmXs8KYMyMXjuU1?width=800&height=800&quality=95&format=auto"
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x6c96006423d90e4aca950b72e50b143db065917b28537c7ca8fe7cd7d6e30022",
+   "baseToken": {
+    "address": "0x39679b59289CcE7C7f6e0fEacDF39A1e543dE751",
+    "name": "CREDITS",
+    "symbol": "CREDITS"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceUsd": "0.0002628",
+   "priceChange": {
+    "m5": -5.83,
+    "h1": 25.88,
+    "h6": 17.73,
+    "h24": 321
+   },
+   "volume": {
+    "h24": 3760052.93,
+    "h6": 72211.49,
+    "h1": 16594.13,
+    "m5": 1110.67
+   },
+   "liquidity": {
+    "usd": 49202.01,
+    "base": 93587462,
+    "quote": 9.1587
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x1e3ba04aa20ecccfb9a174a5b2cb15c81f2c9c2c20cf40e895fadfdf33367c4f",
+   "baseToken": {
+    "address": "0x7c2CE195C5260c45D0980D21a2822DF6a35D9A80",
+    "name": "Super Intelligence",
+    "symbol": "SI"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceUsd": "0.000005060",
+   "priceChange": {
+    "h1": 0.37,
+    "h6": 25.44,
+    "h24": -91.29
+   },
+   "volume": {
+    "h24": 1971623.78,
+    "h6": 385.12,
+    "h1": 10.81,
+    "m5": 0
+   },
+   "liquidity": {
+    "usd": 6808.01,
+    "base": 672618583,
+    "quote": 1.2743
+   },
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/I8zz-nqOH01GY4Xt?width=800&height=800&quality=95&format=auto"
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x5eac4195930d5ff8b7a34a347f2bde951c42eb730d6e26075bea3dd7c66feb40",
+   "baseToken": {
+    "address": "0x11B70d0243baf75E85CE03201A92b5B7C33BEB59",
+    "name": "Robin the Frog",
+    "symbol": "ROBIN"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "0.005335",
+   "priceChange": {
+    "m5": 0.18,
+    "h1": 8.68,
+    "h6": 18.97,
+    "h24": 64.94
+   },
+   "volume": {
+    "h24": 1150833.68,
+    "h6": 141581,
+    "h1": 50254.62,
+    "m5": 1210.61
+   },
+   "liquidity": {
+    "usd": 187917.69,
+    "base": 17591006,
+    "quote": 94061
+   },
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/FFfGnsF4KRBA9os5?width=800&height=800&quality=95&format=auto"
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x40a433930370f6cdf0a78debc2c6dd599c23bd428c0d67dd8b5373e4f101557f",
+   "baseToken": {
+    "address": "0x91A2DAe9699f0B82540B5886b0d8759C22820bA3",
+    "name": "musebook",
+    "symbol": "musebook"
+   },
+   "quoteToken": {
+    "address": "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35",
+    "name": "Meta Platforms \u2022 Robinhood Token",
+    "symbol": "META"
+   },
+   "priceUsd": "0.0001917",
+   "priceChange": {
+    "m5": 0.13,
+    "h1": -11,
+    "h6": -27.9,
+    "h24": -43.35
+   },
+   "volume": {
+    "h24": 4011189.75,
+    "h6": 1761827.63,
+    "h1": 248096.99,
+    "m5": 572.18
+   },
+   "liquidity": {
+    "usd": 1745103.76,
+    "base": 5280667486,
+    "quote": 988.0292
+   },
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/UCaP3HospcQhsorx?width=800&height=800&quality=95&format=auto"
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0xaF69d9D9d0DbEAAA2e03EdDBD7971d5B536627Ba",
+   "baseToken": {
+    "address": "0xa2508b15Ab16826c720631b9aFA0a90c453AE8A4",
+    "name": "Muse Dog",
+    "symbol": "Euler"
+   },
+   "quoteToken": {
+    "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "name": "WETH",
+    "symbol": "WETH"
+   },
+   "priceUsd": "0.000003875",
+   "priceChange": {
+    "h1": 0.34,
+    "h6": -8.43,
+    "h24": -99.71
+   },
+   "volume": {
+    "h24": 15009183.66,
+    "h6": 2499.62,
+    "h1": 11.94,
+    "m5": 0
+   },
+   "liquidity": {
+    "usd": 3765.9,
+    "base": 830209272,
+    "quote": 0.2045
+   },
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/DTa7XZ-cFX0Y9ZeE?width=800&height=800&quality=95&format=auto"
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0x90691314f1bca335cf43fa9444a314ec15b2a0d82d644a9ace7e3acde70e1cd5",
+   "baseToken": {
+    "address": "0xe34f03f4F36E842C8817Ac635162A2cc67E03C8a",
+    "name": "Codos",
+    "symbol": "CDS"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceUsd": "0.000003135",
+   "priceChange": {
+    "h1": -0.79,
+    "h6": 17.53,
+    "h24": -92.14
+   },
+   "volume": {
+    "h24": 846094.69,
+    "h6": 260.64,
+    "h1": 11.5,
+    "m5": 0
+   },
+   "liquidity": {
+    "usd": 4550.25,
+    "base": 725683333,
+    "quote": 2275.1252
+   },
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/KKcYwwZVsLRv5mjS?width=800&height=800&quality=95&format=auto"
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "pairAddress": "0xa6e013da812a4f2e151e2c08aa05d53a67ad84487e35d60a0b5b7456066fad78",
+   "baseToken": {
+    "address": "0x14234588EBF2E8cDd8E95baa518bca3bA29a1E18",
+    "name": "Lily",
+    "symbol": "LILY"
+   },
+   "quoteToken": {
+    "address": "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35",
+    "name": "Meta Platforms \u2022 Robinhood Token",
+    "symbol": "META"
+   },
+   "priceUsd": "0.0001059",
+   "priceChange": {
+    "m5": 1.54,
+    "h1": -0.82,
+    "h6": 421,
+    "h24": 421
+   },
+   "volume": {
+    "h24": 894026.69,
+    "h6": 894026.69,
+    "h1": 144733.26,
+    "m5": 1511.09
+   },
+   "liquidity": {
+    "usd": 75396.75,
+    "base": 452386689,
+    "quote": 37.05256
+   }
+  }
+ ],
+ "security": {
+  "code": 1,
+  "message": "OK",
+  "result": {
+   "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": {
+    "is_honeypot": null,
+    "buy_tax": "0",
+    "sell_tax": "0",
+    "token_symbol": "NVDA"
+   }
+  }
+ }
+}

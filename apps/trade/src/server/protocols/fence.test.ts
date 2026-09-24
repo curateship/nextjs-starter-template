@@ -42,6 +42,7 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
       join("server", "protocols", "hyperliquid"),
       join("server", "protocols", "aster"),
       join("server", "protocols", "bnb"),
+      join("server", "protocols", "robinhood"),
       join("server", "protocols", "evm-chain"),
     ],
   },
@@ -73,7 +74,8 @@ const SOLANA_ADDRESSES =
 /** The addresses only Robinhood Chain's folder may know, for the same reason. */
 const ROBINHOOD_HOME = join("server", "protocols", "robinhood")
 const ROBINHOOD_ADDRESSES =
-  /chain\.robinhood\.com|robinhoodchain\.blockscout\.com|robinhood-rpc/
+  /chain\.robinhood\.com|cdn\.robinhood\.com|robinhoodchain\.blockscout\.com|robinhood-rpc/
+const CHAIN_HOMES = [join("server", "protocols", "bnb"), ROBINHOOD_HOME]
 
 /**
  * The code BNB Chain and Robinhood Chain share. Each chain folder hands it
@@ -117,11 +119,24 @@ const sources = walk(SRC).map((file) => ({
 describe("the protocol fence", () => {
   it("keeps BNB node and service addresses inside its folder", () => {
     const addresses =
-      /bsc-dataseed|publicnode\.com|kyberswap\.com|dexscreener\.com|geckoterminal\.com|gopluslabs\.io|tokens\.pancakeswap\.finance/
+      /bsc-dataseed|publicnode\.com|tokens\.pancakeswap\.finance/
     const offenders = sources
       .filter(
         ({ path }) => !path.startsWith(join("server", "protocols", "bnb") + sep)
       )
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => addresses.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps the chains' shared service addresses inside the chain folders", () => {
+    // BNB Chain and Robinhood Chain both ask these four services, so each
+    // chain's client may name them. Nothing else may.
+    const addresses =
+      /kyberswap\.com|dexscreener\.com|geckoterminal\.com|gopluslabs\.io/
+    const offenders = sources
+      .filter(({ path }) => !CHAIN_HOMES.some((home) => path.startsWith(home + sep)))
       .filter(({ path }) => path !== relative(SRC, __filename))
       .filter(({ text }) => addresses.test(text))
       .map(({ path }) => path)
