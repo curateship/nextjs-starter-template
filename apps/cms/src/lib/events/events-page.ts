@@ -3,12 +3,14 @@ import {
   parseYearMonth,
   toMonthString,
 } from "@/lib/events/calendar-grid"
+import { slugProblem } from "@/lib/directory/slugs"
 import { readOneOf, readPage } from "@/lib/nav/list-search"
 
 /**
  * The Events page's state, named once so the route's address reader, the
  * endpoint and the links between views agree on what may appear in the
- * address: `?view=month&month=2026-10`, or `?day=2026-10-03`, or `?page=2`.
+ * address: `?view=month&month=2026-10`, or `?day=2026-10-03`, or `?page=2`,
+ * or `?place=the-rex` for the events held at one listing.
  */
 
 export const EVENT_VIEWS = ["list", "month"] as const
@@ -32,6 +34,8 @@ export type EventsPageSearch = {
   /** "2026-10-03": the list narrowed to that one day. */
   day?: string
   page?: number
+  /** A listing's address, like "the-rex": the list narrowed to that place. */
+  place?: string
 }
 
 /**
@@ -46,5 +50,11 @@ export function readEventsSearch(
     return { view: "month", month: month ? toMonthString(month) : undefined }
   }
   if (isValidDateString(search.day)) return { day: search.day }
-  return { page: readPage(search.page) }
+  const place =
+    typeof search.place === "string" &&
+    search.place.length <= 160 &&
+    !slugProblem(search.place)
+      ? search.place
+      : undefined
+  return { page: readPage(search.page), place }
 }

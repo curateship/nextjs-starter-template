@@ -123,6 +123,11 @@ export type EditorAction =
       type: "INSERT_VOICEOVER"
       audio: EditorClip
       captions: EditorClip[]
+      /**
+       * A clip whose own sound is turned down under the new voice, as a
+       * translation read over the original. It stays where it is.
+       */
+      quieten?: { clipId: string; volume: number }
     }
   // Every caption at once, onto a lane of their own. One action so one press
   // of undo takes the whole lot back off again.
@@ -602,12 +607,28 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),
       }
       const voice: EditorTrack = { ...newTrack(), clips: [action.audio] }
+      const quieten = action.quieten
+      // Turned down, never up: a clip already quieter than asked keeps its
+      // own level.
+      const tracks = quieten
+        ? state.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((clip) =>
+              clip.id === quieten.clipId
+                ? {
+                    ...clip,
+                    volume: Math.min(clip.volume ?? 1, quieten.volume),
+                  }
+                : clip
+            ),
+          }))
+        : state.tracks
       // Words above the picture, sound below it, the way they are laid out
       // when somebody does this by hand.
       return {
         ...pushUndo(state, [
           ...(action.captions.length ? [captions] : []),
-          ...state.tracks,
+          ...tracks,
           voice,
         ]),
         selectedClipId: action.audio.id,

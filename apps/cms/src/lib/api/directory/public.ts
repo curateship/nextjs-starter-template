@@ -21,13 +21,23 @@ import {
   type PublicDirectoryMap,
   type PublicListingPage,
 } from "@/server/directory/public"
-import { readDirectoryFrontPage } from "@/server/directory/front-page"
+import {
+  fillFrontPageEvents,
+  readDirectoryFrontPage,
+} from "@/server/directory/front-page"
 import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
 import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
-import { readEventSuggestions } from "@/server/events/public"
+import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
+import { siteTimeZone } from "@/server/directory/settings"
+import {
+  eventsAccessFor,
+  readEventSuggestions,
+  readUpcomingEvents,
+  type PublicEventCard,
+} from "@/server/events/public"
 
 import { createErrorMessage } from "../error-message"
 
@@ -205,9 +215,26 @@ export function findDirectoryPlace(query: string) {
   return geocodeDirectoryPlaceFn({ data: { query } })
 }
 
+/** How many upcoming events a listing's "What's on here" shows. */
+const EVENTS_ON_A_LISTING = 3
+
+/**
+ * The next events held at a listing, for its "What's on here", or filed under
+ * a category, for its page. Null when the visitor may not see the Events page.
+ */
+export type ListingEvents = {
+  events: PublicEventCard[]
+  /** Every upcoming event there, for "See all 5 events". */
+  total: number
+  /** "Eastern Time", the zone the times are in. */
+  zone: string
+}
+
 const readDirectoryListingFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ slug: slugInput }))
-  .handler(async ({ data }): Promise<PublicListingPage | null> => {
+  .handler(async ({
+    data,
+  }): Promise<(PublicListingPage & { whatsOn: ListingEvents | null }) | null> => {
     const site = await visitorSite()
     if (!site) return null
 
@@ -217,7 +244,32 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
     // with nothing personal in it.
     const viewer = await findCurrentUser().catch(() => null)
 
-    return readPublicListing(site, data.slug, { viewerId: viewer?.id ?? null })
+    const page = await readPublicListing(site, data.slug, {
+      viewerId: viewer?.id ?? null,
+    })
+    if (!page) return null
+
+    // Read after the listing's two-minute cache, by the site's clock, and only
+    // when this visitor may see the Events page, the same switch every event
+    // page follows.
+    const access = await eventsAccessFor(site.id, async () => Boolean(viewer))
+    if (!access) return { ...page, whatsOn: null }
+    const timeZone = await siteTimeZone(site.id)
+    const upcoming = await readUpcomingEvents(
+      site,
+      1,
+      wallClockAt(timeZone, new Date()),
+      undefined,
+      { placeId: page.listing.id }
+    )
+    return {
+      ...page,
+      whatsOn: {
+        events: upcoming.events.slice(0, EVENTS_ON_A_LISTING),
+        total: upcoming.total,
+        zone: timeZoneLabel(timeZone),
+      },
+    }
   })
 
 /** One published listing by its address, or null if there is not one. */
@@ -225,13 +277,47 @@ export function loadDirectoryListing(slug: string) {
   return readDirectoryListingFn({ data: { slug } })
 }
 
+/** How many upcoming events a category page shows under its listings. */
+const EVENTS_ON_A_CATEGORY = 6
+
 const readDirectoryCategoryFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ slug: slugInput, page: pageInput }))
-  .handler(async ({ data }): Promise<PublicCategoryPage | null> => {
+  .handler(async ({
+    data,
+  }): Promise<
+    (PublicCategoryPage & { upcomingEvents: ListingEvents | null }) | null
+  > => {
     const site = await visitorSite()
     if (!site) return null
 
-    return readPublicCategory(site, data.slug, { page: data.page ?? 1 })
+    const page = await readPublicCategory(site, data.slug, {
+      page: data.page ?? 1,
+    })
+    if (!page) return null
+
+    // Read after the category's cache, by the site's clock, and only when this
+    // visitor may see the Events page, the same as a listing's "What's on
+    // here".
+    const access = await eventsAccessFor(site.id, async () =>
+      Boolean(await findCurrentUser().catch(() => null))
+    )
+    if (!access) return { ...page, upcomingEvents: null }
+    const timeZone = await siteTimeZone(site.id)
+    const upcoming = await readUpcomingEvents(
+      site,
+      1,
+      wallClockAt(timeZone, new Date()),
+      undefined,
+      { categoryId: page.category.id }
+    )
+    return {
+      ...page,
+      upcomingEvents: {
+        events: upcoming.events.slice(0, EVENTS_ON_A_CATEGORY),
+        total: upcoming.total,
+        zone: timeZoneLabel(timeZone),
+      },
+    }
   })
 
 /** One category, its subcategories and one page of its listings. */
@@ -244,10 +330,20 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
     const answer = await answerForRequest()
     if (answer.kind !== "workspace") return null
 
-    return readDirectoryFrontPage({
+    const page = await readDirectoryFrontPage({
       id: answer.workspace.id,
       name: answer.workspace.name,
     })
+    if (!page) return null
+    if (!page.rows.some((row) => row.kind === "events")) return page
+
+    // Rows of events follow the Events page's own switch, for this visitor.
+    const site = await visitorSite()
+    if (!site) return null
+    const access = await eventsAccessFor(site.id, async () =>
+      Boolean(await findCurrentUser().catch(() => null))
+    )
+    return fillFrontPageEvents(site, page, access !== null)
   }
 )
 

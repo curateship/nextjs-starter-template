@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  exists,
   gte,
   ilike,
   inArray,
@@ -363,21 +364,46 @@ export type UpcomingEvents = {
 /**
  * One page of the events that are not over yet, soonest first. `now` is the
  * site's wall clock, "2026-09-26T18:05", so an answer is cached for a minute
- * at most.
+ * at most. `only` narrows it to the events held at one listing, for a
+ * listing's "What's on here" and the Events page's "At The Rex", or to the
+ * events filed under one category, for a category page and a home page row.
+ * A category means its own events, not its children's, the same as listings.
  */
 export function readUpcomingEvents(
   site: VisitorSite,
   page: number,
   now: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  only: { placeId?: string; categoryId?: string } = {}
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
+  const placeId = only.placeId ?? null
+  const categoryId = only.categoryId ?? null
   return cachedPublicDirectoryRead(
     site.id,
     "upcoming-events",
-    { site: { name: site.name, url: site.url }, page, now },
+    { site: { name: site.name, url: site.url }, page, now, placeId, categoryId },
     async () => {
-      const where = and(listedEventsOnSite(site.id), notOverAt(nowDay, nowTime))
+      const where = and(
+        listedEventsOnSite(site.id),
+        notOverAt(nowDay, nowTime),
+        placeId ? eq(siteEvents.listingId, placeId) : undefined,
+        categoryId
+          ? exists(
+              database
+                .select({ one: sql`1` })
+                .from(categoryRelationships)
+                .where(
+                  and(
+                    eq(categoryRelationships.workspaceId, site.id),
+                    eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+                    eq(categoryRelationships.contentId, siteEvents.id),
+                    eq(categoryRelationships.categoryId, categoryId)
+                  )
+                )
+            )
+          : undefined
+      )
       const [rows, [countRow]] = await Promise.all([
         database
           .select(eventCardColumns)
@@ -401,6 +427,34 @@ export function readUpcomingEvents(
       }
     }
   )
+}
+
+/**
+ * A published listing on this site by its address, for the Events page's
+ * `?place=` filter. A draft listing is never named here, so its address
+ * cannot be found out through the filter.
+ */
+export async function findEventPlace(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<{ id: string; title: string; slug: string } | null> {
+  const [row] = await database
+    .select({
+      id: directoryListings.id,
+      title: directoryListings.title,
+      slug: directoryListings.slug,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, siteId),
+        eq(directoryListings.slug, slug),
+        eq(directoryListings.status, "published")
+      )
+    )
+    .limit(1)
+  return row ?? null
 }
 
 /** More upcoming events than a site plans, in a file a calendar app still reads. */

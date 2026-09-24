@@ -187,6 +187,40 @@ describe("dropping in a voiceover", () => {
     })
     expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
   })
+
+  it("turns the original down under a translation, and undo turns it back up", () => {
+    const after = editorReducer(START, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [caption("a", 0)],
+      quieten: { clipId: "clip-1", volume: 0.2 },
+    })
+    const original = after.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === "clip-1")
+    // Still there, still where it was, only quieter.
+    expect(original).toMatchObject({ startMs: 0, durationMs: 8_000, volume: 0.2 })
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
+  })
+
+  it("never turns up a clip that was already quieter", () => {
+    const quiet = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        {
+          ...START.tracks[0],
+          clips: [{ ...START.tracks[0].clips[0], volume: 0.1 }],
+        },
+      ],
+    })
+    const after = editorReducer(quiet, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [],
+      quieten: { clipId: "clip-1", volume: 0.2 },
+    })
+    expect(after.tracks[0].clips[0].volume).toBe(0.1)
+  })
 })
 
 describe("cutting pieces out of a clip", () => {

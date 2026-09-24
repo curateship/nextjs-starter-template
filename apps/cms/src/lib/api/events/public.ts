@@ -15,6 +15,7 @@ import {
   wallClockAt,
 } from "@/lib/events/event-time"
 import { findCurrentUser } from "@/server/auth/security"
+import { readPageVisibility } from "@/server/content/pages"
 import {
   visitorSite,
   type PublicSite,
@@ -26,6 +27,7 @@ import {
 } from "@/server/directory/settings"
 import {
   eventsAccessFor,
+  findEventPlace,
   readEventsBetween,
   readPublicEvent,
   readUpcomingEvents,
@@ -84,6 +86,12 @@ export type EventsPageData = EventsPageCommon &
         view: "list"
         /** Set when the list is narrowed to one day, which is never paged. */
         day: string | null
+        /**
+         * Set when the list is narrowed to the events at one listing.
+         * `linked` is false while the directory is switched off or kept for
+         * members, the same rule as a place on an event page.
+         */
+        place: { title: string; slug: string; linked: boolean } | null
         events: ListedEvent[]
         total: number
         page: number
@@ -104,6 +112,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       month: z.string().max(7).optional(),
       day: z.string().max(10).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
+      place: z.string().max(160).optional(),
     })
   )
   .handler(async ({ data }): Promise<EventsPageData | null> => {
@@ -145,6 +154,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
         ...common,
         view: "list",
         day: data.day,
+        place: null,
         events,
         total: events.length,
         page: 1,
@@ -153,11 +163,31 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     }
 
     const page = data.page ?? 1
-    const upcoming = await readUpcomingEvents(site, page, now)
+    // An address that is not a published listing here shows every event.
+    const [place, directoryVisibility] = data.place
+      ? await Promise.all([
+          findEventPlace(site.id, data.place),
+          readPageVisibility(site.id, "/directory"),
+        ])
+      : [null, null]
+    const upcoming = await readUpcomingEvents(
+      site,
+      page,
+      now,
+      undefined,
+      place ? { placeId: place.id } : {}
+    )
     return {
       ...common,
       view: "list",
       day: null,
+      place: place
+        ? {
+            title: place.title,
+            slug: place.slug,
+            linked: directoryVisibility === "everyone",
+          }
+        : null,
       events: mark(upcoming.events),
       total: upcoming.total,
       page,
@@ -171,6 +201,7 @@ export function loadEventsPage(input: {
   month?: string
   day?: string
   page?: number
+  place?: string
 }) {
   return readEventsPageFn({ data: input })
 }

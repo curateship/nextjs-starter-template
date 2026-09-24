@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   CaptionsIcon,
   FileTextIcon,
+  LanguagesIcon,
   MicIcon,
   PenLineIcon,
   ScissorsIcon,
@@ -15,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
 import { HookDialog } from "@/components/video-editor/hook-dialog"
 import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
+import { TranslateDialog } from "@/components/video-editor/translate-dialog"
 import { VoiceDialog } from "@/components/video-editor/voice-dialog"
 import {
   loadAiToolsAvailability,
@@ -32,7 +34,14 @@ import { cn } from "@/lib/utils"
  * them back.
  */
 
-type ToolId = "captions" | "jump-cut" | "voice" | "hook" | "script" | "brief"
+type ToolId =
+  | "captions"
+  | "jump-cut"
+  | "voice"
+  | "hook"
+  | "translate"
+  | "script"
+  | "brief"
 
 const TOOLS: {
   id: ToolId
@@ -65,6 +74,12 @@ const TOOLS: {
     Icon: SplitIcon,
   },
   {
+    id: "translate",
+    label: "Another language",
+    description: "Translate the talking, then caption it or have it read aloud.",
+    Icon: LanguagesIcon,
+  },
+  {
     id: "script",
     label: "Script",
     description: "Write the script from an idea.",
@@ -79,7 +94,7 @@ const TOOLS: {
 ]
 
 /** The ones that are built. The rest show as what is coming, greyed out. */
-const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook"]
+const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook", "translate"]
 
 export function AiPanel() {
   const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
@@ -89,6 +104,7 @@ export function AiPanel() {
   const [cutsOpen, setCutsOpen] = React.useState(false)
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [hookOpen, setHookOpen] = React.useState(false)
+  const [translateOpen, setTranslateOpen] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -107,6 +123,7 @@ export function AiPanel() {
     if (id === "jump-cut") setCutsOpen(true)
     if (id === "voice") setVoiceOpen(true)
     if (id === "hook") setHookOpen(true)
+    if (id === "translate") setTranslateOpen(true)
   }
 
   return (
@@ -168,6 +185,11 @@ export function AiPanel() {
       <HookDialog
         open={hookOpen}
         onOpenChange={setHookOpen}
+        available={available}
+      />
+      <TranslateDialog
+        open={translateOpen}
+        onOpenChange={setTranslateOpen}
         available={available}
       />
     </div>

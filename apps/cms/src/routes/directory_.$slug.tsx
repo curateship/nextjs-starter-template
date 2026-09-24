@@ -8,6 +8,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
+import { ListingEventsBox } from "@/components/directory/public/listing-events"
 import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
 import { RelatedListings } from "@/components/directory/public/related-listings"
 import {
@@ -84,8 +85,15 @@ export const Route = createFileRoute("/directory_/$slug")({
 })
 
 function ListingRoute() {
-  const { site, listing, categories, primaryCategory, related, claim } =
-    Route.useLoaderData()
+  const {
+    site,
+    listing,
+    categories,
+    primaryCategory,
+    related,
+    claim,
+    whatsOn,
+  } = Route.useLoaderData()
   const search = Route.useSearch()
 
   const crumbs: Crumb[] = [
@@ -111,6 +119,7 @@ function ListingRoute() {
     hasWriting ||
     listing.gallery.length > 0 ||
     listing.customSections.length > 0 ||
+    Boolean(whatsOn?.events.length) ||
     related.length > 0
 
   // A listing with none of it — no write-up, no tags, no photos, nothing else
@@ -151,6 +160,8 @@ function ListingRoute() {
       {/* Whatever this site invented, each in a card of its own. Empty
           sections never arrive here — the server leaves them out. */}
       <ListingCustomSections sections={listing.customSections} />
+
+      <ListingEventsBox whatsOn={whatsOn} listingSlug={listing.slug} />
 
       <RelatedListings listings={related} />
     </>

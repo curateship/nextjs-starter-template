@@ -16,6 +16,7 @@ import { runAiCall } from "@/server/ai/usage"
 import { db } from "@/server/db"
 import { generateJson, requireGeminiKey } from "@/server/video/gemini"
 import { transcribeOpening } from "@/server/video/jump-cuts"
+import { askOpenAiJson } from "@/server/video/openai-json"
 import { videoProjects } from "@/server/video/schema"
 import { getAiDefaults } from "@/server/video/settings"
 import { requireOpenAiKey } from "@/server/video/whisper"
@@ -171,42 +172,18 @@ async function rewriteWithOpenAi({
       metadata: { projectId },
     },
     async () => {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: hookPrompt(text) }],
-        }),
-        signal: AbortSignal.timeout(60_000),
+      const answer = await askOpenAiJson({
+        apiKey,
+        model,
+        prompt: hookPrompt(text),
+        schema: variantsSchema,
+        label: HOOK_LABEL,
       })
-      if (!response.ok) {
-        const body = await response.text().then(
-          (detail) => detail.slice(0, 500),
-          () => ""
-        )
-        console.error(`OpenAI ${HOOK_LABEL}`, response.status, body)
-        throw new Error(`${HOOK_LABEL} failed (HTTP ${response.status})`)
-      }
-      const payload = (await response.json()) as {
-        choices?: { message?: { content?: string } }[]
-        usage?: { prompt_tokens?: number; completion_tokens?: number }
-      }
-      const content = payload.choices?.[0]?.message?.content
-      if (!content) throw new Error(`${HOOK_LABEL} came back empty`)
-      const parsed = variantsSchema.safeParse(JSON.parse(content))
-      if (!parsed.success) {
-        throw new Error(`${HOOK_LABEL} came back in an unexpected shape`)
-      }
       return {
-        result: parsed.data.variants,
+        result: answer.value.variants,
         usage: {
-          inputTokens: payload.usage?.prompt_tokens ?? 0,
-          outputTokens: payload.usage?.completion_tokens ?? 0,
+          inputTokens: answer.inputTokens,
+          outputTokens: answer.outputTokens,
         },
       }
     }

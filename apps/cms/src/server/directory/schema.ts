@@ -597,11 +597,13 @@ export const directoryFrontPageSections = pgTable(
     heading: varchar("heading", { length: 120 }).notNull(),
     intro: varchar("intro", { length: 500 }).notNull().default(""),
     /**
-     * 'listings' or 'categories' — which of the two kinds of row this is.
+     * 'listings', 'categories' or 'events' — which of the three kinds of row
+     * this is. 'events' is from `drizzle/0088_cms_front_page_events_row.sql`.
      *
      * A listings row uses `categoryId`, `sort` and `layout` below; a categories
-     * row uses `categorySource` and `pickedCategoryIds` instead. Both use
-     * `listingCount`, which is how many things the row shows either way.
+     * row uses `categorySource` and `pickedCategoryIds` instead; an events row
+     * uses `categoryId` only. All three use `listingCount`, which is how many
+     * things the row shows whichever kind it is.
      */
     kind: varchar("kind", { length: 20 }).notNull().default("listings"),
     /** Categories rows only: 'top-level' or 'picked'. */
@@ -652,7 +654,7 @@ export const directoryFrontPageSections = pgTable(
     ),
     check(
       "directory_front_page_sections_kind_check",
-      sql`${table.kind} IN ('listings', 'categories')`
+      sql`${table.kind} IN ('listings', 'categories', 'events')`
     ),
     check(
       "directory_front_page_sections_category_source_check",

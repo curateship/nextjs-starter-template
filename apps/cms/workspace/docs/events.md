@@ -242,6 +242,79 @@ address. Typing a place by hand still works for places that are not listed.
   nothing yet to warn an admin about. That question from task 10 waits until
   listings can be marked closed.
 
+## What's on at a listing
+
+A listing's page has a "What's on here" box with the next 3 events held there,
+so a visitor looking at a bar sees trivia on Thursday and jazz on Saturday.
+
+- **Which events:** published, public, not over yet, and held at that listing,
+  which means picked as the place in the event window. A typed place with the
+  same name does not count. A date of a repeating event that was changed on
+  its own to another place is not there either.
+- **Where:** the wide column, after the write-up and the site's own fields and
+  above "Related listings". Tyler chose this on 23 Sep 2026. On a phone it
+  comes after the listing card and hours, like the rest of the wide column.
+- **What a row shows:** the day in a small square, the title and the day and
+  time, the same as a row on the Events page. The place is left out, because
+  it is the page the visitor is on. "All times are Eastern Time." sits under
+  the heading.
+- **See all:** with more than 3 coming up, "See all 8 events here" opens the
+  Events page narrowed to that place.
+- **No box** when nothing is coming up, and none when the Events page is
+  switched off, or kept for members and the visitor is signed out.
+- **How fresh:** the listing's own part of the page is cached for up to two
+  minutes, but the events are read after that cache, by the site's clock, so a
+  new or finished event shows within a minute.
+- **Where it lives:** the endpoint for the listing page in
+  `src/lib/api/directory/public.ts` adds the box's events, read with
+  `readUpcomingEvents` and a listing's id. The box is
+  `src/components/directory/public/listing-events.tsx`.
+
+## Events on category pages and the home page
+
+### A category page
+
+A category page lists its upcoming events under its listings, above the posts,
+headed "Upcoming events in Live music" with "All times are Eastern Time."
+under it.
+
+- **Which events:** published, public, not over yet, and filed under that
+  category in the event window. Its own events only, never its subcategories',
+  the same rule its listings follow.
+- **How many:** the soonest 6, in the Events page's list rows. With more to
+  come, "All upcoming events" links to the Events page. It is the whole list,
+  because the Events page has no category filter until task 14.
+- **No events, no section.** A category holding only events skips its "There
+  is nothing in Food yet" card, the same as one holding only posts.
+- **Read after the cache** and only when the visitor may see the Events page,
+  the same as a listing's "What's on here".
+
+### A home page row
+
+A home page row can be a third kind, "Upcoming events", next to Listings and
+Category cards, in Settings → Directory → Front page.
+
+- **Its settings:** a heading, an introduction, a category or "Every event",
+  and how many, 1 to 12. Order and arrangement do not apply: it is always the
+  soonest first, one under the other, the same rows as the Events page.
+- **On the page:** the row's heading, its introduction, "All times are Eastern
+  Time.", the events and a "See all events" button to the Events page.
+- **Left off the page** while nothing is coming up, and while the visitor may
+  not see the Events page. A home page left with no rows at all is the
+  platform's own front page, as before.
+- **Always current.** The home page's rows are cached until the admin saves a
+  row, but a row of events is filled after that cache by the site's clock, so
+  a finished event is gone within a minute.
+- **The saved kind:** `drizzle/0088_cms_front_page_events_row.sql` adds
+  `events` to the kinds a row may be. Rows saved before keep theirs. Only the
+  heading, introduction, category and count mean anything on a row of events;
+  the order and arrangement are stored but not used.
+- **Where it lives:** `fillFrontPageEvents` in
+  `src/server/directory/front-page.ts`, the kind in
+  `src/lib/directory/front-page.ts`, and the "Which events" card in
+  `src/components/directory/front-page-section-dialog.tsx`. Both lists read
+  `readUpcomingEvents` with a category.
+
 ## The map on the event page
 
 An event page shows a small map of where the event is, with one pin, and a
@@ -338,6 +411,12 @@ shared link opens the same view.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
   on today, stays until it is over. A festival stays until its last day ends.
+- **One place:** `?place=the-rex` narrows the list to the events held at that
+  listing, headed "At The Rex" with a link back to the listing and "All
+  upcoming events" to clear it. The name is plain text while the directory is
+  switched off or kept for members, the same rule as an event page's place. Paging keeps the place. Only a published
+  listing on this site is found this way; any other address shows every
+  event. Switching to the month drops the place.
 - **The month:** `?view=month&month=2026-10`. Previous and next move a month,
   Today goes back to the site's current month, and the site's today has a ring.
   Each day shows up to three events and "+2 more". Events that are over still
