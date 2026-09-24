@@ -46,6 +46,7 @@ import {
   type PublicEventCard,
   type PublicEventPage,
 } from "@/server/events/public"
+import { signUpBoxFor, type SignUpBox } from "@/server/events/sign-ups"
 
 /**
  * The public events pages' two doors. Neither carries a guard, because a
@@ -183,24 +184,28 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       category,
     }
 
+    // A featured spot ends when the event does, so an event that is over
+    // loses its mark. Worked out here, after the cache, like "Ended".
+    const mark = (events: PublicEventCard[]): ListedEvent[] =>
+      events.map((event) => {
+        const ended = eventHasEnded(event, timeZone, at)
+        return { ...event, ended, featured: Boolean(event.featured) && !ended }
+      })
+
     if (data.view === "month") {
       const month = parseYearMonth(data.month) ?? parseYearMonth(common.today)!
       const cells = monthMatrix(month)
-      const events = await readEventsBetween(
-        site,
-        cells[0]!.date,
-        cells[cells.length - 1]!.date,
-        undefined,
-        onlyCategory
+      const events = mark(
+        await readEventsBetween(
+          site,
+          cells[0]!.date,
+          cells[cells.length - 1]!.date,
+          undefined,
+          onlyCategory
+        )
       )
       return { ...common, view: "month", month, events }
     }
-
-    const mark = (events: PublicEventCard[]): ListedEvent[] =>
-      events.map((event) => ({
-        ...event,
-        ended: eventHasEnded(event, timeZone, at),
-      }))
 
     if (isValidDateString(data.day)) {
       const events = mark(
@@ -240,6 +245,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     const nearby = readEventNear(data)
     const point = parseDirectoryNearPoint(nearby.near)
     const upcoming = await readUpcomingEvents(site, page, now, undefined, {
+      featured: true,
       ...onlyCategory,
       ...(place ? { placeId: place.id } : {}),
       ...eventDateWindow(dates, common.today),
@@ -283,6 +289,8 @@ type PublicEventView = PublicEventPage & {
    * no key, and then the page draws no map.
    */
   mapKey: string | null
+  /** The sign-up box, or null when the event takes no sign-ups. */
+  signUps: SignUpBox | null
 }
 
 const readEventFn = createServerFn({ method: "GET" })
@@ -294,13 +302,17 @@ const readEventFn = createServerFn({ method: "GET" })
     const page = await readPublicEvent(open.site, data.slug)
     if (!page) return null
     // Worked out on every request, after the cache, by the site's clock.
+    const at = new Date()
+    const [mapKey, signUps] = await Promise.all([
+      page.event.position ? directoryMapDisplayKey(open.site.id) : null,
+      signUpBoxFor(open.site.id, page.event.id, page.timeZone, at),
+    ])
     return {
       ...page,
-      ended: eventHasEnded(page.event, page.timeZone, new Date()),
+      ended: eventHasEnded(page.event, page.timeZone, at),
       when: eventWhenLines(page.event, page.timeZone),
-      mapKey: page.event.position
-        ? await directoryMapDisplayKey(open.site.id)
-        : null,
+      mapKey,
+      signUps,
     }
   })
 
@@ -310,3 +322,4 @@ export function loadEvent(slug: string) {
 }
 
 export type { EventCategory, PublicEventCard } from "@/server/events/public"
+export type { SignUpBox } from "@/server/events/sign-ups"

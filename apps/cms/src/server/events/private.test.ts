@@ -191,6 +191,7 @@ describe("the events table", () => {
    * skip the private filter in `public.ts`, so it has to live there instead.
    */
   const allowed = [
+    "server/directory/featured.ts", // Featured spots: an owner's own events and the admin's placements.
     "server/directory/reports.ts", // Admin: the reports queue names each event.
     "server/events/events.ts", // Admin → Events, which shows everything.
     "server/events/place.ts", // Column rules for a listing as the place.
@@ -198,6 +199,7 @@ describe("the events table", () => {
     "server/events/repeats.ts", // Admin: a repeating event's dates.
     "server/events/schema.ts",
     "server/events/share-image.ts", // One event's card, found by its address.
+    "server/events/sign-ups.ts", // One event's sign-up box, found by its id.
   ]
 
   it("is read only by the admin, the public reads and the share card", () => {

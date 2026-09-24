@@ -24,6 +24,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [copy-clips-between-projects.md](copy-clips-between-projects.md) — copying
   clips out of one project and pasting them into another, where they land,
   and what travels with them.
+- [getting-media-ready.md](getting-media-ready.md) — the "getting it ready to
+  scrub" and "getting frames ready" markers: what the background worker makes
+  for every video, how long it takes, what a failure looks like, what Try
+  again does, and how often the editor asks.
 - [waveforms.md](waveforms.md) — the shape of the sound drawn along a sound
   clip, how the background worker builds it, and why trimming slides the shape
   instead of squashing it.
@@ -76,6 +80,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
   the editor as a picture: where the two buttons are, what size the picture
   is, where it lands, and when the editor picture and the preview differ.
+- [media-collections.md](media-collections.md) — named groups of your own
+  files in the editor's Media panel: whose they are, how to fill them many at
+  a time, why deleting one never deletes a file, and when another tab sees a
+  new one.
+- [project-thumbnails.md](project-thumbnails.md) — the picture beside each
+  project on the projects list: which frame it is, when the background worker
+  remakes it, and what shows when a project has nothing to take a picture of.
+- [project-folders.md](project-folders.md) — folders on the projects list:
+  whose they are, why a project sits in one folder at most, where the buttons
+  are, and why deleting a folder never deletes a project.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

@@ -35,6 +35,7 @@ import {
   deleteCategoryRowsFor,
 } from "@/server/directory/content-categories"
 import { locateAddress } from "@/server/directory/geocode"
+import { eventIsFeatured, moveEventSpotEnd } from "@/server/directory/featured"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
   categoryRelationships,
@@ -87,6 +88,11 @@ export type SiteEvent = EventWhen & {
   body: PostBody
   status: EventStatus
   visibility: EventVisibility
+  /**
+   * Switched on by an admin. Only a main event's counts; its dates follow it.
+   * A paid spot from the listing's owner is not this, see `eventIsFeatured`.
+   */
+  featured: boolean
   publishedAt: Date | null
   /** The place, when it is one of the site's listings. */
   listingId: string | null
@@ -104,6 +110,10 @@ export type SiteEvent = EventWhen & {
   editedAlone: boolean
   /** The page an automation drafted this from, or empty. */
   sourceUrl: string
+  /** Whether the event page has a sign-up box. */
+  takesSignUps: boolean
+  /** How many can sign up, or null for no limit. */
+  seats: number | null
   createdAt: Date
   updatedAt: Date
 }
@@ -115,6 +125,8 @@ export type SiteEvent = EventWhen & {
 export type EventSummary = Omit<SiteEvent, "body"> & {
   categories: string[]
   seriesDates: { total: number; upcoming: number }
+  /** Featured now, by the admin's switch or by an owner's paid spot. */
+  featuredNow: boolean
 }
 
 /** When an event happens, as a form sends it. Empty ends mean "no end". */
@@ -135,6 +147,7 @@ export function toEvent(row: EventRow): SiteEvent {
     body: cleanPostBody(row.body),
     status: row.status === "published" ? "published" : "draft",
     visibility: row.visibility === "private" ? "private" : "public",
+    featured: row.featured,
     publishedAt: row.publishedAt,
     startDate: row.startDate,
     startTime: toClock(row.startTime),
@@ -152,6 +165,8 @@ export function toEvent(row: EventRow): SiteEvent {
     seriesId: row.seriesId,
     editedAlone: row.editedAlone,
     sourceUrl: row.sourceUrl,
+    takesSignUps: row.takesSignUps,
+    seats: row.seats,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -411,7 +426,11 @@ export async function listEvents(
 
   const [found, [countRow]] = await Promise.all([
     database
-      .select({ row: siteEvents, placeName: livePlaceName })
+      .select({
+        row: siteEvents,
+        placeName: livePlaceName,
+        featuredNow: eventIsFeatured,
+      })
       .from(siteEvents)
       .leftJoin(directoryListings, listingOfEvent)
       .where(where)
@@ -427,6 +446,9 @@ export async function listEvents(
 
   // The row carries the listing's current name, as the event page does.
   const rows = found.map(({ row, placeName }) => ({ ...row, placeName }))
+  const featuredNow = new Set(
+    found.filter((each) => each.featuredNow).map((each) => each.row.id)
+  )
   const ids = rows.map((row) => row.id)
   const [names, dateCounts] = await Promise.all([
     categoryNamesFor(workspaceId, EVENT_CONTENT_TYPE, ids, database),
@@ -439,6 +461,7 @@ export async function listEvents(
         ...rest,
         categories: names.get(row.id) ?? [],
         seriesDates: dateCounts.get(row.id) ?? { total: 0, upcoming: 0 },
+        featuredNow: featuredNow.has(row.id),
       }
     }),
     total: countRow?.total ?? 0,
@@ -622,11 +645,16 @@ export async function updateEvent(
     body?: unknown
     status?: EventStatus
     visibility?: EventVisibility
+    /** The admin's free featured switch. */
+    featured?: boolean
     when?: EventWhenInput
     placeName?: string
     placeAddress?: string
     /** One of this site's listings as the place, or null for a typed one. */
     listingId?: string | null
+    takesSignUps?: boolean
+    /** Null for no limit. */
+    seats?: number | null
   },
   database: CustomShellDb = db
 ): Promise<SiteEvent> {
@@ -674,6 +702,9 @@ export async function updateEvent(
     }
   }
   if (input.visibility !== undefined) values.visibility = input.visibility
+  if (input.featured !== undefined) values.featured = input.featured
+  if (input.takesSignUps !== undefined) values.takesSignUps = input.takesSignUps
+  if (input.seats !== undefined) values.seats = input.seats
   // A date of a repeating event saved by itself stops following the main one.
   values.editedAlone = sql`${siteEvents.seriesId} IS NOT NULL`
   if (input.status !== undefined) {
@@ -691,8 +722,13 @@ export async function updateEvent(
     .returning()
 
   if (!row) throw new Error("That event no longer exists.")
+  const event = toEvent(row)
+  // An owner's paid spot lasts until the event ends, wherever it moves to.
+  if (input.when !== undefined) {
+    await moveEventSpotEnd(workspaceId, id, event, database)
+  }
   clearPublicDirectoryCache(workspaceId)
-  return toEvent(row)
+  return event
 }
 
 /**
@@ -785,6 +821,9 @@ export async function duplicateEvent(
         latitude: source.latitude,
         longitude: source.longitude,
         locatedFor: source.locatedFor,
+        // The settings, never the people.
+        takesSignUps: source.takesSignUps,
+        seats: source.seats,
         createdAt: at,
         updatedAt: at,
       })

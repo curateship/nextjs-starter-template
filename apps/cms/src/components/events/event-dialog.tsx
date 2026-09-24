@@ -9,6 +9,7 @@ import {
   EventRepeatCard,
   SeriesDateCard,
 } from "@/components/events/event-repeat-cards"
+import { EventSignUpsCard } from "@/components/events/event-sign-ups-card"
 import { PostEditor } from "@/components/posts/post-editor"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CharacterCount } from "@/components/shared/character-count"
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { Category } from "@/lib/api/directory/categories"
 import {
@@ -43,13 +45,16 @@ import {
   saveEvent,
   saveNewEvent,
   type EventForEdit,
+  type EventSignUp,
 } from "@/lib/api/events/events"
 import type { ListingChoice } from "@/lib/api/posts/posts"
 import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { formatEventShortDay } from "@/lib/events/event-time"
+import { formatDate } from "@/lib/format/format-time"
 import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
+import { readSeats } from "@/lib/events/sign-up-fields"
 import { emptyPostBody, type PostBody } from "@/lib/posts/post-body"
 import {
   collapseStorageKey,
@@ -67,6 +72,8 @@ type EventFields = {
   coverImage: string
   status: "draft" | "published"
   visibility: "public" | "private"
+  /** The free switch. Only on an event that is not itself one date of a repeat. */
+  featured: boolean
   /** "2026-09-27", or empty while none is picked. */
   startDate: string
   /** "18:00", or empty. */
@@ -82,6 +89,9 @@ type EventFields = {
   categoryIds: string[]
   /** Only ever set on an event that is not itself one date of a repeat. */
   repeat: RepeatRule | null
+  takesSignUps: boolean
+  /** As typed. Empty means no limit. */
+  seats: string
 }
 
 function blankFields(): EventFields {
@@ -92,6 +102,7 @@ function blankFields(): EventFields {
     coverImage: "",
     status: "draft",
     visibility: "public",
+    featured: false,
     startDate: "",
     startTime: "",
     endDate: "",
@@ -102,6 +113,8 @@ function blankFields(): EventFields {
     body: emptyPostBody(),
     categoryIds: [],
     repeat: null,
+    takesSignUps: false,
+    seats: "",
   }
 }
 
@@ -114,6 +127,7 @@ function fieldsFrom(data: EventForEdit): EventFields {
     coverImage: event.coverImage,
     status: event.status,
     visibility: event.visibility,
+    featured: event.featured,
     startDate: event.startDate,
     startTime: event.startTime,
     // A same-day end is stored as the start day; the form shows it as empty,
@@ -129,6 +143,8 @@ function fieldsFrom(data: EventForEdit): EventFields {
     // Sorted so ticking a box off and on again is not read as an edit.
     categoryIds: [...data.categoryIds].sort(),
     repeat: event.repeat,
+    takesSignUps: event.takesSignUps,
+    seats: event.seats === null ? "" : String(event.seats),
   }
 }
 
@@ -157,6 +173,16 @@ function listOfDays(days: string[]): string {
   return names.length === 1
     ? (names[0] ?? "")
     : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+}
+
+/** Whether the typed seats are a number the save takes. */
+function seatsReadable(typed: string): boolean {
+  try {
+    readSeats(typed)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** The picker hands back a day at local midnight; the event stores the day. */
@@ -206,6 +232,8 @@ export function EventDialog({
   const [leaveFor, setLeaveFor] = React.useState<string | null>(null)
   /** The listing picked as the place since the window opened. */
   const [picked, setPicked] = React.useState<ListingChoice | null>(null)
+  /** Who is coming. Removing somebody changes it without a save. */
+  const [signUps, setSignUps] = React.useState<EventSignUp[]>([])
   const [basicsOpen, setBasicsOpen, basicsNoFlash] = useRememberedCollapse(
     collapseStorageKey.settingsCard("event-basics")
   )
@@ -269,8 +297,10 @@ export function EventDialog({
       setFields(blankFields())
       setListings(new Map())
       setPicked(null)
+      setSignUps([])
     } else if (loaded && seedKey === loaded.forId) {
       setFields(fieldsFrom(loaded.data))
+      setSignUps(loaded.data.signUps)
       setPicked(loaded.data.placeListing)
       setListings(new Map(loaded.data.listings.map((row) => [row.id, row])))
     }
@@ -324,12 +354,18 @@ export function EventDialog({
         endDate,
         endTime,
         repeat,
+        featured,
         listingId,
+        seats: typedSeats,
         ...rest
       } = fields
-      // One date of a repeat never carries a rule of its own.
-      const repeatChange = series?.main ? {} : { repeat }
-      const place = { listingId: listingId || null }
+      // Read only while the box is showing. With sign-ups off the seats are
+      // kept as saved, so a leftover typo in a hidden box never stops a save.
+      const seats = rest.takesSignUps ? { seats: readSeats(typedSeats) } : {}
+      // One date of a repeat never carries a rule or a featured switch of
+      // its own: both belong to the main event.
+      const repeatChange = series?.main ? {} : { repeat, featured }
+      const place = { listingId: listingId || null, ...seats }
       const when = {
         startDate,
         startTime,
@@ -373,9 +409,19 @@ export function EventDialog({
           { duration: 15_000 }
         )
       }
+      if (saved.keptForSignUps.length) {
+        const days = listOfDays(saved.keptForSignUps)
+        toast.warning(
+          saved.keptForSignUps.length === 1
+            ? `${days} has people signed up, so it was kept. Open it under Later dates to change or delete it.`
+            : `${days} have people signed up, so they were kept. Open them under Later dates to change or delete them.`,
+          { duration: 15_000 }
+        )
+      }
       onClose()
     } catch (error) {
-      // Every refusal is about the title, the address or the times.
+      // Every refusal is about the title, the address, the times or the
+      // seats. The seats' card stays as it is, because the box is marked.
       setTried(true)
       setBasicsOpen(true)
       setWhenOpen(true)
@@ -570,6 +616,37 @@ export function EventDialog({
                       </Select>
                     </div>
                   </div>
+                  {/* A date of a repeat follows its main event, so the
+                      switch lives on the main event only. */}
+                  {series?.main ? null : (
+                    <div className="grid gap-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="event-featured"
+                          checked={fields.featured}
+                          disabled={saving}
+                          onCheckedChange={(checked) =>
+                            update("featured", checked)
+                          }
+                        />
+                        <FieldLabel
+                          htmlFor="event-featured"
+                          hint="A featured event sits at the top of the Events page's list and is marked in the calendar until it ends. A repeating event puts its next date on top. Free when you switch it on here."
+                        >
+                          Featured
+                        </FieldLabel>
+                      </div>
+                      {loaded?.data.paidSpot ? (
+                        <p className="text-sm text-muted-foreground">
+                          {loaded.data.paidSpot.buyerEmail} paid to feature it
+                          until it ends on{" "}
+                          {formatDate(loaded.data.paidSpot.endsAt)}, so it
+                          stays featured with this switch off. Revoke that
+                          under Featured plans.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                   <div className="grid gap-2">
                     <FieldLabel hint="Shown at the top of the event's page and when it is shared.">
                       Cover image
@@ -768,6 +845,21 @@ export function EventDialog({
                     onChange={(repeat) => update("repeat", repeat)}
                   />
                 )}
+
+                <EventSignUpsCard
+                  eventId={eventId ?? createdId}
+                  takesSignUps={fields.takesSignUps}
+                  seats={fields.seats}
+                  savedSeats={loaded?.data.event.seats ?? null}
+                  signUps={signUps}
+                  disabled={saving}
+                  seatsInvalid={
+                    tried && fields.takesSignUps && !seatsReadable(fields.seats)
+                  }
+                  onTakesSignUpsChange={(on) => update("takesSignUps", on)}
+                  onSeatsChange={(typed) => update("seats", typed)}
+                  onSignUpsChange={setSignUps}
+                />
 
                 {series?.dates.length ? (
                   <EventDatesCard

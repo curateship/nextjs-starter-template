@@ -45,6 +45,7 @@ import {
   type VisitorSite,
 } from "@/server/directory/public"
 import { distanceKmFrom } from "@/server/directory/distance"
+import { eventIsFeatured } from "@/server/directory/featured"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import {
   categories,
@@ -97,6 +98,11 @@ export type PublicEventCard = EventWhen & {
    * on the upcoming list while it is narrowed to a distance.
    */
   distanceKm?: number
+  /**
+   * Featured by an admin or by the listing's owner. Only on the Events page's
+   * reads, because a featured event is marked there and nowhere else.
+   */
+  featured?: boolean
 }
 
 const eventCardColumns = {
@@ -124,13 +130,15 @@ function toEventCard(row: {
   endDate: string | null
   endTime: string | null
   distanceKm?: number | null
+  featured?: boolean
 }): PublicEventCard {
-  const { distanceKm, ...event } = row
+  const { distanceKm, featured, ...event } = row
   return {
     ...event,
     startTime: toClock(row.startTime),
     endTime: row.endTime ? toClock(row.endTime) : null,
     ...(distanceKm == null ? {} : { distanceKm }),
+    ...(featured === undefined ? {} : { featured }),
   }
 }
 
@@ -345,6 +353,30 @@ export function readPublicEvent(
 /** An event's last day: its end day, or its start day when it has none. */
 const lastDayOfEvent = sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`
 
+/**
+ * Whether this row goes to the top of the Events page's list: the event is
+ * featured, and it is the next date of its repeating event that is not over,
+ * so a weekly trivia night puts one Tuesday on top, not eight. An event that
+ * does not repeat is its own next date.
+ */
+function pinnedToTop(nowDay: string, nowTime: string) {
+  return sql<boolean>`(${eventIsFeatured} and not exists (
+    select 1 from events nx
+    where coalesce(nx.series_id, nx.id) = coalesce(${siteEvents.seriesId}, ${siteEvents.id})
+      and nx.id <> ${siteEvents.id}
+      and nx.status = 'published'
+      and nx.visibility = 'public'
+      and (nx.start_date, nx.start_time, nx.id) < (${siteEvents.startDate}, ${siteEvents.startTime}, ${siteEvents.id})
+      and (
+        coalesce(nx.end_date, nx.start_date) > ${nowDay}::date
+        or (
+          coalesce(nx.end_date, nx.start_date) = ${nowDay}::date
+          and (nx.end_time is null or nx.end_time > ${nowTime}::time)
+        )
+      )
+  ))`
+}
+
 /** Filed under one category on this site, not under one of its children. */
 function inCategory(
   siteId: string,
@@ -404,6 +436,10 @@ export type UpcomingEvents = {
  * `near` and `radius` keep the events whose place is on the map within that
  * many kilometres, for the Events page's distance filter. An event with no
  * position, like one with no street address, is left out while they are set.
+ * `featured` is for the Events page only: featured events go first, soonest
+ * first among themselves, and each card says whether it is featured. Every
+ * other page lists events soonest first with no mark, because a featured spot
+ * is sold for the Events page and nowhere else.
  */
 export function readUpcomingEvents(
   site: VisitorSite,
@@ -417,6 +453,7 @@ export function readUpcomingEvents(
     to?: string
     near?: DirectoryNearPoint
     radius?: number
+    featured?: boolean
   } = {}
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
@@ -426,6 +463,7 @@ export function readUpcomingEvents(
   const to = only.to ?? null
   const near = only.near && only.radius ? only.near : null
   const radius = near ? only.radius! : null
+  const featured = only.featured ?? false
   return cachedPublicDirectoryRead(
     site.id,
     "upcoming-events",
@@ -439,6 +477,7 @@ export function readUpcomingEvents(
       to,
       near: near ? formatDirectoryNearPoint(near) : null,
       radius,
+      featured,
     },
     async () => {
       const distanceKm = near
@@ -461,11 +500,15 @@ export function readUpcomingEvents(
           .select({
             ...eventCardColumns,
             ...(distanceKm ? { distanceKm } : {}),
+            ...(featured ? { featured: eventIsFeatured } : {}),
           })
           .from(siteEvents)
           .leftJoin(directoryListings, listingOfEvent)
           .where(where)
-          .orderBy(...soonestFirst)
+          .orderBy(
+            ...(featured ? [desc(pinnedToTop(nowDay, nowTime))] : []),
+            ...soonestFirst
+          )
           .limit(EVENTS_PAGE_SIZE)
           .offset((page - 1) * EVENTS_PAGE_SIZE),
         // Joined like the rows, because a listing's pin is the event's.
@@ -637,6 +680,7 @@ export async function readCalendarFeed(
  * in the window, so a festival that started last month still shows this
  * month. Events that are over are included; the page marks them. `only`
  * narrows it to one category's own events, for the Events page's filter.
+ * Only the Events page reads this, so each card says whether it is featured.
  */
 export function readEventsBetween(
   site: VisitorSite,
@@ -652,7 +696,7 @@ export function readEventsBetween(
     { from, to, categoryId },
     async () => {
       const rows = await database
-        .select(eventCardColumns)
+        .select({ ...eventCardColumns, featured: eventIsFeatured })
         .from(siteEvents)
         .leftJoin(directoryListings, listingOfEvent)
         .where(

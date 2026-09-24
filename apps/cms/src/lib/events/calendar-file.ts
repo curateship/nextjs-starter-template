@@ -49,18 +49,28 @@ function moment(date: string, clock: string, timeZone: string): string {
   return utcStamp(new Date(eventMomentText(date, clock, timeZone)))
 }
 
+/**
+ * The moment the event ends: its end time on its end day, or midnight at the
+ * end of its last day when it has no end time. The same moment the site
+ * counts it as over.
+ */
+export function eventEndMoment(when: EventWhen, timeZone: string): Date {
+  const lastDay = when.endDate ?? when.startDate
+  return new Date(
+    when.endDate && when.endTime
+      ? eventMomentText(when.endDate, when.endTime, timeZone)
+      : eventMomentText(nextDay(lastDay), "00:00", timeZone)
+  )
+}
+
 /** When the event starts and ends, as UTC moments. */
 export function eventCalendarTimes(
   when: EventWhen,
   timeZone: string
 ): { start: string; end: string } {
-  const lastDay = when.endDate ?? when.startDate
   return {
     start: moment(when.startDate, when.startTime, timeZone),
-    end:
-      when.endDate && when.endTime
-        ? moment(when.endDate, when.endTime, timeZone)
-        : moment(nextDay(lastDay), "00:00", timeZone),
+    end: utcStamp(eventEndMoment(when, timeZone)),
   }
 }
 

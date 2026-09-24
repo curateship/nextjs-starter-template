@@ -25,6 +25,13 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
@@ -34,6 +41,7 @@ import {
   revokeFeatured,
   saveFeaturedPlanAction,
   type FeaturedPlan,
+  type FeaturedPlanKind,
 } from "@/lib/api/directory/featured"
 import { formatMoney } from "@/lib/format/money"
 import { formatDate } from "@/lib/format/format-time"
@@ -121,6 +129,7 @@ export function FeaturedDashboard({
         header={
           <TableHeader><TableRow>
             <TableHead column="main">Plan</TableHead>
+            <TableHead column="meta">For</TableHead>
             <TableHead column="meta">Price</TableHead>
             <TableHead column="meta">Period</TableHead>
             <TableHead column="meta">Status</TableHead>
@@ -129,7 +138,7 @@ export function FeaturedDashboard({
         }
         isEmpty={data.plans.length === 0}
         emptyText="No featured plans yet. Create the first one."
-        emptyColSpan={5}
+        emptyColSpan={6}
         footer={plansFooter}
       >
         {visiblePlans.map((plan) => (
@@ -138,8 +147,9 @@ export function FeaturedDashboard({
               <button type="button" className="block max-w-96 truncate text-left font-medium hover:underline" title={plan.name} onClick={() => setEditing(plan)}>{plan.name}</button>
               {plan.description ? <span className="block max-w-96 truncate text-xs text-muted-foreground" title={plan.description}>{plan.description}</span> : null}
             </TableCell>
+            <TableCell column="meta">{plan.kind === "event" ? "Events" : "Listings"}</TableCell>
             <TableCell column="meta">{formatMoney(plan.priceCents, plan.currency)}</TableCell>
-            <TableCell column="meta">{plan.durationDays} days</TableCell>
+            <TableCell column="meta">{planPeriod(plan)}</TableCell>
             <TableCell column="meta"><Badge variant={plan.active ? "secondary" : "outline"}>{plan.active ? "Active" : "Archived"}</Badge></TableCell>
             <TableCell column="actions"><div className="flex items-center">
               <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${plan.name}`} onClick={() => setEditing(plan)}><SettingsIcon /></Button>
@@ -156,15 +166,15 @@ export function FeaturedDashboard({
         controls={
           <DashboardToolbarSearch
             name="featured-search"
-            aria-label="Search placements by listing title or buyer email"
-            placeholder="Search listing or buyer email…"
+            aria-label="Search placements by listing or event title, or buyer email"
+            placeholder="Search title or buyer email…"
             value={searchText}
             onChange={(event) => setSearchText(event.target.value)}
           />
         }
         header={
           <TableHeader><TableRow>
-            <TableHead column="main">Listing</TableHead>
+            <TableHead column="main">Listing or event</TableHead>
             <TableHead column="meta">Plan</TableHead>
             <TableHead column="meta">Paid</TableHead>
             <TableHead column="meta">Ends</TableHead>
@@ -195,7 +205,10 @@ export function FeaturedDashboard({
         {data.entitlements.map((item) => (
           <TableRow key={item.id}>
             <TableCell column="main">
-              <span className="block max-w-96 truncate font-medium" title={item.listingTitle}>{item.listingTitle}</span>
+              <span className="flex max-w-96 min-w-0 items-center gap-2">
+                <span className="truncate font-medium" title={item.title}>{item.title}</span>
+                {item.kind === "event" ? <Badge variant="outline" className="shrink-0">Event</Badge> : null}
+              </span>
               <span className="block max-w-96 truncate text-xs text-muted-foreground" title={item.buyerEmail}>{item.buyerEmail}</span>
             </TableCell>
             <TableCell column="meta"><span className="block max-w-64 truncate" title={item.planName}>{item.planName}</span></TableCell>
@@ -242,6 +255,11 @@ export function FeaturedDashboard({
   )
 }
 
+/** "30 days", or "Until the event ends" for an event plan. */
+function planPeriod(plan: FeaturedPlan) {
+  return plan.durationDays === null ? "Until the event ends" : `${plan.durationDays} days`
+}
+
 function FeaturedPlanDialog({
   plan,
   onClose,
@@ -256,6 +274,7 @@ function FeaturedPlanDialog({
   const [description, setDescription] = React.useState("")
   const [price, setPrice] = React.useState("")
   const [currency, setCurrency] = React.useState("usd")
+  const [kind, setKind] = React.useState<FeaturedPlanKind>("listing")
   const [days, setDays] = React.useState("")
   const [priority, setPriority] = React.useState("0")
   const [active, setActive] = React.useState(true)
@@ -269,7 +288,8 @@ function FeaturedPlanDialog({
     setDescription(plan?.description ?? "")
     setPrice(plan ? String(plan.priceCents / 100) : "")
     setCurrency(plan?.currency ?? "usd")
-    setDays(plan ? String(plan.durationDays) : "")
+    setKind(plan?.kind ?? "listing")
+    setDays(plan?.durationDays ? String(plan.durationDays) : "")
     setPriority(plan ? String(plan.priority) : "0")
     setActive(plan?.active ?? true)
     setAttempted(false)
@@ -284,14 +304,16 @@ function FeaturedPlanDialog({
     dollars <= 0 ||
     dollars > 1_000_000
   const currencyInvalid = !/^[a-zA-Z]{3}$/.test(currency.trim())
+  const forEvents = kind === "event"
   const daysInvalid =
-    !Number.isInteger(duration) || duration < 1 || duration > 3650
+    !forEvents && (!Number.isInteger(duration) || duration < 1 || duration > 3650)
   const priorityInvalid =
     !Number.isInteger(rank) || rank < -10_000 || rank > 10_000
   const dirty = open && (
     name !== (plan?.name ?? "") || description !== (plan?.description ?? "") ||
     price !== (plan ? String(plan.priceCents / 100) : "") || currency !== (plan?.currency ?? "usd") ||
-    days !== (plan ? String(plan.durationDays) : "") || priority !== (plan ? String(plan.priority) : "0") || active !== (plan?.active ?? true)
+    kind !== (plan?.kind ?? "listing") ||
+    days !== (plan?.durationDays ? String(plan.durationDays) : "") || priority !== (plan ? String(plan.priority) : "0") || active !== (plan?.active ?? true)
   )
 
   return (
@@ -303,14 +325,27 @@ function FeaturedPlanDialog({
         </DialogHeader>
         <DialogBody>
           <Card size="sm"><CardHeader><CardTitle>Plan</CardTitle></CardHeader><CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="featured-plan-kind" hint="Set when the plan is made, so a plan never changes what an earlier buyer paid for.">For</FieldLabel>
+              <Select value={kind} disabled={Boolean(plan)} onValueChange={(value) => setKind(value as FeaturedPlanKind)}>
+                <SelectTrigger id="featured-plan-kind" className="w-full sm:w-fit"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="listing">Listings</SelectItem>
+                  <SelectItem value="event">Events</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-2"><div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="featured-plan-name">Name</FieldLabel><CharacterCount value={name} max={120} /></div><Input id="featured-plan-name" maxLength={120} aria-invalid={attempted && nameInvalid} value={name} onChange={(event) => setName(event.target.value)} /></div>
             <div className="grid gap-2"><div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="featured-plan-description">Description</FieldLabel><CharacterCount value={description} max={500} /></div><Textarea id="featured-plan-description" rows={1} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} /></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-price">Price</FieldLabel><Input id="featured-plan-price" inputMode="decimal" aria-invalid={attempted && priceInvalid} value={price} onChange={(event) => setPrice(event.target.value)} /></div>
               <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-currency">Currency</FieldLabel><Input id="featured-plan-currency" maxLength={3} aria-invalid={attempted && currencyInvalid} value={currency} onChange={(event) => setCurrency(event.target.value)} /></div>
-              <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-days">Days</FieldLabel><Input id="featured-plan-days" inputMode="numeric" aria-invalid={attempted && daysInvalid} value={days} onChange={(event) => setDays(event.target.value)} /></div>
-              <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-priority" hint="Higher plans appear before lower plans.">Priority</FieldLabel><Input id="featured-plan-priority" inputMode="numeric" aria-invalid={attempted && priorityInvalid} value={priority} onChange={(event) => setPriority(event.target.value)} /></div>
+              {forEvents ? null : <>
+                <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-days">Days</FieldLabel><Input id="featured-plan-days" inputMode="numeric" aria-invalid={attempted && daysInvalid} value={days} onChange={(event) => setDays(event.target.value)} /></div>
+                <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-priority" hint="Higher plans appear before lower plans.">Priority</FieldLabel><Input id="featured-plan-priority" inputMode="numeric" aria-invalid={attempted && priorityInvalid} value={priority} onChange={(event) => setPriority(event.target.value)} /></div>
+              </>}
             </div>
+            {forEvents ? <p className="text-sm text-muted-foreground">An event's spot starts when the owner pays and ends when the event ends. Featured events sit soonest first among themselves.</p> : null}
             <label className="flex items-center gap-2"><Checkbox checked={active} onCheckedChange={(checked) => setActive(checked === true)} />Offer this plan</label>
           </CardContent></Card>
         </DialogBody>
@@ -323,12 +358,13 @@ function FeaturedPlanDialog({
             }
             await saveFeaturedPlanAction({
               id: plan?.id,
+              kind,
               name,
               description,
               priceCents: Math.round(dollars * 100),
               currency,
-              durationDays: duration,
-              priority: rank,
+              durationDays: forEvents ? null : duration,
+              priority: forEvents ? 0 : rank,
               active,
             })
             onClose()

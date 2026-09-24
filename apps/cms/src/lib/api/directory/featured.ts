@@ -5,12 +5,15 @@ import { describeAuthError } from "@/lib/api/error-message"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import {
   confirmFeaturedCheckout,
+  createEventFeaturedCheckout,
   createFeaturedCheckout,
   deleteFeaturedPlan,
+  eventFeaturedPurchaseState,
   featuredAdminOverview,
   featuredPurchaseState,
   revokeFeaturedEntitlement,
   saveFeaturedPlan,
+  type FeaturedPlanKind,
 } from "@/server/directory/featured"
 import { adminGet, adminPost, userGet, userPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -22,7 +25,7 @@ export function getFeaturedErrorMessage(error: unknown) {
     ["BILLING_NOT_CONFIGURED", "Stripe is not configured yet."],
     ["CHECKOUT_FAILED", "Stripe could not start checkout. Please try again."],
     ["CHECKOUT_NOT_FOUND", "Stripe could not find that checkout. Please try again from My listings."],
-    ["CHECKOUT_ALREADY_STARTED", "Another checkout is already open for this listing."],
+    ["CHECKOUT_ALREADY_STARTED", "Another checkout is already open for this listing or event."],
     ["CHECKOUT_PAYMENT_PROCESSING", "Stripe is still processing that payment. Try again shortly."],
   ] as const
   return (
@@ -68,11 +71,13 @@ const saveFeaturedPlanFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       id: id.optional(),
+      kind: z.enum(["listing", "event"]).optional(),
       name: z.string().max(120),
       description: z.string().max(500).optional(),
       priceCents: z.number().int().min(1).max(100_000_000),
       currency: z.string().trim().length(3),
-      durationDays: z.number().int().min(1).max(3650),
+      // An event plan has none: its spot lasts until the event ends.
+      durationDays: z.number().int().min(1).max(3650).nullable(),
       priority: z.number().int().min(-10_000).max(10_000).optional(),
       active: z.boolean().optional(),
     })
@@ -83,11 +88,12 @@ const saveFeaturedPlanFn = createServerFn({ method: "POST" })
 
 export function saveFeaturedPlanAction(input: {
   id?: string
+  kind?: FeaturedPlanKind
   name: string
   description?: string
   priceCents: number
   currency: string
-  durationDays: number
+  durationDays: number | null
   priority?: number
   active?: boolean
 }) {
@@ -145,6 +151,35 @@ export function startFeaturedCheckout(listingId: string, planId: string) {
   return startFeaturedCheckoutFn({ data: { listingId, planId } })
 }
 
+const loadEventFeaturedPurchaseFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ eventId: id }))
+  .handler(({ data, context }) =>
+    eventFeaturedPurchaseState(context.user.id, data.eventId)
+  )
+
+/** The event plans an owner can buy for one of their events, and whether they can now. */
+export function loadEventFeaturedPurchase(eventId: string) {
+  return loadEventFeaturedPurchaseFn({ data: { eventId } })
+}
+
+const startEventFeaturedCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ eventId: id, planId: id }))
+  .handler(async ({ data, context }) => {
+    // The same count as a listing's, so switching between the two buys
+    // nobody more attempts.
+    await enforceRateLimit(`directory-featured-start:${context.user.id}`, {
+      maxAttempts: 10,
+      windowSeconds: 15 * 60,
+    })
+    return createEventFeaturedCheckout(context.user, data)
+  })
+
+export function startEventFeaturedCheckout(eventId: string, planId: string) {
+  return startEventFeaturedCheckoutFn({ data: { eventId, planId } })
+}
+
 const confirmFeaturedCheckoutFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ sessionId: z.string().trim().regex(/^cs_(?:test_|live_)?[A-Za-z0-9]+$/) }))
@@ -163,4 +198,5 @@ export function confirmFeatured(sessionId: string) {
 export type {
   FeaturedEntitlement,
   FeaturedPlan,
+  FeaturedPlanKind,
 } from "@/server/directory/featured"

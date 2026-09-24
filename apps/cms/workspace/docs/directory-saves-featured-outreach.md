@@ -4,7 +4,9 @@
 
 - Visitors can save listings into named collections and manage them from the
   Saved Listings page.
-- Approved listing owners can buy a featured placement through Stripe.
+- Approved listing owners can buy a featured placement through Stripe. The
+  same plans and checkout also sell spots on an owner's own events; `events.md`
+  under "Featured events" covers those.
 - Featured listings receive a badge and sort ahead of ordinary listings until
   the paid period expires.
 - Admins can manage featured plans, placements, saves, and claim outreach for

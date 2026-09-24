@@ -1,4 +1,16 @@
-import { and, count, desc, eq, ilike, inArray, type SQL } from "drizzle-orm"
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  isNotNull,
+  notInArray,
+  sql,
+  type SQL,
+} from "drizzle-orm"
 
 import {
   PROJECT_NAME_MAX,
@@ -16,12 +28,19 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { serializeMedia } from "@/server/media/library"
+import { deleteFromR2, getPublicMediaUrl } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { removeExportFiles } from "@/server/video/export-files"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
+  folderIdOfProject,
+  requireOwnedFolder,
+} from "@/server/video/project-folders"
+import {
   videoMediaProxies,
+  videoProjectFolderItems,
   videoProjects,
+  videoProjectThumbnails,
   videoRenderJobs,
   type VideoProjectRow,
 } from "@/server/video/schema"
@@ -47,7 +66,10 @@ export type ProjectItem = {
   timeline_error: string | null
   /** Send this back with the next save; see writeProjectTimeline. */
   version: number
+  /** The first clip's picture, once the background worker has made one. */
   thumbnail_url: string | null
+  /** A picture is waiting to be made, so the list looks again shortly. */
+  thumbnail_pending: boolean
   created_at: string
   updated_at: string
 }
@@ -173,9 +195,15 @@ async function resolveTimelineMediaUrls(
   }
 }
 
+type ProjectThumbnail = { url: string | null; pending: boolean }
+
+// A project the worker has not looked at yet, such as one made seconds ago,
+// has no row. It gets one on the next tick, so it counts as waiting.
+const NOT_LOOKED_AT_YET: ProjectThumbnail = { url: null, pending: true }
+
 function serializeProject(
   row: VideoProjectRow,
-  thumbnailUrl: string | null
+  thumbnail: ProjectThumbnail
 ): ProjectItem {
   const { timeline, error } = parseTimelineForReset(row.timeline)
   const stats = summarizeTimeline(timeline)
@@ -187,42 +215,57 @@ function serializeProject(
     duration_ms: stats.durationMs,
     timeline_error: error,
     version: row.version,
-    thumbnail_url: thumbnailUrl,
+    thumbnail_url: thumbnail.url,
+    thumbnail_pending: thumbnail.pending,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
 }
 
-/** Cover pictures for a page of projects, in one query rather than one each. */
-async function thumbnailUrlsFor(
-  rows: VideoProjectRow[],
-  database: CustomShellDb
-) {
-  const ids = Array.from(
-    new Set(rows.flatMap((row) => (row.thumbnailMediaId ? [row.thumbnailMediaId] : [])))
-  )
-  const urls = new Map<string, string>()
-  if (!ids.length) return urls
-  const media = await database
-    .select()
-    .from(customShellMedia)
-    .where(inArray(customShellMedia.id, ids))
-  for (const row of media) {
-    urls.set(row.id, (await serializeMedia(row)).url)
-  }
-  return urls
+/**
+ * Straight from storage, the way every clip and library file is. Each new
+ * picture has a new file name, so a browser that kept the old one fetches the
+ * new one.
+ */
+async function pictureUrl(storagePath: string | null) {
+  return storagePath ? getPublicMediaUrl(storagePath) : null
 }
 
-/** One row, cover picture included — every single-project answer goes through here. */
+/** The pictures for a page of projects, in one query rather than one each. */
+async function thumbnailsFor(rows: VideoProjectRow[], database: CustomShellDb) {
+  const thumbnails = new Map<string, ProjectThumbnail>()
+  if (!rows.length) return thumbnails
+  const stored = await database
+    .select()
+    .from(videoProjectThumbnails)
+    .where(
+      inArray(
+        videoProjectThumbnails.projectId,
+        rows.map((row) => row.id)
+      )
+    )
+  const savedAt = new Map(rows.map((row) => [row.id, row.updatedAt.getTime()]))
+  for (const row of stored) {
+    thumbnails.set(row.projectId, {
+      url: await pictureUrl(row.storagePath),
+      // Saved since the worker last looked, so its first clip may have
+      // changed: the list keeps asking until the worker has seen the save.
+      pending:
+        row.status === "queued" ||
+        row.status === "generating" ||
+        (savedAt.get(row.projectId) ?? 0) > row.checkedAt.getTime(),
+    })
+  }
+  return thumbnails
+}
+
+/** One row, picture included — every single-project answer goes through here. */
 async function serializeOneProject(
   row: VideoProjectRow,
   database: CustomShellDb
 ) {
-  const thumbnails = await thumbnailUrlsFor([row], database)
-  return serializeProject(
-    row,
-    row.thumbnailMediaId ? (thumbnails.get(row.thumbnailMediaId) ?? null) : null
-  )
+  const thumbnails = await thumbnailsFor([row], database)
+  return serializeProject(row, thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET)
 }
 
 export async function listOwnedProjects({
@@ -230,12 +273,15 @@ export async function listOwnedProjects({
   page = 1,
   pageSize = 24,
   search = "",
+  folderId,
   database = db,
 }: {
   userId: string
   page?: number
   pageSize?: number
   search?: string
+  /** Absent lists every project; null only those in no folder. */
+  folderId?: string | null
   database?: CustomShellDb
 }): Promise<ProjectListResponse> {
   const safePage = Math.max(1, Math.floor(page))
@@ -248,6 +294,21 @@ export async function listOwnedProjects({
     // "100%" instead of matching everything.
     filters.push(
       ilike(videoProjects.name, `%${cleanedSearch.replace(/([\\%_])/g, "\\$1")}%`)
+    )
+  }
+  if (folderId !== undefined) {
+    // No owner check on the folder: the projects are already this person's,
+    // and a project only ever goes into a folder its owner owns.
+    const filed = database
+      .select({ id: videoProjectFolderItems.projectId })
+      .from(videoProjectFolderItems)
+    filters.push(
+      folderId === null
+        ? notInArray(videoProjects.id, filed)
+        : inArray(
+            videoProjects.id,
+            filed.where(eq(videoProjectFolderItems.folderId, folderId))
+          )
     )
   }
   const where = and(...filters)
@@ -263,16 +324,11 @@ export async function listOwnedProjects({
     database.select({ total: count() }).from(videoProjects).where(where),
   ])
 
-  const thumbnails = await thumbnailUrlsFor(rows, database)
+  const thumbnails = await thumbnailsFor(rows, database)
   const total = totals?.total ?? 0
   return {
     projects: rows.map((row) =>
-      serializeProject(
-        row,
-        row.thumbnailMediaId
-          ? (thumbnails.get(row.thumbnailMediaId) ?? null)
-          : null
-      )
+      serializeProject(row, thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET)
     ),
     total,
     page: safePage,
@@ -294,27 +350,42 @@ export async function getOwnedProjectDetail(
   }
 }
 
+/**
+ * `folderId` puts the new project straight into that folder, the one the list
+ * was showing when New project was pressed.
+ */
 export async function createOwnedProject(
   userId: string,
   name: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  folderId: string | null = null
 ): Promise<ProjectItem> {
   const createdAt = now()
+  const cleanedName = cleanProjectName(name)
+  if (folderId) await requireOwnedFolder(userId, folderId, database)
   // A new project starts empty and vertical — the short-form shape almost
   // everything here is made for. The aspect switch changes it in one click.
   const timeline = createEmptyTimeline()
-  const [created] = await database
-    .insert(videoProjects)
-    .values({
-      id: uuid(),
-      userId,
-      name: cleanProjectName(name),
-      aspect: timeline.aspect,
-      timeline,
-      createdAt,
-      updatedAt: createdAt,
-    })
-    .returning()
+  const created = await database.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(videoProjects)
+      .values({
+        id: uuid(),
+        userId,
+        name: cleanedName,
+        aspect: timeline.aspect,
+        timeline,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+    if (folderId) {
+      await tx
+        .insert(videoProjectFolderItems)
+        .values({ projectId: row.id, folderId, createdAt })
+    }
+    return row
+  })
   return serializeOneProject(created, database)
 }
 
@@ -325,22 +396,32 @@ export async function duplicateOwnedProject(
 ): Promise<ProjectItem> {
   const source = await getOwnedProject(userId, projectId, database)
   const createdAt = now()
-  const [created] = await database
-    .insert(videoProjects)
-    .values({
-      id: uuid(),
-      userId,
-      name: cleanProjectName(`${source.name} copy`),
-      aspect: source.aspect,
-      timeline: source.timeline,
-      // The copy is its own project from version 1; it shares nothing with the
-      // original after this moment.
-      version: 1,
-      thumbnailMediaId: source.thumbnailMediaId,
-      createdAt,
-      updatedAt: createdAt,
-    })
-    .returning()
+  const created = await database.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(videoProjects)
+      .values({
+        id: uuid(),
+        userId,
+        name: cleanProjectName(`${source.name} copy`),
+        aspect: source.aspect,
+        timeline: source.timeline,
+        // The copy is its own project from version 1; it shares nothing with
+        // the original after this moment, and the background worker makes its
+        // picture on the next pass, the same as any new project.
+        version: 1,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+    // The copy sits in the original's folder, so it appears beside it.
+    const folderId = await folderIdOfProject(source.id, tx)
+    if (folderId) {
+      await tx
+        .insert(videoProjectFolderItems)
+        .values({ projectId: row.id, folderId, createdAt })
+    }
+    return row
+  })
   return serializeOneProject(created, database)
 }
 
@@ -376,7 +457,7 @@ export async function writeProjectTimeline(
 ): Promise<ProjectItem> {
   const canonical = requireCanonicalTimeline(timeline)
 
-  const [row] = await database
+  const [saved] = await database
     .update(videoProjects)
     .set({
       timeline: canonical,
@@ -393,9 +474,22 @@ export async function writeProjectTimeline(
         eq(videoProjects.version, expectedVersion)
       )
     )
-    .returning()
+    .returning({
+      ...getTableColumns(videoProjects),
+      // The picture is read by this same statement, so a save still costs
+      // one trip to the database. Written out in full because Drizzle leaves
+      // columns unqualified inside an UPDATE.
+      thumbnailPath: sql<string | null>`(select t.storage_path from video_project_thumbnails t where t.project_id = video_projects.id)`,
+    })
 
-  if (row) return serializeOneProject(row, database)
+  if (saved) {
+    const { thumbnailPath, ...row } = saved
+    return serializeProject(row, {
+      url: await pictureUrl(thumbnailPath),
+      // Saved this instant, so the worker has not looked at it yet.
+      pending: true,
+    })
+  }
 
   // Nothing was updated: either the project is gone (or never ours), or it has
   // moved past the version this save was built on. Only the second is a clash.
@@ -413,10 +507,10 @@ export async function writeProjectTimeline(
  * person's own library, shared with every other project, and a delete here must
  * never take footage away from somewhere else.
  *
- * The project's exports do go, because their rows go with it. Their files are
- * removed from storage first, the same way deleting an export does it, and a
- * project whose export files would not come out is kept and comes back in
- * `failed_ids`, so no file is ever left with nothing pointing at it.
+ * The project's exports and its picture do go, because their rows go with it.
+ * Their files are removed from storage first, the same way deleting an export
+ * does it, and a project whose files would not come out is kept and comes back
+ * in `failed_ids`, so no file is ever left with nothing pointing at it.
  */
 export async function deleteOwnedProjects(
   userId: string,
@@ -441,14 +535,33 @@ export async function deleteOwnedProjects(
     .innerJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
     .where(owned)
   const removed = await removeExportFiles(exportRows)
-  const failedIds = Array.from(
-    new Set(
-      exportRows
-        .filter((row) => !removed.has(row.id))
-        .map((row) => row.projectId)
-    )
+  const failed = new Set(
+    exportRows.filter((row) => !removed.has(row.id)).map((row) => row.projectId)
   )
-  const deletable = uniqueIds.filter((id) => !failedIds.includes(id))
+
+  const pictures = await database
+    .select({
+      projectId: videoProjectThumbnails.projectId,
+      storagePath: videoProjectThumbnails.storagePath,
+    })
+    .from(videoProjectThumbnails)
+    .innerJoin(
+      videoProjects,
+      eq(videoProjects.id, videoProjectThumbnails.projectId)
+    )
+    .where(and(owned, isNotNull(videoProjectThumbnails.storagePath)))
+  for (const picture of pictures) {
+    if (failed.has(picture.projectId) || !picture.storagePath) continue
+    try {
+      await deleteFromR2(picture.storagePath)
+    } catch (error) {
+      console.error("Project picture removal failed", picture.projectId, error)
+      failed.add(picture.projectId)
+    }
+  }
+
+  const failedIds = Array.from(failed)
+  const deletable = uniqueIds.filter((id) => !failed.has(id))
   if (!deletable.length) return { deleted_ids: [], failed_ids: failedIds }
 
   const rows = await database

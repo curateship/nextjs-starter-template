@@ -107,6 +107,17 @@ export function eventHasEnded(
   return wallClockAt(timeZone, now) >= ends
 }
 
+/** Whether the event's start time has come, by the site's clock. */
+export function eventHasStarted(
+  when: Pick<EventWhen, "startDate" | "startTime">,
+  timeZone: string,
+  now: Date
+): boolean {
+  return (
+    wallClockAt(timeZone, now) >= `${when.startDate}T${toClock(when.startTime)}`
+  )
+}
+
 /** "18:00:00" from the database, or "18:00" from a form, as "18:00". */
 export function toClock(value: string): string {
   return value.slice(0, 5)

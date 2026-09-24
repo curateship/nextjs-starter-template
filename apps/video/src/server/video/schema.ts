@@ -276,10 +276,6 @@ export const videoProjects = pgTable(
     aspect: varchar("aspect", { length: 8 }).notNull(),
     timeline: jsonb("timeline").notNull(),
     version: integer("version").notNull().default(1),
-    thumbnailMediaId: varchar("thumbnail_media_id", { length: 36 }).references(
-      () => customShellMedia.id,
-      { onDelete: "set null" }
-    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -290,7 +286,94 @@ export const videoProjects = pgTable(
     ),
     check("video_projects_version_check", sql`${table.version} >= 1`),
     index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
-    index("ix_video_projects_thumbnail_media_id").on(table.thumbnailMediaId),
+  ]
+)
+
+/**
+ * The picture beside a project on the projects list: one frame of the first
+ * video or picture clip, made by the background worker and kept outside the
+ * media library (see `workspace/docs/project-thumbnails.md`). The row is the
+ * queue entry and the lease is the claim, the same as the media side tables.
+ * `none` means the timeline has nothing to take a frame of, and is never tried.
+ */
+export const videoProjectThumbnails = pgTable(
+  "video_project_thumbnails",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .primaryKey()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 16 }).notNull(),
+    sourceMediaId: varchar("source_media_id", { length: 36 }),
+    sourceAtMs: integer("source_at_ms"),
+    storagePath: text("storage_path"),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_project_thumbnails_status_check",
+      sql`${table.status} in ('queued', 'generating', 'ready', 'error', 'none')`
+    ),
+    check(
+      "video_project_thumbnails_ready_check",
+      sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
+    ),
+    index("ix_video_project_thumbnails_status").on(
+      table.status,
+      table.updatedAt
+    ),
+  ]
+)
+
+/**
+ * Folders for projects, owned per person, the same shape as media collections
+ * (see `workspace/docs/project-folders.md`). The unique index is on the
+ * lowercased name, and the server collapses whitespace before saving.
+ */
+export const videoProjectFolders = pgTable(
+  "video_project_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_project_folders_user_id").on(table.userId),
+    uniqueIndex("ux_video_project_folders_user_name").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+/**
+ * Which folder a project is in. The project is the whole key, so a project is
+ * in one folder at most; no row means no folder. Deleting a folder deletes its
+ * rows and never its projects.
+ */
+export const videoProjectFolderItems = pgTable(
+  "video_project_folder_items",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .primaryKey()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    folderId: varchar("folder_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectFolders.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_project_folder_items_folder_id").on(table.folderId),
   ]
 )
 
@@ -662,6 +745,7 @@ export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoProjectThumbnailRow = typeof videoProjectThumbnails.$inferSelect
 export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect

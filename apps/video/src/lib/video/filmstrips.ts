@@ -5,13 +5,22 @@
  * this fetches it once, keeps it in a small cache shared by every clip using
  * the same file, and works out which cells of the sprite fall inside a clip's
  * trim window. While the sprite is still being built the route answers 202 with
- * a Retry-After, so this polls rather than failing.
+ * a Retry-After, so this polls at the pace the route asks for, for as long as
+ * at least one clip is waiting, and stops the moment the last one goes. A
+ * strip that failed answers 422 and becomes a `FilmstripFailedError`.
  */
 
 const SECONDS_PER_FRAME = 2
 const MAX_VISIBLE_FRAMES = 30
-const MAX_STATUS_POLLS = 60
 const MAX_CACHED_FILMSTRIPS = 50
+
+/** The worker tried the strip three times and gave up. */
+export class FilmstripFailedError extends Error {
+  constructor() {
+    super("Filmstrip failed")
+    this.name = "FilmstripFailedError"
+  }
+}
 
 export type ClipWindow = { startMs: number; durationMs: number }
 
@@ -34,9 +43,18 @@ type FilmstripAsset = {
   durationMs: number
 }
 
+type FilmstripProgress = {
+  /** The route has answered "still building" at least once. */
+  building: boolean
+  buildingListeners: Set<() => void>
+  controller: AbortController
+}
+
 type FilmstripCacheEntry = {
   promise: Promise<FilmstripAsset>
   references: number
+  settled: boolean
+  progress: FilmstripProgress
 }
 
 const globals = globalThis as typeof globalThis & {
@@ -48,18 +66,37 @@ const filmstripCache = (globals.__videoFilmstripCache ??= new Map<
 >())
 
 // Every clip using the same media id points at one browser-cached sprite and
-// paints only the cells inside its visible trim window.
+// paints only the cells inside its visible trim window. `onBuilding` is called
+// once the route says the strip is still being made, straight away if it
+// already has; a strip that is ready never calls it, so a clip opened on a
+// finished file never flashes a "getting ready" marker.
 export async function getVideoFilmstrip(
   mediaId: string,
   window: ClipWindow,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onBuilding?: () => void
 ): Promise<FilmstripFrame[]> {
   const entry = acquireFilmstrip(mediaId)
+  const { progress } = entry
+  if (onBuilding) {
+    if (progress.building) onBuilding()
+    else progress.buildingListeners.add(onBuilding)
+  }
   let released = false
   const release = () => {
     if (released) return
     released = true
     entry.references -= 1
+    if (onBuilding) progress.buildingListeners.delete(onBuilding)
+    // Nobody is waiting for a strip still on its way: stop asking, and let
+    // the next clip that wants it start afresh. Checked a moment later, so a
+    // clip that lets go and takes hold again in one render (a trim, say) keeps
+    // the wait it already had instead of asking again at once.
+    queueMicrotask(() => {
+      if (entry.settled || entry.references > 0) return
+      progress.controller.abort()
+      if (filmstripCache.get(mediaId) === entry) filmstripCache.delete(mediaId)
+    })
     trimFilmstripCache()
   }
   signal.addEventListener("abort", release, { once: true })
@@ -80,15 +117,35 @@ function acquireFilmstrip(mediaId: string) {
     filmstripCache.delete(mediaId)
     filmstripCache.set(mediaId, entry)
   } else {
-    const promise = loadFilmstrip(mediaId)
-    entry = { promise, references: 0 }
-    // A failed load must not stay cached, or every later clip inherits it.
-    entry.promise = promise.catch((error) => {
-      if (filmstripCache.get(mediaId) === entry) {
-        filmstripCache.delete(mediaId)
+    const progress: FilmstripProgress = {
+      building: false,
+      buildingListeners: new Set(),
+      controller: new AbortController(),
+    }
+    const promise = loadFilmstrip(mediaId, progress).then(
+      (asset) => {
+        created.settled = true
+        return asset
+      },
+      (error: unknown) => {
+        created.settled = true
+        // A failed load must not stay cached, or every later clip inherits it.
+        if (filmstripCache.get(mediaId) === created) {
+          filmstripCache.delete(mediaId)
+        }
+        throw error
       }
-      throw error
-    })
+    )
+    // Every clip may have gone before a failure lands; that is not an error
+    // anybody needs to hear about.
+    promise.catch(() => undefined)
+    const created: FilmstripCacheEntry = {
+      promise,
+      references: 0,
+      settled: false,
+      progress,
+    }
+    entry = created
     filmstripCache.set(mediaId, entry)
   }
   entry.references += 1
@@ -96,19 +153,27 @@ function acquireFilmstrip(mediaId: string) {
   return entry
 }
 
-async function loadFilmstrip(mediaId: string): Promise<FilmstripAsset> {
+async function loadFilmstrip(
+  mediaId: string,
+  progress: FilmstripProgress
+): Promise<FilmstripAsset> {
   const endpoint = `/api/v1/video/media/${encodeURIComponent(mediaId)}/filmstrip`
-  let response: Response | null = null
-
-  for (let attempt = 0; attempt < MAX_STATUS_POLLS; attempt += 1) {
-    response = await fetch(endpoint)
-    if (response.status !== 202) break
+  const { signal } = progress.controller
+  let response = await fetch(endpoint, { signal })
+  while (response.status === 202) {
+    if (!progress.building) {
+      progress.building = true
+      for (const listener of progress.buildingListeners) listener()
+      progress.buildingListeners.clear()
+    }
     const retrySeconds = Number(response.headers.get("Retry-After")) || 2
-    await new Promise((resolve) => setTimeout(resolve, retrySeconds * 1000))
+    await wait(retrySeconds * 1000, signal)
+    response = await fetch(endpoint, { signal })
   }
 
-  if (!response?.ok) {
-    throw new Error(`Filmstrip unavailable (${response?.status ?? 0})`)
+  if (response.status === 422) throw new FilmstripFailedError()
+  if (!response.ok) {
+    throw new Error(`Filmstrip unavailable (${response.status})`)
   }
 
   const frameCount = positiveHeader(response, "X-Filmstrip-Frame-Count")
@@ -116,8 +181,11 @@ async function loadFilmstrip(mediaId: string): Promise<FilmstripAsset> {
   const frameHeight = positiveHeader(response, "X-Filmstrip-Frame-Height")
   const columns = positiveHeader(response, "X-Filmstrip-Columns")
   const durationMs = positiveHeader(response, "X-Filmstrip-Duration-Ms")
+  const blob = await response.blob()
+  // An address made after the last clip left would never be let go.
+  signal.throwIfAborted()
   return {
-    url: URL.createObjectURL(await response.blob()),
+    url: URL.createObjectURL(blob),
     frameCount,
     frameWidth,
     frameHeight,
@@ -203,6 +271,33 @@ function trimFilmstripCache() {
       () => undefined
     )
   }
+}
+
+function wait(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms)
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer)
+        reject(signal.reason)
+      },
+      { once: true }
+    )
+  })
+}
+
+// A strip put back in the queue from the Media panel. A clip that showed it
+// as failed starts waiting for it again.
+const requeuedFilmstrips = new EventTarget()
+
+export function announceFilmstripRequeued(mediaId: string) {
+  requeuedFilmstrips.dispatchEvent(new CustomEvent(mediaId))
+}
+
+export function onFilmstripRequeued(mediaId: string, listener: () => void) {
+  requeuedFilmstrips.addEventListener(mediaId, listener)
+  return () => requeuedFilmstrips.removeEventListener(mediaId, listener)
 }
 
 function positiveHeader(response: Response, name: string) {

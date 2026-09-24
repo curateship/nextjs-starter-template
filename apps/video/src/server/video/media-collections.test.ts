@@ -29,12 +29,17 @@ import {
   attachPastedMediaToProject,
   deleteMediaFromScope,
   listVideoMedia,
+  retryOwnedMediaPreparation,
 } from "@/server/video/media-list"
 import {
   createOwnedProject,
   writeProjectTimeline,
 } from "@/server/video/projects"
-import { videoMediaCollectionItems } from "@/server/video/schema"
+import {
+  videoMediaCollectionItems,
+  videoMediaFilmstrips,
+  videoMediaProxies,
+} from "@/server/video/schema"
 
 let client: PGlite
 let database: CustomShellDb
@@ -448,5 +453,68 @@ describe("the media list with video extras", () => {
     await expect(
       attachPastedMediaToProject(user.id, theirProject.id, [mine.id], database)
     ).rejects.toThrowError("Project not found")
+  })
+})
+
+describe("trying a failed file again", () => {
+  async function insertJobs(
+    mediaId: string,
+    proxy: string,
+    filmstrip: string
+  ) {
+    const timestamp = now()
+    const job = (status: string) => ({
+      mediaId,
+      status,
+      attempts: 3,
+      error: status === "error" ? "Generation failed" : null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await database
+      .insert(videoMediaProxies)
+      .values({ ...job(proxy), profile: "h264-720p" })
+    await database
+      .insert(videoMediaFilmstrips)
+      .values({ ...job(filmstrip), profile: "jpeg-160h-v1" })
+  }
+
+  it("queues only the part that failed, with its tries reset", async () => {
+    const media = await insertMedia(user.id)
+    await insertJobs(media.id, "error", "generating")
+
+    await retryOwnedMediaPreparation(user.id, media.id, database)
+
+    const [proxy] = await database
+      .select()
+      .from(videoMediaProxies)
+      .where(eq(videoMediaProxies.mediaId, media.id))
+    expect(proxy).toMatchObject({ status: "queued", attempts: 0, error: null })
+    const [filmstrip] = await database
+      .select()
+      .from(videoMediaFilmstrips)
+      .where(eq(videoMediaFilmstrips.mediaId, media.id))
+    expect(filmstrip).toMatchObject({ status: "generating", attempts: 3 })
+
+    const listed = await listVideoMedia({ userId: user.id, database })
+    expect(listed.media[0]).toMatchObject({
+      proxy_status: "queued",
+      filmstrip_status: "generating",
+    })
+  })
+
+  it("refuses somebody else's file and leaves it failed", async () => {
+    const stranger = await insertUser(database)
+    const theirs = await insertMedia(stranger.id)
+    await insertJobs(theirs.id, "error", "error")
+
+    await expect(
+      retryOwnedMediaPreparation(user.id, theirs.id, database)
+    ).rejects.toThrowError("Media not found")
+    const [proxy] = await database
+      .select()
+      .from(videoMediaProxies)
+      .where(eq(videoMediaProxies.mediaId, theirs.id))
+    expect(proxy.status).toBe("error")
   })
 })

@@ -1,0 +1,1037 @@
+import * as React from "react"
+import {
+  Outlet,
+  useNavigate,
+  useRouter,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router"
+import { toast } from "sonner"
+
+import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
+import { AnnouncementBanners } from "@/components/shell/announcement-banner"
+import { DashboardContent } from "@/components/shell/dashboard-content"
+import { FeedbackModal } from "@/components/feedback/feedback-modal"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AppHeaderLeftContent } from "@/components/shell/sticky-header/app-header-left-content"
+import { AppSidebar } from "@/components/shell/sidebar/sidebar"
+import {
+  StickyHeader,
+  type SaveStatus,
+} from "@/components/shell/sticky-header/sticky-header"
+import {
+  canSeeShellEntry,
+  createDefaultShellConfig,
+  createDefaultTopRightNavigation,
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  isActiveShellHref,
+  isShellEntryNamed,
+  isShellEntryVisible,
+  isShellItem,
+  normalizeAutomationPause,
+  normalizeMaintenance,
+  normalizeSessionPolicy,
+  normalizeTopLeftNavLimit,
+  normalizeTopRightNavigation,
+  renderShellIcon,
+  type ShellConfig,
+  type ShellItem,
+  type ShellMaintenance,
+  type ShellSection,
+  type ShellSessionPolicy,
+} from "@/lib/custom-shell"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
+import {
+  BORDER_STYLE_VAR_NAMES,
+  getBorderStyleVars,
+  getModalStyleVars,
+  MODAL_STYLE_VAR_NAMES,
+  normalizeStyling,
+  resolveBackground,
+  type ShellModalStyling,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
+import {
+  appHeaderRightActionsForRole,
+  appHeaderLeftContentForRole,
+  capitalise,
+  workspaceWord,
+} from "@/lib/app-options"
+import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizePublicHeader } from "@/lib/pages/public-header"
+import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import {
+  normalizePublicSeo,
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+} from "@/lib/pages/public-metadata"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import {
+  isPublicThemeInputValid,
+  normalizePublicTheme,
+} from "@/lib/public-theme"
+import { normalizePublicFontAsset } from "@/lib/public-font"
+import { normalizeFrontPageRows } from "@/lib/pages/front-page"
+import { resolveAppName } from "@/lib/branding"
+import {
+  normalizeFaviconMode,
+  normalizePublicFaviconSet,
+  publicFaviconLinks,
+  type FaviconLink,
+} from "@/lib/favicon"
+import type { UserAnnouncement } from "@/lib/announcement"
+import type { AuthUser } from "@/lib/api/auth/auth"
+import { logout } from "@/lib/api/auth/auth"
+import type { PlanSummary } from "@/lib/api/billing/billing"
+import {
+  getAutomationPauseErrorMessage,
+  saveAutomationPause,
+  type AutomationPauseState,
+} from "@/lib/api/automations/automation-pause"
+import {
+  getMaintenanceErrorMessage,
+  saveMaintenance,
+} from "@/lib/api/maintenance"
+import {
+  getSessionPolicyErrorMessage,
+  saveSessionPolicy,
+} from "@/lib/api/auth/session-policy"
+import {
+  getShellSettingsErrorMessage,
+  saveShellSettings,
+  saveSidebarWidth,
+} from "@/lib/api/shell-settings"
+import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { routePageTitle } from "@/lib/nav/route-title"
+import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
+import { setToastSeconds } from "@/lib/toast/toast-duration"
+import { plural } from "@/lib/format/plural"
+import { clampToastSeconds } from "@/lib/toast/toast-seconds"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
+
+// Debounce window before an edit on the settings page is auto-saved.
+const CONFIG_SAVE_DEBOUNCE_MS = 700
+
+type ShellRuntime = {
+  config: ShellConfig
+  saveStatus: SaveStatus
+  feedbackRefreshToken: number
+  /** True while the maintenance switch is being written. */
+  maintenanceBusy: boolean
+  /** True while the automations kill switch is being written. */
+  automationPauseBusy: boolean
+  /** True while the session policy is being written. */
+  sessionPolicyBusy: boolean
+  onConfigChange: (config: ShellConfig) => void
+  onSaveConfig: () => Promise<boolean>
+  /** Writes the maintenance switch on its own; never via the settings save. */
+  onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
+  /**
+   * Flips the automations kill switch, from the header badge or the automations
+   * page. Answers with the saved switch and how many runs are still held, so
+   * the page that asked can say the number without a second round trip; null
+   * when the write failed.
+   */
+  onAutomationPauseChange: (
+    enabled: boolean
+  ) => Promise<AutomationPauseState | null>
+  /** Writes the session policy on its own; never via the settings save. */
+  onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
+  onOpenFeedback: () => void
+  onOpenFeedbackThread: (feedbackId: string) => void
+  /**
+   * Lets a page that auto-saves its own record — the automation editor — put its
+   * status in the sticky header, which is the one place this app reports saving.
+   * The page owns the value and must clear it (pass null) when it unmounts, or
+   * its last word would outlive it on the next screen.
+   */
+  reportSaveStatus: (status: SaveStatus | null) => void
+}
+
+const ShellRuntimeContext = React.createContext<ShellRuntime | null>(null)
+
+export function useShellRuntime() {
+  const context = React.useContext(ShellRuntimeContext)
+  if (!context) {
+    throw new Error("Shell runtime is missing")
+  }
+  return context
+}
+
+export function ShellLayout({
+  user,
+  settings,
+  workspaces,
+  plan,
+  unseenNotifications,
+  announcements,
+  viewedBy,
+}: {
+  user: AuthUser
+  settings: ShellConfig | null
+  workspaces: WorkspaceListResponse
+  plan: PlanSummary
+  unseenNotifications: number
+  announcements: UserAnnouncement[]
+  viewedBy: { id: string; name: string; email: string } | null
+}) {
+  const currentPath = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentRouteId = useRouterState({
+    select: (state) => state.matches.at(-1)?.routeId,
+  })
+  const navigate = useNavigate()
+  const router = useRouter()
+  const { account: accountTab } = useSearch({ from: "/_authenticated" })
+  const [config, setConfig] = React.useState(() =>
+    normalizeConfig(settings, user.role)
+  )
+  // Last width the server confirmed, plus a serialized save queue + version
+  // counter so rapid drags persist in order and a failure rolls back to the
+  // last-saved width without clobbering a newer in-flight drag.
+  const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
+  const sidebarWidthSaveQueueRef = React.useRef(Promise.resolve())
+  const sidebarWidthSaveVersionRef = React.useRef(0)
+  // Auto-save plumbing for the full shell config (settings page). Mirrors the
+  // sidebar-width queue/version pattern above: edits schedule a debounced save
+  // that runs on a serialized queue so rapid edits persist in order.
+  const latestConfigRef = React.useRef(config)
+  const configSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
+  const configSaveQueueRef = React.useRef(Promise.resolve())
+  const configSaveVersionRef = React.useRef(0)
+  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
+  // A page's own auto-save, when it has one. It wins over the settings status
+  // above because only one of the two can be on screen at a time, and this is
+  // the one the person is looking at.
+  const [pageSaveStatus, setPageSaveStatus] = React.useState<SaveStatus | null>(
+    null
+  )
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false)
+  const [targetFeedbackId, setTargetFeedbackId] = React.useState<string | null>(
+    null
+  )
+  const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
+  const [maintenanceBusy, setMaintenanceBusy] = React.useState(false)
+  const [automationPauseBusy, setAutomationPauseBusy] = React.useState(false)
+  const [sessionPolicyBusy, setSessionPolicyBusy] = React.useState(false)
+  const lastSettingsRef = React.useRef(settings)
+
+  useShellDocumentTitle(config.appName)
+  useShellFavicons(
+    config.favicon,
+    config.faviconDark,
+    config.faviconSet,
+    config.faviconMode
+  )
+  useModalStyleVars(config.styling.modal)
+  useBorderStyleVars(config.styling)
+
+  React.useEffect(() => {
+    if (lastSettingsRef.current === settings) {
+      return
+    }
+
+    lastSettingsRef.current = settings
+    const nextConfig = normalizeConfig(settings, user.role)
+    savedSidebarWidthRef.current = nextConfig.sidebarWidth
+    // Fresh server data supersedes any pending debounced auto-save so an
+    // in-flight edit can't overwrite it.
+    if (configSaveTimerRef.current) {
+      clearTimeout(configSaveTimerRef.current)
+      configSaveTimerRef.current = null
+    }
+    latestConfigRef.current = nextConfig
+    setConfig(nextConfig)
+    setSaveStatus("idle")
+  }, [settings, user.role])
+
+  // NOTE: no focus/visibilitychange auto-redirect. A client-side "am I still
+  // signed in?" check on every tab focus was bouncing the user to /login
+  // whenever the client-side loadCurrentUser call didn't see the session cookie
+  // (which happens intermittently in the IDE's embedded preview). Route auth is
+  // guarded server-side by the _authenticated loader on navigation, which reads
+  // the cookie from the request directly — that's the reliable gate.
+
+  // Persists the freshest config immediately, cancelling any pending debounce.
+  // The server rejects an empty workspace name, so skip the request — but say
+  // "Not saved" in the header instead of dropping the edit in silence. The
+  // header is the only warning that reaches you when the edit that emptied the
+  // name happened on another settings tab (e.g. the sidebar's Reset).
+  // Returns whether it saved.
+  const saveConfigNow = React.useCallback(async () => {
+    if (configSaveTimerRef.current) {
+      clearTimeout(configSaveTimerRef.current)
+      configSaveTimerRef.current = null
+    }
+
+    const snapshot = latestConfigRef.current
+    if (!snapshot.workspaceName.trim()) {
+      setSaveStatus("blocked")
+      return false
+    }
+    if (!isPublicThemeInputValid(snapshot.publicTheme)) {
+      setSaveStatus("idle")
+      return false
+    }
+
+    const version = configSaveVersionRef.current + 1
+    configSaveVersionRef.current = version
+    setSaveStatus("saving")
+
+    const save = configSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveShellSettings(snapshot))
+    configSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    try {
+      const result = await save
+      if (version === configSaveVersionRef.current) {
+        const savedConfig = normalizeConfig(
+          {
+            ...snapshot,
+            // The dark logo, the tab icon and its sizes are all made from the
+            // one uploaded logo on the server, so they arrive with the answer
+            // rather than being guessed at here.
+            ...result.brand,
+            publicFont: result.publicFont,
+          },
+          user.role
+        )
+        latestConfigRef.current = savedConfig
+        setConfig(savedConfig)
+        setSaveStatus("saved")
+      }
+      return true
+    } catch (error) {
+      if (version === configSaveVersionRef.current) {
+        setSaveStatus("idle")
+        showErrorToast(getShellSettingsErrorMessage(error))
+      }
+      return false
+    }
+  }, [user.role])
+
+  // Every settings edit funnels through here. Update state immediately and
+  // schedule a debounced auto-save; the settings-sync effect above uses
+  // setConfig directly, so loading data never triggers a save.
+  const handleConfigChange = React.useCallback(
+    (nextConfig: ShellConfig) => {
+      setConfig(nextConfig)
+      latestConfigRef.current = nextConfig
+      dismissErrorToast()
+      if (configSaveTimerRef.current) {
+        clearTimeout(configSaveTimerRef.current)
+      }
+      configSaveTimerRef.current = setTimeout(() => {
+        configSaveTimerRef.current = null
+        void saveConfigNow()
+      }, CONFIG_SAVE_DEBOUNCE_MS)
+    },
+    [saveConfigNow]
+  )
+
+  // Persist the dragged sidebar width on its own (not through the admin-gated
+  // full-config save). Updates local config immediately, then saves; on failure
+  // rolls the width back to the last-confirmed value unless a newer drag has
+  // superseded this one, and toasts the error.
+  const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
+    const version = sidebarWidthSaveVersionRef.current + 1
+    sidebarWidthSaveVersionRef.current = version
+    setConfig((current) => ({ ...current, sidebarWidth }))
+
+    const save = sidebarWidthSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveSidebarWidth(sidebarWidth))
+    sidebarWidthSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    void save
+      .then(() => {
+        savedSidebarWidthRef.current = sidebarWidth
+      })
+      .catch((error) => {
+        if (version === sidebarWidthSaveVersionRef.current) {
+          setConfig((current) => ({
+            ...current,
+            sidebarWidth: savedSidebarWidthRef.current,
+          }))
+          showErrorToast(getShellSettingsErrorMessage(error))
+        }
+      })
+  }, [])
+
+  // Maintenance mode has its own write — it is confirmed, audit-logged, and
+  // must not ride along with a settings save that could carry a stale copy of
+  // the switch. Nothing is scheduled here afterwards: the value is already
+  // saved, so the local config is just brought in line with it.
+  const handleMaintenanceChange = React.useCallback(
+    async (maintenance: ShellMaintenance) => {
+      setMaintenanceBusy(true)
+      try {
+        const saved = await saveMaintenance(maintenance)
+        setConfig((current) => ({ ...current, maintenance: saved }))
+        latestConfigRef.current = {
+          ...latestConfigRef.current,
+          maintenance: saved,
+        }
+        toast.success(
+          saved.enabled
+            ? "Maintenance mode is on. Only admins can use the app."
+            : "Maintenance mode is off. Everyone can use the app again."
+        )
+        return true
+      } catch (error) {
+        showErrorToast(getMaintenanceErrorMessage(error))
+        return false
+      } finally {
+        setMaintenanceBusy(false)
+      }
+    },
+    []
+  )
+
+  // The automations kill switch writes on its own for the same reason
+  // maintenance does, and it lives up here rather than on the automations page
+  // because the header badge flips it too — from any screen in the app.
+  const handleAutomationPauseChange = React.useCallback(
+    async (enabled: boolean) => {
+      setAutomationPauseBusy(true)
+      try {
+        const state = await saveAutomationPause(enabled)
+        setConfig((current) => ({ ...current, automationPause: state.pause }))
+        latestConfigRef.current = {
+          ...latestConfigRef.current,
+          automationPause: state.pause,
+        }
+        dismissErrorToast()
+        toast.success(
+          state.pause.enabled
+            ? state.held_runs > 0
+              ? `Every automation is paused. ${state.held_runs} ${
+                  plural(state.held_runs, "run is", "runs are")
+                } held where they stopped.`
+              : "Every automation is paused. Nothing was part-way through."
+            : "Automations are running again."
+        )
+        return state
+      } catch (error) {
+        showErrorToast(getAutomationPauseErrorMessage(error))
+        return null
+      } finally {
+        setAutomationPauseBusy(false)
+      }
+    },
+    []
+  )
+
+  // The session policy writes on its own for the same reason maintenance does:
+  // it must never ride along with a settings save that could carry a stale
+  // copy of it. The value is already saved when this resolves; the local
+  // config is just brought in line with it.
+  const handleSessionPolicyChange = React.useCallback(
+    async (policy: ShellSessionPolicy) => {
+      setSessionPolicyBusy(true)
+      try {
+        const saved = await saveSessionPolicy(policy)
+        setConfig((current) => ({ ...current, sessionPolicy: saved }))
+        latestConfigRef.current = {
+          ...latestConfigRef.current,
+          sessionPolicy: saved,
+        }
+        toast.success("Session security saved.")
+        return true
+      } catch (error) {
+        showErrorToast(getSessionPolicyErrorMessage(error))
+        return false
+      } finally {
+        setSessionPolicyBusy(false)
+      }
+    },
+    []
+  )
+
+  // The sidebar link-editor dialog's "Done" button flushes any pending
+  // debounced save immediately, so closing it never leaves an unsaved edit.
+  const handleSaveConfig = React.useCallback(
+    () => saveConfigNow(),
+    [saveConfigNow]
+  )
+
+  // Flush a pending auto-save if the shell unmounts (logout / full navigation)
+  // so a debounced edit isn't dropped. Best-effort and fire-and-forget — no
+  // state updates, since the component is going away.
+  React.useEffect(() => {
+    return () => {
+      if (configSaveTimerRef.current) {
+        clearTimeout(configSaveTimerRef.current)
+        configSaveTimerRef.current = null
+        const snapshot = latestConfigRef.current
+        if (
+          snapshot.workspaceName.trim() &&
+          isPublicThemeInputValid(snapshot.publicTheme)
+        ) {
+          void saveShellSettings(snapshot).catch(() => undefined)
+        }
+      }
+    }
+  }, [])
+
+  // The Toaster lives above the router outlet and can't see the config, so
+  // hand it the saved duration whenever it changes. See lib/toast/toast-duration.ts.
+  React.useEffect(() => {
+    setToastSeconds(config.toastSeconds)
+  }, [config.toastSeconds])
+
+  // Auto-clear the "Saved" badge a couple seconds after it appears so it
+  // doesn't linger in the shared header after leaving the settings page.
+  React.useEffect(() => {
+    if (saveStatus !== "saved") {
+      return
+    }
+    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
+
+  const openFeedback = React.useCallback((feedbackId?: string) => {
+    setTargetFeedbackId(feedbackId ?? null)
+    setFeedbackOpen(true)
+  }, [])
+
+  const handleFeedbackOpenChange = React.useCallback((open: boolean) => {
+    setFeedbackOpen(open)
+    if (!open) {
+      setTargetFeedbackId(null)
+    }
+  }, [])
+
+  const handleLogout = React.useCallback(async () => {
+    await logout()
+    window.location.href = "/login"
+  }, [])
+
+  const runtime = React.useMemo<ShellRuntime>(
+    () => ({
+      config,
+      saveStatus,
+      feedbackRefreshToken,
+      maintenanceBusy,
+      automationPauseBusy,
+      sessionPolicyBusy,
+      onConfigChange: handleConfigChange,
+      onSaveConfig: handleSaveConfig,
+      onMaintenanceChange: handleMaintenanceChange,
+      onAutomationPauseChange: handleAutomationPauseChange,
+      onSessionPolicyChange: handleSessionPolicyChange,
+      onOpenFeedback: () => openFeedback(),
+      onOpenFeedbackThread: openFeedback,
+      reportSaveStatus: setPageSaveStatus,
+    }),
+    [
+      automationPauseBusy,
+      config,
+      feedbackRefreshToken,
+      handleAutomationPauseChange,
+      handleConfigChange,
+      handleMaintenanceChange,
+      handleSaveConfig,
+      handleSessionPolicyChange,
+      maintenanceBusy,
+      openFeedback,
+      saveStatus,
+      sessionPolicyBusy,
+    ]
+  )
+
+  // Recolors both the sidebar rail and the sticky header (both use bg-sidebar).
+  // Opaque so the two render the same color regardless of what sits behind them.
+  const chromeBackground = resolveBackground(config.styling.chrome, {
+    opaque: true,
+  })
+  // Divider lines resolve to the theme --border token; overriding it (and the
+  // sidebar edge) on this wrapper recolors the rules inside cards and tables plus
+  // the sidebar border across the whole shell at once.
+  const dividerColor = resolveBackground(config.styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  const rootStyle = {
+    ...(chromeBackground ? { "--sidebar": chromeBackground } : {}),
+    ...(dividerColor
+      ? { "--border": dividerColor, "--sidebar-border": dividerColor }
+      : {}),
+  } as React.CSSProperties
+  const stickyHeaderNavLinks = getStickyHeaderNavLinks(
+    config,
+    currentPath,
+    user.role
+  )
+  const headerLeftContent = appHeaderLeftContentForRole(user.role)
+
+  return (
+    <ShellRuntimeContext.Provider value={runtime}>
+      <div className="min-h-screen bg-muted/60" style={rootStyle}>
+        <SidebarProvider
+          className="h-screen"
+          sidebarWidth={config.sidebarWidth}
+          onSidebarWidthCommit={handleSidebarWidthCommit}
+        >
+          <a
+            href="#main-content"
+            className={cn(
+              "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
+              focusRing
+            )}
+            onClick={(event) => {
+              const main = document.getElementById("main-content")
+              if (!main) return
+              event.preventDefault()
+              main.focus()
+            }}
+          >
+            Skip to content
+          </a>
+          <AppSidebar
+            config={config}
+            user={user}
+            plan={plan}
+            workspaces={workspaces.workspaces}
+            baseDomain={workspaces.baseDomain}
+            copyChoices={workspaces.copyChoices}
+            viewingAsMember={Boolean(viewedBy)}
+            onLogout={handleLogout}
+          />
+          <SidebarInset>
+            <StickyHeader
+              navLinks={stickyHeaderNavLinks}
+              navContent={headerLeftContent ? (
+                <AppHeaderLeftContent
+                  action={headerLeftContent}
+                  role={user.role}
+                  navLinks={stickyHeaderNavLinks}
+                  limit={config.topLeftNavLimit}
+                />
+              ) : undefined}
+              navLinkLimit={config.topLeftNavLimit}
+              rightNavItems={config.topRightNavigation}
+              role={user.role}
+              unseenNotifications={unseenNotifications}
+              liveNotifications={config.liveNotifications}
+              saveStatus={pageSaveStatus ?? saveStatus}
+              maintenanceOn={
+                user.role === "admin" && config.maintenance.enabled
+              }
+              maintenanceBusy={maintenanceBusy}
+              automationPause={
+                user.role === "admin" && config.automationPause.enabled
+                  ? config.automationPause
+                  : null
+              }
+              automationPauseBusy={automationPauseBusy}
+              viewingAs={
+                viewedBy
+                  ? {
+                      memberName: user.name,
+                      memberEmail: user.email,
+                      adminName: viewedBy.name,
+                    }
+                  : null
+              }
+              onTurnOffMaintenance={() =>
+                void handleMaintenanceChange({
+                  ...config.maintenance,
+                  enabled: false,
+                })
+              }
+              onResumeAutomations={() =>
+                void handleAutomationPauseChange(false)
+              }
+              onOpenFeedback={() => openFeedback()}
+              onOpenFeedbackThread={openFeedback}
+            />
+            <DashboardContent
+              id="main-content"
+              // Settings pages are taller than the viewport and already make
+              // the document scroll. Letting this panel scroll too draws two
+              // vertical scrollbars beside the settings cards.
+              className={
+                currentPath === "/admin/settings" ||
+                currentPath.startsWith("/admin/settings/")
+                  ? "overflow-visible"
+                  : undefined
+              }
+              styling={config.styling}
+              pageTitle={getCurrentPageTitle(
+                config,
+                currentPath,
+                currentRouteId,
+                user.role
+              )}
+            >
+              {/* First cards on the page, so a broadcast rides the content
+                  gutter and the workspace's own card styling. Remounted per set
+                  of ids so a fresh load after one is retired starts from the
+                  server's list, not a stale local one. */}
+              <AnnouncementBanners
+                key={announcements.map((item) => item.id).join("|")}
+                announcements={announcements}
+              />
+              <Outlet />
+            </DashboardContent>
+          </SidebarInset>
+        </SidebarProvider>
+        <FeedbackModal
+          open={feedbackOpen}
+          onOpenChange={handleFeedbackOpenChange}
+          targetFeedbackId={targetFeedbackId}
+          currentUserName={user.name}
+          onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
+        />
+        <AccountDialog
+          tab={accountTab ?? null}
+          user={user}
+          plan={plan}
+          onTabChange={(tab) =>
+            navigate({ to: ".", search: (prev) => ({ ...prev, account: tab }) })
+          }
+          onClose={() =>
+            navigate({
+              to: ".",
+              search: ({ account: _account, ...rest }) => rest,
+            })
+          }
+          onProfileSaved={() => router.invalidate()}
+        />
+      </div>
+    </ShellRuntimeContext.Provider>
+  )
+}
+
+function normalizeConfig(
+  settings: ShellConfig | null,
+  role: string
+): ShellConfig {
+  const fallback = createDefaultShellConfig()
+  const actionIds = appHeaderRightActionsForRole(role).map(
+    (action) => action.id
+  )
+  const memberActionIds = appHeaderRightActionsForRole("member").map(
+    (action) => action.id
+  )
+  if (!settings) {
+    return {
+      ...fallback,
+      topRightNavigation: createDefaultTopRightNavigation(actionIds),
+      memberTopRightNavigation:
+        createDefaultTopRightNavigation(memberActionIds),
+    }
+  }
+
+  return {
+    appName: settings.appName ?? fallback.appName,
+    workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+      settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+    )
+      ? settings.dashboardRowsPerPage
+      : fallback.dashboardRowsPerPage,
+    toastSeconds: clampToastSeconds(settings.toastSeconds),
+    topLeftNavLimit: normalizeTopLeftNavLimit(settings.topLeftNavLimit),
+    sidebarWidth: clampSidebarWidth(
+      settings.sidebarWidth ?? fallback.sidebarWidth
+    ),
+    adminRoute: settings.adminRoute ?? fallback.adminRoute,
+    memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
+    workspaceFavicon: settings.workspaceFavicon ?? fallback.workspaceFavicon,
+    workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
+    workspaceLogoDark: settings.workspaceLogoDark ?? fallback.workspaceLogoDark,
+    workspaceShareImage: settings.workspaceShareImage ?? fallback.workspaceShareImage,
+    favicon: settings.favicon ?? fallback.favicon,
+    faviconDark: settings.faviconDark ?? fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
+    logo: settings.logo ?? fallback.logo,
+    logoDark: settings.logoDark ?? fallback.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
+    publicNavigation: Array.isArray(settings.publicNavigation)
+      ? settings.publicNavigation
+      : fallback.publicNavigation,
+    publicFooter: Array.isArray(settings.publicFooter)
+      ? settings.publicFooter
+      : fallback.publicFooter,
+    publicFooterCopyright:
+      settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
+    publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicFont: normalizePublicFontAsset(settings.publicFont),
+    publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
+    topRightNavigation: normalizeTopRightNavigation(
+      settings.topRightNavigation,
+      actionIds
+    ),
+    memberTopRightNavigation: normalizeTopRightNavigation(
+      settings.memberTopRightNavigation,
+      memberActionIds
+    ),
+    sections: stripRetiredAccountEntries(
+      Array.isArray(settings.sections) ? settings.sections : fallback.sections
+    ),
+    // Not stripped: this is the list an admin is editing for members, not the
+    // one being rendered, so nothing should quietly disappear out of the editor.
+    memberSections: Array.isArray(settings.memberSections)
+      ? settings.memberSections
+      : fallback.memberSections,
+    // Only an explicit `false` turns the live bell off, so a config saved
+    // before this setting existed keeps it on.
+    liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
+    maintenance: normalizeMaintenance(settings.maintenance),
+    automationPause: normalizeAutomationPause(settings.automationPause),
+    sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+    pages: normalizePageOverrides(settings.pages),
+    styling: normalizeStyling(settings.styling),
+    dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
+  }
+}
+
+// The account area is a modal reached from the user menu, not the sidebar, so
+// drop its retired nav links (and any section left empty by that) from saved
+// configs — no config migration needed.
+function stripRetiredAccountEntries(sections: ShellSection[]): ShellSection[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      entries: section.entries.filter(
+        (entry) => !(isShellItem(entry) && accountTabForHref(entry.href) != null)
+      ),
+    }))
+    .filter((section) => section.entries.length > 0)
+}
+
+// The dialog portals to document.body, outside the shell subtree, so modal
+// styling is applied as CSS variables on the document root where it can reach.
+function useModalStyleVars(modal: ShellModalStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getModalStyleVars(modal)
+    for (const name of MODAL_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of MODAL_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [modal])
+}
+
+// Popovers, dropdown menus, selects, sheets, and toasts also portal to
+// document.body, so the border settings are applied the same way: as CSS
+// variables on the document root, where the portaled layers can see them.
+function useBorderStyleVars(styling: ShellStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getBorderStyleVars(styling)
+    for (const name of BORDER_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of BORDER_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [styling])
+}
+
+// The root route puts the saved app name in the tab title when the page loads.
+// Editing the name on the settings page does not reload the page, so follow the
+// live config here too, just like the favicons below, and the tab renames itself
+// as you type instead of waiting for the next full load.
+function useShellDocumentTitle(appName: string) {
+  React.useEffect(() => {
+    document.title = resolveAppName(appName)
+  }, [appName])
+}
+
+function useShellFavicons(
+  favicon: string,
+  faviconDark: string,
+  faviconSet: ShellConfig["faviconSet"],
+  faviconMode: ShellConfig["faviconMode"]
+) {
+  React.useEffect(() => {
+    replaceShellFaviconLinks(
+      publicFaviconLinks({ favicon, faviconDark, faviconSet, faviconMode })
+    )
+  }, [favicon, faviconDark, faviconSet, faviconMode])
+}
+
+function replaceShellFaviconLinks(links: FaviconLink[]) {
+  const current = Array.from(
+    document.querySelectorAll<HTMLLinkElement>(
+      'link[data-custom-shell-favicon="true"]'
+    )
+  )
+  if (
+    current.length === links.length &&
+    current.every((link, index) => faviconLinkMatches(link, links[index]))
+  ) {
+    return
+  }
+
+  current.forEach((link) => link.remove())
+  for (const favicon of links) {
+    const link = document.createElement("link")
+    link.rel = favicon.rel
+    link.href = favicon.href
+    if (favicon.type) link.type = favicon.type
+    if (favicon.sizes) link.setAttribute("sizes", favicon.sizes)
+    link.setAttribute("data-custom-shell-favicon", "true")
+    document.head.appendChild(link)
+  }
+}
+
+function faviconLinkMatches(
+  current: HTMLLinkElement,
+  expected: FaviconLink | undefined
+) {
+  return Boolean(
+    expected &&
+      current.rel === expected.rel &&
+      current.getAttribute("href") === expected.href &&
+      (current.getAttribute("type") ?? undefined) === expected.type &&
+      (current.getAttribute("sizes") ?? undefined) === expected.sizes
+  )
+}
+
+function getShellItems(config: ShellConfig, role: string) {
+  return config.sections
+    .flatMap((section) => section.entries.filter(isShellItem))
+    .filter((item) => canSeeShellEntry(item, role) && isShellEntryNamed(item))
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter(
+        (child) =>
+          isShellEntryVisible(child) &&
+          canSeeShellEntry(child, role) &&
+          isShellEntryNamed(child)
+      ),
+    }))
+}
+
+function findActiveSectionItem(items: ShellItem[], currentPath: string) {
+  return items.find(
+    (item) =>
+      item.children?.length &&
+      (isActiveShellHref(item.href, currentPath) ||
+        item.children.some((child) =>
+          isActiveShellHref(child.href, currentPath)
+        ))
+  )
+}
+
+function getCurrentPageTitle(
+  config: ShellConfig,
+  currentPath: string,
+  routeId: string | undefined,
+  role: string
+) {
+  const links = getShellItems(config, role).flatMap((item) => [
+    { href: item.href, label: item.label },
+    ...(item.children ?? []).map((child) => ({
+      href: child.href,
+      label: child.label,
+    })),
+  ])
+  const currentLink = links
+    .filter((link) => isActiveShellHref(link.href, currentPath))
+    .sort((a, b) => b.href.length - a.href.length)[0]
+
+  return (
+    currentLink?.label ??
+    routePageTitle(routeId, capitalise(workspaceWord().many))
+  )
+}
+
+// The header's top-left nav mirrors the sidebar: the active section item and
+// its children (or the single active item when it has none).
+function getStickyHeaderNavLinks(
+  config: ShellConfig,
+  currentPath: string,
+  role: string
+) {
+  const items = getShellItems(config, role)
+  const activeSectionItem = findActiveSectionItem(items, currentPath)
+  // Most specific match wins, so /account/billing shows Billing rather than the
+  // shorter /account that also matches.
+  const activeItem = items
+    .filter((item) => isActiveShellHref(item.href, currentPath))
+    .sort((a, b) => b.href.length - a.href.length)[0]
+
+  if (activeSectionItem) {
+    return [
+      {
+        label: activeSectionItem.label,
+        href: activeSectionItem.href,
+        icon: renderShellIcon(activeSectionItem.icon, "h-3.5 w-3.5"),
+        active: currentPath === activeSectionItem.href,
+      },
+      ...(activeSectionItem.children ?? []).map((child) => ({
+        label: child.label,
+        href: child.href,
+        icon: child.icon
+          ? renderShellIcon(child.icon, "h-3.5 w-3.5")
+          : undefined,
+        active: currentPath === child.href,
+      })),
+    ]
+  }
+
+  if (activeItem) {
+    return [
+      {
+        label: activeItem.label,
+        href: activeItem.href,
+        icon: renderShellIcon(activeItem.icon, "h-3.5 w-3.5"),
+        active: true,
+      },
+    ]
+  }
+
+  return []
+}

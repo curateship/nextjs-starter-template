@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router"
 import { MapPinIcon } from "lucide-react"
 
+import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ListedEvent } from "@/lib/api/events/public"
@@ -12,7 +13,8 @@ import { focusRing } from "@/lib/layout/focus-ring"
  * The Events page's list: one row per event, with its day, times and place,
  * and how far away it is while the list is narrowed to a distance.
  * An event that is over says so, which only happens in one day's list; the
- * upcoming list never holds one.
+ * upcoming list never holds one. A featured event carries the same badge as a
+ * featured listing, only on the Events page: other pages' events never say.
  *
  * Days and times are printed as stored, so the server and the browser draw the
  * same row and the page never redraws itself after loading.
@@ -71,6 +73,11 @@ export function EventList({
                   >
                     {event.title}
                   </Link>
+                  {event.featured ? (
+                    <span className="shrink-0">
+                      <FeaturedBadge />
+                    </span>
+                  ) : null}
                   {event.ended ? (
                     <Badge variant="outline" className="shrink-0">
                       Ended

@@ -24,14 +24,16 @@ import { TranscriptPanel } from "@/components/video-editor/studio-transcript-pan
 import {
   attachEditorMedia,
   getVideoMediaErrorMessage,
-  listMediaCollections,
   listVideoMedia,
-  type MediaCollectionSummary,
+  retryMediaPreparation,
   type VideoMediaItem,
 } from "@/lib/api/video/media"
 import { loadBrandKit, type VideoBrandKit } from "@/lib/api/video/settings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
+import { announceFilmstripRequeued } from "@/lib/video/filmstrips"
+import { mediaPreparation } from "@/lib/video/media-preparation"
+import { useSelection } from "@/lib/hooks/use-selection"
 import { type TextFontId } from "@/lib/video/text-fonts"
 import {
   DEFAULT_TEXT_DURATION_MS,
@@ -44,6 +46,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { BrandKitDialog } from "@/components/video-editor/brand-kit-dialog"
 import { buildMediaClip } from "@/components/video-editor/media-clip"
 import { StickerShelf } from "@/components/video-editor/studio-stickers"
+import {
+  CollectionChips,
+  MediaSelectionBar,
+  SelectTileOverlay,
+} from "@/components/video-editor/studio-media-collections"
+import { useMediaCollections } from "@/components/video-editor/use-media-collections"
 import {
   findClip,
   useEditorRuntime,
@@ -64,6 +72,12 @@ export type StudioPanel =
   | "brand"
   | "ai"
   | "transcript"
+
+// How long the Media panel waits before asking again while a video is still
+// being got ready. The worker runs every fifteen seconds, so this catches a
+// finished file within one run, and it is slower than the two seconds the
+// filmstrip route asks for.
+const PREPARATION_RECHECK_MS = 5000
 
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
@@ -134,9 +148,21 @@ function MediaPanel() {
   // "all" = every file, "uncollected" = the ones in no collection, anything
   // else is a collection's id.
   const [collectionFilter, setCollectionFilter] = React.useState("all")
-  const [collections, setCollections] = React.useState<
-    MediaCollectionSummary[]
-  >([])
+  const { collections, reload: reloadCollections } = useMediaCollections()
+  const activeCollection =
+    collections.find((collection) => collection.id === collectionFilter) ??
+    null
+  // The collection being shown was deleted, here or in another tab.
+  if (
+    collectionFilter !== "all" &&
+    collectionFilter !== "uncollected" &&
+    !activeCollection
+  ) {
+    setCollectionFilter("all")
+  }
+  const [selecting, setSelecting] = React.useState(false)
+  const selection = useSelection()
+  const { setSelected } = selection
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
   const [searchOpen, setSearchOpen] = React.useState(false)
@@ -157,21 +183,6 @@ function MediaPanel() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Collections are made and named in the media library, so this loads once.
-  // A failure here must not take the grid down with it — the panel simply
-  // shows no collection chips.
-  React.useEffect(() => {
-    let active = true
-    listMediaCollections()
-      .then((loaded) => {
-        if (active) setCollections(loaded)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
-  }, [])
-
   React.useEffect(() => {
     let active = true
     listVideoMedia({
@@ -189,6 +200,16 @@ function MediaPanel() {
       .then((data) => {
         if (active) {
           setItems(data.media)
+          // A tick on a file that is no longer showing would be acted on
+          // unseen, so it goes.
+          setSelected(
+            (current) =>
+              new Set(
+                data.media
+                  .map((item) => item.id)
+                  .filter((id) => current.has(id))
+              )
+          )
           setPreviewingAudioId((current) =>
             current && data.media.some((item) => item.id === current)
               ? current
@@ -202,7 +223,42 @@ function MediaPanel() {
     return () => {
       active = false
     }
-  }, [collectionFilter, filter, debounced, projectId, refresh, shelfVersion])
+  }, [
+    collectionFilter,
+    filter,
+    debounced,
+    projectId,
+    refresh,
+    shelfVersion,
+    setSelected,
+  ])
+
+  // One list request at a time: the next waits for the answer to the last.
+  const anyPreparing = items.some(
+    (item) => mediaPreparation(item) === "preparing"
+  )
+  React.useEffect(() => {
+    if (!anyPreparing) return
+    const timer = setTimeout(
+      () => setRefresh((count) => count + 1),
+      PREPARATION_RECHECK_MS
+    )
+    return () => clearTimeout(timer)
+  }, [anyPreparing, items])
+
+  const [retryingId, setRetryingId] = React.useState<string | null>(null)
+  async function retryPreparation(item: VideoMediaItem) {
+    setRetryingId(item.id)
+    try {
+      await retryMediaPreparation(item.id)
+      announceFilmstripRequeued(item.id)
+      setRefresh((count) => count + 1)
+    } catch (error) {
+      showErrorToast(getVideoMediaErrorMessage(error))
+    } finally {
+      setRetryingId(null)
+    }
+  }
 
   async function addItem(item: VideoMediaItem, atMs: number, trackId?: string) {
     try {
@@ -216,6 +272,43 @@ function MediaPanel() {
   function handleMediaDeleted(mediaId: string) {
     setItems((current) => current.filter((item) => item.id !== mediaId))
     setPreviewingAudioId((current) => (current === mediaId ? null : current))
+    reloadCollections()
+  }
+
+  function stopSelecting() {
+    setSelecting(false)
+    selection.clear()
+  }
+
+  function handleCollectionsSet(mediaId: string, collectionIds: string[]) {
+    // A file that no longer matches the chip on screen leaves the grid.
+    const stillShown = activeCollection
+      ? collectionIds.includes(activeCollection.id)
+      : collectionFilter !== "uncollected" || collectionIds.length === 0
+    if (!stillShown) {
+      handleMediaDeleted(mediaId)
+      return
+    }
+    setItems((current) =>
+      current.map((item) =>
+        item.id === mediaId ? { ...item, collection_ids: collectionIds } : item
+      )
+    )
+    reloadCollections()
+  }
+
+  function mediaMenuProps(item: VideoMediaItem) {
+    return {
+      scope: { type: "project", id: projectId } as const,
+      mediaId: item.id,
+      mediaName: item.original_name,
+      onDeleted: handleMediaDeleted,
+      collections: {
+        all: collections,
+        memberOf: item.collection_ids,
+        onChange: (ids: string[]) => handleCollectionsSet(item.id, ids),
+      },
+    }
   }
 
   async function handleUpload(files: FileList | null) {
@@ -416,55 +509,31 @@ function MediaPanel() {
           })}
         </div>
 
-        {/* Collections wrap rather than share a fixed row: there can be any
-            number of them, with names of any length. */}
-        {collections.length ? (
+        <CollectionChips
+          collections={collections}
+          value={collectionFilter}
+          onChange={setCollectionFilter}
+          onCollectionsChanged={reloadCollections}
+        />
+
+        {items.length === 0 && activeCollection ? (
           <div
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 5,
-              marginBottom: 15,
+              border: "1.5px dashed var(--line2)",
+              borderRadius: 13,
+              padding: "20px 12px",
+              textAlign: "center",
+              background: "var(--panel2)",
             }}
           >
-            {[
-              { id: "all", label: "All" },
-              { id: "uncollected", label: "Uncollected" },
-              ...collections.map((collection) => ({
-                id: collection.id,
-                label: collection.name,
-              })),
-            ].map((option) => {
-              const on = collectionFilter === option.id
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setCollectionFilter(option.id)}
-                  title={option.label}
-                  style={{
-                    maxWidth: "100%",
-                    padding: "5px 9px",
-                    borderRadius: 8,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    border: on ? "1px solid var(--acc)" : "1px solid var(--line)",
-                    background: on ? "var(--acc-soft)" : "var(--panel)",
-                    color: on ? "var(--acc)" : "var(--ink2)",
-                  }}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+              Nothing in “{activeCollection.name}” yet
+            </div>
+            <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
+              Pick All, press Select, tick some files and add them here.
+            </div>
           </div>
-        ) : null}
-
-        {items.length === 0 ? (
+        ) : items.length === 0 ? (
           <div
             className="st-hovcard"
             onClick={() => fileRef.current?.click()}
@@ -497,9 +566,40 @@ function MediaPanel() {
           </div>
         ) : (
           <>
-            <Label>Clips · {items.length}</Label>
+            <div
+              className="flex items-center justify-between gap-2"
+              style={{ marginBottom: 10 }}
+            >
+              <Label style={{ marginBottom: 0 }}>Clips · {items.length}</Label>
+              {selecting ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() =>
+                    selection.toggleVisible(items.map((item) => item.id))
+                  }
+                >
+                  {selection.selectAllState(items.map((item) => item.id)) ===
+                  true
+                    ? "Clear all"
+                    : "Select all"}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setSelecting(true)}
+                >
+                  Select
+                </Button>
+              )}
+            </div>
             {/* Pictures and video keep their natural-height masonry layout.
-                Sound uses an even two-column card grid for its preview UI. */}
+                Sound uses an even two-column card grid for its preview UI.
+                Each tile sits in a box of its own so the select overlay can
+                cover it exactly. */}
             <div
               style={
                 filter === "audio"
@@ -511,101 +611,118 @@ function MediaPanel() {
                   : { columnCount: 2, columnGap: 9 }
               }
             >
-              {items.map((item) =>
-                item.file_type === "audio" ? (
-                  <EditorMediaContextMenu
-                    key={item.id}
-                    scope={{ type: "project", id: projectId }}
-                    mediaId={item.id}
-                    mediaName={item.original_name}
-                    onDeleted={handleMediaDeleted}
+              {items.map((item) => (
+                <EditorMediaContextMenu key={item.id} {...mediaMenuProps(item)}>
+                  <div
+                    style={{
+                      position: "relative",
+                      breakInside: "avoid",
+                      marginBottom: filter === "audio" ? 0 : 9,
+                    }}
                   >
-                    <AudioMediaCard
-                      item={item}
-                      active={previewingAudioId === item.id}
-                      inAudioGrid={filter === "audio"}
-                      onActiveChange={setPreviewingAudioId}
-                      onAdd={() => void addItem(item, clock.getTime())}
-                      onPointerDown={(event) => tileDown(event, item)}
-                      onPointerMove={tileMove}
-                      onPointerUp={tileUp}
-                      onPointerCancel={tileCancel}
-                    />
-                  </EditorMediaContextMenu>
-                ) : (
-                  <EditorMediaContextMenu
-                    key={item.id}
-                    scope={{ type: "project", id: projectId }}
-                    mediaId={item.id}
-                    mediaName={item.original_name}
-                    onDeleted={handleMediaDeleted}
-                  >
-                    <button
-                      type="button"
-                      className="st-hovlift"
-                      onPointerDown={(event) => tileDown(event, item)}
-                      onPointerMove={tileMove}
-                      onPointerUp={tileUp}
-                      onPointerCancel={tileCancel}
-                      title={`${item.original_name} — click to add, drag onto a track, or right-click to delete`}
-                      style={{
-                        position: "relative",
-                        display: "block",
-                        width: "100%",
-                        marginBottom: 9,
-                        breakInside: "avoid",
-                        borderRadius: 11,
-                        overflow: "hidden",
-                        border: "1px solid var(--line)",
-                        cursor: "grab",
-                        background: "var(--panel)",
-                        padding: 0,
-                        touchAction: "none",
-                      }}
-                    >
-                      {item.file_type === "image" ? (
-                        <img
-                          src={item.url}
-                          alt=""
-                          loading="lazy"
-                          draggable={false}
-                          style={{ display: "block", width: "100%" }}
-                        />
-                      ) : (
-                        <video
-                          src={item.playback_url}
-                          muted
-                          playsInline
-                          preload="metadata"
-                          style={{ display: "block", width: "100%" }}
-                        />
-                      )}
-                      <div
+                    {item.file_type === "audio" ? (
+                      <AudioMediaCard
+                        item={item}
+                        active={previewingAudioId === item.id}
+                        onActiveChange={setPreviewingAudioId}
+                        onAdd={() => void addItem(item, clock.getTime())}
+                        onPointerDown={(event) => tileDown(event, item)}
+                        onPointerMove={tileMove}
+                        onPointerUp={tileUp}
+                        onPointerCancel={tileCancel}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="st-hovlift"
+                        onPointerDown={(event) => tileDown(event, item)}
+                        onPointerMove={tileMove}
+                        onPointerUp={tileUp}
+                        onPointerCancel={tileCancel}
+                        title={`${item.original_name} — click to add, drag onto a track, or right-click for collections and delete`}
                         style={{
-                          position: "absolute",
-                          left: 6,
-                          top: 6,
-                          height: 22,
-                          width: 22,
-                          display: "grid",
-                          placeItems: "center",
-                          background: "rgba(0,0,0,.5)",
-                          borderRadius: 7,
-                          color: "#fff",
-                          fontSize: 11,
+                          position: "relative",
+                          display: "block",
+                          width: "100%",
+                          borderRadius: 11,
+                          overflow: "hidden",
+                          border: "1px solid var(--line)",
+                          cursor: "grab",
+                          background: "var(--panel)",
+                          padding: 0,
+                          touchAction: "none",
                         }}
                       >
-                        {item.file_type === "image" ? "▣" : "▶"}
-                      </div>
-                    </button>
-                  </EditorMediaContextMenu>
-                )
-              )}
+                        {item.file_type === "image" ? (
+                          <img
+                            src={item.url}
+                            alt=""
+                            loading="lazy"
+                            draggable={false}
+                            style={{ display: "block", width: "100%" }}
+                          />
+                        ) : (
+                          <video
+                            src={item.playback_url}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            style={{ display: "block", width: "100%" }}
+                          />
+                        )}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 6,
+                            top: 6,
+                            height: 22,
+                            width: 22,
+                            display: "grid",
+                            placeItems: "center",
+                            background: "rgba(0,0,0,.5)",
+                            borderRadius: 7,
+                            color: "#fff",
+                            fontSize: 11,
+                          }}
+                        >
+                          {item.file_type === "image" ? "▣" : "▶"}
+                        </div>
+                      </button>
+                    )}
+                    <PreparationNote
+                      item={item}
+                      retrying={retryingId === item.id}
+                      onRetry={() => void retryPreparation(item)}
+                    />
+                    {selecting ? (
+                      <SelectTileOverlay
+                        name={item.original_name}
+                        selected={selection.selected.has(item.id)}
+                        onToggle={() => selection.toggle(item.id)}
+                      />
+                    ) : null}
+                  </div>
+                </EditorMediaContextMenu>
+              ))}
             </div>
           </>
         )}
         </div>
       </ScrollArea>
+
+      {selecting ? (
+        <MediaSelectionBar
+          selectedIds={Array.from(selection.selected)}
+          collections={collections}
+          activeCollection={activeCollection}
+          onDone={() => {
+            stopSelecting()
+            setRefresh((count) => count + 1)
+            reloadCollections()
+          }}
+          onCancel={stopSelecting}
+        />
+      ) : null}
 
       {ghost ? (
         <div
@@ -636,17 +753,68 @@ function MediaPanel() {
   )
 }
 
+/**
+ * A line under a video tile while the worker is still making its smooth copy
+ * or its frames, or after it gave up on one. Under the tile rather than over
+ * it: a wide video's tile is as small as 56 by 32 pixels in a narrow window,
+ * too small to hold a sentence, and a Try again button over the tile would be
+ * a button inside a button.
+ */
+function PreparationNote({
+  item,
+  retrying,
+  onRetry,
+}: {
+  item: VideoMediaItem
+  retrying: boolean
+  onRetry: () => void
+}) {
+  const state = mediaPreparation(item)
+  if (state === "ready") return null
+  if (state === "preparing") {
+    return (
+      <p
+        role="status"
+        className="mt-1.5 px-0.5 text-[10.5px] leading-tight text-muted-foreground"
+      >
+        <Loader2
+          aria-hidden
+          className="mr-1 inline size-3 align-[-2px] motion-safe:animate-spin"
+        />
+        Getting it ready to scrub
+      </p>
+    )
+  }
+  return (
+    <div role="status" className="mt-1.5 grid gap-1 px-0.5">
+      <p className="text-[10.5px] leading-tight font-medium text-foreground">
+        Couldn't get it ready to scrub
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        className="justify-self-start"
+        disabled={retrying}
+        aria-label={`Try getting ${item.original_name} ready again`}
+        onClick={onRetry}
+      >
+        {retrying ? <Loader2 className="animate-spin" /> : null}
+        Try again
+      </Button>
+    </div>
+  )
+}
+
 function AudioMediaCard({
   item,
   active,
-  inAudioGrid,
   onActiveChange,
   onAdd,
   ...pointerProps
 }: {
   item: VideoMediaItem
   active: boolean
-  inAudioGrid: boolean
   onActiveChange: (mediaId: string | null) => void
   onAdd: () => void
 } & Pick<
@@ -691,13 +859,9 @@ function AudioMediaCard({
   return (
     <Card
       size="sm"
-      title={`${item.original_name} — click to add, drag onto a track, or right-click to delete`}
+      title={`${item.original_name} — click to add, drag onto a track, or right-click for collections and delete`}
       className="st-hovlift cursor-grab gap-3"
-      style={{
-        marginBottom: inAudioGrid ? 0 : 9,
-        breakInside: "avoid",
-        touchAction: "none",
-      }}
+      style={{ touchAction: "none" }}
       {...pointerProps}
     >
       <CardContent className="grid gap-3">

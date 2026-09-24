@@ -5,9 +5,10 @@ import { join } from "node:path"
 import { sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
-import { db } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
+import { projectThumbnailTick } from "@/server/video/project-thumbnails"
 import { downloadToFile } from "@/server/video/storage-files"
 import {
   waveformPeaks,
@@ -16,6 +17,7 @@ import {
 
 /**
  * The background builder for playback proxies, filmstrips and waveforms,
+ * and the step that makes each project's picture (`project-thumbnails.ts`),
  * riding the shell's fifteen-second ticker as this app's one registered worker
  * (see `src/app/server-options.ts`).
  *
@@ -101,11 +103,38 @@ export async function videoMediaTick() {
     })
   }
   pumpQueue()
+  // The projects list's pictures ride this tick too. Each of its steps
+  // catches its own failure.
+  await projectThumbnailTick()
 }
 
 /** Lets a route nudge the queue without waiting for the next tick. */
 export function kickVideoMediaWorker() {
   pumpQueue()
+}
+
+/**
+ * Puts a file's failed smooth copy and filmstrip back in the queue with a
+ * fresh three tries. Only rows that ended in an error move, so a press while
+ * one of them is still being built never restarts it. The caller checks the
+ * file is the person's own, and nudges the queue afterwards.
+ */
+export async function requeueFailedPlaybackJobs(
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  for (const kind of ["proxy", "filmstrip"] as const) {
+    await database.execute(sql`
+      update ${sql.raw(JOB_TABLES[kind])} set
+        status = 'queued',
+        attempts = 0,
+        error = null,
+        lease_token = null,
+        lease_expires_at = null,
+        updated_at = now()
+      where media_id = ${mediaId} and status = 'error'
+    `)
+  }
 }
 
 /**

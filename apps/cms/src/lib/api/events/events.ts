@@ -7,7 +7,12 @@ import {
   type EventSortColumn,
 } from "@/lib/events/event-sort"
 import type { RepeatRule } from "@/lib/events/event-repeat"
+import { MAX_EVENT_SEATS } from "@/lib/events/sign-up-fields"
 import { adminGet, adminPost } from "@/server/guards"
+import {
+  activeEventSpot,
+  prepareFeaturedEventsForDeletion,
+} from "@/server/directory/featured"
 import { directoryGeocodingKey } from "@/server/directory/settings"
 import { categoryIdsFor } from "@/server/directory/content-categories"
 import {
@@ -30,6 +35,7 @@ import {
 } from "@/server/events/events"
 import { saveEventAndDates } from "@/server/events/repeats"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
+import { listSignUps, type EventSignUp } from "@/server/events/sign-ups"
 import {
   listingChoice,
   listingChoicesForBody,
@@ -39,7 +45,7 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
 
-export type { EventSeries, EventSummary }
+export type { EventSeries, EventSignUp, EventSummary }
 
 /**
  * The Events screen's doors. All admin-only, and all work on the site the
@@ -117,6 +123,10 @@ export type EventForEdit = {
   placeListing: ListingChoice | null
   /** Whether this site can look a typed address up for the map. */
   canLocate: boolean
+  /** The listing owner's paid featured spot, while one is running. */
+  paidSpot: { endsAt: Date; buyerEmail: string } | null
+  /** Who is coming, first to sign up first. */
+  signUps: EventSignUp[]
 }
 
 const loadEventForEditFn = createServerFn({ method: "GET" })
@@ -129,13 +139,16 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       categoryIdsFor(site, EVENT_CONTENT_TYPE, data.id),
     ])
     if (!event) return null
-    const [listings, series, placeListing, lookupKey] = await Promise.all([
-      listingChoicesForBody(site, event.body),
-      seriesForEdit(site, event),
-      event.listingId ? listingChoice(site, event.listingId) : null,
-      // Only whether there is one; the key itself never leaves the server.
-      directoryGeocodingKey(site).catch(() => null),
-    ])
+    const [listings, series, placeListing, lookupKey, paidSpot, signUps] =
+      await Promise.all([
+        listingChoicesForBody(site, event.body),
+        seriesForEdit(site, event),
+        event.listingId ? listingChoice(site, event.listingId) : null,
+        // Only whether there is one; the key itself never leaves the server.
+        directoryGeocodingKey(site).catch(() => null),
+        activeEventSpot(site, event.id),
+        listSignUps(site, event.id),
+      ])
     return {
       event,
       categoryIds,
@@ -143,6 +156,8 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       series,
       placeListing,
       canLocate: Boolean(lookupKey),
+      paidSpot,
+      signUps,
     }
   })
 
@@ -182,10 +197,13 @@ const updateEventFn = createServerFn({ method: "POST" })
       summary: z.string().max(MAX_EVENT_SUMMARY).optional(),
       status: z.enum(["draft", "published"]).optional(),
       visibility: z.enum(["public", "private"]).optional(),
+      featured: z.boolean().optional(),
       when: whenInput.optional(),
       placeName: z.string().max(MAX_PLACE_NAME).optional(),
       placeAddress: z.string().max(MAX_PLACE_ADDRESS).optional(),
       listingId: idInput.nullable().optional(),
+      takesSignUps: z.boolean().optional(),
+      seats: z.number().int().min(1).max(MAX_EVENT_SEATS).nullable().optional(),
       // A tree whose rule is "keep only what is allowed", which the server's
       // cleaner says better than a schema.
       body: z.unknown().optional(),
@@ -201,9 +219,14 @@ const updateEventFn = createServerFn({ method: "POST" })
 
 /**
  * The saved event, and the days of any future dates of a repeating event that
- * were saved by themselves and kept when its repeat or start day changed.
+ * were kept when its repeat or start day changed: ones saved by themselves,
+ * and ones somebody signed up for.
  */
-export type SavedEvent = { event: SiteEvent; keptDates: string[] }
+export type SavedEvent = {
+  event: SiteEvent
+  keptDates: string[]
+  keptForSignUps: string[]
+}
 
 export function saveEvent(input: {
   id: string
@@ -213,11 +236,16 @@ export function saveEvent(input: {
   summary?: string
   status?: EventStatus
   visibility?: EventVisibility
+  /** The free featured switch. Never sent for one date of a repeat. */
+  featured?: boolean
   when?: EventWhenInput
   placeName?: string
   placeAddress?: string
   /** One of this site's listings as the place, or null for a typed one. */
   listingId?: string | null
+  takesSignUps?: boolean
+  /** Null for no limit. */
+  seats?: number | null
   body?: unknown
   categoryIds?: string[]
   /** Null stops repeating; left out keeps the repeat as it is. */
@@ -243,10 +271,11 @@ const deleteEventsFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ ids: z.array(idInput).min(1).max(500) }))
   .handler(
     async ({ data, context }): Promise<{ done: string[]; kept: string[] }> => {
-      return deleteEvents(
-        await workspaceIdForRequest(context.user.id),
-        data.ids
-      )
+      const site = await workspaceIdForRequest(context.user.id)
+      // An owner partway through paying to feature one of these stops the
+      // delete, so a payment never lands on an event that is gone.
+      await prepareFeaturedEventsForDeletion(site, data.ids)
+      return deleteEvents(site, data.ids)
     }
   )
 
