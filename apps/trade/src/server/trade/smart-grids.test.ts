@@ -905,7 +905,7 @@ describe("the stop", () => {
         plan: {
           ...before.plan,
           aimedSlPx: null,
-          stopLoss: { ...before.plan.stopLoss, px: null },
+          stopLoss: { ...before.plan.stopLoss!, px: null },
         },
       })
       .where(eq(tradeSmartLadders.userId, userId))

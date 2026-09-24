@@ -592,3 +592,14 @@ export function drawingRetestStep(
   if (distance < 0) return "reset"
   return distance <= buffer ? "fire" : "wait"
 }
+
+/** What Settings > Drawings can clear from every market at once. */
+export type ClearableKind = "trendlines" | "fibs" | "alerts"
+
+export type ClearableCounts = Record<
+  ClearableKind,
+  { total: number; markets: number }
+> & {
+  /** Trendlines a running grid uses as its stop. The clear keeps them. */
+  held: number
+}

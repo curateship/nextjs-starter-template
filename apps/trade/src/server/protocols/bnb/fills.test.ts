@@ -26,7 +26,7 @@ vi.mock("./rpc", () => {
     bnbTokenDecimals: m.decimals,
   }
 })
-vi.mock("./ledger", () => ({
+vi.mock("@/server/protocols/bnb-ledger", () => ({
   pendingBnbSends: m.pending,
   rememberBnbSend: m.remember,
   finishBnbSend: m.finish,

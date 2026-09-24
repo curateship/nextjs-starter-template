@@ -74,7 +74,6 @@ import {
   rememberFlowRunOrders,
 } from "@/server/trade/flow-run-orders"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
-import { recoverHyperliquidClientOrder } from "@/server/protocols/hyperliquid/orders"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
   actForSmartOrder,
@@ -2116,12 +2115,13 @@ export async function reconcileLiveLaddersOnce(
               ;(originalPlan as WatchPlan).clientOrderId =
                 entry.plan.clientOrderId
               ;(originalPlan as WatchPlan).uncertainSince = Date.now()
+              const recoverClientOrder = protocol.orders?.recoverClientOrder
               if (
-                protocol.id === "hyperliquid" &&
+                recoverClientOrder &&
                 wallet.address &&
                 entry.plan.clientOrderId
               ) {
-                const recovered = await recoverHyperliquidClientOrder(
+                const recovered = await recoverClientOrder(
                   wallet.network,
                   wallet.address,
                   entry.plan.clientOrderId
@@ -2495,9 +2495,10 @@ export async function reconcileLiveLaddersOnce(
         continue
       const entry = parsed.get(raw.id)
       if (!entry) continue
+      const recoverClientOrder = protocol.orders?.recoverClientOrder
       if (
         entry.kind === "watch" &&
-        protocol.id === "hyperliquid" &&
+        recoverClientOrder &&
         entry.plan.sent &&
         entry.plan.orderId === null &&
         entry.plan.clientOrderId &&
@@ -2506,7 +2507,7 @@ export async function reconcileLiveLaddersOnce(
         now - (entry.plan.uncertainCheckedAt ?? entry.plan.uncertainSince) >=
           UNKNOWN_WATCH_ORDER_CHECK_MS
       ) {
-        const recovered = await recoverHyperliquidClientOrder(
+        const recovered = await recoverClientOrder(
           wallet.network,
           wallet.address,
           entry.plan.clientOrderId

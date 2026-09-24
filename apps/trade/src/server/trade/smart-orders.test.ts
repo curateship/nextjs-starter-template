@@ -528,7 +528,10 @@ describe("a watched order's market minimum", () => {
         tpPx: null,
         slPx: null,
       })
-    ).toEqual({ watching: true })
+    ).toMatchObject({
+      watching: true,
+      watch: { kind: "watch", marketKey: "lighter:mainnet:BTC" },
+    })
   })
 
   it("uses the protocol's dollar floor after rounding the coin size", async () => {

@@ -129,6 +129,11 @@ export function fillNoticeWords(fill: {
    * `gridRoundTrips`.
    */
   ownRung?: GridSaleMoney | null
+  /**
+   * What the whole grid run made after fees, when this sale left no coins.
+   * Wins over `ownRung`. See `runEndedWords`.
+   */
+  runMoney?: number | null
   liquidation: boolean
   walletLabel: string
   practice: boolean
@@ -150,6 +155,16 @@ export function fillNoticeWords(fill: {
     }
   }
 
+  if (fill.runMoney !== undefined && fill.runMoney !== null) {
+    return runEndedWords({
+      coin,
+      usd,
+      price,
+      tag,
+      side: fill.side,
+      money: fill.runMoney,
+    })
+  }
   const title = `${did}: ${usd} of ${coin} at ${price} ${tag}`
   if (fill.ownRung) {
     return {
@@ -241,6 +256,35 @@ function rungGainWords(sale: GridSaleMoney, side: "buy" | "sell"): string {
   const money = `${sale.money < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(sale.money))} on this close, after fees.`
   const which = sale.rung === undefined ? "its own rungs" : `rung ${sale.rung}`
   return `${money} Measured against ${which}, which ${side === "sell" ? "bought" : "sold"} these coins at ${formatPrice(sale.entryPx)}.`
+}
+
+/**
+ * "USELESS grid run ended: lost $16.43" — the sale that left no coins.
+ *
+ * **The last sale says the whole run, not itself.** Tyler's rule, 24 Sep
+ * 2026. On 24 Sep a USELESS grid was closed and the bell said "Lost $87.36 on
+ * this close", measured against the rungs still holding, the dearest ones.
+ * The Positions row had said about -$20 a moment before, and the Journal row
+ * for the same run said -$16.43: three figures for one close. The run's total
+ * is the one number every way of counting agrees on, and it is the Journal
+ * row's, so the bell says that.
+ */
+function runEndedWords(input: {
+  coin: string
+  usd: string
+  price: string
+  tag: string
+  /** A selling grid ends on a buy-back, so a buy is the last word. */
+  side: "buy" | "sell"
+  money: number
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const result = `${input.money < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(input.money))}`
+  const last = input.side === "buy" ? "Bought back the last" : "Sold the last"
+  return {
+    title: `${input.coin} grid run ended: ${result} ${input.tag}`,
+    body: `${last} ${input.usd} at ${input.price}. That is the whole run, after fees, the same as its Journal row.`,
+    level: input.money < 0 ? "warning" : "info",
+  }
 }
 
 /**

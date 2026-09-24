@@ -12,7 +12,7 @@ import {
   rememberBnbSend,
   noteBnbTransaction,
   type BnbOwner,
-} from "./ledger"
+} from "@/server/protocols/bnb-ledger"
 import { clearBnbAccountState } from "./account"
 import { bnbHistoryRefusalError, bnbRefusalError } from "./refusals"
 import { logsBeyondNode } from "@/server/protocols/evm-chain/refusals"

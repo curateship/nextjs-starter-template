@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm"
+import { and, asc, count, countDistinct, eq, exists, inArray, isNotNull, isNull, not, sql } from "drizzle-orm"
 
 import {
   DRAWINGS_FULL,
@@ -17,6 +17,8 @@ import {
   readDrawingAlert,
   readDrawingShape,
   ruledAlert,
+  type ClearableCounts,
+  type ClearableKind,
   type Drawing,
   type DrawingAlert,
   type DrawingShape,
@@ -25,7 +27,11 @@ import type { CandleInterval } from "@/lib/protocols/contracts"
 import { priceAlertDirection } from "@/lib/trade/price-alerts"
 import { lockGridLineStops } from "@/server/trade/grid-line-stops"
 import { db } from "@/server/db"
-import { tradeChartDrawings, tradeGridLineStops } from "@/server/trade/schema"
+import {
+  tradeChartDrawings,
+  tradeGridLineStops,
+  tradePriceAlerts,
+} from "@/server/trade/schema"
 
 /**
  * One market's drawings, oldest first so the drawing order on screen is the
@@ -409,6 +415,140 @@ export async function clearChartDrawings(
     )
     .returning({ id: tradeChartDrawings.id })
   return removed.length
+}
+
+// A trendline a running grid uses as its stop. The database refuses to delete
+// one of those, so the clear below leaves them and says how many it left.
+function heldByGrid() {
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(tradeGridLineStops)
+      .where(
+        and(
+          eq(tradeGridLineStops.userId, tradeChartDrawings.userId),
+          eq(tradeGridLineStops.drawingId, tradeChartDrawings.id),
+          inArray(tradeGridLineStops.state, ["watching", "pending"])
+        )
+      )
+  )
+}
+
+function isKind(kind: "trendline" | "fib") {
+  return sql`${tradeChartDrawings.shape}->>'kind' = ${kind}`
+}
+
+async function countDrawingKind(userId: string, kind: "trendline" | "fib") {
+  const [row] = await db
+    .select({
+      total: count(),
+      markets: countDistinct(tradeChartDrawings.marketKey),
+    })
+    .from(tradeChartDrawings)
+    .where(and(eq(tradeChartDrawings.userId, userId), isKind(kind)))
+  return { total: row?.total ?? 0, markets: row?.markets ?? 0 }
+}
+
+/**
+ * What the Drawings settings tab can clear, across every market: trendlines,
+ * fibs and waiting price alerts, each with how many markets it sits on, and
+ * how many trendlines a running grid is holding as its stop.
+ */
+export async function countClearableDrawings(
+  userId: string
+): Promise<ClearableCounts> {
+  const [trendlines, fibs, [alerts], [held]] = await Promise.all([
+    countDrawingKind(userId, "trendline"),
+    countDrawingKind(userId, "fib"),
+    db
+      .select({
+        total: count(),
+        markets: countDistinct(tradePriceAlerts.marketKey),
+      })
+      .from(tradePriceAlerts)
+      .where(
+        and(
+          eq(tradePriceAlerts.userId, userId),
+          isNull(tradePriceAlerts.firedAt)
+        )
+      ),
+    db
+      .select({ total: count() })
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          isKind("trendline"),
+          heldByGrid()
+        )
+      ),
+  ])
+  return {
+    trendlines,
+    fibs,
+    alerts: { total: alerts?.total ?? 0, markets: alerts?.markets ?? 0 },
+    held: held?.total ?? 0,
+  }
+}
+
+/**
+ * Delete the chosen kinds on every market at once, and say how many of each
+ * went. Levels are never touched.
+ *
+ * Alerts means the price alerts still waiting, the purple lines. Fired ones
+ * are history, not lines, and the alerts dropdown has its own Clear all.
+ *
+ * A trendline a running grid uses as its stop stays. Deleting it would fail
+ * the whole statement at the database, and clearing lines is not a reason to
+ * take a grid's stop away. The grid-stop lock is held for the whole clear, so
+ * a grid cannot pick a line up between the check and the delete.
+ */
+export async function clearDrawingKinds(
+  userId: string,
+  kinds: Record<ClearableKind, boolean>
+): Promise<Record<ClearableKind, number> & { kept: number }> {
+  return db.transaction(async (tx) => {
+    await lockGridLineStops(userId, tx)
+    const deleteKind = async (kind: "trendline" | "fib") => {
+      const removed = await tx
+        .delete(tradeChartDrawings)
+        .where(
+          and(
+            eq(tradeChartDrawings.userId, userId),
+            isKind(kind),
+            not(heldByGrid())
+          )
+        )
+        .returning({ id: tradeChartDrawings.id })
+      return removed.length
+    }
+    const trendlines = kinds.trendlines ? await deleteKind("trendline") : 0
+    const fibs = kinds.fibs ? await deleteKind("fib") : 0
+    const alerts = kinds.alerts
+      ? (
+          await tx
+            .delete(tradePriceAlerts)
+            .where(
+              and(
+                eq(tradePriceAlerts.userId, userId),
+                isNull(tradePriceAlerts.firedAt)
+              )
+            )
+            .returning({ id: tradePriceAlerts.id })
+        ).length
+      : 0
+    let kept = 0
+    if (kinds.trendlines) {
+      const [left] = await tx
+        .select({ total: count() })
+        .from(tradeChartDrawings)
+        .where(
+          and(eq(tradeChartDrawings.userId, userId), isKind("trendline"))
+        )
+      kept = left?.total ?? 0
+    }
+    return { trendlines, fibs, alerts, kept }
+  })
 }
 
 /** Expiry and grid-stop linking share the same account lock. */

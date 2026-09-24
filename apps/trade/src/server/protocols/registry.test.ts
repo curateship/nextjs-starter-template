@@ -274,7 +274,7 @@ describe("the protocol registry", () => {
       .sort()
 
     expect(pushed).toEqual(
-      ["apex", "aster", "binance", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
+      ["apex", "aster", "binance", "edgex", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
     )
     for (const id of ["binance", "hyperliquid", "kucoin", "phemex"] as const) {
       expect(getProtocol(id).orders?.fillsNeedRecovery).toBeTypeOf("function")
@@ -323,6 +323,7 @@ describe("the protocol registry", () => {
     expect(named).toContain("Aster")
     expect(named).toContain("Lighter")
     expect(named).toContain("ApeX Omni")
+    expect(named).toContain("edgeX")
     expect(named).toContain("Binance")
   })
 })
@@ -342,6 +343,19 @@ it("offers ApeX Omni leverage and says why its margin cannot be moved", () => {
   expect(apex.capabilities.adjustMargin).toMatchObject({ can: false })
   expect(apex.orders?.adjustMargin).toBeUndefined()
   expect(apex.account?.profitPerSale).toBe(false)
+})
+
+it("offers edgeX leverage, says why its margin cannot be moved, and prices every sale", () => {
+  const edgex = getProtocol("edgex")
+  expect(edgex.networks).toEqual(["mainnet"])
+  expect(edgex.capabilities.changeLeverage).toEqual({ can: true })
+  expect(edgex.orders?.setLeverage).toBeTypeOf("function")
+  expect(edgex.capabilities.adjustMargin).toMatchObject({ can: false })
+  expect(edgex.orders?.adjustMargin).toBeUndefined()
+  expect(edgex.capabilities.gridStop).toBe("exchange")
+  expect(edgex.account?.profitPerSale).toBe(true)
+  expect(edgex.orders?.fillsNeedRecovery).toBeTypeOf("function")
+  expect(edgex.credentials?.form.needsPassphrase).toBe(true)
 })
 
 it("rests Lighter grid stops on the exchange with explicit size tracking", () => {

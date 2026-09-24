@@ -70,6 +70,23 @@ The grip has no hover message.
   appears once there is something to clear, it names how many go, and it takes
   this market's lines only — the others keep theirs. There is no Undo on that
   one; the question is asked before it runs instead.
+- **Settings > Drawings clears trendlines, fibs and price alerts from every
+  market at once.** Tyler asked for this on 24 Sep 2026, and then for a
+  checkbox for each kind so he can choose what goes. Nothing starts ticked.
+  Each row says how many there are and on how many markets.
+  - Levels are never cleared.
+  - A trendline's line alert goes with the trendline.
+  - Price alerts means the purple lines still waiting. Fired history stays,
+    and the alerts dropdown has its own Clear all for that.
+  - A trendline that a running grid uses as its stop stays. The database
+    refuses to delete one of those, and clearing lines should not take a
+    grid's stop away.
+  - The button asks first and names what goes. The success toast says how
+    many of each went and how many trendlines stayed.
+  - With nothing ticked, or nothing to clear in what is ticked, the button
+    shows an error toast instead of asking.
+  - The code is `clearDrawingKinds` in `src/server/trade/drawings.ts`, and the
+    tab is `src/components/trade/drawing-settings.tsx`.
 - **The chart underneath still pans, zooms and shows its crosshair.** Only a
   line itself takes the pointer, plus the whole chart while a tool is held.
 - **A picked-out line, level or trendline, also shows a cog above its x**,
