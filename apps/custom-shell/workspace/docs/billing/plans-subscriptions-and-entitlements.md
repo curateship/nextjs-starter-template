@@ -42,9 +42,16 @@ billing period in Account → Billing or on Pricing. The app shows a confirmatio
 inside the page. Billing already sits inside the account dialog, so the preview
 does not open another dialog.
 
-The preview names the new recurring price before tax and discounts. It shows
-the charge or credit for the unused part of the period separately from the
-invoice estimate. Stripe supplies those amounts. The server uses
+The preview names the new recurring price before tax and discounts, "per
+month" or "per year" like the plan cards. It shows the charge or credit for the
+unused part of the period separately from the invoice estimate, and leaves that
+line out when it is $0. Stripe supplies those amounts.
+
+The confirm button says what it charges. When the switch bills today and
+something is due, it reads "Pay $12.50 and switch", using the invoice
+estimate, which already includes tax, discounts and any account credit. When
+nothing is due today, because the change waits for the next bill, the trial is
+still running, or a credit covers it, it reads "Switch to Pro". The server uses
 `create_prorations` for both preview and confirmation, with the same
 `proration_date` so time spent reading the preview does not change the quoted
 proration.
@@ -77,7 +84,12 @@ Previews expire after five minutes. Each preview is signed with the active
 Stripe secret key and belongs to one member, subscription and target price.
 Changing Stripe mode or keys invalidates an old preview. Confirmation checks
 Stripe's current subscription and recalculates the invoice before applying the
-change. A changed subscription or amount requires a fresh preview. In-app
+change. A changed subscription or amount requires a fresh preview. When the
+server refuses a preview for any of these reasons, the card closes and a toast
+says to choose the plan again. The card also closes itself with the same toast
+once it has been open five minutes, so it never offers a button that can only
+fail. The limit lives in `src/lib/billing/plan-change-window.ts` and the server
+and the card both read it. In-app
 confirmations run one at a time per subscription, and retries use the same
 Stripe request identifier.
 
@@ -89,7 +101,9 @@ Billing before trying again because Stripe may already have accepted the change.
 The existing subscription webhook remains the only writer of the new plan and
 entitlements. The confirmation checks for that new plan for about 15 seconds,
 then refreshes the page and shell badge. A delayed webhook leaves a Check status
-button that reads the account again without submitting another plan change.
+button that reads the account again without submitting another plan change,
+and a Close button. Closing stops the checks, so the new plan shows on the next
+visit to Billing.
 
 Stripe's [preview API](https://docs.stripe.com/api/invoices/create_preview) and
 [subscription update API](https://docs.stripe.com/api/subscriptions/update)
@@ -118,10 +132,13 @@ define the proration and payment behavior. The implementation lives in
    lower plan's access after the webhook. Check that the credit reduces a bill
    rather than producing a cash refund.
 6. Repeat from Pricing and switch monthly to yearly, then yearly to monthly.
-   Compare the payment-today estimate and new billing date with Stripe.
-7. Leave a preview open for more than five minutes, then confirm. Repeat after
-   changing the subscription in Stripe's portal. Both previews must be refused
-   with an instruction to choose the plan again.
+   Compare the payment-today estimate and new billing date with Stripe. The
+   button must read "Pay $X and switch", and $X must equal the amount on the
+   invoice Stripe creates. A same-period switch must read "Switch to <plan>".
+7. Leave a preview open for five minutes. The card must close by itself with
+   an instruction to choose the plan again. Open a fresh preview, change the
+   subscription in Stripe's portal, then confirm. The card must close with the
+   same instruction.
 8. Test a declined payment on a change that bills immediately. The plan and
    access must remain unchanged. Delay webhook delivery after an accepted
    change and verify Check status does not submit another change.

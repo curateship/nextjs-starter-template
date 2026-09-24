@@ -21,6 +21,10 @@ import {
 } from "@/server/protocols/bnb/candles"
 import { poolHistoryFloor } from "@/server/protocols/evm-chain/candles"
 import {
+  fetchRobinhoodAccount,
+  fetchRobinhoodPortfolio,
+} from "@/server/protocols/robinhood/account"
+import {
   fetchRobinhoodCandles,
   fetchRobinhoodCandleHistory,
 } from "@/server/protocols/robinhood/candles"
@@ -1260,7 +1264,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * Markets and a wallet. No holdings or orders yet.
+   * Markets, a wallet and its holdings. No orders yet.
    *
    * Robinhood Chain is BNB Chain's twin: an Ethereum-shaped chain where the
    * app holds its own wallet, and both share `evm-chain/`. The market list is
@@ -1269,8 +1273,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * GeckoTerminal's pool candles, stored (`storesVenueCandles`), with
    * recorded screen prices for a coin no pool answers for (`recordsOwnBars`).
    * A stock token's older years come from Dukascopy and ETH's from Binance,
-   * through `lib/protocols/robinhood/history.ts`. There is no account or
-   * orders block, so nothing here can be bought or read.
+   * through `lib/protocols/robinhood/history.ts`. Holdings are read off the
+   * chain by address, with the explorer saying which tokens to ask about.
+   * There is no orders block, so nothing here can be bought yet.
    */
   robinhood: {
     ...protocolCore("robinhood"),
@@ -1287,6 +1292,13 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       roundPx: (px) => px,
       pricesWereRationed: robinhoodPricesWereRationed,
       search: searchRobinhoodMarkets,
+    },
+    account: {
+      fetch: fetchRobinhoodAccount,
+      portfolio: fetchRobinhoodPortfolio,
+      // Nothing on the chain states what a sale made, so a zero here means
+      // "not stated", never "broke even".
+      profitPerSale: false,
     },
     agent: { verify: verifyRobinhoodWallet },
     credentials: {

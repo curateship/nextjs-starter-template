@@ -139,3 +139,4 @@ export const fetchRobinhoodMarkets = markets.catalog
 export const searchRobinhoodMarkets = markets.search
 export const fetchRobinhoodPrices = markets.prices
 export const robinhoodPricesWereRationed = markets.pricesWereRationed
+export const robinhoodAccountMarkets = markets.accountMarkets

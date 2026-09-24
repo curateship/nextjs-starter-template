@@ -108,8 +108,19 @@ function balanceCalls(address: Hex, tokens: readonly Hex[]) {
 
 /** One chain's wallet balances, read in a single call and valued in dollars. */
 export function evmBalances(chain: BalanceChain) {
-  /** Decode the whole answer before reporting any money. No guessed decimals. */
-  function holdings(tokens: readonly string[], raw: Hex): EvmHoldings {
+  /**
+   * Decode the whole answer before reporting any money. No guessed decimals.
+   *
+   * A token in `optional` came from an outside list of what the wallet holds,
+   * not from this app's own. One that will not say its balance or decimals is
+   * left out instead of failing the card, so a hostile token dropped into a
+   * wallet cannot blank it. Every other token must answer in full.
+   */
+  function holdings(
+    tokens: readonly string[],
+    raw: Hex,
+    optional: ReadonlySet<string> = new Set()
+  ): EvmHoldings {
     try {
       const answer = decodeFunctionResult({
         abi: multicallAbi,
@@ -132,23 +143,29 @@ export function evmBalances(chain: BalanceChain) {
       if (fee > 0) coins.set(chain.wrappedNative, fee)
       let dollars = 0
       tokens.forEach((token, index) => {
-        const balance = answer[1 + index * 2]
-        const decimals = answer[2 + index * 2]
-        if (!balance.success) throw new Error()
-        const integer = decodeFunctionResult({
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          data: balance.returnData,
-        })
-        if (integer === 0n) return
-        if (!decimals.success) throw new Error()
-        const places = decodeFunctionResult({
-          abi: erc20Abi,
-          functionName: "decimals",
-          data: decimals.returnData,
-        })
-        const amount = Number(formatUnits(integer, places))
-        if (!Number.isFinite(amount) || amount <= 0) throw new Error()
+        let amount: number
+        try {
+          const balance = answer[1 + index * 2]
+          const decimals = answer[2 + index * 2]
+          if (!balance.success) throw new Error()
+          const integer = decodeFunctionResult({
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            data: balance.returnData,
+          })
+          if (integer === 0n) return
+          if (!decimals.success) throw new Error()
+          const places = decodeFunctionResult({
+            abi: erc20Abi,
+            functionName: "decimals",
+            data: decimals.returnData,
+          })
+          amount = Number(formatUnits(integer, places))
+          if (!Number.isFinite(amount) || amount <= 0) throw new Error()
+        } catch (error) {
+          if (optional.has(token)) return
+          throw error
+        }
         if (token === chain.dollarCoin) dollars = amount
         else coins.set(token, (coins.get(token) ?? 0) + amount)
       })

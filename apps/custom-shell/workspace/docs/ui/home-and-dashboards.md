@@ -49,6 +49,13 @@ Each figure reads top to bottom:
 - **Change.** How far the number moved against last month, or last week for
   feedback, such as "+33.3%" in green or "−100.0%" in red. A figure that did
   not move shows a grey "0.0%" with no sign.
+- **Joined this month compares equal stretches.** On the 5th it compares the
+  1st to the 5th of this month with the 1st to the 5th of last month, and says
+  "vs same days last month". Against all of last month, every month would
+  start red. A date last month did not have counts nobody, so on 30 or 31
+  March the comparison is all of February. The People card's Joining tab shows
+  the same change through the same helper, `joinedChange` in
+  `src/lib/billing/membership-figures.ts`.
 - **Small line.** The last 30 days, one point a day, in the top right corner.
   The line is green, red or grey to match the change. It only appears once the
   figure is at least 240px wide, so it never cuts the name short.
@@ -67,7 +74,8 @@ change, so what somebody paid last month is not written down anywhere. Showing
 a change there would mean making one up.
 
 When there is nothing last month to compare against, the figure says so in
-words, such as "None last month", rather than showing 0%.
+words, such as "None last month" or "None in the same days last month", rather
+than showing 0%.
 
 ## Refresh behavior
 
