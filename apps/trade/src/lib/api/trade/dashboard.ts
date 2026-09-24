@@ -42,6 +42,7 @@ import { getProtocol } from "@/server/protocols/registry"
 import { maybeCleanTradeCaches } from "@/server/trade/cache-cleanup"
 import { loadProtocolCandles } from "@/server/trade/candles"
 import { loadChartDrawings } from "@/server/trade/drawings"
+import { withLeverageCeilings } from "@/server/trade/leverage-ceilings"
 import { loadMarketFolders } from "@/server/trade/market-folders"
 import { tradeSoundEventsAfter } from "@/server/trade/notice-links"
 import { loadArmedPriceAlerts } from "@/server/trade/price-alerts"
@@ -302,7 +303,10 @@ const loadDashboardExchangeFn = createServerFn({ method: "GET" })
       // A dead exchange must not take the page down with it: the workspace
       // still opens, and the list explains itself and offers a retry.
       loadRawMarketCatalog(data.protocol, data.network).then(
-        (value) => ({ catalog: value, error: null as string | null }),
+        async (value) => ({
+          catalog: await withLeverageCeilings(context.user.id, value),
+          error: null as string | null,
+        }),
         (error: unknown) => ({
           catalog: null,
           error: getMarketsErrorMessage(error),

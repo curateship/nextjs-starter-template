@@ -38,6 +38,7 @@ import {
   bumpTradeHistory,
   tradeHistoryStamp,
 } from "@/server/trade/history-version"
+import { userMarketRules } from "@/server/trade/leverage-ceilings"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   tradePaperJournal,
@@ -1067,7 +1068,12 @@ export async function placePaperOrder(
   ) {
     throw new Error("PAPER_MARKET")
   }
-  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  const rules = await userMarketRules(
+    userId,
+    wallet.protocol,
+    wallet.network,
+    ref.marketId
+  )
   if (!rules) throw new Error("PAPER_MARKET")
 
   const maxLeverage = rules.maxLeverage ?? 1

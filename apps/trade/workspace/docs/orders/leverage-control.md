@@ -20,6 +20,10 @@ Five windows draw the one control, `src/components/trade/leverage-slider.tsx`:
 - **Keyboard:** the arrow keys move it one step at a time.
 - **A market that lends nothing:** the slider is not drawn, because 1× is the
   only choice.
+- **A ceiling the exchange does not publish:** Aster only tells a signed-in
+  account how much it lends. With a keyed Aster wallet connected the slider
+  runs to that coin's real ceiling; without one it is not drawn.
+  `protocols/aster.md` explains where the number comes from.
 - **Locked:** a grid sharing a position with a DCA ladder, or a coin already
   held by hand, shows that position's leverage on a greyed-out slider. The info
   icon beside the word says why.
