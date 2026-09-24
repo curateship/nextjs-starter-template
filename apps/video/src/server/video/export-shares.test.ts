@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SHARE_ONLY_READY_MESSAGE } from "@/lib/video/export-shares"
 import { RENDER_NOT_FOUND_MESSAGE } from "@/lib/video/render"
@@ -19,6 +19,13 @@ import {
 import { deleteOwnedExports } from "@/server/video/exports"
 import { createOwnedProject } from "@/server/video/projects"
 import { videoExportShares, videoRenderJobs } from "@/server/video/schema"
+
+// Deleting an export removes its file first and keeps the row if that fails,
+// so the bucket has to answer for a delete to go through.
+vi.mock("@/server/media/storage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/media/storage")>()),
+  deleteFromR2: async () => undefined,
+}))
 
 let client: PGlite
 let database: CustomShellDb

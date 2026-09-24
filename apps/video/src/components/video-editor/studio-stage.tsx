@@ -1,6 +1,19 @@
 import * as React from "react"
-import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImageDown,
+  Loader2Icon,
+  Pause,
+  Play,
+} from "lucide-react"
+import { toast } from "sonner"
 
+import {
+  getSavedFrameErrorMessage,
+  saveProjectFrame,
+} from "@/lib/api/video/saved-frames"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   usePlaybackPlaying,
   type PlaybackClock,
@@ -322,7 +335,68 @@ function TransportBar({
       >
         {rate}×
       </button>
+      <div
+        style={{
+          width: 1,
+          height: 20,
+          background: "var(--line)",
+          margin: "0 5px",
+        }}
+      />
+      <SaveFrameButton clock={clock} />
     </div>
+  )
+}
+
+/**
+ * Keeps the frame under the playhead as a picture on this project's media
+ * shelf. The server draws it from the saved project, so any edit still
+ * waiting to save is sent first.
+ */
+function SaveFrameButton({ clock }: { clock: PlaybackClock }) {
+  const { projectId, saveNow, store } = useEditorRuntime()
+  const [busy, setBusy] = React.useState(false)
+
+  async function saveFrame() {
+    // Stopped, so the picture on screen is the one being kept.
+    clock.pause()
+    const atMs = clock.getTime()
+    setBusy(true)
+    try {
+      await saveNow()
+      if (store.getSnapshot().saveStatus === "error") {
+        showErrorToast(
+          "The latest edits are not saved, so the frame cannot be drawn yet."
+        )
+        return
+      }
+      const saved = await saveProjectFrame(projectId, atMs)
+      dismissErrorToast()
+      store.refreshMediaShelf()
+      toast.success(`Saved "${saved.name}" to the media panel.`)
+    } catch (error) {
+      showErrorToast(getSavedFrameErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="st-hovbg"
+      style={transportBtn}
+      aria-label="Save this frame as a picture"
+      title="Save this frame as a picture"
+      disabled={busy}
+      onClick={() => void saveFrame()}
+    >
+      {busy ? (
+        <Loader2Icon size={16} className="animate-spin" />
+      ) : (
+        <ImageDown size={16} />
+      )}
+    </button>
   )
 }
 

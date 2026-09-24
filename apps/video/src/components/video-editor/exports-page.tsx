@@ -1,6 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import {
+  CalendarClockIcon,
   DownloadIcon,
   FilmIcon,
   Link2Icon,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/nav/list-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatClock } from "@/lib/video/timeline-utils"
+import { ExportClearOutDialog } from "@/components/video-editor/export-clear-out-dialog"
 import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportDetailsDialog } from "@/components/video-editor/export-details-dialog"
 import { ExportShareDialog } from "@/components/video-editor/export-share-dialog"
@@ -127,6 +129,7 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
   const [deleteTargets, setDeleteTargets] = React.useState<RenderJobSummary[]>(
     []
   )
+  const [clearingOut, setClearingOut] = React.useState(false)
   const [run, busy] = useAsyncAction(getExportErrorMessage)
   const selection = useSelection()
 
@@ -158,11 +161,18 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
   async function confirmDelete() {
     if (!deleteTargets.length) return
     await run(async () => {
-      const { deleted_ids: deleted } = await deleteExports(
+      const { deleted_ids: deleted, failed_ids: failed } = await deleteExports(
         deleteTargets.map((item) => item.id)
       )
+      if (failed.length) {
+        showErrorToast(
+          `${failed.length} ${plural(failed.length, "export was", "exports were")} kept because the file could not be removed from storage. Try again in a minute.`
+        )
+      }
       if (deleted.length === 0) {
-        showErrorToast("Nothing was deleted — those may already be gone.")
+        if (!failed.length) {
+          showErrorToast("Nothing was deleted — those may already be gone.")
+        }
         return
       }
       selection.clear()
@@ -218,7 +228,22 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              onClick={() => setClearingOut(true)}
+            >
+              <CalendarClockIcon className="size-4" />
+              Clear out old
+            </DashboardToolbarButton>
           </>
+        }
+        filters={
+          initial.storage.exports ? (
+            <p className="text-sm text-muted-foreground">
+              {`${initial.storage.exports.toLocaleString()} finished ${plural(initial.storage.exports, "export takes", "exports take")} ${formatFileSize(initial.storage.bytes)} of storage.`}
+            </p>
+          ) : null
         }
         header={
           <SortableTableHeader
@@ -401,6 +426,16 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
         onSaved={() => void router.invalidate()}
       />
 
+      {clearingOut ? (
+        <ExportClearOutDialog
+          onClose={() => setClearingOut(false)}
+          onCleared={async () => {
+            selection.clear()
+            await router.invalidate()
+          }}
+        />
+      ) : null}
+
       {sharing ? (
         <ExportShareDialog
           key={sharing.id}
@@ -420,7 +455,7 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
             ? `Delete ${deleteTargets.length} ${plural(deleteTargets.length, "export", "exports")}?`
             : "Delete this export?"
         }
-        description="Any file already made goes for good, and one still waiting or being made is stopped. A share link to it stops working too. The project it was made from stays as it is."
+        description={describeDelete(deleteTargets, sharedIds)}
         confirmLabel={
           deleteTargets.length > 1 ? "Delete exports" : "Delete export"
         }
@@ -429,6 +464,22 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
       />
     </>
   )
+}
+
+/**
+ * What deleting these takes: the space it frees and how many share links it
+ * breaks, counted from the rows being deleted.
+ */
+function describeDelete(targets: RenderJobSummary[], sharedIds: Set<string>) {
+  const bytes = targets.reduce((total, item) => total + (item.file_size ?? 0), 0)
+  const shared = targets.filter((item) => sharedIds.has(item.id)).length
+  const frees = bytes ? ` This frees ${formatFileSize(bytes)}.` : ""
+  const links = !shared
+    ? ""
+    : targets.length === 1
+      ? " Its share link stops working too."
+      : ` ${shared} of them ${plural(shared, "has", "have")} a live share link, which stops working.`
+  return `Any file already made goes for good, and one still waiting or being made is stopped.${frees}${links} The project it was made from stays as it is.`
 }
 
 /**

@@ -6,11 +6,14 @@ import type {
   NetworkId,
 } from "@/lib/protocols/contracts"
 import { marketKey } from "@/lib/protocols/contracts"
-import { coinNameFor } from "@/lib/protocols/binance/translate"
+import { binanceSymbolFor, coinNameFor } from "@/lib/protocols/binance/translate"
 import {
   fetchBinanceCandleRange,
   isNotListedOnBinance,
 } from "@/server/protocols/binance/candles"
+import { num } from "@/lib/protocols/number"
+import { stepToDecimals } from "@/lib/protocols/tick"
+import { binancePublic } from "@/server/protocols/binance/client"
 import {
   READ_TIMEOUT_MS,
   requestSignal,
@@ -21,17 +24,14 @@ import {
  *
  * **Why Binance is a protocol and not a data source.** It began here as the
  * backtest's history: Hyperliquid serves about 5,000 candles, Binance serves
- * years, so runs read prices from one exchange and traded on another. That is
- * a real reason, but it is not a reason for Binance to live outside the
- * protocol layer — which is where it was, in `trade/backtest/`, naming its own
- * URLs a long way from the fence that exists to stop exactly that.
+ * years, so runs read prices from one exchange and traded on another. It is
+ * registered like any other exchange, so its markets can be listed, charted,
+ * tested and, since 24 Sep 2026, traded (`binance.md`).
  *
- * So it is registered like any other exchange, with `orders` and `accounts`
- * switched OFF. Everything that reads capabilities already does the right
- * thing with that: its markets can be listed and charted and tested, and
- * nothing offers to trade them. Adding real Binance trading later is filling
- * in those two blocks and flipping two flags — no screen changes, because no
- * screen ever asks which exchange it is holding.
+ * **A market's id is the app's coin name**, not Binance's symbol: `BTC` for
+ * `BTCUSDT`, `kPEPE` for `1000PEPEUSDT`. Saved backtests and stored candles
+ * were keyed that way before trading existed, so the order path converts
+ * with `binanceSymbolFor` and `coinNameFor` rather than the keys changing.
  *
  * Mainnet only. Binance runs a testnet, but it is not the one this app's
  * practice wallets pretend against, and offering it would be offering made-up
@@ -65,6 +65,7 @@ type ExchangeInfoSymbol = {
   quoteAsset?: string
   baseAsset?: string
   quantityPrecision?: number
+  filters?: Array<Record<string, unknown>>
 }
 
 type Ticker = {
@@ -72,6 +73,16 @@ type Ticker = {
   lastPrice?: string
   priceChangePercent?: string
   quoteVolume?: string
+}
+
+/** One of a market's trading rules, read from its `filters` list. */
+function filterValue(
+  info: ExchangeInfoSymbol,
+  kind: string,
+  field: string
+): number | null {
+  const filter = info.filters?.find((one) => one.filterType === kind)
+  return filter ? num(filter[field]) : null
 }
 
 function rowFor(
@@ -82,12 +93,16 @@ function rowFor(
   const symbol = info.symbol
   if (!symbol) return null
   const coin = coinNameFor(symbol)
-  if (!coin) return null
+  // A market whose name does not turn back into the same symbol cannot be
+  // charted or traded. Binance lists a few coins under Chinese names, which
+  // no URL or order here spells.
+  if (!coin || binanceSymbolFor(coin) !== symbol) return null
 
   const price = Number(ticker?.lastPrice ?? 0)
   const changePct = Number(ticker?.priceChangePercent)
   // Binance quotes in USDT, which is what "in dollars" means everywhere here.
   const volume = Number(ticker?.quoteVolume ?? 0)
+  const step = filterValue(info, "LOT_SIZE", "stepSize")
 
   return {
     key: marketKey({ protocol: "binance", network, marketId: coin }),
@@ -98,26 +113,31 @@ function rowFor(
     subExchange: null,
     category: "crypto",
     sizeDecimals:
-      typeof info.quantityPrecision === "number"
+      stepToDecimals(step) ??
+      (typeof info.quantityPrecision === "number"
         ? info.quantityPrecision
-        : null,
-    // Not carried for Binance: nothing trades there, so nothing rounds an
-    // order price against it. The candles-and-backtests role needs no tick.
-    priceTick: null,
-    minOrderValueUsd: null,
-    // Deliberately null rather than a number. Leverage is a per-account
-    // setting on Binance and asking for it needs a signed request, which this
-    // protocol cannot make until it has accounts. A guess here would be a
-    // number a screen could size a trade from.
+        : null),
+    minOrderSize: filterValue(info, "LOT_SIZE", "minQty"),
+    priceTick: filterValue(info, "PRICE_FILTER", "tickSize"),
+    // The band a limit price must sit inside around the mark: BTC's was
+    // 0.95 to 1.05 on 24 Sep 2026. An immediate order's cap stays inside it.
+    priceMultiplierUp: filterValue(info, "PERCENT_PRICE", "multiplierUp"),
+    priceMultiplierDown: filterValue(info, "PERCENT_PRICE", "multiplierDown"),
+    // $50 on BTC, $20 on ETH and $5 on most coins, read 24 Sep 2026.
+    minOrderValueUsd: filterValue(info, "MIN_NOTIONAL", "notional"),
+    // Deliberately null here. Leverage is a per-account figure on Binance and
+    // needs a signed read, which `account.leverageCeilings` makes once a
+    // wallet is connected. A guess here would be a number a screen could
+    // size a trade from.
     maxLeverage: null,
     isolatedOnly: false,
     iconUrl: null,
     price: Number.isFinite(price) ? price : 0,
     change24h: Number.isFinite(changePct) ? changePct / 100 : null,
     volume24hUsd: Number.isFinite(volume) ? volume : 0,
-    // Both need their own endpoints, and nothing reads them for a market that
-    // cannot be traded. Null says "not asked", which is honest; zero would say
-    // "asked, and it is nothing".
+    // Both need their own endpoints, and nothing reads them yet. Null says
+    // "not asked", which is honest; zero would say "asked, and it is
+    // nothing".
     fundingHourly: null,
     openInterestUsd: null,
   }
@@ -267,21 +287,59 @@ export async function fetchBinanceCandleHistory(
 const CHART_BARS = 1_000
 
 /**
- * Today's price for these markets, off the day's figures already fetched.
- *
- * Reuses the cached catalogue rather than making its own call: this is the
- * cheap read a settle does often, and the list behind it changes fortnightly.
+ * Mark prices are held this long. The engine reads the pushed feed first
+ * (`live-prices.ts`) and only asks here when that feed is quiet. All markets
+ * cost 10 request units at once, so five seconds keeps a quiet feed from
+ * spending the minute.
+ */
+const MARKS_HELD_MS = 5_000
+
+const markScope = globalThis as {
+  __binanceMarks?: { at: number; load: Promise<Map<string, number>> }
+}
+
+function allMarks(forOrder: boolean): Promise<Map<string, number>> {
+  const held = markScope.__binanceMarks
+  if (held && Date.now() - held.at < MARKS_HELD_MS) return held.load
+  const load = binancePublic(
+    "mainnet",
+    "/fapi/v1/premiumIndex",
+    {},
+    forOrder ? "order" : "background"
+  ).then((answer) => {
+    const marks = new Map<string, number>()
+    for (const raw of Array.isArray(answer) ? answer : []) {
+      const row = raw as { symbol?: unknown; markPrice?: unknown }
+      const mark = num(row.markPrice)
+      if (typeof row.symbol === "string" && mark !== null && mark > 0) {
+        marks.set(row.symbol, mark)
+      }
+    }
+    return marks
+  })
+  const entry = { at: Date.now(), load }
+  markScope.__binanceMarks = entry
+  load.catch(() => {
+    if (markScope.__binanceMarks === entry) markScope.__binanceMarks = undefined
+  })
+  return load
+}
+
+/**
+ * Today's mark price for these markets. The mark, not the last trade, because
+ * it is the price Binance fires stops and liquidations against.
  */
 export async function fetchBinancePrices(
   network: NetworkId,
-  marketIds: readonly string[]
+  marketIds: readonly string[],
+  options: { forOrder?: boolean } = {}
 ): Promise<Map<string, number>> {
   requireMainnet(network)
-  const catalog = await fetchBinanceMarkets(network)
-  const byId = new Map(catalog.rows.map((row) => [row.marketId, row.price]))
+  const marks = await allMarks(options.forOrder === true)
   const out = new Map<string, number>()
   for (const id of marketIds) {
-    const price = byId.get(id)
+    const symbol = binanceSymbolFor(id)
+    const price = symbol ? marks.get(symbol) : undefined
     // A market the exchange would not price is left out rather than given a
     // made-up one — see the note on `prices` in the registry.
     if (price !== undefined && price > 0) out.set(id, price)
@@ -289,15 +347,7 @@ export async function fetchBinancePrices(
   return out
 }
 
-/**
- * Binance's price grid, which it calls tick size.
- *
- * Not implemented from the exchange's own rules yet, and deliberately not
- * guessed: nothing places a Binance order, because Binance has no `orders`
- * capability. When trading is switched on this reads `PRICE_FILTER` from
- * `exchangeInfo` — until then the price is handed back untouched, which is the
- * only honest answer for a market that is charted and tested but never traded.
- */
-export function roundBinancePx(px: number): number {
-  return px
+/** Binance never answers prices from a stale copy when it is rationing. */
+export function binancePricesWereRationed(): boolean {
+  return false
 }

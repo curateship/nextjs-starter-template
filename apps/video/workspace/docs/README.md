@@ -70,6 +70,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [share-links.md](share-links.md) — a link to one finished export that
   somebody with no account can watch: what it shows, how to turn it off, and
   why the link is the only lock on the file.
+- [export-storage.md](export-storage.md) — the space finished exports take,
+  what deleting an export or a project removes from storage, and clearing out
+  every export older than a date, with shared ones kept unless ticked.
+- [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
+  the editor as a picture: where the two buttons are, what size the picture
+  is, where it lands, and when the editor picture and the preview differ.
+- [media-collections.md](media-collections.md) — named groups of your own
+  files in the editor's Media panel: whose they are, how to fill them many at
+  a time, why deleting one never deletes a file, and when another tab sees a
+  new one.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

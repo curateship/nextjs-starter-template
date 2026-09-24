@@ -193,8 +193,8 @@ screen: anything not written there has not been agreed yet.
 
 ## protocols/ — the venues
 
-Protocol, not exchange: Hyperliquid, Phemex, KuCoin, Aster, Lighter and ApeX
-Omni are exchanges, Solana, BNB Chain and Robinhood Chain are chains, and protocol is the word that is
+Protocol, not exchange: Hyperliquid, Phemex, KuCoin, Aster, Lighter, ApeX
+Omni and Binance are exchanges, Solana, BNB Chain and Robinhood Chain are chains, and protocol is the word that is
 true of all of them. It is what the ids, the tables and the addresses have
 always used.
 
@@ -207,6 +207,11 @@ always used.
   transactions, secret-text removal and controlled failure checks.
   Recovery includes saved approval fees and keeps wallet validation errors separate.
   Signing rechecks route expiry and real-money permission after transaction preparation.
+- `binance.md` explains Binance USDⓈ-M futures: who may trade them from
+  Canada, the market rules, the live price socket, signing in with an API
+  key, orders capped 3% through the price, stops on Binance's separate
+  stop-order service, pushed fills, request limits, and what is still
+  unproven until a real key is added.
 - `robinhood-chain.md` explains Robinhood Chain: the market list and how a
   real stock token is told from a copy, prices refreshed on a clock and the
   DexScreener allowance it shares with BNB Chain, charts that borrow

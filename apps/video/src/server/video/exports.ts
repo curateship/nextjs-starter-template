@@ -1,13 +1,25 @@
-import { and, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm"
+import {
+  and,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
 
 import {
   EXPORT_DESCRIPTION_MAX,
   EXPORT_TITLE_MAX,
   RENDER_NOT_FOUND_MESSAGE,
 } from "@/lib/video/render"
+import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
+import { removeExportFiles } from "@/server/video/export-files"
 import { videoProjects, videoRenderJobs } from "@/server/video/schema"
 import {
   serializeRenderJob,
@@ -93,6 +105,31 @@ export async function listOwnedExports({
   }
 }
 
+/** How many finished exports somebody has, and the space their files take. */
+export type ExportStorage = { exports: number; bytes: number }
+
+/**
+ * Every finished export of theirs, not just the page on screen or the ones a
+ * search matched, so the number answers what the account is costing. Covers
+ * are left out: their size is never recorded, and each is a few dozen
+ * kilobytes beside a video of many megabytes.
+ */
+export async function loadExportStorage(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<ExportStorage> {
+  const [row] = await database
+    .select({
+      exports: count(),
+      bytes: sql<number>`coalesce(sum(${videoRenderJobs.fileSize}), 0)::bigint`,
+    })
+    .from(videoRenderJobs)
+    .where(
+      and(eq(videoRenderJobs.userId, userId), eq(videoRenderJobs.status, "ready"))
+    )
+  return { exports: row?.exports ?? 0, bytes: Number(row?.bytes ?? 0) }
+}
+
 /** One export of the caller's own, or a refusal. Never anybody else's. */
 export async function getOwnedExport(
   userId: string,
@@ -160,7 +197,7 @@ export async function setOwnedExportCover({
   }
 
   const frame = await extractCoverFrameFromStorage(row.storagePath, atMs)
-  if (!frame) throw new Error("That moment could not be turned into a picture")
+  if (!frame) throw new Error(FRAME_FAILED_MESSAGE)
 
   // A new name each time, so no cache anywhere can keep handing back the old
   // cover after somebody has changed it.
@@ -185,15 +222,16 @@ export async function setOwnedExportCover({
 /**
  * Throw exports away, file and all. The stored files go first: a row with no
  * file is a broken card somebody can delete again, while a file with no row is
- * rubbish nobody can ever find.
+ * rubbish nobody can ever find. So an export whose file would not come out of
+ * storage keeps its row, and comes back in `failed_ids`.
  */
 export async function deleteOwnedExports(
   userId: string,
   exportIds: string[],
   database: CustomShellDb = db
-): Promise<{ deleted_ids: string[] }> {
+): Promise<{ deleted_ids: string[]; failed_ids: string[] }> {
   const uniqueIds = Array.from(new Set(exportIds))
-  if (!uniqueIds.length) return { deleted_ids: [] }
+  if (!uniqueIds.length) return { deleted_ids: [], failed_ids: [] }
 
   const rows = await database
     .select()
@@ -204,29 +242,23 @@ export async function deleteOwnedExports(
         inArray(videoRenderJobs.id, uniqueIds)
       )
     )
-  if (!rows.length) return { deleted_ids: [] }
+  if (!rows.length) return { deleted_ids: [], failed_ids: [] }
 
-  for (const row of rows) {
-    if (row.storagePath) {
-      await deleteFromR2(row.storagePath).catch(() => undefined)
-    }
-    if (row.thumbnailStoragePath) {
-      await deleteFromR2(row.thumbnailStoragePath).catch(() => undefined)
-    }
-  }
+  const removed = await removeExportFiles(rows)
+  const failedIds = rows
+    .filter((row) => !removed.has(row.id))
+    .map((row) => row.id)
+  if (!removed.size) return { deleted_ids: [], failed_ids: failedIds }
 
   const deleted = await database
     .delete(videoRenderJobs)
     .where(
       and(
         eq(videoRenderJobs.userId, userId),
-        inArray(
-          videoRenderJobs.id,
-          rows.map((row) => row.id)
-        )
+        inArray(videoRenderJobs.id, Array.from(removed))
       )
     )
     .returning({ id: videoRenderJobs.id })
 
-  return { deleted_ids: deleted.map((row) => row.id) }
+  return { deleted_ids: deleted.map((row) => row.id), failed_ids: failedIds }
 }

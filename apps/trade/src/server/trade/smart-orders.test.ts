@@ -478,15 +478,15 @@ describe("a watched order's market minimum", () => {
      * no order path has nothing to reject at the moment one is saved. Without
      * this the level sat looking like it was working, and the first sign of
      * trouble was a refusal at the price, repeated on every engine pass.
-     * Binance is the standing example: the app reads its candles and has no
-     * order path for it. Lighter was this test's example until its own order
-     * path was built.
+     * Dukascopy is the standing example: the app reads its candles and has no
+     * order path for it. Lighter, then Binance, were this test's example
+     * until their own order paths were built.
      */
     const cannotTrade: TradeWallet = {
       ...wallet,
-      label: "Binance",
+      label: "Dukascopy",
       kind: "live",
-      protocol: "binance",
+      protocol: "dukascopy",
       network: "mainnet",
       address: "0x1234",
       hasKey: true,
@@ -494,16 +494,16 @@ describe("a watched order's market minimum", () => {
 
     await expect(
       placeWatchOrder(userId, cannotTrade, {
-        marketKey: "binance:mainnet:BTC",
+        marketKey: "dukascopy:mainnet:tslaususd",
         side: "buy",
-        px: 70_000,
+        px: 400,
         sz: 1,
         leverage: 1,
         reduceOnly: false,
         tpPx: null,
         slPx: null,
       })
-    ).rejects.toThrow("PROTOCOL_NO_ORDERS:binance")
+    ).rejects.toThrow("PROTOCOL_NO_ORDERS:dukascopy")
 
     // Nothing was written, so nothing waits at a price that can never fire.
     expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])

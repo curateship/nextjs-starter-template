@@ -52,3 +52,48 @@ describe("Binance history", () => {
     ).resolves.toEqual([])
   })
 })
+
+describe("Binance market rules", () => {
+  it("carries each market's price step, size step and smallest order", async () => {
+    ;(globalThis as { __binanceMarketCache?: unknown }).__binanceMarketCache =
+      undefined
+    const symbol = (name: string, filters: unknown[]) => ({
+      symbol: name,
+      status: "TRADING",
+      contractType: "PERPETUAL",
+      quoteAsset: "USDT",
+      quantityPrecision: 0,
+      filters,
+    })
+    // Filter values as Binance published them on 24 Sep 2026.
+    const info = {
+      symbols: [
+        symbol("1000PEPEUSDT", [
+          { filterType: "PRICE_FILTER", tickSize: "0.0000001" },
+          { filterType: "LOT_SIZE", stepSize: "1", minQty: "1" },
+          { filterType: "MIN_NOTIONAL", notional: "5" },
+          { filterType: "PERCENT_PRICE", multiplierUp: "1.1500", multiplierDown: "0.8500" },
+        ]),
+        symbol("龙虾USDT", []),
+      ],
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        Response.json(String(url).endsWith("/exchangeInfo") ? info : [])
+      )
+    )
+
+    const catalog = await fetchBinanceMarkets("mainnet")
+    expect(catalog.rows).toHaveLength(1)
+    expect(catalog.rows[0]).toMatchObject({
+      marketId: "kPEPE",
+      priceTick: 0.0000001,
+      sizeDecimals: 0,
+      minOrderSize: 1,
+      minOrderValueUsd: 5,
+      priceMultiplierUp: 1.15,
+      priceMultiplierDown: 0.85,
+    })
+  })
+})

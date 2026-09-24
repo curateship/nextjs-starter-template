@@ -135,6 +135,7 @@ export function exportEstimateSentence(
 
 export const RENDER_NOT_FOUND_MESSAGE = "Export not found"
 export const NOTHING_TO_EXPORT_MESSAGE = "There is nothing to export yet"
+export const MEDIA_MISSING_MESSAGE = "A clip's file is no longer in the library"
 export const TIMELINE_TOO_LONG_MESSAGE = `This project is longer than ${MAX_TIMELINE_MINUTES} minutes, which is as much as one export can take`
 export const NO_ACTIVE_EXPORT_MESSAGE = "There is no export to stop"
 export const QUEUE_FULL_MESSAGE =

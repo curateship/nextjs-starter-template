@@ -36,7 +36,7 @@ function serializeShare(row: ShareRow, at: Date): ExportShareSummary {
 }
 
 /** A link that opens something: not turned off and not past its expiry. */
-function isLive(at: Date) {
+export function isLiveShare(at: Date) {
   return and(
     isNull(videoExportShares.revokedAt),
     or(isNull(videoExportShares.expiresAt), gt(videoExportShares.expiresAt, at))
@@ -159,7 +159,7 @@ export async function listLiveSharedExportIds(
       and(
         eq(videoExportShares.userId, userId),
         inArray(videoExportShares.exportId, exportIds),
-        isLive(now())
+        isLiveShare(now())
       )
     )
   return rows.map((row) => row.exportId)
@@ -189,7 +189,7 @@ export async function findSharedExport(
       videoRenderJobs,
       eq(videoRenderJobs.id, videoExportShares.exportId)
     )
-    .where(and(eq(videoExportShares.token, token), isLive(now())))
+    .where(and(eq(videoExportShares.token, token), isLiveShare(now())))
     .limit(1)
   if (!row || row.status !== "ready" || !row.storagePath) return null
   return { ...row, storagePath: row.storagePath }

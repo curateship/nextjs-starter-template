@@ -23,11 +23,12 @@ explorer as settings. The shared folder names no chain and no address, and
 
 An exchange registers `orders.watchFills` when it can tell Trade that an
 execution happened without waiting for the next account poll. ApeX Omni,
-Aster, Hyperliquid, KuCoin, Lighter and Phemex register that capability. Solana has no
+Aster, Binance, Hyperliquid, KuCoin, Lighter and Phemex register that
+capability. Solana has no
 private exchange socket and keeps using its read path.
 
-- Hyperliquid, Aster, Phemex and ApeX Omni hand complete fill rows to Trade
-  from the private connection. ApeX's rows carry the fee but no profit, which
+- Hyperliquid, Aster, Binance, Phemex and ApeX Omni hand complete fill rows
+  to Trade from the private connection. ApeX's rows carry the fee but no profit, which
   ApeX states only per whole close.
 - KuCoin's socket hands over the execution id. Its connector then reads that
   one row from `/api/v1/recentFills`, because the socket message has no fee or
@@ -37,6 +38,10 @@ private exchange socket and keeps using its read path.
 ApeX Omni lives in `src/server/protocols/apex/` and
 `src/lib/protocols/apex/`, and nowhere else may name an ApeX address or load
 its vendored zkLink signer. `apex-omni.md` has the details.
+
+Binance lives in `src/server/protocols/binance/` and
+`src/lib/protocols/binance/`, and `fence.test.ts` fails if a Binance address
+appears anywhere else. `binance.md` has the details.
 
 Every pushed row and every recovery row goes through
 `src/server/trade/live-fills.ts`. The database primary key removes duplicates

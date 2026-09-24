@@ -43,3 +43,13 @@ export function coinNameFor(symbol: string): string | null {
   if (base.length === 0) return null
   return base.startsWith("1000") && base.length > 4 ? `k${base.slice(4)}` : base
 }
+
+/**
+ * Binance's public futures socket for marks, daily figures and candles.
+ *
+ * Binance split its futures sockets by kind on 23 Apr 2026. Measured from
+ * here on 24 Sep 2026: the old `wss://fstream.binance.com/ws` still accepts
+ * a subscription and then sends nothing, while `/market/ws` sends marks,
+ * daily tickers and candles.
+ */
+export const BINANCE_MARKET_SOCKET = "wss://fstream.binance.com/market/ws"
