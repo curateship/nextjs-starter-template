@@ -34,6 +34,7 @@ import { emptyTradePanelLayouts } from "@/lib/trade/panel-layout"
 import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
+import { busiestMarketKey } from "@/lib/trade/market-volume"
 import { RUNNING_BOTS_READ_ERROR } from "@/lib/trade/running-bots"
 import { dashboardBootstrapVersion } from "@/lib/trade/dashboard-bootstrap-cache"
 import { seedTradeSounds } from "@/lib/trade/trade-sounds"
@@ -292,10 +293,9 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
 
   // The address wins; the account's memory fills a bare visit. A remembered
   // market that no longer resolves shows the honest missing state — never a
-  // swap to some market that does. A memory from another network — or from
-  // another exchange's dashboard, since the memory is shared across all of
-  // them — is left alone rather than shown as missing: it should read as a
-  // bare page here, not a delisting.
+  // swap to some market that does. A memory from another network is left
+  // alone rather than shown as missing: it should read as a bare page here,
+  // not a delisting.
   const rememberedFromAccount =
     core.lastMarketKey &&
     marketKeyOnDashboard(core.lastMarketKey, protocol, network)
@@ -306,7 +306,24 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
   // account catches up.
   const remembered = sessionMarket ?? rememberedFromAccount
   const selectedKey = market ?? remembered ?? null
-  useMarketPageTitle(selectedKey, label)
+  // A first visit to this exchange, with nothing named or remembered: open
+  // its busiest market rather than an empty chart. Shown, never saved, so a
+  // passing visit does not replace the market the person last chose. Chosen
+  // once per visit: a fresh market list with a new busiest market must not
+  // move the chart out from under whoever is reading it.
+  const fallbackScope = `${protocol}:${network}`
+  const [fallback, setFallback] = React.useState<{
+    scope: string
+    key: string
+  } | null>(null)
+  const pinned = fallback?.scope === fallbackScope ? fallback.key : null
+  const busiest =
+    (selectedKey ?? pinned) !== null
+      ? null
+      : busiestMarketKey(shownMarkets.catalogs, protocol, network)
+  if (busiest) setFallback({ scope: fallbackScope, key: busiest })
+  const shownKey = selectedKey ?? pinned ?? busiest
+  useMarketPageTitle(shownKey, label)
 
   // The chart's opening bars. Until the exchange half lands the remembered
   // market carries a pending marker naming the slice on its way, so the
@@ -375,7 +392,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialPanelLayouts={core.panelLayouts}
       initialRunningBots={core.runningBots}
       initialWallets={wallets}
-      selectedKey={selectedKey}
+      selectedKey={shownKey}
       onSelectMarket={(key) => {
         rememberSessionMarket(protocol, network, key)
         setSessionMarket(key)

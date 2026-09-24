@@ -26,6 +26,7 @@ export type ProtocolId =
   | "kucoin"
   | "aster"
   | "lighter"
+  | "apex"
   | "dukascopy"
   | "solana"
   | "bnb"
@@ -156,6 +157,7 @@ export const KNOWN_PROTOCOLS = [
   "kucoin",
   "aster",
   "lighter",
+  "apex",
   "dukascopy",
   "solana",
   "bnb",
@@ -175,6 +177,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   kucoin: "KuCoin",
   aster: "Aster",
   lighter: "Lighter",
+  apex: "ApeX Omni",
   dukascopy: "Dukascopy",
   solana: "Solana",
   bnb: "BNB Chain",
@@ -265,6 +268,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   kucoin: "/protocols/kucoin",
   aster: "/protocols/aster",
   lighter: "/protocols/lighter",
+  apex: "/protocols/apex",
   solana: "/protocols/solana",
   bnb: "/protocols/bnb",
   robinhood: "/protocols/robinhood",

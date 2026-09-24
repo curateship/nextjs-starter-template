@@ -51,6 +51,18 @@ vi.mock("@/server/protocols/lighter/markets", () => ({
   lighterMarketByIndex: vi.fn(),
   fetchLighterPrices: vi.fn(),
 }))
+// Only the Settings-toggle half of the gate is stubbed, as in KuCoin's
+// tests: reading it needs a database. The environment half is real.
+vi.mock("@/server/protocols/real-money", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/protocols/real-money")>()
+  return {
+    ...original,
+    assertRealMoneyAllowed: async (network: "mainnet" | "testnet") => {
+      original.assertRealOrdersAllowed(network)
+    },
+  }
+})
 vi.mock("@/server/protocols/lighter/nonces", () => ({
   nextLighterNonce: vi.fn(async () => 7),
   forgetLighterNonce: vi.fn(),
@@ -98,6 +110,7 @@ function bodySent() {
 }
 
 beforeEach(async () => {
+  process.env.TRADE_ENABLE_MAINNET = "true"
   sent.mockReset()
   sent.mockResolvedValue({ code: 200 })
   facts.mockReset()
@@ -144,6 +157,22 @@ function confirmAnswers(input: {
     return { orders: [] }
   })
 }
+
+describe("the real-money gate on Lighter", () => {
+  it("sends no order while the server's master lock is off", async () => {
+    delete process.env.TRADE_ENABLE_MAINNET
+    await expect(placeLighterOrder("mainnet", auth(), order())).rejects.toThrow("LIVE_MAINNET_OFF")
+    expect(sent).not.toHaveBeenCalled()
+  })
+
+  it("sends no cancel either", async () => {
+    delete process.env.TRADE_ENABLE_MAINNET
+    await expect(
+      cancelLighterOrder("mainnet", auth(), { marketId: "BTC", orderId: "9" })
+    ).rejects.toThrow("LIVE_MAINNET_OFF")
+    expect(sent).not.toHaveBeenCalled()
+  })
+})
 
 describe("placing a Lighter order", () => {
   it("scales the price and size into Lighter's whole numbers", async () => {

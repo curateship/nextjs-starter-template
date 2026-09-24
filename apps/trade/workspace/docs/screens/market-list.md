@@ -89,6 +89,14 @@ Saved folders remain in the chart header's folder menu.
   protocol and straight back does not open an empty chart. A link with
   `?market=` always wins, and a remembered market that no longer resolves
   shows the honest missing state.
+- **A first visit to an exchange opens its busiest market**: the highest
+  24-hour dollar volume among the markets the lists show. The account
+  remembers a last market per exchange, so this happens only while an
+  exchange has nothing remembered. Before 24 Sep 2026 it was an empty chart
+  with no picker whenever the market list panel was folded away. The busiest
+  market is shown, never saved: only a market somebody picks or links to
+  becomes the remembered one. It is chosen once per visit, so a fresh market
+  list with a new busiest market does not move the chart.
 - **Sort is drawn as column headers** — "24h Vol" left, "24h Change" right, the
   shared `TableSortButton` — and clicking the sorted one flips the direction.
   Both headings lead with the time window, and so does the market picker's "24h

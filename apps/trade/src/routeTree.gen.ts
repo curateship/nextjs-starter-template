@@ -72,6 +72,7 @@ import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as AuthenticatedFlowRunsRunIdRouteImport } from './routes/_authenticated/flow-runs_.$runId'
+import { Route as AuthenticatedProtocolsApexRouteImport } from './routes/_authenticated/protocols/apex'
 import { Route as AuthenticatedProtocolsAsterRouteImport } from './routes/_authenticated/protocols/aster'
 import { Route as AuthenticatedProtocolsBnbRouteImport } from './routes/_authenticated/protocols/bnb'
 import { Route as AuthenticatedProtocolsHyperLiquidRouteImport } from './routes/_authenticated/protocols/hyper-liquid'
@@ -442,6 +443,12 @@ const AuthenticatedFlowRunsRunIdRoute =
     path: '/flow-runs/$runId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProtocolsApexRoute =
+  AuthenticatedProtocolsApexRouteImport.update({
+    id: '/protocols/apex',
+    path: '/protocols/apex',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProtocolsAsterRoute =
   AuthenticatedProtocolsAsterRouteImport.update({
     id: '/protocols/aster',
@@ -666,6 +673,7 @@ export interface FileRoutesByFullPath {
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
+  '/protocols/apex': typeof AuthenticatedProtocolsApexRoute
   '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
   '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
   '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
@@ -756,6 +764,7 @@ export interface FileRoutesByTo {
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
+  '/protocols/apex': typeof AuthenticatedProtocolsApexRoute
   '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
   '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
   '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
@@ -850,6 +859,7 @@ export interface FileRoutesById {
   '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_authenticated/flow-runs_/$runId': typeof AuthenticatedFlowRunsRunIdRoute
+  '/_authenticated/protocols/apex': typeof AuthenticatedProtocolsApexRoute
   '/_authenticated/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
   '/_authenticated/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
   '/_authenticated/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
@@ -944,6 +954,7 @@ export interface FileRouteTypes {
     | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/flow-runs/$runId'
+    | '/protocols/apex'
     | '/protocols/aster'
     | '/protocols/bnb'
     | '/protocols/hyper-liquid'
@@ -1034,6 +1045,7 @@ export interface FileRouteTypes {
     | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/flow-runs/$runId'
+    | '/protocols/apex'
     | '/protocols/aster'
     | '/protocols/bnb'
     | '/protocols/hyper-liquid'
@@ -1127,6 +1139,7 @@ export interface FileRouteTypes {
     | '/_authenticated/backtests_/$groupId'
     | '/_authenticated/changelog/whats-new'
     | '/_authenticated/flow-runs_/$runId'
+    | '/_authenticated/protocols/apex'
     | '/_authenticated/protocols/aster'
     | '/_authenticated/protocols/bnb'
     | '/_authenticated/protocols/hyper-liquid'
@@ -1631,6 +1644,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFlowRunsRunIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/protocols/apex': {
+      id: '/_authenticated/protocols/apex'
+      path: '/protocols/apex'
+      fullPath: '/protocols/apex'
+      preLoaderRoute: typeof AuthenticatedProtocolsApexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/protocols/aster': {
       id: '/_authenticated/protocols/aster'
       path: '/protocols/aster'
@@ -1988,6 +2008,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
   AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
+  AuthenticatedProtocolsApexRoute: typeof AuthenticatedProtocolsApexRoute
   AuthenticatedProtocolsAsterRoute: typeof AuthenticatedProtocolsAsterRoute
   AuthenticatedProtocolsBnbRoute: typeof AuthenticatedProtocolsBnbRoute
   AuthenticatedProtocolsHyperLiquidRoute: typeof AuthenticatedProtocolsHyperLiquidRoute
@@ -2010,6 +2031,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
   AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,
+  AuthenticatedProtocolsApexRoute: AuthenticatedProtocolsApexRoute,
   AuthenticatedProtocolsAsterRoute: AuthenticatedProtocolsAsterRoute,
   AuthenticatedProtocolsBnbRoute: AuthenticatedProtocolsBnbRoute,
   AuthenticatedProtocolsHyperLiquidRoute:

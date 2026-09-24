@@ -929,7 +929,8 @@ export const directoryClaimOutreachOptOuts = pgTable(
 )
 
 /**
- * A problem a visitor spotted on a listing.
+ * A problem a visitor spotted on a listing or an event. Exactly one of
+ * `listingId` and `eventId` is set, and a check in the database holds it.
  *
  * A report is a tip-off and nothing more. It is never shown to the public, it
  * never changes the listing by itself, and it needs no account — the person
@@ -940,8 +941,8 @@ export const directoryClaimOutreachOptOuts = pgTable(
  * question by hand. Nothing is sent to it automatically, so a report is never
  * a way of making the site's sender email a stranger.
  *
- * Both foreign keys cascade. A report about a listing that has been deleted,
- * or on a site that has been deleted, is a row nobody can act on.
+ * Every foreign key cascades. A report about a listing or event that has been
+ * deleted, or on a site that has been deleted, is a row nobody can act on.
  */
 export const directoryListingReports = pgTable(
   "directory_listing_reports",
@@ -950,9 +951,16 @@ export const directoryListingReports = pgTable(
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-    listingId: varchar("listing_id", { length: 36 })
-      .notNull()
-      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "cascade" }
+    ),
+    /**
+     * The event, for a report about one. Its foreign key to `events` lives in
+     * migration 0092 rather than here, because the events schema imports this
+     * file and a reference back would make the two import each other.
+     */
+    eventId: varchar("event_id", { length: 36 }),
     /** One of the fixed reasons in `lib/directory/report-reasons.ts`. */
     reason: varchar("reason", { length: 30 }).notNull(),
     note: varchar("note", { length: 1000 }).notNull().default(""),
@@ -980,9 +988,14 @@ export const directoryListingReports = pgTable(
       table.createdAt
     ),
     index("ix_directory_listing_reports_listing").on(table.listingId),
+    index("ix_directory_listing_reports_event").on(table.eventId),
+    check(
+      "directory_listing_reports_subject_check",
+      sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+    ),
     check(
       "directory_listing_reports_reason_check",
-      sql`${table.reason} IN ('wrong_hours', 'wrong_contact', 'closed', 'other')`
+      sql`(${table.listingId} IS NOT NULL AND ${table.reason} IN ('wrong_hours', 'wrong_contact', 'closed', 'other')) OR (${table.eventId} IS NOT NULL AND ${table.reason} IN ('wrong_time', 'cancelled', 'wrong_place', 'other'))`
     ),
     check(
       "directory_listing_reports_status_check",

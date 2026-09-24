@@ -68,3 +68,30 @@ export function allCatalogMarketRows(
 ): MarketRow[] {
   return [...catalog.rows, ...catalog.hiddenByVolumeRows]
 }
+
+/**
+ * The market a dashboard opens on when nothing names one: the busiest by
+ * 24-hour dollar volume that the lists show, or of every row when the
+ * volume setting hides them all.
+ *
+ * The account remembers a last market per exchange, so this is the first
+ * visit to an exchange, when there is nothing to reopen. With the market
+ * list folded away, that was an empty chart and no picker to choose from.
+ * Null only while the list has not arrived or is empty.
+ */
+export function busiestMarketKey(
+  catalogs: readonly FilteredMarketCatalog[],
+  protocol: string,
+  network: string
+): string | null {
+  const here = catalogs.filter(
+    (catalog) => catalog.protocol === protocol && catalog.network === network
+  )
+  const shown = here.flatMap((catalog) => catalog.rows)
+  const rows = shown.length > 0 ? shown : here.flatMap(allCatalogMarketRows)
+  let busiest: MarketRow | null = null
+  for (const row of rows) {
+    if (!busiest || row.volume24hUsd > busiest.volume24hUsd) busiest = row
+  }
+  return busiest?.key ?? null
+}

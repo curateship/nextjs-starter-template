@@ -724,10 +724,18 @@ export function getLiveErrorMessage(error: unknown): string {
     message.includes(code)
   )
   if (known) return LIVE_SENTENCES[known]
-  // A move on a venue with no amend command. Both endings carry their whole
+  // A move on a venue with no amend command. Every ending carries its whole
   // sentence from the rails, because what to do next differs: one says the
-  // order never moved, the other says two of them are resting.
-  const move = message.match(/LIVE_MOVE_(?:REFUSED|DOUBLED):(.*)$/s)
+  // order never moved, one says two of them are resting, and one (ApeX
+  // Omni's cancel-then-place) says the old one came off and nothing replaced
+  // it.
+  // The venue did not answer an order in time, or answered with nothing
+  // readable, so whether it went through is unknown. Its sentence says to
+  // check before trying again; the generic "Try it again" below would be the
+  // one piece of advice that can double a real order.
+  const noAnswer = message.match(/LIVE_NO_ANSWER:(.*)$/s)
+  if (noAnswer) return noAnswer[1].trim()
+  const move = message.match(/LIVE_MOVE_(?:REFUSED|DOUBLED|HALF_DONE):(.*)$/s)
   if (move) return move[1].trim()
   const tooSmall = message.match(/LIVE_ORDER_TOO_SMALL:(.*)$/s)
   if (tooSmall) return tooSmall[1].trim()

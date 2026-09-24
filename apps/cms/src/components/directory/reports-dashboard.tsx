@@ -22,16 +22,19 @@ import {
 } from "@/components/ui/table"
 import { type ListingReportsPage } from "@/lib/api/directory/reports"
 import {
-  LISTING_REPORT_REASON_LABELS,
   LISTING_REPORT_STATUSES,
   LISTING_REPORT_STATUS_LABELS,
+  REPORT_KIND_LABELS,
+  REPORT_REASON_LABELS,
   type ListingReportStatus,
+  type ReportKind,
 } from "@/lib/directory/report-reasons"
 import { formatDate } from "@/lib/format/format-time"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 
 /**
- * Problems visitors reported, waiting for somebody to fix them.
+ * Problems visitors reported on listings and events, waiting for somebody to
+ * fix them. Both kinds share one list, and the Kind filter narrows it to one.
  *
  * **The screen opens on the ones still waiting**, not on everything ever
  * reported, because the only question an admin has here is what is left to do.
@@ -47,7 +50,12 @@ export function ReportsDashboard({
   search,
 }: {
   data: ListingReportsPage
-  search: { status?: ListingReportStatus | "all"; q?: string; open?: string }
+  search: {
+    status?: ListingReportStatus | "all"
+    kind?: ReportKind
+    q?: string
+    open?: string
+  }
 }) {
   const router = useRouter()
   const setListSearch = useListSearchNavigate()
@@ -89,8 +97,8 @@ export function ReportsDashboard({
             ) : null}
             <DashboardToolbarSearch
               name="report-search"
-              aria-label="Search reports by listing or note"
-              placeholder="Search listing or note…"
+              aria-label="Search reports by title or note"
+              placeholder="Search title or note…"
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
@@ -117,6 +125,25 @@ export function ReportsDashboard({
                 <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={search.kind ?? "both"}
+              onValueChange={(value) =>
+                setListSearch({
+                  // Both kinds is the default, so it stays out of the address.
+                  kind: value === "both" ? undefined : value,
+                  page: undefined,
+                })
+              }
+            >
+              <SelectTrigger className="w-fit" aria-label="Filter by kind">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">Listings and events</SelectItem>
+                <SelectItem value="listing">Listings</SelectItem>
+                <SelectItem value="event">Events</SelectItem>
+              </SelectContent>
+            </Select>
           </>
         }
         header={
@@ -126,7 +153,8 @@ export function ReportsDashboard({
           // whole page fails to hydrate.
           <TableHeader>
             <TableRow>
-              <TableHead column="main">Listing</TableHead>
+              <TableHead column="main">Page</TableHead>
+              <TableHead column="meta">Kind</TableHead>
               <TableHead column="meta">Problem</TableHead>
               <TableHead column="meta" className="hidden md:table-cell">
                 Status
@@ -146,7 +174,7 @@ export function ReportsDashboard({
               ? "Nothing is waiting. Problems visitors report appear here."
               : "Nothing with that status."
         }
-        emptyColSpan={5}
+        emptyColSpan={6}
         footer={{
           type: "pagination",
           page: data.page,
@@ -169,9 +197,9 @@ export function ReportsDashboard({
                 type="button"
                 className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
                 onClick={() => setListSearch({ open: report.id })}
-                title={report.listingTitle}
+                title={report.subjectTitle}
               >
-                {report.listingTitle}
+                {report.subjectTitle}
               </button>
               {/* Capped, because a note is up to a thousand characters and a
                   row that grows to fit one pushes every other row off screen.
@@ -184,8 +212,11 @@ export function ReportsDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
+              <span className="text-xs">{REPORT_KIND_LABELS[report.kind]}</span>
+            </TableCell>
+            <TableCell column="meta">
               <span className="text-xs">
-                {LISTING_REPORT_REASON_LABELS[report.reason]}
+                {REPORT_REASON_LABELS[report.reason]}
               </span>
             </TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
@@ -203,7 +234,7 @@ export function ReportsDashboard({
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label={`Open the report about ${report.listingTitle}`}
+                aria-label={`Open the report about ${report.subjectTitle}`}
                 onClick={() => setListSearch({ open: report.id })}
               >
                 <SettingsIcon className="size-4" />
@@ -217,7 +248,7 @@ export function ReportsDashboard({
         open={Boolean(openReport)}
         report={openReport}
         onClose={() => setListSearch({ open: undefined })}
-        onClosed={async (decision) => {
+        onClosed={async (decision, kind) => {
           // **Refetched before the window is closed, and awaited.** Closing the
           // window is a navigation — it drops `?open=` from the address — and a
           // refetch fired alongside that navigation is superseded by it. The
@@ -228,7 +259,7 @@ export function ReportsDashboard({
           toast.success(
             decision === "fixed"
               ? "Marked fixed. The count drops by one."
-              : "Dismissed. Nothing on the listing changed."
+              : `Dismissed. Nothing on the ${kind} changed.`
           )
         }}
       />

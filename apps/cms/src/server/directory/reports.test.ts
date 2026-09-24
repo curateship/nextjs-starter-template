@@ -5,10 +5,13 @@ import { createListing, updateListing } from "@/server/directory/listings"
 import {
   cleanReportInput,
   closeReport,
+  countReportAttempt,
   createReport,
   listReports,
   openReportCount,
 } from "@/server/directory/reports"
+import { createEvent, updateEvent } from "@/server/events/events"
+import { siteEvents } from "@/server/events/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -16,15 +19,18 @@ import {
   type TestDatabase,
 } from "@/server/test-support"
 import { customShellWorkspaces } from "@/server/schema"
-import { directoryListings } from "@/server/directory/schema"
+import {
+  directoryListingReports,
+  directoryListings,
+} from "@/server/directory/schema"
 import { eq } from "drizzle-orm"
 
 /**
- * Reports, and the four rules the feature stands on.
+ * Reports on listings and events, and the four rules the feature stands on.
  *
  * **A report belongs to its site** — one filed on alpha is invisible to beta.
  * **A report is about a page a visitor could read** — a draft is not found
- * rather than refused. **A report changes nothing** — the listing is untouched
+ * rather than refused. **A report changes nothing** — the page is untouched
  * either way. **Deleting the thing it is about deletes the report**, because a
  * report nobody can act on is a row nobody should have to read.
  */
@@ -35,6 +41,26 @@ let alpha: string
 let beta: string
 let admin: string
 let listingId: string
+let eventId: string
+
+/** A published event on alpha, public unless asked otherwise. */
+async function publishedEvent(
+  title: string,
+  visibility: "public" | "private" = "public"
+) {
+  const created = await createEvent(
+    alpha,
+    { title, when: { startDate: "2026-10-03", startTime: "18:00" } },
+    database
+  )
+  await updateEvent(
+    alpha,
+    created.id,
+    { status: "published", visibility },
+    database
+  )
+  return created.id
+}
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -47,6 +73,7 @@ beforeEach(async () => {
   const listing = await createListing(alpha, { title: "Joe's Diner" }, database)
   listingId = listing.id
   await updateListing(alpha, listingId, { status: "published" }, database)
+  eventId = await publishedEvent("Harvest market")
 })
 
 afterEach(async () => {
@@ -55,13 +82,18 @@ afterEach(async () => {
 
 describe("createReport", () => {
   it("files a report against a published listing", async () => {
-    const { report, listingTitle } = await createReport(
+    const { report, subjectTitle } = await createReport(
       alpha,
-      { listingId, reason: "wrong_hours", note: "Shut at 4pm on Sunday." },
+      {
+        kind: "listing",
+        subjectId: listingId,
+        reason: "wrong_hours",
+        note: "Shut at 4pm on Sunday.",
+      },
       database
     )
 
-    expect(listingTitle).toBe("Joe's Diner")
+    expect(subjectTitle).toBe("Joe's Diner")
     expect(report.reason).toBe("wrong_hours")
     expect(report.status).toBe("open")
     expect(report.reporterEmail).toBe("")
@@ -69,20 +101,33 @@ describe("createReport", () => {
 
   it("refuses a reason that is not on the list", async () => {
     await expect(
-      createReport(alpha, { listingId, reason: "made_up" }, database)
+      createReport(
+        alpha,
+        { kind: "listing", subjectId: listingId, reason: "made_up" },
+        database
+      )
     ).rejects.toThrow("Pick what is wrong")
   })
 
   it("insists on a note when the reason is “something else”", async () => {
     await expect(
-      createReport(alpha, { listingId, reason: "other", note: "   " }, database)
+      createReport(
+        alpha,
+        { kind: "listing", subjectId: listingId, reason: "other", note: "   " },
+        database
+      )
     ).rejects.toThrow("Tell us in a line or two")
   })
 
   it("keeps an email that looks like one and refuses one that does not", async () => {
     const { report } = await createReport(
       alpha,
-      { listingId, reason: "closed", reporterEmail: " Sam@Example.TEST " },
+      {
+        kind: "listing",
+        subjectId: listingId,
+        reason: "closed",
+        reporterEmail: " Sam@Example.TEST ",
+      },
       database
     )
     expect(report.reporterEmail).toBe("sam@example.test")
@@ -90,7 +135,12 @@ describe("createReport", () => {
     await expect(
       createReport(
         alpha,
-        { listingId, reason: "closed", reporterEmail: "sam at example" },
+        {
+          kind: "listing",
+          subjectId: listingId,
+          reason: "closed",
+          reporterEmail: "sam at example",
+        },
         database
       )
     ).rejects.toThrow("does not look like an email address")
@@ -100,13 +150,21 @@ describe("createReport", () => {
     await updateListing(alpha, listingId, { status: "draft" }, database)
 
     await expect(
-      createReport(alpha, { listingId, reason: "wrong_hours" }, database)
+      createReport(
+        alpha,
+        { kind: "listing", subjectId: listingId, reason: "wrong_hours" },
+        database
+      )
     ).rejects.toThrow("no longer on this site")
   })
 
   it("does not find another site's listing", async () => {
     await expect(
-      createReport(beta, { listingId, reason: "wrong_hours" }, database)
+      createReport(
+        beta,
+        { kind: "listing", subjectId: listingId, reason: "wrong_hours" },
+        database
+      )
     ).rejects.toThrow("no longer on this site")
   })
 
@@ -118,7 +176,12 @@ describe("createReport", () => {
 
     await createReport(
       alpha,
-      { listingId, reason: "closed", note: "Boarded up." },
+      {
+        kind: "listing",
+        subjectId: listingId,
+        reason: "closed",
+        note: "Boarded up.",
+      },
       database
     )
 
@@ -139,13 +202,27 @@ describe("cleanReportInput", () => {
    */
   it("refuses bad words with no database at all", () => {
     expect(() =>
-      cleanReportInput({ listingId, reason: "other", note: "" })
+      cleanReportInput({
+        kind: "listing",
+        subjectId: listingId,
+        reason: "other",
+        note: "",
+      })
     ).toThrow("Tell us in a line or two")
-    expect(() => cleanReportInput({ listingId, reason: "nope" })).toThrow(
-      "Pick what is wrong"
-    )
+    expect(() =>
+      cleanReportInput({
+        kind: "listing",
+        subjectId: listingId,
+        reason: "nope",
+      })
+    ).toThrow("Pick what is wrong")
     expect(
-      cleanReportInput({ listingId, reason: "closed", note: "  Shut.  " })
+      cleanReportInput({
+        kind: "listing",
+        subjectId: listingId,
+        reason: "closed",
+        note: "  Shut.  ",
+      })
     ).toEqual({ reason: "closed", note: "Shut.", email: "" })
   })
 })
@@ -154,12 +231,22 @@ describe("listReports and openReportCount", () => {
   beforeEach(async () => {
     await createReport(
       alpha,
-      { listingId, reason: "wrong_hours", note: "Shut at 4pm." },
+      {
+        kind: "listing",
+        subjectId: listingId,
+        reason: "wrong_hours",
+        note: "Shut at 4pm.",
+      },
       database
     )
     await createReport(
       alpha,
-      { listingId, reason: "wrong_contact", note: "The phone is dead." },
+      {
+        kind: "listing",
+        subjectId: listingId,
+        reason: "wrong_contact",
+        note: "The phone is dead.",
+      },
       database
     )
   })
@@ -175,8 +262,9 @@ describe("listReports and openReportCount", () => {
 
   it("carries the listing's title and address, so nobody joins twice", async () => {
     const { reports } = await listReports(alpha, {}, database)
-    expect(reports[0]?.listingTitle).toBe("Joe's Diner")
-    expect(reports[0]?.listingSlug).toBeTruthy()
+    expect(reports[0]?.kind).toBe("listing")
+    expect(reports[0]?.subjectTitle).toBe("Joe's Diner")
+    expect(reports[0]?.subjectSlug).toBeTruthy()
   })
 
   it("searches the listing's title and the note", async () => {
@@ -210,7 +298,12 @@ describe("closeReport", () => {
   beforeEach(async () => {
     const { report } = await createReport(
       alpha,
-      { listingId, reason: "closed", note: "Boarded up." },
+      {
+        kind: "listing",
+        subjectId: listingId,
+        reason: "closed",
+        note: "Boarded up.",
+      },
       database
     )
     reportId = report.id
@@ -262,7 +355,11 @@ describe("closeReport", () => {
 
 describe("what deleting takes with it", () => {
   it("deleting a listing deletes its reports", async () => {
-    await createReport(alpha, { listingId, reason: "closed" }, database)
+    await createReport(
+      alpha,
+      { kind: "listing", subjectId: listingId, reason: "closed" },
+      database
+    )
     await database
       .delete(directoryListings)
       .where(eq(directoryListings.id, listingId))
@@ -271,11 +368,214 @@ describe("what deleting takes with it", () => {
   })
 
   it("deleting a site deletes all of its reports", async () => {
-    await createReport(alpha, { listingId, reason: "closed" }, database)
+    await createReport(
+      alpha,
+      { kind: "listing", subjectId: listingId, reason: "closed" },
+      database
+    )
     await database
       .delete(customShellWorkspaces)
       .where(eq(customShellWorkspaces.id, alpha))
 
     expect(await openReportCount(alpha, database)).toBe(0)
+  })
+})
+
+describe("reports about events", () => {
+  it("files a report against a published event", async () => {
+    const { report, subjectTitle } = await createReport(
+      alpha,
+      {
+        kind: "event",
+        subjectId: eventId,
+        reason: "cancelled",
+        note: "Nobody there.",
+      },
+      database
+    )
+
+    expect(subjectTitle).toBe("Harvest market")
+    expect(report.kind).toBe("event")
+    expect(report.subjectId).toBe(eventId)
+    expect(report.reason).toBe("cancelled")
+  })
+
+  it("keeps each kind to its own reasons", async () => {
+    await expect(
+      createReport(
+        alpha,
+        { kind: "event", subjectId: eventId, reason: "wrong_hours" },
+        database
+      )
+    ).rejects.toThrow("Pick what is wrong with this event")
+    await expect(
+      createReport(
+        alpha,
+        { kind: "listing", subjectId: listingId, reason: "cancelled" },
+        database
+      )
+    ).rejects.toThrow("Pick what is wrong with this listing")
+  })
+
+  it("is refused by the database when the reason is the other kind's", async () => {
+    await expect(
+      database.insert(directoryListingReports).values({
+        id: "wrong-kind",
+        workspaceId: alpha,
+        eventId,
+        reason: "closed",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    ).rejects.toMatchObject({
+      cause: { message: expect.stringContaining("reason_check") },
+    })
+  })
+
+  it("is refused by the database when it names both a listing and an event", async () => {
+    await expect(
+      database.insert(directoryListingReports).values({
+        id: "both-kinds",
+        workspaceId: alpha,
+        listingId,
+        eventId,
+        reason: "other",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    ).rejects.toMatchObject({
+      cause: { message: expect.stringContaining("subject_check") },
+    })
+  })
+
+  it("finds a private event, because anybody with its link can open it", async () => {
+    const hidden = await publishedEvent("Members supper", "private")
+    const { report } = await createReport(
+      alpha,
+      { kind: "event", subjectId: hidden, reason: "wrong_place" },
+      database
+    )
+    expect(report.subjectId).toBe(hidden)
+  })
+
+  it("does not find a draft event or another site's event", async () => {
+    await updateEvent(alpha, eventId, { status: "draft" }, database)
+    await expect(
+      createReport(
+        alpha,
+        { kind: "event", subjectId: eventId, reason: "cancelled" },
+        database
+      )
+    ).rejects.toThrow("That event is no longer on this site")
+
+    await updateEvent(alpha, eventId, { status: "published" }, database)
+    await expect(
+      createReport(
+        beta,
+        { kind: "event", subjectId: eventId, reason: "cancelled" },
+        database
+      )
+    ).rejects.toThrow("That event is no longer on this site")
+  })
+
+  it("leaves the event exactly as it was", async () => {
+    const read = () =>
+      database.select().from(siteEvents).where(eq(siteEvents.id, eventId))
+    const before = await read()
+
+    await createReport(
+      alpha,
+      { kind: "event", subjectId: eventId, reason: "wrong_time", note: "Sat." },
+      database
+    )
+
+    expect(await read()).toEqual(before)
+  })
+
+  it("shares the queue with listings and can be narrowed to either", async () => {
+    await createReport(
+      alpha,
+      { kind: "listing", subjectId: listingId, reason: "closed" },
+      database
+    )
+    await createReport(
+      alpha,
+      { kind: "event", subjectId: eventId, reason: "cancelled" },
+      database
+    )
+
+    const both = await listReports(alpha, {}, database)
+    expect(both.total).toBe(2)
+
+    const events = await listReports(alpha, { kind: "event" }, database)
+    expect(events.total).toBe(1)
+    expect(events.reports[0]).toMatchObject({
+      kind: "event",
+      subjectTitle: "Harvest market",
+    })
+    expect(events.reports[0]?.subjectSlug).toBeTruthy()
+
+    const listings = await listReports(alpha, { kind: "listing" }, database)
+    expect(listings.total).toBe(1)
+    expect(listings.reports[0]?.subjectTitle).toBe("Joe's Diner")
+
+    const byTitle = await listReports(alpha, { search: "harvest" }, database)
+    expect(byTitle.total).toBe(1)
+    expect(byTitle.reports[0]?.kind).toBe("event")
+  })
+
+  it("deleting an event deletes its reports", async () => {
+    await createReport(
+      alpha,
+      { kind: "event", subjectId: eventId, reason: "cancelled" },
+      database
+    )
+    await database.delete(siteEvents).where(eq(siteEvents.id, eventId))
+
+    expect(await openReportCount(alpha, database)).toBe(0)
+  })
+})
+
+describe("countReportAttempt", () => {
+  const listing = (id: string) => ({ kind: "listing" as const, subjectId: id })
+  const event = (id: string) => ({ kind: "event" as const, subjectId: id })
+
+  it("takes one report per listing and one per event an hour from a visitor", async () => {
+    await countReportAttempt(alpha, "1.1.1.1", listing(listingId), database)
+    await expect(
+      countReportAttempt(alpha, "1.1.1.1", listing(listingId), database)
+    ).rejects.toThrow("already sent a report about this listing")
+
+    // The listing's report does not use up the event's.
+    await countReportAttempt(alpha, "1.1.1.1", event(eventId), database)
+    await expect(
+      countReportAttempt(alpha, "1.1.1.1", event(eventId), database)
+    ).rejects.toThrow("already sent a report about this event")
+
+    // Somebody else can still report both.
+    await countReportAttempt(alpha, "2.2.2.2", event(eventId), database)
+  })
+
+  it("gives a visitor ten an hour across listings and events together", async () => {
+    for (let index = 0; index < 5; index += 1) {
+      await countReportAttempt(alpha, "1.1.1.1", listing(`l${index}`), database)
+      await countReportAttempt(alpha, "1.1.1.1", event(`e${index}`), database)
+    }
+    await expect(
+      countReportAttempt(alpha, "1.1.1.1", event("e-eleventh"), database)
+    ).rejects.toThrow("a lot of reports in a short time")
+
+    // Another site's budget is its own.
+    await countReportAttempt(beta, "1.1.1.1", event("e-eleventh"), database)
+  })
+
+  it("gives the whole site fifty an hour across listings and events together", async () => {
+    for (let index = 0; index < 50; index += 1) {
+      const about = index % 2 ? event(`e${index}`) : listing(`l${index}`)
+      await countReportAttempt(alpha, `10.0.0.${index}`, about, database)
+    }
+    await expect(
+      countReportAttempt(alpha, "10.0.1.1", event("e-last"), database)
+    ).rejects.toThrow("This site has had a lot of reports")
   })
 })

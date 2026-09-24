@@ -144,6 +144,15 @@ first, which cost nothing and move no money but still prove the signature is
 accepted, and only then one deliberately tiny real order behind both real-money
 switches.
 
+**Both switches are checked on every Lighter change.** Every order, cancel,
+leverage change, margin change, stop and close goes through one sending
+function, and it asks both real-money switches (the server's
+`TRADE_ENABLE_MAINNET` lock and the Settings toggle) before anything is
+numbered or signed. Until 24 Sep 2026 that check was missing, and Lighter was
+the only exchange whose orders went out whatever the switches said. With
+either switch off, nothing reaches Lighter and the screen says real money is
+switched off.
+
 ## What a minute costs
 
 Sixty requests a minute, REST and socket together. Background reads stop at four

@@ -20,6 +20,7 @@ describe("coins", () => {
     expect(historySourceFor("aster:mainnet:BTCUSDT")).toBe(BINANCE_BTC)
     expect(historySourceFor("phemex:mainnet:BTCUSDT")).toBe(BINANCE_BTC)
     expect(historySourceFor("kucoin:mainnet:XBTUSDTM")).toBe(BINANCE_BTC)
+    expect(historySourceFor("apex:mainnet:BTCUSDT")).toBe(BINANCE_BTC)
     expect(historySourceFor(BINANCE_BTC)).toBe(BINANCE_BTC)
   })
 
@@ -32,6 +33,9 @@ describe("coins", () => {
     )
     expect(historySourceFor("aster:mainnet:1000BONKUSDT")).toBe(
       "binance:mainnet:kBONK"
+    )
+    expect(historySourceFor("apex:mainnet:1000PEPEUSDT")).toBe(
+      "binance:mainnet:kPEPE"
     )
   })
 
@@ -47,6 +51,16 @@ describe("stocks, metals, indices and currency pairs", () => {
     expect(historySourceFor("hyperliquid:mainnet:xyz:TSLA")).toBe(TSLA)
     expect(historySourceFor("lighter:mainnet:TSLA")).toBe(TSLA)
     expect(historySourceFor("aster:mainnet:TSLAUSDT")).toBe(TSLA)
+    expect(historySourceFor("apex:mainnet:TSLAUSDT")).toBe(TSLA)
+  })
+
+  it("answers Dukascopy for ApeX Omni's gold, oil and S&P 500 contracts", () => {
+    // ApeX files these as COMMODITY and INDEX stock contracts; read off
+    // its catalogue on 24 Sep 2026.
+    expect(historySourceFor("apex:mainnet:XAUUSDT")).toBe("dukascopy:mainnet:xauusd")
+    expect(historySourceFor("apex:mainnet:CLUSDT")).toBe("dukascopy:mainnet:lightcmdusd")
+    expect(historySourceFor("apex:mainnet:SPYUSDT")).toBe("dukascopy:mainnet:spyususd")
+    expect(historySourceFor("apex:mainnet:METAUSDT")).toBe("dukascopy:mainnet:fbususd")
   })
 
   it("finds a stock Dukascopy files under its old ticker", () => {
