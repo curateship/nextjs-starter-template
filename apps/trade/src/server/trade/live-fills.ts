@@ -437,7 +437,10 @@ async function announceFills(
   const gridSales = await gridSaleMoneyByOrder(userId, wallet, recent).catch(
     (error) => {
       recordEngineError("live-fills", "grid sale money read failed", error)
-      return new Map<string, GridSaleMoney>()
+      return {
+        sales: new Map<string, GridSaleMoney>(),
+        runs: new Map<string, number>(),
+      }
     }
   )
   const knownByOrder = await triggerRowsByOrder(
@@ -567,7 +570,10 @@ async function announceFills(
               entryPx: averageEntryOf(wallet.protocol, fill),
               ownRung: fill.liquidation
                 ? null
-                : gridSales.get(`${key} ${fill.orderId}`),
+                : gridSales.sales.get(`${key} ${fill.orderId}`),
+              runMoney: fill.liquidation
+                ? null
+                : gridSales.runs.get(`${key} ${fill.orderId}`),
               liquidation: fill.liquidation,
               walletLabel: wallet.label,
               practice,
@@ -602,7 +608,8 @@ async function announceFills(
 }
 
 /**
- * What each fresh grid sale made on its own rung, keyed by market and order.
+ * What each fresh grid sale made on its own rung, keyed by market and order,
+ * and what the whole run made when the sale left no coins.
  *
  * The same arithmetic as the chart arrows, the overview and the P&L page
  * (`gridRoundTrips`), so the bell never names a figure those screens would
@@ -610,17 +617,26 @@ async function announceFills(
  * a rung sells is usually hours or days older than the sale. An order whose
  * pieces are not every one of them a grid sale with its buy on hand keeps the
  * exchange's figure: half an answer would be worse than the one it replaced.
+ *
+ * A sale that ends a run is priced as the run instead, with the Journal's own
+ * arithmetic (`buildLiveTrades`), so the bell and the Journal row say the same
+ * number. That holds whoever sold it, a rung or a hand closing the grid, as
+ * long as a grid bought or sold something in the run. See `runEndedWords`.
  */
 async function gridSaleMoneyByOrder(
   userId: string,
   wallet: TradeWallet,
   fresh: readonly WalletOrderFill[]
-): Promise<Map<string, GridSaleMoney>> {
+): Promise<{
+  sales: Map<string, GridSaleMoney>
+  runs: Map<string, number>
+}> {
   const out = new Map<string, GridSaleMoney>()
+  const runs = new Map<string, number>()
   const closes = fresh.filter(
     (fill) => fill.orderId && !fill.liquidation && fillWasExit(fill)
   )
-  if (closes.length === 0) return out
+  if (closes.length === 0) return { sales: out, runs }
   const keyOf = (marketId: string) =>
     marketKey({
       protocol: wallet.protocol,
@@ -641,7 +657,7 @@ async function gridSaleMoneyByOrder(
         eq(tradeSmartLadders.kind, "grid")
       )
     )
-  if (gridMarkets.length === 0) return out
+  if (gridMarkets.length === 0) return { sales: out, runs }
   const rows = await db
     .select()
     .from(tradeLiveFills)
@@ -703,7 +719,14 @@ async function gridSaleMoneyByOrder(
       rung: rungs.size === 1 ? rung : undefined,
     })
   }
-  return out
+  for (const trade of buildLiveTrades(stamped, new Map())) {
+    const last = trade.fills[trade.fills.length - 1]
+    const key = `${trade.marketKey} ${last.orderId}`
+    if (!wanted.has(key)) continue
+    if (!trade.fills.some((fill) => fill.grid)) continue
+    runs.set(key, trade.pnl)
+  }
+  return { sales: out, runs }
 }
 
 /** Read totals from stored fills, including pieces delivered by earlier calls. */

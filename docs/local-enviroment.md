@@ -43,14 +43,19 @@ down anywhere.
 
 ## Local and configured databases
 
-`npm run db:setup` uses `CUSTOM_SHELL_DATABASE_URL` as written when the setting
-is present. It does not start Docker, rewrite the database name to `postgres`,
-or try to create a database. The configured account only needs access to the
-database named in the address.
+Whether `npm run db:setup` starts Docker depends on where the database lives.
 
-When `CUSTOM_SHELL_DATABASE_URL` is absent, the setup command starts the app's
-local Postgres container and creates the app database if needed. Both paths run
-the migrations and development seed. Production uses `npm run db:migrate`
+- **On this machine:** `CUSTOM_SHELL_DATABASE_URL` is absent, or its host is
+  `localhost`, `127.0.0.1` or `[::1]`. The setup command starts the app's local
+  Postgres container on the address's port and creates the app database if it
+  is missing. The Personal IDE writes a `localhost` address into every new app,
+  so a brand-new app gets its database this way on its first `db:setup`.
+- **On another machine,** such as the shared Hetzner box: the address is used
+  as written. The setup command does not start Docker, rewrite the database
+  name to `postgres`, or try to create a database. The configured account only
+  needs access to the database named in the address.
+
+Both paths run the migrations and development seed. Production uses `npm run db:migrate`
 instead because that command never loads development data.
 
 ## Ports

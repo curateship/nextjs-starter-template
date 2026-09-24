@@ -137,6 +137,16 @@ always carry the dollars, the price and the wallet's own label:
   same figure the chart arrow, the overview and the P&L page show
   (`gridRoundTrips`). A sale whose buy is not in the stored fills keeps the
   exchange's wording above.
+- **The sale that ends a grid run:** the whole run's total, never the sale
+  alone. Tyler's rule, 24 Sep 2026. The title reads "USELESS grid run ended:
+  lost $16.43 (HL1 - GRID)" and the body "Sold the last $963 at $0.28735. That
+  is the whole run, after fees, the same as its Journal row." A run ends when a
+  sale leaves no coins, whether the last rung sold or the grid was closed by
+  hand, as long as a grid bought or sold something in the run. The figure is
+  worked out the way the Journal works out a row (`buildLiveTrades`), so the
+  two always match. Before this, closing that USELESS grid said "Lost $87.36",
+  measured against the rungs still holding, which were the dearest ones. A
+  selling grid ends on a buy, so its body says "Bought back the last …".
 - **A liquidation:** "The exchange liquidated ETH: exited $500 at $90 …".
   Level `critical`.
 - **A practice wallet** says so in the label: "(Test wallet, practice)".

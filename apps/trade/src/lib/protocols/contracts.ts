@@ -27,6 +27,7 @@ export type ProtocolId =
   | "aster"
   | "lighter"
   | "apex"
+  | "edgex"
   | "dukascopy"
   | "solana"
   | "bnb"
@@ -158,6 +159,7 @@ export const KNOWN_PROTOCOLS = [
   "aster",
   "lighter",
   "apex",
+  "edgex",
   "dukascopy",
   "solana",
   "bnb",
@@ -178,6 +180,8 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   aster: "Aster",
   lighter: "Lighter",
   apex: "ApeX Omni",
+  // A lower-case e, which is how edgeX spells itself.
+  edgex: "edgeX",
   dukascopy: "Dukascopy",
   solana: "Solana",
   bnb: "BNB Chain",
@@ -269,6 +273,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   aster: "/protocols/aster",
   lighter: "/protocols/lighter",
   apex: "/protocols/apex",
+  edgex: "/protocols/edgex",
   binance: "/protocols/binance",
   solana: "/protocols/solana",
   bnb: "/protocols/bnb",

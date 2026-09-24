@@ -14,7 +14,7 @@ import {
   fetchBnbOrderInfo,
 } from "./bnb/orders"
 import { fetchBnbOrderFills } from "./bnb/fills"
-import { bnbExecutionNotes } from "./bnb/ledger"
+import { bnbExecutionNotes } from "@/server/protocols/bnb-ledger"
 import {
   fetchBnbCandles,
   fetchBnbCandleHistory,
@@ -83,11 +83,14 @@ import {
   setHyperliquidLeverage,
   setHyperliquidBrackets,
   modifyHyperliquidOrder,
+  recoverHyperliquidClientOrder,
 } from "@/server/protocols/hyperliquid/orders"
 import {
   fetchHyperliquidPrices,
+  forgetHyperliquidPrice,
   pricesWereRationed as hyperliquidPricesWereRationed,
 } from "@/server/protocols/hyperliquid/prices"
+import { isHyperliquidPostOnlyRefusal } from "@/server/protocols/hyperliquid/refusals"
 import {
   hyperliquidFillsNeedRecovery,
   watchHyperliquidFills,
@@ -303,6 +306,44 @@ import {
   fetchApexPrices,
 } from "@/server/protocols/apex/markets"
 import {
+  EDGEX_HISTORY_BATCH_BARS,
+  edgexHistoryFloor,
+  fetchEdgexCandleHistory,
+  fetchEdgexCandles,
+} from "@/server/protocols/edgex/candles"
+import {
+  edgexFundingIntervalMs,
+  fetchEdgexFunding,
+} from "@/server/protocols/edgex/funding"
+import {
+  edgexLivePricesFresh,
+  openEdgexLivePrices,
+  readEdgexLivePrices,
+} from "@/server/protocols/edgex/live-prices"
+import { fetchEdgexAccount } from "@/server/protocols/edgex/account"
+import { verifyEdgexAgentKey } from "@/server/protocols/edgex/agent"
+import { packEdgexCredential } from "@/server/protocols/edgex/client"
+import {
+  edgexPricesWereRationed,
+  fetchEdgexMarkets,
+  fetchEdgexPrices,
+} from "@/server/protocols/edgex/markets"
+import {
+  cancelEdgexOrder,
+  closeEdgexPosition,
+  fetchEdgexOrderInfo,
+  fetchEdgexPortfolio,
+  modifyEdgexOrder,
+  placeEdgexOrder,
+  setEdgexBrackets,
+  setEdgexLeverage,
+} from "@/server/protocols/edgex/orders"
+import {
+  edgexFillsNeedRecovery,
+  fetchEdgexOrderFills,
+  watchEdgexFills,
+} from "@/server/protocols/edgex/private-feed"
+import {
   fetchSolanaMarkets,
   fetchSolanaPrices,
   searchSolanaMarkets,
@@ -466,6 +507,12 @@ export type ProtocolEntry = {
      * prices layer never rations.
      */
     pricesWereRationed?(network: NetworkId, marketId: string): boolean
+    /**
+     * Drops a price this venue is holding for the market, so the next read
+     * asks afresh. Present where the prices layer keeps a short-lived copy
+     * that a refused order has just shown to be out of date (Hyperliquid).
+     */
+    forgetPrice?(network: NetworkId, marketId: string): void
     /**
      * A market that is not in the list, found by name or address. Present on
      * an open network whose coins outnumber any list (Solana); absent where
@@ -637,6 +684,23 @@ export type ProtocolEntry = {
   orders?: {
     /** Stops carry a fixed quantity and must be resized after position changes. */
     fixedSizeStops?: true
+    /**
+     * True when this venue refused a post-only order because it would have
+     * crossed the book at once, the one refusal a resting order is sent again
+     * for. Absent where the venue's refusal is already the shared
+     * `POST_ONLY_RETRY`.
+     */
+    postOnlyRefused?(error: unknown): boolean
+    /**
+     * Finds an order by the client id it was sent with, after the venue's
+     * answer was lost. `found` false proves nothing: the caller keeps the
+     * order marked uncertain and asks again later.
+     */
+    recoverClientOrder?(
+      network: NetworkId,
+      address: string,
+      clientOrderId: string
+    ): Promise<{ orderId: string | null; found: boolean }>
     /**
      * What a swap would do right now, before anything is signed. Present on
      * a venue whose orders are swaps (`capabilities.ordersAreSwaps`); absent
@@ -866,6 +930,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       prices: fetchHyperliquidPrices,
       roundPx: roundOrderPx,
       pricesWereRationed: hyperliquidPricesWereRationed,
+      forgetPrice: forgetHyperliquidPrice,
     },
     livePrices: {
       open: openHyperliquidLivePrices,
@@ -896,6 +961,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       },
     },
     orders: {
+      postOnlyRefused: isHyperliquidPostOnlyRefusal,
+      recoverClientOrder: recoverHyperliquidClientOrder,
       place: placeHyperliquidOrder,
       cancel: cancelHyperliquidOrder,
       modify: modifyHyperliquidOrder,
@@ -1256,6 +1323,68 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       orderInfo: fetchApexOrderInfo,
       watchFills: watchApexFills,
       fillsNeedRecovery: apexFillsNeedRecovery,
+    },
+  },
+  /**
+   * edgeX's perpetual, stock, metal and currency contracts, charts, funding,
+   * a connected wallet, orders, stops and pushed fills (`edgex.md`).
+   *
+   * edgeX publishes no request limits, so `edgex/budget.ts` holds the app to
+   * Lighter's sixty a minute until a day-long run measures edgeX's own. One
+   * socket channel carries every contract's figures, so the market list and
+   * the engine read prices pushed rather than asked. Mainnet only (Tyler,
+   * 5 Sep 2026).
+   */
+  edgex: {
+    ...protocolCore("edgex"),
+    markets: {
+      fetch: fetchEdgexMarkets,
+      candles: fetchEdgexCandles,
+      history: fetchEdgexCandleHistory,
+      historyBatchBars: EDGEX_HISTORY_BATCH_BARS,
+      historyFloor: edgexHistoryFloor,
+      // Sixty requests a minute, as on Lighter: a market with a borrowed
+      // history reads that for anything older, and edgeX's own bars go back
+      // only to May 2026 anyway.
+      chartChasesFullHistory: false,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchEdgexPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: edgexPricesWereRationed,
+    },
+    livePrices: {
+      open: openEdgexLivePrices,
+      read: readEdgexLivePrices,
+      fresh: edgexLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchEdgexFunding,
+      intervalMs: edgexFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchEdgexAccount,
+      // edgeX's fill page states `realizePnl` on every fill, and a pushed
+      // fill without it is read back from that page before it is recorded.
+      profitPerSale: true,
+    },
+    agent: { verify: verifyEdgexAgentKey },
+    credentials: {
+      form: protocolDescription("edgex").credentialForm!,
+      pack: packEdgexCredential,
+    },
+    orders: {
+      place: placeEdgexOrder,
+      cancel: cancelEdgexOrder,
+      // edgeX has no amend: cancel, then place.
+      modify: modifyEdgexOrder,
+      close: closeEdgexPosition,
+      setLeverage: setEdgexLeverage,
+      setBrackets: setEdgexBrackets,
+      portfolio: fetchEdgexPortfolio,
+      fills: fetchEdgexOrderFills,
+      orderInfo: fetchEdgexOrderInfo,
+      watchFills: watchEdgexFills,
+      fillsNeedRecovery: edgexFillsNeedRecovery,
     },
   },
   /**

@@ -84,6 +84,7 @@ a screen comparing exchange names is what the protocol fence forbids.
 | KuCoin      | Cross margin only                                                     | Add or take back margin on an isolated position |
 | Lighter     | Yes, preserving cross or isolated mode                                | Add or take back margin on an isolated position |
 | ApeX Omni   | Yes, a setting per market, read back after the change                 | No: one margin pool for the whole account       |
+| edgeX       | Yes, a setting per contract, read back after the change               | No: edgeX has no call for it                    |
 
 **Aster's refusal is the venue's, not this app's.** It answers with its own
 code, which `refusals.ts` already turns into "Aster will not lower isolated
@@ -126,6 +127,19 @@ position on the account's one shared margin, so there is no cash behind a
 single position to add to or take back." ApeX states no liquidation price per
 position either, so the row shows none. Measured against the docs only: no
 real ApeX account has been read yet.
+
+**edgeX's leverage is a setting per contract.** Trade sends the whole number
+of times, "5", with `updateLeverageSetting`, then reads the account again and
+refuses if edgeX still holds the old figure. The same call runs before the
+first order on a contract. A leverage past the contract's first risk tier is
+refused before anything is sent, and edgeX refuses a change while that
+contract has open orders. edgeX's docs list no call that adds cash to, or takes
+it back from, one position (checked 24 Sep 2026), so the margin half of the
+window says: "edgeX has no way to add cash to one position or take it back.
+Change the leverage instead, which changes how much cash the position holds."
+edgeX can switch a contract between cross and isolated margin, but Trade has
+no margin-mode control outside Aster, so it never does. Measured against the
+docs only: no real edgeX account has been read yet.
 
 After every accepted change, Trade clears any held account answer and reads the
 position again. The row always shows the exchange's leverage, margin and

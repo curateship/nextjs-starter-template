@@ -21,7 +21,7 @@ import {
   recordBnbFill,
   rememberBnbSend,
   withBnbSendLock,
-} from "./ledger"
+} from "@/server/protocols/bnb-ledger"
 import { verifyBnbWallet, packBnbCredential } from "./wallet"
 
 async function bnbPrice(): Promise<number> {

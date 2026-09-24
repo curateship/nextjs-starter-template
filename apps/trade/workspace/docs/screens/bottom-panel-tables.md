@@ -32,6 +32,12 @@ Practice mark. Positions keep their close actions. Open orders keep the cancel
 action for the exact order shown. The Journal alone keeps selection and removal
 because finished trades do not disappear while a person is choosing them.
 
+The Journal starts in order of when each trade ended, newest first, so a grid
+run closed just now is the top row even when it opened days ago. The Opened
+column still shows its start. An incomplete row is placed by its last saved
+fill. Clicking a heading sorts by that column instead; there is no Ended column,
+so a reload brings the starting order back. Tyler's rule, 24 Sep 2026.
+
 The Journal never drops saved fills because they do not make a complete trade.
 It groups those fills by wallet and market and shows History incomplete in the
 same table, along with the number of saved fills in the group. The row leaves

@@ -644,8 +644,9 @@ describe("the grid window's saved settings", () => {
 
     // Beside Share of account, without opening Advanced settings.
     const leverage = host.querySelector<HTMLElement>("#grid-leverage")
+    expect(leverage).not.toBeNull()
     expect(
-      leverage?.compareDocumentPosition(host.querySelector("#grid-pot")!) &
+      leverage!.compareDocumentPosition(host.querySelector("#grid-pot")!) &
         Node.DOCUMENT_POSITION_PRECEDING
     ).toBeTruthy()
     expect(

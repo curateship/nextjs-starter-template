@@ -105,6 +105,8 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     orderPx: null,
     missingSince: 0,
     heldWhenPlaced: 0,
+    ownSz: null,
+    ownStop: null,
     chasedAt: 0,
     chases: 0,
     startedAt: 0,

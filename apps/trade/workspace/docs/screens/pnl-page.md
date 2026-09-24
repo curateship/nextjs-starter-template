@@ -49,6 +49,7 @@ a trade. The differences are only what this page has no way to do:
   trade are listed, as they are in the bottom panel. This page does not ask
   the exchanges what is open right now, so such a row cannot say whether its
   position is still open; its info mark says so.
+- **Newest ending first**, the same starting order as the bottom panel.
 - **Show older** reads the next page of practice and real history together,
   and says "That is everything" when both are exhausted.
 

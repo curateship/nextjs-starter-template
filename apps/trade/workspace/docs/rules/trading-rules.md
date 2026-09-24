@@ -37,6 +37,12 @@ add up to.
   Journal. When missing exchange history stops Trade from rebuilding the whole
   trade, the row says History incomplete. If the exchange still holds the
   position, the row says Open, history incomplete and cannot be removed.
+- Tyler, 24 Sep 2026: **"if I close the grid then that should show up as the
+  first item because a closed grid should be from when it opened"** The
+  Journal starts in order of when each trade ended, newest first. A grid run
+  that opened days ago and closed just now is the top row, and its Opened
+  column still shows when the run began. Clicking a heading still sorts by
+  that column.
 
 ## Exchange connections
 
@@ -294,6 +300,12 @@ add up to.
   profitable deep-rung sale a realized loss. A Grid trade is the round trip
   from that rung's own entry to its own exit. Only a stop, liquidation or
   strategy close may show a losing Grid round trip.
+- Tyler, 24 Sep 2026: **"There is way too many different variations of PnL"**
+  and **"a rung sale would show its pnl for that rung's only and when i closed
+  grid then it uses HL figure which is -16"** A rung sale's notice says what
+  that rung made on its own coins. The sale that leaves the grid with no coins,
+  whether the last rung sold or the grid was closed by hand, says the whole
+  run's total after fees instead: the same figure as the run's Journal row.
 - **A rung buys at its own price, or it does not buy.** Never at a price that
   belongs to no rung. A grid placed with the price inside its range used to
   market-buy every rung above the price, all in one order, at whatever the

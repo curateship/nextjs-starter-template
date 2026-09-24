@@ -12,13 +12,19 @@ import { uuid } from "@/server/auth/security"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   clearChartDrawings,
+  clearDrawingKinds,
+  countClearableDrawings,
   deleteChartDrawing,
   loadChartDrawings,
   saveChartDrawing,
   setChartDrawingAlert,
   setChartDrawingAlertBuffer,
 } from "@/server/trade/drawings"
-import { tradeChartDrawings } from "@/server/trade/schema"
+import {
+  tradeChartDrawings,
+  tradeGridLineStops,
+  tradePriceAlerts,
+} from "@/server/trade/schema"
 
 const BTC = "hyperliquid:mainnet:BTC"
 const ETH = "hyperliquid:mainnet:ETH"
@@ -557,6 +563,114 @@ describe("saved fib drawings", () => {
     await saveChartDrawing(userId, BTC, { id, shape })
     expect(await loadChartDrawings(userId, BTC)).toEqual([
       { id, shape, alert: null },
+    ])
+  })
+})
+
+describe("clearing chosen kinds from every market", () => {
+  const trendline = {
+    kind: "trendline" as const,
+    from: { time: 1_700_000_000_000, price: 60_000 },
+    to: { time: 1_700_086_400_000, price: 62_000 },
+  }
+  const fib = { ...trendline, kind: "fib" as const }
+  const none = { trendlines: false, fibs: false, alerts: false }
+
+  async function priceAlert(userId: string, firedAt: Date | null = null) {
+    await database.insert(tradePriceAlerts).values({
+      userId,
+      id: uuid(),
+      protocol: "hyperliquid",
+      network: "mainnet",
+      marketKey: BTC,
+      price: 70_000,
+      direction: "above",
+      firedAt,
+    })
+  }
+
+  it("counts each kind and the markets it sits on", async () => {
+    const userId = await person()
+    await saveChartDrawing(userId, BTC, { id: uuid(), shape: trendline })
+    await saveChartDrawing(userId, ETH, { id: uuid(), shape: trendline })
+    await saveChartDrawing(userId, ETH, { id: uuid(), shape: fib })
+    await priceAlert(userId)
+    await priceAlert(userId, new Date())
+
+    expect(await countClearableDrawings(userId)).toEqual({
+      trendlines: { total: 2, markets: 2 },
+      fibs: { total: 1, markets: 1 },
+      alerts: { total: 1, markets: 1 },
+      held: 0,
+    })
+  })
+
+  it("deletes only the ticked kinds, and never levels", async () => {
+    const userId = await person()
+    const someoneElse = await person()
+    await saveChartDrawing(userId, BTC, { id: uuid(), shape: trendline })
+    await saveChartDrawing(userId, ETH, { id: uuid(), shape: trendline })
+    const fibId = uuid()
+    await saveChartDrawing(userId, BTC, { id: fibId, shape: fib })
+    await saveChartDrawing(userId, BTC, {
+      id: uuid(),
+      shape: { kind: "level", price: 61_500 },
+    })
+    await priceAlert(userId)
+    await saveChartDrawing(someoneElse, BTC, { id: uuid(), shape: trendline })
+
+    expect(
+      await clearDrawingKinds(userId, { ...none, trendlines: true })
+    ).toEqual({ trendlines: 2, fibs: 0, alerts: 0, kept: 0 })
+    expect((await loadChartDrawings(userId, BTC)).map((d) => d.shape.kind))
+      .toEqual(["fib", "level"])
+    expect(await loadChartDrawings(userId, ETH)).toEqual([])
+    expect(await loadChartDrawings(someoneElse, BTC)).toHaveLength(1)
+    expect((await countClearableDrawings(userId)).alerts.total).toBe(1)
+  })
+
+  it("clears fibs and waiting price alerts, and keeps fired history", async () => {
+    const userId = await person()
+    await saveChartDrawing(userId, BTC, { id: uuid(), shape: fib })
+    await saveChartDrawing(userId, BTC, { id: uuid(), shape: trendline })
+    await priceAlert(userId)
+    await priceAlert(userId, new Date())
+
+    expect(
+      await clearDrawingKinds(userId, { ...none, fibs: true, alerts: true })
+    ).toEqual({ trendlines: 0, fibs: 1, alerts: 1, kept: 0 })
+    expect((await loadChartDrawings(userId, BTC)).map((d) => d.shape.kind))
+      .toEqual(["trendline"])
+    const left = await database
+      .select()
+      .from(tradePriceAlerts)
+      .where(eq(tradePriceAlerts.userId, userId))
+    expect(left).toHaveLength(1)
+    expect(left[0]?.firedAt).not.toBeNull()
+  })
+
+  it("keeps a trendline a running grid uses as its stop", async () => {
+    const userId = await person()
+    const held = uuid()
+    await saveChartDrawing(userId, BTC, { id: held, shape: trendline })
+    await saveChartDrawing(userId, BTC, { id: uuid(), shape: trendline })
+    // The link row needs a grid behind it; this test is about the clear, not
+    // the grid, so the grid's foreign key is switched off for the insert.
+    await client.exec("ALTER TABLE trade_grid_line_stops DISABLE TRIGGER ALL")
+    await database.insert(tradeGridLineStops).values({
+      userId,
+      gridId: uuid(),
+      drawingId: held,
+      armedAt: 1,
+      state: "watching",
+    })
+
+    expect((await countClearableDrawings(userId)).held).toBe(1)
+    expect(
+      await clearDrawingKinds(userId, { ...none, trendlines: true })
+    ).toEqual({ trendlines: 1, fibs: 0, alerts: 0, kept: 1 })
+    expect(await loadChartDrawings(userId, BTC)).toEqual([
+      expect.objectContaining({ id: held }),
     ])
   })
 })

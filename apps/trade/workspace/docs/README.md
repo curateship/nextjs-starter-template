@@ -252,6 +252,16 @@ always used.
   moves, and fills pushed over the private socket.
 - `apex-omni-refusals.md` — every ApeX Omni refusal as one sentence, why
   ApeX's own message is never shown, and what is refused before sending.
+- `edgex.md` — edgeX's 180 coin, stock, metal and currency contracts, the two
+  APIs and why only v2 is used, names as market ids, figures from one socket
+  channel, four-hourly funding, young candles and borrowed history, the
+  unpublished request limit held at sixty a minute, the clock, signing in with
+  the SDK Signer values, the two signatures proved against edgeX's own SDK, the
+  account read, orders capped 3% through the price, stops placed before the old
+  ones come off, leverage per contract, no margin moves, and fills pushed over
+  the private socket.
+- `edgex-refusals.md` — every edgeX refusal as one sentence, why edgeX's own
+  message is never read, and what is refused before sending.
 - `phemex-refusals.md` — Phemex refusal codes in plain words, with the action
   each one asks for.
 - `kucoin.md` — which KuCoin stop rows count as open, the refusal codes seen

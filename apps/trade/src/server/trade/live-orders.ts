@@ -1,11 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks"
 import { randomUUID } from "node:crypto"
-import {
-  isHyperliquidOrderGoneRefusal,
-  isHyperliquidPostOnlyRefusal,
-} from "@/server/protocols/hyperliquid/refusals"
+import { isHyperliquidOrderGoneRefusal } from "@/server/protocols/hyperliquid/refusals"
 import { isPhemexOrderGoneRefusal } from "@/server/protocols/phemex/refusals"
-import { forgetHyperliquidPrice } from "@/server/protocols/hyperliquid/prices"
 import { POST_ONLY_RETRY } from "@/server/trade/smart-order-pause"
 
 import { and, eq, inArray, sql } from "drizzle-orm"
@@ -543,11 +539,13 @@ export async function placeLiveOrder(
       input.restingOnly &&
       input.retryPostOnly &&
       ((error instanceof Error && error.message === POST_ONLY_RETRY) ||
-        (row.protocol === "hyperliquid" && isHyperliquidPostOnlyRefusal(error)))
+        protocol.orders?.postOnlyRefused?.(error) === true)
     ) {
-      if (row.protocol === "hyperliquid") {
-        const ref = checkedMarket(row, input.marketKey)
-        forgetHyperliquidPrice(row.network, ref.marketId)
+      // The price the refusal was judged against is stale, so the retry must
+      // not read it back from the venue's short-lived copy.
+      const forgetPrice = protocol.markets.forgetPrice
+      if (forgetPrice) {
+        forgetPrice(row.network, checkedMarket(row, input.marketKey).marketId)
       }
       dropEngineExchangeReads(row)
       // The engine records progress only after restoring its saved plan.

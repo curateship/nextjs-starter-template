@@ -256,6 +256,9 @@ export async function openPartClose(
     orderPx: null,
     missingSince: 0,
     heldWhenPlaced: 0,
+    // Nothing is bought yet, so there are no coins of its own to guard.
+    ownSz: null,
+    ownStop: null,
     chasedAt: 0,
     chases: 0,
     startedAt: now.getTime(),

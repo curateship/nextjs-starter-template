@@ -215,9 +215,9 @@ describe("the pushed fills feed", () => {
     opened.fail?.()
     // Gone rather than left looking healthy, and asking again opens a new one.
     expect(fillsFromFeed("mainnet", ADDRESS, start)).toBeNull()
-    await new Promise((done) => setTimeout(done, 0))
-    await new Promise((done) => setTimeout(done, 0))
-    expect(opened.count).toBe(2)
+    // The new one opens a few turns later, and how many depends on how busy
+    // the machine is: two fixed turns failed under a parallel run.
+    await vi.waitFor(() => expect(opened.count).toBe(2), { timeout: 1_000 })
   })
 
   it("opens one subscription however many callers ask at once", async () => {

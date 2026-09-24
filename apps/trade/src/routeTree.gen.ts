@@ -76,6 +76,7 @@ import { Route as AuthenticatedProtocolsApexRouteImport } from './routes/_authen
 import { Route as AuthenticatedProtocolsAsterRouteImport } from './routes/_authenticated/protocols/aster'
 import { Route as AuthenticatedProtocolsBinanceRouteImport } from './routes/_authenticated/protocols/binance'
 import { Route as AuthenticatedProtocolsBnbRouteImport } from './routes/_authenticated/protocols/bnb'
+import { Route as AuthenticatedProtocolsEdgexRouteImport } from './routes/_authenticated/protocols/edgex'
 import { Route as AuthenticatedProtocolsHyperLiquidRouteImport } from './routes/_authenticated/protocols/hyper-liquid'
 import { Route as AuthenticatedProtocolsKucoinRouteImport } from './routes/_authenticated/protocols/kucoin'
 import { Route as AuthenticatedProtocolsLighterRouteImport } from './routes/_authenticated/protocols/lighter'
@@ -468,6 +469,12 @@ const AuthenticatedProtocolsBnbRoute =
     path: '/protocols/bnb',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProtocolsEdgexRoute =
+  AuthenticatedProtocolsEdgexRouteImport.update({
+    id: '/protocols/edgex',
+    path: '/protocols/edgex',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProtocolsHyperLiquidRoute =
   AuthenticatedProtocolsHyperLiquidRouteImport.update({
     id: '/protocols/hyper-liquid',
@@ -684,6 +691,7 @@ export interface FileRoutesByFullPath {
   '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
   '/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
   '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
+  '/protocols/edgex': typeof AuthenticatedProtocolsEdgexRoute
   '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
   '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
   '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
@@ -776,6 +784,7 @@ export interface FileRoutesByTo {
   '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
   '/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
   '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
+  '/protocols/edgex': typeof AuthenticatedProtocolsEdgexRoute
   '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
   '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
   '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
@@ -872,6 +881,7 @@ export interface FileRoutesById {
   '/_authenticated/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
   '/_authenticated/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
   '/_authenticated/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
+  '/_authenticated/protocols/edgex': typeof AuthenticatedProtocolsEdgexRoute
   '/_authenticated/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
   '/_authenticated/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
   '/_authenticated/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
@@ -968,6 +978,7 @@ export interface FileRouteTypes {
     | '/protocols/aster'
     | '/protocols/binance'
     | '/protocols/bnb'
+    | '/protocols/edgex'
     | '/protocols/hyper-liquid'
     | '/protocols/kucoin'
     | '/protocols/lighter'
@@ -1060,6 +1071,7 @@ export interface FileRouteTypes {
     | '/protocols/aster'
     | '/protocols/binance'
     | '/protocols/bnb'
+    | '/protocols/edgex'
     | '/protocols/hyper-liquid'
     | '/protocols/kucoin'
     | '/protocols/lighter'
@@ -1155,6 +1167,7 @@ export interface FileRouteTypes {
     | '/_authenticated/protocols/aster'
     | '/_authenticated/protocols/binance'
     | '/_authenticated/protocols/bnb'
+    | '/_authenticated/protocols/edgex'
     | '/_authenticated/protocols/hyper-liquid'
     | '/_authenticated/protocols/kucoin'
     | '/_authenticated/protocols/lighter'
@@ -1685,6 +1698,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProtocolsBnbRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/protocols/edgex': {
+      id: '/_authenticated/protocols/edgex'
+      path: '/protocols/edgex'
+      fullPath: '/protocols/edgex'
+      preLoaderRoute: typeof AuthenticatedProtocolsEdgexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/protocols/hyper-liquid': {
       id: '/_authenticated/protocols/hyper-liquid'
       path: '/protocols/hyper-liquid'
@@ -2032,6 +2052,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProtocolsAsterRoute: typeof AuthenticatedProtocolsAsterRoute
   AuthenticatedProtocolsBinanceRoute: typeof AuthenticatedProtocolsBinanceRoute
   AuthenticatedProtocolsBnbRoute: typeof AuthenticatedProtocolsBnbRoute
+  AuthenticatedProtocolsEdgexRoute: typeof AuthenticatedProtocolsEdgexRoute
   AuthenticatedProtocolsHyperLiquidRoute: typeof AuthenticatedProtocolsHyperLiquidRoute
   AuthenticatedProtocolsKucoinRoute: typeof AuthenticatedProtocolsKucoinRoute
   AuthenticatedProtocolsLighterRoute: typeof AuthenticatedProtocolsLighterRoute
@@ -2056,6 +2077,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProtocolsAsterRoute: AuthenticatedProtocolsAsterRoute,
   AuthenticatedProtocolsBinanceRoute: AuthenticatedProtocolsBinanceRoute,
   AuthenticatedProtocolsBnbRoute: AuthenticatedProtocolsBnbRoute,
+  AuthenticatedProtocolsEdgexRoute: AuthenticatedProtocolsEdgexRoute,
   AuthenticatedProtocolsHyperLiquidRoute:
     AuthenticatedProtocolsHyperLiquidRoute,
   AuthenticatedProtocolsKucoinRoute: AuthenticatedProtocolsKucoinRoute,
