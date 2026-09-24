@@ -175,7 +175,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       page,
       now,
       undefined,
-      place?.id ?? null
+      place ? { placeId: place.id } : {}
     )
     return {
       ...common,

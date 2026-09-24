@@ -78,7 +78,8 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
         return coin === null ? null : coinSource(coin)
       }
     case "robinhood":
-      // No markets are listed yet, so there is nothing to borrow for.
+      // Borrowing a stock's history for its token is the chart task's to
+      // decide. Until then its charts are what the app records.
       return null
   }
 }

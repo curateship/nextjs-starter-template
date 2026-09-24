@@ -13,25 +13,39 @@ export type ServiceConfig = {
   reserve: number
   /** Stop asking for at least a minute after a 429, instead of retrying. */
   pauseAfter429?: boolean
+  /** Headers a service insists on, beyond asking for JSON. */
+  headers?: Record<string, string>
 }
 type Priority = "read" | "order"
 
 /**
- * One chain's outside services, each with its own rolling allowance.
+ * When each host was last asked, shared by every chain in this process.
+ *
+ * A service limits its caller, not a chain: DexScreener's 300 a minute is
+ * spent by every chain here together. Counting per chain would let two
+ * chains send twice what the service allows.
+ */
+const sentAt = new Map<string, number[]>()
+const pausedUntil = new Map<string, number>()
+
+/**
+ * One chain's outside services, each with a rolling allowance per host.
  *
  * A read the window has no room for is refused at once as `EXCHANGE_BUSY:`
  * with the count. A 429 is retried once after the service's own wait, capped
  * at five seconds, never in a loop. `code` names the chain's error codes, such
- * as `<code>_REFUSED`. Every chain gets its own counts.
+ * as `<code>_REFUSED`.
  */
 export function evmServices<S extends string>(
   services: Record<S, ServiceConfig>,
   code: string
 ) {
-  const sentAt = Object.fromEntries(
-    Object.keys(services).map((name) => [name, [] as number[]])
-  ) as Record<S, number[]>
-  const pausedUntil = new Map<S, number>()
+  function sentTo(service: S): number[] {
+    const host = services[service].base
+    let sent = sentAt.get(host)
+    if (!sent) sentAt.set(host, (sent = []))
+    return sent
+  }
 
   function pausedMessage(service: S): string {
     return `EXCHANGE_BUSY:${services[service].label} — requests are paused after a rate-limit response`
@@ -44,9 +58,9 @@ export function evmServices<S extends string>(
   ): void {
     const config = services[service]
     const now = Date.now()
-    if (now < (pausedUntil.get(service) ?? 0))
+    if (now < (pausedUntil.get(config.base) ?? 0))
       throw new Error(pausedMessage(service))
-    const sent = sentAt[service]
+    const sent = sentTo(service)
     while (sent.length && sent[0] <= now - config.windowMs) sent.shift()
     const cap = Math.min(
       ceiling,
@@ -78,7 +92,7 @@ export function evmServices<S extends string>(
       reserve(service, priority, ceiling)
       try {
         return await fetch(url, {
-          headers: { accept: "application/json" },
+          headers: { accept: "application/json", ...config.headers },
           signal: requestSignal(READ_TIMEOUT_MS),
           redirect: "error",
         })
@@ -100,7 +114,7 @@ export function evmServices<S extends string>(
         : Number.isFinite(seconds)
           ? seconds * 1000
           : 0
-      pausedUntil.set(service, Date.now() + Math.max(60_000, delay))
+      pausedUntil.set(config.base, Date.now() + Math.max(60_000, delay))
       throw new Error(pausedMessage(service))
     }
     if (response.status === 429) {
@@ -132,7 +146,7 @@ export function evmServices<S extends string>(
       (Object.entries(services) as [S, ServiceConfig][]).map(
         ([name, config]) => [
           name,
-          sentAt[name].filter((at) => at > now - config.windowMs).length,
+          sentTo(name).filter((at) => at > now - config.windowMs).length,
         ]
       )
     ) as Record<S, number>

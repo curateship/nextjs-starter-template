@@ -298,19 +298,21 @@ describe("BNB current prices", () => {
     )
   })
   it("keeps the screen and catalogue requests within the Dex allowance", async () => {
-    const { BNB_PRICE_REFRESH, BNB_PRICE_PAGE_SIZE, fetchBnbMarkets } =
-      await import("./markets")
+    const { fetchBnbMarkets } = await import("./markets")
+    const { PRICE_REFRESH, PRICE_PAGE_SIZE } = await import(
+      "@/server/protocols/evm-chain/markets"
+    )
     const { BNB_DEX_REQUESTS_PER_MINUTE } = await import("./client")
-    expect(BNB_PRICE_REFRESH).toEqual({ everyMs: 10_000, mostMarkets: 300 })
+    expect(PRICE_REFRESH).toEqual({ everyMs: 10_000, mostMarkets: 300 })
     const refreshCalls = Math.ceil(
-      BNB_PRICE_REFRESH.mostMarkets / BNB_PRICE_PAGE_SIZE
+      PRICE_REFRESH.mostMarkets / PRICE_PAGE_SIZE
     )
     expect(refreshCalls).toBe(10)
     expect(
-      refreshCalls * (60_000 / BNB_PRICE_REFRESH.everyMs) + 33
+      refreshCalls * (60_000 / PRICE_REFRESH.everyMs) + 33
     ).toBeLessThan(BNB_DEX_REQUESTS_PER_MINUTE)
     expect((await fetchBnbMarkets("mainnet")).priceRefresh).toEqual(
-      BNB_PRICE_REFRESH
+      PRICE_REFRESH
     )
   })
 

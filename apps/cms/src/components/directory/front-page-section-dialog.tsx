@@ -217,8 +217,9 @@ export function FrontPageSectionDialog({
               {section ? heading.trim() || "Untitled row" : "New row"}
             </DialogTitle>
             <DialogDescription>
-              A row on this site&apos;s home page: either listings, or a card per
-              category with its photo and how many listings are under it.
+              A row on this site&apos;s home page: listings, a card per
+              category with its photo and how many listings are under it, or
+              the soonest upcoming events.
             </DialogDescription>
           </DialogHeader>
 
@@ -292,7 +293,68 @@ export function FrontPageSectionDialog({
               </CardContent>
             </Card>
 
-            {kind === "categories" ? (
+            {kind === "events" ? (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Which events</CardTitle>
+                  <CardDescription>
+                    Published, public events that are not over yet, soonest
+                    first. The row is left off the page while nothing is coming
+                    up.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="front-page-section-event-category"
+                      hint="Only events filed under this category, not its subcategories."
+                    >
+                      Category
+                    </FieldLabel>
+                    <Select
+                      value={categoryId}
+                      disabled={saving}
+                      onValueChange={setCategoryId}
+                    >
+                      <SelectTrigger
+                        id="front-page-section-event-category"
+                        className="w-full sm:w-fit"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EVERY_CATEGORY}>
+                          Every event
+                        </SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid max-w-40 gap-2">
+                    <FieldLabel
+                      htmlFor="front-page-section-count"
+                      hint={`At most this many events, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
+                    >
+                      How many
+                    </FieldLabel>
+                    <Input
+                      id="front-page-section-count"
+                      type="number"
+                      min={DIRECTORY_FRONT_PAGE_COUNT_MIN}
+                      max={DIRECTORY_FRONT_PAGE_COUNT_MAX}
+                      value={count}
+                      disabled={saving}
+                      aria-invalid={countInvalid || undefined}
+                      onChange={(event) => setCount(event.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : kind === "categories" ? (
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Which categories</CardTitle>

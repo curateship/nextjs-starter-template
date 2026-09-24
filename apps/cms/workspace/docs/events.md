@@ -270,6 +270,51 @@ so a visitor looking at a bar sees trivia on Thursday and jazz on Saturday.
   `readUpcomingEvents` and a listing's id. The box is
   `src/components/directory/public/listing-events.tsx`.
 
+## Events on category pages and the home page
+
+### A category page
+
+A category page lists its upcoming events under its listings, above the posts,
+headed "Upcoming events in Live music" with "All times are Eastern Time."
+under it.
+
+- **Which events:** published, public, not over yet, and filed under that
+  category in the event window. Its own events only, never its subcategories',
+  the same rule its listings follow.
+- **How many:** the soonest 6, in the Events page's list rows. With more to
+  come, "All upcoming events" links to the Events page. It is the whole list,
+  because the Events page has no category filter until task 14.
+- **No events, no section.** A category holding only events skips its "There
+  is nothing in Food yet" card, the same as one holding only posts.
+- **Read after the cache** and only when the visitor may see the Events page,
+  the same as a listing's "What's on here".
+
+### A home page row
+
+A home page row can be a third kind, "Upcoming events", next to Listings and
+Category cards, in Settings → Directory → Front page.
+
+- **Its settings:** a heading, an introduction, a category or "Every event",
+  and how many, 1 to 12. Order and arrangement do not apply: it is always the
+  soonest first, one under the other, the same rows as the Events page.
+- **On the page:** the row's heading, its introduction, "All times are Eastern
+  Time.", the events and a "See all events" button to the Events page.
+- **Left off the page** while nothing is coming up, and while the visitor may
+  not see the Events page. A home page left with no rows at all is the
+  platform's own front page, as before.
+- **Always current.** The home page's rows are cached until the admin saves a
+  row, but a row of events is filled after that cache by the site's clock, so
+  a finished event is gone within a minute.
+- **The saved kind:** `drizzle/0088_cms_front_page_events_row.sql` adds
+  `events` to the kinds a row may be. Rows saved before keep theirs. Only the
+  heading, introduction, category and count mean anything on a row of events;
+  the order and arrangement are stored but not used.
+- **Where it lives:** `fillFrontPageEvents` in
+  `src/server/directory/front-page.ts`, the kind in
+  `src/lib/directory/front-page.ts`, and the "Which events" card in
+  `src/components/directory/front-page-section-dialog.tsx`. Both lists read
+  `readUpcomingEvents` with a category.
+
 ## The map on the event page
 
 An event page shows a small map of where the event is, with one pin, and a

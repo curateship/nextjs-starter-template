@@ -1,8 +1,9 @@
 /**
  * A site's home page rows, in the parts the browser and the server both need.
  *
- * A row is a heading, an optional line under it, and then either listings — a
- * category, an order, how many, how they draw — or a card per category.
+ * A row is a heading, an optional line under it, and then listings — a
+ * category, an order, how many, how they draw — or a card per category, or the
+ * soonest upcoming events.
  * Everything that decides what is allowed lives here, so the admin form, the
  * endpoint and the server all refuse the same things rather than three slightly
  * different lists.
@@ -13,12 +14,17 @@ import type {
   DirectoryCategorySource,
 } from "@/lib/directory/category-cards"
 import type { DirectorySort } from "@/lib/directory/public-search"
+import type { EventWhen } from "@/lib/events/event-time"
 
 /**
- * The two kinds of row a home page is built from. The first one is the default,
- * and it is what every row that existed before this was added.
+ * The kinds of row a home page is built from. The first one is the default,
+ * and it is what every row that existed before the others were added.
  */
-export const DIRECTORY_FRONT_PAGE_KINDS = ["listings", "categories"] as const
+export const DIRECTORY_FRONT_PAGE_KINDS = [
+  "listings",
+  "categories",
+  "events",
+] as const
 
 export type DirectoryFrontPageKind = (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
 
@@ -28,6 +34,7 @@ export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
 > = {
   listings: "Listings",
   categories: "Category cards",
+  events: "Upcoming events",
 }
 
 export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
@@ -37,6 +44,8 @@ export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
   listings: "Cards for individual listings, chosen and ordered below.",
   categories:
     "A card per category, with its photo and how many listings are under it.",
+  events:
+    "The soonest events that are not over yet, one under the other. Left off the page while nothing is coming up.",
 }
 
 export function isDirectoryFrontPageKind(
@@ -193,6 +202,34 @@ export type DirectoryFrontPageRow =
       intro: string
       cards: DirectoryCategoryCard[]
     }
+  | {
+      kind: "events"
+      id: string
+      heading: string
+      intro: string
+      /** How many to show, the row's own count. */
+      count: number
+      /** Only events filed under this category, or null for every event. */
+      categoryId: string | null
+      /** Filled after the page's cache, by the site's clock, soonest first. */
+      events: DirectoryFrontPageEvent[]
+      /** "Eastern Time", the zone the times are in. Filled with the events. */
+      zone: string
+    }
+
+/**
+ * One event in a home page row, in the shape the Events page's list draws.
+ * Spelled out here for the same reason as the listing below: the server's
+ * own type may not be imported by a browser-side file.
+ */
+export type DirectoryFrontPageEvent = EventWhen & {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  placeName: string
+}
 
 /**
  * One card, in the shape the public grid and map already draw.

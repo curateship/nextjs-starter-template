@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router"
+import { createFileRoute, Link, notFound } from "@tanstack/react-router"
 
 import {
   DirectoryBreadcrumbs,
@@ -10,6 +10,7 @@ import { DirectoryPagination } from "@/components/directory/public/directory-pag
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
+import { EventList } from "@/components/events/public/event-list"
 import { PostGrid } from "@/components/posts/public/post-grid"
 import { loadDirectoryCategory } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -19,11 +20,12 @@ import {
   directoryHead,
   directoryTitle,
 } from "@/lib/directory/public-seo"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { readPage } from "@/lib/nav/list-search"
 
 /**
- * One category: what it is, the categories under it, its listings, and the
- * newest posts filed under it.
+ * One category: what it is, the categories under it, its listings, the
+ * soonest events filed under it, and the newest posts filed under it.
  *
  * **Its own listings, never its children's.** A listing put in "Italian" does
  * not appear under "Restaurants" as well — that is what the directory app this
@@ -79,7 +81,9 @@ function CategoryRoute() {
     pageSize,
     browseTitle,
     posts,
+    upcomingEvents,
   } = Route.useLoaderData()
+  const events = upcomingEvents?.events ?? []
 
   const crumbs: Crumb[] = [
     { label: site.name, home: true },
@@ -149,9 +153,9 @@ function CategoryRoute() {
         </section>
       ) : null}
 
-      {/* A category holding only posts skips the "nothing here" card, which
-          would be untrue with the posts right below it. */}
-      {listings.length || !posts.length ? (
+      {/* A category holding only posts or events skips the "nothing here"
+          card, which would be untrue with them right below it. */}
+      {listings.length || (!posts.length && !events.length) ? (
         <ListingGrid
           listings={listings}
           emptyMessage={
@@ -170,6 +174,33 @@ function CategoryRoute() {
           `/directory/category/${encodeURIComponent(category.slug)}${next > 1 ? `?page=${next}` : ""}`
         }
       />
+
+      {upcomingEvents && events.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="events">
+          <div className="grid gap-1">
+            <h2 id="events" className="text-lg font-semibold">
+              Upcoming events in {category.name}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              All times are {upcomingEvents.zone}.
+            </p>
+          </div>
+          <EventList
+            // Only events still to come are read here, so none is over.
+            events={events.map((event) => ({ ...event, ended: false }))}
+            emptyMessage=""
+          />
+          {upcomingEvents.total > events.length ? (
+            <Link
+              to="/events"
+              search={{}}
+              className={`w-fit rounded-sm text-sm font-medium hover:underline ${focusRing}`}
+            >
+              All upcoming events
+            </Link>
+          ) : null}
+        </section>
+      ) : null}
 
       {posts.length ? (
         <section className="grid gap-2 md:gap-3" aria-labelledby="posts">

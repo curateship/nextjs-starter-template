@@ -279,8 +279,10 @@ import {
 import { makeEvmWallet } from "@/server/protocols/evm-chain/wallet"
 import {
   fetchRobinhoodMarkets,
+  fetchRobinhoodPrices,
   robinhoodHasNoCandles,
-  robinhoodHasNoPrices,
+  robinhoodPricesWereRationed,
+  searchRobinhoodMarkets,
 } from "@/server/protocols/robinhood/markets"
 import {
   packRobinhoodCredential,
@@ -1255,14 +1257,16 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * A wallet and nothing else — yet.
+   * Markets and a wallet. No holdings or orders yet.
    *
    * Robinhood Chain is BNB Chain's twin: an Ethereum-shaped chain where the
-   * app holds its own wallet, and both read their wallets through
-   * `evm-chain/`. The key is proved against its address by arithmetic, so
-   * saving a wallet asks the chain nothing. The market list is empty until
-   * the stock tokens are listed, and there is no account or orders block, so
-   * nothing here can be bought or read.
+   * app holds its own wallet, and both share `evm-chain/`. The market list is
+   * every stock token Robinhood's factory deployed plus the coins in the
+   * chain's busiest pools, priced by DexScreener. No candle source is
+   * connected yet, so its charts are recorded from the screen
+   * (`recordsOwnBars`) until the chart task.
+   * There is no account or orders block, so nothing here can be bought or
+   * read.
    */
   robinhood: {
     ...protocolCore("robinhood"),
@@ -1270,9 +1274,13 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fetch: fetchRobinhoodMarkets,
       candles: robinhoodHasNoCandles,
       history: robinhoodHasNoCandles,
+      recordsOwnBars: true,
       intervalMs: standardCandleIntervalMs,
-      prices: robinhoodHasNoPrices,
-      roundPx: roundToTick,
+      prices: fetchRobinhoodPrices,
+      // A swap has no price grid; `priceTick` is null on every row.
+      roundPx: (px) => px,
+      pricesWereRationed: robinhoodPricesWereRationed,
+      search: searchRobinhoodMarkets,
     },
     agent: { verify: verifyRobinhoodWallet },
     credentials: {

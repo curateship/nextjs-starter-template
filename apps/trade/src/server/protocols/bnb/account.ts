@@ -13,11 +13,8 @@ import {
 import { db } from "@/server/trade/db"
 import { tradeLiveFills } from "@/server/trade/schema"
 import { bnbRpcUrl, BNB_USDT, BNB_WRAPPED_NATIVE } from "./client"
-import {
-  bnbAccountMarkets,
-  fetchBnbPrices,
-  BNB_PRICE_PAGE_SIZE,
-} from "./markets"
+import { PRICE_PAGE_SIZE } from "@/server/protocols/evm-chain/markets"
+import { bnbAccountMarkets, fetchBnbPrices } from "./markets"
 import { BNB_FEE_RESERVE } from "./refusals"
 
 export { BNB_FEE_RESERVE } from "./refusals"
@@ -115,9 +112,9 @@ async function read(
       for (
         let start = 0;
         start < unlisted.length;
-        start += BNB_PRICE_PAGE_SIZE
+        start += PRICE_PAGE_SIZE
       ) {
-        const page = unlisted.slice(start, start + BNB_PRICE_PAGE_SIZE)
+        const page = unlisted.slice(start, start + PRICE_PAGE_SIZE)
         const fresh = await held(pricesCache, page.join(","), 10_000, () =>
           fetchBnbPrices(network, page)
         )

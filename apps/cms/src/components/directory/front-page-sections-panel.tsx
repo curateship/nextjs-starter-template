@@ -139,7 +139,13 @@ export function FrontPageSectionsPanel({
                     {section.heading}
                   </button>
                   <p className="text-xs text-muted-foreground">
-                    {(section.kind === "categories"
+                    {(section.kind === "events"
+                      ? [
+                          DIRECTORY_FRONT_PAGE_KIND_LABELS[section.kind],
+                          section.categoryName ?? "Every event",
+                          `up to ${section.listingCount}`,
+                        ]
+                      : section.kind === "categories"
                       ? [
                           DIRECTORY_FRONT_PAGE_KIND_LABELS[section.kind],
                           DIRECTORY_CATEGORY_SOURCE_LABELS[
