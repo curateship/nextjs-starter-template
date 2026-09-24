@@ -25,11 +25,14 @@ import {
   attachEditorMedia,
   getVideoMediaErrorMessage,
   listVideoMedia,
+  retryMediaPreparation,
   type VideoMediaItem,
 } from "@/lib/api/video/media"
 import { loadBrandKit, type VideoBrandKit } from "@/lib/api/video/settings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
+import { announceFilmstripRequeued } from "@/lib/video/filmstrips"
+import { mediaPreparation } from "@/lib/video/media-preparation"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { type TextFontId } from "@/lib/video/text-fonts"
 import {
@@ -69,6 +72,12 @@ export type StudioPanel =
   | "brand"
   | "ai"
   | "transcript"
+
+// How long the Media panel waits before asking again while a video is still
+// being got ready. The worker runs every fifteen seconds, so this catches a
+// finished file within one run, and it is slower than the two seconds the
+// filmstrip route asks for.
+const PREPARATION_RECHECK_MS = 5000
 
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
@@ -223,6 +232,33 @@ function MediaPanel() {
     shelfVersion,
     setSelected,
   ])
+
+  // One list request at a time: the next waits for the answer to the last.
+  const anyPreparing = items.some(
+    (item) => mediaPreparation(item) === "preparing"
+  )
+  React.useEffect(() => {
+    if (!anyPreparing) return
+    const timer = setTimeout(
+      () => setRefresh((count) => count + 1),
+      PREPARATION_RECHECK_MS
+    )
+    return () => clearTimeout(timer)
+  }, [anyPreparing, items])
+
+  const [retryingId, setRetryingId] = React.useState<string | null>(null)
+  async function retryPreparation(item: VideoMediaItem) {
+    setRetryingId(item.id)
+    try {
+      await retryMediaPreparation(item.id)
+      announceFilmstripRequeued(item.id)
+      setRefresh((count) => count + 1)
+    } catch (error) {
+      showErrorToast(getVideoMediaErrorMessage(error))
+    } finally {
+      setRetryingId(null)
+    }
+  }
 
   async function addItem(item: VideoMediaItem, atMs: number, trackId?: string) {
     try {
@@ -653,6 +689,11 @@ function MediaPanel() {
                         </div>
                       </button>
                     )}
+                    <PreparationNote
+                      item={item}
+                      retrying={retryingId === item.id}
+                      onRetry={() => void retryPreparation(item)}
+                    />
                     {selecting ? (
                       <SelectTileOverlay
                         name={item.original_name}
@@ -708,6 +749,59 @@ function MediaPanel() {
           {ghost.item.original_name}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * A line under a video tile while the worker is still making its smooth copy
+ * or its frames, or after it gave up on one. Under the tile rather than over
+ * it: a wide video's tile is as small as 56 by 32 pixels in a narrow window,
+ * too small to hold a sentence, and a Try again button over the tile would be
+ * a button inside a button.
+ */
+function PreparationNote({
+  item,
+  retrying,
+  onRetry,
+}: {
+  item: VideoMediaItem
+  retrying: boolean
+  onRetry: () => void
+}) {
+  const state = mediaPreparation(item)
+  if (state === "ready") return null
+  if (state === "preparing") {
+    return (
+      <p
+        role="status"
+        className="mt-1.5 px-0.5 text-[10.5px] leading-tight text-muted-foreground"
+      >
+        <Loader2
+          aria-hidden
+          className="mr-1 inline size-3 align-[-2px] motion-safe:animate-spin"
+        />
+        Getting it ready to scrub
+      </p>
+    )
+  }
+  return (
+    <div role="status" className="mt-1.5 grid gap-1 px-0.5">
+      <p className="text-[10.5px] leading-tight font-medium text-foreground">
+        Couldn't get it ready to scrub
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        className="justify-self-start"
+        disabled={retrying}
+        aria-label={`Try getting ${item.original_name} ready again`}
+        onClick={onRetry}
+      >
+        {retrying ? <Loader2 className="animate-spin" /> : null}
+        Try again
+      </Button>
     </div>
   )
 }

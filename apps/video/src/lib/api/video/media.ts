@@ -25,10 +25,12 @@ import {
   attachPastedMediaToProject,
   deleteMediaFromScope,
   listVideoMedia as listVideoMediaQuery,
+  retryOwnedMediaPreparation,
   type MediaScope,
   type VideoMediaItem,
   type VideoMediaListResponse,
 } from "@/server/video/media-list"
+import { kickVideoMediaWorker } from "@/server/video/media-workers"
 
 export type { MediaScope } from "@/server/video/media-list"
 
@@ -147,6 +149,14 @@ const deleteMediaFn = createServerFn({ method: "POST" })
     await deleteMediaFromScope(context.user.id, data.scope, data.mediaId)
   })
 
+const retryPreparationFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ mediaId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => {
+    await retryOwnedMediaPreparation(context.user.id, data.mediaId)
+    kickVideoMediaWorker()
+  })
+
 const listCollectionsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => {
@@ -238,6 +248,11 @@ export function attachPastedMedia(projectId: string, mediaIds: string[]) {
 
 export function deleteEditorMedia(scope: MediaScope, mediaId: string) {
   return deleteMediaFn({ data: { scope, mediaId } })
+}
+
+/** Queue a file's failed smooth copy and filmstrip to be made again. */
+export function retryMediaPreparation(mediaId: string) {
+  return retryPreparationFn({ data: { mediaId } })
 }
 
 export function listMediaCollections() {
