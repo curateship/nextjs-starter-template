@@ -9,14 +9,18 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import {
   LISTING_REPORT_STATUSES,
+  REPORT_KINDS,
   type ListingReportStatus,
+  type ReportKind,
 } from "@/lib/directory/report-reasons"
 import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 type ReportsSearch = {
   /** Absent means the ones still waiting, which is what the screen is for. */
   status?: ListingReportStatus | "all"
-  /** The search box, matched against the listing's title and the note. */
+  /** Only listings or only events. Absent means both. */
+  kind?: ReportKind
+  /** The search box, matched against the listing's or event's title and the note. */
   q?: string
   page?: number
   size?: number
@@ -39,6 +43,7 @@ function readReportsSearch(search: Record<string, unknown>): ReportsSearch {
 
   return {
     status: readOneOf(search.status, STATUS_FILTERS),
+    kind: readOneOf(search.kind, REPORT_KINDS),
     q: readSearchText(search.q),
     page: readPage(search.page),
     size: readOneOf(
@@ -60,6 +65,7 @@ export const Route = createFileRoute("/_authenticated/admin/listing-reports")({
       // No status in the address means the waiting ones. "all" is the only way
       // to ask for every report, so the default stays out of the address.
       status: deps.status === "all" ? undefined : (deps.status ?? "open"),
+      kind: deps.kind,
       search: deps.q,
       page: deps.page,
       limit: deps.size,

@@ -6,6 +6,7 @@ import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-br
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
+import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import { AddToCalendarMenu } from "@/components/events/public/calendar-menus"
 import { EventPlaceMap } from "@/components/events/public/event-place-map"
 import { PostBody } from "@/components/posts/public/post-body"
@@ -213,6 +214,18 @@ function EventRoute() {
           {event.body.content?.length ? (
             <PostBody body={event.body} listingCards={listingCards} />
           ) : null}
+
+          {/* Last, and shown after the event is over too: an event that says
+              it ended yesterday when it is really next week is exactly what
+              a visitor needs to be able to report. A div, so the link stays
+              its own width in the card's grid. */}
+          <div>
+            <ReportProblemButton
+              kind="event"
+              subjectId={event.id}
+              title={event.title}
+            />
+          </div>
         </CardContent>
       </Card>
     </DirectoryFrame>

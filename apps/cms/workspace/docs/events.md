@@ -430,6 +430,8 @@ by email. It is not a password.
   so a cached page never says an event is still on.
 - **A draft, another site's event and a made-up address** all answer the same
   not-found page.
+- **"Report a problem"** is a small link at the foot of the event's card.
+  "Reporting a problem on an event" below covers it.
 
 ## The Events page
 
@@ -994,6 +996,79 @@ run stops.
   `src/server/events/ai-json.ts`.
 - **The source column:** `source_url` on `events`, from
   `drizzle/0091_cms_event_source_link.sql`. A duplicated event starts with none.
+
+## Reporting a problem on an event
+
+A visitor who turns up and finds nothing happening can tell the site. They pick
+what is wrong, add a line, and it lands in the same admin queue as problems
+reported on listings. The event does not change, and nothing the visitor wrote
+is ever shown on the site. `listing-problem-reports.md` has the rules both kinds
+share: the queue, the admin email, and two admins closing the same report.
+
+### What a visitor sees
+
+- **Where:** "Report a problem" is the last line of the event's card, under the
+  body. It stays there after the event is over, because an event that says it
+  ended yesterday when it is really next week is exactly what somebody needs to
+  report.
+- **The reasons:** wrong date or time, cancelled, wrong place, something else.
+  They are an event's own list, separate from a listing's list, which offers
+  wrong opening hours, wrong phone or address, and closed for good.
+- **The note:** up to 1000 characters. It is needed only for "Something else",
+  and sending that without one is refused with "Tell us in a line or two what
+  is wrong."
+- **Their email:** optional. It is there so an admin can ask a follow-up
+  question by hand, and nothing is ever sent to it automatically.
+- **No account needed.** Once it is sent, the link is replaced by "Thank you.
+  Somebody who looks after this site will read it."
+- **A private event** can be reported too, because anybody with its link can
+  open its page.
+
+### What stops it being used for spam
+
+- **The Events page's switch:** the form is refused while the Events page is
+  switched off, or kept for members and the visitor is signed out. That is the
+  same rule the event page follows.
+- **One report per event per hour, per visitor.** A second one is refused with
+  "You have already sent a report about this event. Give it a while before
+  sending another."
+- **Ten an hour per visitor, fifty an hour per site.** These two limits are
+  shared with listing reports, so ten reports on listings use up a visitor's
+  hour for events too. The site limit exists because every report emails the
+  admins, whatever it is about.
+- **Words are checked before counting.** A forgotten note is refused before any
+  limit is counted, so fixing it costs nothing.
+- **Only a published event on this site** can be reported. A draft answers
+  "That event is no longer on this site", the same as an event that does not
+  exist, so a report can never confirm that a draft's id is real.
+
+### In the queue
+
+Admin → Reported problems, at `/admin/listing-reports`.
+
+- **The Kind column** says Listing or Event on every row.
+- **The Kind filter** picks between "Listings and events", which it opens on,
+  "Listings" and "Events". It lives in the address as `?kind=event`.
+- **The search** matches the event's title as well as the note.
+- **The window** links to "Edit the event", which opens it in Admin → Events,
+  and "See the page", which opens the event's public page.
+- **Mark fixed and Dismiss** only close the report. The event is corrected in
+  its own editor.
+
+### Where it lives
+
+- **The reasons:** `src/lib/directory/report-reasons.ts`, beside the listing
+  reasons.
+- **The form:** `src/components/directory/public/report-problem-button.tsx`,
+  shared with listings, on `src/routes/events_.$slug.tsx`.
+- **The door:** `src/lib/api/events/reports.ts`. The listing's door is
+  `src/lib/api/directory/reports.ts`, and both count through
+  `countReportAttempt` in `src/server/directory/reports.ts`.
+- **The table:** a report is a row in `directory_listing_reports`, with
+  `event_id` set instead of `listing_id`, from
+  `drizzle/0092_cms_event_reports.sql`. A check in the database makes sure
+  exactly one of the two is set, and that the reason comes from that kind's
+  list. Deleting an event deletes its reports.
 
 ## Not built yet
 

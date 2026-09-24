@@ -87,9 +87,10 @@ export async function tellAdminsAboutEditRequest(
  * the next hour. The row is in the queue either way, which is the promise
  * `workspace/docs/listing-problem-reports.md` makes.
  */
-export async function tellAdminsAboutListingReport(
+export async function tellAdminsAboutReport(
   workspaceId: string,
-  listingTitle: string,
+  /** The listing's or event's title. */
+  subjectTitle: string,
   reasonLabel: string,
   database: CustomShellDb = db
 ) {
@@ -97,9 +98,9 @@ export async function tellAdminsAboutListingReport(
     await notifyAdmins(
       {
         workspaceId,
-        subject: `Problem reported on ${listingTitle}`,
+        subject: `Problem reported on ${subjectTitle}`,
         lines: [
-          `A visitor says something is wrong with ${listingTitle}: ${reasonLabel}.`,
+          `A visitor says something is wrong with ${subjectTitle}: ${reasonLabel}.`,
           "Nothing on the page has changed. It is waiting in the reports queue.",
         ],
         url: appUrlFor("/admin/listing-reports"),

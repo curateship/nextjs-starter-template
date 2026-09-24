@@ -35,18 +35,49 @@ import {
   getListingReportErrorMessage,
   reportListingProblem,
 } from "@/lib/api/directory/reports"
+import { reportEventProblem } from "@/lib/api/events/reports"
 import { LISTING_REPORT_NOTE_MAX } from "@/lib/directory/field-lengths"
 import {
+  EVENT_REPORT_REASONS,
   LISTING_REPORT_REASONS,
-  LISTING_REPORT_REASON_LABELS,
+  REPORT_REASON_LABELS,
+  type EventReportReason,
   type ListingReportReason,
+  type ReportKind,
+  type ReportReason,
 } from "@/lib/directory/report-reasons"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
- * "Report a problem" under a listing's details, and the window behind it.
+ * Each kind's reasons in picker order, the one the picker starts on, and the
+ * example in the note box. The listing's example is about hours; an event's is
+ * about the day, because that is what goes wrong with one.
+ */
+const FORM_FOR: Record<
+  ReportKind,
+  {
+    reasons: readonly ReportReason[]
+    first: ReportReason
+    example: string
+  }
+> = {
+  listing: {
+    reasons: LISTING_REPORT_REASONS,
+    first: "wrong_hours",
+    example: "Closed at 4pm on Sunday, not 6pm.",
+  },
+  event: {
+    reasons: EVENT_REPORT_REASONS,
+    first: "wrong_time",
+    example: "It moved to Saturday the 3rd.",
+  },
+}
+
+/**
+ * "Report a problem" under a listing's details or at the foot of an event, and
+ * the window behind it.
  *
  * Deliberately the quietest control on the page: a small link, not a button.
  * It is for the handful of readers who know something the site does not, and a
@@ -58,16 +89,19 @@ import { cn } from "@/lib/utils"
  * is already looking.
  *
  * No account, because the person who drove to the bakery and found it shut has
- * none. Nothing they send appears on the page, and the listing does not change
- * — an admin reads the report and fixes the listing by hand.
+ * none. Nothing they send appears on the page, and the page does not change:
+ * an admin reads the report and fixes the listing or event by hand.
  */
 export function ReportProblemButton({
-  listingId,
-  listingTitle,
+  kind,
+  subjectId,
+  title,
   asRow = false,
 }: {
-  listingId: string
-  listingTitle: string
+  kind: ReportKind
+  /** The listing's id or the event's id. */
+  subjectId: string
+  title: string
   /** Drawn as a line of the listing's card rather than as a small link. */
   asRow?: boolean
 }) {
@@ -111,8 +145,9 @@ export function ReportProblemButton({
       </button>
       <ReportProblemDialog
         open={open}
-        listingId={listingId}
-        listingTitle={listingTitle}
+        kind={kind}
+        subjectId={subjectId}
+        title={title}
         onClose={() => setOpen(false)}
         onSent={() => {
           setOpen(false)
@@ -125,18 +160,21 @@ export function ReportProblemButton({
 
 function ReportProblemDialog({
   open,
-  listingId,
-  listingTitle,
+  kind,
+  subjectId,
+  title,
   onClose,
   onSent,
 }: {
   open: boolean
-  listingId: string
-  listingTitle: string
+  kind: ReportKind
+  subjectId: string
+  title: string
   onClose: () => void
   onSent: () => void
 }) {
-  const [reason, setReason] = React.useState<ListingReportReason>("wrong_hours")
+  const form = FORM_FOR[kind]
+  const [reason, setReason] = React.useState<ReportReason>(form.first)
   const [note, setNote] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [sending, setSending] = React.useState(false)
@@ -144,10 +182,10 @@ function ReportProblemDialog({
   // Emptied as the window opens rather than in an effect, so a second report
   // never starts with the first one's words still in it.
   const [openedFor, setOpenedFor] = React.useState<string | null>(null)
-  const key = open ? listingId : null
+  const key = open ? subjectId : null
   if (openedFor !== key) {
     setOpenedFor(key)
-    setReason("wrong_hours")
+    setReason(form.first)
     setNote("")
     setEmail("")
   }
@@ -158,12 +196,21 @@ function ReportProblemDialog({
     dismissErrorToast()
     setSending(true)
     try {
-      await reportListingProblem({
-        listingId,
-        reason,
-        note,
-        reporterEmail: email,
-      })
+      if (kind === "event") {
+        await reportEventProblem({
+          eventId: subjectId,
+          reason: reason as EventReportReason,
+          note,
+          reporterEmail: email,
+        })
+      } else {
+        await reportListingProblem({
+          listingId: subjectId,
+          reason: reason as ListingReportReason,
+          note,
+          reporterEmail: email,
+        })
+      }
       toast.success("Thank you for the report")
       onSent()
     } catch (error) {
@@ -180,10 +227,14 @@ function ReportProblemDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Report a problem with {listingTitle}</DialogTitle>
+            {/* The page's name sits in the line below rather than in the
+                title. A long event name in the title ran under the window's
+                close button on a phone, because the shared title is one line
+                and cut off. */}
+            <DialogTitle>Report a problem</DialogTitle>
             <DialogDescription>
-              This goes to the people who run the site. The page does not change
-              until one of them fixes it.
+              About {title}. This goes to the people who run the site. The page
+              does not change until one of them fixes it.
             </DialogDescription>
           </DialogHeader>
 
@@ -202,9 +253,7 @@ function ReportProblemDialog({
                   <Select
                     value={reason}
                     disabled={sending}
-                    onValueChange={(value) =>
-                      setReason(value as ListingReportReason)
-                    }
+                    onValueChange={(value) => setReason(value as ReportReason)}
                   >
                     <SelectTrigger
                       id="report-reason"
@@ -213,9 +262,9 @@ function ReportProblemDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {LISTING_REPORT_REASONS.map((value) => (
+                      {form.reasons.map((value) => (
                         <SelectItem key={value} value={value}>
-                          {LISTING_REPORT_REASON_LABELS[value]}
+                          {REPORT_REASON_LABELS[value]}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -238,7 +287,7 @@ function ReportProblemDialog({
                     id="report-note"
                     rows={1}
                     maxLength={LISTING_REPORT_NOTE_MAX}
-                    placeholder="Closed at 4pm on Sunday, not 6pm."
+                    placeholder={form.example}
                     value={note}
                     disabled={sending}
                     onChange={(event) => setNote(event.target.value)}

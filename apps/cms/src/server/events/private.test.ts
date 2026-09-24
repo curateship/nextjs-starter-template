@@ -114,6 +114,10 @@ const everyPublicRead: Record<
   },
   eventsArePublic: { notAList: "Reads the Events page's switch." },
   findEventPlace: { notAList: "Finds a listing by its address, not events." },
+  findReportableEvent: {
+    notAList:
+      "One event by its id, for a visitor reporting a page they opened.",
+  },
   readEventCategories: {
     notAList: "Lists categories, not events. Proven on its own below.",
   },
@@ -187,6 +191,7 @@ describe("the events table", () => {
    * skip the private filter in `public.ts`, so it has to live there instead.
    */
   const allowed = [
+    "server/directory/reports.ts", // Admin: the reports queue names each event.
     "server/events/events.ts", // Admin → Events, which shows everything.
     "server/events/place.ts", // Column rules for a listing as the place.
     "server/events/public.ts", // Every public read, through the one filter.

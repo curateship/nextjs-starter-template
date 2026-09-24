@@ -514,6 +514,25 @@ export async function findEventPlace(
   return row ?? null
 }
 
+/**
+ * A published event on this site by its id, for the Report a problem form.
+ * Private events are found too: anybody with the link can open one, so anybody
+ * who opened one can say it is wrong. A draft is not found, so its id cannot
+ * be confirmed by reporting it.
+ */
+export async function findReportableEvent(
+  siteId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<{ id: string; title: string } | null> {
+  const [row] = await database
+    .select({ id: siteEvents.id, title: siteEvents.title })
+    .from(siteEvents)
+    .where(and(publishedEventsOnSite(siteId), eq(siteEvents.id, id)))
+    .limit(1)
+  return row ?? null
+}
+
 export type EventCategory = { id: string; name: string; slug: string }
 
 /**

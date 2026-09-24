@@ -21,21 +21,23 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import {
   closeListingReport,
   getListingReportErrorMessage,
-  type ListingReportSummary,
+  type ProblemReportSummary,
 } from "@/lib/api/directory/reports"
 import {
-  LISTING_REPORT_REASON_LABELS,
   LISTING_REPORT_STATUS_LABELS,
+  REPORT_REASON_LABELS,
+  type ReportKind,
 } from "@/lib/directory/report-reasons"
 import { formatDateTime } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * One report, and the two things an admin can do about it.
+ * One report about a listing or an event, and the two things an admin can do
+ * about it.
  *
- * Neither button touches the listing. Fixed means "I have already corrected the
+ * Neither button touches the page. Fixed means "I have already corrected the
  * page"; Dismissed means "there is nothing to correct". The window links to the
- * listing's own editor because that is where the correction actually happens,
+ * listing's or event's own editor because that is where the correction happens,
  * and a window that offered to apply a stranger's words to a public page would
  * be the thing this whole feature was built to avoid.
  */
@@ -46,9 +48,12 @@ export function ListingReportDialog({
   onClosed,
 }: {
   open: boolean
-  report: ListingReportSummary | null
+  report: ProblemReportSummary | null
   onClose: () => void
-  onClosed: (decision: "fixed" | "dismissed") => void | Promise<void>
+  onClosed: (
+    decision: "fixed" | "dismissed",
+    kind: ReportKind
+  ) => void | Promise<void>
 }) {
   const [busy, setBusy] = React.useState(false)
   const done = report ? report.status !== "open" : false
@@ -59,7 +64,7 @@ export function ListingReportDialog({
     setBusy(true)
     try {
       await closeListingReport({ id: report.id, decision })
-      await onClosed(decision)
+      await onClosed(decision, report.kind)
     } catch (error) {
       showErrorToast(getListingReportErrorMessage(error))
     } finally {
@@ -73,21 +78,19 @@ export function ListingReportDialog({
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {report
-                ? LISTING_REPORT_REASON_LABELS[report.reason]
-                : "A report"}
+              {report ? REPORT_REASON_LABELS[report.reason] : "A report"}
             </DialogTitle>
             <DialogDescription>
               {done
                 ? `Already marked ${report ? LISTING_REPORT_STATUS_LABELS[report.status].toLowerCase() : "dealt with"}.`
-                : "A visitor sent this. Nothing on the listing has changed."}
+                : `A visitor sent this. Nothing on the ${report?.kind ?? "page"} has changed.`}
             </DialogDescription>
           </DialogHeader>
 
           <DialogBody>
             <Card size="sm">
               <CardHeader>
-                <CardTitle>{report?.listingTitle ?? "The listing"}</CardTitle>
+                <CardTitle>{report?.subjectTitle ?? "The page"}</CardTitle>
                 <CardDescription>
                   Reported {report ? formatDateTime(report.createdAt) : ""}
                 </CardDescription>
@@ -116,28 +119,7 @@ export function ListingReportDialog({
                     )}
                   </p>
                 </div>
-                {report ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="outline">
-                      <Link
-                        to="/admin/listings"
-                        search={{ open: report.listingId }}
-                      >
-                        Edit the listing
-                      </Link>
-                    </Button>
-                    <Button asChild variant="ghost">
-                      <Link
-                        to="/directory/$slug"
-                        params={{ slug: report.listingSlug }}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        See the page
-                      </Link>
-                    </Button>
-                  </div>
-                ) : null}
+                {report ? <ReportLinks report={report} /> : null}
               </CardContent>
             </Card>
           </DialogBody>
@@ -178,5 +160,52 @@ export function ListingReportDialog({
         </DialogContent>
       )}
     </FormDialog>
+  )
+}
+
+/**
+ * The editor where the correction happens, and the public page the visitor
+ * saw. Each kind has its own two addresses.
+ */
+function ReportLinks({ report }: { report: ProblemReportSummary }) {
+  if (report.kind === "event") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline">
+          <Link to="/admin/events" search={{ open: report.subjectId }}>
+            Edit the event
+          </Link>
+        </Button>
+        <Button asChild variant="ghost">
+          <Link
+            to="/events/$slug"
+            params={{ slug: report.subjectSlug }}
+            target="_blank"
+            rel="noreferrer"
+          >
+            See the page
+          </Link>
+        </Button>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button asChild variant="outline">
+        <Link to="/admin/listings" search={{ open: report.subjectId }}>
+          Edit the listing
+        </Link>
+      </Button>
+      <Button asChild variant="ghost">
+        <Link
+          to="/directory/$slug"
+          params={{ slug: report.subjectSlug }}
+          target="_blank"
+          rel="noreferrer"
+        >
+          See the page
+        </Link>
+      </Button>
+    </div>
   )
 }
