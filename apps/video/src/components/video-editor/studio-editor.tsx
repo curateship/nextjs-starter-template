@@ -43,6 +43,7 @@ import {
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
+  timelineDurationMs,
   useEditorHasConflict,
   useEditorProjectName,
   useEditorRuntime,
@@ -374,6 +375,9 @@ function StageHeader() {
   const [shared, setShared] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
   const projectAspect = useEditorSelector((state) => state.aspect)
+  const projectMs = useEditorSelector((state) =>
+    timelineDurationMs(state.tracks)
+  )
   const {
     jobs,
     setJobs,
@@ -478,6 +482,7 @@ function StageHeader() {
         projectId={projectId}
         projectName={projectName}
         projectAspect={projectAspect}
+        projectMs={projectMs}
         jobs={jobs}
         onJobsChange={setJobs}
       />

@@ -58,7 +58,8 @@ const RENDER_CONCURRENCY = Math.max(
 // Interrupted once (a restart mid-render) it is retried; twice and it stops.
 // Pressing Try again on a failed export starts the count again from nothing.
 const MAX_ATTEMPTS = 2
-// One person cannot fill the queue for an hour and starve everybody else.
+// One person cannot fill the queue without end and starve everybody else. At
+// thirty minutes a project, twenty is still hours of rendering.
 const MAX_ACTIVE_JOBS_PER_USER = 20
 const LEASE_SECONDS = 60
 const HEARTBEAT_MS = 20_000

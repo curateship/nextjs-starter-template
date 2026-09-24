@@ -169,9 +169,10 @@ took turns so both saw the same machine.
 - **Lighting every word adds 2 to 4 seconds a minute,** or under 1 second for
   every 10 captions. That is the time spent drawing the extra
   pictures. ffmpeg's share hardly changes, because it is still one layer.
-- **The longest export allowed now finishes well inside the limit.** The
-  heaviest case, ten minutes of lit captions with an entrance, took 217
-  seconds against the 600-second limit. The machine was busier during that
+- **Ten minutes, then the longest export allowed, finished well inside the
+  limit.** The heaviest case, ten minutes of lit captions with an entrance,
+  took 217 seconds against the 600-second limit. Longer exports now get a
+  longer limit ([long-exports.md](long-exports.md)). The machine was busier during that
   run than during the others.
 - **Only this Mac was measured.** The live server has a different number of
   cores and may have a different ffmpeg.
