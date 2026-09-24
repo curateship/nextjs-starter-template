@@ -7,6 +7,7 @@ import {
   ilike,
   inArray,
   isNotNull,
+  notInArray,
   sql,
   type SQL,
 } from "drizzle-orm"
@@ -32,7 +33,12 @@ import { customShellMedia } from "@/server/schema"
 import { removeExportFiles } from "@/server/video/export-files"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
+  folderIdOfProject,
+  requireOwnedFolder,
+} from "@/server/video/project-folders"
+import {
   videoMediaProxies,
+  videoProjectFolderItems,
   videoProjects,
   videoProjectThumbnails,
   videoRenderJobs,
@@ -267,12 +273,15 @@ export async function listOwnedProjects({
   page = 1,
   pageSize = 24,
   search = "",
+  folderId,
   database = db,
 }: {
   userId: string
   page?: number
   pageSize?: number
   search?: string
+  /** Absent lists every project; null only those in no folder. */
+  folderId?: string | null
   database?: CustomShellDb
 }): Promise<ProjectListResponse> {
   const safePage = Math.max(1, Math.floor(page))
@@ -285,6 +294,21 @@ export async function listOwnedProjects({
     // "100%" instead of matching everything.
     filters.push(
       ilike(videoProjects.name, `%${cleanedSearch.replace(/([\\%_])/g, "\\$1")}%`)
+    )
+  }
+  if (folderId !== undefined) {
+    // No owner check on the folder: the projects are already this person's,
+    // and a project only ever goes into a folder its owner owns.
+    const filed = database
+      .select({ id: videoProjectFolderItems.projectId })
+      .from(videoProjectFolderItems)
+    filters.push(
+      folderId === null
+        ? notInArray(videoProjects.id, filed)
+        : inArray(
+            videoProjects.id,
+            filed.where(eq(videoProjectFolderItems.folderId, folderId))
+          )
     )
   }
   const where = and(...filters)
@@ -326,27 +350,42 @@ export async function getOwnedProjectDetail(
   }
 }
 
+/**
+ * `folderId` puts the new project straight into that folder, the one the list
+ * was showing when New project was pressed.
+ */
 export async function createOwnedProject(
   userId: string,
   name: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  folderId: string | null = null
 ): Promise<ProjectItem> {
   const createdAt = now()
+  const cleanedName = cleanProjectName(name)
+  if (folderId) await requireOwnedFolder(userId, folderId, database)
   // A new project starts empty and vertical — the short-form shape almost
   // everything here is made for. The aspect switch changes it in one click.
   const timeline = createEmptyTimeline()
-  const [created] = await database
-    .insert(videoProjects)
-    .values({
-      id: uuid(),
-      userId,
-      name: cleanProjectName(name),
-      aspect: timeline.aspect,
-      timeline,
-      createdAt,
-      updatedAt: createdAt,
-    })
-    .returning()
+  const created = await database.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(videoProjects)
+      .values({
+        id: uuid(),
+        userId,
+        name: cleanedName,
+        aspect: timeline.aspect,
+        timeline,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+    if (folderId) {
+      await tx
+        .insert(videoProjectFolderItems)
+        .values({ projectId: row.id, folderId, createdAt })
+    }
+    return row
+  })
   return serializeOneProject(created, database)
 }
 
@@ -357,22 +396,32 @@ export async function duplicateOwnedProject(
 ): Promise<ProjectItem> {
   const source = await getOwnedProject(userId, projectId, database)
   const createdAt = now()
-  const [created] = await database
-    .insert(videoProjects)
-    .values({
-      id: uuid(),
-      userId,
-      name: cleanProjectName(`${source.name} copy`),
-      aspect: source.aspect,
-      timeline: source.timeline,
-      // The copy is its own project from version 1; it shares nothing with the
-      // original after this moment, and the background worker makes its
-      // picture on the next pass, the same as any new project.
-      version: 1,
-      createdAt,
-      updatedAt: createdAt,
-    })
-    .returning()
+  const created = await database.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(videoProjects)
+      .values({
+        id: uuid(),
+        userId,
+        name: cleanProjectName(`${source.name} copy`),
+        aspect: source.aspect,
+        timeline: source.timeline,
+        // The copy is its own project from version 1; it shares nothing with
+        // the original after this moment, and the background worker makes its
+        // picture on the next pass, the same as any new project.
+        version: 1,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+    // The copy sits in the original's folder, so it appears beside it.
+    const folderId = await folderIdOfProject(source.id, tx)
+    if (folderId) {
+      await tx
+        .insert(videoProjectFolderItems)
+        .values({ projectId: row.id, folderId, createdAt })
+    }
+    return row
+  })
   return serializeOneProject(created, database)
 }
 

@@ -7,6 +7,7 @@ import {
   PROJECT_NAME_REQUIRED_MESSAGE,
   PROJECT_NOT_FOUND_MESSAGE,
 } from "@/lib/video/projects"
+import { FOLDER_NOT_FOUND_MESSAGE } from "@/lib/video/project-folders"
 import {
   PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
@@ -37,6 +38,7 @@ export type { ProjectDetail, ProjectItem, ProjectListResponse, ProjectTimeline }
 
 const KNOWN_MESSAGES = new Set([
   PROJECT_NOT_FOUND_MESSAGE,
+  FOLDER_NOT_FOUND_MESSAGE,
   PROJECT_NAME_REQUIRED_MESSAGE,
   PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
@@ -56,11 +58,15 @@ const nameSchema = z.object({
   name: z.string().min(1).max(PROJECT_NAME_MAX),
 })
 
+// Absent = every project; null = those in no folder; an id = that folder.
+const folderIdSchema = z.string().min(1).max(36).nullish()
+
 const listSchema = z
   .object({
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
     search: z.string().trim().max(120).default(""),
+    folderId: folderIdSchema,
   })
   .optional()
 
@@ -80,6 +86,7 @@ const listProjectsFn = createServerFn({ method: "GET" })
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 24,
       search: data?.search,
+      folderId: data?.folderId,
     })
   })
 
@@ -92,9 +99,14 @@ const getProjectFn = createServerFn({ method: "GET" })
 
 const createProjectFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(nameSchema)
+  .inputValidator(nameSchema.extend({ folderId: folderIdSchema }))
   .handler(async ({ data, context }) => {
-    return createOwnedProject(context.user.id, data.name)
+    return createOwnedProject(
+      context.user.id,
+      data.name,
+      undefined,
+      data.folderId ?? null
+    )
   })
 
 const duplicateProjectFn = createServerFn({ method: "POST" })
@@ -136,16 +148,23 @@ export function listProjects({
   page = 1,
   pageSize = 24,
   search,
-}: { page?: number; pageSize?: number; search?: string } = {}) {
-  return listProjectsFn({ data: { page, pageSize, search } })
+  folderId,
+}: {
+  page?: number
+  pageSize?: number
+  search?: string
+  folderId?: string | null
+} = {}) {
+  return listProjectsFn({ data: { page, pageSize, search, folderId } })
 }
 
 export function getProject(projectId: string) {
   return getProjectFn({ data: { projectId } })
 }
 
-export function createProject(name: string) {
-  return createProjectFn({ data: { name } })
+/** `folderId` files the new project straight into that folder. */
+export function createProject(name: string, folderId?: string | null) {
+  return createProjectFn({ data: { name, folderId } })
 }
 
 export function duplicateProject(projectId: string) {

@@ -30,6 +30,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 export function ProjectFormDialog({
   open,
   project,
+  folderId,
   onClose,
   onCreated,
   onSaved,
@@ -37,6 +38,8 @@ export function ProjectFormDialog({
   open: boolean
   /** The project being renamed, or null when making a new one. */
   project: ProjectItem | null
+  /** The folder a new project goes into, the one the list is showing. */
+  folderId: string | null
   onClose: () => void
   onCreated: (project: ProjectItem) => void
   onSaved: () => void
@@ -68,7 +71,7 @@ export function ProjectFormDialog({
         toast.success("Project renamed.")
         onSaved()
       } else {
-        const created = await createProject(name)
+        const created = await createProject(name, folderId)
         dismissErrorToast()
         onCreated(created)
       }

@@ -332,6 +332,52 @@ export const videoProjectThumbnails = pgTable(
 )
 
 /**
+ * Folders for projects, owned per person, the same shape as media collections
+ * (see `workspace/docs/project-folders.md`). The unique index is on the
+ * lowercased name, and the server collapses whitespace before saving.
+ */
+export const videoProjectFolders = pgTable(
+  "video_project_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_project_folders_user_id").on(table.userId),
+    uniqueIndex("ux_video_project_folders_user_name").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+/**
+ * Which folder a project is in. The project is the whole key, so a project is
+ * in one folder at most; no row means no folder. Deleting a folder deletes its
+ * rows and never its projects.
+ */
+export const videoProjectFolderItems = pgTable(
+  "video_project_folder_items",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .primaryKey()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    folderId: varchar("folder_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectFolders.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_project_folder_items_folder_id").on(table.folderId),
+  ]
+)
+
+/**
  * One carousel studio document. Slides stay together as validated JSON so a
  * new layer setting does not require a column, while `format` and `version`
  * remain cheap to list and safe to compare during auto-save.

@@ -46,6 +46,12 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog"
+import {
+  FolderChips,
+  MoveToFolderMenu,
+} from "@/components/video-editor/project-folders"
+import type { ProjectFolderSummary } from "@/lib/api/video/project-folders"
+import { NO_FOLDER } from "@/lib/video/project-folders"
 
 const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 
@@ -83,17 +89,27 @@ function compareProjects(
 }
 
 /**
- * Every project, newest change first. A row opens the editor; the settings icon
- * renames it without leaving the list.
+ * Every project, newest change first, or one folder's worth. A row opens the
+ * editor; the settings icon renames it without leaving the list.
  */
-export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
+export function ProjectsPage({
+  initial,
+  folders,
+}: {
+  initial: ProjectListResponse
+  folders: ProjectFolderSummary[]
+}) {
   const { config } = useShellRuntime()
   const router = useRouter()
   const navigate = useNavigate()
-  // Search, sort and page live in the address, so Back returns this list.
+  // Search, sort, page and folder live in the address, so Back returns this
+  // list and a reload keeps it.
   const listSearch = projectsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
+  const folder = listSearch.folder
+  // The folder a new project goes straight into: the one being shown.
+  const openFolderId = folder && folder !== NO_FOLDER ? folder : null
   const currentPage = listSearch.page ?? 1
   const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
@@ -132,7 +148,7 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
 
   useClearSelectionOnListChange(
     selection.setSelected,
-    `${searchQuery}|${sort}|${direction}|${currentPage}|${pageSize}`
+    `${searchQuery}|${folder}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
 
   function openEditor(project: ProjectItem) {
@@ -244,11 +260,26 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
       <DashboardTable
         title="Projects"
         icon={<FilmIcon />}
+        // Sits straight in the page's flex column, which would otherwise
+        // squeeze it to the window's height and cut the footer off; this way
+        // the page scrolls instead.
+        className="shrink-0"
         count={initial.total}
         selectedCount={selectedCount}
         onClearSelection={selection.clear}
         controls={
           <>
+            {selectedCount ? (
+              <MoveToFolderMenu
+                projectIds={selectedProjects.map((project) => project.id)}
+                folders={folders}
+                disabled={busy}
+                onMoved={async () => {
+                  selection.clear()
+                  await router.invalidate()
+                }}
+              />
+            ) : null}
             {selectedCount ? (
               <DashboardToolbarButton
                 type="button"
@@ -267,7 +298,7 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
-            {projects.length === 0 && !searchQuery ? (
+            {projects.length === 0 && !searchQuery && !folder ? (
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
@@ -288,6 +319,16 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
               New project
             </DashboardToolbarButton>
           </>
+        }
+        filters={
+          <FolderChips
+            folders={folders}
+            value={folder}
+            onChange={(next) =>
+              setListSearch({ folder: next, page: undefined })
+            }
+            onFoldersChanged={() => router.invalidate()}
+          />
         }
         header={
           <SortableTableHeader
@@ -311,7 +352,11 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
         emptyText={
           searchQuery
             ? "No projects match that search."
-            : "No projects yet. Make one to start editing."
+            : folder === NO_FOLDER
+              ? "Every project is in a folder."
+              : folder
+                ? "Nothing in this folder yet. Tick projects under All and use Move to folder."
+                : "No projects yet. Make one to start editing."
         }
         emptyColSpan={7}
         footer={{
@@ -422,6 +467,7 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
       <ProjectFormDialog
         open={formOpen}
         project={editing}
+        folderId={openFolderId}
         onClose={() => {
           setFormOpen(false)
           setEditing(null)
