@@ -43,6 +43,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   up each word as it is said: where it is switched on, where the word times
   come from, what happens when the words are edited, and what it costs to
   export.
+- [another-language.md](another-language.md) — translating what is said into
+  another language, which AI does which half, why nothing lands until it is
+  read and corrected, how the original is turned down under a new voice, and
+  what it costs.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

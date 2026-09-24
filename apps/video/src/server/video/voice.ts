@@ -130,6 +130,7 @@ export async function speak({
   text,
   settings,
   speaker,
+  feature = "voiceover",
 }: {
   userId: string
   voiceId: string
@@ -138,6 +139,8 @@ export async function speak({
   settings?: VoiceSettings
   /** Left out, it is worked out from the voice itself. */
   speaker?: VoiceSpeakerId
+  /** The name the spend is filed under on the AI dashboard. */
+  feature?: string
 }): Promise<VoiceoverResult> {
   const script = text.trim()
   if (!script) throw new Error(VOICE_NO_TEXT_MESSAGE)
@@ -149,7 +152,7 @@ export async function speak({
       ? "openai"
       : "elevenlabs")
   if (who === "openai") {
-    return speakWithOpenAi({ userId, voiceId, text: script, settings })
+    return speakWithOpenAi({ userId, voiceId, text: script, settings, feature })
   }
 
   const apiKey = await requireElevenLabsKey()
@@ -159,7 +162,7 @@ export async function speak({
       userId,
       provider: "elevenlabs",
       model: modelId,
-      feature: "voiceover",
+      feature,
       metadata: { characters: script.length },
     },
     async () => {
@@ -254,11 +257,13 @@ async function speakWithOpenAi({
   voiceId,
   text,
   settings,
+  feature,
 }: {
   userId: string
   voiceId: string
   text: string
   settings?: VoiceSettings
+  feature: string
 }): Promise<VoiceoverResult> {
   const apiKey = await requireOpenAiKey()
   const model = "gpt-4o-mini-tts"
@@ -268,7 +273,7 @@ async function speakWithOpenAi({
       userId,
       provider: "openai",
       model,
-      feature: "voiceover",
+      feature,
       metadata: { characters: text.length },
     },
     async () => {

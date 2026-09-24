@@ -4,6 +4,7 @@ import { getAiToolErrorMessage } from "@/lib/api/video/ai-tools"
 import { AI_TOO_BUSY_MESSAGE } from "@/lib/video/ai-providers"
 import { CAPTIONS_NONE_HEARD_MESSAGE } from "@/lib/video/captions"
 import { JUMP_CUT_BUSY_MESSAGE } from "@/lib/video/jump-cuts"
+import { TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE } from "@/lib/video/translate"
 
 /**
  * A toast that will not say why is worse than no toast: it leaves somebody
@@ -15,6 +16,7 @@ describe("what a failed tool tells you", () => {
       CAPTIONS_NONE_HEARD_MESSAGE,
       JUMP_CUT_BUSY_MESSAGE,
       AI_TOO_BUSY_MESSAGE,
+      TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE,
     ]) {
       expect(getAiToolErrorMessage(new Error(reason))).toBe(reason)
     }
