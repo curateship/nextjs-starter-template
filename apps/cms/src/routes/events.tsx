@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+import { PlusIcon } from "lucide-react"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
@@ -9,6 +10,7 @@ import { EventList } from "@/components/events/public/event-list"
 import { SubscribeMenu } from "@/components/events/public/calendar-menus"
 import { EventMonth } from "@/components/events/public/event-month"
 import { EventViewSwitch } from "@/components/events/public/event-view-switch"
+import { Button } from "@/components/ui/button"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadEventsPage } from "@/lib/api/events/public"
 import {
@@ -96,6 +98,14 @@ function EventsRoute() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {data.canSuggest ? (
+            <Button asChild variant="outline">
+              <Link to="/add-event">
+                <PlusIcon />
+                Suggest an event
+              </Link>
+            </Button>
+          ) : null}
           {data.calendarFeedUrl ? (
             <SubscribeMenu feedUrl={data.calendarFeedUrl} />
           ) : null}

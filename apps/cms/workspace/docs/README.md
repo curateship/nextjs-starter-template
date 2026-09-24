@@ -38,7 +38,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   time, when an event counts as over, the event page, where events appear in
   search, the sitemap and the feed, Google's event markup, the share card,
   adding events to a calendar or subscribing to them, duplicating an event,
-  and private events.
+  private events, and the Suggest an event form with its review queue.
 
 ## Adding a doc
 
