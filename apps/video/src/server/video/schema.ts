@@ -569,6 +569,9 @@ export const videoRenderJobs = pgTable(
       .references(() => videoProjects.id, { onDelete: "cascade" }),
     status: varchar("status", { length: 20 }).notNull(),
     quality: varchar("quality", { length: 10 }).notNull(),
+    // The shape this export is made in. It belongs to the export, not the
+    // project, so one project can be exported tall, square and wide at once.
+    aspect: varchar("aspect", { length: 8 }).notNull(),
     normalizeLoudness: boolean("normalize_loudness").notNull().default(true),
     attempts: integer("attempts").notNull().default(0),
     leaseToken: varchar("lease_token", { length: 36 }),
@@ -600,12 +603,16 @@ export const videoRenderJobs = pgTable(
       "video_render_jobs_ready_check",
       sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
     ),
+    check(
+      "video_render_jobs_aspect_check",
+      sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
+    ),
     check("video_render_jobs_attempts_check", sql`${table.attempts} >= 0`),
-    // One export at a time per project. Partial, so the finished ones pile up
-    // freely: this is what makes pressing Export twice hand back the first job
-    // rather than start a second.
-    uniqueIndex("ux_video_render_jobs_project_active")
-      .on(table.projectId)
+    // One export at a time per project and shape. Partial, so the finished
+    // ones pile up freely. Two requests for the same shape arriving together
+    // cannot both land: the second is refused here.
+    uniqueIndex("ux_video_render_jobs_project_aspect_active")
+      .on(table.projectId, table.aspect)
       .where(sql`${table.status} in ('queued', 'running')`),
     index("ix_video_render_jobs_status_created").on(
       table.status,
