@@ -204,6 +204,18 @@ describe("Robinhood Chain's market list", () => {
       "ROBINHOOD_NETWORK_UNSUPPORTED"
     )
   })
+  it("names DexScreener in a sentence, not its status code, when it refuses a cold list", async () => {
+    const { fetchRobinhoodMarkets } = await import("./markets")
+    get.mockImplementation(async (service: string, path: string, params: Params) => {
+      if (service === "dex") throw new Error("ROBINHOOD_SERVICE_REFUSED:DexScreener:503")
+      return answer(service, path, params)
+    })
+    const refused = fetchRobinhoodMarkets("mainnet")
+    await expect(refused).rejects.toThrow(
+      "MARKETS_UNAVAILABLE:DexScreener could not refresh the Robinhood Chain market list."
+    )
+    await expect(refused).rejects.not.toThrow("503")
+  })
   it("finds a coin by name through DexScreener's search", async () => {
     const { searchRobinhoodMarkets } = await import("./markets")
     const rows = await searchRobinhoodMarkets("mainnet", "PONS")

@@ -1,3 +1,4 @@
+import { defineChain } from "viem"
 import {
   evmServices,
   type ServiceConfig,
@@ -20,6 +21,26 @@ export function robinhoodRpcUrl(): string {
     "https://rpc.mainnet.chain.robinhood.com"
   )
 }
+
+/** Robinhood Chain as the signing library knows it. */
+export const robinhoodChain = defineChain({
+  id: ROBINHOOD_CHAIN_ID,
+  name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } },
+  blockExplorers: {
+    default: {
+      name: "Blockscout",
+      url: "https://robinhoodchain.blockscout.com",
+    },
+  },
+})
+
+/** KyberSwap's aggregator for this chain; its slug is `robinhood`. */
+export const ROBINHOOD_KYBER_API =
+  "https://aggregator-api.kyberswap.com/robinhood/api/v1/"
+/** Velora (formerly ParaSwap). Its API names the chain by id, 4663. */
+export const VELORA_API = "https://api.paraswap.io"
 
 /** DexScreener's allowance, shared by every chain this app reads. */
 export const ROBINHOOD_DEX_REQUESTS_PER_MINUTE = 300
@@ -85,11 +106,30 @@ const services = {
     windowMs: 60_000,
     reserve: 0,
   },
+  // One allowance with BNB Chain's KyberSwap: the service limits the
+  // caller, whichever chain it asks about.
+  kyber: {
+    label: "KyberSwap",
+    base: "https://aggregator-api.kyberswap.com",
+    cap: 30,
+    windowMs: 10_000,
+    reserve: 10,
+  },
+  // Velora publishes no allowance and sent no limit headers on 24 Sep 2026.
+  // Sixty a minute with twenty kept for swaps is a guess on the safe side.
+  velora: {
+    label: "Velora",
+    base: VELORA_API,
+    cap: 60,
+    windowMs: 60_000,
+    reserve: 20,
+  },
 } satisfies Record<string, ServiceConfig>
 
 const robinhoodServices = evmServices(services, "ROBINHOOD_SERVICE")
 
 /** Reads only. Signed transactions must never use a retrying request. */
 export const robinhoodServiceGet = robinhoodServices.get
+export const reserveRobinhoodRequest = robinhoodServices.reserve
 /** Actual outgoing requests in each rolling window, including retries. */
 export const robinhoodRequestCounts = robinhoodServices.counts

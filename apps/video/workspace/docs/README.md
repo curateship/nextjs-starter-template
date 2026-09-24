@@ -61,6 +61,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   by eye in each shape.
 - [retrying-an-export.md](retrying-an-export.md) — the Try again button on a
   failed export: when it is allowed, and what it resets.
+- [share-links.md](share-links.md) — a link to one finished export that
+  somebody with no account can watch: what it shows, how to turn it off, and
+  why the link is the only lock on the file.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

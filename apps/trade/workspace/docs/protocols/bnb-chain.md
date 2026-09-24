@@ -429,6 +429,13 @@ Verified locally on 8 Sep 2026 with the existing server on port 3014.
 
 ## Buying and selling through KyberSwap
 
+The swap itself lives in `server/protocols/evm-chain/swap.ts`, shared with
+Robinhood Chain. BNB Chain hands it one router, KyberSwap, one unlimited
+approval per coin, and a wait of two confirmations checked once a second.
+Robinhood Chain hands it two routers and exact approvals. Since 24 Sep 2026 a
+send the node refuses for lack of fee money is closed at once, instead of
+staying pending and blocking every later swap from the wallet.
+
 The BNB order adapter quotes and builds USDT swaps through KyberSwap. Trading
 requires migration `0172_trade_bnb_swaps.sql` before mainnet can be enabled.
 

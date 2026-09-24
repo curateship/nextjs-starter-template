@@ -622,6 +622,35 @@ export const videoRenderJobs = pgTable(
   ]
 )
 
+/**
+ * A link to one finished export that anybody holding it can watch without an
+ * account (see `src/server/video/export-shares.ts`). The token is the only
+ * lock, so it is 32 random bytes. A link is dead once revoked, once past its
+ * expiry, or once its export is deleted, which deletes the row. At most one
+ * unrevoked link per export.
+ */
+export const videoExportShares = pgTable(
+  "video_export_shares",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    exportId: varchar("export_id", { length: 36 })
+      .notNull()
+      .references(() => videoRenderJobs.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("ux_video_export_shares_export_live")
+      .on(table.exportId)
+      .where(sql`${table.revokedAt} is null`),
+  ]
+)
+
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect

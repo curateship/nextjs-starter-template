@@ -450,13 +450,18 @@ export function evmMarkets(chain: MarketsChain) {
           throw error
         if (
           error instanceof Error &&
-          (error.message.startsWith("EXCHANGE_BUSY:") ||
-            error.message.startsWith(`${chain.serviceCode}_REFUSED:`))
+          error.message.startsWith("EXCHANGE_BUSY:")
         )
           throw new Error(
             `MARKETS_UNAVAILABLE:${error.message.slice(error.message.indexOf(":") + 1)}`
           )
-        throw failure("The market providers")
+        // A service that refused names itself; its status code is not a sentence.
+        const refused =
+          error instanceof Error &&
+          error.message.startsWith(`${chain.serviceCode}_REFUSED:`)
+            ? error.message.split(":")[1]
+            : undefined
+        throw failure(refused || "The market providers")
       }
     })()
     try {

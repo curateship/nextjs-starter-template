@@ -28,6 +28,7 @@ import {
   updateOwnedExport,
   type ExportListResponse,
 } from "@/server/video/exports"
+import { listLiveSharedExportIds } from "@/server/video/export-shares"
 import {
   cancelRenderJobs,
   enqueueRenderJobs,
@@ -43,6 +44,9 @@ import {
  */
 
 export type { ExportListResponse, RenderJobSummary }
+
+/** The gallery page, plus which of its exports a share link opens right now. */
+export type ExportListWithShares = ExportListResponse & { shared_ids: string[] }
 
 const KNOWN_MESSAGES = new Set([
   PROJECT_NOT_FOUND_MESSAGE,
@@ -129,13 +133,18 @@ const listExportsFn = createServerFn({ method: "GET" })
       })
       .optional()
   )
-  .handler(async ({ data, context }) => {
-    return listOwnedExports({
+  .handler(async ({ data, context }): Promise<ExportListWithShares> => {
+    const list = await listOwnedExports({
       userId: context.user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 24,
       search: data?.search,
     })
+    const sharedIds = await listLiveSharedExportIds(
+      context.user.id,
+      list.exports.map((item) => item.id)
+    )
+    return { ...list, shared_ids: sharedIds }
   })
 
 const updateExportFn = createServerFn({ method: "POST" })

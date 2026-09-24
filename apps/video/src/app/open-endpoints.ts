@@ -28,7 +28,10 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "video/export-shares.ts:readSharedExportFn":
+    "A share link is opened by somebody with no account. The 64-character random token is the guard: a revoked, expired or deleted link returns null, and a live one returns only the export's own title and shape.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The

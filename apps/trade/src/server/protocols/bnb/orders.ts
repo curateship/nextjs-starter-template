@@ -1,6 +1,7 @@
 import { bsc } from "viem/chains"
 import { evmSwaps } from "@/server/protocols/evm-chain/swap"
 import { evmRefused } from "@/server/protocols/evm-chain/refusals"
+import { kyberRouter } from "@/server/protocols/evm-chain/kyber"
 import { BNB_USDT, BNB_WRAPPED_NATIVE, bnbRpcUrl } from "./client"
 import { clearBnbAccountState } from "./account"
 import {
@@ -47,11 +48,18 @@ const swaps = evmSwaps({
   wrappedNative: BNB_WRAPPED_NATIVE,
   unsupportedNetwork: "BNB_NETWORK_UNSUPPORTED",
   refusals: bnbRefusals,
-  kyber: {
-    request: kyberRequest,
-    parseRoute: parseBnbRoute,
-    validateBuild: validateBnbBuild,
-  },
+  routers: [
+    kyberRouter(
+      {
+        request: kyberRequest,
+        parseRoute: parseBnbRoute,
+        validateBuild: validateBnbBuild,
+      },
+      BNB_USDT
+    ),
+  ],
+  approval: "unlimited",
+  receiptWait: { confirmations: 2, pollingInterval: 1_000, timeout: 30_000 },
   receipts: { fill: bnbReceiptFill, failure: bnbReceiptFailure },
   wallet: { verify: verifyBnbWallet, pack: packBnbCredential },
   readClient: bnbReadClient,
