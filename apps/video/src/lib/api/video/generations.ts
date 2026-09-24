@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { describeAuthError } from "@/lib/api/error-message"
-import { VIDEO_DURATIONS } from "@/lib/video/asset-factories"
+import { SHOT_LENGTHS, type ShotLengthSeconds } from "@/lib/video/asset-factories"
 import { userGet, userPost } from "@/server/guards"
 import type { GenerationItem } from "@/server/video/asset-factories/generations"
 
-export { VIDEO_DURATIONS }
+export { SHOT_LENGTHS }
 export type { GenerationItem }
 
+// A shot's id, which is its first piece's id.
 const idSchema = z.object({ generationId: z.string().min(1).max(36) })
 
 export function getGenerationErrorMessage(error: unknown) {
@@ -24,6 +25,7 @@ export function getGenerationErrorMessage(error: unknown) {
       "First frame is not an image",
       "Project timeline is full",
       "This project already has a video generating",
+      "Write one direction for each piece of the shot",
       "A video that is still generating cannot be deleted",
       "Add a Google Gemini key in Settings first",
     ].includes(message)
@@ -41,8 +43,8 @@ const createFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({
     projectId: z.string().min(1).max(36),
     firstFrameId: z.string().min(1).max(36),
-    prompt: z.string().trim().min(1).max(5000),
-    durationSeconds: z.union(VIDEO_DURATIONS.map((value) => z.literal(value)) as [z.ZodLiteral<4>, z.ZodLiteral<6>, z.ZodLiteral<8>]),
+    prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
+    lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
   }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.createGeneration(context.user.id, data)))
 
@@ -62,7 +64,7 @@ const insertFn = createServerFn({ method: "POST" })
   .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.insertGeneration(context.user.id, data.generationId, data.projectId)))
 
 export function listGenerations() { return listFn() }
-export function createGeneration(data: { projectId: string; firstFrameId: string; prompt: string; durationSeconds: 4 | 6 | 8 }) { return createFn({ data }) }
+export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds }) { return createFn({ data }) }
 export function retryGeneration(generationId: string) { return retryFn({ data: { generationId } }) }
 export function deleteGenerations(generationIds: string[]) { return deleteFn({ data: { generationIds } }) }
 export function insertGeneration(generationId: string, projectId: string) { return insertFn({ data: { generationId, projectId } }) }

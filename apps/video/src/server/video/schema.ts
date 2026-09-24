@@ -580,6 +580,11 @@ export const videoFirstFrames = pgTable(
 /**
  * A durable Veo request. The background worker owns queued/processing rows, so
  * leaving or reloading the dashboard does not cancel the provider operation.
+ *
+ * One row is one piece of a shot. A shot longer than 8 seconds is several
+ * rows sharing `shotId`, which is the first piece's own id. Every piece after
+ * the first is 'waiting' until the one before it is ready, because it starts
+ * from that piece's last frame.
  */
 export const videoAiGenerations = pgTable(
   "video_ai_generations",
@@ -601,6 +606,9 @@ export const videoAiGenerations = pgTable(
     model: varchar("model", { length: 100 }).notNull(),
     aspectRatio: varchar("aspect_ratio", { length: 8 }).notNull(),
     durationSeconds: integer("duration_seconds").notNull(),
+    shotId: varchar("shot_id", { length: 36 }).notNull(),
+    shotIndex: integer("shot_index").notNull(),
+    shotPieces: integer("shot_pieces").notNull(),
     status: varchar("status", { length: 20 }).notNull(),
     operationName: text("operation_name"),
     leaseToken: varchar("lease_token", { length: 36 }),
@@ -619,7 +627,11 @@ export const videoAiGenerations = pgTable(
   (table) => [
     check(
       "video_ai_generations_status_check",
-      sql`${table.status} in ('queued', 'processing', 'ready', 'error')`
+      sql`${table.status} in ('waiting', 'queued', 'processing', 'ready', 'error')`
+    ),
+    check(
+      "video_ai_generations_shot_check",
+      sql`${table.shotPieces} between 1 and 4 and ${table.shotIndex} between 1 and ${table.shotPieces}`
     ),
     check(
       "video_ai_generations_aspect_check",
@@ -646,6 +658,7 @@ export const videoAiGenerations = pgTable(
       table.createdAt
     ),
     index("ix_video_ai_generations_first_frame_id").on(table.firstFrameId),
+    index("ix_video_ai_generations_shot").on(table.shotId, table.shotIndex),
     index("ix_video_ai_generations_output_media_id").on(table.outputMediaId),
     index("ix_video_ai_generations_processing_lease").on(
       table.status,

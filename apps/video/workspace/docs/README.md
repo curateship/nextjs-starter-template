@@ -94,6 +94,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
   second.
+- [longer-ai-clips.md](longer-ai-clips.md) — why one AI clip stops at eight
+  seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 
