@@ -20,6 +20,7 @@ import {
   deleteOwnedProjects,
   duplicateOwnedProject,
   getOwnedProjectDetail,
+  keepRefusedTimeline,
   listOwnedProjects,
   renameOwnedProject,
   writeProjectTimeline,
@@ -298,6 +299,46 @@ describe("projects", () => {
     )
     const original = await getOwnedProjectDetail(user.id, project.id, database)
     expect(original.clip_count).toBe(1)
+  })
+
+  it("keeps a refused save as a new project and leaves the winner alone", async () => {
+    const project = await createOwnedProject(user.id, "Reel", database)
+    // The other window saves first.
+    await writeProjectTimeline(
+      user.id,
+      project.id,
+      { aspect: "9:16", tracks: [] },
+      project.version,
+      database
+    )
+    const refused = timelineWith([
+      videoClip("media-1", "https://example.test/a.mp4"),
+    ])
+    await expect(
+      writeProjectTimeline(user.id, project.id, refused, project.version, database)
+    ).rejects.toThrowError(PROJECT_CONFLICT_MESSAGE)
+
+    const kept = await keepRefusedTimeline(user.id, project.id, refused, database)
+    expect(kept.name).toBe("Reel (unsaved edits)")
+    expect(kept.id).not.toBe(project.id)
+    expect(kept.version).toBe(1)
+    expect(kept.clip_count).toBe(1)
+
+    const original = await getOwnedProjectDetail(user.id, project.id, database)
+    expect(original.clip_count).toBe(0)
+  })
+
+  it("keeps nothing for somebody else's project", async () => {
+    const stranger = await insertUser(database)
+    const theirs = await createOwnedProject(stranger.id, "Theirs", database)
+    await expect(
+      keepRefusedTimeline(
+        user.id,
+        theirs.id,
+        { aspect: "9:16", tracks: [] },
+        database
+      )
+    ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
   })
 
   it("renames only the caller's own project", async () => {

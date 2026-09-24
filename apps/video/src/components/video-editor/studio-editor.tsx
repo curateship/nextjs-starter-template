@@ -8,6 +8,7 @@ import {
   CaptionsIcon,
   LayoutGrid,
   Loader2Icon,
+  LockIcon,
   MicIcon,
   Music,
   Share2,
@@ -44,7 +45,7 @@ import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
   timelineDurationMs,
-  useEditorHasConflict,
+  useEditorLock,
   useEditorProjectName,
   useEditorRuntime,
   useEditorSaveStatus,
@@ -62,6 +63,7 @@ import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedRailPanel } from "@/components/video-editor/use-remembered-view"
+import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
 import "@/components/video-editor/studio.css"
 
 /**
@@ -107,21 +109,15 @@ export function StudioEditor({
 }) {
   const { store, dispatch, clock } = useEditorRuntime()
   const { reportSaveStatus } = useShellRuntime()
-  const hasConflict = useEditorHasConflict()
   const saveStatus = useEditorSaveStatus()
   const desktop = useWideScreen()
   const [panel, setPanel] = React.useState<StudioPanel>("media")
   useRememberedRailPanel(panel, setPanel, isRailPanel)
 
-  // Two things the editor cannot put right on its own, said once and left in
-  // the shared error toast until they are dealt with.
+  // A timeline the editor cannot read is said once and left in the shared
+  // error toast. A save refused by another window is said by EditorProvider,
+  // which is where the copy of this window's work is kept.
   useErrorToast(timelineError)
-  useErrorToast(
-    hasConflict
-      ? "This project changed somewhere else, so nothing more will be saved from this window. Reload to pick up the newer version — anything you have done since will be lost."
-      : null,
-    () => window.location.reload()
-  )
 
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY.horizontal)
   const verticalLayout = useRememberedPanelLayout(LAYOUT_KEY.vertical)
@@ -298,6 +294,7 @@ export function StudioEditor({
       className="studio-root flex min-h-0 flex-1 flex-col"
       style={{ gap: "var(--shell-gutter, 0.75rem)" }}
     >
+      <OpenElsewhereDialog />
       <ResizablePanelGroup
         key={verticalLayout.layoutKey}
         orientation="vertical"
@@ -460,6 +457,7 @@ function StageHeader() {
             {projectName}
           </button>
         )}
+        <LockedMarker />
       </div>
 
       <AspectSwitch />
@@ -487,6 +485,35 @@ function StageHeader() {
         onJobsChange={setJobs}
       />
     </DashboardCardHeader>
+  )
+}
+
+/**
+ * Says this window is not saving, and offers the reload that gets it editing
+ * again. After a clash the reload brings in the other window's version; the
+ * work from this one is already in its kept copy.
+ *
+ * An icon rather than words because the header's left third is often under
+ * 200px wide, and a label there squeezes the project name out of sight.
+ */
+function LockedMarker() {
+  const lock = useEditorLock()
+  if (!lock) return null
+  const label =
+    lock === "read-only"
+      ? "Read-only. Reload to edit"
+      : "Stopped saving. Reload to edit"
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      aria-label={label}
+      title={label}
+      onClick={() => window.location.reload()}
+    >
+      <LockIcon />
+    </Button>
   )
 }
 

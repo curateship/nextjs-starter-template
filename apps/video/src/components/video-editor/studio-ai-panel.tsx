@@ -18,6 +18,7 @@ import { HookDialog } from "@/components/video-editor/hook-dialog"
 import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
 import { TranslateDialog } from "@/components/video-editor/translate-dialog"
 import { VoiceDialog } from "@/components/video-editor/voice-dialog"
+import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import {
   loadAiToolsAvailability,
   type AiToolsAvailability,
@@ -97,6 +98,7 @@ const TOOLS: {
 const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook", "translate"]
 
 export function AiPanel() {
+  const { store } = useEditorRuntime()
   const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
     null
   )
@@ -119,6 +121,9 @@ export function AiPanel() {
   }, [])
 
   function press(id: ToolId) {
+    // Every tool here ends by changing the timeline, and most cost credits on
+    // the way, so a locked window stops them before they start.
+    if (store.refuseIfLocked()) return
     if (id === "captions") setCaptionsOpen(true)
     if (id === "jump-cut") setCutsOpen(true)
     if (id === "voice") setVoiceOpen(true)
