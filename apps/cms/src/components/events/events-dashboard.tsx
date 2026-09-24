@@ -330,6 +330,9 @@ export function EventsDashboard({
                   <Badge variant="outline">Private</Badge>
                 ) : null}
                 {event.repeat ? <Badge variant="outline">Repeats</Badge> : null}
+                {event.featuredNow ? (
+                  <Badge variant="outline">Featured</Badge>
+                ) : null}
               </div>
             </TableCell>
             <TableCell column="meta">{formatEventStart(event)}</TableCell>

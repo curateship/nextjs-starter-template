@@ -734,7 +734,12 @@ export const directorySaveItems = pgTable(
   ]
 )
 
-/** A site's one-time paid placement offer. Stripe receives the price from this row. */
+/**
+ * A site's one-time paid placement offer. Stripe receives the price from this
+ * row. `kind` says whether it sells spots on listings or on events, from
+ * `drizzle/0093_cms_featured_events.sql`. An event's spot lasts until the
+ * event ends, so an event plan has no days.
+ */
 export const directoryFeaturedPlans = pgTable(
   "directory_featured_plans",
   {
@@ -742,11 +747,14 @@ export const directoryFeaturedPlans = pgTable(
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** 'listing' or 'event'. Fixed when the plan is made. */
+    kind: varchar("kind", { length: 20 }).notNull().default("listing"),
     name: varchar("name", { length: 120 }).notNull(),
     description: varchar("description", { length: 500 }).notNull().default(""),
     priceCents: integer("price_cents").notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("usd"),
-    durationDays: integer("duration_days").notNull(),
+    /** A listing plan's days. Null on an event plan. */
+    durationDays: integer("duration_days"),
     priority: integer("priority").notNull().default(0),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -761,7 +769,11 @@ export const directoryFeaturedPlans = pgTable(
     check("directory_featured_plans_price_check", sql`${table.priceCents} > 0`),
     check(
       "directory_featured_plans_duration_check",
-      sql`${table.durationDays} BETWEEN 1 AND 3650`
+      sql`(${table.kind} = 'listing' AND ${table.durationDays} BETWEEN 1 AND 3650) OR (${table.kind} = 'event' AND ${table.durationDays} IS NULL)`
+    ),
+    check(
+      "directory_featured_plans_kind_check",
+      sql`${table.kind} IN ('listing', 'event')`
     ),
   ]
 )
@@ -770,7 +782,11 @@ export type DirectoryFeaturedPlanRow =
   typeof directoryFeaturedPlans.$inferSelect
 
 /**
- * One Stripe Checkout reservation for a listing.
+ * One Stripe Checkout reservation for a listing, or for an event since
+ * `drizzle/0093_cms_featured_events.sql`. Exactly one of `listingId` and
+ * `eventId` is set, and a check in the database holds it. The event's foreign
+ * key lives in the SQL only, because the events schema already imports this
+ * file.
  *
  * It is written before Stripe is called. Parallel requests therefore share
  * one idempotency key and one session, while the snapshots keep a retry
@@ -783,9 +799,12 @@ export const directoryFeaturedCheckouts = pgTable(
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-    listingId: varchar("listing_id", { length: 36 })
-      .notNull()
-      .references(() => directoryListings.id, { onDelete: "restrict" }),
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "restrict" }
+    ),
+    /** Deleting the event is refused while this row is open. */
+    eventId: varchar("event_id", { length: 36 }),
     claimId: varchar("claim_id", { length: 36 })
       .notNull()
       .references(() => directoryClaims.id, { onDelete: "cascade" }),
@@ -797,7 +816,8 @@ export const directoryFeaturedCheckouts = pgTable(
       .references(() => directoryFeaturedPlans.id, { onDelete: "restrict" }),
     priceCents: integer("price_cents").notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
-    durationDays: integer("duration_days").notNull(),
+    /** Null for an event, whose spot ends when the event does. */
+    durationDays: integer("duration_days"),
     productName: varchar("product_name", { length: 400 }).notNull(),
     customerEmail: varchar("customer_email", { length: 255 }).notNull(),
     successUrl: varchar("success_url", { length: 2000 }).notNull(),
@@ -811,14 +831,26 @@ export const directoryFeaturedCheckouts = pgTable(
       table.workspaceId,
       table.listingId
     ),
+    uniqueIndex("ux_directory_featured_checkouts_event").on(
+      table.workspaceId,
+      table.eventId
+    ),
     uniqueIndex("ux_directory_featured_checkouts_session").on(
       table.stripeSessionId
     ),
     index("ix_directory_featured_checkouts_plan").on(table.planId),
+    check(
+      "directory_featured_checkouts_subject_check",
+      sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+    ),
   ]
 )
 
-/** A completed paid placement. Expiry is always checked against the clock when read. */
+/**
+ * A completed paid placement. Expiry is always checked against the clock when
+ * read. Exactly one of `listingId` and `eventId` is set. An event's `endsAt`
+ * is the moment the event ends, moved with it when its day or time changes.
+ */
 export const directoryFeaturedEntitlements = pgTable(
   "directory_featured_entitlements",
   {
@@ -826,9 +858,12 @@ export const directoryFeaturedEntitlements = pgTable(
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-    listingId: varchar("listing_id", { length: 36 })
-      .notNull()
-      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "cascade" }
+    ),
+    /** Deleting the event deletes this row, the same as a listing's. */
+    eventId: varchar("event_id", { length: 36 }),
     claimId: varchar("claim_id", { length: 36 })
       .notNull()
       .references(() => directoryClaims.id, { onDelete: "cascade" }),
@@ -868,6 +903,15 @@ export const directoryFeaturedEntitlements = pgTable(
       table.listingId,
       table.status,
       table.endsAt
+    ),
+    index("ix_directory_featured_entitlements_event_active").on(
+      table.eventId,
+      table.status,
+      table.endsAt
+    ),
+    check(
+      "directory_featured_entitlements_subject_check",
+      sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
     ),
     check(
       "directory_featured_entitlements_status_check",

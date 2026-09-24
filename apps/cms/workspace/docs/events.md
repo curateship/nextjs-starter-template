@@ -58,6 +58,17 @@ published event has its own page at `/events/<address>`.
   on 24 Sep 2026. The run history names it and says why.
 - **The Draft events step has the same provider and model choice as the AI
   step.** Chosen on 24 Sep 2026.
+- **An admin features an event for free, and a listing's owner pays.** Chosen
+  on 24 Sep 2026.
+- **An event plan is one price per event**, like "$25 to feature an event",
+  with no number of days. Chosen on 24 Sep 2026. The spot runs from the payment
+  to the end of the event, whether that is 2 days or 3 weeks away.
+- **An owner can pay to feature only an event they sent in** from My listings.
+  Chosen on 24 Sep 2026. An event an admin wrote at their place has no Feature
+  button for them.
+- **A featured repeating event puts only its next date on top.** Chosen on
+  24 Sep 2026. The later dates keep their place in the list and still carry
+  the badge.
 
 ## What an event is
 
@@ -574,6 +585,65 @@ location" gives tonight's events within 10 km.
   `src/server/events/public.ts`, and the live pin in `livePlaceLatitude` and
   `livePlaceLongitude` in `src/server/events/place.ts`, which the event page's
   map reads too.
+
+## Featured events
+
+A featured event sits at the top of the Events page's list and is marked in
+the calendar, until it ends. A festival two weeks out sits above tonight's
+quiz for those two weeks.
+
+- **The admin's switch:** "Featured" in the event's window in Admin → Events,
+  under "Who can find it". It is free. Admin → Events marks the row
+  "Featured" while either kind of spot is on.
+- **A repeating event:** the switch is on the main event only, and a date's
+  window has none. The next date that is not over sits on top. Once it is
+  over, the date after it takes its place.
+- **The owner's button:** each of an owner's approved, published events on My
+  listings has "Feature this event", until its day has been. It opens the
+  site's event plans, and a plan goes straight to Stripe. It says "Featured
+  now" once the event is featured, by either kind of spot. It explains itself
+  instead of offering plans when the event is private, back to draft, over,
+  or the site's Events page is off.
+- **Only the owner's own event.** The event is found through the owner's own
+  suggestion and their approved claim on the listing it was sent for. Another
+  owner's event, or one an admin wrote, is refused with "That event is not
+  one you sent in." A paid spot stops counting if the owner stops looking
+  after the listing, the same as a featured listing.
+- **The plans:** Featured plans (`/admin/listing-featured`) has a "For" choice
+  on a new plan, Listings or Events. It is fixed once the plan is made, so a
+  plan never changes what somebody already paid for. An event plan has a price
+  and no days or priority, and the table's Period column says "Until the event
+  ends". An event is only ever offered event plans.
+- **When a paid spot ends:** at the moment the event ends, worked out in the
+  site's time zone, the same moment the event counts as over. When an admin
+  moves the event, the end moves with it. Changing the site's time zone does
+  not move a spot's end that was already worked out.
+- **The placements table** lists event spots beside listing ones, marked
+  "Event", and the search finds an event's title. Revoking one takes the badge
+  off at once.
+- **Where it shows:** the Events page's upcoming list, soonest first among the
+  featured events and then the rest soonest first, with the same "Featured"
+  badge as a featured listing. One day's list keeps soonest first and shows
+  the badge. The month marks a featured event with the badge's sparkle. A
+  category page, the home page row, a listing's "What's on here" and the list
+  for other websites never put one on top or mark it, because a spot is only
+  sold for the Events page.
+- **Once the event is over** it loses the badge everywhere, including the
+  month, even with the admin's switch still on.
+- **Deleting an event** while its owner is partway through paying is refused
+  until the checkout finishes or expires. Deleting an event with a paid spot
+  deletes the spot and its row in the placements table, the same as deleting
+  a featured listing.
+- **Not built:** a reminder email before an event's spot ends, which a listing's
+  spot sends, because an event's spot cannot be bought again once it is over.
+- **Where it lives:** `drizzle/0093_cms_featured_events.sql` adds `featured` to
+  `events`, `kind` to `directory_featured_plans`, and `event_id` to the checkout
+  and placement tables. The rules are in `src/server/directory/featured.ts`
+  (`eventIsFeatured`, `eventFeaturedPurchaseState`,
+  `createEventFeaturedCheckout`, `moveEventSpotEnd`). The list order is
+  `pinnedToTop` in `src/server/events/public.ts`. The owner's button is
+  `src/components/directory/featured-plans-popover.tsx`, shared with the
+  listing's. The tests are `src/server/events/featured.test.ts`.
 
 ## An event over several days
 

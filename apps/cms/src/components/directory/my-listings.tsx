@@ -1,12 +1,13 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { CopyIcon, Loader2Icon, SparklesIcon, StoreIcon } from "lucide-react"
+import { CopyIcon, StoreIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
   MenuLinksFields,
   SocialLinksFields,
 } from "@/components/directory/contact-links-fields"
+import { FeaturedPlansPopover } from "@/components/directory/featured-plans-popover"
 import { ListingViewsPanel } from "@/components/directory/listing-views-panel"
 import { OwnerEventsCard } from "@/components/events/owner-events"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -31,13 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Popover,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
   getClaimErrorMessage,
   proposeListingChange,
   type OwnedListing,
@@ -57,9 +51,7 @@ import {
   getFeaturedErrorMessage,
   loadFeaturedPurchase,
   startFeaturedCheckout,
-  type FeaturedPlan,
 } from "@/lib/api/directory/featured"
-import { formatMoney } from "@/lib/format/money"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -92,8 +84,12 @@ export function MyListings({
     if (!sessionId || handled.current === sessionId) return
     handled.current = sessionId
     void confirmFeatured(sessionId)
-      .then(async () => {
-        toast.success("Payment confirmed. The listing is featured now.")
+      .then(async ({ kind }) => {
+        toast.success(
+          kind === "event"
+            ? "Payment confirmed. The event is featured until it ends."
+            : "Payment confirmed. The listing is featured now."
+        )
         await router.invalidate()
         void navigate({ to: ".", search: {} as never, replace: true })
       })
@@ -450,82 +446,14 @@ export function FeaturedPurchase({
   listingId: string
   featured: OwnedListing["featured"]
 }) {
-  const [open, setOpen] = React.useState(false)
-  const [state, setState] = React.useState<{ plans: FeaturedPlan[]; active: boolean } | null>(null)
-  const [loading, setLoading] = React.useState(false)
-  const [loadError, setLoadError] = React.useState(false)
-  const [starting, setStarting] = React.useState<string | null>(null)
-
-  function loadPlans() {
-    if (loading) return
-    setLoading(true)
-    setLoadError(false)
-    void loadFeaturedPurchase(listingId)
-      .then(setState)
-      .catch((error) => {
-        setLoadError(true)
-        showErrorToast(getFeaturedErrorMessage(error))
-      })
-      .finally(() => setLoading(false))
-  }
-
-  function changeOpen(next: boolean) {
-    setOpen(next)
-    if (next && !state && !loading && !loadError) loadPlans()
-  }
-
   return (
     <div className="border-t pt-4">
-      <Popover open={open} onOpenChange={changeOpen}>
-        <PopoverTrigger asChild>
-          <Button type="button" variant="outline">
-            <SparklesIcon /> {(state?.active ?? featured.active) ? "Featured now" : "Feature this listing"}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start">
-          <PopoverHeader>
-            <PopoverTitle>Featured placement</PopoverTitle>
-          </PopoverHeader>
-          {loadError ? (
-            <div className="grid min-h-16 content-center justify-items-center gap-2 text-center">
-              <p className="text-sm text-muted-foreground">Featured plans could not be loaded.</p>
-              <Button type="button" size="sm" variant="outline" onClick={loadPlans}>
-                Try again
-              </Button>
-            </div>
-          ) : loading || !state ? (
-            <div className="flex min-h-16 items-center justify-center"><Loader2Icon className="size-4 animate-spin" aria-label="Loading featured plans" /></div>
-          ) : state.active ? (
-            <p className="text-sm text-muted-foreground">This listing is already featured. Another placement can be bought after it ends.</p>
-          ) : state.plans.length ? (
-            <div className="grid gap-2">
-              {state.plans.map((plan) => (
-                <Button
-                  key={plan.id}
-                  type="button"
-                  variant="outline"
-                  className="h-auto justify-between py-2 text-left"
-                  disabled={Boolean(starting)}
-                  onClick={() => {
-                    setStarting(plan.id)
-                    void startFeaturedCheckout(listingId, plan.id)
-                      .then(({ url }) => window.location.assign(url))
-                      .catch((error) => {
-                        setStarting(null)
-                        showErrorToast(getFeaturedErrorMessage(error))
-                      })
-                  }}
-                >
-                  <span><span className="block font-medium">{plan.name}</span><span className="block text-xs text-muted-foreground">{plan.durationDays} days</span></span>
-                  <span>{starting === plan.id ? <Loader2Icon className="animate-spin" /> : formatMoney(plan.priceCents, plan.currency)}</span>
-                </Button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">This site is not offering featured placement yet.</p>
-          )}
-        </PopoverContent>
-      </Popover>
+      <FeaturedPlansPopover
+        featuredNow={featured.active}
+        noun="listing"
+        load={() => loadFeaturedPurchase(listingId)}
+        start={(planId) => startFeaturedCheckout(listingId, planId)}
+      />
     </div>
   )
 }

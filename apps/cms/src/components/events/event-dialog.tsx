@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { Category } from "@/lib/api/directory/categories"
 import {
@@ -49,6 +50,7 @@ import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { formatEventShortDay } from "@/lib/events/event-time"
+import { formatDate } from "@/lib/format/format-time"
 import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
 import { emptyPostBody, type PostBody } from "@/lib/posts/post-body"
 import {
@@ -67,6 +69,8 @@ type EventFields = {
   coverImage: string
   status: "draft" | "published"
   visibility: "public" | "private"
+  /** The free switch. Only on an event that is not itself one date of a repeat. */
+  featured: boolean
   /** "2026-09-27", or empty while none is picked. */
   startDate: string
   /** "18:00", or empty. */
@@ -92,6 +96,7 @@ function blankFields(): EventFields {
     coverImage: "",
     status: "draft",
     visibility: "public",
+    featured: false,
     startDate: "",
     startTime: "",
     endDate: "",
@@ -114,6 +119,7 @@ function fieldsFrom(data: EventForEdit): EventFields {
     coverImage: event.coverImage,
     status: event.status,
     visibility: event.visibility,
+    featured: event.featured,
     startDate: event.startDate,
     startTime: event.startTime,
     // A same-day end is stored as the start day; the form shows it as empty,
@@ -324,11 +330,13 @@ export function EventDialog({
         endDate,
         endTime,
         repeat,
+        featured,
         listingId,
         ...rest
       } = fields
-      // One date of a repeat never carries a rule of its own.
-      const repeatChange = series?.main ? {} : { repeat }
+      // One date of a repeat never carries a rule or a featured switch of
+      // its own: both belong to the main event.
+      const repeatChange = series?.main ? {} : { repeat, featured }
       const place = { listingId: listingId || null }
       const when = {
         startDate,
@@ -570,6 +578,37 @@ export function EventDialog({
                       </Select>
                     </div>
                   </div>
+                  {/* A date of a repeat follows its main event, so the
+                      switch lives on the main event only. */}
+                  {series?.main ? null : (
+                    <div className="grid gap-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="event-featured"
+                          checked={fields.featured}
+                          disabled={saving}
+                          onCheckedChange={(checked) =>
+                            update("featured", checked)
+                          }
+                        />
+                        <FieldLabel
+                          htmlFor="event-featured"
+                          hint="A featured event sits at the top of the Events page's list and is marked in the calendar until it ends. A repeating event puts its next date on top. Free when you switch it on here."
+                        >
+                          Featured
+                        </FieldLabel>
+                      </div>
+                      {loaded?.data.paidSpot ? (
+                        <p className="text-sm text-muted-foreground">
+                          {loaded.data.paidSpot.buyerEmail} paid to feature it
+                          until it ends on{" "}
+                          {formatDate(loaded.data.paidSpot.endsAt)}, so it
+                          stays featured with this switch off. Revoke that
+                          under Featured plans.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                   <div className="grid gap-2">
                     <FieldLabel hint="Shown at the top of the event's page and when it is shared.">
                       Cover image

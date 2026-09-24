@@ -183,24 +183,28 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       category,
     }
 
+    // A featured spot ends when the event does, so an event that is over
+    // loses its mark. Worked out here, after the cache, like "Ended".
+    const mark = (events: PublicEventCard[]): ListedEvent[] =>
+      events.map((event) => {
+        const ended = eventHasEnded(event, timeZone, at)
+        return { ...event, ended, featured: Boolean(event.featured) && !ended }
+      })
+
     if (data.view === "month") {
       const month = parseYearMonth(data.month) ?? parseYearMonth(common.today)!
       const cells = monthMatrix(month)
-      const events = await readEventsBetween(
-        site,
-        cells[0]!.date,
-        cells[cells.length - 1]!.date,
-        undefined,
-        onlyCategory
+      const events = mark(
+        await readEventsBetween(
+          site,
+          cells[0]!.date,
+          cells[cells.length - 1]!.date,
+          undefined,
+          onlyCategory
+        )
       )
       return { ...common, view: "month", month, events }
     }
-
-    const mark = (events: PublicEventCard[]): ListedEvent[] =>
-      events.map((event) => ({
-        ...event,
-        ended: eventHasEnded(event, timeZone, at),
-      }))
 
     if (isValidDateString(data.day)) {
       const events = mark(
@@ -240,6 +244,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     const nearby = readEventNear(data)
     const point = parseDirectoryNearPoint(nearby.near)
     const upcoming = await readUpcomingEvents(site, page, now, undefined, {
+      featured: true,
       ...onlyCategory,
       ...(place ? { placeId: place.id } : {}),
       ...eventDateWindow(dates, common.today),

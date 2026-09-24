@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -28,7 +28,8 @@ import { cn } from "@/lib/utils"
  * The Events page's month. On a wide screen each day shows up to three events
  * and "+2 more"; on a phone each day shows only its number and a dot when it
  * has events. Either way a day with more to see opens that day's list. An
- * event over several days shows on every one of them.
+ * event over several days shows on every one of them. A featured event that
+ * is not over carries the featured badge's sparkle, named for a screen reader.
  *
  * "Today" is the site's today, sent by the server, so the ring lands on the
  * same day for every visitor wherever they are. A category filter stays on
@@ -96,12 +97,23 @@ export function EventMonth({
                     key={event.id}
                     to="/events/$slug"
                     params={{ slug: event.slug }}
-                    title={event.title}
+                    title={
+                      event.featured ? `Featured: ${event.title}` : event.title
+                    }
                     className={cn(
                       "block truncate rounded-sm bg-primary/10 px-1.5 py-0.5 text-xs font-medium transition-colors hover:bg-primary/20",
                       focusRing
                     )}
                   >
+                    {event.featured ? (
+                      <>
+                        <SparklesIcon
+                          aria-hidden="true"
+                          className="mr-1 inline size-3 align-[-2px]"
+                        />
+                        <span className="sr-only">Featured: </span>
+                      </>
+                    ) : null}
                     {/* The start time goes on the first day only. */}
                     {event.startDate === cell.date ? (
                       <span className="mr-1 text-muted-foreground">

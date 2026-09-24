@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { CalendarIcon, MapPinIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { FeaturedPlansPopover } from "@/components/directory/featured-plans-popover"
 import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +30,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { OwnedListing } from "@/lib/api/directory/claims"
 import {
+  loadEventFeaturedPurchase,
+  startEventFeaturedCheckout,
+} from "@/lib/api/directory/featured"
+import {
   getEventSubmissionErrorMessage,
   sendEventForMyListing,
   type OwnerEvent,
@@ -51,6 +56,9 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
  * Nothing here publishes anything. Every event goes to the site's admin, and
  * approving it puts it on the Events page. The place is the listing and
  * cannot be changed, so the window says where it is instead of asking.
+ *
+ * A published event that has not been and gone has a Feature button, which
+ * pays to put it at the top of the Events page until it ends.
  */
 export function OwnerEventsCard({
   listing,
@@ -101,6 +109,13 @@ export function OwnerEventsCard({
                   key={event.id}
                   event={event}
                   siteUrl={listing.siteUrl}
+                  // A day already gone has nothing to feature. Today's event
+                  // may be over too; the button then says so when opened.
+                  canFeature={
+                    eventsOn &&
+                    event.eventId !== null &&
+                    event.startDate >= (site?.today ?? "")
+                  }
                 />
               ))}
             </ul>
@@ -133,10 +148,13 @@ const STATUS_WORDS: Record<OwnerEvent["status"], string> = {
 function OwnerEventRow({
   event,
   siteUrl,
+  canFeature,
 }: {
   event: OwnerEvent
   siteUrl: string
+  canFeature: boolean
 }) {
+  const eventId = event.eventId
   return (
     <li className="grid gap-1 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -172,6 +190,17 @@ function OwnerEventRow({
         <p className="text-xs whitespace-pre-wrap text-muted-foreground">
           The admin said: {event.reviewNote}
         </p>
+      ) : null}
+      {canFeature && eventId ? (
+        <div className="pt-1">
+          <FeaturedPlansPopover
+            featuredNow={event.featured}
+            noun="event"
+            size="sm"
+            load={() => loadEventFeaturedPurchase(eventId)}
+            start={(planId) => startEventFeaturedCheckout(eventId, planId)}
+          />
+        </div>
       ) : null}
     </li>
   )

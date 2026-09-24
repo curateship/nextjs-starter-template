@@ -191,6 +191,7 @@ describe("the events table", () => {
    * skip the private filter in `public.ts`, so it has to live there instead.
    */
   const allowed = [
+    "server/directory/featured.ts", // Featured spots: an owner's own events and the admin's placements.
     "server/directory/reports.ts", // Admin: the reports queue names each event.
     "server/events/events.ts", // Admin → Events, which shows everything.
     "server/events/place.ts", // Column rules for a listing as the place.

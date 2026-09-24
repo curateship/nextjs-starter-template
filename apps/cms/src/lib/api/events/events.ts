@@ -8,6 +8,10 @@ import {
 } from "@/lib/events/event-sort"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { adminGet, adminPost } from "@/server/guards"
+import {
+  activeEventSpot,
+  prepareFeaturedEventsForDeletion,
+} from "@/server/directory/featured"
 import { directoryGeocodingKey } from "@/server/directory/settings"
 import { categoryIdsFor } from "@/server/directory/content-categories"
 import {
@@ -117,6 +121,8 @@ export type EventForEdit = {
   placeListing: ListingChoice | null
   /** Whether this site can look a typed address up for the map. */
   canLocate: boolean
+  /** The listing owner's paid featured spot, while one is running. */
+  paidSpot: { endsAt: Date; buyerEmail: string } | null
 }
 
 const loadEventForEditFn = createServerFn({ method: "GET" })
@@ -129,13 +135,15 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       categoryIdsFor(site, EVENT_CONTENT_TYPE, data.id),
     ])
     if (!event) return null
-    const [listings, series, placeListing, lookupKey] = await Promise.all([
-      listingChoicesForBody(site, event.body),
-      seriesForEdit(site, event),
-      event.listingId ? listingChoice(site, event.listingId) : null,
-      // Only whether there is one; the key itself never leaves the server.
-      directoryGeocodingKey(site).catch(() => null),
-    ])
+    const [listings, series, placeListing, lookupKey, paidSpot] =
+      await Promise.all([
+        listingChoicesForBody(site, event.body),
+        seriesForEdit(site, event),
+        event.listingId ? listingChoice(site, event.listingId) : null,
+        // Only whether there is one; the key itself never leaves the server.
+        directoryGeocodingKey(site).catch(() => null),
+        activeEventSpot(site, event.id),
+      ])
     return {
       event,
       categoryIds,
@@ -143,6 +151,7 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       series,
       placeListing,
       canLocate: Boolean(lookupKey),
+      paidSpot,
     }
   })
 
@@ -182,6 +191,7 @@ const updateEventFn = createServerFn({ method: "POST" })
       summary: z.string().max(MAX_EVENT_SUMMARY).optional(),
       status: z.enum(["draft", "published"]).optional(),
       visibility: z.enum(["public", "private"]).optional(),
+      featured: z.boolean().optional(),
       when: whenInput.optional(),
       placeName: z.string().max(MAX_PLACE_NAME).optional(),
       placeAddress: z.string().max(MAX_PLACE_ADDRESS).optional(),
@@ -213,6 +223,8 @@ export function saveEvent(input: {
   summary?: string
   status?: EventStatus
   visibility?: EventVisibility
+  /** The free featured switch. Never sent for one date of a repeat. */
+  featured?: boolean
   when?: EventWhenInput
   placeName?: string
   placeAddress?: string
@@ -243,10 +255,11 @@ const deleteEventsFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ ids: z.array(idInput).min(1).max(500) }))
   .handler(
     async ({ data, context }): Promise<{ done: string[]; kept: string[] }> => {
-      return deleteEvents(
-        await workspaceIdForRequest(context.user.id),
-        data.ids
-      )
+      const site = await workspaceIdForRequest(context.user.id)
+      // An owner partway through paying to feature one of these stops the
+      // delete, so a payment never lands on an event that is gone.
+      await prepareFeaturedEventsForDeletion(site, data.ids)
+      return deleteEvents(site, data.ids)
     }
   )
 

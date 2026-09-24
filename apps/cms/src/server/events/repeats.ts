@@ -370,6 +370,11 @@ export async function saveEventAndDates(
         "This is one date of a repeating event. Change the repeat on the main event."
       )
     }
+    if (before.seriesId && fields.featured !== undefined) {
+      throw new Error(
+        "This is one date of a repeating event. Feature it from the main event."
+      )
+    }
 
     let event = await updateEvent(workspaceId, id, fields, tx)
     if (position) {

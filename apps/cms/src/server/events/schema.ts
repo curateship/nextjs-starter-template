@@ -23,8 +23,9 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * `drizzle/0084_cms_events_visibility.sql` for `visibility`,
  * `drizzle/0085_cms_event_repeats.sql` for the repeat columns,
  * `drizzle/0086_cms_event_listing.sql` for `listing_id`,
- * `drizzle/0087_cms_event_position.sql` for the map position, and
- * `drizzle/0091_cms_event_source_link.sql` for `source_url`.
+ * `drizzle/0087_cms_event_position.sql` for the map position,
+ * `drizzle/0091_cms_event_source_link.sql` for `source_url`, and
+ * `drizzle/0093_cms_featured_events.sql` for `featured`.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -55,6 +56,11 @@ export const siteEvents = pgTable(
     visibility: varchar("visibility", { length: 20 })
       .notNull()
       .default("public"),
+    /**
+     * Switched on by an admin, free, from `drizzle/0093_cms_featured_events.sql`.
+     * Only a main event's counts: its dates follow it.
+     */
+    featured: boolean("featured").notNull().default(false),
     /** Set on first publish and kept. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     /** "2026-09-27", the day it starts on the site's calendar. */

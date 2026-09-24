@@ -10,6 +10,7 @@ import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { now, uuid } from "@/server/auth/security"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
+import { featuredEventIds } from "@/server/directory/featured"
 import { directoryClaims, directoryListings } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import { eventLinksByIds } from "@/server/events/events"
@@ -210,6 +211,10 @@ export type OwnerEvent = {
   reviewNote: string
   /** The event's address once it is published, for a link to its page. */
   eventSlug: string | null
+  /** The published event's id, for the Feature button. Null until then. */
+  eventId: string | null
+  /** Featured now, by the admin or by this owner's payment. */
+  featured: boolean
   createdAt: Date
 }
 
@@ -276,16 +281,18 @@ export async function ownerEventsFor(
     .orderBy(desc(eventSubmissions.createdAt))
     .limit(500)
 
-  const links = await eventLinksByIds(
-    rows.map((row) => row.eventId ?? ""),
-    database
-  )
+  const eventIds = rows.map((row) => row.eventId ?? "")
+  const [links, featured] = await Promise.all([
+    eventLinksByIds(eventIds, database),
+    featuredEventIds(eventIds, database),
+  ])
   const byListing: Record<string, OwnerEvent[]> = {}
   for (const row of rows) {
     if (!row.listingId) continue
     const list = (byListing[row.listingId] ??= [])
     if (list.length >= OWNER_EVENTS_SHOWN) continue
     const link = row.eventId ? links.get(row.eventId) : undefined
+    const published = link?.status === "published"
     list.push({
       id: row.id,
       status: row.status as EventSubmissionStatus,
@@ -294,7 +301,9 @@ export async function ownerEventsFor(
       startTime: row.startTime.slice(0, 5),
       endTime: row.endTime ? row.endTime.slice(0, 5) : null,
       reviewNote: row.status === "rejected" ? row.reviewNote : "",
-      eventSlug: link?.status === "published" ? link.slug : null,
+      eventSlug: published ? link.slug : null,
+      eventId: published ? row.eventId : null,
+      featured: published && featured.has(row.eventId ?? ""),
       createdAt: row.createdAt,
     })
   }
