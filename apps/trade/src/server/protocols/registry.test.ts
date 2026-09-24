@@ -29,6 +29,9 @@ describe("the protocol registry", () => {
     expect(listProtocols().map((one) => one.label)).toContain("Aster")
     expect(listProtocols().map((one) => one.label)).toContain("Solana")
     expect(listProtocols().map((one) => one.label)).toContain("BNB Chain")
+    expect(listProtocols().map((one) => one.label)).toContain(
+      "Robinhood Chain"
+    )
   })
 
   it("carries the trading blocks exactly where the flags say they are", () => {
@@ -87,6 +90,30 @@ describe("the protocol registry", () => {
     ).resolves.toEqual({ validUntil: null })
     expect(entry.markets.search).toBeTypeOf("function")
     expect(entry.markets.recordsOwnBars).toBe(true)
+  })
+
+  it("holds a Robinhood Chain wallet and offers nothing to trade yet", async () => {
+    const entry = getProtocol("robinhood")
+    expect(entry.networks).toEqual(["mainnet"])
+    expect(entry.capabilities).toMatchObject({
+      markets: false,
+      accounts: false,
+      orders: false,
+    })
+    expect(entry.account).toBeUndefined()
+    expect(entry.orders).toBeUndefined()
+    expect((await entry.markets.fetch("mainnet")).rows).toEqual([])
+    expect(entry.credentials?.form.keyHelp).toContain(
+      "Robinhood's terms bar Stock Tokens in the US"
+    )
+    const made = entry.credentials!.make!()
+    await expect(
+      entry.agent!.verify(
+        "mainnet",
+        made.address,
+        entry.credentials!.pack(made)
+      )
+    ).resolves.toEqual({ validUntil: null })
   })
 
   it("reads a Solana wallet's holdings by address and swaps through Jupiter", () => {

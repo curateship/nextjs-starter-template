@@ -42,6 +42,7 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
       join("server", "protocols", "hyperliquid"),
       join("server", "protocols", "aster"),
       join("server", "protocols", "bnb"),
+      join("server", "protocols", "evm-chain"),
     ],
   },
   {
@@ -68,6 +69,21 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
 const SOLANA_HOME = join("server", "protocols", "solana")
 const SOLANA_ADDRESSES =
   /api\.jup\.ag|mainnet-beta\.solana\.com|devnet\.solana\.com/
+
+/** The addresses only Robinhood Chain's folder may know, for the same reason. */
+const ROBINHOOD_HOME = join("server", "protocols", "robinhood")
+const ROBINHOOD_ADDRESSES =
+  /chain\.robinhood\.com|robinhoodchain\.blockscout\.com|robinhood-rpc/
+
+/**
+ * The code BNB Chain and Robinhood Chain share. Each chain folder hands it
+ * its own names and addresses, so a fix here is a fix on both chains. It
+ * stays shared only while it names no chain, no chain's coin and no address.
+ * An import from either chain's folder names that chain, so the same check
+ * stops it.
+ */
+const EVM_HOME = join("server", "protocols", "evm-chain")
+const CHAIN_NAMES = /bnb|bsc|binance|pancake|robinhood|usdt|usdg|https?:\/\//i
 
 /**
  * Lighter ships a compiled signer rather than a package, so the fence around
@@ -153,7 +169,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb|robinhood)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|dukascopy|solana|bnb|robinhood)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))
@@ -188,6 +204,27 @@ describe("the protocol fence", () => {
       .filter(({ text }) => SOLANA_ADDRESSES.test(text))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
+  })
+
+  it("keeps Robinhood Chain's node and explorer addresses inside its own folder", () => {
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(ROBINHOOD_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => ROBINHOOD_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps the shared chain code free of any one chain", () => {
+    const shared = sources.filter(({ path }) => path.startsWith(EVM_HOME + sep))
+    // A walker that matched nothing would pass the check below.
+    expect(shared.length).toBeGreaterThan(0)
+    // Tests may name a made-up host to prove a chain's own address is used.
+    const named = shared
+      .filter(({ path }) => !/\.test\.ts$/.test(path))
+      .filter(({ text }) => CHAIN_NAMES.test(text))
+      .map(({ path }) => path)
+    expect(named, "a chain name or address inside evm-chain/").toEqual([])
   })
 
   it("keeps each exchange's folder off the app's own tables", () => {

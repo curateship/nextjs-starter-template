@@ -2,7 +2,8 @@ import { parseAbiItem, type Address, type Hash } from "viem"
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
 import { BNB_USDT, BNB_WRAPPED_NATIVE } from "./client"
 import { bnbLogsClient, bnbTokenDecimals } from "./rpc"
-import { bnbReceiptFailure, bnbReceiptFill, bnbTransfers } from "./receipts"
+import { evmTransfers } from "@/server/protocols/evm-chain/receipts"
+import { bnbReceiptFailure, bnbReceiptFill } from "./receipts"
 import { bnbAccountMarkets } from "./markets"
 import {
   finishBnbSend,
@@ -13,12 +14,9 @@ import {
   type BnbOwner,
 } from "./ledger"
 import { clearBnbAccountState } from "./account"
-import {
-  bnbHistoryRefusalError,
-  bnbLogsBeyondNode,
-  bnbRefusalError,
-} from "./refusals"
-import { bnbUnits } from "./quote"
+import { bnbHistoryRefusalError, bnbRefusalError } from "./refusals"
+import { logsBeyondNode } from "@/server/protocols/evm-chain/refusals"
+import { evmUnits } from "@/server/protocols/evm-chain/kyber"
 
 // Measured on 20 Sep 2026: PublicNode serves 1,000 wallet-filtered blocks per
 // request and answers about 9,000 blocks back from the head, roughly two
@@ -105,7 +103,7 @@ async function readBnbOrderFills(
         }),
       ])
     } catch (error) {
-      if (!bnbLogsBeyondNode(error)) throw error
+      if (!logsBeyondNode(error)) throw error
       continue
     }
     served += 1
@@ -138,7 +136,7 @@ async function readBnbOrderFills(
     if (known && receipt.status === "reverted") {
       const note = bnbReceiptFailure(hash, known.kind, receipt, {
         approvalFeeWei: (known.approvals ?? []).reduce(
-          (total, approval) => total + bnbUnits(approval.feeBnb, 18),
+          (total, approval) => total + evmUnits(approval.feeBnb, 18),
           0n
         ),
       })
@@ -158,7 +156,7 @@ async function readBnbOrderFills(
     const block = await client.getBlock({ blockNumber: receipt.blockNumber })
     const at = Number(block.timestamp) * 1000
     if (!known && at < since) continue
-    const tokens = [...bnbTransfers(receipt, wallet).keys()].filter(
+    const tokens = [...evmTransfers(receipt, wallet).keys()].filter(
       (token) => token !== BNB_USDT
     )
     if (tokens.length !== 1) continue

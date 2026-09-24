@@ -78,6 +78,7 @@ import { Route as AuthenticatedProtocolsHyperLiquidRouteImport } from './routes/
 import { Route as AuthenticatedProtocolsKucoinRouteImport } from './routes/_authenticated/protocols/kucoin'
 import { Route as AuthenticatedProtocolsLighterRouteImport } from './routes/_authenticated/protocols/lighter'
 import { Route as AuthenticatedProtocolsPhemexRouteImport } from './routes/_authenticated/protocols/phemex'
+import { Route as AuthenticatedProtocolsRobinhoodRouteImport } from './routes/_authenticated/protocols/robinhood'
 import { Route as AuthenticatedProtocolsSolanaRouteImport } from './routes/_authenticated/protocols/solana'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
@@ -477,6 +478,12 @@ const AuthenticatedProtocolsPhemexRoute =
     path: '/protocols/phemex',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProtocolsRobinhoodRoute =
+  AuthenticatedProtocolsRobinhoodRouteImport.update({
+    id: '/protocols/robinhood',
+    path: '/protocols/robinhood',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProtocolsSolanaRoute =
   AuthenticatedProtocolsSolanaRouteImport.update({
     id: '/protocols/solana',
@@ -665,6 +672,7 @@ export interface FileRoutesByFullPath {
   '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
   '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
   '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
+  '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -754,6 +762,7 @@ export interface FileRoutesByTo {
   '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
   '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
   '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
+  '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -847,6 +856,7 @@ export interface FileRoutesById {
   '/_authenticated/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
   '/_authenticated/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
   '/_authenticated/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
+  '/_authenticated/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/_authenticated/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -940,6 +950,7 @@ export interface FileRouteTypes {
     | '/protocols/kucoin'
     | '/protocols/lighter'
     | '/protocols/phemex'
+    | '/protocols/robinhood'
     | '/protocols/solana'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1029,6 +1040,7 @@ export interface FileRouteTypes {
     | '/protocols/kucoin'
     | '/protocols/lighter'
     | '/protocols/phemex'
+    | '/protocols/robinhood'
     | '/protocols/solana'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1121,6 +1133,7 @@ export interface FileRouteTypes {
     | '/_authenticated/protocols/kucoin'
     | '/_authenticated/protocols/lighter'
     | '/_authenticated/protocols/phemex'
+    | '/_authenticated/protocols/robinhood'
     | '/_authenticated/protocols/solana'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1660,6 +1673,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProtocolsPhemexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/protocols/robinhood': {
+      id: '/_authenticated/protocols/robinhood'
+      path: '/protocols/robinhood'
+      fullPath: '/protocols/robinhood'
+      preLoaderRoute: typeof AuthenticatedProtocolsRobinhoodRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/protocols/solana': {
       id: '/_authenticated/protocols/solana'
       path: '/protocols/solana'
@@ -1974,6 +1994,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProtocolsKucoinRoute: typeof AuthenticatedProtocolsKucoinRoute
   AuthenticatedProtocolsLighterRoute: typeof AuthenticatedProtocolsLighterRoute
   AuthenticatedProtocolsPhemexRoute: typeof AuthenticatedProtocolsPhemexRoute
+  AuthenticatedProtocolsRobinhoodRoute: typeof AuthenticatedProtocolsRobinhoodRoute
   AuthenticatedProtocolsSolanaRoute: typeof AuthenticatedProtocolsSolanaRoute
 }
 
@@ -1996,6 +2017,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProtocolsKucoinRoute: AuthenticatedProtocolsKucoinRoute,
   AuthenticatedProtocolsLighterRoute: AuthenticatedProtocolsLighterRoute,
   AuthenticatedProtocolsPhemexRoute: AuthenticatedProtocolsPhemexRoute,
+  AuthenticatedProtocolsRobinhoodRoute: AuthenticatedProtocolsRobinhoodRoute,
   AuthenticatedProtocolsSolanaRoute: AuthenticatedProtocolsSolanaRoute,
 }
 

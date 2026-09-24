@@ -310,6 +310,48 @@ export const PROTOCOL_DESCRIPTIONS = [
         "This private key holds the coins in your BNB Chain wallet. Keep in this wallet only what you mean to trade. Paste your wallet's private key, or make a new wallet below. BNB Chain uses USDT for purchases and BNB for network fees.",
     },
   },
+  /**
+   * Robinhood Chain: Robinhood's own network, where Stock Tokens such as
+   * NVDA and SPY trade around the clock against USDG. The same shape as BNB
+   * Chain, and the same shared wallet code. Spot only. Only the wallet is
+   * built so far: markets, holdings and swaps each switch on with the task
+   * that builds them. Mainnet only, because KyberSwap does not route on the
+   * testnet.
+   */
+  {
+    id: "robinhood",
+    label: "Robinhood Chain",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: false,
+      accounts: false,
+      orders: false,
+      ordersAreSwaps: true,
+      gridStop: "watched",
+      changeLeverage: {
+        can: false,
+        because:
+          "Robinhood Chain is spot only: a coin is bought and owned outright, so there is no leverage to change.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Robinhood Chain is spot only: a coin is bought and owned outright, so there is no margin behind it.",
+      },
+    },
+    credentialForm: {
+      addressLabel: "Wallet address",
+      addressHint: "0x followed by 40 hexadecimal characters",
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+      secretLabel: "Private key",
+      needsPassphrase: false,
+      secretIsAgentKey: false,
+      canMakeWallet: true,
+      keyHelp:
+        "This private key holds the coins in your Robinhood Chain wallet. Keep in this wallet only what you mean to trade. Paste your wallet's private key, or make a new wallet below. Robinhood Chain uses USDG for purchases and ETH for network fees. Robinhood's terms bar Stock Tokens in the US and restrict them in Canada, the UK and Switzerland, so whether you may hold them is yours to check.",
+    },
+  },
 ] as const satisfies readonly ProtocolDescription[]
 
 const byId = new Map(

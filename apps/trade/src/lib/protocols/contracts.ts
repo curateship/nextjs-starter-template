@@ -29,6 +29,7 @@ export type ProtocolId =
   | "dukascopy"
   | "solana"
   | "bnb"
+  | "robinhood"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -158,6 +159,7 @@ export const KNOWN_PROTOCOLS = [
   "dukascopy",
   "solana",
   "bnb",
+  "robinhood",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -176,6 +178,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   dukascopy: "Dukascopy",
   solana: "Solana",
   bnb: "BNB Chain",
+  robinhood: "Robinhood Chain",
 }
 
 export function protocolLabel(id: ProtocolId): string {
@@ -264,6 +267,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   lighter: "/protocols/lighter",
   solana: "/protocols/solana",
   bnb: "/protocols/bnb",
+  robinhood: "/protocols/robinhood",
 }
 
 /** The chart address for a market whose protocol has a trading dashboard. */
