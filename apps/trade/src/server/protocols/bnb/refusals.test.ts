@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest"
 import { BaseError } from "viem"
 import {
-  bnbNodeRefusalCode,
   bnbRefusalError,
   bnbRefusalSentence,
   explainBnbError,
-  kyberRefusalCode,
   type BnbRefusal,
 } from "./refusals"
+import {
+  kyberRefusalCode,
+  nodeRefusalCode,
+} from "@/server/protocols/evm-chain/refusals"
 import fixture from "./refusals.fixture.json"
 const hash = `0x${"a".repeat(64)}`
 const secret = "FAKE_SECRET_do_not_display https://rpc.example/?key=FAKE_KEY"
@@ -39,7 +41,7 @@ describe("BNB refusals", () => {
     ["HTTP 429 Too Many Requests", "node-busy"],
   ] as const)("translates nested node failure %s", (message, code) => {
     expect(
-      bnbNodeRefusalCode(
+      nodeRefusalCode(
         new BaseError("RPC failed", {
           cause: new Error(`${message} ${secret}`),
         })
@@ -93,7 +95,7 @@ describe("BNB refusals", () => {
     )
     const cycle: { cause?: unknown } = {}
     cycle.cause = cycle
-    expect(bnbNodeRefusalCode(cycle)).toBe("unknown")
+    expect(nodeRefusalCode(cycle)).toBe("unknown")
   })
   it("preserves trusted sentences and accounts for earlier approvals", () => {
     const error = bnbRefusalError("no-route")

@@ -273,10 +273,19 @@ import {
   bnbPricesWereRationed,
 } from "@/server/protocols/bnb/markets"
 import {
-  makeBnbWallet,
   packBnbCredential,
   verifyBnbWallet,
 } from "@/server/protocols/bnb/wallet"
+import { makeEvmWallet } from "@/server/protocols/evm-chain/wallet"
+import {
+  fetchRobinhoodMarkets,
+  robinhoodHasNoCandles,
+  robinhoodHasNoPrices,
+} from "@/server/protocols/robinhood/markets"
+import {
+  packRobinhoodCredential,
+  verifyRobinhoodWallet,
+} from "@/server/protocols/robinhood/wallet"
 import {
   makeSolanaWallet,
   packSolanaCredential,
@@ -1230,7 +1239,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     credentials: {
       form: protocolDescription("bnb").credentialForm!,
       pack: packBnbCredential,
-      make: makeBnbWallet,
+      make: makeEvmWallet,
     },
     orders: {
       quote: quoteBnbSwap,
@@ -1243,6 +1252,33 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fills: fetchBnbOrderFills,
       orderInfo: fetchBnbOrderInfo,
       executionNotes: bnbExecutionNotes,
+    },
+  },
+  /**
+   * A wallet and nothing else — yet.
+   *
+   * Robinhood Chain is BNB Chain's twin: an Ethereum-shaped chain where the
+   * app holds its own wallet, and both read their wallets through
+   * `evm-chain/`. The key is proved against its address by arithmetic, so
+   * saving a wallet asks the chain nothing. The market list is empty until
+   * the stock tokens are listed, and there is no account or orders block, so
+   * nothing here can be bought or read.
+   */
+  robinhood: {
+    ...protocolCore("robinhood"),
+    markets: {
+      fetch: fetchRobinhoodMarkets,
+      candles: robinhoodHasNoCandles,
+      history: robinhoodHasNoCandles,
+      intervalMs: standardCandleIntervalMs,
+      prices: robinhoodHasNoPrices,
+      roundPx: roundToTick,
+    },
+    agent: { verify: verifyRobinhoodWallet },
+    credentials: {
+      form: protocolDescription("robinhood").credentialForm!,
+      pack: packRobinhoodCredential,
+      make: makeEvmWallet,
     },
   },
 }

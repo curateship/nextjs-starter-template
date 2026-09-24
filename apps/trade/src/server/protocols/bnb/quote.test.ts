@@ -7,14 +7,12 @@ import {
 } from "viem"
 import fixture from "./swap.fixture.json"
 import refusals from "./refusals.fixture.json"
+import { parseBnbRoute, validateBnbBuild, kyberRequest } from "./quote"
 import {
-  bnbUnits,
-  bnbSlippage,
-  parseBnbRoute,
-  validateBnbBuild,
+  evmSlippage,
+  evmUnits,
   kyberSwapAbi,
-  kyberRequest,
-} from "./quote"
+} from "@/server/protocols/evm-chain/kyber"
 const input = {
   token: fixture.route.data.routeSummary.tokenOut as Address,
   side: "buy" as const,
@@ -41,13 +39,13 @@ describe("KyberSwap quote and unsigned transaction", () => {
     )
   })
   it("truncates base units without rounding up or losing exponent digits", () => {
-    expect(bnbUnits(10, 18)).toBe(10000000000000000000n)
-    expect(bnbUnits(0.000000000000000001, 18)).toBe(1n)
-    expect(bnbUnits(1.23456789, 6)).toBe(1234567n)
-    expect(bnbUnits(1e21, 18)).toBe(10n ** 39n)
-    expect(bnbUnits(1e-20, 18)).toBe(0n)
-    expect(() => bnbUnits(NaN, 18)).toThrow()
-    expect(() => bnbSlippage(Infinity)).toThrow()
+    expect(evmUnits(10, 18)).toBe(10000000000000000000n)
+    expect(evmUnits(0.000000000000000001, 18)).toBe(1n)
+    expect(evmUnits(1.23456789, 6)).toBe(1234567n)
+    expect(evmUnits(1e21, 18)).toBe(10n ** 39n)
+    expect(evmUnits(1e-20, 18)).toBe(0n)
+    expect(() => evmUnits(NaN, 18)).toThrow()
+    expect(() => evmSlippage(Infinity)).toThrow()
   })
   it("refuses excessive impact, a worse buy price and substituted tokens", () => {
     const raw = structuredClone(fixture.route)

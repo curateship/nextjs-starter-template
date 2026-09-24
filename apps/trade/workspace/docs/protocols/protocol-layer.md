@@ -9,6 +9,15 @@
   `src/server/protocols/registry.ts`, followed by its own dashboard. The
   current Trade dashboard remains Hyperliquid-only.
 
+## Chains that share code
+
+BNB Chain and Robinhood Chain are both Ethereum-shaped chains, so they share
+`src/server/protocols/evm-chain/`: the wallet, the request counters, the
+refusal sentences, KyberSwap, the receipt reader, the balance read and the
+swap. Each chain folder hands the shared code its own addresses, coins and
+explorer as settings. The shared folder names no chain and no address, and
+`fence.test.ts` fails if it does. `robinhood-chain.md` has the details.
+
 ## Pushed fill capability
 
 An exchange registers `orders.watchFills` when it can tell Trade that an

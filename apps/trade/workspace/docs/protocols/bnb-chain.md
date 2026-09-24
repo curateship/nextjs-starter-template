@@ -51,8 +51,10 @@ reserved for network fees.
   Retry-After. New pool and candle requests fail locally during that pause.
   Other services retry a 429 once after a wait capped at five seconds. Signed
   transactions must not use this retrying read helper.
-- **Code boundaries:** wallet signing and service addresses stay inside
-  `server/protocols/bnb/`. Transaction storage uses migration 0172, applied on
+- **Code boundaries:** BNB's addresses, coins and services stay inside
+  `server/protocols/bnb/`. The wallet, counters, refusals, KyberSwap checks,
+  receipts, balance read and swap are shared with Robinhood Chain in
+  `server/protocols/evm-chain/`, and the BNB files hand them BNB's settings. Transaction storage uses migration 0172, applied on
   8 Sep 2026. Task 07 adds no package or migration.
 
 Wallet generation follows the existing viem library's
@@ -331,7 +333,8 @@ the browser check alone does not prove GeckoTerminal was refusing at that moment
 
 The wallet card reads USDT as free money and values every priced holding.
 
-- **Chain read:** `server/protocols/bnb/account.ts` sends one `eth_call` to
+- **Chain read:** `server/protocols/bnb/account.ts` picks the tokens, and the
+  shared `server/protocols/evm-chain/balances.ts` sends one `eth_call` to
   Multicall3 for native BNB and each known token's balance and decimals.
   The card and positions share a read for two seconds. Slow requests stay
   shared until they finish. Failed reads also wait out the two-second window.
