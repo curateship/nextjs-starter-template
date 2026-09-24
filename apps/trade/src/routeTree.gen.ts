@@ -74,6 +74,7 @@ import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_au
 import { Route as AuthenticatedFlowRunsRunIdRouteImport } from './routes/_authenticated/flow-runs_.$runId'
 import { Route as AuthenticatedProtocolsApexRouteImport } from './routes/_authenticated/protocols/apex'
 import { Route as AuthenticatedProtocolsAsterRouteImport } from './routes/_authenticated/protocols/aster'
+import { Route as AuthenticatedProtocolsBinanceRouteImport } from './routes/_authenticated/protocols/binance'
 import { Route as AuthenticatedProtocolsBnbRouteImport } from './routes/_authenticated/protocols/bnb'
 import { Route as AuthenticatedProtocolsHyperLiquidRouteImport } from './routes/_authenticated/protocols/hyper-liquid'
 import { Route as AuthenticatedProtocolsKucoinRouteImport } from './routes/_authenticated/protocols/kucoin'
@@ -455,6 +456,12 @@ const AuthenticatedProtocolsAsterRoute =
     path: '/protocols/aster',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProtocolsBinanceRoute =
+  AuthenticatedProtocolsBinanceRouteImport.update({
+    id: '/protocols/binance',
+    path: '/protocols/binance',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProtocolsBnbRoute =
   AuthenticatedProtocolsBnbRouteImport.update({
     id: '/protocols/bnb',
@@ -675,6 +682,7 @@ export interface FileRoutesByFullPath {
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
   '/protocols/apex': typeof AuthenticatedProtocolsApexRoute
   '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
+  '/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
   '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
   '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
   '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
@@ -766,6 +774,7 @@ export interface FileRoutesByTo {
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
   '/protocols/apex': typeof AuthenticatedProtocolsApexRoute
   '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
+  '/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
   '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
   '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
   '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
@@ -861,6 +870,7 @@ export interface FileRoutesById {
   '/_authenticated/flow-runs_/$runId': typeof AuthenticatedFlowRunsRunIdRoute
   '/_authenticated/protocols/apex': typeof AuthenticatedProtocolsApexRoute
   '/_authenticated/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
+  '/_authenticated/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
   '/_authenticated/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
   '/_authenticated/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
   '/_authenticated/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
@@ -956,6 +966,7 @@ export interface FileRouteTypes {
     | '/flow-runs/$runId'
     | '/protocols/apex'
     | '/protocols/aster'
+    | '/protocols/binance'
     | '/protocols/bnb'
     | '/protocols/hyper-liquid'
     | '/protocols/kucoin'
@@ -1047,6 +1058,7 @@ export interface FileRouteTypes {
     | '/flow-runs/$runId'
     | '/protocols/apex'
     | '/protocols/aster'
+    | '/protocols/binance'
     | '/protocols/bnb'
     | '/protocols/hyper-liquid'
     | '/protocols/kucoin'
@@ -1141,6 +1153,7 @@ export interface FileRouteTypes {
     | '/_authenticated/flow-runs_/$runId'
     | '/_authenticated/protocols/apex'
     | '/_authenticated/protocols/aster'
+    | '/_authenticated/protocols/binance'
     | '/_authenticated/protocols/bnb'
     | '/_authenticated/protocols/hyper-liquid'
     | '/_authenticated/protocols/kucoin'
@@ -1658,6 +1671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProtocolsAsterRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/protocols/binance': {
+      id: '/_authenticated/protocols/binance'
+      path: '/protocols/binance'
+      fullPath: '/protocols/binance'
+      preLoaderRoute: typeof AuthenticatedProtocolsBinanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/protocols/bnb': {
       id: '/_authenticated/protocols/bnb'
       path: '/protocols/bnb'
@@ -2010,6 +2030,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
   AuthenticatedProtocolsApexRoute: typeof AuthenticatedProtocolsApexRoute
   AuthenticatedProtocolsAsterRoute: typeof AuthenticatedProtocolsAsterRoute
+  AuthenticatedProtocolsBinanceRoute: typeof AuthenticatedProtocolsBinanceRoute
   AuthenticatedProtocolsBnbRoute: typeof AuthenticatedProtocolsBnbRoute
   AuthenticatedProtocolsHyperLiquidRoute: typeof AuthenticatedProtocolsHyperLiquidRoute
   AuthenticatedProtocolsKucoinRoute: typeof AuthenticatedProtocolsKucoinRoute
@@ -2033,6 +2054,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,
   AuthenticatedProtocolsApexRoute: AuthenticatedProtocolsApexRoute,
   AuthenticatedProtocolsAsterRoute: AuthenticatedProtocolsAsterRoute,
+  AuthenticatedProtocolsBinanceRoute: AuthenticatedProtocolsBinanceRoute,
   AuthenticatedProtocolsBnbRoute: AuthenticatedProtocolsBnbRoute,
   AuthenticatedProtocolsHyperLiquidRoute:
     AuthenticatedProtocolsHyperLiquidRoute,

@@ -274,9 +274,9 @@ describe("the protocol registry", () => {
       .sort()
 
     expect(pushed).toEqual(
-      ["apex", "aster", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
+      ["apex", "aster", "binance", "hyperliquid", "kucoin", "lighter", "phemex"].sort()
     )
-    for (const id of ["hyperliquid", "kucoin", "phemex"] as const) {
+    for (const id of ["binance", "hyperliquid", "kucoin", "phemex"] as const) {
       expect(getProtocol(id).orders?.fillsNeedRecovery).toBeTypeOf("function")
     }
   })
@@ -323,6 +323,7 @@ describe("the protocol registry", () => {
     expect(named).toContain("Aster")
     expect(named).toContain("Lighter")
     expect(named).toContain("ApeX Omni")
+    expect(named).toContain("Binance")
   })
 })
 
@@ -346,4 +347,26 @@ it("offers ApeX Omni leverage and says why its margin cannot be moved", () => {
 it("rests Lighter grid stops on the exchange with explicit size tracking", () => {
   expect(getProtocol("lighter").capabilities.gridStop).toBe("exchange")
   expect(getProtocol("lighter").orders?.fixedSizeStops).toBe(true)
+})
+
+it("trades Binance with a key and secret, and no passphrase", () => {
+  const binance = getProtocol("binance")
+  expect(binance.capabilities).toMatchObject({ accounts: true, orders: true })
+  expect(binance.networks).toEqual(["mainnet"])
+  expect(binance.credentials?.form.needsPassphrase).toBe(false)
+  expect(binance.orders?.setBrackets).toBeTypeOf("function")
+  expect(binance.account?.profitPerSale).toBe(true)
+  const pack = binance.credentials?.pack
+  expect(() => pack?.({ address: "k".repeat(64), secret: "  " })).toThrow(
+    "KEY_SECRET_REQUIRED"
+  )
+  // A refusal names the problem without repeating what was pasted.
+  try {
+    pack?.({ address: "k".repeat(64), secret: "not a secret!" })
+    throw new Error("should have refused")
+  } catch (error) {
+    const message = (error as Error).message
+    expect(message.startsWith("KEY_NOT_APPROVED:")).toBe(true)
+    expect(message).not.toContain("not a secret")
+  }
 })
