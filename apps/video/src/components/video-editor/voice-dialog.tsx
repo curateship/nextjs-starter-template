@@ -39,6 +39,7 @@ import {
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
 import { captionClipStyle } from "@/lib/video/caption-look"
+import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
 import {
@@ -147,6 +148,7 @@ export function VoiceDialog({
           startMs: line.startMs,
           durationMs: line.endMs - line.startMs,
           trimStartMs: 0,
+          wordTimes: captionClipWordTimes(line),
           ...captionClipStyle(look),
         })),
       })

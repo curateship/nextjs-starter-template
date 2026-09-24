@@ -47,6 +47,7 @@ import {
   isAnimatedCaption,
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
+import { captionWordHighlight, litWordAt } from "@/lib/video/caption-words"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   snapStageCenter,
@@ -611,6 +612,21 @@ export function EditorPreview() {
         }
         const opacity = at ? String(at.opacity) : ""
         if (element.style.opacity !== opacity) element.style.opacity = opacity
+
+        // The word being said. Each word's span remembers the colour it was
+        // given, so a span React has just drawn afresh is caught as well.
+        const highlight = captionWordHighlight(entry.clip)
+        if (!highlight) continue
+        const lit = litWordAt(entry.clip, highlight.times, timeMs)
+        for (const span of element.querySelectorAll<HTMLElement>(
+          "[data-word]"
+        )) {
+          const colour =
+            Number(span.dataset.word) === lit ? highlight.color : ""
+          if ((span.dataset.lit ?? "") === colour) continue
+          span.dataset.lit = colour
+          span.style.color = colour
+        }
       }
 
       const seekMode = clock.seekMode ?? "precise"
@@ -1004,7 +1020,10 @@ export function EditorPreview() {
 
         {/* Text overlays — drag to move. Anchored at their middle, wrapping at
             90% of the frame, and scaled from the 1080-tall design space so the
-            same size means the same thing at any stage size. */}
+            same size means the same thing at any stage size. `w-max` is what
+            lets a line reach that 90%: placed from the middle, the box would
+            otherwise only grow into the right half and wrap sooner than the
+            export does. */}
         {texts.map(({ clip, zIndex }) => {
           const font = requireTextFont(clip.fontId)
           return (
@@ -1016,7 +1035,7 @@ export function EditorPreview() {
               onPointerUp={handleOverlayUp}
               onPointerCancel={handleOverlayUp}
               title="Click to edit · drag to move"
-              className="absolute max-w-[90%] cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
+              className="absolute w-max max-w-[90%] cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
               style={{
                 left: `${(clip.x ?? 0.5) * 100}%`,
                 top: `${(clip.y ?? 0.5) * 100}%`,
@@ -1038,7 +1057,7 @@ export function EditorPreview() {
                 visibility: isActive(clip, timeMs) ? "visible" : "hidden",
               }}
             >
-              {clip.text}
+              <CaptionText clip={clip} />
             </div>
           )
         })}
@@ -1097,5 +1116,26 @@ export function EditorPreview() {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * A text clip's words. A caption that lights up word by word has each word in
+ * a span of its own, numbered, for the frame loop to colour. The spaces and
+ * line breaks between them are kept exactly as typed, so the line wraps the
+ * same as the plain text would.
+ */
+function CaptionText({ clip }: { clip: EditorClip }) {
+  const text = clip.text ?? ""
+  if (!captionWordHighlight(clip)) return text
+  let index = 0
+  return text.split(/(\s+)/).map((part, at) =>
+    !part || /^\s+$/.test(part) ? (
+      part
+    ) : (
+      <span key={at} data-word={index++}>
+        {part}
+      </span>
+    )
   )
 }

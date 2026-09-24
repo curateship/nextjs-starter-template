@@ -39,6 +39,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [caption-look.md](caption-look.md) — the caption look saved in the brand
   kit, which captions start from it, and why captions already on a project
   never change.
+- [word-by-word-captions.md](word-by-word-captions.md) — captions that light
+  up each word as it is said: where it is switched on, where the word times
+  come from, what happens when the words are edited, and what it costs to
+  export.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

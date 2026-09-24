@@ -120,6 +120,29 @@ export function CaptionLookFields({
           </Select>
         </div>
 
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor={`${idPrefix}-word-highlight`}>
+            Light up each word as it is said
+          </Label>
+          <Switch
+            id={`${idPrefix}-word-highlight`}
+            checked={look.wordHighlight}
+            onCheckedChange={(wordHighlight) => patch({ wordHighlight })}
+          />
+        </div>
+        {look.wordHighlight ? (
+          <div className="grid gap-2">
+            <Label htmlFor={`${idPrefix}-word-colour`}>
+              Spoken word colour
+            </Label>
+            <ColorSwatch
+              id={`${idPrefix}-word-colour`}
+              value={look.wordColor}
+              onChange={(event) => patch({ wordColor: event.target.value })}
+            />
+          </div>
+        ) : null}
+
         <div className="grid gap-2">
           <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor={`${idPrefix}-height`}>How far down</Label>
@@ -207,7 +230,7 @@ function CaptionLookSample({ look }: { look: CaptionLook }) {
         <div
           ref={wordsRef}
           aria-hidden="true"
-          className="absolute max-w-[90%] text-center font-semibold whitespace-pre-wrap"
+          className="absolute w-max max-w-[90%] text-center font-semibold whitespace-pre-wrap"
           style={{
             left: "50%",
             top: `${look.y * 100}%`,
@@ -223,7 +246,15 @@ function CaptionLookSample({ look }: { look: CaptionLook }) {
             textShadow: look.boxed ? undefined : "0 2px 12px rgba(0,0,0,0.45)",
           }}
         >
-          Said out loud
+          {/* With word by word on, the middle word stands in for the one
+              being said. */}
+          Said{" "}
+          <span
+            style={look.wordHighlight ? { color: look.wordColor } : undefined}
+          >
+            out
+          </span>{" "}
+          loud
         </div>
       </div>
       {animated ? (

@@ -31,6 +31,7 @@ import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
 import { captionClipStyle } from "@/lib/video/caption-look"
+import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
@@ -74,6 +75,7 @@ export function CaptionsDialog({
           startMs: line.startMs,
           durationMs: line.endMs - line.startMs,
           trimStartMs: 0,
+          wordTimes: captionClipWordTimes(line),
           ...captionClipStyle(look),
         })),
       })

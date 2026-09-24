@@ -92,3 +92,27 @@ describe("what a caption clip is called", () => {
     expect(captionClipName("")).toBe("Caption")
   })
 })
+
+describe("moving each word's time with its line", () => {
+  it("shifts the words the same way and keeps them inside the line", () => {
+    const [line] = mapCaptionsToTimeline(
+      [
+        {
+          startMs: 2_000,
+          endMs: 2_800,
+          text: "Hello there",
+          words: [
+            { startMs: 2_000, endMs: 2_300 },
+            // Said a touch past the end of its own line.
+            { startMs: 2_400, endMs: 2_900 },
+          ],
+        },
+      ],
+      SOURCE
+    )
+    expect(line.words).toEqual([
+      { startMs: 5_000, endMs: 5_300 },
+      { startMs: 5_400, endMs: 5_800 },
+    ])
+  })
+})
