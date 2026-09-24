@@ -3,6 +3,7 @@ import { getRouteApi, useRouter } from "@tanstack/react-router"
 import {
   DownloadIcon,
   FilmIcon,
+  Link2Icon,
   Loader2Icon,
   RotateCwIcon,
   SettingsIcon,
@@ -26,7 +27,7 @@ import {
   deleteExports,
   getExportErrorMessage,
   retryExport,
-  type ExportListResponse,
+  type ExportListWithShares,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -45,6 +46,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportDetailsDialog } from "@/components/video-editor/export-details-dialog"
+import { ExportShareDialog } from "@/components/video-editor/export-share-dialog"
 import { isExportActive } from "@/components/video-editor/use-project-exports"
 
 const exportsRoute = getRouteApi("/_authenticated/admin/video-exports")
@@ -105,7 +107,7 @@ function compareExports(
  * row shows why and can be tried again. While anything is waiting or
  * rendering, the list refreshes itself until it lands.
  */
-export function ExportsPage({ initial }: { initial: ExportListResponse }) {
+export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
   const { config } = useShellRuntime()
   const router = useRouter()
   const listSearch = exportsRoute.useSearch()
@@ -121,6 +123,7 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
 
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [editing, setEditing] = React.useState<RenderJobSummary | null>(null)
+  const [sharing, setSharing] = React.useState<RenderJobSummary | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<RenderJobSummary[]>(
     []
   )
@@ -128,6 +131,7 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
   const selection = useSelection()
 
   const items = initial.exports
+  const sharedIds = new Set(initial.shared_ids)
   const anyActive = items.some(isExportActive)
   React.useEffect(() => {
     if (!anyActive) return
@@ -303,7 +307,10 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
                       {item.title ?? "Untitled export"}
                     </span>
                   )}
-                  <ExportRowStatus item={item} />
+                  <ExportRowStatus
+                    item={item}
+                    shared={sharedIds.has(item.id)}
+                  />
                 </div>
               </div>
             </TableCell>
@@ -335,6 +342,16 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
                       >
                         <DownloadIcon className="size-4" />
                       </a>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSharing(item)}
+                      aria-label={`Share ${item.title ?? "this export"}`}
+                      title="Share link"
+                    >
+                      <Link2Icon className="size-4" />
                     </Button>
                     <Button
                       type="button"
@@ -384,6 +401,15 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
         onSaved={() => void router.invalidate()}
       />
 
+      {sharing ? (
+        <ExportShareDialog
+          key={sharing.id}
+          item={sharing}
+          onClose={() => setSharing(null)}
+          onChanged={() => void router.invalidate()}
+        />
+      ) : null}
+
       <ConfirmDialog
         open={deleteTargets.length > 0}
         onOpenChange={(open) => {
@@ -394,7 +420,7 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
             ? `Delete ${deleteTargets.length} ${plural(deleteTargets.length, "export", "exports")}?`
             : "Delete this export?"
         }
-        description="Any file already made goes for good, and one still waiting or being made is stopped. The project it was made from stays as it is."
+        description="Any file already made goes for good, and one still waiting or being made is stopped. A share link to it stops working too. The project it was made from stays as it is."
         confirmLabel={
           deleteTargets.length > 1 ? "Delete exports" : "Delete export"
         }
@@ -405,8 +431,17 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
   )
 }
 
-/** Under the name of a row that has no file yet: why, or how far it has got. */
-function ExportRowStatus({ item }: { item: RenderJobSummary }) {
+/**
+ * Under the name of a row: why it has no file, how far it has got, or that a
+ * share link opens it for anybody right now.
+ */
+function ExportRowStatus({
+  item,
+  shared,
+}: {
+  item: RenderJobSummary
+  shared: boolean
+}) {
   if (item.status === "error") {
     return (
       <span className="text-sm whitespace-normal text-destructive">
@@ -419,6 +454,14 @@ function ExportRowStatus({ item }: { item: RenderJobSummary }) {
       <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Loader2Icon className="size-3.5 animate-spin" />
         {item.status === "running" ? "Making it now…" : "Waiting to start…"}
+      </span>
+    )
+  }
+  if (shared) {
+    return (
+      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link2Icon className="size-3.5" />
+        Shared by link
       </span>
     )
   }
