@@ -21,6 +21,9 @@ export function robinhoodRpcUrl(): string {
   )
 }
 
+/** DexScreener's allowance, shared by every chain this app reads. */
+export const ROBINHOOD_DEX_REQUESTS_PER_MINUTE = 300
+
 /** Paxos's dollar coin. Every pool on the chain is paired with it. */
 export const ROBINHOOD_USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
 /**
@@ -78,7 +81,7 @@ const services = {
   dex: {
     label: "DexScreener",
     base: "https://api.dexscreener.com",
-    cap: 300,
+    cap: ROBINHOOD_DEX_REQUESTS_PER_MINUTE,
     windowMs: 60_000,
     reserve: 0,
   },

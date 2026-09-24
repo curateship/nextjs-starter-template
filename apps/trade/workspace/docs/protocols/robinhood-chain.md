@@ -99,6 +99,42 @@ from its most liquid DexScreener pair.
   out, it gives page one again, forever. The reader also stops if a cursor
   repeats, and after 40 pages.
 
+## Prices on a clock
+
+Prices on the Robinhood Chain screen are refreshed on a clock. This is not a
+live feed, and the trading engine never reads it.
+
+- **The clock:** ten seconds after the last refresh finished, the page asks
+  the server for the 300 busiest markets' prices. The server asks DexScreener,
+  thirty addresses a request, so ten requests at most. Measured on 24 Sep
+  2026: each refresh took 1.1 to 6.6 seconds, so a price moves every 11 to 17
+  seconds.
+- **What moves:** only the price. The day's move and volume stay as the list
+  read them. A refresh that fails changes nothing on screen, and the next one
+  tries again.
+- **A hidden tab asks nothing.** With the tab hidden for 35 seconds, no
+  refresh started. Showing it again restarted them.
+- **Checked against DexScreener:** NVDA's refreshed price was $224.92, and
+  DexScreener's most liquid NVDA pair said $224.92 at the same moment.
+- **The allowance:** DexScreener allows 300 requests a minute, and BNB Chain
+  spends from the same 300. So each chain keeps under half. Robinhood Chain's
+  worst case is 60 screen requests plus 27 for rebuilding the list, 87 a
+  minute. BNB Chain's is 93. A test pins both.
+- **Recorded bars:** each refresh also writes the prices as one-minute bars,
+  so a chart has something to draw until the chart task gives it a source.
+- **The engine asks at the moment it acts,** through `markets.prices`, which
+  reads DexScreener directly and never falls back to an older list price.
+  Robinhood Chain has no orders yet, so the engine does not act on it at all.
+- **Not a live feed on purpose:** Robinhood Chain has no `livePrices` entry,
+  and the engine's heartbeat does not use this timer. The server refuses a
+  timed refresh for any exchange that does have a live feed.
+- **The future live feed, measured and not built:** on 5 Sep 2026 the node's
+  websocket at PublicNode pushed its first block in 0.27 seconds and 97 blocks
+  in 10 seconds, free and with no key. Blocks come every 100 milliseconds. It
+  is not used, for the same reason as on Solana: a price here is the best path
+  across several pools, not one pool's numbers, and turning blocks into that
+  price is its own piece of work.
+
 ## The node and the network
 
 - **Node setting:** `TRADE_ROBINHOOD_RPC` in `.env` defaults to
@@ -146,6 +182,9 @@ pages and search).
    were there before this chain: a protocol comparison in
    `server/trade/live-orders.ts` and BNB's folder reading the app's tables.
 2. Open `http://localhost:3014/protocols/robinhood?market=robinhood:mainnet:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec`.
+   In the browser's network tab, filter for `_serverFn` and expect one price
+   refresh every 11 to 17 seconds. Hide the tab for 30 seconds and expect none
+   to start.
    Expect NVDA-USDG in the header. A fresh page with no market chosen shows
    only "Robinhood Chain", as every exchange page does.
 3. Open the picker from NVDA-USDG. Expect ETH, stocks and pool coins with
