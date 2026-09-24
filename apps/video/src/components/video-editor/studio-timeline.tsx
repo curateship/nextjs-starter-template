@@ -6,6 +6,7 @@ import {
   Film,
   Layers as LayersIcon,
   GripVertical,
+  Loader2,
   Image as ImageIcon,
   Maximize2,
   Minus,
@@ -27,8 +28,10 @@ import {
   type ClipTransition,
 } from "@/lib/video/clip-transitions"
 import {
+  FilmstripFailedError,
   filmstripFrameStyle,
   getVideoFilmstrip,
+  onFilmstripRequeued,
   type FilmstripFrame,
 } from "@/lib/video/filmstrips"
 import type { PlaybackClock } from "@/lib/video/playback-clock"
@@ -771,8 +774,14 @@ const ClipChip = React.memo(function ClipChip({
   const ref = React.useRef<HTMLDivElement>(null)
 
   // Real frames along a video clip, sampled across the part of the file this
-  // clip uses. Until they arrive the flat placeholder shows through.
+  // clip uses. Until they arrive the flat placeholder shows through, marked
+  // with why when the worker is still making them or gave up.
   const [frames, setFrames] = React.useState<FilmstripFrame[]>([])
+  const [stripState, setStripState] = React.useState<
+    "waiting" | "building" | "failed"
+  >("waiting")
+  // Bumped when a failed strip is put back in the queue, to start waiting again.
+  const [stripRequeues, setStripRequeues] = React.useState(0)
   // The file, and the stretch of it this strip covers. Pulled out of the clip
   // here so the effect below only reruns when one of them really changes; the
   // clip object itself is new on every drag.
@@ -784,16 +793,33 @@ const ClipChip = React.memo(function ClipChip({
     getVideoFilmstrip(
       mediaId,
       { startMs: trimStartMs, durationMs: sourceSpan },
-      controller.signal
+      controller.signal,
+      () => {
+        if (!controller.signal.aborted) setStripState("building")
+      }
     )
       .then((loaded) => {
-        if (!controller.signal.aborted) setFrames(loaded)
+        if (controller.signal.aborted) return
+        setFrames(loaded)
+        setStripState("waiting")
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted && error instanceof FilmstripFailedError) {
+          setStripState("failed")
+        }
+      })
     return () => {
       controller.abort()
     }
-  }, [kind, mediaId, trimStartMs, sourceSpan])
+  }, [kind, mediaId, trimStartMs, sourceSpan, stripRequeues])
+
+  React.useEffect(() => {
+    if (stripState !== "failed" || !mediaId) return
+    return onFilmstripRequeued(mediaId, () => {
+      setStripState("waiting")
+      setStripRequeues((count) => count + 1)
+    })
+  }, [stripState, mediaId])
 
   // The real shape of the sound along an audio clip. Until it arrives the
   // made-up pattern below stays, and the swap happens in one paint.
@@ -839,6 +865,14 @@ const ClipChip = React.memo(function ClipChip({
   const width = Math.max(6, msToPx(clip.durationMs, pps))
   const showDuration = width > 76
   const showLabel = width > 34
+  const stripNote =
+    kind === "video" && frames.length === 0 && width > 60
+      ? stripState === "building"
+        ? "Getting frames ready"
+        : stripState === "failed"
+          ? "Frames failed, retry in Media"
+          : null
+      : null
 
   // The fill: video and pictures get a tinted block, audio a waveform, text a
   // card with a coloured edge.
@@ -1235,6 +1269,40 @@ const ClipChip = React.memo(function ClipChip({
           }}
         >
           {clipLabel(clip)}
+        </span>
+      ) : null}
+      {stripNote ? (
+        <span
+          role="status"
+          title={stripNote}
+          style={{
+            position: "absolute",
+            left: 8,
+            right: showDuration ? 44 : 8,
+            bottom: 6,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 9,
+            fontWeight: 600,
+            color: "#fff",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            zIndex: 3,
+            pointerEvents: "none",
+            textShadow: "0 1px 3px rgba(0,0,0,.6)",
+          }}
+        >
+          {stripState === "building" ? (
+            <Loader2
+              aria-hidden
+              className="shrink-0 motion-safe:animate-spin"
+              size={10}
+            />
+          ) : null}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+            {stripNote}
+          </span>
         </span>
       ) : null}
       {showDuration ? (

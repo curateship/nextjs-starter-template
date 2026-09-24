@@ -10,8 +10,11 @@ import { streamPrivateR2Object } from "@/server/video/r2-response"
 /**
  * The tiled frame sprite for one video. While the strip is still being built
  * the answer is 202 + Retry-After, so the timeline can poll instead of showing
- * a broken image; once ready, the grid geometry rides in X-Filmstrip-* headers
- * beside the JPEG.
+ * a broken image. That includes a video uploaded so recently the worker has
+ * not given it a row yet, which happens within one fifteen-second tick. A
+ * strip that gave up after its last try answers 422, so the timeline can say
+ * it failed instead of waiting forever. Once ready, the grid geometry rides
+ * in X-Filmstrip-* headers beside the JPEG.
  */
 export const Route = createFileRoute("/api/v1/video/media/$mediaId/filmstrip")({
   server: {
@@ -25,9 +28,10 @@ export const Route = createFileRoute("/api/v1/video/media/$mediaId/filmstrip")({
           )
         }
 
-        try {
-          await getOwnedMedia(user.id, params.mediaId)
-        } catch {
+        const media = await getOwnedMedia(user.id, params.mediaId).catch(
+          () => null
+        )
+        if (!media) {
           return Response.json(
             { detail: "Filmstrip not found" },
             { status: 404 }
@@ -51,12 +55,22 @@ export const Route = createFileRoute("/api/v1/video/media/$mediaId/filmstrip")({
             }
           | undefined
 
-        if (row && (row.status === "queued" || row.status === "generating")) {
+        const building = row
+          ? row.status === "queued" || row.status === "generating"
+          : media.fileType === "video"
+        if (building) {
           kickVideoMediaWorker()
           return new Response(null, {
             status: 202,
             headers: { "Cache-Control": "no-store", "Retry-After": "2" },
           })
+        }
+
+        if (row?.status === "error") {
+          return Response.json(
+            { detail: "Filmstrip failed" },
+            { status: 422, headers: { "Cache-Control": "no-store" } }
+          )
         }
 
         if (

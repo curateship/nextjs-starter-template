@@ -12,6 +12,7 @@ import {
 } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { collectionIdsByMedia } from "@/server/video/media-collections"
+import { requeueFailedPlaybackJobs } from "@/server/video/media-workers"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
   videoMediaFilmstrips,
@@ -287,6 +288,21 @@ export async function attachPastedMediaToProject(
   }
   const found = new Set(owned.map((row) => row.id))
   return { missingMediaIds: wanted.filter((id) => !found.has(id)) }
+}
+
+/** Try a person's own file's failed smooth copy and filmstrip again. */
+export async function retryOwnedMediaPreparation(
+  userId: string,
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+  await requeueFailedPlaybackJobs(mediaId, database)
 }
 
 /** Delete one owned file that is visible on the requested editor shelf. */

@@ -24,6 +24,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [copy-clips-between-projects.md](copy-clips-between-projects.md) — copying
   clips out of one project and pasting them into another, where they land,
   and what travels with them.
+- [getting-media-ready.md](getting-media-ready.md) — the "getting it ready to
+  scrub" and "getting frames ready" markers: what the background worker makes
+  for every video, how long it takes, what a failure looks like, what Try
+  again does, and how often the editor asks.
 - [waveforms.md](waveforms.md) — the shape of the sound drawn along a sound
   clip, how the background worker builds it, and why trimming slides the shape
   instead of squashing it.
