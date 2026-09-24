@@ -132,6 +132,25 @@ function fieldsFrom(data: EventForEdit): EventFields {
   }
 }
 
+/**
+ * The line under a typed street address saying whether the event page has a
+ * map for it. The lookup happens on save, only when the address has changed.
+ * A new event has nothing to say yet, because whether the site can look
+ * addresses up is read with the saved event.
+ */
+function mapStatus(address: string, data: EventForEdit): string {
+  if (!data.canLocate) {
+    return "No map: this site has no Google Maps API key under Near me search in Settings → Directory."
+  }
+  const { event } = data
+  if (address.trim() !== event.locatedFor) {
+    return "The address is looked up for the map when you save."
+  }
+  return event.position
+    ? "On the map on the event page."
+    : "Google could not find this address, so the event page has no map. Check the spelling."
+}
+
 /** "Thu, Oct 29", "Thu, Oct 29 and Thu, Nov 5", "a, b and c". */
 function listOfDays(days: string[]): string {
   const names = days.map(formatEventShortDay)
@@ -683,12 +702,17 @@ export function EventDialog({
                       />
                     </div>
                   </div>
+                  {loaded && !fields.listingId && fields.placeAddress.trim() ? (
+                    <p className="text-sm text-muted-foreground" role="status">
+                      {mapStatus(fields.placeAddress, loaded.data)}
+                    </p>
+                  ) : null}
                   {fields.listingId ? (
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-muted-foreground">
                         {picked?.status === "draft"
                           ? "The place is a draft listing. The event page names it without a link until the listing is published."
-                          : "The place is one of this site's listings. The event page links to it and follows its name and address."}
+                          : "The place is one of this site's listings. The event page links to it and follows its name, address and map pin."}
                       </p>
                       <Button
                         type="button"

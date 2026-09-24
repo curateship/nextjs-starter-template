@@ -34,6 +34,7 @@ import {
   categoryNamesFor,
   deleteCategoryRowsFor,
 } from "@/server/directory/content-categories"
+import { locateAddress } from "@/server/directory/geocode"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
   categoryRelationships,
@@ -49,6 +50,10 @@ import {
   EVENT_CONTENT_TYPE,
   type EventRow,
 } from "@/server/events/schema"
+import {
+  listingOfEvent,
+  livePlaceName,
+} from "@/server/events/place"
 import { listingChoice } from "@/server/posts/posts"
 
 /**
@@ -87,6 +92,10 @@ export type SiteEvent = EventWhen & {
   listingId: string | null
   placeName: string
   placeAddress: string
+  /** Where a typed address is on a map, or null when it is not known. */
+  position: { latitude: number; longitude: number } | null
+  /** The typed address last looked up, found or not. */
+  locatedFor: string | null
   /** The repeat, on a main event only. */
   repeat: RepeatRule | null
   /** On a date a repeat made: its main event's id. */
@@ -132,6 +141,11 @@ export function toEvent(row: EventRow): SiteEvent {
     listingId: row.listingId,
     placeName: row.placeName,
     placeAddress: row.placeAddress,
+    position:
+      row.latitude !== null && row.longitude !== null
+        ? { latitude: row.latitude, longitude: row.longitude }
+        : null,
+    locatedFor: row.locatedFor,
     repeat: parseRepeatRule(row.repeatRule),
     seriesId: row.seriesId,
     editedAlone: row.editedAlone,
@@ -141,23 +155,6 @@ export function toEvent(row: EventRow): SiteEvent {
 }
 
 const EVENT_NOUN = { one: "event", many: "events" }
-
-/**
- * How an event finds its listing: by id, and only on the event's own site, so
- * a stray link could never show another site's listing.
- */
-export const listingOfEvent = and(
-  eq(directoryListings.id, siteEvents.listingId),
-  eq(directoryListings.workspaceId, siteEvents.workspaceId)
-)
-
-/**
- * The place's name and address as a visitor sees them: the linked listing's
- * current ones, or the typed ones. The query has to left-join
- * `directoryListings` on `listingOfEvent`.
- */
-export const livePlaceName = sql<string>`coalesce(${directoryListings.title}, ${siteEvents.placeName})`
-export const livePlaceAddress = sql<string>`coalesce(${directoryListings.contactLinks}->>'address', ${siteEvents.placeAddress})`
 
 /**
  * Before listings are deleted, their current name and address are written
@@ -175,6 +172,12 @@ export async function keepListingPlaceOnEvents(
     .set({
       placeName: sql`${directoryListings.title}`,
       placeAddress: sql`coalesce(${directoryListings.contactLinks}->>'address', '')`,
+      // The listing's pin too, marked as the answer for that address so the
+      // next save does not look it up again. A listing with no pin leaves the
+      // address to be looked up on the event's next save.
+      latitude: sql`${directoryListings.latitude}`,
+      longitude: sql`${directoryListings.longitude}`,
+      locatedFor: sql`case when ${directoryListings.latitude} is null then null else coalesce(${directoryListings.contactLinks}->>'address', '') end`,
     })
     .from(directoryListings)
     .where(
@@ -185,6 +188,71 @@ export async function keepListingPlaceOnEvents(
         inArray(directoryListings.id, listingIds)
       )
     )
+}
+
+/** The columns that say where an event is on a map. */
+export type EventPositionColumns = {
+  latitude: number | null
+  longitude: number | null
+  locatedFor: string | null
+}
+
+/**
+ * What a save does to the event's map position, or null for "leave it".
+ *
+ * Only a typed street address is looked up, and only when it differs from the
+ * one last looked up, so a save that does not change the address costs no
+ * lookup. A listing as the place brings its own position. An address Google
+ * could not find is remembered as looked up with no position, and a lookup
+ * that could not be made clears the old position and tries again next save.
+ *
+ * Run before the save's transaction, so a slow answer from Google never holds
+ * the database.
+ */
+export async function positionForSave(
+  workspaceId: string,
+  id: string,
+  change: { placeAddress?: string; listingId?: string | null },
+  database: CustomShellDb = db
+): Promise<EventPositionColumns | null> {
+  const [before] = await database
+    .select({
+      listingId: siteEvents.listingId,
+      placeAddress: siteEvents.placeAddress,
+      latitude: siteEvents.latitude,
+      locatedFor: siteEvents.locatedFor,
+    })
+    .from(siteEvents)
+    .where(and(eq(siteEvents.id, id), eq(siteEvents.workspaceId, workspaceId)))
+    .limit(1)
+  if (!before) return null
+  const listingId =
+    change.listingId === undefined ? before.listingId : change.listingId
+  if (listingId) return null
+
+  const address = (change.placeAddress ?? before.placeAddress)
+    .trim()
+    .slice(0, MAX_PLACE_ADDRESS)
+  if (!address) {
+    return before.latitude === null && before.locatedFor === null
+      ? null
+      : { latitude: null, longitude: null, locatedFor: null }
+  }
+  if (address === before.locatedFor) return null
+
+  const found = await locateAddress(workspaceId, address, database)
+  if (found.found) {
+    return {
+      latitude: found.latitude,
+      longitude: found.longitude,
+      locatedFor: address,
+    }
+  }
+  return {
+    latitude: null,
+    longitude: null,
+    locatedFor: found.reason === "not-found" ? address : null,
+  }
 }
 
 const CLOCK_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -649,6 +717,9 @@ export async function duplicateEvent(
         listingId: source.listingId,
         placeName: source.placeName,
         placeAddress: source.placeAddress,
+        latitude: source.latitude,
+        longitude: source.longitude,
+        locatedFor: source.locatedFor,
         createdAt: at,
         updatedAt: at,
       })

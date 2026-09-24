@@ -43,6 +43,8 @@ published event has its own page at `/events/<address>`.
   `drizzle/0085_cms_event_repeats.sql` adds the repeat columns that
   "Repeating events" below describes. `drizzle/0086_cms_event_listing.sql`
   adds `listing_id`, for "The place is a listing" below.
+  `drizzle/0087_cms_event_position.sql` adds `latitude`, `longitude` and
+  `located_for`, for "The map on the event page" below.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -228,6 +230,8 @@ address. Typing a place by hand still works for places that are not listed.
   event just before it goes, so the event page keeps saying where it is, as
   plain text with no link.
 - **A copy and a repeating event's dates** keep the same listing.
+- **The listing's pin** is the event's map pin, as "The map on the event page"
+  below says.
 - **Only this site's listings:** saving a listing from another site is
   refused with "That listing is not on this site any more."
 - **Where it lives:** `listing_id` on `events`; `livePlaceName` and
@@ -237,6 +241,52 @@ address. Typing a place by hand still works for places that are not listed.
 - **Not built:** listings have no "permanently closed" state, so there is
   nothing yet to warn an admin about. That question from task 10 waits until
   listings can be marked closed.
+
+## The map on the event page
+
+An event page shows a small map of where the event is, with one pin, and a
+"Directions" button that opens Google Maps with the place as the destination.
+On a phone that opens the maps app, ready for walking directions.
+
+- **Where the pin comes from:** a listing picked as the place brings its own
+  pin, and nothing is looked up. A typed street address is looked up with
+  Google once, when the event is saved.
+- **Only when the address changes.** The address last looked up is kept in
+  `located_for`, so saving again without changing the address makes no
+  lookup. Each lookup counts against the site's Google allowance, so this is
+  the rule that keeps the cost down.
+- **Only the street address is looked up**, never the place name alone. A name
+  like "The Local" could match a bar in another city, and a pin in the wrong
+  place is worse than none.
+- **Google finds nothing:** the event has no map, and the same address is not
+  asked about again until it is changed.
+- **Google cannot be reached, or the site has no lookup key:** the event has no
+  map, and the next save tries again.
+- **No map is still a working page.** The place is written out above where the
+  map would be, and Directions works from the name and address instead of a
+  pin.
+- **Which keys:** both are in Settings → Directory. The lookup uses "Google
+  Maps API key" on the Near me search card, and drawing the map uses "Map
+  display key" on the Map view card. They are the same two keys the
+  directory's place search and map use. With no display key there is no map,
+  only Directions.
+- **The window says where it stands.** Under a typed street address, the event
+  window says "On the map on the event page", "Google could not find this
+  address…", "The address is looked up for the map when you save" or "No map:
+  this site has no Google Maps API key under Near me search".
+- **Directions hides once the event is over,** with "Add to calendar". The map
+  stays, as a record of where it was.
+- **A deleted listing** leaves its pin on the event with its address, so the
+  map stays and nothing is looked up.
+- **A copy and a repeating event's dates** keep the pin, with no new lookup.
+- **Where it lives:** `positionForSave` in `src/server/events/events.ts`
+  decides whether a save looks anything up, and runs before the save's
+  database transaction so a slow answer never holds the database.
+  `locateAddress` in `src/server/directory/geocode.ts` asks Google. The map is
+  `src/components/events/public/event-place-map.tsx`, and the link is
+  `src/lib/events/directions.ts`.
+- **Not built:** a map of all events. An online event (task 29) will have no
+  map.
 
 ## Private events
 

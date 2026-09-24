@@ -6,6 +6,7 @@ import {
   date,
   index,
   jsonb,
+  numeric,
   pgTable,
   time,
   timestamp,
@@ -19,8 +20,9 @@ import { customShellWorkspaces } from "@/server/schema"
 /**
  * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`,
  * `drizzle/0084_cms_events_visibility.sql` for `visibility`,
- * `drizzle/0085_cms_event_repeats.sql` for the repeat columns, and
- * `drizzle/0086_cms_event_listing.sql` for `listing_id`.
+ * `drizzle/0085_cms_event_repeats.sql` for the repeat columns,
+ * `drizzle/0086_cms_event_listing.sql` for `listing_id`, and
+ * `drizzle/0087_cms_event_position.sql` for the map position.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -75,6 +77,18 @@ export const siteEvents = pgTable(
       .notNull()
       .default(""),
     /**
+     * Where a typed address is, looked up when it was saved. A whole pair or
+     * null. An event held at a listing uses the listing's position instead.
+     */
+    latitude: numeric("latitude", { precision: 9, scale: 6, mode: "number" }),
+    longitude: numeric("longitude", {
+      precision: 10,
+      scale: 6,
+      mode: "number",
+    }),
+    /** The address last looked up, found or not, so it is never asked twice. */
+    locatedFor: varchar("located_for", { length: 300 }),
+    /**
      * A main event's repeat, read by `parseRepeatRule` in
      * `lib/events/event-repeat.ts`. Null on every other event.
      */
@@ -109,6 +123,10 @@ export const siteEvents = pgTable(
     check(
       "events_series_rule_check",
       sql`${table.seriesId} IS NULL OR ${table.repeatRule} IS NULL`
+    ),
+    check(
+      "events_position_pair_check",
+      sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`
     ),
     check(
       "events_status_check",

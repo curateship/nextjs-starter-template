@@ -48,12 +48,12 @@ import {
   directoryListings,
 } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
+import { toEvent } from "@/server/events/events"
 import {
   listingOfEvent,
   livePlaceAddress,
   livePlaceName,
-  toEvent,
-} from "@/server/events/events"
+} from "@/server/events/place"
 import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
 
 /**
@@ -144,6 +144,11 @@ export type PublicEvent = EventWhen & {
    * the directory is open to everyone. Otherwise the place is plain text.
    */
   placeListingSlug: string | null
+  /**
+   * Where the place is on a map: the listing's own pin when the place is a
+   * listing, or the typed address as looked up. Null draws no map.
+   */
+  position: { latitude: number; longitude: number } | null
 }
 
 export type PublicEventPage = {
@@ -221,8 +226,11 @@ async function readPublicEventUncached(
       row: siteEvents,
       placeName: livePlaceName,
       placeAddress: livePlaceAddress,
+      listingId: directoryListings.id,
       listingSlug: directoryListings.slug,
       listingStatus: directoryListings.status,
+      listingLatitude: directoryListings.latitude,
+      listingLongitude: directoryListings.longitude,
     })
     .from(siteEvents)
     .leftJoin(directoryListings, listingOfEvent)
@@ -286,6 +294,14 @@ async function readPublicEventUncached(
         directoryVisibility === "everyone"
           ? found.listingSlug
           : null,
+      position: found.listingId
+        ? found.listingLatitude !== null && found.listingLongitude !== null
+          ? {
+              latitude: found.listingLatitude,
+              longitude: found.listingLongitude,
+            }
+          : null
+        : event.position,
     },
     timeZone,
     listingCards,
