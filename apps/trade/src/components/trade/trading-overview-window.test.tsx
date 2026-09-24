@@ -19,8 +19,9 @@ import type { TradingOverview } from "@/lib/trade/dashboard/overview"
  * The arithmetic is pinned in `lib/trade/profit-window.test.ts`; this file
  * covers the half that kept going wrong on screen — the words. Twice the
  * period was correct underneath and still read "two days ago" in the widget,
- * because the phrase was typed into the sentence instead of worked out. So
- * this renders the real widget on two different days and reads the text back.
+ * because the phrase was typed into the sentence instead of worked out. PnL
+ * Graph now names its period as real dates on its dates button, so this
+ * renders the real widget on two different days and reads those dates back.
  */
 
 const overview: TradingOverview = {
@@ -100,48 +101,31 @@ afterEach(() => {
 })
 
 describe("what the widgets say about when they started", () => {
-  it("replaces the separate money cards with PnL Graph", () => {
+  it("puts the result for the selected row in the card's header", () => {
     const shown = show("2026-08-24T16:00:00.000Z")
-    expect(shown).toContain("PnL Graph")
+    expect(shown).toContain("Profit and loss · All wallets")
     expect(shown).toContain("+$190.00+3.65%")
-    expect(
-      host.querySelector('[class*="bg-emerald-500/10"]')?.className
-    ).toContain("text-xl")
     expect(
       host.querySelector('[aria-label="Current made or lost"] > .font-mono')
         ?.className
-    ).toContain("text-xl")
+    ).toContain("text-3xl")
     const chart = host.querySelector(
-      'section[aria-label="4 days ago profit history"]'
+      'section[aria-label="All wallets profit history"]'
     )
     const result = host.querySelector('[aria-label="Current made or lost"]')
     const header = host.querySelector('[data-slot="dashboard-card-header"]')
-    expect(header).not.toBeNull()
     expect(header?.contains(result)).toBe(true)
     expect(chart?.contains(result)).toBe(false)
+    expect(chart?.textContent).toContain(
+      "Balance$5,200.00Settled+$150.00Open+$40.00Fees$3.00"
+    )
+    expect(shown).not.toContain("PnL Graph")
     expect(shown).not.toContain("1 wallet")
-    expect(shown).toContain(
-      "4 days ago · last read just nowbalance $5,200.00 · settled +$150.00 · open +$40.00 · fees $3.00"
-    )
-    expect(
-      host.querySelector(
-        'section[aria-label="4 days ago profit history"] > div'
-      )?.className
-    ).toContain("border-y bg-muted/50")
-    const walletSubheader = host.querySelector(
-      'section[aria-label="Wallets"] > div'
-    )
-    expect(walletSubheader?.className).toContain("min-h-10")
-    expect(walletSubheader?.className).toContain("border-y bg-muted/50")
-    expect(header?.className).toContain("border-b-0")
-    expect(shown).not.toContain("since 4 days ago")
-    expect(shown).not.toContain("made or lost ·")
     expect(shown).toContain("1D1W1M3M6MAll")
-    expect(shown).toContain("Reset")
-    expect(shown).not.toContain("Total balance")
+    expect(shown).toContain("Aug 20 – Aug 24, 2026")
   })
 
-  it("filters 1D to today", async () => {
+  it("filters 1D to today and names the day on the dates button", async () => {
     show("2026-08-24T16:00:00.000Z")
     const today = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent === "1D"
@@ -156,39 +140,106 @@ describe("what the widgets say about when they started", () => {
     expect(
       host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
     ).toBe("1D")
-    expect(host.querySelector("#pnl-from-date")?.textContent).toContain(
-      "August 24th, 2026"
-    )
-    expect(host.querySelector("#pnl-to-date")?.textContent).toContain(
-      "August 24th, 2026"
-    )
+    expect(
+      host.querySelector('button[aria-label^="Dates shown"]')?.textContent
+    ).toBe("Aug 24, 2026")
   })
 
-  it("selects All wallets first and lets another wallet be selected", () => {
-    show("2026-08-24T16:00:00.000Z")
+  it("moves the dates button with the calendar", async () => {
+    show("2026-08-25T16:00:00.000Z")
+    const today = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent === "1D"
+    )
+    await act(async () => {
+      today?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, button: 0 })
+      )
+    })
+    expect(
+      host.querySelector('button[aria-label^="Dates shown"]')?.textContent
+    ).toBe("Aug 25, 2026")
+  })
+
+  it("selects All wallets first and makes the whole card follow the selection", () => {
+    const secondWallet: TradingOverview["wallets"][number] = {
+      ...overview.wallets[0],
+      id: "alpha",
+      label: "Alpha",
+      summary: {
+        walletId: "alpha",
+        state: "ok",
+        equity: 1_000,
+        free: 1_000,
+        inTrades: 0,
+        openProfit: 0,
+        madeOrLost: -20,
+        settled: -20,
+        unpricedFills: 0,
+      },
+      performance: { settled: -20, fees: 1, open: 0, madeOrLost: -20 },
+    }
+    show("2026-08-24T16:00:00.000Z", {
+      ...overview,
+      wallets: [...overview.wallets, secondWallet],
+    })
     const walletButtons = [
       ...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
     ]
 
-    expect(walletButtons).toHaveLength(2)
+    expect(walletButtons).toHaveLength(3)
     expect(walletButtons[0].textContent).toContain("All wallets")
     expect(walletButtons[0].getAttribute("aria-pressed")).toBe("true")
-    expect(walletButtons[0].className).not.toContain("bg-muted/60")
-    expect(walletButtons[0].className).toContain("border-r-muted-foreground/60")
-    expect(walletButtons[1].className).toContain("border-r-transparent")
+    expect(walletButtons[0].className).toContain("bg-muted")
     expect(walletButtons[1].className).toContain("cursor-pointer")
-    expect(walletButtons.at(-1)?.className).toContain("border-b")
-    expect(walletButtons.at(-1)?.className).not.toContain("last:border-b-0")
-    expect(host.querySelector('[aria-label$="current breakdown"]')).toBeNull()
+    expect(host.textContent).toContain("+$170.00")
 
-    act(() => walletButtons[1].click())
+    const alpha = walletButtons.find((button) =>
+      button.textContent?.includes("Alpha")
+    )
+    act(() => alpha?.click())
 
     expect(walletButtons[0].getAttribute("aria-pressed")).toBe("false")
-    expect(walletButtons[1].getAttribute("aria-pressed")).toBe("true")
-    expect(walletButtons[1].className).not.toContain("bg-muted/60")
-    expect(walletButtons[0].className).toContain("border-r-transparent")
-    expect(walletButtons[1].className).toContain("border-r-muted-foreground/60")
-    expect(host.querySelector('[aria-label$="current breakdown"]')).toBeNull()
+    expect(alpha?.getAttribute("aria-pressed")).toBe("true")
+    expect(host.textContent).toContain("Profit and loss · Alpha")
+    expect(host.textContent).toContain("-$20.00-2.00%")
+    expect(
+      host.querySelector('section[aria-label="Alpha profit history"]')
+        ?.textContent
+    ).toContain("Balance$1,000.00Settled-$20.00Open$0.00Fees$1.00")
+  })
+
+  it("folds wallets holding nothing under Show empty wallets", () => {
+    const emptyWallet: TradingOverview["wallets"][number] = {
+      ...overview.wallets[0],
+      id: "empty",
+      label: "Empty one",
+      summary: {
+        walletId: "empty",
+        state: "ok",
+        equity: 0,
+        free: 0,
+        inTrades: 0,
+        openProfit: 0,
+        madeOrLost: 0,
+        settled: 0,
+        unpricedFills: 0,
+      },
+      performance: { settled: 0, fees: 0, open: 0, madeOrLost: 0 },
+      profit: [],
+    }
+    show("2026-08-24T16:00:00.000Z", {
+      ...overview,
+      wallets: [...overview.wallets, emptyWallet],
+    })
+
+    expect(host.textContent).toContain("2 connected")
+    expect(host.textContent).not.toContain("Empty one")
+    const toggle = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent === "Show 1 empty wallet"
+    )
+    act(() => toggle?.click())
+    expect(host.textContent).toContain("Empty one")
+    expect(host.textContent).toContain("Hide 1 empty wallet")
   })
 
   it("sorts wallet columns and remembers the choice", () => {
@@ -228,24 +279,6 @@ describe("what the widgets say about when they started", () => {
     expect(window.localStorage.getItem("trade-overview-wallet-sort")).toBe(
       "wallet-asc"
     )
-  })
-
-  it("reads four days ago on 24 August 2026", () => {
-    const shown = show("2026-08-24T16:00:00.000Z")
-    expect(shown).toContain("4 days ago")
-    expect(shown).not.toContain("Money over time")
-  })
-
-  it("reads five days ago the next day, with nothing rebuilt", () => {
-    // The whole failure was a sentence that stayed still while the calendar
-    // moved. One day later the same widget must say something different.
-    expect(show("2026-08-25T16:00:00.000Z")).toContain("5 days ago")
-  })
-
-  it("never says two days ago again", () => {
-    const shown = show("2026-08-24T16:00:00.000Z")
-    expect(shown).not.toContain("two days ago")
-    expect(shown).not.toContain("2 days ago")
   })
 
   it("hides switched-off wallets and keeps unreachable wallets honest", () => {
@@ -291,10 +324,9 @@ describe("what the widgets say about when they started", () => {
     expect(shown).not.toContain("Switched off")
     expect(shown).not.toContain("3 wallets")
     expect(shown).not.toContain("4 wallets")
-    expect(shown).toContain("All wallets1 connected · 2 missing")
+    expect(shown).toContain("1 connected · 2 missing")
     expect(shown).toContain("Phemex did not answer")
     expect(shown).toContain("2 missing")
-    expect(host.innerHTML).not.toContain("last:border-b-0")
   })
 
   it("keeps the card useful before a real wallet has any trades", () => {
@@ -304,7 +336,7 @@ describe("what the widgets say about when they started", () => {
       profit: [],
     })
 
-    expect(shown).toContain("All wallets0 connected")
+    expect(shown).toContain("0 connected")
     expect(shown).not.toContain("0 wallets")
     expect(shown).toContain("No real trades have been recorded yet.")
   })
@@ -395,7 +427,7 @@ describe("keeping the overview current", () => {
 
     expect(loadTradingOverviewPage).toHaveBeenCalledTimes(1)
     expect(host.textContent).toContain("+$230.00")
-    expect(host.textContent).toContain("open +$80.00")
+    expect(host.textContent).toContain("Open+$80.00")
   })
 
   it("keeps the last good figures when a refresh fails", async () => {
@@ -407,7 +439,7 @@ describe("keeping the overview current", () => {
     await act(async () => vi.advanceTimersByTimeAsync(15_000))
 
     expect(host.textContent).toContain("+$190.00")
-    expect(host.textContent).toContain("open +$40.00")
+    expect(host.textContent).toContain("Open+$40.00")
     expect(host.textContent).not.toContain("+$0.00")
   })
 

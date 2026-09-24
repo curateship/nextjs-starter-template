@@ -11,8 +11,6 @@ import {
 } from "./overview"
 import {
   moneyForWalletFill,
-  walletProfitWindowDaysAgo,
-  walletProfitWindowLabel,
   walletProfitWindowStart,
 } from "../wallets"
 
@@ -370,21 +368,6 @@ describe("trading overview money", () => {
   it("starts at midnight on 20 August 2026 in Toronto, whatever day it is", () => {
     expect(walletProfitWindowStart()).toBe(
       new Date("2026-08-20T04:00:00.000Z").getTime()
-    )
-  })
-
-  it("counts the days since the start day, so the label grows", () => {
-    expect(
-      walletProfitWindowDaysAgo(new Date("2026-08-24T16:00:00.000Z"))
-    ).toBe(4)
-    expect(
-      walletProfitWindowDaysAgo(new Date("2026-08-25T16:00:00.000Z"))
-    ).toBe(5)
-    expect(walletProfitWindowLabel(new Date("2026-08-24T16:00:00.000Z"))).toBe(
-      "4 days ago"
-    )
-    expect(walletProfitWindowLabel(new Date("2026-08-21T16:00:00.000Z"))).toBe(
-      "1 day ago"
     )
   })
 

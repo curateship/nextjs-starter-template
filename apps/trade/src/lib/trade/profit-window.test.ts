@@ -58,22 +58,16 @@ describe("the profit start day", () => {
   })
 
   it("never writes the period as a fixed number of days on screen", () => {
-    // "from two days ago until now" was true for one day. Every place that
-    // names the period reads it from `walletProfitWindowLabel`, which counts
-    // up with the calendar. A literal here is the bug coming back as copy
-    // even when the arithmetic underneath is right.
+    // "from two days ago until now" was true for one day. PnL Graph names
+    // its period as real dates on its dates button instead. A literal here is
+    // the bug coming back as copy even when the arithmetic underneath is
+    // right.
     const literal =
       /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+days?\s+ago\b/i
     const offenders = WIDGET_FILES.filter((path) =>
       literal.test(code(read(path)))
     )
     expect(offenders).toEqual([])
-  })
-
-  it("gets the words for the period from the one helper", () => {
-    // A second way of phrasing it is a second thing to forget to update.
-    const source = read("components/trade/pnl-graph-widget.tsx")
-    expect(source).toMatch(/walletProfitWindowLabel/)
   })
 
   it("states the start day in the rules doc", () => {
