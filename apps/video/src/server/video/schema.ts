@@ -276,10 +276,6 @@ export const videoProjects = pgTable(
     aspect: varchar("aspect", { length: 8 }).notNull(),
     timeline: jsonb("timeline").notNull(),
     version: integer("version").notNull().default(1),
-    thumbnailMediaId: varchar("thumbnail_media_id", { length: 36 }).references(
-      () => customShellMedia.id,
-      { onDelete: "set null" }
-    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -290,7 +286,48 @@ export const videoProjects = pgTable(
     ),
     check("video_projects_version_check", sql`${table.version} >= 1`),
     index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
-    index("ix_video_projects_thumbnail_media_id").on(table.thumbnailMediaId),
+  ]
+)
+
+/**
+ * The picture beside a project on the projects list: one frame of the first
+ * video or picture clip, made by the background worker and kept outside the
+ * media library (see `workspace/docs/project-thumbnails.md`). The row is the
+ * queue entry and the lease is the claim, the same as the media side tables.
+ * `none` means the timeline has nothing to take a frame of, and is never tried.
+ */
+export const videoProjectThumbnails = pgTable(
+  "video_project_thumbnails",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .primaryKey()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 16 }).notNull(),
+    sourceMediaId: varchar("source_media_id", { length: 36 }),
+    sourceAtMs: integer("source_at_ms"),
+    storagePath: text("storage_path"),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_project_thumbnails_status_check",
+      sql`${table.status} in ('queued', 'generating', 'ready', 'error', 'none')`
+    ),
+    check(
+      "video_project_thumbnails_ready_check",
+      sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
+    ),
+    index("ix_video_project_thumbnails_status").on(
+      table.status,
+      table.updatedAt
+    ),
   ]
 )
 
@@ -662,6 +699,7 @@ export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoProjectThumbnailRow = typeof videoProjectThumbnails.$inferSelect
 export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
