@@ -8,6 +8,7 @@ import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
+import { projectThumbnailTick } from "@/server/video/project-thumbnails"
 import { downloadToFile } from "@/server/video/storage-files"
 import {
   waveformPeaks,
@@ -16,6 +17,7 @@ import {
 
 /**
  * The background builder for playback proxies, filmstrips and waveforms,
+ * and the step that makes each project's picture (`project-thumbnails.ts`),
  * riding the shell's fifteen-second ticker as this app's one registered worker
  * (see `src/app/server-options.ts`).
  *
@@ -101,6 +103,9 @@ export async function videoMediaTick() {
     })
   }
   pumpQueue()
+  // The projects list's pictures ride this tick too. Each of its steps
+  // catches its own failure.
+  await projectThumbnailTick()
 }
 
 /** Lets a route nudge the queue without waiting for the next tick. */

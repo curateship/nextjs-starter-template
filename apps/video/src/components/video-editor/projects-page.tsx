@@ -49,6 +49,10 @@ import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog
 
 const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 
+// How often the list looks again while a project's picture is being made. The
+// background worker runs every fifteen seconds, so this catches it within one.
+const THUMBNAIL_POLL_MS = 5000
+
 export type ProjectSortColumn = "name" | "clips" | "length" | "aspect" | "updated"
 
 const PROJECT_COLUMNS: SortableColumn<ProjectSortColumn>[] = [
@@ -106,6 +110,14 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
   const selection = useSelection()
 
   const projects = initial.projects
+  const anyThumbnailPending = projects.some(
+    (project) => project.thumbnail_pending
+  )
+  React.useEffect(() => {
+    if (!anyThumbnailPending) return
+    const timer = setInterval(() => void router.invalidate(), THUMBNAIL_POLL_MS)
+    return () => clearInterval(timer)
+  }, [anyThumbnailPending, router])
   const sortedProjects = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
     return [...projects].sort((a, b) => factor * compareProjects(a, b, sort))
@@ -193,7 +205,7 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
       )
       if (failed.length) {
         showErrorToast(
-          `${failed.length} ${plural(failed.length, "project was", "projects were")} kept because an export's file could not be removed from storage. Try again in a minute.`
+          `${failed.length} ${plural(failed.length, "project was", "projects were")} kept because a file could not be removed from storage. Try again in a minute.`
         )
       }
       if (deleted.length === 0) {

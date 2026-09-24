@@ -80,6 +80,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   files in the editor's Media panel: whose they are, how to fill them many at
   a time, why deleting one never deletes a file, and when another tab sees a
   new one.
+- [project-thumbnails.md](project-thumbnails.md) — the picture beside each
+  project on the projects list: which frame it is, when the background worker
+  remakes it, and what shows when a project has nothing to take a picture of.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 
