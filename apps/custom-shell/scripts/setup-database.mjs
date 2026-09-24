@@ -8,8 +8,9 @@ import pg from "pg"
 import { quoteIdentifier, runMigrations } from "./migrations.mjs"
 
 /**
- * Getting a *development* database ready: use the configured Postgres database
- * or start a local one, bring it up to date, and put something in it.
+ * Getting a *development* database ready: start this app's local Postgres, or
+ * use a configured one on another machine, bring it up to date, and put
+ * something in it.
  *
  * The bringing-up-to-date half lives in `migrations.mjs`, shared with the
  * production command in `migrate-database.mjs`. Everything else in this file —
@@ -44,8 +45,12 @@ const targetDatabase = decodeURIComponent(target.pathname.replace(/^\/+/, "") ||
 const composeProjectName = targetDatabase
 const maintenanceUrl = new URL(target)
 maintenanceUrl.pathname = "/postgres"
+// An address on this machine is this app's own Docker Postgres, even when the
+// IDE wrote it out in full. Only an address somewhere else is used as written.
+const usesLocalDocker =
+  !configuredDatabaseUrl || ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)
 
-if (!configuredDatabaseUrl) {
+if (usesLocalDocker) {
   startPostgres()
   await waitForDatabase(maintenanceUrl.toString())
   await ensureDatabase(maintenanceUrl.toString(), targetDatabase)
@@ -98,7 +103,7 @@ function startPostgres() {
     cwd: root,
     env: {
       ...process.env,
-      CUSTOM_SHELL_POSTGRES_PORT: databasePort,
+      CUSTOM_SHELL_POSTGRES_PORT: target.port || databasePort,
     },
     stdio: "inherit",
   })
