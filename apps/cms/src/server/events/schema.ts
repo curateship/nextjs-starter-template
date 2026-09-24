@@ -22,8 +22,9 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`,
  * `drizzle/0084_cms_events_visibility.sql` for `visibility`,
  * `drizzle/0085_cms_event_repeats.sql` for the repeat columns,
- * `drizzle/0086_cms_event_listing.sql` for `listing_id`, and
- * `drizzle/0087_cms_event_position.sql` for the map position.
+ * `drizzle/0086_cms_event_listing.sql` for `listing_id`,
+ * `drizzle/0087_cms_event_position.sql` for the map position, and
+ * `drizzle/0091_cms_event_source_link.sql` for `source_url`.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -105,6 +106,12 @@ export const siteEvents = pgTable(
     seriesDate: date("series_date", { mode: "string" }),
     /** Saved by itself, so changes to the main event skip it. */
     editedAlone: boolean("edited_alone").notNull().default(false),
+    /**
+     * The page the Draft events automation step read to write this event, so
+     * the admin can check it against the page. Empty for anything a person
+     * made. Never shown to a visitor.
+     */
+    sourceUrl: varchar("source_url", { length: 600 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

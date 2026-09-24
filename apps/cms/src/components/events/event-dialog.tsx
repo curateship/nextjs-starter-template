@@ -408,6 +408,22 @@ export function EventDialog({
                 ? "It starts as a draft. Nothing is public until it is published."
                 : "What is written here is what the event's page shows."}
             </DialogDescription>
+            {/* Only an automation's draft has one. The AI that read the page
+                can misread a date, so the page is one click away. */}
+            {loaded?.data.event.sourceUrl ? (
+              <p className="min-w-0 text-sm text-muted-foreground">
+                An automation drafted this from{" "}
+                <a
+                  href={loaded.data.event.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all underline underline-offset-2 hover:text-foreground"
+                >
+                  {loaded.data.event.sourceUrl}
+                </a>
+                . Check the day and time against that page before publishing.
+              </p>
+            ) : null}
           </DialogHeader>
 
           <DialogBody>

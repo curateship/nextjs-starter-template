@@ -102,6 +102,8 @@ export type SiteEvent = EventWhen & {
   seriesId: string | null
   /** A date saved by itself, which changes to the main event skip. */
   editedAlone: boolean
+  /** The page an automation drafted this from, or empty. */
+  sourceUrl: string
   createdAt: Date
   updatedAt: Date
 }
@@ -149,6 +151,7 @@ export function toEvent(row: EventRow): SiteEvent {
     repeat: parseRepeatRule(row.repeatRule),
     seriesId: row.seriesId,
     editedAlone: row.editedAlone,
+    sourceUrl: row.sourceUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -294,6 +297,27 @@ export function cleanEventWhen(input: EventWhenInput): EventWhen {
     }
   }
   return { startDate, startTime, endDate, endTime }
+}
+
+/**
+ * The title and start day of every event on this site that starts on one of
+ * `days`, in any state, for the Draft events step's duplicate check.
+ */
+export async function eventTitlesOnDays(
+  workspaceId: string,
+  days: string[],
+  database: CustomShellDb = db
+): Promise<{ title: string; startDate: string }[]> {
+  if (!days.length) return []
+  return database
+    .select({ title: siteEvents.title, startDate: siteEvents.startDate })
+    .from(siteEvents)
+    .where(
+      and(
+        eq(siteEvents.workspaceId, workspaceId),
+        inArray(siteEvents.startDate, days)
+      )
+    )
 }
 
 /** A free address on this site, numbered when the one wanted is taken. */
@@ -538,10 +562,20 @@ export async function seriesForEdit(
   }
 }
 
-/** A new event: a title, a free address from it, a start, born a draft. */
+/**
+ * A new event: a title, a free address from it, a start, born a draft.
+ *
+ * There is no way to create one published. `sourceUrl` is the page an
+ * automation read to draft it, and only `server/events/ai-drafts.ts` passes it.
+ */
 export async function createEvent(
   workspaceId: string,
-  input: { title: string; slug?: string; when: EventWhenInput },
+  input: {
+    title: string
+    slug?: string
+    when: EventWhenInput
+    sourceUrl?: string
+  },
   database: CustomShellDb = db
 ): Promise<SiteEvent> {
   const title = cleanTitle(input.title)
@@ -567,6 +601,7 @@ export async function createEvent(
       slug,
       body: emptyPostBody(),
       ...when,
+      sourceUrl: (input.sourceUrl ?? "").slice(0, 600),
       createdAt: at,
       updatedAt: at,
     })
