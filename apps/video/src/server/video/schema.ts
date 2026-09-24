@@ -573,6 +573,9 @@ export const videoRenderJobs = pgTable(
     // project, so one project can be exported tall, square and wide at once.
     aspect: varchar("aspect", { length: 8 }).notNull(),
     normalizeLoudness: boolean("normalize_loudness").notNull().default(true),
+    // Frames a second in the file: 30 or 60. Thirty is what every export was
+    // made at before there was a choice.
+    frameRate: integer("frame_rate").notNull().default(30),
     attempts: integer("attempts").notNull().default(0),
     leaseToken: varchar("lease_token", { length: 36 }),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
@@ -606,6 +609,10 @@ export const videoRenderJobs = pgTable(
     check(
       "video_render_jobs_aspect_check",
       sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
+    ),
+    check(
+      "video_render_jobs_frame_rate_check",
+      sql`${table.frameRate} in (30, 60)`
     ),
     check("video_render_jobs_attempts_check", sql`${table.attempts} >= 0`),
     // One export at a time per project and shape. Partial, so the finished

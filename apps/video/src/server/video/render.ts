@@ -55,6 +55,7 @@ import {
   MAX_TIMELINE_MS,
   NOTHING_TO_EXPORT_MESSAGE,
   TIMELINE_TOO_LONG_MESSAGE,
+  type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
 import { requireTextFont } from "@/lib/video/text-fonts"
@@ -104,7 +105,6 @@ const QUALITY_PRESETS: Record<RenderQuality, { scale: number; crf: number }> = {
   low: { scale: 4 / 9, crf: 28 },
 }
 
-const OUTPUT_FPS = 30
 const AUDIO_BITRATE = "192k"
 // Text sizes are authored against a 1080-tall frame in the editor.
 const DESIGN_HEIGHT = 1080
@@ -266,6 +266,7 @@ export async function renderTimeline({
   timeline: rawTimeline,
   aspect,
   quality,
+  frameRate,
   brandKit,
   normalizeLoudness,
   signal,
@@ -275,6 +276,8 @@ export async function renderTimeline({
   /** The export's own shape, which need not be the project's. */
   aspect: AspectRatio
   quality: RenderQuality
+  /** Frames a second in the file, and the clock everything timed in frames counts on. */
+  frameRate: RenderFrameRate
   brandKit: VideoBrandKit
   normalizeLoudness: boolean
   /** Stops the render partway; the scratch folder still goes. */
@@ -353,6 +356,7 @@ export async function renderTimeline({
         ? { ...brandKit.endCard, logoFile }
         : null,
       crf: QUALITY_PRESETS[quality].crf,
+      fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
     })
 
@@ -529,6 +533,7 @@ async function buildFfmpegCommand(options: {
   watermark: RenderWatermark | null
   endCard: RenderEndCard | null
   crf: number
+  fps: RenderFrameRate
   duckingGain: number
 }) {
   const {
@@ -542,13 +547,14 @@ async function buildFfmpegCommand(options: {
     watermark,
     endCard,
     crf,
+    fps,
     duckingGain,
   } = options
   const durationS = durationMs / 1000
   const outputDurationS = durationS + (endCard?.durationSeconds ?? 0)
   const inputs: string[] = []
   const filters: string[] = [
-    `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${outputDurationS}[v0]`,
+    `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS}[v0]`,
   ]
   const audioLabels: string[] = []
   let inputIndex = 0
@@ -682,14 +688,14 @@ async function buildFfmpegCommand(options: {
             }),
           }
         }),
-        OUTPUT_FPS
+        fps
       )
       if (!segments.length) continue
 
       // One picture per stretch, drawn once however often it comes back, and
       // listed for ffmpeg's `concat` reader counting in the film's frames.
       const pictures = new Map<string, string>()
-      const option = `option framerate ${OUTPUT_FPS}`
+      const option = `option framerate ${fps}`
       const lines = ["ffconcat version 1.0"]
       for (const segment of segments) {
         const key = segment.pictures.join("+")
@@ -708,7 +714,7 @@ async function buildFfmpegCommand(options: {
         lines.push(
           `file '${path.basename(file)}'`,
           option,
-          `duration ${((segment.toFrame - segment.fromFrame) / OUTPUT_FPS).toFixed(6)}`
+          `duration ${((segment.toFrame - segment.fromFrame) / fps).toFixed(6)}`
         )
       }
       // The reader ignores the last picture's time unless it is named again.
@@ -725,8 +731,8 @@ async function buildFfmpegCommand(options: {
       // On from its first frame, off before the frame after its last: the
       // half frames keep either edge from landing on a rounding error.
       filters.push(
-        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${firstFrame / OUTPUT_FPS}/TB[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / OUTPUT_FPS},${(endFrame - 0.5) / OUTPUT_FPS})'[v${visualStep + 1}]`
+        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${firstFrame / fps}/TB[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
       )
     } else {
       const file = sourceFiles.get(clip.mediaId!)!
@@ -751,14 +757,14 @@ async function buildFfmpegCommand(options: {
         frameFitFilter(clipFit(clip), size.width, size.height),
         ...(colourFilter ? [colourFilter] : []),
         ...(motion
-          ? [motionFilter(motion, size.width, size.height, durS * OUTPUT_FPS)]
+          ? [motionFilter(motion, size.width, size.height, durS * fps)]
           : []),
         ...(scaleFilter ? [scaleFilter] : []),
       ].join(",")
       const place = pictureOverlayPosition(clip)
       if (clip.kind === "image") {
         inputs.push(
-          ...(motion ? ["-framerate", String(OUTPUT_FPS)] : []),
+          ...(motion ? ["-framerate", String(fps)] : []),
           "-loop",
           "1",
           "-t",
@@ -827,7 +833,7 @@ async function buildFfmpegCommand(options: {
     const fromS = seamS - halfS
     const toS = seamS + halfS
     filters.push(
-      `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
+      `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
       `[dipsrc${visualStep}]format=yuva420p,fade=t=in:st=0:d=${halfS.toFixed(3)}:alpha=1,fade=t=out:st=${halfS.toFixed(3)}:d=${halfS.toFixed(3)}:alpha=1,setpts=PTS-STARTPTS+${fromS.toFixed(3)}/TB[dip${visualStep}]`,
       `[v${visualStep}][dip${visualStep}]overlay=x=0:y=0:enable='between(t,${fromS.toFixed(3)},${toS.toFixed(3)})'[v${visualStep + 1}]`
     )
@@ -879,7 +885,7 @@ async function buildFfmpegCommand(options: {
     const backgroundColor = endCard.backgroundColor.replace("#", "0x")
     let cardStep = 0
     filters.push(
-      `color=c=${backgroundColor}:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${cardDuration}[ec0]`
+      `color=c=${backgroundColor}:s=${size.width}x${size.height}:r=${fps}:d=${cardDuration}[ec0]`
     )
 
     if (endCard.logoFile) {
@@ -952,7 +958,7 @@ async function buildFfmpegCommand(options: {
     "-pix_fmt",
     "yuv420p",
     "-r",
-    String(OUTPUT_FPS),
+    String(fps),
     "-t",
     String(outputDurationS),
     "-movflags",

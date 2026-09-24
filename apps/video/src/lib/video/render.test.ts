@@ -20,18 +20,19 @@ describe("how long an export is expected to take", () => {
   const base = {
     projectMs: THIRTY_MINUTES,
     quality: "high" as const,
+    frameRate: 30 as const,
     aspects: ["16:9" as const],
     normalizeLoudness: true,
   }
 
   it("grows in step with the project", () => {
-    const thirty = estimateExportSeconds(base)
-    const ten = estimateExportSeconds({ ...base, projectMs: 10 * 60_000 })
+    const thirty = estimateExportSeconds(base)!
+    const ten = estimateExportSeconds({ ...base, projectMs: 10 * 60_000 })!
     expect(thirty).toBeCloseTo(ten * 3)
   })
 
   it("adds each shape, since they are made one after another", () => {
-    const one = estimateExportSeconds(base)
+    const one = estimateExportSeconds(base)!
     const two = estimateExportSeconds({ ...base, aspects: ["16:9", "9:16"] })
     expect(two).toBeGreaterThan(one * 1.5)
   })
@@ -39,13 +40,18 @@ describe("how long an export is expected to take", () => {
   it("is shorter without evening out the sound", () => {
     expect(
       estimateExportSeconds({ ...base, normalizeLoudness: false })
-    ).toBeLessThan(estimateExportSeconds(base))
+    ).toBeLessThan(estimateExportSeconds(base)!)
   })
 
   it("is shorter at a smaller quality", () => {
     expect(estimateExportSeconds({ ...base, quality: "low" })).toBeLessThan(
-      estimateExportSeconds(base)
+      estimateExportSeconds(base)!
     )
+  })
+
+  it("has none at 60 frames a second, which has not been timed", () => {
+    expect(estimateExportSeconds({ ...base, frameRate: 60 })).toBeNull()
+    expect(exportEstimateSentence(null, 1)).toBeNull()
   })
 
   it("is nothing when no shape is ticked", () => {

@@ -14,6 +14,7 @@ import {
   RENDER_NOT_FOUND_MESSAGE,
   shapeBusyMessage,
   TIMELINE_TOO_LONG_MESSAGE,
+  type RenderFrameRate,
 } from "@/lib/video/render"
 import {
   ASPECT_RATIOS,
@@ -80,6 +81,7 @@ const startSchema = projectIdSchema.extend({
   // with its own plain message rather than a validation error.
   aspects: z.array(z.enum(ASPECT_RATIOS)).max(ASPECT_RATIOS.length),
   quality: z.enum(["high", "medium", "low"]),
+  frameRate: z.union([z.literal(30), z.literal(60)]),
   // Absent means "whatever the brand kit says"; the modal can override it for
   // one export without changing the setting.
   normalizeLoudness: z.boolean().optional(),
@@ -96,6 +98,7 @@ const startExportFn = createServerFn({ method: "POST" })
       projectId: data.projectId,
       aspects: data.aspects,
       quality: data.quality,
+      frameRate: data.frameRate,
       normalizeLoudness: data.normalizeLoudness,
       title: data.title,
     })
@@ -190,11 +193,12 @@ export function startExport(
   projectId: string,
   aspects: AspectRatio[],
   quality: "high" | "medium" | "low",
+  frameRate: RenderFrameRate,
   normalizeLoudness?: boolean,
   title?: string
 ) {
   return startExportFn({
-    data: { projectId, aspects, quality, normalizeLoudness, title },
+    data: { projectId, aspects, quality, frameRate, normalizeLoudness, title },
   })
 }
 

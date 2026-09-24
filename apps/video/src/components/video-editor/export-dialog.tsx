@@ -33,12 +33,15 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import {
+  DEFAULT_FRAME_RATE,
   estimateExportSeconds,
   EXPORT_SHAPES,
   EXPORT_TITLE_MAX,
   exportEstimateSentence,
   NO_SHAPE_MESSAGE,
+  RENDER_FRAME_RATES,
   RENDER_QUALITIES,
+  type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
 import type { AspectRatio } from "@/lib/video/timeline-schema"
@@ -79,6 +82,8 @@ export function ExportDialog({
   onJobsChange: (jobs: RenderJobSummary[]) => void
 }) {
   const [quality, setQuality] = React.useState<RenderQuality>("high")
+  const [frameRate, setFrameRate] =
+    React.useState<RenderFrameRate>(DEFAULT_FRAME_RATE)
   const [normalize, setNormalize] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
   const [name, setName] = React.useState(projectName)
@@ -104,10 +109,18 @@ export function ExportDialog({
   }
 
   const activeCount = jobs.filter(isExportActive).length
+  // Once every ticked shape has been exported, pressing again makes it anew.
+  // A shape never exported before makes the whole press a first export.
+  const verb =
+    shapes.length > 0 &&
+    shapes.every((shape) => jobs.some((job) => job.aspect === shape))
+      ? "Re-export"
+      : "Export"
   const estimate = exportEstimateSentence(
     estimateExportSeconds({
       projectMs,
       quality,
+      frameRate,
       aspects: shapes,
       normalizeLoudness: normalize,
     }),
@@ -135,6 +148,7 @@ export function ExportDialog({
         projectId,
         shapes,
         quality,
+        frameRate,
         normalize,
         name
       )
@@ -232,30 +246,22 @@ export function ExportDialog({
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
+              <ChoiceRows
+                label="How good a file"
+                options={RENDER_QUALITIES}
+                value={quality}
+                onChange={setQuality}
+              />
               <div className="grid gap-2">
-                {RENDER_QUALITIES.map((option) => {
-                  const on = quality === option.id
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => setQuality(option.id)}
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-60",
-                        on
-                          ? "border-foreground bg-muted"
-                          : "border-foreground/10 hover:border-foreground/25"
-                      )}
-                    >
-                      <span className="font-medium">{option.label}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {option.note}
-                      </span>
-                    </button>
-                  )
-                })}
+                <span id="export-frame-rate" className="text-sm font-medium">
+                  How smooth the movement is
+                </span>
+                <ChoiceRows
+                  labelledBy="export-frame-rate"
+                  options={RENDER_FRAME_RATES}
+                  value={frameRate}
+                  onChange={setFrameRate}
+                />
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="grid gap-0.5">
@@ -331,11 +337,55 @@ export function ExportDialog({
             onClick={() => void handleStart()}
           >
             {busy ? <Loader2Icon className="animate-spin" /> : null}
-            {shapes.length > 1 ? `Export ${shapes.length} shapes` : "Export"}
+            {shapes.length > 1 ? `${verb} ${shapes.length} shapes` : verb}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** A short list of choices, one row each, of which exactly one is picked. */
+function ChoiceRows<Id extends string | number>({
+  label,
+  labelledBy,
+  options,
+  value,
+  onChange,
+}: {
+  label?: string
+  labelledBy?: string
+  options: { id: Id; label: string; note: string }[]
+  value: Id
+  onChange: (id: Id) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      aria-labelledby={labelledBy}
+      className="grid gap-2"
+    >
+      {options.map((option) => {
+        const on = value === option.id
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+              on ? "border-foreground bg-muted" : "hover:border-foreground/25"
+            )}
+          >
+            <span className="font-medium">{option.label}</span>
+            <span className="text-sm text-muted-foreground">{option.note}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

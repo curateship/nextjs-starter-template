@@ -82,6 +82,7 @@ function ask(
     projectId,
     aspects: ["9:16"],
     quality: "high",
+    frameRate: 30,
     database,
     ...overrides,
   })
@@ -184,6 +185,26 @@ describe("asking for an export", () => {
     expect(row.normalizeLoudness).toBe(false)
   })
 
+  it("keeps the frame rate it is asked for", async () => {
+    const standard = await projectWithContent()
+    const smooth = await projectWithContent()
+    const [plain] = await ask(standard.id)
+    const [sixty] = await ask(smooth.id, { frameRate: 60 })
+    expect(plain.frame_rate).toBe(30)
+    expect(sixty.frame_rate).toBe(60)
+  })
+
+  it("the database refuses any frame rate but 30 or 60", async () => {
+    const project = await projectWithContent()
+    const [job] = await ask(project.id)
+    await expect(
+      database
+        .update(videoRenderJobs)
+        .set({ frameRate: 24 })
+        .where(eq(videoRenderJobs.id, job.id))
+    ).rejects.toThrow()
+  })
+
   it("says where in the queue it is", async () => {
     const first = await projectWithContent()
     const second = await projectWithContent()
@@ -262,7 +283,11 @@ describe("stopping", () => {
 describe("trying a failed export again", () => {
   it("puts it back in the queue with no error and a fresh attempt count", async () => {
     const project = await projectWithContent()
-    const [job] = await ask(project.id, { aspects: ["1:1"], quality: "low" })
+    const [job] = await ask(project.id, {
+      aspects: ["1:1"],
+      quality: "low",
+      frameRate: 60,
+    })
     await finish(job.id, "error")
 
     const retried = await retryRenderJob(user.id, job.id, database)
@@ -273,6 +298,7 @@ describe("trying a failed export again", () => {
     // Asked for exactly as before.
     expect(retried.aspect).toBe("1:1")
     expect(retried.quality).toBe("low")
+    expect(retried.frame_rate).toBe(60)
 
     const [row] = await database
       .select()
