@@ -8,6 +8,7 @@ import {
 } from "@/lib/events/event-sort"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { adminGet, adminPost } from "@/server/guards"
+import { directoryGeocodingKey } from "@/server/directory/settings"
 import { categoryIdsFor } from "@/server/directory/content-categories"
 import {
   createEvent,
@@ -29,7 +30,11 @@ import {
 } from "@/server/events/events"
 import { saveEventAndDates } from "@/server/events/repeats"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
-import { listingChoicesForBody, type ListingChoice } from "@/server/posts/posts"
+import {
+  listingChoice,
+  listingChoicesForBody,
+  type ListingChoice,
+} from "@/server/posts/posts"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
@@ -108,6 +113,10 @@ export type EventForEdit = {
   categoryIds: string[]
   listings: ListingChoice[]
   series: EventSeries
+  /** The listing the place is, as it is now, or null for a typed place. */
+  placeListing: ListingChoice | null
+  /** Whether this site can look a typed address up for the map. */
+  canLocate: boolean
 }
 
 const loadEventForEditFn = createServerFn({ method: "GET" })
@@ -120,11 +129,21 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       categoryIdsFor(site, EVENT_CONTENT_TYPE, data.id),
     ])
     if (!event) return null
-    const [listings, series] = await Promise.all([
+    const [listings, series, placeListing, lookupKey] = await Promise.all([
       listingChoicesForBody(site, event.body),
       seriesForEdit(site, event),
+      event.listingId ? listingChoice(site, event.listingId) : null,
+      // Only whether there is one; the key itself never leaves the server.
+      directoryGeocodingKey(site).catch(() => null),
     ])
-    return { event, categoryIds, listings, series }
+    return {
+      event,
+      categoryIds,
+      listings,
+      series,
+      placeListing,
+      canLocate: Boolean(lookupKey),
+    }
   })
 
 export function loadEventForEdit(id: string) {
@@ -166,6 +185,7 @@ const updateEventFn = createServerFn({ method: "POST" })
       when: whenInput.optional(),
       placeName: z.string().max(MAX_PLACE_NAME).optional(),
       placeAddress: z.string().max(MAX_PLACE_ADDRESS).optional(),
+      listingId: idInput.nullable().optional(),
       // A tree whose rule is "keep only what is allowed", which the server's
       // cleaner says better than a schema.
       body: z.unknown().optional(),
@@ -196,6 +216,8 @@ export function saveEvent(input: {
   when?: EventWhenInput
   placeName?: string
   placeAddress?: string
+  /** One of this site's listings as the place, or null for a typed one. */
+  listingId?: string | null
   body?: unknown
   categoryIds?: string[]
   /** Null stops repeating; left out keeps the repeat as it is. */

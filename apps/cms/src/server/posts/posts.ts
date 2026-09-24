@@ -62,6 +62,8 @@ export type ListingChoice = {
   title: string
   status: "draft" | "published"
   featuredImage: string
+  /** The street address line shown on the listing, or empty. */
+  address: string
 }
 
 function toPost(row: PostRow): SitePost {
@@ -318,6 +320,7 @@ const listingChoiceColumns = {
   title: directoryListings.title,
   status: directoryListings.status,
   featuredImage: directoryListings.featuredImage,
+  address: sql<string>`coalesce(${directoryListings.contactLinks}->>'address', '')`,
 }
 
 function toChoice(row: {
@@ -325,8 +328,28 @@ function toChoice(row: {
   title: string
   status: string
   featuredImage: string
+  address: string
 }): ListingChoice {
   return { ...row, status: row.status === "published" ? "published" : "draft" }
+}
+
+/** One of this site's listings as the pickers show it, or null. */
+export async function listingChoice(
+  workspaceId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<ListingChoice | null> {
+  const [row] = await database
+    .select(listingChoiceColumns)
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, workspaceId),
+        eq(directoryListings.id, id)
+      )
+    )
+    .limit(1)
+  return row ? toChoice(row) : null
 }
 
 /** This site's listings whose title matches, for the card picker. */

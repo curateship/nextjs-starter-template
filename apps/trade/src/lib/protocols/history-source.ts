@@ -77,6 +77,9 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
         const coin = solanaBorrowedCoin(ref.marketId)
         return coin === null ? null : coinSource(coin)
       }
+    case "robinhood":
+      // No markets are listed yet, so there is nothing to borrow for.
+      return null
   }
 }
 

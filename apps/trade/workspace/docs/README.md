@@ -193,7 +193,7 @@ screen: anything not written there has not been agreed yet.
 ## protocols/ — the venues
 
 Protocol, not exchange: Hyperliquid, Phemex, KuCoin, Aster and Lighter are
-exchanges, Solana and BNB Chain are chains, and protocol is the word that is
+exchanges, Solana, BNB Chain and Robinhood Chain are chains, and protocol is the word that is
 true of all of them. It is what the ids, the tables and the addresses have
 always used.
 
@@ -206,6 +206,9 @@ always used.
   transactions, secret-text removal and controlled failure checks.
   Recovery includes saved approval fees and keeps wallet validation errors separate.
   Signing rechecks route expiry and real-money permission after transaction preparation.
+- `robinhood-chain.md` explains Robinhood Chain: the wallet that works today,
+  who may hold Stock Tokens, USDG and ETH, the node setting, mainnet only, and
+  the `evm-chain/` code it shares with BNB Chain.
 
 - `protocol-layer.md` — where the exchange lives in the code, one door per
   venue, and which venues push fills.

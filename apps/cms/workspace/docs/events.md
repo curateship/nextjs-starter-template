@@ -41,7 +41,10 @@ published event has its own page at `/events/<address>`.
   `drizzle/0084_cms_events_visibility.sql` adds `visibility`, which is
   `public` or `private`. Every event made before it is public.
   `drizzle/0085_cms_event_repeats.sql` adds the repeat columns that
-  "Repeating events" below describes.
+  "Repeating events" below describes. `drizzle/0086_cms_event_listing.sql`
+  adds `listing_id`, for "The place is a listing" below.
+  `drizzle/0087_cms_event_position.sql` adds `latitude`, `longitude` and
+  `located_for`, for "The map on the event page" below.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -93,7 +96,7 @@ published event has its own page at `/events/<address>`.
 - **The window:** the event (title, address, summary, status, who can find it,
   cover image),
   when and where (start day, start time, end day, end time, place, street
-  address), categories and the body. A new event needs a title, a start day and
+  address, or a listing picked as the place), categories and the body. A new event needs a title, a start day and
   a start time before it saves.
 
 ## Duplicating an event
@@ -202,6 +205,117 @@ and each has its own page, calendar file and Google markup.
   change never tops up until it restarts. Saving the main event still makes
   its dates.
 
+## The place is a listing
+
+When the event is at a place that is already a listing on the site, like a bar
+hosting a jazz night, the admin picks the listing instead of typing a name and
+address. Typing a place by hand still works for places that are not listed.
+
+- **Picking:** "Pick a listing" under the place boxes, in When and where. It
+  searches the site's listings by name as you type, the same picker the post
+  editor's "Listing card" uses, and marks a draft listing "Draft". Picking one
+  fills the Place and Street address boxes with the listing's and greys them
+  out.
+- **Unpicking:** "Type a place instead" takes the listing off and leaves its
+  name and address in the boxes, to change by hand.
+- **Always the listing as it is now.** The event page, the Events page's list
+  and month, the calendar subscription, a calendar file, Google's event markup,
+  search and Admin → Events all read the listing's current name and address.
+  Renaming the listing changes all of them at once.
+- **The link:** the place's name on the event page links to the listing's
+  page. There is no link when the listing is a draft, or while the directory is
+  switched off or kept for members, the same rule as a listing card in the
+  body. The name and address still show.
+- **The listing is deleted:** its last name and address are written onto the
+  event just before it goes, so the event page keeps saying where it is, as
+  plain text with no link.
+- **A copy and a repeating event's dates** keep the same listing.
+- **The listing's pin** is the event's map pin, as "The map on the event page"
+  below says.
+- **Only this site's listings:** saving a listing from another site is
+  refused with "That listing is not on this site any more."
+- **Where it lives:** `listing_id` on `events`; `livePlaceName` and
+  `livePlaceAddress` in `src/server/events/events.ts` are the one rule every
+  read uses; `keepListingPlaceOnEvents` runs inside the listings delete. The
+  picker is `src/components/directory/listing-picker.tsx`.
+- **Not built:** listings have no "permanently closed" state, so there is
+  nothing yet to warn an admin about. That question from task 10 waits until
+  listings can be marked closed.
+
+## What's on at a listing
+
+A listing's page has a "What's on here" box with the next 3 events held there,
+so a visitor looking at a bar sees trivia on Thursday and jazz on Saturday.
+
+- **Which events:** published, public, not over yet, and held at that listing,
+  which means picked as the place in the event window. A typed place with the
+  same name does not count. A date of a repeating event that was changed on
+  its own to another place is not there either.
+- **Where:** the wide column, after the write-up and the site's own fields and
+  above "Related listings". Tyler chose this on 23 Sep 2026. On a phone it
+  comes after the listing card and hours, like the rest of the wide column.
+- **What a row shows:** the day in a small square, the title and the day and
+  time, the same as a row on the Events page. The place is left out, because
+  it is the page the visitor is on. "All times are Eastern Time." sits under
+  the heading.
+- **See all:** with more than 3 coming up, "See all 8 events here" opens the
+  Events page narrowed to that place.
+- **No box** when nothing is coming up, and none when the Events page is
+  switched off, or kept for members and the visitor is signed out.
+- **How fresh:** the listing's own part of the page is cached for up to two
+  minutes, but the events are read after that cache, by the site's clock, so a
+  new or finished event shows within a minute.
+- **Where it lives:** the endpoint for the listing page in
+  `src/lib/api/directory/public.ts` adds the box's events, read with
+  `readUpcomingEvents` and a listing's id. The box is
+  `src/components/directory/public/listing-events.tsx`.
+
+## The map on the event page
+
+An event page shows a small map of where the event is, with one pin, and a
+"Directions" button that opens Google Maps with the place as the destination.
+On a phone that opens the maps app, ready for walking directions.
+
+- **Where the pin comes from:** a listing picked as the place brings its own
+  pin, and nothing is looked up. A typed street address is looked up with
+  Google once, when the event is saved.
+- **Only when the address changes.** The address last looked up is kept in
+  `located_for`, so saving again without changing the address makes no
+  lookup. Each lookup counts against the site's Google allowance, so this is
+  the rule that keeps the cost down.
+- **Only the street address is looked up**, never the place name alone. A name
+  like "The Local" could match a bar in another city, and a pin in the wrong
+  place is worse than none.
+- **Google finds nothing:** the event has no map, and the same address is not
+  asked about again until it is changed.
+- **Google cannot be reached, or the site has no lookup key:** the event has no
+  map, and the next save tries again.
+- **No map is still a working page.** The place is written out above where the
+  map would be, and Directions works from the name and address instead of a
+  pin.
+- **Which keys:** both are in Settings → Directory. The lookup uses "Google
+  Maps API key" on the Near me search card, and drawing the map uses "Map
+  display key" on the Map view card. They are the same two keys the
+  directory's place search and map use. With no display key there is no map,
+  only Directions.
+- **The window says where it stands.** Under a typed street address, the event
+  window says "On the map on the event page", "Google could not find this
+  address…", "The address is looked up for the map when you save" or "No map:
+  this site has no Google Maps API key under Near me search".
+- **Directions hides once the event is over,** with "Add to calendar". The map
+  stays, as a record of where it was.
+- **A deleted listing** leaves its pin on the event with its address, so the
+  map stays and nothing is looked up.
+- **A copy and a repeating event's dates** keep the pin, with no new lookup.
+- **Where it lives:** `positionForSave` in `src/server/events/events.ts`
+  decides whether a save looks anything up, and runs before the save's
+  database transaction so a slow answer never holds the database.
+  `locateAddress` in `src/server/directory/geocode.ts` asks Google. The map is
+  `src/components/events/public/event-place-map.tsx`, and the link is
+  `src/lib/events/directions.ts`.
+- **Not built:** a map of all events. An online event (task 29) will have no
+  map.
+
 ## Private events
 
 A private event has a page anyone with the link can open, and no list on the
@@ -252,6 +366,12 @@ shared link opens the same view.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
   on today, stays until it is over. A festival stays until its last day ends.
+- **One place:** `?place=the-rex` narrows the list to the events held at that
+  listing, headed "At The Rex" with a link back to the listing and "All
+  upcoming events" to clear it. The name is plain text while the directory is
+  switched off or kept for members, the same rule as an event page's place. Paging keeps the place. Only a published
+  listing on this site is found this way; any other address shows every
+  event. Switching to the month drops the place.
 - **The month:** `?view=month&month=2026-10`. Previous and next move a month,
   Today goes back to the site's current month, and the site's today has a ring.
   Each day shows up to three events and "+2 more". Events that are over still

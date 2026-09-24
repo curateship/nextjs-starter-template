@@ -28,7 +28,6 @@ vi.mock("@/server/trade/db", () => ({
 }))
 import {
   bnbHoldings,
-  bnbMulticallAbi,
   toBnbSnapshot,
   fetchBnbAccount,
   fetchBnbPortfolio,
@@ -37,10 +36,11 @@ import {
   BNB_USDC,
 } from "./account"
 import { BNB_USDT, BNB_WRAPPED_NATIVE } from "./client"
+import { multicallAbi } from "@/server/protocols/evm-chain/balances"
 const cake = fixture.tokens[3]
 const owner = { userId: "owner-one", walletId: "wallet-one" }
 const real = decodeFunctionResult({
-  abi: bnbMulticallAbi,
+  abi: multicallAbi,
   functionName: "aggregate3",
   data: fixture.response.result as Hex,
 })
@@ -55,7 +55,7 @@ function synthetic(
   decimals = 18
 ) {
   return encodeFunctionResult({
-    abi: bnbMulticallAbi,
+    abi: multicallAbi,
     functionName: "aggregate3",
     result: [
       { success: true, returnData: scalar(native) },
@@ -69,7 +69,7 @@ function synthetic(
 function calledTokens() {
   const call = request.mock.calls.at(-1)![0]
   const decoded = decodeFunctionData({
-    abi: bnbMulticallAbi,
+    abi: multicallAbi,
     data: call.params[0].data,
   })
   if (decoded.functionName !== "aggregate3") throw Error("wrong call")
@@ -94,7 +94,7 @@ beforeEach(() => {
     const tokens = calledTokens()
     return Promise.resolve(
       encodeFunctionResult({
-        abi: bnbMulticallAbi,
+        abi: multicallAbi,
         functionName: "aggregate3",
         result: [
           real[0],
@@ -194,7 +194,7 @@ describe("BNB wallet holdings", () => {
       bnbHoldings(
         fixture.tokens,
         encodeFunctionResult({
-          abi: bnbMulticallAbi,
+          abi: multicallAbi,
           functionName: "aggregate3",
           result: failed,
         })

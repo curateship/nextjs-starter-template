@@ -110,6 +110,7 @@ const everyPublicRead: Record<
     notAList: "One event by its address: the link a private event is for.",
   },
   eventsArePublic: { notAList: "Reads the Events page's switch." },
+  findEventPlace: { notAList: "Finds a listing by its address, not events." },
   eventsAccessFor: { notAList: "Reads the Events page's switch." },
 }
 
@@ -161,6 +162,7 @@ describe("the events table", () => {
    */
   const allowed = [
     "server/events/events.ts", // Admin → Events, which shows everything.
+    "server/events/place.ts", // Column rules for a listing as the place.
     "server/events/public.ts", // Every public read, through the one filter.
     "server/events/repeats.ts", // Admin: a repeating event's dates.
     "server/events/schema.ts",

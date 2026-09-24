@@ -85,8 +85,8 @@ import {
   placeBnbOrder,
   quoteBnbSwap,
   closeBnbPosition,
-  transferFromFailed,
 } from "./orders"
+import { transferFromFailed } from "@/server/protocols/evm-chain/swap"
 import { BNB_USDT } from "./client"
 const token = "0x2222222222222222222222222222222222222222"
 const wallet = "0x1111111111111111111111111111111111111111"
