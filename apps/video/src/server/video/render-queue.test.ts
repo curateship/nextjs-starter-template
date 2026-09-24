@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import {
-  NO_QUEUED_EXPORT_MESSAGE,
+  NO_ACTIVE_EXPORT_MESSAGE,
   NOTHING_TO_EXPORT_MESSAGE,
 } from "@/lib/video/render"
 import { type ProjectTimeline } from "@/lib/video/timeline-schema"
@@ -197,10 +197,10 @@ describe("stopping one", () => {
     const project = await projectWithContent()
     await expect(
       cancelRenderJob(user.id, project.id, database)
-    ).rejects.toThrowError(NO_QUEUED_EXPORT_MESSAGE)
+    ).rejects.toThrowError(NO_ACTIVE_EXPORT_MESSAGE)
   })
 
-  it("leaves one that is already rendering alone", async () => {
+  it("stops one that is already rendering and lets go of its lease", async () => {
     const project = await projectWithContent()
     const job = await enqueueRenderJob({
       userId: user.id,
@@ -210,12 +210,56 @@ describe("stopping one", () => {
     })
     await database
       .update(videoRenderJobs)
-      .set({ status: "running" })
+      .set({
+        status: "running",
+        leaseToken: "lease-1",
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+      })
+      .where(eq(videoRenderJobs.id, job.id))
+
+    const after = await cancelRenderJob(user.id, project.id, database)
+    expect(after?.status).toBe("cancelled")
+    expect(after?.error_message).toBeNull()
+
+    const [row] = await database
+      .select()
+      .from(videoRenderJobs)
+      .where(eq(videoRenderJobs.id, job.id))
+    expect(row.leaseToken).toBeNull()
+    expect(row.leaseExpiresAt).toBeNull()
+    expect(row.finishedAt).not.toBeNull()
+  })
+
+  it("leaves a finished export alone", async () => {
+    const project = await projectWithContent()
+    const job = await enqueueRenderJob({
+      userId: user.id,
+      projectId: project.id,
+      quality: "high",
+      database,
+    })
+    await database
+      .update(videoRenderJobs)
+      .set({ status: "error", errorMessage: "Broke", finishedAt: new Date() })
       .where(eq(videoRenderJobs.id, job.id))
 
     await expect(
       cancelRenderJob(user.id, project.id, database)
-    ).rejects.toThrowError(NO_QUEUED_EXPORT_MESSAGE)
+    ).rejects.toThrowError(NO_ACTIVE_EXPORT_MESSAGE)
+  })
+
+  it("will not stop somebody else's export", async () => {
+    const project = await projectWithContent()
+    await enqueueRenderJob({
+      userId: user.id,
+      projectId: project.id,
+      quality: "high",
+      database,
+    })
+    const stranger = await insertUser(database)
+    await expect(
+      cancelRenderJob(stranger.id, project.id, database)
+    ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
   })
 })
 

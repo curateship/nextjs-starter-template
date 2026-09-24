@@ -150,6 +150,22 @@ A changed discovery expression fails the build so an unsupported Vite call
 cannot silently reach Node. Run `node --test scripts/worker-page-registry.test.mjs`
 from the app to check the real registry without starting background jobs.
 
+A server file that reaches a file beside it with
+`new URL("../assets", import.meta.url)` needs one more step. In the bundle,
+`import.meta.url` is the bundle's own address, so the file would be looked for
+in the wrong place. `scripts/worker-file-urls.mjs` copies each such file or
+folder into `worker/dist`, at the path it has under the app, and rewrites the
+address to point at the copy. The copy has to live inside `worker/dist` because
+that folder is all the worker image ships. Video's exporter finds its font this
+way. An address pointing at something inside `src/` that is not there fails the
+build. Addresses that point outside `src/` are left as written. Run
+`node --test scripts/worker-file-urls.test.mjs` from the app to check it.
+
+The banner that gives the bundle a `require` imports `createRequire` under the
+name `__bannerCreateRequire`. The banner is outside esbuild's view, so a source
+file importing `createRequire` under its own name would declare it twice. Node
+then refuses to load the bundle, and the worker stops the moment it starts.
+
 If a worker logs `glob is not a function`, its bundle missed that transform.
 Keep the heartbeat healthcheck enabled and rebuild with the corrected worker
 build script. A successful build alone does not prove container health; check

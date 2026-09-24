@@ -19,19 +19,32 @@ export const FFMPEG_MISSING_MESSAGE = "ffmpeg is not installed on this server"
  */
 const FFMPEG_TIMEOUT_MS = 10 * 60_000
 
+/**
+ * `signal` stops the run partway. ffmpeg is killed outright, since whatever it
+ * was writing is about to be thrown away, and the promise only settles once
+ * the process has really gone. That order matters: the caller deletes the
+ * scratch folder next, and a process still writing into it would put files
+ * back.
+ */
 export async function runFfmpeg(
   args: string[],
-  failureMessage: string
+  failureMessage: string,
+  signal?: AbortSignal
 ): Promise<string> {
+  signal?.throwIfAborted()
   return new Promise<string>((resolve, reject) => {
     const child = spawn("ffmpeg", ["-y", ...args], {
       timeout: FFMPEG_TIMEOUT_MS,
+      signal,
+      killSignal: "SIGKILL",
     })
     let stderr = ""
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + chunk).slice(-4000)
     })
     child.on("error", (error: NodeJS.ErrnoException) => {
+      // Being stopped is reported from "close", once the process has exited.
+      if (signal?.aborted) return
       reject(
         new Error(
           error.code === "ENOENT" ? FFMPEG_MISSING_MESSAGE : failureMessage
@@ -39,7 +52,9 @@ export async function runFfmpeg(
       )
     })
     child.on("close", (code) => {
-      if (code === 0) {
+      if (signal?.aborted) {
+        reject(signal.reason)
+      } else if (code === 0) {
         resolve(stderr)
       } else {
         console.error("ffmpeg said:", stderr)

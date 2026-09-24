@@ -2,7 +2,7 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
   EXPORT_TITLE_MAX,
-  NO_QUEUED_EXPORT_MESSAGE,
+  NO_ACTIVE_EXPORT_MESSAGE,
   QUEUE_FULL_MESSAGE,
   type RenderQuality,
   type RenderStatus,
@@ -29,6 +29,11 @@ import { getVideoBrandKit } from "@/server/video/settings"
  * out was being rendered by a process that is no longer there, and is put back
  * — which is how a render survives a restart without ever running twice.
  *
+ * Stopping a render is a write to the row, never a signal to a process. The
+ * worker rendering it reads its row every second, and once the row is no
+ * longer its own it kills its own ffmpeg. That works whichever process the
+ * render is in, including the separate `npm run worker` program.
+ *
  * The worker rides the shell's fifteen-second ticker, registered alongside the
  * media builders in `src/app/server-options.ts`.
  */
@@ -45,6 +50,10 @@ const MAX_ATTEMPTS = 2
 const MAX_ACTIVE_JOBS_PER_USER = 20
 const LEASE_SECONDS = 60
 const HEARTBEAT_MS = 20_000
+// How often a render looks at its own row to see whether it was stopped. A
+// read of one row by its key, so a second costs nothing and the next export
+// in line starts about a second after the stop.
+const STOP_CHECK_MS = 1_000
 
 export const INTERRUPTED_MESSAGE =
   "The server restarted while this was rendering"
@@ -246,9 +255,9 @@ export async function enqueueRenderJob({
 }
 
 /**
- * Stop an export that has not started. One already rendering keeps going —
- * stopping ffmpeg partway is a different job, and a render takes minutes, not
- * hours.
+ * Stop an export, waiting or already rendering. The row ends here, and the
+ * lease goes with it. A worker rendering it notices within a second, kills its
+ * ffmpeg and throws away what it made, so nothing reaches storage.
  */
 export async function cancelRenderJob(
   userId: string,
@@ -258,16 +267,22 @@ export async function cancelRenderJob(
   await getOwnedProject(userId, projectId, database)
   const [cancelled] = await database
     .update(videoRenderJobs)
-    .set({ status: "cancelled", finishedAt: now(), updatedAt: now() })
+    .set({
+      status: "cancelled",
+      leaseToken: null,
+      leaseExpiresAt: null,
+      finishedAt: now(),
+      updatedAt: now(),
+    })
     .where(
       and(
         eq(videoRenderJobs.userId, userId),
         eq(videoRenderJobs.projectId, projectId),
-        eq(videoRenderJobs.status, "queued")
+        inArray(videoRenderJobs.status, ["queued", "running"])
       )
     )
     .returning()
-  if (!cancelled) throw new Error(NO_QUEUED_EXPORT_MESSAGE)
+  if (!cancelled) throw new Error(NO_ACTIVE_EXPORT_MESSAGE)
   return getLatestRenderJob(userId, projectId, database)
 }
 
@@ -350,11 +365,46 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
   return (result.rows[0] as ClaimedJob | undefined) ?? null
 }
 
+/**
+ * Whether this run still owns its row. Stopped, lost to another worker, or
+ * deleted along with its project all read the same: the work is no longer
+ * wanted.
+ */
+async function stillOwnsJob(job: ClaimedJob) {
+  const [row] = await db
+    .select({ id: videoRenderJobs.id })
+    .from(videoRenderJobs)
+    .where(
+      and(
+        eq(videoRenderJobs.id, job.id),
+        eq(videoRenderJobs.leaseToken, job.lease_token),
+        eq(videoRenderJobs.status, "running")
+      )
+    )
+    .limit(1)
+  return !!row
+}
+
 async function runJob(job: ClaimedJob) {
   // Everything this run put in storage. If the row does not end up pointing at
   // it — the lease was lost, or the finishing write failed — it is rubbish
   // nobody can reach, so it is thrown away rather than left to pile up.
   const uploaded: string[] = []
+
+  // Fires when the row stops being this run's. It kills ffmpeg and stops the
+  // run before it uploads anything.
+  const stop = new AbortController()
+  const stopCheck = setInterval(() => {
+    void stillOwnsJob(job)
+      .then((owned) => {
+        if (!owned) stop.abort()
+      })
+      .catch((error) => {
+        // A database hiccup is not a stop. The lease covers a longer outage.
+        console.error("Render stop check failed", job.id, error)
+      })
+  }, STOP_CHECK_MS)
+  stopCheck.unref()
 
   // Renew the lease while ffmpeg works. The token guard means a lease this
   // process has already lost can never be brought back to life.
@@ -390,18 +440,23 @@ async function runJob(job: ClaimedJob) {
       quality: job.quality,
       brandKit: await getVideoBrandKit(),
       normalizeLoudness: job.normalize_loudness,
+      signal: stop.signal,
     })
 
     // The name carries the job id, so a re-export is a new address and no
     // cache anywhere can hand back the old file.
     const storagePath = `video/exports/${job.user_id}/${job.id}.mp4`
-    await uploadToR2(storagePath, result.bytes, "video/mp4")
+    stop.signal.throwIfAborted()
+    // Pushed first: a stop can land while the upload is under way, and a file
+    // that arrives after it must still be found and deleted.
     uploaded.push(storagePath)
+    await uploadToR2(storagePath, result.bytes, "video/mp4")
     let thumbnailStoragePath: string | null = null
     if (result.thumbnail) {
+      stop.signal.throwIfAborted()
       thumbnailStoragePath = `video/export-covers/${job.user_id}/${job.id}.jpg`
-      await uploadToR2(thumbnailStoragePath, result.thumbnail, "image/jpeg")
       uploaded.push(thumbnailStoragePath)
+      await uploadToR2(thumbnailStoragePath, result.thumbnail, "image/jpeg")
     }
 
     const finished = await db
@@ -434,8 +489,14 @@ async function runJob(job: ClaimedJob) {
     // nothing points at.
     if (!finished.length) await discardUploads(uploaded)
   } catch (error) {
-    console.error("Render failed", job.id, error)
     await discardUploads(uploaded)
+    // The row was stopped or taken away, and whoever did that has already
+    // written how it ended. There is no failure to record.
+    if (stop.signal.aborted) {
+      console.info("Render stopped", job.id)
+      return
+    }
+    console.error("Render failed", job.id, error)
     const message =
       error instanceof Error && SAFE_RENDER_ERRORS.has(error.message)
         ? error.message
@@ -458,6 +519,7 @@ async function runJob(job: ClaimedJob) {
         )
       )
   } finally {
+    clearInterval(stopCheck)
     clearInterval(heartbeat)
   }
 }

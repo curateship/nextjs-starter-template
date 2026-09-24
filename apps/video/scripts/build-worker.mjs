@@ -2,6 +2,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { build } from "esbuild"
+import { workerFileUrls } from "./worker-file-urls.mjs"
 import { workerPageRegistry } from "./worker-page-registry.mjs"
 
 /**
@@ -30,14 +31,15 @@ import { workerPageRegistry } from "./worker-page-registry.mjs"
  */
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const outdir = path.join(root, "worker/dist")
 
 await build({
-  plugins: [workerPageRegistry(root)],
+  plugins: [workerPageRegistry(root), workerFileUrls(root, outdir)],
   entryPoints: [
     path.join(root, "worker/src/worker.ts"),
     path.join(root, "worker/src/health.ts"),
   ],
-  outdir: path.join(root, "worker/dist"),
+  outdir,
   outExtension: { ".js": ".mjs" },
   bundle: true,
   platform: "node",
@@ -53,9 +55,12 @@ await build({
     "lucide-react/dynamic": "lucide-react/dynamic.mjs",
   },
   // Some dependencies still expect CommonJS's `require`; an ESM bundle has
-  // none, so one is made from the module's own url.
+  // none, so one is made from the module's own url. The import is renamed
+  // because the banner sits outside esbuild's scope tracking: a source file
+  // that imports `createRequire` under its own name would otherwise be
+  // declared twice, and Node refuses the whole bundle.
   banner: {
-    js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+    js: "import { createRequire as __bannerCreateRequire } from 'node:module'; const require = __bannerCreateRequire(import.meta.url);",
   },
   logLevel: "info",
 })

@@ -208,7 +208,7 @@ export function ExportDialog({
           ) : null}
         </DialogBody>
         <DialogFooter>
-          {job?.status === "queued" ? (
+          {running ? (
             <Button
               type="button"
               variant="outline"
@@ -267,7 +267,11 @@ function ExportProgress({ job }: { job: RenderJobSummary }) {
     )
   }
   if (job.status === "cancelled") {
-    return <p className="text-sm text-muted-foreground">Stopped.</p>
+    return (
+      <p className="text-sm text-muted-foreground">
+        You stopped this export, so no file was made.
+      </p>
+    )
   }
   return (
     <p className="flex items-center gap-2 text-sm text-muted-foreground">

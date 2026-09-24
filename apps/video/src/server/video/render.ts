@@ -255,12 +255,15 @@ export async function renderTimeline({
   quality,
   brandKit,
   normalizeLoudness,
+  signal,
 }: {
   userId: string
   timeline: unknown
   quality: RenderQuality
   brandKit: VideoBrandKit
   normalizeLoudness: boolean
+  /** Stops the render partway; the scratch folder still goes. */
+  signal?: AbortSignal
 }): Promise<RenderResult> {
   const dir = await mkdtemp(path.join(tmpdir(), "video-render-"))
   try {
@@ -301,7 +304,7 @@ export async function renderTimeline({
     for (const media of mediaRows) {
       const extension = path.extname(media.storagePath) || ".bin"
       const file = path.join(dir, `src-${sourceFiles.size}${extension}`)
-      await downloadToFile(media.storagePath, file)
+      await downloadToFile(media.storagePath, file, signal)
       sourceFiles.set(media.id, file)
     }
 
@@ -339,9 +342,9 @@ export async function renderTimeline({
     })
 
     const outFile = path.join(dir, "out.mp4")
-    await runFfmpeg([...command, outFile])
+    await runFfmpeg([...command, outFile], signal)
     const finalFile = normalizeLoudness
-      ? await normalizeExportLoudness(dir, outFile)
+      ? await normalizeExportLoudness(dir, outFile, signal)
       : outFile
 
     const endCardMs = brandKit.endCard.enabled
@@ -349,7 +352,7 @@ export async function renderTimeline({
       : 0
     return {
       bytes: await readFile(finalFile),
-      thumbnail: await extractCoverFrame(dir, finalFile, 0),
+      thumbnail: await extractCoverFrame(dir, finalFile, 0, signal),
       durationMs: exportDurationMs(durationMs, endCardMs),
       width: size.width,
       height: size.height,
@@ -364,7 +367,11 @@ export async function renderTimeline({
  * the second applies one fixed correction, so the ducking keeps its shape. The
  * picture is copied through untouched. A silent export is left alone.
  */
-async function normalizeExportLoudness(dir: string, file: string) {
+async function normalizeExportLoudness(
+  dir: string,
+  file: string,
+  signal?: AbortSignal
+) {
   if (!(await hasAudioStream(file))) return file
 
   const stderr = await runFfmpeg([
@@ -376,7 +383,7 @@ async function normalizeExportLoudness(dir: string, file: string) {
     "-f",
     "null",
     "-",
-  ])
+  ], signal)
   const measurement = parseLoudnormMeasurement(stderr)
   if (!measurement) {
     console.warn("Loudness could not be measured; keeping the mix as it is")
@@ -398,7 +405,7 @@ async function normalizeExportLoudness(dir: string, file: string) {
     "-movflags",
     "+faststart",
     normalized,
-  ])
+  ], signal)
   return normalized
 }
 
@@ -409,7 +416,8 @@ async function normalizeExportLoudness(dir: string, file: string) {
 export async function extractCoverFrame(
   dir: string,
   file: string,
-  atMs: number
+  atMs: number,
+  signal?: AbortSignal
 ): Promise<Uint8Array | null> {
   const out = path.join(dir, `cover-${Math.round(atMs)}.jpg`)
   try {
@@ -425,7 +433,7 @@ export async function extractCoverFrame(
       "-q:v",
       "4",
       out,
-    ])
+    ], signal)
     return await readFile(out)
   } catch {
     // A cover is a nicety; an export with none is still an export.
@@ -1178,6 +1186,6 @@ function hasAudioStream(file: string) {
 }
 
 /** Every ffmpeg run in the exporter says the same thing when it fails. */
-function runFfmpeg(args: string[]) {
-  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE)
+function runFfmpeg(args: string[], signal?: AbortSignal) {
+  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal)
 }

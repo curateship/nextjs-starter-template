@@ -29,7 +29,7 @@ export const RENDER_NOT_FOUND_MESSAGE = "Export not found"
 export const NOTHING_TO_EXPORT_MESSAGE = "There is nothing to export yet"
 export const TIMELINE_TOO_LONG_MESSAGE =
   "This project is longer than ten minutes, which is as much as one export can take"
-export const NO_QUEUED_EXPORT_MESSAGE = "There is no waiting export to stop"
+export const NO_ACTIVE_EXPORT_MESSAGE = "There is no export to stop"
 export const QUEUE_FULL_MESSAGE =
   "Too many exports waiting already — let some finish first"
 export const EXPORT_TITLE_MAX = 200

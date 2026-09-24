@@ -53,11 +53,14 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [writing-with-ai.md](writing-with-ai.md) — which AI rewrites words (Gemini,
   GPT or Claude), which tools use the choice, and what happens when a key is
   removed.
+- [stopping-an-export.md](stopping-an-export.md) — what pressing Stop does to
+  an export that is waiting or already being made, how fast the next one
+  starts, and why nothing is left in storage.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 
-The AI tools, the credit ledger and the export and render path were built before
-this folder existed, and none of them is written up.
+The AI tools, the credit ledger and the rest of the export and render path were
+built before this folder existed, and none of them is written up.
 
 ## Adding a doc
 
