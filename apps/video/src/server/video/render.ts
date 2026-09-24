@@ -71,6 +71,7 @@ import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
 import {
   FFMPEG_MISSING_MESSAGE,
+  FFMPEG_TIMEOUT_MS,
   runFfmpeg as runFfmpegCommand,
 } from "@/server/video/ffmpeg"
 import { downloadToFile } from "@/server/video/storage-files"
@@ -162,6 +163,17 @@ export function renderSize(aspect: AspectRatio, quality: RenderQuality) {
  */
 export function exportDurationMs(timelineMs: number, endCardMs: number) {
   return Math.round(timelineMs + endCardMs)
+}
+
+/**
+ * How long each ffmpeg run of one export may take: as long as the finished
+ * file plays, and never less than ten minutes. That is the allowance a
+ * ten-minute export always had. The heaviest export timed on a Mac used about
+ * a third of it (see `workspace/docs/long-exports.md`). The Hetzner server
+ * that renders has not been timed yet. A stuck run is still stopped.
+ */
+export function exportTimeoutMs(exportMs: number) {
+  return Math.max(FFMPEG_TIMEOUT_MS, exportMs)
 }
 
 /** Where the last clip ends — how long the export runs for. */
@@ -344,19 +356,22 @@ export async function renderTimeline({
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
     })
 
-    const outFile = path.join(dir, "out.mp4")
-    await runFfmpeg([...command, outFile], signal)
-    const finalFile = normalizeLoudness
-      ? await normalizeExportLoudness(dir, outFile, signal)
-      : outFile
-
     const endCardMs = brandKit.endCard.enabled
       ? brandKit.endCard.durationSeconds * 1000
       : 0
+    const exportMs = exportDurationMs(durationMs, endCardMs)
+    const timeoutMs = exportTimeoutMs(exportMs)
+
+    const outFile = path.join(dir, "out.mp4")
+    await runFfmpeg([...command, outFile], signal, timeoutMs)
+    const finalFile = normalizeLoudness
+      ? await normalizeExportLoudness(dir, outFile, signal, timeoutMs)
+      : outFile
+
     return {
       bytes: await readFile(finalFile),
       thumbnail: await extractCoverFrame(dir, finalFile, 0, signal),
-      durationMs: exportDurationMs(durationMs, endCardMs),
+      durationMs: exportMs,
       width: size.width,
       height: size.height,
     }
@@ -373,7 +388,8 @@ export async function renderTimeline({
 async function normalizeExportLoudness(
   dir: string,
   file: string,
-  signal?: AbortSignal
+  signal: AbortSignal | undefined,
+  timeoutMs: number
 ) {
   if (!(await hasAudioStream(file))) return file
 
@@ -386,7 +402,7 @@ async function normalizeExportLoudness(
     "-f",
     "null",
     "-",
-  ], signal)
+  ], signal, timeoutMs)
   const measurement = parseLoudnormMeasurement(stderr)
   if (!measurement) {
     console.warn("Loudness could not be measured; keeping the mix as it is")
@@ -408,7 +424,7 @@ async function normalizeExportLoudness(
     "-movflags",
     "+faststart",
     normalized,
-  ], signal)
+  ], signal, timeoutMs)
   return normalized
 }
 
@@ -1189,6 +1205,6 @@ function hasAudioStream(file: string) {
 }
 
 /** Every ffmpeg run in the exporter says the same thing when it fails. */
-function runFfmpeg(args: string[], signal?: AbortSignal) {
-  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal)
+function runFfmpeg(args: string[], signal?: AbortSignal, timeoutMs?: number) {
+  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal, timeoutMs)
 }

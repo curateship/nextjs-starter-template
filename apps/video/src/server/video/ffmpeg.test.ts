@@ -39,6 +39,26 @@ describe("stopping ffmpeg partway", () => {
     }
   )
 
+  it.skipIf(!hasFfmpeg)(
+    "gives up on a run that passes the time it was given",
+    async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "ffmpeg-timeout-"))
+      try {
+        const run = runFfmpeg(
+          ["-f", "lavfi", "-i", "testsrc=duration=60", path.join(dir, "out.mp4")],
+          "took too long",
+          undefined,
+          300
+        )
+        const startedAt = Date.now()
+        await expect(run).rejects.toThrowError("took too long")
+        expect(Date.now() - startedAt).toBeLessThan(2_000)
+      } finally {
+        await rm(dir, { recursive: true, force: true })
+      }
+    }
+  )
+
   it("never starts a run that was stopped before it began", async () => {
     const stop = new AbortController()
     stop.abort(new Error("stopped"))

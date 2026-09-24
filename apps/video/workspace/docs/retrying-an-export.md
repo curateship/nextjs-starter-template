@@ -25,7 +25,7 @@ beside Delete. One press puts the same export back in the queue.
   stop it first." A different shape of the same project does not block it. The
   rule is explained in [export-shapes.md](export-shapes.md).
 - **Not when the project cannot be exported.** An empty project, or one longer
-  than ten minutes, is refused with the same message Export would give.
+  than thirty minutes, is refused with the same message Export would give.
 - **Not past the person's own limit** of twenty exports waiting or rendering.
 
 ## What a retry resets

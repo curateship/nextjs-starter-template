@@ -33,8 +33,10 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import {
+  estimateExportSeconds,
   EXPORT_SHAPES,
   EXPORT_TITLE_MAX,
+  exportEstimateSentence,
   NO_SHAPE_MESSAGE,
   RENDER_QUALITIES,
   type RenderQuality,
@@ -60,6 +62,7 @@ export function ExportDialog({
   projectId,
   projectName,
   projectAspect,
+  projectMs,
   jobs,
   onJobsChange,
 }: {
@@ -69,6 +72,8 @@ export function ExportDialog({
   projectName: string
   /** The shape the project is edited in, ticked each time the window opens. */
   projectAspect: AspectRatio
+  /** How long the project runs, which the time estimate is worked from. */
+  projectMs: number
   /** The newest export in each shape, watched by the editor. */
   jobs: RenderJobSummary[]
   onJobsChange: (jobs: RenderJobSummary[]) => void
@@ -99,6 +104,15 @@ export function ExportDialog({
   }
 
   const activeCount = jobs.filter(isExportActive).length
+  const estimate = exportEstimateSentence(
+    estimateExportSeconds({
+      projectMs,
+      quality,
+      aspects: shapes,
+      normalizeLoudness: normalize,
+    }),
+    shapes.length
+  )
 
   function toggleShape(aspect: AspectRatio) {
     setShapesInvalid(false)
@@ -257,6 +271,9 @@ export function ExportDialog({
                   onCheckedChange={setNormalize}
                 />
               </div>
+              {estimate ? (
+                <p className="text-sm text-muted-foreground">{estimate}</p>
+              ) : null}
             </CardContent>
           </Card>
 
