@@ -188,9 +188,11 @@ catalogue's values. There is no stale-price label.
 
 - **Allowance:** thirty addresses per DexScreener request means at most ten
   calls per turn, sixty per minute. Adding the measured 33-call catalogue
-  build gives 93 of 300 requests. Retries, searches, other tabs and engine
-  reads share each process's rolling allowance. Separate processes have
-  separate counters, so this is not a deployment-wide quota guarantee.
+  build gives 93 requests a minute. Robinhood Chain spends from the same 300
+  a minute, so each chain keeps under half, 150, and a test pins it.
+  Retries, searches, other tabs and engine reads share each process's rolling
+  allowance. Separate processes have separate counters, so this is not a
+  deployment-wide quota guarantee.
 - **Browser requests:** each turn sends one authenticated server-function
   request. The server makes up to ten provider calls. A filtered catalogue
   with fewer than 300 markets uses fewer pages.

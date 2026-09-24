@@ -213,6 +213,27 @@ describe("Robinhood Chain's market list", () => {
     })
     expect(get).toHaveBeenCalledWith("dex", "/latest/dex/search", { q: "PONS" })
   })
+  it("refreshes the screen within half of DexScreener's shared allowance", async () => {
+    const { fetchRobinhoodMarkets } = await import("./markets")
+    const { PRICE_REFRESH, PRICE_PAGE_SIZE } = await import(
+      "@/server/protocols/evm-chain/markets"
+    )
+    const { ROBINHOOD_DEX_REQUESTS_PER_MINUTE } = await import("./client")
+    const catalog = await fetchRobinhoodMarkets("mainnet")
+    // Every ten seconds, the 300 busiest markets, thirty to a request.
+    expect(catalog.priceRefresh).toEqual({ everyMs: 10_000, mostMarkets: 300 })
+    expect(catalog.priceRefresh).toBe(PRICE_REFRESH)
+    const perRefresh = Math.ceil(PRICE_REFRESH.mostMarkets / PRICE_PAGE_SIZE)
+    expect(perRefresh).toBe(10)
+    const screenPerMinute = perRefresh * (60_000 / PRICE_REFRESH.everyMs)
+    // The list is rebuilt at most once a minute. Allow for twice today's 204
+    // stock tokens, ETH, and both coins of each of the 200 busiest pools.
+    const listPerMinute = Math.ceil((2 * 204 + 1 + 2 * 200) / PRICE_PAGE_SIZE)
+    // BNB Chain spends the other half, so both screens can be open at once.
+    expect(screenPerMinute + listPerMinute).toBeLessThan(
+      ROBINHOOD_DEX_REQUESTS_PER_MINUTE / 2
+    )
+  })
   it("prices chosen coins from their best pair", async () => {
     const { fetchRobinhoodPrices } = await import("./markets")
     const prices = await fetchRobinhoodPrices("mainnet", [NVDA, BND])

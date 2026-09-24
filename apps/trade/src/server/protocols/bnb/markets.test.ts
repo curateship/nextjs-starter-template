@@ -308,9 +308,11 @@ describe("BNB current prices", () => {
       PRICE_REFRESH.mostMarkets / PRICE_PAGE_SIZE
     )
     expect(refreshCalls).toBe(10)
+    // Robinhood Chain asks DexScreener too, from the same allowance, so each
+    // chain keeps its screen and its list under half of it.
     expect(
       refreshCalls * (60_000 / PRICE_REFRESH.everyMs) + 33
-    ).toBeLessThan(BNB_DEX_REQUESTS_PER_MINUTE)
+    ).toBeLessThan(BNB_DEX_REQUESTS_PER_MINUTE / 2)
     expect((await fetchBnbMarkets("mainnet")).priceRefresh).toEqual(
       PRICE_REFRESH
     )
