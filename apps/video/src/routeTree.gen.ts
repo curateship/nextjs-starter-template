@@ -23,6 +23,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RevokeEmailChangeRouteImport } from './routes/revoke-email-change'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as ShareRouteImport } from './routes/share'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
@@ -85,6 +86,7 @@ import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api
 import { Route as ApiV1VideoExportsExportIdFileRouteImport } from './routes/api/v1/video/exports/$exportId/file'
 import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
 import { Route as ApiV1VideoMediaMediaIdWaveformRouteImport } from './routes/api/v1/video/media/$mediaId/waveform'
+import { Route as ApiV1VideoShareTokenFileRouteImport } from './routes/api/v1/video/share/$token/file'
 import { Route as ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport } from './routes/api/v1/video/carousels/$carouselId/slides/$slideIndex'
 
 const IndexRoute = IndexRouteImport.update({
@@ -154,6 +156,11 @@ const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareRoute = ShareRouteImport.update({
+  id: '/share',
+  path: '/share',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInLinkRoute = SignInLinkRouteImport.update({
@@ -506,6 +513,12 @@ const ApiV1VideoMediaMediaIdWaveformRoute =
     path: '/api/v1/video/media/$mediaId/waveform',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1VideoShareTokenFileRoute =
+  ApiV1VideoShareTokenFileRouteImport.update({
+    id: '/api/v1/video/share/$token/file',
+    path: '/api/v1/video/share/$token/file',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute =
   ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport.update({
     id: '/api/v1/video/carousels/$carouselId/slides/$slideIndex',
@@ -527,6 +540,7 @@ export interface FileRoutesByFullPath {
   '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/search': typeof SearchRoute
+  '/share': typeof ShareRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -589,6 +603,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
   '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
+  '/api/v1/video/share/$token/file': typeof ApiV1VideoShareTokenFileRoute
   '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRoutesByTo {
@@ -605,6 +620,7 @@ export interface FileRoutesByTo {
   '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/search': typeof SearchRoute
+  '/share': typeof ShareRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -663,6 +679,7 @@ export interface FileRoutesByTo {
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
   '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
+  '/api/v1/video/share/$token/file': typeof ApiV1VideoShareTokenFileRoute
   '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRoutesById {
@@ -681,6 +698,7 @@ export interface FileRoutesById {
   '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/search': typeof SearchRoute
+  '/share': typeof ShareRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -743,6 +761,7 @@ export interface FileRoutesById {
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
   '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
+  '/api/v1/video/share/$token/file': typeof ApiV1VideoShareTokenFileRoute
   '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRouteTypes {
@@ -761,6 +780,7 @@ export interface FileRouteTypes {
     | '/revoke-email-change'
     | '/robots.txt'
     | '/search'
+    | '/share'
     | '/sign-in-link'
     | '/sitemap.xml'
     | '/unsubscribe'
@@ -823,6 +843,7 @@ export interface FileRouteTypes {
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
     | '/api/v1/video/media/$mediaId/waveform'
+    | '/api/v1/video/share/$token/file'
     | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -839,6 +860,7 @@ export interface FileRouteTypes {
     | '/revoke-email-change'
     | '/robots.txt'
     | '/search'
+    | '/share'
     | '/sign-in-link'
     | '/sitemap.xml'
     | '/unsubscribe'
@@ -897,6 +919,7 @@ export interface FileRouteTypes {
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
     | '/api/v1/video/media/$mediaId/waveform'
+    | '/api/v1/video/share/$token/file'
     | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   id:
     | '__root__'
@@ -914,6 +937,7 @@ export interface FileRouteTypes {
     | '/revoke-email-change'
     | '/robots.txt'
     | '/search'
+    | '/share'
     | '/sign-in-link'
     | '/sitemap.xml'
     | '/unsubscribe'
@@ -976,6 +1000,7 @@ export interface FileRouteTypes {
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
     | '/api/v1/video/media/$mediaId/waveform'
+    | '/api/v1/video/share/$token/file'
     | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   fileRoutesById: FileRoutesById
 }
@@ -994,6 +1019,7 @@ export interface RootRouteChildren {
   RevokeEmailChangeRoute: typeof RevokeEmailChangeRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SearchRoute: typeof SearchRoute
+  ShareRoute: typeof ShareRoute
   SignInLinkRoute: typeof SignInLinkRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
@@ -1011,6 +1037,7 @@ export interface RootRouteChildren {
   ApiV1VideoExportsExportIdFileRoute: typeof ApiV1VideoExportsExportIdFileRoute
   ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
   ApiV1VideoMediaMediaIdWaveformRoute: typeof ApiV1VideoMediaMediaIdWaveformRoute
+  ApiV1VideoShareTokenFileRoute: typeof ApiV1VideoShareTokenFileRoute
   ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute: typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 
@@ -1112,6 +1139,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share': {
+      id: '/share'
+      path: '/share'
+      fullPath: '/share'
+      preLoaderRoute: typeof ShareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in-link': {
@@ -1548,6 +1582,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1VideoMediaMediaIdWaveformRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/video/share/$token/file': {
+      id: '/api/v1/video/share/$token/file'
+      path: '/api/v1/video/share/$token/file'
+      fullPath: '/api/v1/video/share/$token/file'
+      preLoaderRoute: typeof ApiV1VideoShareTokenFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/video/carousels/$carouselId/slides/$slideIndex': {
       id: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
       path: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
@@ -1754,6 +1795,7 @@ const rootRouteChildren: RootRouteChildren = {
   RevokeEmailChangeRoute: RevokeEmailChangeRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SearchRoute: SearchRoute,
+  ShareRoute: ShareRoute,
   SignInLinkRoute: SignInLinkRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
@@ -1771,6 +1813,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1VideoExportsExportIdFileRoute: ApiV1VideoExportsExportIdFileRoute,
   ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,
   ApiV1VideoMediaMediaIdWaveformRoute: ApiV1VideoMediaMediaIdWaveformRoute,
+  ApiV1VideoShareTokenFileRoute: ApiV1VideoShareTokenFileRoute,
   ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute:
     ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute,
 }
