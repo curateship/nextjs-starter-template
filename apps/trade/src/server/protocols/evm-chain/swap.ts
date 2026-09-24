@@ -185,6 +185,23 @@ export function evmSwaps(chain: SwapChain) {
   }
 
   /**
+   * The coin's symbol for a refusal sentence. Any contract can set it, so
+   * only a short plain one is used; anything else, or no answer, is none.
+   */
+  async function coinSymbol(token: Address): Promise<string | undefined> {
+    try {
+      const symbol = await chain.readClient().readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: "symbol",
+      })
+      return /^[A-Za-z0-9.-]{1,16}$/.test(symbol) ? symbol : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * Every router asked at once. A route that is not refused beats one that
    * is, then the one delivering more coins wins. With every router refusing,
    * the most telling refusal is the one reported: a router with no pool says
@@ -529,6 +546,17 @@ export function evmSwaps(chain: SwapChain) {
         args: [wallet, built.to],
       })
       if (allowance < amount) await approve()
+      /**
+       * The refusal in sentences, naming the coin by its symbol when the
+       * coin's own contract refused. The symbol is a courtesy: a node that
+       * will not say it leaves "The coin".
+       */
+      const explained = async (error: unknown) => {
+        const code = refusals.classify(error)
+        if (code === "coin-blocked" || code === "coin-paused")
+          detail.coin = await coinSymbol(token)
+        return refusals.explain(error, detail)
+      }
       let gas: bigint
       try {
         gas = await client.estimateGas({
@@ -538,7 +566,7 @@ export function evmSwaps(chain: SwapChain) {
           value: 0n,
         })
       } catch (error) {
-        if (!transferFromFailed(error)) throw refusals.explain(error, detail)
+        if (!transferFromFailed(error)) throw await explained(error)
         await approve()
         try {
           gas = await client.estimateGas({
@@ -548,7 +576,7 @@ export function evmSwaps(chain: SwapChain) {
             value: 0n,
           })
         } catch (error) {
-          throw refusals.explain(error, detail)
+          throw await explained(error)
         }
       }
       const sent = await signSend(
@@ -582,10 +610,15 @@ export function evmSwaps(chain: SwapChain) {
         } catch (error) {
           reason = error
         }
+        const code = refusals.classify(reason)
         const note = receipts.failure(sent.hash, "swap", sent.receipt, {
           reason,
           unsellable: params.side === "sell" && chain.knownUnsellable(token),
           approvalFeeWei: detail.approvalFeeWei,
+          coin:
+            code === "coin-blocked" || code === "coin-paused"
+              ? await coinSymbol(token)
+              : undefined,
         })
         await ledger.finish(owner, sent.hash, "failed", note)
         throw evmRefused(note)

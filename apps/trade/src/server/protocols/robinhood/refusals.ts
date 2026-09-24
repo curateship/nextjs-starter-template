@@ -16,4 +16,16 @@ export const robinhoodRefusals = evmRefusals({
   historyHelp:
     "The swaps this app sent are still read from their own receipts; swaps made elsewhere reach the Journal once the explorer answers again.",
   unsupportedNetwork: "ROBINHOOD_NETWORK_UNSUPPORTED",
+  // Stock Tokens check both sides of every transfer against Robinhood's
+  // access list, and can be paused. The codes are the first four bytes of
+  // Stock.sol's Blocked(address) and IsPaused() errors, read from the token
+  // implementation verified on the explorer on 24 Sep 2026.
+  coinRefusals: {
+    blocked: ["0x75e91ce7"],
+    paused: ["0x1309a563"],
+    blockedHelp:
+      "Robinhood decides who may hold Stock Tokens; the note under the buy button says who may not.",
+    pausedHelp:
+      "Robinhood pauses a Stock Token for corporate actions and market events; try again once it trades on the chain again.",
+  },
 })

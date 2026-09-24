@@ -1,5 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest"
-import { decodeFunctionData, erc20Abi, maxUint256 } from "viem"
+import {
+  decodeFunctionData,
+  erc20Abi,
+  EstimateGasExecutionError,
+  maxUint256,
+  RpcRequestError,
+} from "viem"
 import type { OrderAuth, PlaceOrderParams } from "@/lib/protocols/contracts"
 
 const m = vi.hoisted(() => ({
@@ -245,5 +251,30 @@ it("builds but never signs with real money switched off", async () => {
   )
   expect(m.veloraBuild).toHaveBeenCalled()
   expect(m.prepare).not.toHaveBeenCalled()
+  expect(m.sign).not.toHaveBeenCalled()
+})
+
+it("names the Stock Token whose own contract refused the swap, before anything is signed", async () => {
+  // Made-up Blocked(address) revert data, as Stock.sol raises it.
+  m.read.mockImplementation(async ({ functionName }: { functionName: string }) =>
+    functionName === "symbol" ? "NVDA" : 10_000_000n
+  )
+  m.estimate.mockRejectedValue(
+    new EstimateGasExecutionError(
+      new RpcRequestError({
+        body: {},
+        url: "https://node.example",
+        error: {
+          code: 3,
+          message: "execution reverted",
+          data: `0x75e91ce7${"0".repeat(24)}${"1".repeat(40)}`,
+        },
+      }),
+      {}
+    )
+  )
+  await expect(placeRobinhoodOrder("mainnet", auth, params)).rejects.toThrow(
+    "NVDA's own contract refused the transfer: its compliance check blocked an address in it."
+  )
   expect(m.sign).not.toHaveBeenCalled()
 })

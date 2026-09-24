@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest"
 import {
   formatTransactionReceipt,
+  HttpRequestError,
   TransactionReceiptNotFoundError,
   type RpcTransactionReceipt,
 } from "viem"
@@ -154,4 +155,15 @@ it("refuses a practice network, a bad address or an unknown owner before asking 
     fetchRobinhoodOrderFills("mainnet", WALLET, since, () => null)
   ).rejects.toThrow("LIVE_WALLET_NOT_FOUND")
   expect(m.explorer).not.toHaveBeenCalled()
+})
+
+it("says so only when the node fails too, after the explorer refused", async () => {
+  m.explorer.mockRejectedValue(new Error("ROBINHOOD_SERVICE_REFUSED:Blockscout:403"))
+  m.pending.mockResolvedValue([{ hash: BUY, kind: "swap", marketId: NVDA, approvals: [] }])
+  m.receipt.mockRejectedValue(
+    new HttpRequestError({ url: "https://node.example", status: 502 })
+  )
+  await expect(fills()).rejects.toThrow(
+    "EXCHANGE_BUSY:Neither Robinhood Chain's explorer nor its node answered a trade history request."
+  )
 })

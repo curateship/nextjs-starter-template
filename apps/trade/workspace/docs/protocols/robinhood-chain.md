@@ -264,7 +264,7 @@ watched here and swapped when the market gets there.
   their receipts. Swaps made anywhere else are found through the explorer's
   list of the wallet's USDG transfers, since every pool here is paired with
   USDG. When the explorer refuses, the app's own swaps are still settled, and
-  the others are found on a later pass. There is no log scan to fall back on:
+  the others are found on a later pass (see Refusals below). There is no log scan to fall back on:
   with 100-millisecond blocks, a node's usual 10,000-block window is only
   about 17 minutes. A sweep looks back a week at most, so a new wallet's
   first one cannot turn into hundreds of node reads, and a transaction it
@@ -277,6 +277,54 @@ watched here and swapped when the market gets there.
   app allows itself 60 requests a minute, 20 of them kept for swaps.
 - **No practice network.** The first swap is a small real one, placed by
   Tyler. Its transaction hashes go here once they exist.
+
+## Refusals
+
+Every "no" from KyberSwap, Velora, the node, the explorer or a coin's own
+contract reaches the order window and the Journal as one sentence. It says
+what to do next and whether a fee was paid. The sentences live in
+`src/server/protocols/evm-chain/refusals.ts` and are shared with BNB Chain.
+`robinhood/refusals.ts` supplies the chain's name, its fee coin, its
+explorer, and the two refusals that only Stock Tokens raise.
+
+- **A Stock Token's compliance check.** Every Stock Token transfer checks
+  both addresses against Robinhood's access list. A blocked address makes
+  the token raise `Blocked(address)`. The node passes that on as revert data
+  starting `0x75e91ce7`, with no words. The sentence names the token by its
+  symbol, for example "NVDA's own contract refused the transfer: its
+  compliance check blocked an address in it." It then points at the note
+  under the buy button, and says whether coins moved and a fee was paid. Any
+  refusal whose text says "compliance" gets the same sentence. The codes
+  were read from the verified Stock Token contract on 24 Sep 2026. On 5 Sep
+  a simulated transfer to a fresh wallet went through, so the check had not
+  refused anyone then.
+- **A paused Stock Token.** Robinhood can pause a token, for example for a
+  corporate action. The token then raises `IsPaused()` (`0x1309a563`), and
+  the sentence says the token cannot move right now.
+- **Where they are caught.** If the check trips before signing, while the
+  swap's gas is being estimated, nothing is sent and no fee is paid. A swap
+  can also be mined and then fail. The app replays it at that block to read
+  why, and the Journal row keeps the sentence along with the fee and the
+  hash.
+- **The token's symbol is a courtesy.** Any contract can name itself
+  anything, so only a short plain symbol is used. Otherwise the sentence says
+  "The coin".
+- **The explorer refusing** (a 403 without the browser headers, or a 429)
+  stays silent. The app's own swaps are settled from the node instead. Only
+  if the node fails too does the Journal say "Neither Robinhood Chain's
+  explorer nor its node answered a trade history request. The Journal
+  catches up on the next read."
+- **A market list that cannot load** names the service that refused, for
+  example "DexScreener could not refresh the Robinhood Chain market list.",
+  never the service's bare status such as "DexScreener:503". BNB Chain's
+  list reads the same way, through the shared code.
+- **Anything unrecognised** is never repeated, because a provider's words
+  can carry anything. It becomes "Robinhood Chain refused the trade, and no
+  coins moved. Check the wallet and request a fresh quote.", plus the fee and
+  the hash when a transaction was sent.
+- **Shapes:** a refusal travels as `LIVE_ORDER_REFUSED:<sentence>`, and a
+  busy service as `EXCHANGE_BUSY:<sentence>`. The browser shows the
+  sentence after the colon.
 
 ## The node and the network
 
@@ -351,3 +399,9 @@ pool pages and search) and the pool candles.
    Reload and open the wallet. Expect "Connected", Free $0.00, In trades
    $0.00, "ETH for fees 0 ETH" and the amber ETH sentence. Delete test
    wallets from Edit wallet. No funding is needed for any step.
+10. In the step 6 order window, type 1000000000 in Size with USD chosen.
+    Expect "This size is above Velora's maximum. Lower the size and ask for
+    another quote. No swap coins moved. No new transaction fee was paid."
+    Expect no code such as `503`, `0x…` or `LIVE_ORDER_REFUSED` anywhere on
+    the page. On 24 Sep 2026, $5,000,000 still found a route, at 4.61% price
+    impact.
