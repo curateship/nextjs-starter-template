@@ -16,6 +16,11 @@ import {
   TIMELINE_TOO_LONG_MESSAGE,
   type RenderFrameRate,
 } from "@/lib/video/render"
+import {
+  CLEAR_OUT_AGE_VALUES,
+  clearOutCutoff,
+  type ClearOutAgeChoice,
+} from "@/lib/video/export-clear-out"
 import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
 import {
   ASPECT_RATIOS,
@@ -24,11 +29,17 @@ import {
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
 import {
+  clearOutOldExports,
+  previewExportClearOut,
+} from "@/server/video/export-clear-out"
+import {
   deleteOwnedExports,
   listOwnedExports,
+  loadExportStorage,
   setOwnedExportCover,
   updateOwnedExport,
   type ExportListResponse,
+  type ExportStorage,
 } from "@/server/video/exports"
 import { listLiveSharedExportIds } from "@/server/video/export-shares"
 import {
@@ -47,8 +58,14 @@ import {
 
 export type { ExportListResponse, RenderJobSummary }
 
-/** The gallery page, plus which of its exports a share link opens right now. */
-export type ExportListWithShares = ExportListResponse & { shared_ids: string[] }
+/**
+ * The gallery page, plus which of its exports a share link opens right now and
+ * what every finished export of theirs takes in storage.
+ */
+export type ExportListWithShares = ExportListResponse & {
+  shared_ids: string[]
+  storage: ExportStorage
+}
 
 const KNOWN_MESSAGES = new Set([
   FRAME_FAILED_MESSAGE,
@@ -139,17 +156,20 @@ const listExportsFn = createServerFn({ method: "GET" })
       .optional()
   )
   .handler(async ({ data, context }): Promise<ExportListWithShares> => {
-    const list = await listOwnedExports({
-      userId: context.user.id,
-      page: data?.page ?? 1,
-      pageSize: data?.pageSize ?? 24,
-      search: data?.search,
-    })
+    const [list, storage] = await Promise.all([
+      listOwnedExports({
+        userId: context.user.id,
+        page: data?.page ?? 1,
+        pageSize: data?.pageSize ?? 24,
+        search: data?.search,
+      }),
+      loadExportStorage(context.user.id),
+    ])
     const sharedIds = await listLiveSharedExportIds(
       context.user.id,
       list.exports.map((item) => item.id)
     )
-    return { ...list, shared_ids: sharedIds }
+    return { ...list, shared_ids: sharedIds, storage }
   })
 
 const updateExportFn = createServerFn({ method: "POST" })
@@ -189,6 +209,34 @@ const deleteExportsFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     return deleteOwnedExports(context.user.id, data.exportIds)
+  })
+
+const previewClearOutFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ age: z.enum(CLEAR_OUT_AGE_VALUES) }))
+  .handler(async ({ data, context }) => {
+    return previewExportClearOut(
+      context.user.id,
+      clearOutCutoff(data.age, new Date())
+    )
+  })
+
+const clearOutFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      // The cutoff the preview counted against, so the delete takes what the
+      // window named rather than whatever has aged past the line since.
+      before: z.iso.datetime(),
+      includeShared: z.boolean(),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    return clearOutOldExports({
+      userId: context.user.id,
+      before: new Date(data.before),
+      includeShared: data.includeShared,
+    })
   })
 
 export function startExport(
@@ -238,4 +286,12 @@ export function setExportCover(exportId: string, atMs: number) {
 
 export function deleteExports(exportIds: string[]) {
   return deleteExportsFn({ data: { exportIds } })
+}
+
+export function previewClearOut(age: ClearOutAgeChoice) {
+  return previewClearOutFn({ data: { age } })
+}
+
+export function clearOutExports(before: string, includeShared: boolean) {
+  return clearOutFn({ data: { before, includeShared } })
 }

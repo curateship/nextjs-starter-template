@@ -188,13 +188,20 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
   async function confirmDelete() {
     if (!deleteTargets.length) return
     await run(async () => {
-      const { deleted_ids: deleted } = await deleteProjects(
+      const { deleted_ids: deleted, failed_ids: failed } = await deleteProjects(
         deleteTargets.map((project) => project.id)
       )
-      if (deleted.length === 0) {
+      if (failed.length) {
         showErrorToast(
-          "Nothing was deleted — those projects may already be gone."
+          `${failed.length} ${plural(failed.length, "project was", "projects were")} kept because an export's file could not be removed from storage. Try again in a minute.`
         )
+      }
+      if (deleted.length === 0) {
+        if (!failed.length) {
+          showErrorToast(
+            "Nothing was deleted — those projects may already be gone."
+          )
+        }
         return
       }
       selection.clear()
@@ -421,7 +428,7 @@ export function ProjectsPage({ initial }: { initial: ProjectListResponse }) {
             ? `Delete ${deleteTargets.length} ${plural(deleteTargets.length, "project", "projects")}?`
             : "Delete this project?"
         }
-        description="The timeline goes for good. The footage it used stays in your media library."
+        description="The timeline goes for good, and so do its exports and their share links. The footage it used stays in your media library."
         confirmLabel={
           deleteTargets.length > 1 ? "Delete projects" : "Delete project"
         }

@@ -17,10 +17,12 @@ import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
+import { removeExportFiles } from "@/server/video/export-files"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
   videoMediaProxies,
   videoProjects,
+  videoRenderJobs,
   type VideoProjectRow,
 } from "@/server/video/schema"
 
@@ -410,24 +412,54 @@ export async function writeProjectTimeline(
  * Deleting projects. The media they used is left alone on purpose — it is the
  * person's own library, shared with every other project, and a delete here must
  * never take footage away from somewhere else.
+ *
+ * The project's exports do go, because their rows go with it. Their files are
+ * removed from storage first, the same way deleting an export does it, and a
+ * project whose export files would not come out is kept and comes back in
+ * `failed_ids`, so no file is ever left with nothing pointing at it.
  */
 export async function deleteOwnedProjects(
   userId: string,
   projectIds: string[],
   database: CustomShellDb = db
-): Promise<{ deleted_ids: string[] }> {
+): Promise<{ deleted_ids: string[]; failed_ids: string[] }> {
   const uniqueIds = Array.from(new Set(projectIds))
-  if (!uniqueIds.length) return { deleted_ids: [] }
+  if (!uniqueIds.length) return { deleted_ids: [], failed_ids: [] }
+
+  const owned = and(
+    eq(videoProjects.userId, userId),
+    inArray(videoProjects.id, uniqueIds)
+  )
+  const exportRows = await database
+    .select({
+      id: videoRenderJobs.id,
+      projectId: videoRenderJobs.projectId,
+      storagePath: videoRenderJobs.storagePath,
+      thumbnailStoragePath: videoRenderJobs.thumbnailStoragePath,
+    })
+    .from(videoRenderJobs)
+    .innerJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+    .where(owned)
+  const removed = await removeExportFiles(exportRows)
+  const failedIds = Array.from(
+    new Set(
+      exportRows
+        .filter((row) => !removed.has(row.id))
+        .map((row) => row.projectId)
+    )
+  )
+  const deletable = uniqueIds.filter((id) => !failedIds.includes(id))
+  if (!deletable.length) return { deleted_ids: [], failed_ids: failedIds }
 
   const rows = await database
     .delete(videoProjects)
     .where(
       and(
         eq(videoProjects.userId, userId),
-        inArray(videoProjects.id, uniqueIds)
+        inArray(videoProjects.id, deletable)
       )
     )
     .returning({ id: videoProjects.id })
 
-  return { deleted_ids: rows.map((row) => row.id) }
+  return { deleted_ids: rows.map((row) => row.id), failed_ids: failedIds }
 }
