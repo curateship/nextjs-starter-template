@@ -485,6 +485,37 @@ describe("the bottom panel's tables say what they know", () => {
     await act(async () => root.unmount())
   })
 
+  it("starts the Journal with the trade that ended last, not the one opened last", () => {
+    // A grid run opened days ago and closed just now goes on top: on 24 Sep a
+    // USELESS run that had just been closed sat at row 20, under every shorter
+    // trade that had opened after it.
+    const trade = (
+      symbol: string,
+      openedAt: number,
+      closedAt: number
+    ): LiveTrade => ({
+      ...liveTrade("mainnet"),
+      id: symbol,
+      marketKey: `hyperliquid:mainnet:${symbol}`,
+      openedAt,
+      closedAt,
+      heldMs: closedAt - openedAt,
+    })
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <TradesTable
+          {...shared}
+          trades={[trade("SOL", 50, 60), trade("USELESS", 10, 100)]}
+          settled={true}
+          failed={false}
+          selectedId={null}
+        />
+      </TooltipProvider>
+    )
+    expect(html.indexOf("USELESS")).toBeGreaterThan(-1)
+    expect(html.indexOf("USELESS")).toBeLessThan(html.indexOf("SOL"))
+  })
+
   it("ticks Journal rows for a mass remove without firing the row", async () => {
     const trade = (id: string, symbol: string): LiveTrade => ({
       id,

@@ -642,6 +642,111 @@ describe("live fill storage", () => {
     expect(notice.level).toBe("info")
   })
 
+  it("says the whole run when a sale leaves a grid with no coins", async () => {
+    // On 24 Sep a USELESS grid was closed and the bell said "Lost $87.36",
+    // measured against the dearest rungs still holding, while the Journal
+    // row for the same run said -$16.43. The sale that ends a run now says
+    // the run's total, the Journal row's figure. Here one rung already sold
+    // for +$4.90, and closing the grid by hand banks -$20.10 on the rest.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x5555555555555555555555555555555555555555",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-run",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values(
+      [
+        ["run-buy-1", 1],
+        ["run-buy-2", 2],
+        ["run-sell-2", 2],
+      ].map(([orderId, rung]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: orderId as string,
+        ladderId: "grid-run",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: rung as number,
+      }))
+    )
+    await database.insert(tradeLiveFills).values(
+      [
+        ["run-fill-1", "run-buy-1", "buy", 1, now - 50_000, 0, "Open Long"],
+        ["run-fill-2", "run-buy-2", "buy", 0.9, now - 40_000, 0, "Open Long"],
+        ["run-fill-3", "run-sell-2", "sell", 0.95, now - 30_000, 5, "Close Long"],
+      ].map(([fillId, orderId, side, px, at, closedPnl, dir]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: fillId as string,
+        orderId: orderId as string,
+        marketKey: BTC,
+        side: side as "buy" | "sell",
+        px: px as number,
+        sz: 100,
+        at: at as number,
+        closedPnl: closedPnl as number,
+        fee: fillId === "run-fill-3" ? 0.1 : 0,
+        dir: dir as string,
+        liquidation: false,
+      }))
+    )
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "run-fill-4",
+        orderId: "closed-by-hand",
+        marketId: "BTC",
+        side: "sell",
+        px: 0.8,
+        sz: 100,
+        at: now,
+        closedPnl: -20,
+        fee: 0.1,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
+    // $5 - $0.10 on the rung sale, then -$20 - $0.10 on the close.
+    expect(notice.title).toBe("BTC grid run ended: lost $15.20 (HL1 - GRID)")
+    expect(notice.body).toBe(
+      "Sold the last $80.00 at $0.8. That is the whole run, after fees, the same as its Journal row."
+    )
+    expect(notice.level).toBe("warning")
+  })
+
   it("reads fills for newly learnt triggers in one query", async () => {
     const user = await insertUser(database)
     const wallet: TradeWallet = {

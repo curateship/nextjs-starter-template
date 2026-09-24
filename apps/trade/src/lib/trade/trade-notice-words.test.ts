@@ -112,6 +112,27 @@ describe("a fill's notice", () => {
     expect(words.level).toBe("info")
   })
 
+  it("says a selling grid's run ended on a buy-back, with the run's total", () => {
+    const words = fillNoticeWords({
+      marketKey: "hyperliquid:mainnet:ETH",
+      side: "buy",
+      px: 90,
+      sz: 5.5555,
+      closedPnl: 3,
+      dir: "Close Short",
+      runMoney: 12.5,
+      liquidation: false,
+      ...wallet,
+    })
+    expect(words.title).toBe(
+      "ETH grid run ended: made $12.50 (Hyperliquid main)"
+    )
+    expect(words.body).toBe(
+      "Bought back the last $500 at $90. That is the whole run, after fees, the same as its Journal row."
+    )
+    expect(words.level).toBe("info")
+  })
+
   it("says exited when the venue calls it a close, even at breakeven", () => {
     const words = fillNoticeWords({
       marketKey: "hyperliquid:mainnet:ETH",

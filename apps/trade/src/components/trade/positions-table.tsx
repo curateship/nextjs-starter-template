@@ -198,6 +198,12 @@ type TradeColumn =
   | "size"
   | "pnl"
   | "ending"
+  /**
+   * When the trade ended. No column of its own: it is the order the Journal
+   * starts in, so a grid closed just now is the top row even though it opened
+   * days ago. Its start is still the Opened column. Tyler's rule, 24 Sep 2026.
+   */
+  | "ended"
 
 const TRADE_COLUMNS: ColumnSpec<TradeColumn>[] = [
   { key: "market", label: "Market" },
@@ -1247,7 +1253,7 @@ export function TradesTable({
 }) {
   const hiddenPnl = useHiddenPnlClass()
   const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
-    "opened",
+    "ended",
     "desc",
     (column) =>
       ["market", "wallet", "side", "ending"].includes(column) ? "asc" : "desc"
@@ -1305,6 +1311,8 @@ export function TradesTable({
             : history?.open
               ? "Open, history incomplete"
               : "History incomplete"
+        case "ended":
+          return trade?.closedAt ?? history!.lastAt
         default:
           return trade?.openedAt ?? history!.firstAt
       }
