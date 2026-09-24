@@ -33,7 +33,7 @@ import {
   type EvmRefusals,
 } from "./refusals"
 import { evmSlippage, evmUnits, type KyberRouteInput } from "./kyber"
-import type { evmReceipts } from "./receipts"
+import { unreadableSwapNote, type evmReceipts } from "./receipts"
 
 type Owner = { userId: string; walletId: string }
 
@@ -326,6 +326,24 @@ export function evmSwaps(chain: SwapChain) {
     if (params.side === "buy") {
       const refusal = await chain.buyRefusal(token)
       if (refusal) throw evmRefused(refusal)
+      // Short on dollars, the approval would still go out and spend a fee
+      // before the swap failed its simulation.
+      const dollars = await client.readContract({
+        address: chain.dollarCoin,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [wallet],
+      })
+      if (dollars < amount) {
+        const usd = (units: bigint) =>
+          Number(formatUnits(units, chain.dollarDecimals)).toLocaleString(
+            "en-US",
+            { style: "currency", currency: "USD", maximumFractionDigits: 6 }
+          )
+        throw evmRefused(
+          `This wallet holds ${usd(dollars)} to buy with, and this buy needs ${usd(amount)}. Nothing was signed.`
+        )
+      }
     }
     const found = await route(
       { token, ...params, amount, decimals, slippage },
@@ -637,7 +655,12 @@ export function evmSwaps(chain: SwapChain) {
           feePrice,
           token
         )
-        if (!fill || fill.side !== params.side) return uncertain
+        if (!fill || fill.side !== params.side) {
+          // Left pending, it would block every later swap from this wallet.
+          const note = unreadableSwapNote(sent.hash)
+          await ledger.finish(owner, sent.hash, "confirmed", note)
+          return { ...uncertain, executionNote: `${note}${approvalNote}` }
+        }
         fill.fee += approvalFee
         fill.executionNote += approvalNote
         await ledger.record(owner, fill)

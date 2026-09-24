@@ -192,6 +192,35 @@ it("recovers a pending receipt even when it predates the recent-log window or si
   expect(m.record).toHaveBeenCalledTimes(1)
   expect(m.record.mock.calls[0][1].orderId).toBe(receipt.transactionHash)
 })
+it("closes the app's own confirmed swap that reads as no one trade, instead of leaving it pending", async () => {
+  m.logs.mockResolvedValue([])
+  m.pending.mockResolvedValue([
+    {
+      hash: receipt.transactionHash,
+      kind: "swap",
+      // Not the coin the saved receipt moved, so it cannot be read as this swap.
+      marketId: "0x2222222222222222222222222222222222222222",
+    },
+  ])
+  const who = owner()
+  expect(
+    await fetchBnbOrderFills(
+      "mainnet",
+      receipt.from,
+      0,
+      () => null,
+      "background",
+      who
+    )
+  ).toEqual([])
+  expect(m.record).not.toHaveBeenCalled()
+  expect(m.finish).toHaveBeenCalledWith(
+    who,
+    receipt.transactionHash,
+    "confirmed",
+    expect.stringContaining("do not read as one buy or sell")
+  )
+})
 it("does not invent a fill or clear pending when a receipt is not mined", async () => {
   m.logs.mockResolvedValue([])
   m.pending.mockResolvedValue([{ hash: receipt.transactionHash, kind: "swap" }])

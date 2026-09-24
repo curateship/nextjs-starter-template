@@ -205,7 +205,8 @@ it("uses sufficient allowance without another approval and saves the hash before
   expect(outcome.executionNote).toContain("not confirmed")
 })
 it("approves the returned router once when short and waits before sending the swap", async () => {
-  m.read.mockResolvedValueOnce(0n).mockResolvedValue(maxUint256)
+  // The USDT balance, then the allowance.
+  m.read.mockResolvedValueOnce(maxUint256).mockResolvedValueOnce(0n)
   m.receipt.mockResolvedValueOnce({
     status: "success",
     gasUsed: 21000n,
@@ -226,7 +227,7 @@ it("approves the returned router once when short and waits before sending the sw
   )
 })
 it("never sends a swap while approval confirmation is missing", async () => {
-  m.read.mockResolvedValue(0n)
+  m.read.mockResolvedValueOnce(maxUint256).mockResolvedValue(0n)
   await expect(placeBnbOrder("mainnet", auth, params)).rejects.toThrow(
     "approval"
   )
@@ -333,7 +334,7 @@ it("scrubs unknown node errors on quote, buy and close before shared logging", a
 })
 
 it("explains insufficient gas before signing and preserves confirmed approval fees", async () => {
-  m.read.mockResolvedValueOnce(0n).mockResolvedValue(maxUint256)
+  m.read.mockResolvedValueOnce(maxUint256).mockResolvedValueOnce(0n)
   m.receipt.mockResolvedValueOnce({
     status: "success",
     gasUsed: 21000n,
@@ -407,4 +408,38 @@ it("keeps a node 429 after broadcast uncertain and sends only once", async () =>
   expect(result.executionNote).not.toContain("No swap coins moved")
   expect(m.send).toHaveBeenCalledTimes(1)
   expect(m.record).not.toHaveBeenCalled()
+})
+
+it("refuses a buy the wallet's USDT cannot pay for before any approval", async () => {
+  // $3.50 of USDT against a $10 buy (5 coins at $2).
+  m.read.mockResolvedValue(35n * 10n ** 17n)
+  await expect(placeBnbOrder("mainnet", auth, params)).rejects.toThrow(
+    "This wallet holds $3.50 to buy with, and this buy needs $10.00. Nothing was signed."
+  )
+  expect(m.request).not.toHaveBeenCalled()
+  expect(m.prepare).not.toHaveBeenCalled()
+  expect(m.send).not.toHaveBeenCalled()
+})
+
+it("closes a confirmed swap that reads as no one trade, so later swaps are not blocked", async () => {
+  // Confirmed, but no coin moved to or from the wallet.
+  m.receipt.mockResolvedValue({
+    status: "success",
+    gasUsed: 21000n,
+    effectiveGasPrice: 1000000000n,
+    blockNumber: 100n,
+    logs: [],
+  })
+  m.block.mockResolvedValue({ timestamp: 1n })
+  const result = await placeBnbOrder("mainnet", auth, params)
+  expect(result.filledSz).toBeNull()
+  expect(result.executionNote).toContain("do not read as one buy or sell")
+  expect(m.finish).toHaveBeenCalledWith(
+    auth.owner,
+    expect.stringMatching(/^0x/),
+    "confirmed",
+    expect.stringContaining("do not read as one buy or sell")
+  )
+  expect(m.record).not.toHaveBeenCalled()
+  expect(m.send).toHaveBeenCalledTimes(1)
 })

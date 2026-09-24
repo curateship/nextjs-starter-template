@@ -1,7 +1,10 @@
 import { z } from "zod"
 import { BaseError, type Address, type Hash } from "viem"
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
-import { evmTransfers } from "@/server/protocols/evm-chain/receipts"
+import {
+  evmTransfers,
+  unreadableSwapNote,
+} from "@/server/protocols/evm-chain/receipts"
 import { evmRefused } from "@/server/protocols/evm-chain/refusals"
 import { evmUnits } from "@/server/protocols/evm-chain/kyber"
 import {
@@ -199,7 +202,21 @@ async function settle(
     const tokens = [...evmTransfers(receipt, wallet).keys()].filter(
       (token) => token !== ROBINHOOD_USDG
     )
-    if (tokens.length !== 1) continue
+    // The app's own swap that confirmed but reads as no one trade is closed,
+    // so it stops blocking every later swap from the wallet.
+    const unreadable = async () => {
+      if (known)
+        await finishRobinhoodSend(
+          owner,
+          hash,
+          "confirmed",
+          unreadableSwapNote(hash)
+        )
+    }
+    if (tokens.length !== 1) {
+      await unreadable()
+      continue
+    }
     const token = tokens[0] as Address
     const decimals = await robinhoodTokenDecimals(token)
     const fill = robinhoodReceipts.fill(
@@ -210,7 +227,10 @@ async function settle(
       price,
       known?.marketId
     )
-    if (!fill) continue
+    if (!fill) {
+      await unreadable()
+      continue
+    }
     for (const approval of known?.approvals ?? []) {
       fill.fee += approval.feeEth * price
       fill.executionNote += ` Approval confirmed, transaction ${approval.hash}, fee ${approval.feeEth} ETH.`

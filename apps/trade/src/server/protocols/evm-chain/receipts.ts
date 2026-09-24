@@ -41,6 +41,15 @@ export function evmTransfers(
   return moved
 }
 
+/**
+ * The note for a confirmed swap whose coin movements do not read as one buy
+ * or sell, such as a bundle of several coins. It is closed as confirmed with
+ * no fill, because a pending one blocks every later swap from the wallet.
+ */
+export function unreadableSwapNote(hash: string): string {
+  return `Swap confirmed as ${hash}, but its coin movements do not read as one buy or sell, so the Journal has no fill for it.`
+}
+
 /** What one chain's receipts are read against. */
 type ReceiptChain = {
   /** The dollar coin every swap buys with or sells into, lowercase. */

@@ -134,6 +134,22 @@ it("still settles this app's own swap when the explorer refuses", async () => {
   expect(found[0].fee).toBeGreaterThan(0.000016 * 2685)
 })
 
+it("closes this app's own confirmed swap that reads as no one trade, instead of leaving it pending", async () => {
+  m.explorer.mockResolvedValue({ items: [], next_page_params: null })
+  // Saved against a coin the receipt did not move, so it cannot be read as this swap.
+  m.pending.mockResolvedValue([
+    { hash: BUY, kind: "swap", marketId: SOLD, approvals: [] },
+  ])
+  expect(await fills()).toEqual([])
+  expect(m.record).not.toHaveBeenCalled()
+  expect(m.finish).toHaveBeenCalledWith(
+    owner,
+    BUY,
+    "confirmed",
+    expect.stringContaining("do not read as one buy or sell")
+  )
+})
+
 it("leaves a signed swap that is not mined yet for the next pass", async () => {
   const unmined = `0x${"d".repeat(64)}`
   m.explorer.mockResolvedValue({ items: [], next_page_params: null })
