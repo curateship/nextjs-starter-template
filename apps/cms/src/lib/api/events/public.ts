@@ -7,7 +7,17 @@ import {
   parseYearMonth,
   type YearMonth,
 } from "@/lib/events/calendar-grid"
-import { EVENT_VIEWS } from "@/lib/events/events-page"
+import {
+  EVENT_DATE_FILTERS,
+  EVENT_VIEWS,
+  eventDateWindow,
+  readEventDateFilter,
+  readEventNear,
+  type EventDateSearch,
+  type EventNearSearch,
+  type EventsPageSearch,
+} from "@/lib/events/events-page"
+import { parseDirectoryNearPoint } from "@/lib/directory/public-search"
 import {
   eventHasEnded,
   eventWhenLines,
@@ -28,9 +38,11 @@ import {
 import {
   eventsAccessFor,
   findEventPlace,
+  readEventCategories,
   readEventsBetween,
   readPublicEvent,
   readUpcomingEvents,
+  type EventCategory,
   type PublicEventCard,
   type PublicEventPage,
 } from "@/server/events/public"
@@ -78,6 +90,13 @@ type EventsPageCommon = {
    * everyone, because a calendar app asking for it is never signed in.
    */
   calendarFeedUrl: string | null
+  /** Every category the filter offers, in the admin's order. */
+  categories: EventCategory[]
+  /**
+   * The category the page is narrowed to. Null when the address names none,
+   * or names one with no listed events here, and then every event shows.
+   */
+  category: EventCategory | null
 }
 
 export type EventsPageData = EventsPageCommon &
@@ -92,6 +111,13 @@ export type EventsPageData = EventsPageCommon &
          * members, the same rule as a place on an event page.
          */
         place: { title: string; slug: string; linked: boolean } | null
+        /** The date filter as read, empty when there is none. */
+        dates: EventDateSearch
+        /**
+         * The distance filter as read, empty when there is none. Events with
+         * no position on a map are left out while it is set.
+         */
+        nearby: EventNearSearch
         events: ListedEvent[]
         total: number
         page: number
@@ -113,6 +139,13 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       day: z.string().max(10).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       place: z.string().max(160).optional(),
+      category: z.string().max(160).optional(),
+      when: z.enum(EVENT_DATE_FILTERS).optional(),
+      from: z.string().max(10).optional(),
+      to: z.string().max(10).optional(),
+      near: z.string().max(40).optional(),
+      radius: z.number().int().optional(),
+      area: z.string().max(120).optional(),
     })
   )
   .handler(async ({ data }): Promise<EventsPageData | null> => {
@@ -120,15 +153,24 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     if (!open) return null
     const { site } = open
 
-    const timeZone = await siteTimeZone(site.id)
+    const [timeZone, categories] = await Promise.all([
+      siteTimeZone(site.id),
+      readEventCategories(site.id),
+    ])
     const at = new Date()
     const now = wallClockAt(timeZone, at)
+    // An address that names no category offered here shows every event.
+    const category =
+      categories.find((row) => row.slug === data.category) ?? null
+    const onlyCategory = category ? { categoryId: category.id } : {}
     const common: EventsPageCommon = {
       site: { name: site.name, url: site.url },
       zone: timeZoneLabel(timeZone),
       today: now.slice(0, 10),
       calendarFeedUrl:
         open.access === "everyone" ? `${site.url}/events.ics` : null,
+      categories,
+      category,
     }
 
     if (data.view === "month") {
@@ -137,7 +179,9 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       const events = await readEventsBetween(
         site,
         cells[0]!.date,
-        cells[cells.length - 1]!.date
+        cells[cells.length - 1]!.date,
+        undefined,
+        onlyCategory
       )
       return { ...common, view: "month", month, events }
     }
@@ -149,12 +193,22 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       }))
 
     if (isValidDateString(data.day)) {
-      const events = mark(await readEventsBetween(site, data.day, data.day))
+      const events = mark(
+        await readEventsBetween(
+          site,
+          data.day,
+          data.day,
+          undefined,
+          onlyCategory
+        )
+      )
       return {
         ...common,
         view: "list",
         day: data.day,
         place: null,
+        dates: {},
+        nearby: {},
         events,
         total: events.length,
         page: 1,
@@ -170,13 +224,17 @@ const readEventsPageFn = createServerFn({ method: "GET" })
           readPageVisibility(site.id, "/directory"),
         ])
       : [null, null]
-    const upcoming = await readUpcomingEvents(
-      site,
-      page,
-      now,
-      undefined,
-      place ? { placeId: place.id } : {}
-    )
+    // Read again with the route's rule, because anyone can call this endpoint
+    // with any text.
+    const dates = readEventDateFilter(data)
+    const nearby = readEventNear(data)
+    const point = parseDirectoryNearPoint(nearby.near)
+    const upcoming = await readUpcomingEvents(site, page, now, undefined, {
+      ...onlyCategory,
+      ...(place ? { placeId: place.id } : {}),
+      ...eventDateWindow(dates, common.today),
+      ...(point ? { near: point, radius: nearby.radius } : {}),
+    })
     return {
       ...common,
       view: "list",
@@ -188,6 +246,8 @@ const readEventsPageFn = createServerFn({ method: "GET" })
             linked: directoryVisibility === "everyone",
           }
         : null,
+      dates,
+      nearby,
       events: mark(upcoming.events),
       total: upcoming.total,
       page,
@@ -196,13 +256,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
   })
 
 /** One view of the visited site's Events page, or null if it is closed. */
-export function loadEventsPage(input: {
-  view?: "list" | "month"
-  month?: string
-  day?: string
-  page?: number
-  place?: string
-}) {
+export function loadEventsPage(input: EventsPageSearch) {
   return readEventsPageFn({ data: input })
 }
 
@@ -245,4 +299,4 @@ export function loadEvent(slug: string) {
   return readEventFn({ data: { slug } })
 }
 
-export type { PublicEventCard } from "@/server/events/public"
+export type { EventCategory, PublicEventCard } from "@/server/events/public"

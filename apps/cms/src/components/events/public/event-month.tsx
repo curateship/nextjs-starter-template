@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { PublicEventCard } from "@/lib/api/events/public"
+import type { EventCategory, PublicEventCard } from "@/lib/api/events/public"
 import {
   addMonths,
   daysCovered,
@@ -31,17 +31,22 @@ import { cn } from "@/lib/utils"
  * event over several days shows on every one of them.
  *
  * "Today" is the site's today, sent by the server, so the ring lands on the
- * same day for every visitor wherever they are.
+ * same day for every visitor wherever they are. A category filter stays on
+ * every link out of the grid: the months either side, Today and a day's list.
  */
 export function EventMonth({
   month,
   events,
   today,
+  category,
 }: {
   month: YearMonth
   events: PublicEventCard[]
   today: string
+  /** The category the grid is narrowed to, or null for every event. */
+  category: EventCategory | null
 }) {
+  const categorySlug = category?.slug
   const cells = React.useMemo(() => monthMatrix(month), [month])
   // An event over several days goes on each of its days in the grid. The
   // events arrive soonest first, so one still running from an earlier day
@@ -63,7 +68,7 @@ export function EventMonth({
 
   return (
     <div className="grid gap-2 md:gap-3">
-      <MonthNavigation month={month} />
+      <MonthNavigation month={month} category={categorySlug} />
 
       <Card className="hidden gap-0 py-0 sm:flex">
         <WeekdayRow short={false} />
@@ -109,7 +114,7 @@ export function EventMonth({
                 {more > 0 ? (
                   <Link
                     to="/events"
-                    search={{ day: cell.date }}
+                    search={{ day: cell.date, category: categorySlug }}
                     className={cn(
                       "block truncate rounded-sm px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground",
                       focusRing
@@ -152,7 +157,7 @@ export function EventMonth({
               <Link
                 key={cell.date}
                 to="/events"
-                search={{ day: cell.date }}
+                search={{ day: cell.date, category: categorySlug }}
                 aria-label={`${formatEventShortDay(cell.date)}: ${count} ${count === 1 ? "event" : "events"}`}
                 className={cn(cellClass, "rounded-md", focusRing)}
               >
@@ -169,28 +174,44 @@ export function EventMonth({
 
       {inMonth ? null : (
         <p className="text-sm text-muted-foreground">
-          Nothing is on in {formatMonthLabel(month)}.
+          {category
+            ? `Nothing in ${category.name} is on in ${formatMonthLabel(month)}.`
+            : `Nothing is on in ${formatMonthLabel(month)}.`}
         </p>
       )}
     </div>
   )
 }
 
-function MonthNavigation({ month }: { month: YearMonth }) {
+function MonthNavigation({
+  month,
+  category,
+}: {
+  month: YearMonth
+  category: string | undefined
+}) {
   return (
     <div className="flex items-center gap-2">
-      <MonthStep month={addMonths(month, -1)} label="Previous month">
+      <MonthStep
+        month={addMonths(month, -1)}
+        category={category}
+        label="Previous month"
+      >
         <ChevronLeftIcon className="size-4" />
       </MonthStep>
       <h2 className="min-w-36 text-center text-base font-semibold">
         {formatMonthLabel(month)}
       </h2>
-      <MonthStep month={addMonths(month, 1)} label="Next month">
+      <MonthStep
+        month={addMonths(month, 1)}
+        category={category}
+        label="Next month"
+      >
         <ChevronRightIcon className="size-4" />
       </MonthStep>
       <Button asChild variant="outline">
         {/* No month in the address means the site's current month. */}
-        <Link to="/events" search={{ view: "month" }}>
+        <Link to="/events" search={{ view: "month", category }}>
           Today
         </Link>
       </Button>
@@ -200,10 +221,12 @@ function MonthNavigation({ month }: { month: YearMonth }) {
 
 function MonthStep({
   month,
+  category,
   label,
   children,
 }: {
   month: YearMonth
+  category: string | undefined
   label: string
   children: React.ReactNode
 }) {
@@ -213,7 +236,7 @@ function MonthStep({
         <Button asChild variant="outline" size="icon">
           <Link
             to="/events"
-            search={{ view: "month", month: toMonthString(month) }}
+            search={{ view: "month", month: toMonthString(month), category }}
             aria-label={label}
           >
             {children}

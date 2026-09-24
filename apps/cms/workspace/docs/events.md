@@ -282,8 +282,8 @@ under it.
   category in the event window. Its own events only, never its subcategories',
   the same rule its listings follow.
 - **How many:** the soonest 6, in the Events page's list rows. With more to
-  come, "All upcoming events" links to the Events page. It is the whole list,
-  because the Events page has no category filter until task 14.
+  come, "All upcoming events in Food" opens the Events page narrowed to that
+  category.
 - **No events, no section.** A category holding only events skips its "There
   is nothing in Food yet" card, the same as one holding only posts.
 - **Read after the cache** and only when the visitor may see the Events page,
@@ -298,7 +298,8 @@ Category cards, in Settings → Directory → Front page.
   and how many, 1 to 12. Order and arrangement do not apply: it is always the
   soonest first, one under the other, the same rows as the Events page.
 - **On the page:** the row's heading, its introduction, "All times are Eastern
-  Time.", the events and a "See all events" button to the Events page.
+  Time.", the events and a "See all events" button to the Events page. A row
+  with a category opens the Events page narrowed to it.
 - **Left off the page** while nothing is coming up, and while the visitor may
   not see the Events page. A home page left with no rows at all is the
   platform's own front page, as before.
@@ -358,6 +359,9 @@ On a phone that opens the maps app, ready for walking directions.
   `locateAddress` in `src/server/directory/geocode.ts` asks Google. The map is
   `src/components/events/public/event-place-map.tsx`, and the link is
   `src/lib/events/directions.ts`.
+- **One rule for the pin:** `livePlaceLatitude` and `livePlaceLongitude` in
+  `src/server/events/place.ts` decide it for the event page's map and for
+  "Events near a place" on the Events page.
 - **Not built:** a map of all events. An online event (task 29) will have no
   map.
 
@@ -404,8 +408,8 @@ by email. It is not a password.
 ## The Events page
 
 `/events` is what is on. It opens on the list, and a switch above it changes to
-the month. The view, the month and a chosen day all live in the address, so a
-shared link opens the same view.
+the month. The view, the month, a chosen day and the filters all live in the
+address, so a shared link opens the same view.
 
 - **Private events** are in none of these views.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
@@ -434,6 +438,114 @@ shared link opens the same view.
 - **The zone** is named once under the heading: "All times are Eastern Time."
 - **The helpers** for the grid are copied from the old Directory app with their
   tests, in `src/lib/events/calendar-grid.ts`.
+
+### Filters on the Events page
+
+A visitor narrows the page by category and by date. A visitor after food this
+weekend taps "Food", then "This weekend", and the list shows only that. Every
+filter sits in the address, like `/events?category=food&when=weekend`, so a
+reload keeps it and a shared link opens the same list.
+
+- **The category chips:** "All", then one chip per category with at least one
+  published public event filed under it, in the order set on the Categories
+  screen. A category holding only drafts or private events gets no chip, so a
+  chip never gives either away. Past events count, because the month shows
+  them.
+- **A category's own events only,** never its subcategories', the same rule a
+  category page follows.
+- **The category follows every view.** The list, the month, one day, the
+  months either side, Today, a day opened from the month, and the List and
+  Month switch all keep it.
+- **The date chips,** on the upcoming list only: "Any time", "Today", "This
+  weekend" and "Next 7 days". Beside them, From and To pick a range with the
+  same date picker as Admin → Events. One end alone works too: From alone is
+  that day onwards, To alone is up to that day.
+- **What each date chip covers,** by the site's calendar, never the visitor's:
+  - Today is the rest of today.
+  - Next 7 days is today and the six days after it.
+  - This weekend is Saturday and Sunday. From Monday to Friday that is the
+    coming Saturday and Sunday. On Saturday it is today and tomorrow. On
+    Sunday it is the rest of Sunday, never the weekend after, as task 14
+    suggested.
+- **Which events a date filter keeps:** any event with a day inside the
+  dates, so a festival running from Friday to Monday is in "This weekend".
+  The list still holds only events that are not over, so an event that ended
+  an hour ago is gone even from "Today".
+- **The date filter stays with the list.** Switching to the month drops it, and
+  so does opening one day, because both already are a stretch of dates.
+  Picking a category keeps the date filter, and picking a date keeps the
+  category and the place. Either one goes back to page 1.
+- **The empty card says what was asked:** "Nothing is on this weekend in
+  Chinese.", "Nothing in Food is on in October 2026." or "Nothing is coming up
+  at The Rex."
+- **An odd address shows the page, not an error.** A category that is not
+  here shows every event, a date word it does not know is dropped, a range
+  typed backwards is read the right way round, and "Today" wins over a range
+  when both are in the address.
+- **A category page's link** under its events reads "All upcoming events in
+  Food" and opens the Events page on that category. A home page row of events
+  with a category does the same with its "See all events" button.
+- **Not built:** free or paid, which waits for paid tickets (task 32), and the
+  site's extra fields (task 07) as filters, which is Tyler's call once task 07
+  exists.
+- **Where it lives:** the address and the date rules in
+  `src/lib/events/events-page.ts` (`readEventsSearch`, `eventDateWindow`), the
+  chips in `src/components/events/public/event-filters.tsx`, the chips' look
+  shared with the directory in
+  `src/components/directory/public/filter-chip.ts`, and the reads in
+  `src/server/events/public.ts` (`readEventCategories`, and a category and
+  dates on `readUpcomingEvents` and `readEventsBetween`). "This weekend" has a
+  test for each day of the week in `src/lib/events/events-page.test.ts`.
+
+### Events near a place
+
+A visitor on a phone can ask for what is on near them tonight. Under the date
+chips on the upcoming list sit the same Near and Within controls the
+directory's listings use: a town or postcode with "Search place", "Use my
+location", and Within 5, 10, 25 or 50 km. Tapping "Today" and "Use my
+location" gives tonight's events within 10 km.
+
+- **The same picker as listings.** `NearPicker` in
+  `src/components/directory/public/near-picker.tsx` is the one both pages draw,
+  so Within stays disabled with "Pick a location first." until a place is
+  found, on both. `directory-radius.md` has that rule.
+- **In the address:** `?near=43.653,-79.384&radius=5&area=Toronto`. The point
+  is rounded to about 110 metres, the same as the directory's, so a shared link
+  never gives away a doorstep. `area` names the place for the page's words;
+  `place` already means a listing on this page, so it needed another word.
+- **Where an event is:** the pin on its event page. A listing picked as the
+  place brings the listing's pin, and a typed street address brings the one
+  Google found for it, as "The map on the event page" above says.
+- **No position, not listed.** An event with no pin, like one with only a place
+  name, one Google could not find, or one at a listing with no pin, is left out
+  while the filter is on. The page says so under the controls: "Showing events
+  within 5 km of Toronto, ON, Canada. Events with no place on the map are left
+  out."
+- **Still soonest first.** The distance narrows the list and does not reorder
+  it, because the question is what is on soon nearby. Each row adds how far
+  away it is beside the place, like "The Rex · 2.3 km away".
+- **Measured the same as listings.** `distanceKmFrom` in
+  `src/server/directory/distance.ts` is the one formula for both, so 5 km on
+  the Events page is 5 km in the directory.
+- **It stays with the list.** Picking a category, a date chip or a From and To
+  day keeps the distance, and picking a place keeps the dates. Paging keeps it
+  too. Switching to the month or opening one day drops it, the same as the
+  date filter. "Clear location" drops only the distance.
+- **The empty card says it:** "Nothing is on today within 5 km of your
+  location."
+- **An odd address shows the page.** A point that is not a real latitude and
+  longitude drops the filter. A distance the picker does not offer, like
+  `radius=7`, is read as 10 km.
+- **Place search needs the site's key.** "Search place" uses "Google Maps API
+  key" on the Near me search card in Settings → Directory, the same key the
+  directory uses. Without it the page says "Place search is not available on
+  this site yet. Use your location instead." "Use my location" works either
+  way.
+- **Where it lives:** the address in `readEventNear` and `eventNearText` in
+  `src/lib/events/events-page.ts`, the read in `readUpcomingEvents` in
+  `src/server/events/public.ts`, and the live pin in `livePlaceLatitude` and
+  `livePlaceLongitude` in `src/server/events/place.ts`, which the event page's
+  map reads too.
 
 ## An event over several days
 
@@ -596,6 +708,6 @@ Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
 
 ## Not built yet
 
-These are later tasks in `workspace/tasks/events/`: filters on the Events page
-and sign-ups. Task 07, the site's own extra fields, is not built either. When
+These are later tasks in `workspace/tasks/events/`: sign-ups, and a free or
+paid filter once paid tickets exist. Task 07, the site's own extra fields, is not built either. When
 it is, those fields need copying to a repeating event's dates like the rest.

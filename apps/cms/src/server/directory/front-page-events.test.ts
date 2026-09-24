@@ -146,7 +146,7 @@ describe("a home page row of upcoming events", () => {
     ).toEqual([first.slug, second.slug])
   })
 
-  it("keeps to its category when it has one", async () => {
+  it("keeps to its category when it has one, and says which for See all", async () => {
     const music = await createCategory(site.id, { name: "Live music" }, database)
     await createFrontPageSection(
       site.id,
@@ -165,6 +165,7 @@ describe("a home page row of upcoming events", () => {
     expect(
       row?.kind === "events" ? row.events.map((each) => each.slug) : []
     ).toEqual([gig.slug])
+    expect(row?.kind === "events" ? row.categorySlug : null).toBe(music.slug)
   })
 
   it("is left off while nothing is coming up, and so is a page of only that", async () => {

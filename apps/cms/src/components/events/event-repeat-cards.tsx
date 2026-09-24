@@ -1,4 +1,3 @@
-import { format } from "date-fns"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +36,7 @@ import {
   type RepeatWeek,
 } from "@/lib/events/event-repeat"
 import { formatEventClock, formatEventShortDay } from "@/lib/events/event-time"
+import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
@@ -44,12 +44,6 @@ const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]
 
 /** How many dates the preview under the sentence names. */
 const PREVIEW_DATES = 4
-
-function dayForPicker(day: string | null): Date | undefined {
-  if (!day) return undefined
-  const [year, month, date] = day.split("-").map(Number)
-  return new Date(year, month - 1, date)
-}
 
 /**
  * The schedule box: none, weekly on chosen days, or monthly like "first
@@ -121,7 +115,7 @@ export function EventRepeatCard({
                 onChange={(date) =>
                   onChange({
                     ...repeat,
-                    until: date ? format(date, "yyyy-MM-dd") : null,
+                    until: dayFromPicker(date) || null,
                   })
                 }
               />

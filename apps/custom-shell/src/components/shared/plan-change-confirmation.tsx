@@ -16,6 +16,7 @@ import {
   loadBillingOverview,
   type PlanChangePreview,
 } from "@/lib/api/billing/billing"
+import { PLAN_PREVIEW_SECONDS } from "@/lib/billing/plan-change-window"
 import { formatStripeMoney } from "@/lib/format/money"
 import { formatDate } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -23,16 +24,18 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 /** Inline because Billing already lives inside the account dialog. */
 export function PlanChangeConfirmation({
   preview,
-  onCancel,
+  onClose,
 }: {
   preview: PlanChangePreview
-  onCancel: () => void
+  /** Cancel, Close, and an out-of-date preview all hand the page back. */
+  onClose: () => void
 }) {
   const [saving, setSaving] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
   const [waiting, setWaiting] = React.useState(false)
   const [checks, setChecks] = React.useState(0)
   const busy = React.useRef(false)
+  const expired = React.useRef(false)
   const heading = React.useRef<HTMLHeadingElement>(null)
 
   React.useEffect(() => {
@@ -75,6 +78,19 @@ export function PlanChangeConfirmation({
     }
   }, [submitted, checks, preview.planSlug, preview.interval])
 
+  // A request already in flight gets the server's own answer first.
+  const expire = React.useEffectEvent(() => {
+    expired.current = true
+    if (submitted || busy.current) return
+    showErrorToast(getBillingErrorMessage("PLAN_PREVIEW_EXPIRED"))
+    onClose()
+  })
+
+  React.useEffect(() => {
+    const timer = setTimeout(expire, PLAN_PREVIEW_SECONDS * 1000)
+    return () => clearTimeout(timer)
+  }, [])
+
   async function confirm() {
     if (busy.current) return
     busy.current = true
@@ -85,11 +101,23 @@ export function PlanChangeConfirmation({
       setSubmitted(true)
     } catch (error) {
       showErrorToast(getBillingErrorMessage(error))
+      // The figures on this card are no longer what Stripe would charge.
+      if (
+        expired.current ||
+        (error instanceof Error &&
+          error.message.includes("PLAN_PREVIEW_EXPIRED"))
+      ) {
+        onClose()
+      }
     } finally {
       busy.current = false
       setSaving(false)
     }
   }
+
+  // Named from what Stripe takes today, so the button never promises a free
+  // switch that charges the card, or a charge that waits for the next bill.
+  const chargesNow = preview.billsNow && preview.amountDue > 0
 
   return (
     <Card size="sm">
@@ -101,7 +129,7 @@ export function PlanChangeConfirmation({
         </CardTitle>
         <CardDescription>
           {submitted
-            ? "Stripe accepted your change. Your plan and access will refresh when confirmation arrives."
+            ? "Stripe accepted your change. While this stays open, the page refreshes with your new plan once Stripe confirms it."
             : "The new plan takes effect when you confirm. Review the billing change below."}
         </CardDescription>
       </CardHeader>
@@ -111,22 +139,24 @@ export function PlanChangeConfirmation({
             <dt>New price before tax and discounts</dt>
             <dd>
               {formatStripeMoney(preview.recurringAmount, preview.currency)}{" "}
-              {preview.interval}
+              {preview.interval === "yearly" ? "per year" : "per month"}
             </dd>
           </div>
-          <div className="flex flex-wrap justify-between gap-2">
-            <dt>
-              {preview.prorationAmount < 0
-                ? "Unused-time credit before tax"
-                : "Proration before tax"}
-            </dt>
-            <dd>
-              {formatStripeMoney(
-                Math.abs(preview.prorationAmount),
-                preview.currency
-              )}
-            </dd>
-          </div>
+          {preview.prorationAmount !== 0 ? (
+            <div className="flex flex-wrap justify-between gap-2">
+              <dt>
+                {preview.prorationAmount < 0
+                  ? "Unused-time credit before tax"
+                  : "Proration before tax"}
+              </dt>
+              <dd>
+                {formatStripeMoney(
+                  Math.abs(preview.prorationAmount),
+                  preview.currency
+                )}
+              </dd>
+            </div>
+          ) : null}
           <div className="flex flex-wrap justify-between gap-2">
             <dt>
               {preview.billsNow
@@ -157,24 +187,31 @@ export function PlanChangeConfirmation({
       </CardContent>
       <CardFooter className="justify-end gap-2">
         {submitted ? (
-          <Button
-            variant="outline"
-            disabled={waiting}
-            onClick={() => {
-              setWaiting(true)
-              setChecks((value) => value + 1)
-            }}
-          >
-            Check status
-          </Button>
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+            <Button
+              variant="outline"
+              disabled={waiting}
+              onClick={() => {
+                setWaiting(true)
+                setChecks((value) => value + 1)
+              }}
+            >
+              Check status
+            </Button>
+          </>
         ) : (
           <>
-            <Button variant="outline" disabled={saving} onClick={onCancel}>
+            <Button variant="outline" disabled={saving} onClick={onClose}>
               Cancel
             </Button>
             <Button disabled={saving} onClick={() => void confirm()}>
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Confirm plan change
+              {chargesNow
+                ? `Pay ${formatStripeMoney(preview.amountDue, preview.currency)} and switch`
+                : `Switch to ${preview.planName}`}
             </Button>
           </>
         )}

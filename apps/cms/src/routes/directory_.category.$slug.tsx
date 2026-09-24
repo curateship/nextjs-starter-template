@@ -193,10 +193,10 @@ function CategoryRoute() {
           {upcomingEvents.total > events.length ? (
             <Link
               to="/events"
-              search={{}}
+              search={{ category: category.slug }}
               className={`w-fit rounded-sm text-sm font-medium hover:underline ${focusRing}`}
             >
-              All upcoming events
+              All upcoming events in {category.name}
             </Link>
           ) : null}
         </section>

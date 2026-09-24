@@ -4,11 +4,13 @@ import { MapPinIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ListedEvent } from "@/lib/api/events/public"
+import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { eventRowText, formatEventShortDay } from "@/lib/events/event-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
- * The Events page's list: one row per event, with its day, times and place.
+ * The Events page's list: one row per event, with its day, times and place,
+ * and how far away it is while the list is narrowed to a distance.
  * An event that is over says so, which only happens in one day's list; the
  * upcoming list never holds one.
  *
@@ -39,6 +41,9 @@ export function EventList({
       <ul className="divide-y">
         {events.map((event) => {
           const [weekday] = formatEventShortDay(event.startDate).split(",")
+          // Only while the list is narrowed to a distance, like "2.3 km away".
+          const distance = formatDirectoryDistance(event.distanceKm)
+          const where = [event.placeName, distance].filter(Boolean).join(" · ")
           return (
             <li
               key={event.id}
@@ -75,13 +80,13 @@ export function EventList({
                 <p className="text-sm text-muted-foreground">
                   {eventRowText(event)}
                 </p>
-                {event.placeName ? (
+                {where ? (
                   <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                     <MapPinIcon
                       className="size-3.5 shrink-0"
                       aria-hidden="true"
                     />
-                    <span className="truncate">{event.placeName}</span>
+                    <span className="truncate">{where}</span>
                   </p>
                 ) : null}
               </div>

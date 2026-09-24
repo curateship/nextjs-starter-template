@@ -222,7 +222,7 @@ function buildLast30Days(
 type SignupRow = { year: number; month: number; day: number; people: number }
 
 /** How many joined on each day, keyed `year-month-day` with no zero padding. */
-function joinedByDay(rows: SignupRow[]) {
+export function joinedByDay(rows: SignupRow[]) {
   return new Map(
     rows.map((row) => [
       `${Number(row.year)}-${Number(row.month)}-${Number(row.day)}`,
@@ -239,7 +239,7 @@ function joinedByDay(rows: SignupRow[]) {
  * Deleting an account removes the row, so a month that has since lost people
  * reads lower than it did at the time — there is nothing left to count them by.
  */
-function buildSignupHistory(
+export function buildSignupHistory(
   rows: SignupRow[],
   byDay: Map<string, number>,
   today: Date

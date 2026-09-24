@@ -3,6 +3,7 @@ import Stripe from "stripe"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { PLAN_PREVIEW_SECONDS } from "@/lib/billing/plan-change-window"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSubscriptions } from "@/server/schema"
 import { findSubscription } from "@/server/billing/entitlements"
@@ -252,7 +253,7 @@ export async function changePlan(
   if (
     quote.userId !== userId ||
     quote.date > currentTime ||
-    currentTime - quote.date > 300
+    currentTime - quote.date > PLAN_PREVIEW_SECONDS
   ) {
     throw new Error("PLAN_PREVIEW_EXPIRED")
   }
