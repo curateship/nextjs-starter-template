@@ -224,40 +224,6 @@ export function walletProfitWindowStart(): number {
   return new Date(instant).getTime()
 }
 
-/** The Toronto calendar day `now` falls on, as a UTC midnight. */
-function torontoDay(now: Date): number {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: WALLET_PROFIT_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now)
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value)
-  return Date.UTC(value("year"), value("month") - 1, value("day"))
-}
-
-/**
- * How many whole Toronto days ago the widgets started counting. Grows by one
- * every midnight, because the start day stands still.
- */
-export function walletProfitWindowDaysAgo(now: Date): number {
-  const [year, month, day] = WALLET_PROFIT_START_DAY.split("-").map(Number)
-  const start = Date.UTC(year, month - 1, day)
-  return Math.max(0, Math.round((torontoDay(now) - start) / 86_400_000))
-}
-
-/**
- * The words the widgets use for their start: "4 days ago". One phrase, so the
- * dashboard and its tooltips can never drift apart.
- */
-export function walletProfitWindowLabel(now: Date): string {
-  const days = walletProfitWindowDaysAgo(now)
-  if (days === 0) return "today"
-  if (days === 1) return "1 day ago"
-  return `${days} days ago`
-}
-
 export const WALLET_LABEL_MAX = 40
 
 /** Generosity, not a target — one person's hand-made list, not a fleet. */
