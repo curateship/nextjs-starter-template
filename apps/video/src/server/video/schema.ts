@@ -177,6 +177,24 @@ export const videoMusicTracks = pgTable("video_music_tracks", {
 })
 
 /**
+ * The voiceover shelf (see `src/server/video/voiceovers.ts`): what a
+ * voiceover said, who said it and the captions that came back with it, kept
+ * beside the sound file so it can be reused without being read again. The
+ * captions are read through `readSavedCaptions`. Deleting the file removes it.
+ */
+export const videoVoiceovers = pgTable("video_voiceovers", {
+  mediaId: varchar("media_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellMedia.id, { onDelete: "cascade" }),
+  script: text("script").notNull(),
+  voiceId: varchar("voice_id", { length: 64 }).notNull(),
+  voiceName: varchar("voice_name", { length: 255 }).notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  captions: jsonb("captions").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * Each person's sticker list for the studio's Text panel (see
  * `src/lib/video/stickers.ts`). The whole list is one JSON value read through
  * `readStickerList`, because its order is the order the panel shows. No row

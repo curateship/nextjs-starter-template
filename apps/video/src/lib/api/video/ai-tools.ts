@@ -253,6 +253,7 @@ const speakHookFn = createServerFn({ method: "POST" })
     z.object({
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
@@ -260,6 +261,7 @@ const speakHookFn = createServerFn({ method: "POST" })
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
+      voiceName: data.voiceName,
       // Only meaningful for a voice that has models to choose between; the
       // other provider works it out from the voice itself.
       modelId: remembered?.modelId ?? "eleven_multilingual_v2",
@@ -271,8 +273,8 @@ const speakHookFn = createServerFn({ method: "POST" })
   })
 
 /** Say a rewritten opening line out loud, so the sound can replace the old one. */
-export function speakHook(text: string, voiceId: string) {
-  return speakHookFn({ data: { text, voiceId } })
+export function speakHook(text: string, voice: Voice) {
+  return speakHookFn({ data: { text, voiceId: voice.id, voiceName: voice.name } })
 }
 
 const translateFn = createServerFn({ method: "POST" })
@@ -311,6 +313,7 @@ const speakTranslationFn = createServerFn({ method: "POST" })
     z.object({
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
@@ -318,6 +321,7 @@ const speakTranslationFn = createServerFn({ method: "POST" })
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
+      voiceName: data.voiceName,
       // Always ElevenLabs, always the multilingual model: it is the one that
       // speaks every language on the list.
       speaker: "elevenlabs",
@@ -331,8 +335,10 @@ const speakTranslationFn = createServerFn({ method: "POST" })
   })
 
 /** Read a translation aloud, so it can be laid over the original. */
-export function speakTranslation(text: string, voiceId: string) {
-  return speakTranslationFn({ data: { text, voiceId } })
+export function speakTranslation(text: string, voice: Voice) {
+  return speakTranslationFn({
+    data: { text, voiceId: voice.id, voiceName: voice.name },
+  })
 }
 
 const voicesFn = createServerFn({ method: "GET" })
@@ -368,6 +374,7 @@ const speakFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
       modelId: z.enum(VOICE_MODEL_IDS),
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       settings: voiceSettingsSchema.optional(),
@@ -377,6 +384,7 @@ const speakFn = createServerFn({ method: "POST" })
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
+      voiceName: data.voiceName,
       modelId: data.modelId,
       text: data.text,
       settings: data.settings,
@@ -385,6 +393,7 @@ const speakFn = createServerFn({ method: "POST" })
 
 export function readAloud(options: {
   voiceId: string
+  voiceName: string
   modelId: (typeof VOICE_MODEL_IDS)[number]
   text: string
   settings?: z.infer<typeof voiceSettingsSchema>

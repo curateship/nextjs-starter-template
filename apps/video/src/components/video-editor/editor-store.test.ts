@@ -179,6 +179,31 @@ describe("dropping in a voiceover", () => {
     expect(after.tracks).toHaveLength(START.tracks.length + 1)
   })
 
+  it("never goes past the most tracks a save allows", () => {
+    const full = createInitialEditorState({
+      aspect: "9:16",
+      tracks: Array.from({ length: 49 }, (_, index) => ({
+        id: `lane-${index}`,
+        muted: false,
+        clips: [],
+      })),
+    })
+    // The sound and its words need two lanes and only one is left.
+    const refused = editorReducer(full, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [caption("a", 0)],
+    })
+    expect(refused).toBe(full)
+    // The sound alone fits in the last one.
+    const soundOnly = editorReducer(full, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [],
+    })
+    expect(soundOnly.tracks).toHaveLength(50)
+  })
+
   it("comes off in one press of undo", () => {
     const after = editorReducer(START, {
       type: "INSERT_VOICEOVER",
