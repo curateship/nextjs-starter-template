@@ -209,8 +209,8 @@ always used.
 - `robinhood-chain.md` explains Robinhood Chain: the market list and how a
   real stock token is told from a copy, prices refreshed on a clock and the
   DexScreener allowance it shares with BNB Chain, charts that borrow
-  Dukascopy for stock tokens, wallet holdings read from the chain, the
-  wallet, who may hold Stock
+  Dukascopy for stock tokens, wallet holdings read from the chain, buying and
+  selling through KyberSwap or Velora, the wallet, who may hold Stock
   Tokens, USDG and ETH, the node setting, mainnet only, and the `evm-chain/`
   code it shares with BNB Chain.
 

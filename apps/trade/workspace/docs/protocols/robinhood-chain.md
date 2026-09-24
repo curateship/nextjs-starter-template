@@ -14,8 +14,8 @@ coin from Paxos.
   Robinhood Chain appears in the protocol list. The sidebar link is a
   Settings row, not code.
 - **What works today:** the market list, with prices, the day's move and
-  volume, charts with years of borrowed history, and wallets with their
-  holdings. Nothing can be bought yet.
+  volume, charts with years of borrowed history, wallets with their holdings,
+  and buying and selling through KyberSwap or Velora.
 - **Spot only:** a coin is bought and owned outright. There is no leverage,
   short side, funding or liquidation, and there never will be here.
 - **Money:** purchases will be paid in USDG. Network fees are paid in ETH, so a
@@ -213,6 +213,71 @@ last 30 days, and older bars borrowed where the app can vouch for them.
 - **Pool ids:** a Uniswap v4 pool is named by a 64-character hash, and
   GeckoTerminal answers for it. META's pool is one.
 
+## Buying and selling
+
+Every order is a swap: USDG for a stock token or coin, or back. The wallet's
+key signs it on the server. Nothing rests on the chain, so a price you set is
+watched here and swapped when the market gets there.
+
+- **Two routers, better price wins.** Tyler decided on 24 Sep 2026: KyberSwap
+  and Velora (formerly ParaSwap) are both asked for every quote, and the one
+  giving more coins is used. If one is down, the other is used alone. That
+  day KyberSwap answered Robinhood Chain "service temporarily overloaded"
+  five times in a row, while its BNB Chain route worked.
+- **The quote line** names the router that won: "Velora: 4.500458 NVDA for
+  $1,000.00 at $222.2, price impact 0%, via metric-v1 → ramsesv2." On a
+  stock-token buy it ends with the one sentence on who may hold Stock Tokens.
+- **Approving the exact amount each time.** Also Tyler's decision on 24 Sep:
+  before a swap, the wallet lets the router spend exactly that swap's coins,
+  not unlimited. It costs about a cent and a second, and a router bug can
+  never take more than one swap's worth. BNB Chain keeps its one unlimited
+  approval per coin.
+- **What is checked before signing.** Each router's transaction is decoded and
+  refused unless it goes to that router's own contract, sends no ETH, swaps
+  exactly the quoted coins and amount, pays the wallet itself, keeps the
+  worst fill allowed, and carries no permit. Velora's must also carry no
+  partner fee. Without our partner name Velora adds its default partner's
+  0.01%; with it, the fee is zero. Its contract is pinned at
+  `0x6a000f20005980200259b80c5102003040001068`.
+- **Velora's swap has no deadline of its own.** KyberSwap's transaction
+  carries one and the chain refuses it late; Velora's contract takes none.
+  The app still refuses to sign after the two-minute deadline, and the
+  minimum return still holds whenever it is mined.
+- **When one router is refused.** If one router has no pool and the other is
+  busy, the order is refused with the router that found no pool, because that
+  says more. A route that breaks the order's worst fill loses to one that does
+  not, even when it offers more coins.
+- **Amounts read each coin's own decimals.** USDG has 6 and stock tokens 18,
+  so $10 of USDG is 10,000,000 of its smallest unit.
+- **Waiting for the receipt:** one confirmation, looked for every quarter
+  second, for up to 15 seconds. Blocks are 100 milliseconds apart and the
+  chain's sequencer orders them alone. BNB Chain waits for two, once a
+  second. The real time to a receipt is measured on the first real swap.
+- **Fees:** a real swap on 24 Sep used 382,266 gas at 0.042 gwei, about
+  0.000016 ETH. The Journal row shows the fee in ETH and dollars.
+- **Every signed transaction is saved before it is sent,** in
+  `trade_robinhood_transactions` (migration 0185, applied to the live
+  database on 24 Sep 2026 with Tyler's approval). A send the chain may have
+  received is never signed or sent again. A send the node refused for lack
+  of ETH is closed at once, so it cannot block every later swap.
+- **Fills reach the Journal two ways.** The app's own swaps are read from
+  their receipts. Swaps made anywhere else are found through the explorer's
+  list of the wallet's USDG transfers, since every pool here is paired with
+  USDG. When the explorer refuses, the app's own swaps are still settled, and
+  the others are found on a later pass. There is no log scan to fall back on:
+  with 100-millisecond blocks, a node's usual 10,000-block window is only
+  about 17 minutes. A sweep looks back a week at most, so a new wallet's
+  first one cannot turn into hundreds of node reads, and a transaction it
+  has settled is never read again.
+- **Carried over from BNB Chain:** a buy of a coin GoPlus flags is refused and
+  a sell never is; a sell above the holding is refused unless "Sell only what
+  I hold" is ticked; the real-money switch is checked twice before signing;
+  a failed swap moves no coins but the fee is paid, and the sentence says so.
+- **Velora's allowance** is not published and it sent no limit headers. The
+  app allows itself 60 requests a minute, 20 of them kept for swaps.
+- **No practice network.** The first swap is a small real one, placed by
+  Tyler. Its transaction hashes go here once they exist.
+
 ## The node and the network
 
 - **Node setting:** `TRADE_ROBINHOOD_RPC` in `.env` defaults to
@@ -237,9 +302,9 @@ last 30 days, and older bars borrowed where the app can vouch for them.
 BNB Chain and Robinhood Chain share the code in
 `src/server/protocols/evm-chain/`, so a fix there is a fix on both. The folder
 holds the wallet, the request counters, the refusal sentences, the KyberSwap
-quote and build checks, the receipt reader, the Multicall3 balance read, the
-swap itself, the market list (DexScreener prices, GoPlus checks, pool
-pages and search) and the pool candles.
+and Velora quote and build checks, the receipt reader, the Multicall3 balance
+read, the swap itself, the market list (DexScreener prices, GoPlus checks,
+pool pages and search) and the pool candles.
 
 - **Each chain folder keeps its own facts:** its addresses, chain id, dollar
   coin, fee coin, explorer and services. It hands them to the shared code as
@@ -274,11 +339,15 @@ pages and search) and the pool candles.
 5. Open NVDA at 4 hours. Expect "History from Dukascopy" and bars back to
    2017. Open ETH and expect "History from Binance". Open PONS and expect
    about two months of pool bars with no label.
-6. Search a coin that is not listed, such as GOYBEAM. Press "Find ... on
+6. With a Robinhood Chain wallet active, right-click the chart, choose Manual
+   order, then Buy. Expect a quote line naming Velora or KyberSwap, and on a
+   stock token the sentence about who may hold them. Do not press the button
+   unless you mean to trade: real money is switched on here.
+7. Search a coin that is not listed, such as GOYBEAM. Press "Find ... on
    Robinhood Chain" and expect it to appear as Unverified.
-7. Open Wallets, then Add wallet, then choose Real Robinhood Chain. Expect the
+8. Open Wallets, then Add wallet, then choose Real Robinhood Chain. Expect the
    USDG, ETH and Stock Tokens sentences under the private key.
-8. Press Make a new wallet. Expect an address and Copy button and no key.
+9. Press Make a new wallet. Expect an address and Copy button and no key.
    Reload and open the wallet. Expect "Connected", Free $0.00, In trades
    $0.00, "ETH for fees 0 ETH" and the amber ETH sentence. Delete test
    wallets from Edit wallet. No funding is needed for any step.

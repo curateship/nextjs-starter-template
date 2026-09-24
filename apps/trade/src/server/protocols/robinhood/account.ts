@@ -18,13 +18,8 @@ import {
   ROBINHOOD_WETH,
 } from "./client"
 import { fetchRobinhoodPrices, robinhoodAccountMarkets } from "./markets"
+import { ROBINHOOD_FEE_RESERVE } from "./refusals"
 
-/**
- * ETH a wallet should keep for network fees. A swap measured on 5 Sep 2026
- * costs about 0.00012 ETH (0.4 gwei times 300,000 gas), so this is about
- * eight swaps.
- */
-const ROBINHOOD_FEE_RESERVE = 0.001
 /** How long the explorer's list of a wallet's tokens is trusted. */
 const DISCOVERY_MS = 60_000
 /** How long a read waits for the explorer before using what it knows. */

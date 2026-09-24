@@ -705,6 +705,11 @@ export type SwapQuote = {
   route: string
   /** Null when the order could go out; otherwise the sentence saying why not. */
   refusal: string | null
+  /**
+   * One sentence the venue wants read before this swap, which never blocks
+   * it: Robinhood Chain says who may hold Stock Tokens on a stock-token buy.
+   */
+  note?: string
 }
 
 /**
