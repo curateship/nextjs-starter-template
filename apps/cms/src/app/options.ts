@@ -2,6 +2,7 @@ import { lazy } from "react"
 
 import { defineCatchAllPage, type AppOptions } from "@/lib/app-options"
 import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
+import { draftEventsNode } from "@/lib/events/draft-events-step"
 
 const DirectoryFrontPageComponent = lazy(() =>
   import("./directory-front-page").then((module) => ({
@@ -58,6 +59,11 @@ const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageData>({
  */
 export const appOptions: AppOptions = {
   pages: { catchAll: directoryFrontPage },
+  automations: {
+    // What it does is `server/events/ai-drafts.ts`, registered under the same
+    // kind in `server-options.ts`.
+    nodes: [draftEventsNode],
+  },
   settings: {
     tabs: [
       {

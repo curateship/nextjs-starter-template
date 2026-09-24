@@ -49,6 +49,15 @@ published event has its own page at `/events/<address>`.
   Chosen on 24 Sep 2026. No owner is trusted to skip the queue.
 - **An owner sends one date at a time.** Chosen on 24 Sep 2026. An admin can
   make an owner's event repeat in the event window after approving it.
+- **An AI-written event is always a draft.** No setting changes that. An event
+  the Draft events automation step wrote never reaches a visitor before a
+  person has looked at it.
+- **Each AI draft keeps the page it came from**, in its own field, shown in the
+  event's window and never to a visitor. Chosen on 24 Sep 2026.
+- **An event the page gives no start time for is skipped, not guessed.** Chosen
+  on 24 Sep 2026. The run history names it and says why.
+- **The Draft events step has the same provider and model choice as the AI
+  step.** Chosen on 24 Sep 2026.
 
 ## What an event is
 
@@ -896,6 +905,95 @@ They go into the same queue, and every one is read by an admin.
 - **Not built:** the person cannot change or withdraw a suggestion after
   sending it, and has no account, as task 16 said. A site deleted with
   suggestions still waiting leaves their photos in storage.
+
+## Events drafted by an automation
+
+The automation palette has a **Draft events** step, under AI. A flow reaches
+it, and it reads one web page or feed, asks an AI which events are on it, and
+writes each new one as a draft event on the flow's site. The use it was built
+for is a weekly flow that reads a venue's gigs page, so the admin only approves.
+
+### Its settings
+
+- **Page address:** the page or feed to read. It must start with `https://`.
+  An address inside the server's own network is refused when it is typed and
+  again when the step runs, after every DNS answer and every redirect is
+  checked.
+- **Category:** every draft from the page is filed under it, or under none.
+  If the category is deleted, the step stops before reading the page and says
+  so.
+- **Notes for the AI:** optional, for anything the AI should know about the
+  page, like "every show is at The Horseshoe".
+- **Provider and model:** the same choice as the AI step. The call runs with
+  the key saved in Settings → AI, counts against the flow author's monthly AI
+  allowance, and shows on the AI usage page as "draft-events". When that
+  allowance is used up, the step stops and says so.
+- **An answer that was cut off still counts.** A page with too many events can
+  run the AI out of room. The step then stops and says so, and the usage page
+  still shows what that answer cost, because the provider charged for it.
+
+### What it writes
+
+- **Always a draft,** with the title, start day and time, end time, place name
+  and address, a summary from the first paragraph and the description as the
+  body. The page address is saved as the event's source.
+- **The event's window says where it came from:** "An automation drafted this
+  from <page>. Check the day and time against that page before publishing."
+- **An end time earlier than the start runs into the next day**, the same as a
+  suggested event, so a 10pm to 2am set ends at 2am the next morning.
+
+### What it leaves out
+
+Each one is named in the run history with the reason.
+
+- **No exact day.** "Every Friday" or "this spring" is not a day.
+- **No start time.**
+- **Already over.** An event whose start day is before today on the site's
+  clock.
+- **Already on the site.** Same title, ignoring capitals and spacing, on the
+  same start day, as any event on the site, draft or published. A page that
+  lists the same event twice gives one draft. This is why running the step
+  twice on the same page makes no new drafts.
+- **Past the cap.** One run drafts at most 25. The cap counts only new events,
+  after duplicates are skipped, so a page with 40 new events gives 25 on the
+  first run and the other 15 on the next. The run history says how many were
+  left.
+
+### Choices made while building it
+
+These were not asked for in the task. Each can be changed.
+
+- **A page that leaves out the year** is read as the first matching day on or
+  after today. The AI is told today's date on the site's clock.
+- **A past event is skipped.** A venue page often still lists last month's
+  shows, and a draft of those is only noise.
+- **Only `https://` addresses.** A plain `http://` page cannot be read.
+- **The page is cut at 120,000 characters** before the AI sees it, which is
+  far more than any events page. The event markup a site writes for Google is
+  kept, because it holds the most exact dates on the page.
+
+### The run history
+
+A finished step shows "Drafted 2 events. Skipped 1." with the page it read,
+each draft's day and title, and a list headed "Left out" with each reason.
+Each title links to Admin → Events with the Draft filter on and that event's
+window open. A step that fails, like one with no AI key, shows the reason,
+for example "No Anthropic key is saved, so the AI could not read the page. Add
+one in Settings → AI." The engine tries a failed step three times before the
+run stops.
+
+### Where it lives
+
+- **The step:** `src/lib/events/draft-events-step.ts` (the palette card and
+  settings rules), `src/components/events/draft-events-step-panel.tsx` (the
+  settings) and `src/components/events/draft-events-step-result.tsx` (the run
+  history view). Registered in `src/app/options.ts`.
+- **What it does:** `src/server/events/ai-drafts.ts`, registered under the same
+  kind, `draftEvents`, in `src/app/server-options.ts`. The page reader is
+  `src/server/events/source-page.ts` and the AI call is
+  `src/server/events/ai-json.ts`.
+- **The source column:** `source_url` on `events`, from
+  `drizzle/0091_cms_event_source_link.sql`. A duplicated event starts with none.
 
 ## Not built yet
 
