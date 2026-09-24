@@ -11,7 +11,7 @@ vi.mock("@/server/trade/db", () => ({
   db: { insert: m.walletInsert, transaction: m.transaction },
 }))
 vi.mock("@/server/trade/history-version", () => ({ bumpTradeHistory: vi.fn() }))
-import { rememberBnbSend, recordBnbFill, noteBnbTransaction } from "./ledger"
+import { rememberBnbSend, recordBnbFill, noteBnbTransaction } from "@/server/protocols/bnb-ledger"
 import { tradeBnbTransactions } from "@/server/trade/schema"
 it("keeps durable hashes outside the wallet transaction and all history writes inside it", async () => {
   const owner = { userId: "u", walletId: "w" }

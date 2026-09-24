@@ -951,7 +951,7 @@ export function ChartQuickOrder({
             {reduceOnly ? "Only reduce the existing position." : ""}
           </p>
         ) : null}
-        {refusal ? <OrderRefusal>{refusal}</OrderRefusal> : null}
+        <OrderRefusal id="quick-order-confirm-refusal">{refusal}</OrderRefusal>
       </ConfirmDialog>
     </FloatingOrderWindow>
   )

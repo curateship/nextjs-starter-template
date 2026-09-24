@@ -217,6 +217,48 @@ export const PROTOCOL_DESCRIPTIONS = [
     },
   },
   /**
+   * edgeX: a decentralised perpetuals exchange with coin, stock, metal and
+   * currency contracts, all in USDC (`edgex.md`). Mainnet only: its practice
+   * network redirects to a staff-only login (Tyler, 5 Sep 2026).
+   */
+  {
+    id: "edgex",
+    label: "edgeX",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      ordersAreSwaps: false,
+      // Stops rest on edgeX as its own conditional orders.
+      gridStop: "exchange",
+      // Leverage is a per-contract setting edgeX takes at any time without
+      // open orders on that contract.
+      changeLeverage: { can: true },
+      // edgeX's docs list no call that adds cash to, or takes it back from,
+      // one position (checked 24 Sep 2026).
+      adjustMargin: {
+        can: false,
+        because:
+          "edgeX has no way to add cash to one position or take it back. Change the leverage instead, which changes how much cash the position holds.",
+      },
+    },
+    credentialForm: {
+      addressLabel: "Account id",
+      addressHint: "The Account ID from edgeX's API Management list",
+      addressPattern: "^\\d{1,20}$",
+      secretLabel: "SDK Signer values",
+      needsPassphrase: true,
+      // Not an Ethereum agent key on its own: turning this on would run the
+      // 64-hex agent-key check on the three values and refuse every paste.
+      secretIsAgentKey: false,
+      canMakeWallet: false,
+      keyHelp:
+        "On edgeX open API Management → Perps V2 → SDK Signer. Copy three values into SDK Signer values, separated by spaces, in the order the dialog shows them: the Private Key, the API Key and the secret. The passphrase goes in its own box, and the Account ID from the API Management list in the first field. The Private Key can place orders but never withdraw, and Trade never asks for your wallet's own key.",
+    },
+  },
+  /**
    * Binance USDⓈ-M futures. Trading added 24 Sep 2026 (`binance.md`). Mainnet
    * only: Binance's futures testnet needs a separate testnet account.
    */

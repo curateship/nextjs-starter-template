@@ -44,6 +44,8 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
       join("server", "protocols", "bnb"),
       join("server", "protocols", "robinhood"),
       join("server", "protocols", "evm-chain"),
+      // edgeX signs every order as EIP-712 typed data with its signer key.
+      join("server", "protocols", "edgex"),
     ],
   },
   {
@@ -118,6 +120,17 @@ const BINANCE_HOMES = [
   join("lib", "protocols", "binance"),
 ]
 const BINANCE_ADDRESSES = /(?:fapi|fstream|api)\.binance\.com/
+
+/**
+ * edgeX's hosts, and the only folders that may name them: its server folder,
+ * which reads them from `.env`, signs and trades, and its browser folder,
+ * which opens the public quote socket.
+ */
+const EDGEX_HOMES = [
+  join("server", "protocols", "edgex"),
+  join("lib", "protocols", "edgex"),
+]
+const EDGEX_ADDRESSES = /edgex\.exchange/
 
 /** Where naming a concrete protocol id is legitimate. */
 const PROTOCOL_AWARE = [
@@ -208,7 +221,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|dukascopy|solana|bnb|robinhood)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|dukascopy|solana|bnb|robinhood)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|edgex|dukascopy|solana|bnb|robinhood)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|edgex|dukascopy|solana|bnb|robinhood)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))
@@ -262,6 +275,15 @@ describe("the protocol fence", () => {
       .filter(({ path }) => !APEX_HOMES.some((home) => path.startsWith(home + sep)))
       .filter(({ path }) => path !== relative(SRC, __filename))
       .filter(({ text }) => APEX_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps edgeX's addresses inside its own folders", () => {
+    const offenders = sources
+      .filter(({ path }) => !EDGEX_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => EDGEX_ADDRESSES.test(text))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })

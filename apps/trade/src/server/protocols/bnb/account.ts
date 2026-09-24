@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm"
 import { isAddress, type Hex } from "viem"
 import type {
   NetworkId,
@@ -10,8 +9,7 @@ import {
   held,
   type EvmSnapshot,
 } from "@/server/protocols/evm-chain/balances"
-import { db } from "@/server/trade/db"
-import { tradeLiveFills } from "@/server/trade/schema"
+import { bnbBoughtTokens } from "@/server/protocols/bnb-ledger"
 import { bnbRpcUrl, BNB_USDT, BNB_WRAPPED_NATIVE } from "./client"
 import { PRICE_PAGE_SIZE } from "@/server/protocols/evm-chain/markets"
 import { bnbAccountMarkets, fetchBnbPrices } from "./markets"
@@ -77,23 +75,7 @@ async function read(
     2_000,
     async () => {
       const known = await bnbAccountMarkets()
-      const bought = owner
-        ? await db
-            .selectDistinct({ marketKey: tradeLiveFills.marketKey })
-            .from(tradeLiveFills)
-            .where(
-              and(
-                eq(tradeLiveFills.userId, owner.userId),
-                eq(tradeLiveFills.walletId, owner.walletId),
-                eq(tradeLiveFills.side, "buy")
-              )
-            )
-        : []
-      const previous = bought.flatMap(({ marketKey }) =>
-        /^bnb:mainnet:0x[\da-f]{40}$/i.test(marketKey)
-          ? [marketKey.split(":")[2].toLowerCase()]
-          : []
-      )
+      const previous = owner ? await bnbBoughtTokens(owner) : []
       const tokens = [
         ...new Set([
           BNB_USDT,

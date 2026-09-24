@@ -61,7 +61,7 @@ vi.mock("./markets", () => ({
   }),
   fetchBnbPrices: vi.fn(),
 }))
-vi.mock("./ledger", () => ({
+vi.mock("@/server/protocols/bnb-ledger", () => ({
   withBnbSendLock: async (_: string, work: () => Promise<unknown>) => work(),
   rememberBnbSend: m.remember,
   pendingBnbSends: m.pending,

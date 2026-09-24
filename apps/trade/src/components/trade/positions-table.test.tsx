@@ -669,11 +669,12 @@ describe("the bottom panel's tables say what they know", () => {
     { watched: true, reduceOnly: true, slPx: null, settled: true, warns: false },
     { watched: false, reduceOnly: false, slPx: null, settled: true, warns: false },
     { watched: true, reduceOnly: false, slPx: null, settled: false, warns: false },
-  ])("names a missing watched stop only on a settled entry: %j", ({ warns, settled, ...state }) => {
+  ])("names a missing watched stop only on a settled entry: %j", ({ warns, settled, watched, ...state }) => {
     const html = draw(
       <OpenOrdersTable
         {...shared}
-        orders={[{ ...liveOrder("mainnet"), ...state }]}
+        // An order that is not watched leaves the field out; it is never false.
+        orders={[{ ...liveOrder("mainnet"), ...state, ...(watched ? { watched: true as const } : {}) }]}
         settled={settled}
         failed={false}
         onCancel={() => {}}

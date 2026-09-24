@@ -98,17 +98,23 @@ describe("ApeX Omni's request signature", () => {
 
 describe("ApeX Omni's clock", () => {
   it("stamps ApeX's time, not this machine's", async () => {
-    const now = Date.now()
-    answers.push(() => json({ data: { time: now - 239 }, timeCost: 2 }))
-    answers.push(() => json({ data: { ok: true } }))
+    // The fake server answers with its own time at the moment it answers, as
+    // a real one does. A time fixed when the test started drifted with a
+    // busy machine and failed the test under a parallel run.
+    answers.push(() => json({ data: { time: Date.now() - 239 }, timeCost: 2 }))
+    let sentAt = 0
+    answers.push(() => {
+      sentAt = Date.now()
+      return json({ data: { ok: true } })
+    })
     await apexPrivate("mainnet", CREDENTIAL, "GET", "/account")
     const offset = await apexClockOffset("mainnet")
-    // ApeX ran 239 ms behind this machine on 5 Sep 2026; a round trip in a
-    // test takes a few milliseconds either side.
-    expect(offset).toBeLessThanOrEqual(-230)
-    expect(offset).toBeGreaterThan(-300)
+    // ApeX ran 239 ms behind this machine on 5 Sep 2026; half a test round
+    // trip either side.
+    expect(offset).toBeLessThanOrEqual(-200)
+    expect(offset).toBeGreaterThan(-280)
     const stamp = Number(header(calls[1], "APEX-TIMESTAMP"))
-    expect(Math.abs(stamp - (now - 239))).toBeLessThan(100)
+    expect(Math.abs(stamp - (sentAt - 239))).toBeLessThan(100)
   })
 
   it("re-reads the clock once after a 20002 and sends the request once more", async () => {

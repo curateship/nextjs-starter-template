@@ -5,6 +5,7 @@ import {
   type MarketKey,
 } from "@/lib/protocols/contracts"
 import { dukascopyInstrumentFor } from "@/lib/protocols/dukascopy/instruments"
+import { edgexBaseName } from "@/lib/protocols/edgex/translate"
 import { bnbBorrowedCoin } from "@/lib/protocols/bnb/history"
 import {
   robinhoodBorrowedCoin,
@@ -64,6 +65,12 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
       // not say which is which, so the name decides, as on Lighter. The
       // server then checks the source really lists it (`resolveHistorySource`).
       return bareNameSource(ref.marketId.replace(/USDT$/, ""))
+    case "edgex":
+      // edgeX's own bars start in May 2026. Its ids are contract names such
+      // as `BTCUSDC` and `SPYUSDC`; the key does not say which are stocks, so
+      // the name decides, as on ApeX, and the server checks the source
+      // really lists it (`resolveHistorySource`).
+      return bareNameSource(edgexBaseName(ref.marketId))
     case "kucoin":
       // KuCoin calls Bitcoin XBT in its ids and lists coins only.
       return coinSource(

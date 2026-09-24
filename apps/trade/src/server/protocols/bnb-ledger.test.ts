@@ -7,7 +7,7 @@ import {
   pendingBnbSends,
   recordBnbFill,
   rememberBnbSend,
-} from "./ledger"
+} from "@/server/protocols/bnb-ledger"
 let test: Awaited<ReturnType<typeof createTestDatabase>>
 let owner: { userId: string; walletId: string }
 const hash = `0x${"a".repeat(64)}`

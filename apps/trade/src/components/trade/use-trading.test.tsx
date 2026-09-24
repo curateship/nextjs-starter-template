@@ -886,6 +886,7 @@ function livePosition(marketKey: string) {
     maxLeverage: 50,
     targets: [],
     tpPx: null,
+    slPx: null,
     feesPaid: 0,
     updatedAt: Date.now(),
     live: {
@@ -1478,7 +1479,7 @@ describe("placing a grid during cancellation", () => {
             marketKey,
             topPx: 110,
             bottomPx: 90,
-            params: defaultGridParams(),
+            params: { ...defaultGridParams(), sizing: "even" },
           })
         ).toBe(false)
       })

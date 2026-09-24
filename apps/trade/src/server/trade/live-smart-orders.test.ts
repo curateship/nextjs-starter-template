@@ -83,6 +83,21 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
   const gridStops: Record<string, "exchange" | "watched"> = {
     lighter: "exchange",
   }
+  // What only some venues offer, looked up by id as the real registry does.
+  const fixedSizeStops = new Set(["lighter"])
+  // Hyperliquid pushes its fills, as the real registry says. Without this the
+  // Journal's background sweep read fill history whenever it happened to run
+  // before a test's check, even with the pushed feed saying it was current.
+  const pushedFills = new Set(["hyperliquid"])
+  const recoverers: Record<string, typeof recoverHyperliquidClientOrder> = {
+    hyperliquid: recoverHyperliquidClientOrder,
+  }
+  const { isHyperliquidPostOnlyRefusal } = await import(
+    "@/server/protocols/hyperliquid/refusals"
+  )
+  const postOnlyRefusers: Record<string, (error: unknown) => boolean> = {
+    hyperliquid: isHyperliquidPostOnlyRefusal,
+  }
   return {
     ...(await importOriginal<object>()),
     getProtocol: (id: string) => ({
@@ -121,7 +136,10 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
       },
       account: { fetch: account },
       orders: {
-        ...(id === "lighter" ? { fixedSizeStops: true } : {}),
+        ...(fixedSizeStops.has(id) ? { fixedSizeStops: true } : {}),
+        ...(pushedFills.has(id) ? { watchFills: () => {} } : {}),
+        ...(recoverers[id] ? { recoverClientOrder: recoverers[id] } : {}),
+        ...(postOnlyRefusers[id] ? { postOnlyRefused: postOnlyRefusers[id] } : {}),
         portfolio,
         fills,
         fillsNeedRecovery,
@@ -259,6 +277,8 @@ async function watchThroughTheLevel(
     orderPx: null,
     missingSince: 0,
     heldWhenPlaced: 0,
+    ownSz: null,
+    ownStop: null,
     chasedAt: 0,
     chases: 0,
     startedAt: Date.now() - 10_000,
@@ -311,6 +331,8 @@ async function chasingWatch(): Promise<void> {
     orderPx: 100,
     missingSince: 0,
     heldWhenPlaced: 0,
+    ownSz: null,
+    ownStop: null,
     chasedAt: Date.now() - 60_000,
     chases: 0,
     startedAt: Date.now() - 120_000,

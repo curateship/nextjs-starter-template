@@ -9,8 +9,16 @@ import {
 } from "@/server/trade/schema"
 import { bumpTradeHistory } from "@/server/trade/history-version"
 import type { WalletOrderFill } from "@/lib/protocols/contracts"
-import { bnbRefusalError } from "./refusals"
+import { bnbRefusalError } from "@/server/protocols/bnb/refusals"
 
+/**
+ * BNB Chain's record of what it signed, kept before anything is sent, and of
+ * which coins a wallet has bought.
+ *
+ * It lives here, one level above the chain's folder, because it reads and
+ * writes the app's own tables and `fence.test.ts` keeps exchange folders off
+ * them. Robinhood Chain's `robinhood-ledger.ts` has the same shape.
+ */
 export type BnbApproval = { hash: string; feeBnb: number }
 export type BnbOwner = { userId: string; walletId: string }
 /** A second worker cannot allocate the same chain nonce for this address. */
@@ -161,5 +169,28 @@ export async function bnbExecutionNotes(
     )
   return new Map(
     rows.filter((row) => row.note).map((row) => [row.hash, row.note!])
+  )
+}
+
+/**
+ * The token addresses this wallet has ever bought on BNB Chain, from its
+ * saved fills, hidden ones included, so a coin bought through Trade is still
+ * read after it leaves the market list.
+ */
+export async function bnbBoughtTokens(owner: BnbOwner): Promise<string[]> {
+  const bought = await tradeDb
+    .selectDistinct({ marketKey: tradeLiveFills.marketKey })
+    .from(tradeLiveFills)
+    .where(
+      and(
+        eq(tradeLiveFills.userId, owner.userId),
+        eq(tradeLiveFills.walletId, owner.walletId),
+        eq(tradeLiveFills.side, "buy")
+      )
+    )
+  return bought.flatMap(({ marketKey }) =>
+    /^bnb:mainnet:0x[\da-f]{40}$/i.test(marketKey)
+      ? [marketKey.split(":")[2].toLowerCase()]
+      : []
   )
 }
