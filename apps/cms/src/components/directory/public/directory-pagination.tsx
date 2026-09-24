@@ -1,3 +1,6 @@
+import type * as React from "react"
+import { useRouter } from "@tanstack/react-router"
+
 import { Button } from "@/components/ui/button"
 
 /**
@@ -10,6 +13,10 @@ import { Button } from "@/components/ui/button"
  *
  * It draws nothing at all when everything fits on one page, rather than a pair
  * of dead buttons.
+ *
+ * The buttons are real links, so a search engine and a middle click both
+ * follow them. An ordinary click moves inside the app instead of reloading
+ * the whole site.
  */
 export function DirectoryPagination({
   page,
@@ -25,8 +32,24 @@ export function DirectoryPagination({
   /** What a screen reader calls the control. */
   label?: string
 }) {
+  const router = useRouter()
   const pages = Math.max(1, Math.ceil(total / pageSize))
   if (pages <= 1) return null
+
+  const go = (href: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+    // A new tab or window is the browser's to open.
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return
+    }
+    event.preventDefault()
+    void router.navigate({ href })
+  }
 
   const current = Math.min(Math.max(page, 1), pages)
 
@@ -38,7 +61,12 @@ export function DirectoryPagination({
         </Button>
       ) : (
         <Button asChild variant="outline">
-          <a href={hrefForPage(current - 1)}>Previous</a>
+          <a
+            href={hrefForPage(current - 1)}
+            onClick={go(hrefForPage(current - 1))}
+          >
+            Previous
+          </a>
         </Button>
       )}
       <p aria-live="polite" className="text-sm text-muted-foreground">
@@ -50,7 +78,12 @@ export function DirectoryPagination({
         </Button>
       ) : (
         <Button asChild variant="outline">
-          <a href={hrefForPage(current + 1)}>Next</a>
+          <a
+            href={hrefForPage(current + 1)}
+            onClick={go(hrefForPage(current + 1))}
+          >
+            Next
+          </a>
         </Button>
       )}
     </nav>

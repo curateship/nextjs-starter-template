@@ -110,6 +110,10 @@ export type SiteEvent = EventWhen & {
   editedAlone: boolean
   /** The page an automation drafted this from, or empty. */
   sourceUrl: string
+  /** Whether the event page has a sign-up box. */
+  takesSignUps: boolean
+  /** How many can sign up, or null for no limit. */
+  seats: number | null
   createdAt: Date
   updatedAt: Date
 }
@@ -161,6 +165,8 @@ export function toEvent(row: EventRow): SiteEvent {
     seriesId: row.seriesId,
     editedAlone: row.editedAlone,
     sourceUrl: row.sourceUrl,
+    takesSignUps: row.takesSignUps,
+    seats: row.seats,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -646,6 +652,9 @@ export async function updateEvent(
     placeAddress?: string
     /** One of this site's listings as the place, or null for a typed one. */
     listingId?: string | null
+    takesSignUps?: boolean
+    /** Null for no limit. */
+    seats?: number | null
   },
   database: CustomShellDb = db
 ): Promise<SiteEvent> {
@@ -694,6 +703,8 @@ export async function updateEvent(
   }
   if (input.visibility !== undefined) values.visibility = input.visibility
   if (input.featured !== undefined) values.featured = input.featured
+  if (input.takesSignUps !== undefined) values.takesSignUps = input.takesSignUps
+  if (input.seats !== undefined) values.seats = input.seats
   // A date of a repeating event saved by itself stops following the main one.
   values.editedAlone = sql`${siteEvents.seriesId} IS NOT NULL`
   if (input.status !== undefined) {
@@ -810,6 +821,9 @@ export async function duplicateEvent(
         latitude: source.latitude,
         longitude: source.longitude,
         locatedFor: source.locatedFor,
+        // The settings, never the people.
+        takesSignUps: source.takesSignUps,
+        seats: source.seats,
         createdAt: at,
         updatedAt: at,
       })

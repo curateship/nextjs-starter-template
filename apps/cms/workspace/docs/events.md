@@ -69,6 +69,15 @@ published event has its own page at `/events/<address>`.
 - **A featured repeating event puts only its next date on top.** Chosen on
   24 Sep 2026. The later dates keep their place in the list and still carry
   the badge.
+- **Signing up needs no account.** Chosen on 24 Sep 2026. A name and an email
+  are enough, the same as the old Directory app.
+- **Who's coming lives in the event's window**, as a card in Admin → Events.
+  Chosen on 24 Sep 2026, over a window of its own.
+- **Signing up twice says the same thing as signing up once.** Chosen on
+  24 Sep 2026, so nobody can type an email into the box to find out whether
+  that person is going.
+- **A removed person can sign up again while a seat is free.** Chosen on
+  24 Sep 2026.
 
 ## What an event is
 
@@ -82,6 +91,8 @@ published event has its own page at `/events/<address>`.
   adds `listing_id`, for "The place is a listing" below.
   `drizzle/0087_cms_event_position.sql` adds `latitude`, `longitude` and
   `located_for`, for "The map on the event page" below.
+  `drizzle/0094_cms_event_sign_ups.sql` adds `takes_sign_ups` and `seats`,
+  for "Sign-ups" below.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -206,6 +217,10 @@ the coming Thursdays are always on the calendar.
 - **Deleting the main event** deletes every date with it, and the warning
   counts them: "Trivia night and its 7 later dates go for good." Deleting one
   date deletes only that date.
+- **A date somebody signed up for is never deleted by a repeat change.**
+  Changing the repeat, the start day, or stopping the repeat keeps that date,
+  and a message after saving names it, like "Thu, Oct 15 has people signed
+  up, so it was kept." The admin deletes it by hand if it really is off.
 
 ### In Admin → Events
 
@@ -454,6 +469,11 @@ address, so a shared link opens the same view.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
   on today, stays until it is over. A festival stays until its last day ends.
+- **Previous and Next** under the list move a page without reloading the
+  site. They are the same buttons as the Directory, a category and Posts, in
+  `src/components/directory/public/directory-pagination.tsx`. Each is still a
+  real link, so a search engine can follow it and a middle click opens a new
+  tab.
 - **One place:** `?place=the-rex` narrows the list to the events held at that
   listing, headed "At The Rex" with a link back to the listing and "All
   upcoming events" to clear it. The name is plain text while the directory is
@@ -1140,8 +1160,116 @@ Admin → Reported problems, at `/admin/listing-reports`.
   exactly one of the two is set, and that the reason comes from that kind's
   list. Deleting an event deletes its reports.
 
+## Sign-ups
+
+An event can take free sign-ups. A visitor types a name and an email on the
+event's page to take a seat. It is for something like a cooking class with 20
+places: twenty people sign up, the twenty-first sees "Full", and the host has
+the list of names on the day.
+
+There is no payment, no email and no waiting list yet. Those are tasks 25, 28
+and 32.
+
+### Switching it on
+
+- **Where:** the Sign-ups card in the event's window in Admin → Events. "Take
+  sign-ups" is off on every event until an admin switches it on.
+- **Seats:** a whole number, or empty for no limit. 100,000 is the most.
+- **Lowering the seats** below the number already signed up takes nobody off
+  the list. The page says "Full" until enough people are removed.
+- **Switching sign-ups off** hides the box on the page. Everybody already on
+  the list stays on it, and the card still shows them. The seats stay as last
+  saved, so switching back on brings them back.
+- **A duplicated event** copies the switch and the seats, never the people.
+
+### What a visitor sees
+
+The box sits in the event's card, under the Add to calendar and Directions
+buttons and above the body. Its four states:
+
+- **Open with seats:** "12 of 20 seats left", then a Name box, an Email box and
+  "Sign up".
+- **Open with no limit:** "Free. Add your name to the list." and the same form.
+- **Full:** headed "Full", saying "Every seat is taken." There is no form.
+- **Closed:** "Sign-ups have closed." once the event's start time has come by
+  the site's clock. It stays that way after the event is over.
+
+After signing up, the box says "You're on the list, Sam." The seats left are
+read on every visit, after the page cache, so the count is never stale.
+
+- **No account needed.** The name and email are all it asks for.
+- **A private event** takes sign-ups too, because anyone with its link can open
+  its page.
+- **A draft** takes none, because its page is not found.
+
+### The rules behind the box
+
+- **Two people racing for the last seat can't both get it.** A sign-up locks
+  the event's row before it counts the seats, so the second waits for the
+  first to finish, counts again, and is told "Sorry, this event is full."
+- **One live sign-up per email per event.** The email is stored in lower case,
+  and the database refuses a second live row for the same email. Signing up
+  again writes nothing and answers "You're on the list", the same as the first
+  time.
+- **Sign-ups close when the event starts.** "Starts" is the start day and time
+  read on the site's clock, the same way "This event has ended" is worked out.
+- **Eight an hour from one internet address, per site.** The ninth is refused
+  with "You have signed up 8 times in the last hour, which is as many as this
+  site takes. Please try again in an hour." A missing name or a broken email
+  is refused before the count, so a typo costs nothing.
+- **The name is kept on one line**, with tabs, line breaks and invisible
+  characters taken out. A name made only of those is refused as missing, and
+  an email with one in it is refused as not an email address.
+- **The hidden box.** The form has a box no person sees. A bot that fills it
+  is told it worked, and nothing is kept.
+- **The Events page's switch still counts.** With the Events page off, or kept
+  for members and the visitor signed out, the box is refused like the page.
+
+### Who's coming
+
+- **Where:** under the switch and seats in the event's Sign-ups card, as "Who's
+  coming" with "3 of 20 seats taken", or "3 signed up" with no limit.
+- **Each person:** their name, their email and when they signed up, first to
+  sign up first.
+- **Remove:** the bin button asks first, then takes the person off at once,
+  without saving the window. Their seat is free straight away, and the same
+  email can sign up again.
+- **A removed row is kept** in the table as cancelled, with the time it was
+  removed. It is not shown anywhere yet.
+- **The site's own admins** see and manage the list. The old Directory app
+  kept it for super admins only.
+
+### Repeating events
+
+Each date of a repeat is its own event, so each has its own seats and its own
+list. The main event's switch and seats copy to its dates like everything else
+it shares, and a date changed on its own keeps its own. A date with anybody
+signed up is never deleted by a change to the repeat; "Repeating events" above
+says how.
+
+### Deleting
+
+Deleting an event deletes its sign-ups with it.
+
+### Where it lives
+
+- **The rules:** `src/server/events/sign-ups.ts`. The box's state is
+  `signUpBoxFor`, a sign-up is `signUpForEvent`, and the admin list and
+  removal are `listSignUps` and `removeSignUp`.
+- **The words and limits** both sides share: `src/lib/events/sign-up-fields.ts`.
+- **The doors:** `src/lib/api/events/sign-ups.ts`. The box's counts ride on the
+  event page's own load in `src/lib/api/events/public.ts`, and the list rides
+  on the event window's load in `src/lib/api/events/events.ts`.
+- **The screens:** `src/components/events/public/sign-up-box.tsx` on the event
+  page and `src/components/events/event-sign-ups-card.tsx` in the window.
+- **The table:** `event_sign_ups`, from `drizzle/0094_cms_event_sign_ups.sql`.
+- **The tests:** `src/server/events/sign-ups.test.ts`. The test database runs
+  one transaction at a time, so its race test shows the outcome but cannot
+  show the lock at work. The lock was also checked against the real local
+  Postgres with ten sign-ups sent at once for one seat.
+
 ## Not built yet
 
-These are later tasks in `workspace/tasks/events/`: sign-ups, and a free or
-paid filter once paid tickets exist. Task 07, the site's own extra fields, is not built either. When
+These are later tasks in `workspace/tasks/events/`: emails for sign-ups, a
+waiting list, and a free or paid filter once paid tickets exist. Task 07, the site's own extra fields, is not built either. When
 it is, those fields need copying to a repeating event's dates like the rest.

@@ -65,6 +65,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "Anybody may suggest an event, which is the whole feature. It still checks the request came from this app's own pages and that the page is switched on, runs the same required-field check as the form, takes five an hour from one address per site, and writes a row only an admin can read.",
   "events/reports.ts:reportEventProblemFn":
     "Anybody may say an event is wrong, which is the whole feature: the visitor who turned up to find nothing happening has no account. It still checks the request came from this app's own pages and that the Events page is open to them, shares the listing reports' limits per page, per address and per site, writes a row no visitor can ever read back, and changes nothing on the event it is about.",
+  "events/sign-ups.ts:signUpFn":
+    "Anybody may sign up for a free event with a name and an email, which is the whole feature: the visitor has no account. It still checks the request came from this app's own pages and that the Events page is open to them, takes eight sign-ups an hour from one address per site, and only ever answers with words, never with who else is on the list.",
   "directory/reports.ts:reportListingProblemFn":
     "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
 }

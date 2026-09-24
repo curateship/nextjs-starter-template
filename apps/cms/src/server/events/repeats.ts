@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, isNotNull, sql } from "drizzle-orm"
+import { and, asc, count, eq, gte, isNotNull, not, sql } from "drizzle-orm"
 
 import {
   addDays,
@@ -31,6 +31,7 @@ import {
   EVENT_CONTENT_TYPE,
   type EventRow,
 } from "@/server/events/schema"
+import { holdsSignUps } from "@/server/events/sign-ups"
 
 /**
  * Repeating events. The main event holds the rule and is the first date. Each
@@ -148,6 +149,8 @@ function sharedWithDates(main: EventRow, at: Date) {
     latitude: main.latitude,
     longitude: main.longitude,
     locatedFor: main.locatedFor,
+    takesSignUps: main.takesSignUps,
+    seats: main.seats,
   }
 }
 
@@ -271,17 +274,24 @@ function futureDatesFollowing(mainId: string, today: string) {
 
 /**
  * Deletes the future dates that still follow the main event, so the rule can
- * make them again. The past, and dates saved by themselves, stay.
+ * make them again. The past, and dates saved by themselves, stay. So does a
+ * date somebody has signed up for, because deleting it would delete their
+ * place; its days come back, soonest first, so the admin can be told.
  */
 async function clearFutureDates(
   main: EventRow,
   today: string,
   database: CustomShellDb
-): Promise<void> {
-  await database.transaction(async (tx) => {
+): Promise<string[]> {
+  const kept = await database.transaction(async (tx) => {
+    const withSignUps = await tx
+      .select({ startDate: siteEvents.startDate })
+      .from(siteEvents)
+      .where(and(futureDatesFollowing(main.id, today), holdsSignUps(tx)))
+      .orderBy(asc(siteEvents.seriesDate))
     const cleared = await tx
       .delete(siteEvents)
-      .where(futureDatesFollowing(main.id, today))
+      .where(and(futureDatesFollowing(main.id, today), not(holdsSignUps(tx))))
       .returning({ id: siteEvents.id })
     await deleteCategoryRowsFor(
       main.workspaceId,
@@ -293,8 +303,10 @@ async function clearFutureDates(
       .update(siteEvents)
       .set({ repeatMadeUntil: null })
       .where(eq(siteEvents.id, main.id))
+    return withSignUps.map((row) => row.startDate)
   })
   clearPublicDirectoryCache(main.workspaceId)
+  return kept
 }
 
 /** The days of future dates that were saved by themselves, soonest first. */
@@ -342,7 +354,8 @@ export type EventSave = Parameters<typeof updateEvent>[2] & {
  * transaction so a refused repeat leaves nothing half saved.
  *
  * `keptDates` names the future dates that were saved by themselves and were
- * kept when the rule or the start day changed, so the admin can be told.
+ * kept when the rule or the start day changed, and `keptForSignUps` the ones
+ * kept because somebody signed up for them, so the admin can be told.
  */
 export async function saveEventAndDates(
   workspaceId: string,
@@ -350,7 +363,11 @@ export async function saveEventAndDates(
   input: EventSave,
   database: CustomShellDb = db,
   at: Date = new Date()
-): Promise<{ event: SiteEvent; keptDates: string[] }> {
+): Promise<{
+  event: SiteEvent
+  keptDates: string[]
+  keptForSignUps: string[]
+}> {
   const { categoryIds, repeat: rawRepeat, ...fields } = input
   const position = await positionForSave(workspaceId, id, fields, database)
   return database.transaction(async (tx) => {
@@ -402,7 +419,11 @@ export async function saveEventAndDates(
       if (problem) throw new Error(problem)
     }
     if (before.seriesId || (!oldRule && !newRule)) {
-      return { event: { ...event, repeat: newRule }, keptDates: [] }
+      return {
+        event: { ...event, repeat: newRule },
+        keptDates: [],
+        keptForSignUps: [],
+      }
     }
 
     const ruleChanged = !sameRepeat(oldRule, newRule)
@@ -414,14 +435,15 @@ export async function saveEventAndDates(
     }
     const today = await siteToday(workspaceId, tx, at)
     let keptDates: string[] = []
+    let keptForSignUps: string[] = []
     if (ruleChanged || before.startDate !== event.startDate) {
-      await clearFutureDates(before, today, tx)
+      keptForSignUps = await clearFutureDates(before, today, tx)
       keptDates = await datesSavedAlone(id, today, tx)
     } else {
       await copyMainToDates(await readRow(workspaceId, id, tx), today, tx)
     }
     await topUpSeries(await readRow(workspaceId, id, tx), today, tx)
-    return { event: { ...event, repeat: newRule }, keptDates }
+    return { event: { ...event, repeat: newRule }, keptDates, keptForSignUps }
   })
 }
 
