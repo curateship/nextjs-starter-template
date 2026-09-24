@@ -36,6 +36,20 @@ describe("the Events page's address", () => {
     })
   })
 
+  it("reads a place on the list, and drops one that is not an address", () => {
+    expect(readEventsSearch({ place: "the-rex", page: "2" })).toEqual({
+      page: 2,
+      place: "the-rex",
+    })
+    expect(readEventsSearch({ place: "The Rex!" })).toEqual({
+      page: undefined,
+    })
+    expect(readEventsSearch({ view: "month", place: "the-rex" })).toEqual({
+      view: "month",
+      month: undefined,
+    })
+  })
+
   it("falls back to the list for a view it does not know", () => {
     expect(readEventsSearch({ view: "week" })).toEqual({ page: undefined })
   })

@@ -363,21 +363,27 @@ export type UpcomingEvents = {
 /**
  * One page of the events that are not over yet, soonest first. `now` is the
  * site's wall clock, "2026-09-26T18:05", so an answer is cached for a minute
- * at most.
+ * at most. `placeId` narrows it to the events held at one listing, for a
+ * listing's "What's on here" and the Events page's "At The Rex".
  */
 export function readUpcomingEvents(
   site: VisitorSite,
   page: number,
   now: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  placeId: string | null = null
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
   return cachedPublicDirectoryRead(
     site.id,
     "upcoming-events",
-    { site: { name: site.name, url: site.url }, page, now },
+    { site: { name: site.name, url: site.url }, page, now, placeId },
     async () => {
-      const where = and(listedEventsOnSite(site.id), notOverAt(nowDay, nowTime))
+      const where = and(
+        listedEventsOnSite(site.id),
+        notOverAt(nowDay, nowTime),
+        placeId ? eq(siteEvents.listingId, placeId) : undefined
+      )
       const [rows, [countRow]] = await Promise.all([
         database
           .select(eventCardColumns)
@@ -401,6 +407,34 @@ export function readUpcomingEvents(
       }
     }
   )
+}
+
+/**
+ * A published listing on this site by its address, for the Events page's
+ * `?place=` filter. A draft listing is never named here, so its address
+ * cannot be found out through the filter.
+ */
+export async function findEventPlace(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<{ id: string; title: string; slug: string } | null> {
+  const [row] = await database
+    .select({
+      id: directoryListings.id,
+      title: directoryListings.title,
+      slug: directoryListings.slug,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, siteId),
+        eq(directoryListings.slug, slug),
+        eq(directoryListings.status, "published")
+      )
+    )
+    .limit(1)
+  return row ?? null
 }
 
 /** More upcoming events than a site plans, in a file a calendar app still reads. */

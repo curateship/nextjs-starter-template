@@ -242,6 +242,34 @@ address. Typing a place by hand still works for places that are not listed.
   nothing yet to warn an admin about. That question from task 10 waits until
   listings can be marked closed.
 
+## What's on at a listing
+
+A listing's page has a "What's on here" box with the next 3 events held there,
+so a visitor looking at a bar sees trivia on Thursday and jazz on Saturday.
+
+- **Which events:** published, public, not over yet, and held at that listing,
+  which means picked as the place in the event window. A typed place with the
+  same name does not count. A date of a repeating event that was changed on
+  its own to another place is not there either.
+- **Where:** the wide column, after the write-up and the site's own fields and
+  above "Related listings". Tyler chose this on 23 Sep 2026. On a phone it
+  comes after the listing card and hours, like the rest of the wide column.
+- **What a row shows:** the day in a small square, the title and the day and
+  time, the same as a row on the Events page. The place is left out, because
+  it is the page the visitor is on. "All times are Eastern Time." sits under
+  the heading.
+- **See all:** with more than 3 coming up, "See all 8 events here" opens the
+  Events page narrowed to that place.
+- **No box** when nothing is coming up, and none when the Events page is
+  switched off, or kept for members and the visitor is signed out.
+- **How fresh:** the listing's own part of the page is cached for up to two
+  minutes, but the events are read after that cache, by the site's clock, so a
+  new or finished event shows within a minute.
+- **Where it lives:** the endpoint for the listing page in
+  `src/lib/api/directory/public.ts` adds the box's events, read with
+  `readUpcomingEvents` and a listing's id. The box is
+  `src/components/directory/public/listing-events.tsx`.
+
 ## The map on the event page
 
 An event page shows a small map of where the event is, with one pin, and a
@@ -338,6 +366,12 @@ shared link opens the same view.
 - **The list:** events that are not over yet, soonest first, 12 to a page. An
   event that ended an hour ago is gone. One still running, or with no end time
   on today, stays until it is over. A festival stays until its last day ends.
+- **One place:** `?place=the-rex` narrows the list to the events held at that
+  listing, headed "At The Rex" with a link back to the listing and "All
+  upcoming events" to clear it. The name is plain text while the directory is
+  switched off or kept for members, the same rule as an event page's place. Paging keeps the place. Only a published
+  listing on this site is found this way; any other address shows every
+  event. Switching to the month drops the place.
 - **The month:** `?view=month&month=2026-10`. Previous and next move a month,
   Today goes back to the site's current month, and the site's today has a ring.
   Each day shows up to three events and "+2 more". Events that are over still

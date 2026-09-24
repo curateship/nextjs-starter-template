@@ -105,26 +105,61 @@ function EventsRoute() {
         </>
       ) : (
         <>
+          {data.place ? (
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-base font-semibold">
+                At{" "}
+                {data.place.linked ? (
+                  <Link
+                    to="/directory/$slug"
+                    params={{ slug: data.place.slug }}
+                    search={{}}
+                    className={`rounded-sm hover:underline ${focusRing}`}
+                  >
+                    {data.place.title}
+                  </Link>
+                ) : (
+                  data.place.title
+                )}
+              </h2>
+              <Link
+                to="/events"
+                search={{}}
+                className={`rounded-sm text-sm text-muted-foreground hover:text-foreground hover:underline ${focusRing}`}
+              >
+                All upcoming events
+              </Link>
+            </div>
+          ) : null}
           <EventList
             events={data.events}
             emptyMessage={
               // Past the last page is not the same as nothing coming up.
               data.total
                 ? "There are no events on this page."
-                : "Nothing is coming up yet."
+                : data.place
+                  ? `Nothing is coming up at ${data.place.title}.`
+                  : "Nothing is coming up yet."
             }
           />
           <DirectoryPagination
             page={data.page}
             pageSize={data.pageSize}
             total={data.total}
-            hrefForPage={(next) =>
-              next > 1 ? `/events?page=${next}` : "/events"
-            }
+            hrefForPage={(next) => eventsListHref(next, data.place?.slug)}
             label="Event pages"
           />
         </>
       )}
     </DirectoryFrame>
   )
+}
+
+/** The list's address for one page, keeping a place filter when there is one. */
+function eventsListHref(page: number, place: string | undefined): string {
+  const params = new URLSearchParams()
+  if (place) params.set("place", place)
+  if (page > 1) params.set("page", String(page))
+  const query = params.toString()
+  return query ? `/events?${query}` : "/events"
 }

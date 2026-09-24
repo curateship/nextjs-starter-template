@@ -110,6 +110,7 @@ const everyPublicRead: Record<
     notAList: "One event by its address: the link a private event is for.",
   },
   eventsArePublic: { notAList: "Reads the Events page's switch." },
+  findEventPlace: { notAList: "Finds a listing by its address, not events." },
   eventsAccessFor: { notAList: "Reads the Events page's switch." },
 }
 

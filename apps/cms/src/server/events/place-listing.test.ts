@@ -17,9 +17,11 @@ import {
   updateEvent,
 } from "@/server/events/events"
 import {
+  findEventPlace,
   readCalendarFeed,
   readEventsBetween,
   readPublicEvent,
+  readUpcomingEvents,
 } from "@/server/events/public"
 import { saveEventAndDates } from "@/server/events/repeats"
 import { siteEvents } from "@/server/events/schema"
@@ -224,3 +226,75 @@ describe("the place is a listing", () => {
     expect(dates.every((date) => date.listingId === rex.id)).toBe(true)
   })
 })
+
+describe("what's on at a listing", () => {
+  // The site's wall clock: 1 September 2030, well before every event here.
+  const now = "2030-09-01T12:00"
+
+  async function at(
+    listingId: string | null,
+    title: string,
+    startDate: string,
+    options: {
+      status?: "draft" | "published"
+      visibility?: "public" | "private"
+    } = {}
+  ) {
+    const made = await createEvent(
+      site.id,
+      { title, when: { startDate, startTime: "20:00" } },
+      database
+    )
+    return updateEvent(
+      site.id,
+      made.id,
+      {
+        status: options.status ?? "published",
+        visibility: options.visibility ?? "public",
+        listingId,
+      },
+      database
+    )
+  }
+
+  it("lists only that listing's upcoming public events, soonest first", async () => {
+    const rex = await bar()
+    const later = await at(rex.id, "Live jazz", "2030-10-05")
+    const sooner = await at(rex.id, "Trivia", "2030-10-03")
+    await at(rex.id, "Over already", "2030-08-01")
+    await at(rex.id, "Unfinished", "2030-10-04", { status: "draft" })
+    await at(rex.id, "Members only", "2030-10-04", { visibility: "private" })
+    await at(null, "Somewhere else", "2030-10-02")
+
+    resetPublicDirectoryCacheForTests()
+    const { events, total } = await readUpcomingEvents(
+      site,
+      1,
+      now,
+      database,
+      rex.id
+    )
+    expect(events.map((event) => event.slug)).toEqual([
+      sooner.slug,
+      later.slug,
+    ])
+    expect(total).toBe(2)
+  })
+
+  it("finds a place for the filter only among this site's published listings", async () => {
+    const rex = await bar()
+    const draft = await bar(site.id, "draft")
+    const beta = await createListing(otherSiteId, { title: "Beta bar" }, database)
+    await updateListing(otherSiteId, beta.id, { status: "published" }, database)
+
+    expect(await findEventPlace(site.id, rex.slug, database)).toEqual({
+      id: rex.id,
+      title: "The Rex",
+      slug: rex.slug,
+    })
+    expect(await findEventPlace(site.id, draft.slug, database)).toBeNull()
+    expect(await findEventPlace(site.id, beta.slug, database)).toBeNull()
+    expect(await findEventPlace(site.id, "no-such-place", database)).toBeNull()
+  })
+})
+

@@ -27,7 +27,14 @@ import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
-import { readEventSuggestions } from "@/server/events/public"
+import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
+import { siteTimeZone } from "@/server/directory/settings"
+import {
+  eventsAccessFor,
+  readEventSuggestions,
+  readUpcomingEvents,
+  type PublicEventCard,
+} from "@/server/events/public"
 
 import { createErrorMessage } from "../error-message"
 
@@ -205,9 +212,26 @@ export function findDirectoryPlace(query: string) {
   return geocodeDirectoryPlaceFn({ data: { query } })
 }
 
+/** How many upcoming events a listing's "What's on here" shows. */
+const EVENTS_ON_A_LISTING = 3
+
+/**
+ * The next events held at a listing, for its "What's on here", or null when
+ * the visitor may not see the Events page.
+ */
+export type ListingEvents = {
+  events: PublicEventCard[]
+  /** Every upcoming event there, for "See all 5 events". */
+  total: number
+  /** "Eastern Time", the zone the times are in. */
+  zone: string
+}
+
 const readDirectoryListingFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ slug: slugInput }))
-  .handler(async ({ data }): Promise<PublicListingPage | null> => {
+  .handler(async ({
+    data,
+  }): Promise<(PublicListingPage & { whatsOn: ListingEvents | null }) | null> => {
     const site = await visitorSite()
     if (!site) return null
 
@@ -217,7 +241,32 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
     // with nothing personal in it.
     const viewer = await findCurrentUser().catch(() => null)
 
-    return readPublicListing(site, data.slug, { viewerId: viewer?.id ?? null })
+    const page = await readPublicListing(site, data.slug, {
+      viewerId: viewer?.id ?? null,
+    })
+    if (!page) return null
+
+    // Read after the listing's two-minute cache, by the site's clock, and only
+    // when this visitor may see the Events page, the same switch every event
+    // page follows.
+    const access = await eventsAccessFor(site.id, async () => Boolean(viewer))
+    if (!access) return { ...page, whatsOn: null }
+    const timeZone = await siteTimeZone(site.id)
+    const upcoming = await readUpcomingEvents(
+      site,
+      1,
+      wallClockAt(timeZone, new Date()),
+      undefined,
+      page.listing.id
+    )
+    return {
+      ...page,
+      whatsOn: {
+        events: upcoming.events.slice(0, EVENTS_ON_A_LISTING),
+        total: upcoming.total,
+        zone: timeZoneLabel(timeZone),
+      },
+    }
   })
 
 /** One published listing by its address, or null if there is not one. */
