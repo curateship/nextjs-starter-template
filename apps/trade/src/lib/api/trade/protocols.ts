@@ -313,10 +313,9 @@ export const PROTOCOL_DESCRIPTIONS = [
   /**
    * Robinhood Chain: Robinhood's own network, where Stock Tokens such as
    * NVDA and SPY trade around the clock against USDG. The same shape as BNB
-   * Chain, and the same shared chain code. Spot only. The wallet and the
-   * market list are built; holdings and swaps each switch on with the task
-   * that builds them. Mainnet only, because KyberSwap does not route on the
-   * testnet.
+   * Chain, and the same shared chain code. Spot only. The wallet, the market
+   * list and holdings are built; swaps switch on with the task that builds
+   * them. Mainnet only, because KyberSwap does not route on the testnet.
    */
   {
     id: "robinhood",
@@ -325,7 +324,7 @@ export const PROTOCOL_DESCRIPTIONS = [
     defaultNetwork: "mainnet",
     capabilities: {
       markets: true,
-      accounts: false,
+      accounts: true,
       orders: false,
       ordersAreSwaps: true,
       gridStop: "watched",

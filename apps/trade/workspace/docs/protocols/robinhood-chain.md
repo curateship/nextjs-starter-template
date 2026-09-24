@@ -14,9 +14,8 @@ coin from Paxos.
   Robinhood Chain appears in the protocol list. The sidebar link is a
   Settings row, not code.
 - **What works today:** the market list, with prices, the day's move and
-  volume, charts with years of borrowed history, and adding or making a
-  wallet. Nothing can be bought yet. The wallet row reads "Holdings not read
-  yet" until the holdings task.
+  volume, charts with years of borrowed history, and wallets with their
+  holdings. Nothing can be bought yet.
 - **Spot only:** a coin is bought and owned outright. There is no leverage,
   short side, funding or liquidation, and there never will be here.
 - **Money:** purchases will be paid in USDG. Network fees are paid in ETH, so a
@@ -135,6 +134,48 @@ live feed, and the trading engine never reads it.
   across several pools, not one pool's numbers, and turning blocks into that
   price is its own piece of work.
 
+## Holdings
+
+A wallet's card shows what it is worth, the USDG free to spend, the ETH kept
+for fees, and each stock token and coin it holds.
+
+- **Free money is USDG,** at its 6 decimals. Worth is the USDG plus every
+  holding with a price.
+- **Each holding is a row marked Owned,** with dashes for margin and
+  liquidation, as on BNB Chain. A token DexScreener has no pair for is shown
+  and marked Unpriced. A priced holding worth under a cent is left out.
+- **ETH for fees:** a swap costs about 0.00012 ETH (0.4 gwei times 300,000
+  gas), so the card warns below 0.001 ETH, about eight swaps. The warning is
+  the same amber sentence BNB Chain shows, and says wrapped ETH cannot pay
+  fees. Native ETH also counts as an ETH holding.
+- **Amounts come from the chain, never from the explorer.** One call to
+  Multicall3 on the Robinhood node reads the ETH balance and every token's
+  balance and decimals together. On 24 Sep 2026 the chain said NVDA's pool
+  held $3,092,558.50 of USDG while the explorer still said $3,122,214.87.
+- **The explorer says which tokens to ask about.** Blockscout's
+  `token-balances` lists every token the wallet holds, so a coin bought
+  elsewhere still shows. It is asked at most once a minute per wallet. A
+  read waits three seconds for it at most, then goes on with the last answer,
+  or with the listed tokens alone. For an address holding thousands of
+  tokens the explorer took 100 seconds and then failed, on 24 Sep 2026.
+- **The listed tokens are always asked about:** USDG, ETH and every market
+  in the list, so the card still reads when the explorer refuses.
+- **A token dropped into a wallet cannot blank the card.** A token the
+  explorer found, but the app does not list, is left out if it will not say
+  its balance. A listed token that will not answer fails the read, so money
+  is never understated quietly. The explorer adds at most 200 tokens to a
+  read, so a wallet flooded with junk cannot grow it without end.
+- **One read every two seconds at most,** shared by the card, the positions
+  list and the engine.
+- **Stock tokens carry a multiplier.** NVDA's token is an ERC-8056 token
+  with a multiplier of 1.000775 since 10 Sep 2026, so one token is slightly
+  more than one share. The card counts tokens, priced at the pool's price per
+  token, so the dollar value is right.
+- **Made or lost on a sale is not stated.** The chain does not say what a
+  sale made, so a zero there means "not stated".
+- **Empty wallet** sells nothing yet. Each sell is refused, and the window
+  says so, until buying and selling are built.
+
 ## Charts
 
 A Robinhood Chain chart works like BNB Chain's: the pool's own bars for the
@@ -175,9 +216,10 @@ last 30 days, and older bars borrowed where the app can vouch for them.
 ## The node and the network
 
 - **Node setting:** `TRADE_ROBINHOOD_RPC` in `.env` defaults to
-  `https://rpc.mainnet.chain.robinhood.com`. Nothing reads it yet: saving a
-  wallet needs no network request, and the market list reads the explorer and
-  price services, not the node. The holdings task is the first reader.
+  `https://rpc.mainnet.chain.robinhood.com`. The holdings read is what uses
+  it. Saving a wallet needs no network request, and the market list reads the
+  explorer and price services, not the node. Multicall3 is at its usual
+  address on this chain.
 - **Chain id:** 4663, kept beside the node address in
   `src/server/protocols/robinhood/client.ts`. That file is the only one allowed
   to name a Robinhood address, and `fence.test.ts` fails if another file does.
@@ -237,5 +279,6 @@ pages and search) and the pool candles.
 7. Open Wallets, then Add wallet, then choose Real Robinhood Chain. Expect the
    USDG, ETH and Stock Tokens sentences under the private key.
 8. Press Make a new wallet. Expect an address and Copy button and no key.
-   Reload and expect the wallet with "Holdings not read yet". Delete test
+   Reload and open the wallet. Expect "Connected", Free $0.00, In trades
+   $0.00, "ETH for fees 0 ETH" and the amber ETH sentence. Delete test
    wallets from Edit wallet. No funding is needed for any step.
