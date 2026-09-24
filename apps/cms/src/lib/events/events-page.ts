@@ -5,6 +5,12 @@ import {
 } from "@/lib/events/calendar-grid"
 import { addDays, weekdayOf } from "@/lib/events/event-repeat"
 import { formatEventShortDay } from "@/lib/events/event-time"
+import {
+  DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
+  formatDirectoryNearPoint,
+  parseDirectoryNearPoint,
+  readDirectoryNearRadius,
+} from "@/lib/directory/public-search"
 import { slugProblem } from "@/lib/directory/slugs"
 import { readOneOf, readPage } from "@/lib/nav/list-search"
 
@@ -13,7 +19,8 @@ import { readOneOf, readPage } from "@/lib/nav/list-search"
  * endpoint and the links between views agree on what may appear in the
  * address: `?view=month&month=2026-10`, or `?day=2026-10-03`, or `?page=2`,
  * or `?place=the-rex` for the events held at one listing. `?category=` works
- * on every view. `?when=weekend`, or `?from=` and `?to=`, narrow the list.
+ * on every view. `?when=weekend`, or `?from=` and `?to=`, narrow the list, and
+ * so does `?near=43.653,-79.383&radius=5&area=Toronto`.
  */
 
 export const EVENT_VIEWS = ["list", "month"] as const
@@ -58,10 +65,30 @@ export type EventsPageSearch = {
   from?: string
   /** List only, and only without `when`: the last day of a range. */
   to?: string
+  /**
+   * List only. The point distances are measured from, rounded to about 110
+   * metres the same as the directory's, so a shared link never gives away a
+   * doorstep.
+   */
+  near?: string
+  /** List only, with `near`: the distance in kilometres. */
+  radius?: number
+  /**
+   * List only, with `near`: the place's name as the place search wrote it,
+   * like "Toronto, ON, Canada", or "your location" for the browser's own.
+   * `place` already names a listing on this page, hence the other word.
+   */
+  area?: string
 }
 
 /** The date filter part of the address, which the list's links carry. */
 export type EventDateSearch = Pick<EventsPageSearch, "when" | "from" | "to">
+
+/** The distance filter part of the address, which the list's links carry. */
+export type EventNearSearch = Pick<EventsPageSearch, "near" | "radius" | "area">
+
+/** The longest place name the address carries, the same as place search takes. */
+const MAX_AREA_LENGTH = 120
 
 /** An address that could be a category's or a listing's, or nothing. */
 function readSlug(value: unknown): string | undefined {
@@ -86,6 +113,39 @@ export function readEventDateFilter(
 }
 
 /**
+ * A point that is not a real latitude and longitude drops the whole filter. A
+ * distance that is not one of the picker's choices is the picker's default,
+ * so a hand-typed `radius=7` still measures from the point.
+ */
+export function readEventNear(
+  search: Record<string, unknown>
+): EventNearSearch {
+  const point = parseDirectoryNearPoint(search.near)
+  if (!point) return {}
+  const area =
+    typeof search.area === "string"
+      ? search.area.trim().slice(0, MAX_AREA_LENGTH)
+      : ""
+  return {
+    near: formatDirectoryNearPoint(point),
+    radius:
+      readDirectoryNearRadius(search.radius) ??
+      DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
+    area: area || undefined,
+  }
+}
+
+/**
+ * "within 5 km of Toronto, ON, Canada", or "within 5 km of your location",
+ * to finish "Nothing is on …" and "Showing events …". Empty with no distance
+ * filter.
+ */
+export function eventNearText(search: EventNearSearch): string {
+  if (!search.near || !search.radius) return ""
+  return `within ${search.radius} km of ${search.area ?? "your location"}`
+}
+
+/**
  * The address's state. Anything unexpected falls back to the plain list, and a
  * month given as a whole day, "2026-10-03", is read as "2026-10".
  */
@@ -107,6 +167,7 @@ export function readEventsSearch(
     place: readSlug(search.place),
     category,
     ...readEventDateFilter(search),
+    ...readEventNear(search),
   }
 }
 
@@ -166,6 +227,9 @@ export function eventsListHref(search: EventsPageSearch): string {
   if (search.when) params.set("when", search.when)
   if (search.from) params.set("from", search.from)
   if (search.to) params.set("to", search.to)
+  if (search.near) params.set("near", search.near)
+  if (search.radius) params.set("radius", String(search.radius))
+  if (search.area) params.set("area", search.area)
   if (search.page && search.page > 1) params.set("page", String(search.page))
   const query = params.toString()
   return query ? `/events?${query}` : "/events"

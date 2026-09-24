@@ -1,5 +1,9 @@
 # Directory distance control
 
+The Events page draws the same Near and Within controls on its upcoming list,
+from `src/components/directory/public/near-picker.tsx`, so every rule below
+holds there too. `events.md` covers what the distance does to events.
+
 The directory's Within picker needs a location to measure from. Before a place
 is active, the picker is disabled. Hovering over the disabled control or reaching
 its wrapper with Tab shows "Pick a location first."

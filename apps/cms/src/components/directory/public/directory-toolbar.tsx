@@ -1,10 +1,9 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { LayoutGridIcon, Loader2Icon, MapIcon } from "lucide-react"
+import { LayoutGridIcon, MapIcon } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Select,
   SelectContent,
@@ -18,12 +17,11 @@ import {
   useDirectorySuggestions,
 } from "@/components/directory/public/directory-suggestions"
 import { filterChipClass } from "@/components/directory/public/filter-chip"
+import { NearPicker } from "@/components/directory/public/near-picker"
 import {
-  DIRECTORY_NEAR_RADII_KM,
   DIRECTORY_SORTS,
   DIRECTORY_SORT_LABELS,
   DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
-  formatDirectoryNearPoint,
   readDirectoryNearRadius,
   type DirectoryBrowseSearch,
   type DirectorySort,
@@ -35,7 +33,6 @@ import {
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useSearchBoxText } from "@/lib/nav/list-search"
 import { cn } from "@/lib/utils"
-import { findDirectoryPlace } from "@/lib/api/directory/public"
 
 /**
  * The controls above the browse list: a search box, the category chips and the
@@ -85,68 +82,10 @@ export function DirectoryToolbar({
     text,
     onSearch: () => onSearchChange(text),
   })
-  const [place, setPlace] = React.useState("")
-  const [locationMessage, setLocationMessage] = React.useState("")
-  const [searchingPlace, setSearchingPlace] = React.useState(false)
-  const [locating, setLocating] = React.useState(false)
   const radius =
     readDirectoryNearRadius(current.radius) ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM
   const nearActive = Boolean(current.near)
   const anythingApplied = Boolean(current.q || current.category || current.near)
-
-  const useMyLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationMessage(
-        "This browser cannot share your location. Enter a town, city, or postcode instead."
-      )
-      return
-    }
-    setLocationMessage("")
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false)
-        onNearChange(
-          formatDirectoryNearPoint(position.coords),
-          "your location",
-          radius
-        )
-      },
-      (error) => {
-        setLocating(false)
-        setLocationMessage(
-          error.code === error.PERMISSION_DENIED
-            ? "Location sharing is off. Turn it on in your browser settings, or enter a town, city, or postcode instead."
-            : "Your location is unavailable. Enter a town, city, or postcode instead."
-        )
-      },
-      { timeout: 10_000, maximumAge: 300_000 }
-    )
-  }
-
-  const searchPlace = async () => {
-    setLocationMessage("")
-    setSearchingPlace(true)
-    try {
-      const result = await findDirectoryPlace(place)
-      if (!result.place) {
-        setLocationMessage(
-          result.error ?? "We could not look up that place. Try again."
-        )
-        return
-      }
-      setPlace("")
-      onNearChange(
-        formatDirectoryNearPoint(result.place),
-        result.place.label,
-        radius
-      )
-    } catch {
-      setLocationMessage("We could not look up that place. Try again.")
-    } finally {
-      setSearchingPlace(false)
-    }
-  }
 
   return (
     <div className="flex flex-col gap-2 md:gap-3">
@@ -195,67 +134,14 @@ export function DirectoryToolbar({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <form
-          className="flex flex-col gap-2 sm:flex-row sm:items-end"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void searchPlace()
-          }}
-        >
-          <div className="grid gap-1">
-            <label htmlFor="directory-place" className="text-sm font-medium">
-              Near
-            </label>
-            <Input
-              id="directory-place"
-              value={place}
-              onChange={(event) => setPlace(event.target.value)}
-              placeholder="Town, city, or postcode"
-              className="sm:w-56"
-            />
-          </div>
-          <Button type="submit" variant="outline" disabled={searchingPlace}>
-            Search place
-          </Button>
-        </form>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={useMyLocation}
-          disabled={locating}
-        >
-          {locating ? <Loader2Icon className="animate-spin" /> : null}
-          Use my location
-        </Button>
-        <div className="grid gap-1">
-          <label htmlFor="directory-radius" className="text-sm font-medium">
-            Within
-          </label>
-          <DisabledReason disabled={!nearActive} reason="Pick a location first.">
-            <Select
-              disabled={!nearActive}
-              value={String(radius)}
-              onValueChange={(value) => onRadiusChange(Number(value))}
-            >
-              <SelectTrigger id="directory-radius">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DIRECTORY_NEAR_RADII_KM.map((option) => (
-                  <SelectItem key={option} value={String(option)}>
-                    {option} km
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </DisabledReason>
-        </div>
-        {nearActive ? (
-          <Button type="button" variant="ghost" onClick={onNearClear}>
-            Clear location
-          </Button>
-        ) : null}
+      <NearPicker
+        idPrefix="directory"
+        near={current.near}
+        radius={radius}
+        onNearChange={onNearChange}
+        onRadiusChange={onRadiusChange}
+        onNearClear={onNearClear}
+      >
         {/* One way back to the whole directory. Without it the only route was
             emptying the search box by hand, which on a phone means finding the
             box again first. Absent on a clean page, because there is nothing
@@ -272,12 +158,7 @@ export function DirectoryToolbar({
             Clear search
           </Button>
         ) : null}
-      </div>
-      {locationMessage ? (
-        <p role="alert" className="text-sm text-muted-foreground">
-          {locationMessage}
-        </p>
-      ) : null}
+      </NearPicker>
       {nearActive ? (
         <p className="text-sm text-muted-foreground">
           Showing nearest listings within {radius} km of{" "}

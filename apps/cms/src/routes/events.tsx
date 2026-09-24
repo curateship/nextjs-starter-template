@@ -19,6 +19,7 @@ import {
 import { parseYearMonth, toMonthString } from "@/lib/events/calendar-grid"
 import {
   eventDateFilterText,
+  eventNearText,
   eventsListHref,
   readEventsSearch,
   type EventDateSearch,
@@ -76,6 +77,9 @@ function EventsRoute() {
     when: search.when,
     from: search.from,
     to: search.to,
+    near: data.view === "list" ? data.nearby.near : undefined,
+    radius: data.view === "list" ? data.nearby.radius : undefined,
+    area: data.view === "list" ? data.nearby.area : undefined,
   }
   const categoryName = data.category?.name
 
@@ -110,7 +114,7 @@ function EventsRoute() {
       <EventFilters
         current={current}
         categories={data.categories}
-        showDates={data.view === "list" && !data.day}
+        showListFilters={data.view === "list" && !data.day}
       />
 
       {data.view === "month" ? (
@@ -177,7 +181,12 @@ function EventsRoute() {
               // Past the last page is not the same as nothing coming up.
               data.total
                 ? "There are no events on this page."
-                : nothingComingUp(data.dates, categoryName, data.place?.title)
+                : nothingComingUp(
+                    data.dates,
+                    categoryName,
+                    data.place?.title,
+                    eventNearText(data.nearby)
+                  )
             }
           />
           <DirectoryPagination
@@ -189,6 +198,7 @@ function EventsRoute() {
                 place: current.place,
                 category: current.category,
                 ...data.dates,
+                ...data.nearby,
                 page: next,
               })
             }
@@ -202,20 +212,22 @@ function EventsRoute() {
 
 /**
  * The upcoming list's empty card, naming what it was narrowed by:
- * "Nothing is on this weekend in Live music at The Rex.", or
- * "Nothing is coming up yet." with no filter at all.
+ * "Nothing is on this weekend in Live music at The Rex within 5 km of
+ * Toronto.", or "Nothing is coming up yet." with no filter at all.
  */
 function nothingComingUp(
   dates: EventDateSearch,
   categoryName: string | undefined,
-  placeTitle: string | undefined
+  placeTitle: string | undefined,
+  nearText: string
 ): string {
   const when = eventDateFilterText(dates)
-  const filtered = when || categoryName || placeTitle
+  const filtered = when || categoryName || placeTitle || nearText
   return [
     when ? `Nothing is on ${when}` : "Nothing is coming up",
     categoryName ? ` in ${categoryName}` : "",
     placeTitle ? ` at ${placeTitle}` : "",
+    nearText ? ` ${nearText}` : "",
     filtered ? "." : " yet.",
   ].join("")
 }

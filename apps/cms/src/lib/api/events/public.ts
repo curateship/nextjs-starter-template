@@ -12,9 +12,12 @@ import {
   EVENT_VIEWS,
   eventDateWindow,
   readEventDateFilter,
+  readEventNear,
   type EventDateSearch,
+  type EventNearSearch,
   type EventsPageSearch,
 } from "@/lib/events/events-page"
+import { parseDirectoryNearPoint } from "@/lib/directory/public-search"
 import {
   eventHasEnded,
   eventWhenLines,
@@ -110,6 +113,11 @@ export type EventsPageData = EventsPageCommon &
         place: { title: string; slug: string; linked: boolean } | null
         /** The date filter as read, empty when there is none. */
         dates: EventDateSearch
+        /**
+         * The distance filter as read, empty when there is none. Events with
+         * no position on a map are left out while it is set.
+         */
+        nearby: EventNearSearch
         events: ListedEvent[]
         total: number
         page: number
@@ -135,6 +143,9 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       when: z.enum(EVENT_DATE_FILTERS).optional(),
       from: z.string().max(10).optional(),
       to: z.string().max(10).optional(),
+      near: z.string().max(40).optional(),
+      radius: z.number().int().optional(),
+      area: z.string().max(120).optional(),
     })
   )
   .handler(async ({ data }): Promise<EventsPageData | null> => {
@@ -197,6 +208,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
         day: data.day,
         place: null,
         dates: {},
+        nearby: {},
         events,
         total: events.length,
         page: 1,
@@ -215,10 +227,13 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     // Read again with the route's rule, because anyone can call this endpoint
     // with any text.
     const dates = readEventDateFilter(data)
+    const nearby = readEventNear(data)
+    const point = parseDirectoryNearPoint(nearby.near)
     const upcoming = await readUpcomingEvents(site, page, now, undefined, {
       ...onlyCategory,
       ...(place ? { placeId: place.id } : {}),
       ...eventDateWindow(dates, common.today),
+      ...(point ? { near: point, radius: nearby.radius } : {}),
     })
     return {
       ...common,
@@ -232,6 +247,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
           }
         : null,
       dates,
+      nearby,
       events: mark(upcoming.events),
       total: upcoming.total,
       page,

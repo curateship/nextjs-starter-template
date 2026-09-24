@@ -17,6 +17,8 @@ import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
 import {
   DIRECTORY_SUGGESTION_EVENT_LIMIT,
   DIRECTORY_SUGGESTION_MIN_LENGTH,
+  formatDirectoryNearPoint,
+  type DirectoryNearPoint,
 } from "@/lib/directory/public-search"
 import { EVENTS_PAGE_SIZE, MAX_EVENTS_ON_A_DAY } from "@/lib/events/events-page"
 import { eventShareImageKicker } from "@/lib/events/event-share-image"
@@ -42,6 +44,7 @@ import {
   type PublicSite,
   type VisitorSite,
 } from "@/server/directory/public"
+import { distanceKmFrom } from "@/server/directory/distance"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import {
   categories,
@@ -53,6 +56,8 @@ import { toEvent } from "@/server/events/events"
 import {
   listingOfEvent,
   livePlaceAddress,
+  livePlaceLatitude,
+  livePlaceLongitude,
   livePlaceName,
 } from "@/server/events/place"
 import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
@@ -87,6 +92,11 @@ export type PublicEventCard = EventWhen & {
   summary: string
   coverImage: string
   placeName: string
+  /**
+   * How far the place is from the visitor's chosen point, in kilometres. Only
+   * on the upcoming list while it is narrowed to a distance.
+   */
+  distanceKm?: number
 }
 
 const eventCardColumns = {
@@ -113,11 +123,14 @@ function toEventCard(row: {
   startTime: string
   endDate: string | null
   endTime: string | null
+  distanceKm?: number | null
 }): PublicEventCard {
+  const { distanceKm, ...event } = row
   return {
-    ...row,
+    ...event,
     startTime: toClock(row.startTime),
     endTime: row.endTime ? toClock(row.endTime) : null,
+    ...(distanceKm == null ? {} : { distanceKm }),
   }
 }
 
@@ -227,11 +240,10 @@ async function readPublicEventUncached(
       row: siteEvents,
       placeName: livePlaceName,
       placeAddress: livePlaceAddress,
-      listingId: directoryListings.id,
       listingSlug: directoryListings.slug,
       listingStatus: directoryListings.status,
-      listingLatitude: directoryListings.latitude,
-      listingLongitude: directoryListings.longitude,
+      latitude: livePlaceLatitude,
+      longitude: livePlaceLongitude,
     })
     .from(siteEvents)
     .leftJoin(directoryListings, listingOfEvent)
@@ -295,14 +307,10 @@ async function readPublicEventUncached(
         directoryVisibility === "everyone"
           ? found.listingSlug
           : null,
-      position: found.listingId
-        ? found.listingLatitude !== null && found.listingLongitude !== null
-          ? {
-              latitude: found.listingLatitude,
-              longitude: found.listingLongitude,
-            }
-          : null
-        : event.position,
+      position:
+        found.latitude !== null && found.longitude !== null
+          ? { latitude: found.latitude, longitude: found.longitude }
+          : null,
     },
     timeZone,
     listingCards,
@@ -393,6 +401,9 @@ export type UpcomingEvents = {
  * the Events page's category filter. A category means its own events, not its
  * children's, the same as listings. `from` and `to` keep the events with any
  * day inside those days, both included, for the Events page's date filters.
+ * `near` and `radius` keep the events whose place is on the map within that
+ * many kilometres, for the Events page's distance filter. An event with no
+ * position, like one with no street address, is left out while they are set.
  */
 export function readUpcomingEvents(
   site: VisitorSite,
@@ -404,6 +415,8 @@ export function readUpcomingEvents(
     categoryId?: string
     from?: string
     to?: string
+    near?: DirectoryNearPoint
+    radius?: number
   } = {}
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
@@ -411,6 +424,8 @@ export function readUpcomingEvents(
   const categoryId = only.categoryId ?? null
   const from = only.from ?? null
   const to = only.to ?? null
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
   return cachedPublicDirectoryRead(
     site.id,
     "upcoming-events",
@@ -422,28 +437,42 @@ export function readUpcomingEvents(
       categoryId,
       from,
       to,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
     },
     async () => {
+      const distanceKm = near
+        ? distanceKmFrom(near, livePlaceLatitude, livePlaceLongitude).mapWith(
+            Number
+          )
+        : null
       const where = and(
         listedEventsOnSite(site.id),
         notOverAt(nowDay, nowTime),
         placeId ? eq(siteEvents.listingId, placeId) : undefined,
         categoryId ? inCategory(site.id, categoryId, database) : undefined,
         to ? lte(siteEvents.startDate, to) : undefined,
-        from ? gte(lastDayOfEvent, from) : undefined
+        from ? gte(lastDayOfEvent, from) : undefined,
+        // No position measures as null, and null is never within the radius.
+        distanceKm ? sql`${distanceKm} <= ${radius}` : undefined
       )
       const [rows, [countRow]] = await Promise.all([
         database
-          .select(eventCardColumns)
+          .select({
+            ...eventCardColumns,
+            ...(distanceKm ? { distanceKm } : {}),
+          })
           .from(siteEvents)
           .leftJoin(directoryListings, listingOfEvent)
           .where(where)
           .orderBy(...soonestFirst)
           .limit(EVENTS_PAGE_SIZE)
           .offset((page - 1) * EVENTS_PAGE_SIZE),
+        // Joined like the rows, because a listing's pin is the event's.
         database
           .select({ total: sql<number>`count(*)::int` })
           .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
           .where(where),
       ])
       return {

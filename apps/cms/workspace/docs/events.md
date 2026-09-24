@@ -359,6 +359,9 @@ On a phone that opens the maps app, ready for walking directions.
   `locateAddress` in `src/server/directory/geocode.ts` asks Google. The map is
   `src/components/events/public/event-place-map.tsx`, and the link is
   `src/lib/events/directions.ts`.
+- **One rule for the pin:** `livePlaceLatitude` and `livePlaceLongitude` in
+  `src/server/events/place.ts` decide it for the event page's map and for
+  "Events near a place" on the Events page.
 - **Not built:** a map of all events. An online event (task 29) will have no
   map.
 
@@ -493,6 +496,56 @@ reload keeps it and a shared link opens the same list.
   `src/server/events/public.ts` (`readEventCategories`, and a category and
   dates on `readUpcomingEvents` and `readEventsBetween`). "This weekend" has a
   test for each day of the week in `src/lib/events/events-page.test.ts`.
+
+### Events near a place
+
+A visitor on a phone can ask for what is on near them tonight. Under the date
+chips on the upcoming list sit the same Near and Within controls the
+directory's listings use: a town or postcode with "Search place", "Use my
+location", and Within 5, 10, 25 or 50 km. Tapping "Today" and "Use my
+location" gives tonight's events within 10 km.
+
+- **The same picker as listings.** `NearPicker` in
+  `src/components/directory/public/near-picker.tsx` is the one both pages draw,
+  so Within stays disabled with "Pick a location first." until a place is
+  found, on both. `directory-radius.md` has that rule.
+- **In the address:** `?near=43.653,-79.384&radius=5&area=Toronto`. The point
+  is rounded to about 110 metres, the same as the directory's, so a shared link
+  never gives away a doorstep. `area` names the place for the page's words;
+  `place` already means a listing on this page, so it needed another word.
+- **Where an event is:** the pin on its event page. A listing picked as the
+  place brings the listing's pin, and a typed street address brings the one
+  Google found for it, as "The map on the event page" above says.
+- **No position, not listed.** An event with no pin, like one with only a place
+  name, one Google could not find, or one at a listing with no pin, is left out
+  while the filter is on. The page says so under the controls: "Showing events
+  within 5 km of Toronto, ON, Canada. Events with no place on the map are left
+  out."
+- **Still soonest first.** The distance narrows the list and does not reorder
+  it, because the question is what is on soon nearby. Each row adds how far
+  away it is beside the place, like "The Rex · 2.3 km away".
+- **Measured the same as listings.** `distanceKmFrom` in
+  `src/server/directory/distance.ts` is the one formula for both, so 5 km on
+  the Events page is 5 km in the directory.
+- **It stays with the list.** Picking a category, a date chip or a From and To
+  day keeps the distance, and picking a place keeps the dates. Paging keeps it
+  too. Switching to the month or opening one day drops it, the same as the
+  date filter. "Clear location" drops only the distance.
+- **The empty card says it:** "Nothing is on today within 5 km of your
+  location."
+- **An odd address shows the page.** A point that is not a real latitude and
+  longitude drops the filter. A distance the picker does not offer, like
+  `radius=7`, is read as 10 km.
+- **Place search needs the site's key.** "Search place" uses "Google Maps API
+  key" on the Near me search card in Settings → Directory, the same key the
+  directory uses. Without it the page says "Place search is not available on
+  this site yet. Use your location instead." "Use my location" works either
+  way.
+- **Where it lives:** the address in `readEventNear` and `eventNearText` in
+  `src/lib/events/events-page.ts`, the read in `readUpcomingEvents` in
+  `src/server/events/public.ts`, and the live pin in `livePlaceLatitude` and
+  `livePlaceLongitude` in `src/server/events/place.ts`, which the event page's
+  map reads too.
 
 ## An event over several days
 

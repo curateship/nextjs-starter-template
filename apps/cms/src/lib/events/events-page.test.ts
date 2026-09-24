@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   eventDateFilterText,
   eventDateWindow,
+  eventNearText,
   eventsListHref,
+  readEventNear,
   readEventsSearch,
 } from "@/lib/events/events-page"
 
@@ -180,5 +182,64 @@ describe("the words and links for a filtered list", () => {
       "/events?from=2026-10-01"
     )
     expect(eventsListHref({})).toBe("/events")
+  })
+})
+
+describe("the distance filter in the address", () => {
+  it("reads a point, a distance and a place name on the list", () => {
+    expect(
+      readEventsSearch({
+        near: "43.65312,-79.38391",
+        radius: 5,
+        area: "Toronto",
+      })
+    ).toMatchObject({ near: "43.653,-79.384", radius: 5, area: "Toronto" })
+  })
+
+  it("uses the picker's default for a distance it does not offer", () => {
+    expect(readEventNear({ near: "43.653,-79.384", radius: 7 })).toEqual({
+      near: "43.653,-79.384",
+      radius: 10,
+      area: undefined,
+    })
+  })
+
+  it("drops the whole filter without a real point", () => {
+    expect(
+      readEventNear({ near: "north", radius: 5, area: "Toronto" })
+    ).toEqual({})
+    expect(readEventNear({ near: "95,10", radius: 5 })).toEqual({})
+    expect(readEventNear({ radius: 25 })).toEqual({})
+  })
+
+  it("stays with the list, not the month or one day", () => {
+    const near = { near: "43.653,-79.384", radius: 5 }
+    expect(readEventsSearch({ view: "month", ...near })).not.toHaveProperty(
+      "near"
+    )
+    expect(readEventsSearch({ day: "2026-10-03", ...near })).not.toHaveProperty(
+      "near"
+    )
+  })
+
+  it("names the distance and the place in words, and keeps it in links", () => {
+    expect(
+      eventNearText({ near: "43.653,-79.384", radius: 5, area: "Toronto" })
+    ).toBe("within 5 km of Toronto")
+    expect(eventNearText({ near: "43.653,-79.384", radius: 25 })).toBe(
+      "within 25 km of your location"
+    )
+    expect(eventNearText({})).toBe("")
+    expect(
+      eventsListHref({
+        category: "food",
+        near: "43.653,-79.384",
+        radius: 5,
+        area: "Toronto",
+        page: 2,
+      })
+    ).toBe(
+      "/events?category=food&near=43.653%2C-79.384&radius=5&area=Toronto&page=2"
+    )
   })
 })

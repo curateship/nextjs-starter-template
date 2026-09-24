@@ -26,3 +26,20 @@ export const listingOfEvent = and(
  */
 export const livePlaceName = sql<string>`coalesce(${directoryListings.title}, ${siteEvents.placeName})`
 export const livePlaceAddress = sql<string>`coalesce(${directoryListings.contactLinks}->>'address', ${siteEvents.placeAddress})`
+
+/**
+ * Where the place is on a map, as a visitor sees it: the linked listing's pin,
+ * or the typed address as looked up. A listing with no pin means no position,
+ * even when the event kept one from before the listing was picked. The query
+ * has to left-join `directoryListings` on `listingOfEvent`.
+ */
+export const livePlaceLatitude = sql<
+  number | null
+>`case when ${directoryListings.id} is null then ${siteEvents.latitude} else ${directoryListings.latitude} end`.mapWith(
+  Number
+)
+export const livePlaceLongitude = sql<
+  number | null
+>`case when ${directoryListings.id} is null then ${siteEvents.longitude} else ${directoryListings.longitude} end`.mapWith(
+  Number
+)

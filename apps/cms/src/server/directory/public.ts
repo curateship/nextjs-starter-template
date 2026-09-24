@@ -47,6 +47,7 @@ import {
 import { appUrl } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import { claimedListingIds, claimStateFor } from "@/server/directory/claims"
+import { distanceKmFrom } from "@/server/directory/distance"
 import {
   activeFeaturedForListings,
   featuredPriorityFor,
@@ -803,13 +804,11 @@ function browseQuery(
 
   const where = and(...filters)
   const distanceKm = options.near
-    ? sql<
-        number | null
-      >`case when ${directoryListings.latitude} is null or ${directoryListings.longitude} is null then null else 6371 * 2 * asin(least(1, sqrt(
-        power(sin(radians(${directoryListings.latitude} - ${options.near.latitude}) / 2), 2)
-        + cos(radians(${options.near.latitude})) * cos(radians(${directoryListings.latitude}))
-        * power(sin(radians(${directoryListings.longitude} - ${options.near.longitude}) / 2), 2)
-      ))) end`
+    ? distanceKmFrom(
+        options.near,
+        directoryListings.latitude,
+        directoryListings.longitude
+      )
     : undefined
   const nearWhere =
     options.near && options.radius && distanceKm

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
+import { createListing, updateListing } from "@/server/directory/listings"
 import { setContentCategories } from "@/server/directory/content-categories"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
@@ -17,7 +18,7 @@ import {
   readPublicEvent,
   readUpcomingEvents,
 } from "@/server/events/public"
-import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
+import { EVENT_CONTENT_TYPE, siteEvents } from "@/server/events/schema"
 import { customShellWorkspaces } from "@/server/schema"
 import {
   createTestDatabase,
@@ -354,6 +355,99 @@ describe("the Events page's filters", () => {
       (await readEventCategories(site.id, database)).map((row) => row.name)
     ).toEqual(["Food", "Live music"])
     expect(await readEventCategories(other.id, database)).toEqual([])
+  })
+})
+
+describe("the Events page's distance filter", () => {
+  // Saturday 26 September 2026, 3:00pm, measured from the foot of the CN Tower.
+  const now = "2026-09-26T15:00"
+  const tower = { latitude: 43.6426, longitude: -79.3871 }
+
+  // Each event its own start time, because events at the same minute are
+  // ordered by their random ids.
+  async function at(title: string, latitude: number, startTime: string) {
+    const made = await dated(site.id, title, {
+      startDate: "2026-09-26",
+      startTime,
+    })
+    await database
+      .update(siteEvents)
+      .set({ latitude, longitude: tower.longitude })
+      .where(eq(siteEvents.id, made.id))
+    return made
+  }
+
+  it("hides an event 10 km away at 5 km and shows it at 25 km", async () => {
+    // A tenth of a degree of latitude north is 10 km; 0.01 is about 1 km.
+    const near = await at("Around the corner", 43.6526, "18:00")
+    const far = await at("Up at Eglinton", 43.7326, "20:00")
+    const listing = await createListing(site.id, { title: "The Rex" }, database)
+    await updateListing(
+      site.id,
+      listing.id,
+      { status: "published", latitude: 43.6606, longitude: tower.longitude },
+      database
+    )
+    const rex = await dated(site.id, "Jazz at The Rex", {
+      startDate: "2026-09-26",
+      startTime: "21:00",
+    })
+    await updateEvent(site.id, rex.id, { listingId: listing.id }, database)
+    await dated(site.id, "Somewhere unknown", {
+      startDate: "2026-09-26",
+      startTime: "19:00",
+    })
+
+    const within5 = await readUpcomingEvents(site, 1, now, database, {
+      near: tower,
+      radius: 5,
+    })
+    expect(within5.events.map((event) => event.slug)).toEqual([
+      near.slug,
+      rex.slug,
+    ])
+    expect(within5.total).toBe(2)
+    expect(within5.events[0]?.distanceKm).toBeCloseTo(1.11, 1)
+    expect(within5.events[1]?.distanceKm).toBeCloseTo(2, 1)
+
+    const within25 = await readUpcomingEvents(site, 1, now, database, {
+      near: tower,
+      radius: 25,
+    })
+    expect(within25.events.map((event) => event.slug)).toEqual([
+      near.slug,
+      far.slug,
+      rex.slug,
+    ])
+    expect(within25.total).toBe(3)
+  })
+
+  it("leaves distances off, and every event in, with no point", async () => {
+    await at("Around the corner", 43.6526, "18:00")
+    await dated(site.id, "Somewhere unknown", {
+      startDate: "2026-09-26",
+      startTime: "19:00",
+    })
+
+    const all = await readUpcomingEvents(site, 1, now, database, { radius: 5 })
+    expect(all.total).toBe(2)
+    expect(all.events.every((event) => event.distanceKm === undefined)).toBe(
+      true
+    )
+  })
+
+  it("uses the listing's pin, so a listing with none is left out", async () => {
+    const listing = await createListing(site.id, { title: "No pin" }, database)
+    await updateListing(site.id, listing.id, { status: "published" }, database)
+    // The event kept its own old pin from before the listing was picked.
+    const event = await at("At a listing", 43.6526, "18:00")
+    await updateEvent(site.id, event.id, { listingId: listing.id }, database)
+
+    const within = await readUpcomingEvents(site, 1, now, database, {
+      near: tower,
+      radius: 50,
+    })
+    expect(within.total).toBe(0)
   })
 })
 
