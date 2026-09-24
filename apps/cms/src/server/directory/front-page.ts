@@ -17,8 +17,14 @@ import {
   resolvedCategoryChoice,
 } from "@/server/directory/category-cards"
 import { db, type CustomShellDb } from "@/server/db"
+import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
+import type { VisitorSite } from "@/server/directory/public"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
-import { directoryMapDisplayKey } from "@/server/directory/settings"
+import {
+  directoryMapDisplayKey,
+  siteTimeZone,
+} from "@/server/directory/settings"
+import { readUpcomingEvents } from "@/server/events/public"
 
 type FrontPageRow = {
   pageHeading: string
@@ -32,6 +38,7 @@ type FrontPageRow = {
   listingCount: number
   sort: string
   layout: string
+  categoryId: string | null
   categorySlug: string | null
   id: string | null
   title: string | null
@@ -143,6 +150,7 @@ async function readFrontPageRows(
       sections.listing_count AS "listingCount",
       sections.sort,
       sections.layout,
+      sections.category_id AS "categoryId",
       sections.category_slug AS "categorySlug",
       chosen.id,
       chosen.title,
@@ -262,7 +270,20 @@ async function readFrontPageRows(
     let section = byId.get(row.sectionId)
 
     if (!section) {
-      if (kind === "categories") {
+      if (kind === "events") {
+        // Filled after the cache by `fillFrontPageEvents`, because which
+        // events are still to come changes by the minute.
+        section = {
+          kind: "events",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          count: row.listingCount,
+          categoryId: row.categoryId,
+          events: [],
+          zone: "",
+        }
+      } else if (kind === "categories") {
         section = {
           kind: "categories",
           id: row.sectionId,
@@ -324,9 +345,14 @@ async function readFrontPageRows(
     heading: first.pageHeading,
     intro: first.pageIntro,
     // A heading over nothing is worse than one row fewer, so an empty row is
-    // not drawn at all — whichever kind of row it is.
+    // not drawn at all — whichever kind of row it is. A row of events is kept
+    // here and judged once it is filled.
     rows: [...byId.values()].filter((row) =>
-      row.kind === "categories" ? row.cards.length > 0 : row.listings.length > 0
+      row.kind === "events"
+        ? true
+        : row.kind === "categories"
+          ? row.cards.length > 0
+          : row.listings.length > 0
     ),
   }
 }
@@ -365,6 +391,48 @@ function toListing(
       ? { latitude, longitude }
       : {}),
   }
+}
+
+/**
+ * The home page with its rows of events filled in: the soonest events still to
+ * come by the site's clock, filtered to the row's category when it has one.
+ * Read after the page's cache, like the listing page's "What's on here", so a
+ * finished event never lingers. `visible` is whether this visitor may see the
+ * Events page; when not, the rows of events are left off.
+ *
+ * A row with nothing coming up is dropped, and a page left with no rows at all
+ * is null, so the platform's own front page draws instead of an empty one.
+ */
+export async function fillFrontPageEvents(
+  site: VisitorSite,
+  page: DirectoryFrontPageData,
+  visible: boolean,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<DirectoryFrontPageData | null> {
+  const hasEvents = page.rows.some((row) => row.kind === "events")
+  const timeZone =
+    visible && hasEvents ? await siteTimeZone(site.id, database) : null
+  const now = timeZone ? wallClockAt(timeZone, at) : null
+  const rows = await Promise.all(
+    page.rows.map(async (row) => {
+      if (row.kind !== "events") return row
+      if (!now) return null
+      const upcoming = await readUpcomingEvents(
+        site,
+        1,
+        now,
+        database,
+        row.categoryId ? { categoryId: row.categoryId } : {}
+      )
+      const events = upcoming.events.slice(0, row.count)
+      return events.length && timeZone
+        ? { ...row, events, zone: timeZoneLabel(timeZone) }
+        : null
+    })
+  )
+  const kept = rows.filter((row) => row !== null)
+  return kept.length ? { ...page, rows: kept } : null
 }
 
 /**

@@ -4,6 +4,7 @@ import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
+import { EventList } from "@/components/events/public/event-list"
 import { Button } from "@/components/ui/button"
 import type {
   DirectoryFrontPageData,
@@ -67,6 +68,11 @@ function FrontPageRow({
         {row.intro ? (
           <p className="max-w-3xl text-sm text-muted-foreground">{row.intro}</p>
         ) : null}
+        {row.kind === "events" ? (
+          <p className="text-sm text-muted-foreground">
+            All times are {row.zone}.
+          </p>
+        ) : null}
       </div>
 
       {row.kind === "categories" ? (
@@ -74,6 +80,23 @@ function FrontPageRow({
         // way in, and the one below a row of listings exists because a row shows
         // a handful of many.
         <CategoryGrid categories={row.cards} />
+      ) : row.kind === "events" ? (
+        <>
+          <EventList
+            // Only events still to come reach a row, so none is marked over.
+            events={row.events.map((event) => ({ ...event, ended: false }))}
+            // Never seen: a row with nothing coming up is dropped on the
+            // server. Said anyway because the list asks for it.
+            emptyMessage="Nothing is coming up yet."
+          />
+          <div>
+            <Button asChild variant="outline">
+              <Link to="/events" search={{}} preload="intent">
+                See all events
+              </Link>
+            </Button>
+          </div>
+        </>
       ) : (
         <ListingsRowBody row={row} mapApiKey={mapApiKey} />
       )}

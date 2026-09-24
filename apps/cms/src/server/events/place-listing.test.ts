@@ -272,7 +272,7 @@ describe("what's on at a listing", () => {
       1,
       now,
       database,
-      rex.id
+      { placeId: rex.id }
     )
     expect(events.map((event) => event.slug)).toEqual([
       sooner.slug,
