@@ -378,6 +378,28 @@ export const videoProjectFolderItems = pgTable(
 )
 
 /**
+ * One row per editor window that has a project open, written every 15 seconds
+ * while it stays open. It is what lets a second window say "this is already
+ * being edited somewhere else" before any work is done in it.
+ */
+export const videoEditorWindows = pgTable(
+  "video_editor_windows",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    windowId: varchar("window_id", { length: 36 }).notNull(),
+    mode: varchar("mode", { length: 8 }).notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.windowId] }),
+    check("video_editor_windows_mode_check", sql`${table.mode} in ('edit', 'view')`),
+  ]
+)
+
+/**
  * One carousel studio document. Slides stay together as validated JSON so a
  * new layer setting does not require a column, while `format` and `version`
  * remain cheap to list and safe to compare during auto-save.

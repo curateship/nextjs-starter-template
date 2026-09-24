@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
+  createEditorStore,
   createInitialEditorState,
   editorReducer,
   type EditorClip,
@@ -861,5 +862,41 @@ describe("swapping a small picture for footage", () => {
     expect(video.scale).toBeUndefined()
     expect(video.x).toBeUndefined()
     expect(video.y).toBeUndefined()
+  })
+})
+
+describe("a locked window", () => {
+  it("refuses changes to the timeline and says so, but still selects", () => {
+    const refused = vi.fn()
+    const store = createEditorStore(START, "Reel", refused)
+    store.setLock("read-only")
+
+    store.dispatch({ type: "DELETE_CLIP", clipId: "clip-1" })
+    store.dispatch({ type: "SET_ASPECT", aspect: "1:1" })
+    expect(refused).toHaveBeenCalledTimes(2)
+    expect(store.getSnapshot().state.tracks).toBe(START.tracks)
+    expect(store.getSnapshot().state.aspect).toBe("9:16")
+
+    store.dispatch({ type: "SELECT_CLIP", clipId: "clip-1" })
+    expect(store.getSnapshot().state.selectedClipId).toBe("clip-1")
+    expect(refused).toHaveBeenCalledTimes(2)
+  })
+
+  it("stops costly work before it runs only while locked", () => {
+    const refused = vi.fn()
+    const store = createEditorStore(START, "Reel", refused)
+    expect(store.refuseIfLocked()).toBe(false)
+    store.setLock("read-only")
+    expect(store.refuseIfLocked()).toBe(true)
+    expect(refused).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets a clash replace read-only, never the other way round", () => {
+    const store = createEditorStore(START, "Reel")
+    store.setLock("read-only")
+    store.setLock("conflict")
+    store.setLock("read-only")
+    expect(store.getSnapshot().lock).toBe("conflict")
+    expect(store.getSnapshot().saveStatus).toBe("error")
   })
 })

@@ -16,6 +16,7 @@ import {
   PROJECT_NAME_MAX,
   PROJECT_NAME_REQUIRED_MESSAGE,
   PROJECT_NOT_FOUND_MESSAGE,
+  REFUSED_COPY_SUFFIX,
 } from "@/lib/video/projects"
 import {
   createEmptyTimeline,
@@ -395,16 +396,57 @@ export async function duplicateOwnedProject(
   database: CustomShellDb = db
 ): Promise<ProjectItem> {
   const source = await getOwnedProject(userId, projectId, database)
+  return insertProjectCopy(
+    source,
+    `${source.name} copy`,
+    { timeline: source.timeline, aspect: source.aspect },
+    database
+  )
+}
+
+/**
+ * Keeps the work of a window whose save was refused because the project
+ * changed in another window. It becomes a new project beside the original,
+ * holding exactly what that window had on screen, so nothing done in it is
+ * lost and nothing done in the other window is overwritten.
+ */
+export async function keepRefusedTimeline(
+  userId: string,
+  projectId: string,
+  timeline: ProjectTimeline,
+  database: CustomShellDb = db
+): Promise<ProjectItem> {
+  const canonical = requireCanonicalTimeline(timeline)
+  const source = await getOwnedProject(userId, projectId, database)
+  return insertProjectCopy(
+    source,
+    `${source.name} ${REFUSED_COPY_SUFFIX}`,
+    { timeline: canonical, aspect: canonical.aspect },
+    database
+  )
+}
+
+/**
+ * A new project made from an existing one, in the same folder. A duplicate
+ * passes the stored timeline over as it is, even one that no longer parses; a
+ * kept copy passes one the schema has just checked.
+ */
+async function insertProjectCopy(
+  source: VideoProjectRow,
+  name: string,
+  content: Pick<VideoProjectRow, "timeline" | "aspect">,
+  database: CustomShellDb
+): Promise<ProjectItem> {
   const createdAt = now()
   const created = await database.transaction(async (tx) => {
     const [row] = await tx
       .insert(videoProjects)
       .values({
         id: uuid(),
-        userId,
-        name: cleanProjectName(`${source.name} copy`),
-        aspect: source.aspect,
-        timeline: source.timeline,
+        userId: source.userId,
+        name: cleanProjectName(name),
+        aspect: content.aspect,
+        timeline: content.timeline,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its
         // picture on the next pass, the same as any new project.
