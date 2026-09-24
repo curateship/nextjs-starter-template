@@ -23,6 +23,10 @@ import {
   updateExport,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
+import {
+  getSavedFrameErrorMessage,
+  saveExportFrame,
+} from "@/lib/api/video/saved-frames"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { EXPORT_TITLE_MAX } from "@/lib/video/render"
@@ -61,6 +65,7 @@ export function ExportDetailsDialog({
   const [coverMs, setCoverMs] = React.useState(0)
   const [saving, setSaving] = React.useState(false)
   const [coverBusy, setCoverBusy] = React.useState(false)
+  const [frameBusy, setFrameBusy] = React.useState(false)
   // Changes with every new cover, so the picture reloads instead of showing
   // the one the browser already has.
   const [coverVersion, setCoverVersion] = React.useState(0)
@@ -111,6 +116,22 @@ export function ExportDetailsDialog({
       showErrorToast(getExportErrorMessage(error))
     } finally {
       setCoverBusy(false)
+    }
+  }
+
+  // The moment on the slider, kept in the media library at the export's own
+  // size rather than as the small cover.
+  async function handleSaveFrame() {
+    if (!item) return
+    setFrameBusy(true)
+    try {
+      const saved = await saveExportFrame(item.id, coverMs)
+      dismissErrorToast()
+      toast.success(`Saved "${saved.name}" to the media library.`)
+    } catch (error) {
+      showErrorToast(getSavedFrameErrorMessage(error))
+    } finally {
+      setFrameBusy(false)
     }
   }
 
@@ -195,7 +216,7 @@ export function ExportDetailsDialog({
                       onValueChange={([next]) => setCoverMs(next)}
                     />
                   </div>
-                  <div>
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -206,6 +227,17 @@ export function ExportDetailsDialog({
                         <Loader2Icon className="animate-spin" />
                       ) : null}
                       Use this moment
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={frameBusy}
+                      onClick={() => void handleSaveFrame()}
+                    >
+                      {frameBusy ? (
+                        <Loader2Icon className="animate-spin" />
+                      ) : null}
+                      Save as a picture
                     </Button>
                   </div>
                 </CardContent>

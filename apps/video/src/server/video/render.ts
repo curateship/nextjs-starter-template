@@ -25,6 +25,7 @@ import {
   clipSpeed,
   clipVolume,
   DEFAULT_CLIP_VOLUME,
+  sourceMsAt,
   sourceSpanMs,
 } from "@/lib/video/clip-playback"
 import { clipFit, frameFitFilter } from "@/lib/video/clip-frame-fit"
@@ -53,6 +54,7 @@ import {
 } from "@/lib/video/clip-transitions"
 import {
   MAX_TIMELINE_MS,
+  MEDIA_MISSING_MESSAGE,
   NOTHING_TO_EXPORT_MESSAGE,
   TIMELINE_TOO_LONG_MESSAGE,
   type RenderFrameRate,
@@ -109,7 +111,6 @@ const AUDIO_BITRATE = "192k"
 // Text sizes are authored against a 1080-tall frame in the editor.
 const DESIGN_HEIGHT = 1080
 
-export const MEDIA_MISSING_MESSAGE = "A clip's file is no longer in the library"
 export const RENDER_FAILED_MESSAGE = "The export could not be made"
 const FONT_MISSING_MESSAGE = "The font this server renders words with is missing"
 
@@ -292,39 +293,12 @@ export async function renderTimeline({
     if (durationMs > MAX_TIMELINE_MS) throw new Error(TIMELINE_TOO_LONG_MESSAGE)
 
     const { visuals, audio } = flattenForRender(timeline.tracks)
-
-    // Every file the timeline names, looked up as the owner's own — a timeline
-    // must never be able to pull somebody else's footage into an export.
-    const mediaIds = Array.from(
-      new Set(
-        [...visuals, ...audio]
-          .map(({ clip }) => clip.mediaId)
-          .filter((id): id is string => !!id)
-      )
+    const { mediaRows, sourceFiles } = await fetchOwnedSources(
+      userId,
+      [...visuals, ...audio],
+      dir,
+      signal
     )
-    const mediaRows = mediaIds.length
-      ? await db
-          .select()
-          .from(customShellMedia)
-          .where(
-            and(
-              eq(customShellMedia.userId, userId),
-              inArray(customShellMedia.id, mediaIds)
-            )
-          )
-      : []
-    if (mediaRows.length !== mediaIds.length) {
-      throw new Error(MEDIA_MISSING_MESSAGE)
-    }
-
-    // Each source is fetched once, however many clips use it.
-    const sourceFiles = new Map<string, string>()
-    for (const media of mediaRows) {
-      const extension = path.extname(media.storagePath) || ".bin"
-      const file = path.join(dir, `src-${sourceFiles.size}${extension}`)
-      await downloadToFile(media.storagePath, file, signal)
-      sourceFiles.set(media.id, file)
-    }
 
     // Only a video that really carries sound may join the mix; naming a stream
     // that is not there fails the whole command.
@@ -355,7 +329,6 @@ export async function renderTimeline({
       endCard: brandKit.endCard.enabled
         ? { ...brandKit.endCard, logoFile }
         : null,
-      crf: QUALITY_PRESETS[quality].crf,
       fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
     })
@@ -367,14 +340,32 @@ export async function renderTimeline({
     const timeoutMs = exportTimeoutMs(exportMs)
 
     const outFile = path.join(dir, "out.mp4")
-    await runFfmpeg([...command, outFile], signal, timeoutMs)
+    await runFfmpeg([
+      ...command.picture,
+      ...command.sound,
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      String(QUALITY_PRESETS[quality].crf),
+      "-pix_fmt",
+      "yuv420p",
+      "-r",
+      String(frameRate),
+      "-t",
+      String(command.outputDurationS),
+      "-movflags",
+      "+faststart",
+      outFile,
+    ], signal, timeoutMs)
     const finalFile = normalizeLoudness
       ? await normalizeExportLoudness(dir, outFile, signal, timeoutMs)
       : outFile
 
     return {
       bytes: await readFile(finalFile),
-      thumbnail: await extractCoverFrame(dir, finalFile, 0, signal),
+      thumbnail: await extractCoverFrame(dir, finalFile, 0, { signal }),
       durationMs: exportMs,
       width: size.width,
       height: size.height,
@@ -382,6 +373,113 @@ export async function renderTimeline({
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+/** The frame rate the editor's preview steps through. */
+const PREVIEW_FRAME_RATE: RenderFrameRate = 30
+
+/**
+ * The frame on screen at one moment of a timeline, as a full-size JPEG.
+ *
+ * It is drawn by the export's own graph, so it is the picture an export would
+ * show at that moment, less the watermark and end card the preview leaves out
+ * too. Only the clips on screen then are fetched and drawn, and the film starts
+ * at that moment, so a frame late in a long project costs no more than one
+ * early on.
+ */
+export async function renderTimelineFrame({
+  userId,
+  timeline: rawTimeline,
+  atMs,
+}: {
+  userId: string
+  timeline: unknown
+  atMs: number
+}): Promise<Uint8Array> {
+  const timeline = requireCanonicalTimeline(rawTimeline)
+  const durationMs = timelineEndMs(timeline.tracks)
+  if (durationMs <= 0) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
+
+  // On a frame, and never past the last one: the playhead parked at the very
+  // end is over nothing at all.
+  const frameMs = 1000 / PREVIEW_FRAME_RATE
+  const lastFrame = Math.max(0, Math.ceil(durationMs / frameMs) - 1)
+  const frame = Math.min(Math.max(0, Math.round(atMs / frameMs)), lastFrame)
+  const fromMs = frame * frameMs
+
+  const dir = await mkdtemp(path.join(tmpdir(), "video-frame-"))
+  try {
+    const size = renderSize(timeline.aspect, "high")
+    // A clip blending in is drawn from before its own start.
+    const visuals = flattenForRender(timeline.tracks).visuals.filter(
+      ({ clip, transition }) =>
+        fromMs >= clip.startMs - (transition?.durationMs ?? 0) &&
+        fromMs < clip.startMs + clip.durationMs
+    )
+    const { sourceFiles } = await fetchOwnedSources(userId, visuals, dir)
+    const command = await buildFfmpegCommand({
+      dir,
+      size,
+      durationMs,
+      visuals,
+      audio: [],
+      sourceFiles,
+      audioPresence: new Map(),
+      watermark: null,
+      endCard: null,
+      fps: PREVIEW_FRAME_RATE,
+      duckingGain: 1,
+      fromMs,
+    })
+    const out = path.join(dir, "frame.jpg")
+    await runFfmpeg([...command.picture, "-frames:v", "1", "-q:v", "2", out])
+    return await readFile(out)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Every file the clips name, looked up as the owner's own and fetched once
+ * however many clips use it. A timeline must never be able to pull somebody
+ * else's footage into a render.
+ */
+async function fetchOwnedSources(
+  userId: string,
+  clips: RenderClip[],
+  dir: string,
+  signal?: AbortSignal
+) {
+  const mediaIds = Array.from(
+    new Set(
+      clips
+        .map(({ clip }) => clip.mediaId)
+        .filter((id): id is string => !!id)
+    )
+  )
+  const mediaRows = mediaIds.length
+    ? await db
+        .select()
+        .from(customShellMedia)
+        .where(
+          and(
+            eq(customShellMedia.userId, userId),
+            inArray(customShellMedia.id, mediaIds)
+          )
+        )
+    : []
+  if (mediaRows.length !== mediaIds.length) {
+    throw new Error(MEDIA_MISSING_MESSAGE)
+  }
+
+  const sourceFiles = new Map<string, string>()
+  for (const media of mediaRows) {
+    const extension = path.extname(media.storagePath) || ".bin"
+    const file = path.join(dir, `src-${sourceFiles.size}${extension}`)
+    await downloadToFile(media.storagePath, file, signal)
+    sourceFiles.set(media.id, file)
+  }
+  return { mediaRows, sourceFiles }
 }
 
 /**
@@ -434,13 +532,15 @@ async function normalizeExportLoudness(
 
 /**
  * One frame out of a finished export, as a JPEG. Used for the cover picture in
- * the gallery, and again when somebody picks a different moment for it.
+ * the gallery, and again when somebody picks a different moment for it. A
+ * cover is shrunk to 640 wide; `fullSize` keeps every pixel of the export and
+ * squeezes it less, for a frame somebody saves to keep.
  */
 export async function extractCoverFrame(
   dir: string,
   file: string,
   atMs: number,
-  signal?: AbortSignal
+  { signal, fullSize = false }: { signal?: AbortSignal; fullSize?: boolean } = {}
 ): Promise<Uint8Array | null> {
   const out = path.join(dir, `cover-${Math.round(atMs)}.jpg`)
   try {
@@ -451,10 +551,9 @@ export async function extractCoverFrame(
       file,
       "-frames:v",
       "1",
-      "-vf",
-      "scale=640:-2",
+      ...(fullSize ? [] : ["-vf", "scale=640:-2"]),
       "-q:v",
-      "4",
+      fullSize ? "2" : "4",
       out,
     ], signal)
     return await readFile(out)
@@ -471,13 +570,14 @@ export async function extractCoverFrame(
  */
 export async function extractCoverFrameFromStorage(
   storagePath: string,
-  atMs: number
+  atMs: number,
+  { fullSize = false }: { fullSize?: boolean } = {}
 ): Promise<Uint8Array | null> {
   const dir = await mkdtemp(path.join(tmpdir(), "video-cover-"))
   try {
     const file = path.join(dir, "source.mp4")
     await downloadToFile(storagePath, file)
-    return await extractCoverFrame(dir, file, atMs)
+    return await extractCoverFrame(dir, file, atMs, { fullSize })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -532,9 +632,13 @@ async function buildFfmpegCommand(options: {
   audioPresence: Map<string, boolean>
   watermark: RenderWatermark | null
   endCard: RenderEndCard | null
-  crf: number
   fps: RenderFrameRate
   duckingGain: number
+  /**
+   * Where the film starts, on a frame. Zero for an export. A single saved
+   * frame starts at its own moment, so nothing before it is drawn.
+   */
+  fromMs?: number
 }) {
   const {
     dir,
@@ -546,15 +650,20 @@ async function buildFfmpegCommand(options: {
     audioPresence,
     watermark,
     endCard,
-    crf,
     fps,
     duckingGain,
+    fromMs = 0,
   } = options
   const durationS = durationMs / 1000
+  const fromS = fromMs / 1000
   const outputDurationS = durationS + (endCard?.durationSeconds ?? 0)
   const inputs: string[] = []
+  // Moved on in whole frames: ffmpeg drops the fraction of a time it is
+  // given, and a start a hair under a frame lands on the one before it.
   const filters: string[] = [
-    `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS}[v0]`,
+    fromS > 0
+      ? `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS - fromS},setpts=PTS+${Math.round(fromS * fps)}[v0]`
+      : `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS}[v0]`,
   ]
   const audioLabels: string[] = []
   let inputIndex = 0
@@ -762,28 +871,36 @@ async function buildFfmpegCommand(options: {
         ...(scaleFilter ? [scaleFilter] : []),
       ].join(",")
       const place = pictureOverlayPosition(clip)
+      // How much of a clip already under way when the film starts is skipped
+      // rather than drawn. A moving still keeps all of it, because its move
+      // is counted in its own frames from the first.
+      const skipS = motion ? 0 : Math.max(0, fromS - startS)
       if (clip.kind === "image") {
         inputs.push(
           ...(motion ? ["-framerate", String(fps)] : []),
           "-loop",
           "1",
           "-t",
-          String(durS),
+          String(durS - skipS),
           "-i",
           file
         )
       } else {
         inputs.push(
           "-ss",
-          String(clip.trimStartMs / 1000),
+          String(sourceMsAt(clip, skipS * 1000) / 1000),
           "-t",
-          String(sourceSpanMs(clip) / 1000),
+          String((sourceSpanMs(clip) - skipS * 1000 * speed) / 1000),
           "-i",
           file
         )
       }
       const speedStage = speed === 1 ? null : `setpts=(PTS-STARTPTS)/${speed}`
-      const reach = transition && transition.kind !== "dip" ? transition : null
+      // Once part of the clip is skipped, its blend in is over.
+      const reach =
+        transition && transition.kind !== "dip" && skipS === 0
+          ? transition
+          : null
       if (transition?.kind === "dip") {
         dipSeams.push({ seamS: startS, halfS: transition.durationMs / 2000 })
       }
@@ -817,7 +934,7 @@ async function buildFfmpegCommand(options: {
         )
       } else {
         filters.push(
-          `[${inputIndex}:v]${pictureFilter},setpts=(PTS-STARTPTS)/${speed}+${startS}/TB[l${visualStep}]`,
+          `[${inputIndex}:v]${pictureFilter},setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB[l${visualStep}]`,
           `[v${visualStep}][l${visualStep}]overlay=x=${place.x}:y=${place.y}:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }
@@ -940,30 +1057,20 @@ async function buildFfmpegCommand(options: {
   const scriptFile = path.join(dir, "filters.txt")
   await writeFile(scriptFile, filters.join(";\n"))
 
-  return [
-    ...inputs,
-    "-filter_complex_script",
-    scriptFile,
-    "-map",
-    `[${finalVideo}]`,
-    ...(hasAudio
+  return {
+    /** The inputs, the graph, and the picture it ends in. */
+    picture: [
+      ...inputs,
+      "-filter_complex_script",
+      scriptFile,
+      "-map",
+      `[${finalVideo}]`,
+    ],
+    sound: hasAudio
       ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE]
-      : []),
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    String(crf),
-    "-pix_fmt",
-    "yuv420p",
-    "-r",
-    String(fps),
-    "-t",
-    String(outputDurationS),
-    "-movflags",
-    "+faststart",
-  ]
+      : [],
+    outputDurationS,
+  }
 }
 
 // --- Drawing words ----------------------------------------------------------
