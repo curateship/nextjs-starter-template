@@ -7,10 +7,8 @@ import {
   type CaptionsResult,
 } from "@/lib/video/captions"
 import {
-  ELEVENLABS_KEY_MISSING_MESSAGE,
-  GEMINI_KEY_MISSING_MESSAGE,
+  AI_KEY_MISSING_MESSAGES,
   isShowableProviderProblem,
-  OPENAI_KEY_MISSING_MESSAGE,
 } from "@/lib/video/ai-providers"
 import {
   SAFE_JUMP_CUT_ERRORS,
@@ -46,6 +44,7 @@ import {
 } from "@/lib/video/voice"
 import { getAiKey } from "@/server/ai/keys"
 import { adminPost, userGet, userPost } from "@/server/guards"
+import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { writeProjectCaptions } from "@/server/video/captions"
 import {
   getAiDefaults,
@@ -88,9 +87,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_VOICE_ERRORS.has(message)) return message
   if (SAFE_HOOK_ERRORS.has(message)) return message
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
-  if (message === GEMINI_KEY_MISSING_MESSAGE) return message
-  if (message === ELEVENLABS_KEY_MISSING_MESSAGE) return message
-  if (message === OPENAI_KEY_MISSING_MESSAGE) return message
+  if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message === PROJECT_NOT_FOUND_MESSAGE) return message
   if (isShowableProviderProblem(message)) return message
   const authProblem = describeAuthError(message)
@@ -124,6 +121,8 @@ export type AiToolsAvailability = {
   voice: boolean
   /** Whisper and a second opinion on words: needs OpenAI. */
   openai: boolean
+  /** Claude as the writer: needs Anthropic. */
+  anthropic: boolean
   /** Which AI does what, as chosen. */
   defaults: AiDefaults
   /** What is actually being used, once keys and choice are both accounted for. */
@@ -134,17 +133,16 @@ export type AiToolsAvailability = {
 const aiToolsAvailabilityFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async (): Promise<AiToolsAvailability> => {
-    const [words, voice, openai, defaults] = await Promise.all([
-      getAiKey("gemini"),
+    const [keys, voice, defaults] = await Promise.all([
+      getAiKeysSaved(),
       getAiKey("elevenlabs"),
-      getAiKey("openai"),
       getAiDefaults(),
     ])
-    const keys = { words: !!words, openai: !!openai }
     return {
-      words: !!words,
+      words: keys.gemini,
       voice: !!voice,
-      openai: !!openai,
+      openai: keys.openai,
+      anthropic: keys.anthropic,
       defaults,
       transcriber: pickTranscriber(defaults, keys)?.id ?? null,
       writer: pickWriter(defaults, keys)?.id ?? null,

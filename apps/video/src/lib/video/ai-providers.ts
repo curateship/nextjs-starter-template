@@ -31,6 +31,17 @@ export const OPENAI_KEY_MISSING_MESSAGE =
 export const ELEVENLABS_KEY_MISSING_MESSAGE =
   "No ElevenLabs key is saved — add one in Settings → AI"
 
+export const ANTHROPIC_KEY_MISSING_MESSAGE =
+  "No Anthropic key is saved — add one in Settings → AI"
+
+/** Every "add a key" sentence, so a tool can show whichever one it hit. */
+export const AI_KEY_MISSING_MESSAGES: ReadonlySet<string> = new Set([
+  GEMINI_KEY_MISSING_MESSAGE,
+  OPENAI_KEY_MISSING_MESSAGE,
+  ELEVENLABS_KEY_MISSING_MESSAGE,
+  ANTHROPIC_KEY_MISSING_MESSAGE,
+])
+
 /**
  * The trouble a provider itself can hand back, in words already fit to read.
  *

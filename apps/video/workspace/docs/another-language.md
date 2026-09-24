@@ -30,7 +30,7 @@ translation has already been paid for.
 | Job | Who does it | Chosen where |
 | --- | --- | --- |
 | Writing down what is said | Whisper or Gemini | "Who writes it down", the same choice the Captions tool uses |
-| Translating | Gemini Flash or GPT-5 mini | "Who rewrites it", the same choice the Hook tool uses |
+| Translating | Gemini Flash, GPT-5 mini or Claude Opus 5 | "Who rewrites it", the same choice the Hook tool uses (see [writing-with-ai.md](writing-with-ai.md)) |
 | Reading it aloud | ElevenLabs, multilingual v2 only | The Voice list in the window |
 
 Only ElevenLabs voices are offered for reading aloud. The OpenAI voices are
@@ -92,7 +92,8 @@ language costs about:
 
 - **Writing it down:** $0.006 with Whisper.
 - **Translating:** under a cent. A 13-second test used 224 tokens in and about
-  1,000 out with GPT-5 mini, which is $0.002.
+  1,000 out with GPT-5 mini, which is $0.002. The same lines with Claude Opus 5
+  come to about $0.026, plus whatever thinking it is billed for.
 - **Reading aloud:** about $0.14. A minute of speech is roughly 900 characters,
   and ElevenLabs is priced at $0.00015 a character.
 
