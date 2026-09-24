@@ -19,6 +19,7 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { MusicPanel } from "@/components/video-editor/studio-music-panel"
+import { VoiceoversPanel } from "@/components/video-editor/studio-voiceovers-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import {
   attachEditorMedia,
@@ -58,6 +59,7 @@ import {
 export type StudioPanel =
   | "media"
   | "music"
+  | "voiceovers"
   | "text"
   | "brand"
   | "ai"
@@ -66,6 +68,7 @@ export type StudioPanel =
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
   music: "Music",
+  voiceovers: "Voiceovers",
   text: "Text",
   brand: "Brand kit",
   ai: "AI",
@@ -77,6 +80,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // own; the other two only need a title.
   if (panel === "media") return <MediaPanel />
   if (panel === "music") return <MusicPanel />
+  if (panel === "voiceovers") return <VoiceoversPanel />
   // The AI panel draws its own header too, so its tools can say what they need.
   if (panel === "ai") return <AiPanel />
   if (panel === "transcript") return <TranscriptPanel />

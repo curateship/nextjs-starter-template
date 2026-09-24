@@ -39,6 +39,7 @@ import {
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
 import { editorId } from "@/lib/video/timeline-utils"
+import { VOICE_NO_VOICE_MESSAGE } from "@/lib/video/voice"
 import { cn } from "@/lib/utils"
 
 /**
@@ -137,9 +138,15 @@ export function HookDialog({
       .filter((clip) => onScreenIds.has(clip.id))
       .reduce((end, clip) => Math.max(end, clip.startMs + clip.durationMs), 0)
 
+    const speaker = voices?.find((one) => one.id === voiceId)
+    if (!speaker) {
+      showErrorToast(VOICE_NO_VOICE_MESSAGE)
+      return
+    }
+
     setSaying(line)
     try {
-      const said = await speakHook(line, voiceId)
+      const said = await speakHook(line, speaker)
       const spokenLength = said.durationMs || voice.durationMs
       dispatch({
         type: "REWRITE_HOOK",
