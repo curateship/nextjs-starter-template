@@ -1,0 +1,23 @@
+-- Pausing a plan instead of cancelling it.
+--
+-- Someone travelling for two months wants to stop paying without losing their
+-- account. Stripe already does the billing half of this — pause collection —
+-- and this column is the local half: it says the plan is on hold, so every
+-- place that asks "are they paying for this?" answers no while it is set.
+--
+-- Why its own column rather than a new word in `status`. That column is
+-- overwritten wholesale from Stripe on every webhook, and Stripe's own status
+-- stays "active" through a pause. Writing "paused" into it would be undone by
+-- the next delivery, and the two would disagree in between. This column is
+-- written from `pause_collection` on the same payload, so Stripe stays the one
+-- source of truth and a pause made in the Stripe dashboard reaches us the same
+-- way one made in the app does.
+--
+-- A date rather than a true/false, because "paused since 3 August" is worth
+-- something to whoever is reading a support ticket and a bare flag is not.
+-- Null means not paused, which is what every existing row means.
+--
+-- Nothing existing changes. Every row starts null, so every account behaves
+-- exactly as it did until somebody presses Pause.
+ALTER TABLE "subscriptions"
+  ADD COLUMN IF NOT EXISTS "paused_at" timestamptz;

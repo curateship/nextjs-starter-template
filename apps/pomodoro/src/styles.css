@@ -1,0 +1,19 @@
+@import "./theme.css";
+
+@source "./";
+
+@layer base {
+  button:not(:disabled),
+  a[href],
+  summary,
+  label,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([data-disabled]),
+  [role="option"]:not([data-disabled]),
+  [role="switch"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [aria-haspopup]:not(:disabled) {
+    cursor: pointer;
+  }
+}
