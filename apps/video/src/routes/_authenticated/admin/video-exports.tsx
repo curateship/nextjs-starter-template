@@ -13,6 +13,7 @@ import {
 export const EXPORT_SORT_COLUMNS = [
   "title",
   "project",
+  "shape",
   "size",
   "length",
   "made",

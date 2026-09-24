@@ -1,6 +1,13 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
-import { DownloadIcon, FilmIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import {
+  DownloadIcon,
+  FilmIcon,
+  Loader2Icon,
+  RotateCwIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -18,6 +25,7 @@ import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import {
   deleteExports,
   getExportErrorMessage,
+  retryExport,
   type ExportListResponse,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
@@ -37,16 +45,33 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportDetailsDialog } from "@/components/video-editor/export-details-dialog"
+import { isExportActive } from "@/components/video-editor/use-project-exports"
 
 const exportsRoute = getRouteApi("/_authenticated/admin/video-exports")
 
-export type ExportSortColumn = "title" | "project" | "size" | "length" | "made"
+export type ExportSortColumn =
+  | "title"
+  | "project"
+  | "shape"
+  | "size"
+  | "length"
+  | "made"
+
+// How often the list asks again while something on it is waiting or rendering.
+const POLL_MS = 3000
 
 const EXPORT_COLUMNS: SortableColumn<ExportSortColumn>[] = [
   { key: "title", label: "Export", column: "main" },
   { key: "project", label: "Project", column: "meta" },
+  { key: "shape", label: "Shape", column: "meta" },
   { key: "size", label: "Size", column: "meta" },
-  { key: "length", label: "Length", column: "meta" },
+  // The first to go on a smaller screen; the details window still shows it.
+  {
+    key: "length",
+    label: "Length",
+    column: "meta",
+    className: "hidden 2xl:table-cell",
+  },
   { key: "made", label: "Made", column: "meta" },
 ]
 
@@ -58,20 +83,27 @@ function compareExports(
   switch (column) {
     case "project":
       return (a.project_name ?? "").localeCompare(b.project_name ?? "")
+    case "shape":
+      return a.aspect.localeCompare(b.aspect)
     case "size":
       return (a.file_size ?? 0) - (b.file_size ?? 0)
     case "length":
       return (a.duration_ms ?? 0) - (b.duration_ms ?? 0)
     case "made":
-      return Date.parse(a.finished_at ?? "") - Date.parse(b.finished_at ?? "")
+      return (
+        Date.parse(a.finished_at ?? a.created_at) -
+        Date.parse(b.finished_at ?? b.created_at)
+      )
     default:
       return (a.title ?? "").localeCompare(b.title ?? "")
   }
 }
 
 /**
- * Every finished export, newest first. A row opens what it is called and which
- * moment stands in for it; the download hands over the file itself.
+ * Every export, newest first. A finished row opens what it is called and which
+ * moment stands in for it; the download hands over the file itself. A failed
+ * row shows why and can be tried again. While anything is waiting or
+ * rendering, the list refreshes itself until it lands.
  */
 export function ExportsPage({ initial }: { initial: ExportListResponse }) {
   const { config } = useShellRuntime()
@@ -96,6 +128,12 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
   const selection = useSelection()
 
   const items = initial.exports
+  const anyActive = items.some(isExportActive)
+  React.useEffect(() => {
+    if (!anyActive) return
+    const timer = setInterval(() => void router.invalidate(), POLL_MS)
+    return () => clearInterval(timer)
+  }, [anyActive, router])
   const sortedItems = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
     return [...items].sort((a, b) => factor * compareExports(a, b, sort))
@@ -136,6 +174,13 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
         })
       )
     })
+  }
+
+  async function handleRetry(item: RenderJobSummary) {
+    await run(async () => {
+      await retryExport(item.id)
+      await router.invalidate()
+    }, `Trying ${item.title ?? "this export"} again.`)
   }
 
   const selectedItems = items.filter((item) => selection.selected.has(item.id))
@@ -195,7 +240,7 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
             ? "No exports match that search."
             : "Nothing exported yet. Open a project and press Export."
         }
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page: currentPage,
@@ -214,7 +259,9 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
           <TableRow
             key={item.id}
             className="group"
-            rowAction={() => setEditing(item)}
+            rowAction={
+              item.status === "ready" ? () => setEditing(item) : undefined
+            }
           >
             <TableCell column="select">
               <Checkbox
@@ -229,7 +276,7 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
                   {item.has_thumbnail ? (
                     <ExportCover
                       exportId={item.id}
-                      className="size-full object-cover"
+                      className="size-full object-contain"
                       fallback={
                         <FilmIcon className="size-4 text-muted-foreground" />
                       }
@@ -238,14 +285,26 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
                     <FilmIcon className="size-4 text-muted-foreground" />
                   )}
                 </span>
-                <button
-                  type="button"
-                  className="block max-w-full truncate text-left font-medium group-hover:underline"
-                  onClick={() => setEditing(item)}
-                  title={item.title ?? "Untitled export"}
-                >
-                  {item.title ?? "Untitled export"}
-                </button>
+                <div className="grid min-w-0 gap-0.5">
+                  {item.status === "ready" ? (
+                    <button
+                      type="button"
+                      className="block max-w-full truncate text-left font-medium group-hover:underline"
+                      onClick={() => setEditing(item)}
+                      title={item.title ?? "Untitled export"}
+                    >
+                      {item.title ?? "Untitled export"}
+                    </button>
+                  ) : (
+                    <span
+                      className="block max-w-full truncate font-medium"
+                      title={item.title ?? "Untitled export"}
+                    >
+                      {item.title ?? "Untitled export"}
+                    </span>
+                  )}
+                  <ExportRowStatus item={item} />
+                </div>
               </div>
             </TableCell>
             <TableCell column="meta">
@@ -253,10 +312,11 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
                 {item.project_name ?? "—"}
               </span>
             </TableCell>
+            <TableCell column="meta">{item.aspect}</TableCell>
             <TableCell column="meta">
               {item.file_size ? formatFileSize(item.file_size) : "—"}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="meta" className="hidden 2xl:table-cell">
               {item.duration_ms ? formatClock(item.duration_ms) : "—"}
             </TableCell>
             <TableCell column="meta">
@@ -264,26 +324,43 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
-                <Button asChild variant="ghost" size="icon">
-                  <a
-                    href={`/api/v1/video/exports/${item.id}/file?filename=${encodeURIComponent(item.title ?? "export")}`}
-                    download
-                    aria-label={`Download ${item.title ?? "this export"}`}
-                    title={`Download ${item.title ?? "this export"}`}
+                {item.status === "ready" ? (
+                  <>
+                    <Button asChild variant="ghost" size="icon">
+                      <a
+                        href={`/api/v1/video/exports/${item.id}/file?filename=${encodeURIComponent(item.title ?? "export")}`}
+                        download
+                        aria-label={`Download ${item.title ?? "this export"}`}
+                        title={`Download ${item.title ?? "this export"}`}
+                      >
+                        <DownloadIcon className="size-4" />
+                      </a>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditing(item)}
+                      aria-label={`Edit ${item.title ?? "this export"}`}
+                      title={`Edit ${item.title ?? "this export"}`}
+                    >
+                      <SettingsIcon className="size-4" />
+                    </Button>
+                  </>
+                ) : null}
+                {item.status === "error" ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={busy}
+                    onClick={() => void handleRetry(item)}
+                    aria-label={`Try ${item.title ?? "this export"} again`}
+                    title="Try again"
                   >
-                    <DownloadIcon className="size-4" />
-                  </a>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditing(item)}
-                  aria-label={`Edit ${item.title ?? "this export"}`}
-                  title={`Edit ${item.title ?? "this export"}`}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
+                    <RotateCwIcon className="size-4" />
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
@@ -317,7 +394,7 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
             ? `Delete ${deleteTargets.length} ${plural(deleteTargets.length, "export", "exports")}?`
             : "Delete this export?"
         }
-        description="The video file goes for good. The project it was made from stays as it is."
+        description="Any file already made goes for good, and one still waiting or being made is stopped. The project it was made from stays as it is."
         confirmLabel={
           deleteTargets.length > 1 ? "Delete exports" : "Delete export"
         }
@@ -326,4 +403,24 @@ export function ExportsPage({ initial }: { initial: ExportListResponse }) {
       />
     </>
   )
+}
+
+/** Under the name of a row that has no file yet: why, or how far it has got. */
+function ExportRowStatus({ item }: { item: RenderJobSummary }) {
+  if (item.status === "error") {
+    return (
+      <span className="text-sm whitespace-normal text-destructive">
+        Failed · {item.error_message ?? "The export could not be made"}
+      </span>
+    )
+  }
+  if (isExportActive(item)) {
+    return (
+      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Loader2Icon className="size-3.5 animate-spin" />
+        {item.status === "running" ? "Making it now…" : "Waiting to start…"}
+      </span>
+    )
+  }
+  return null
 }

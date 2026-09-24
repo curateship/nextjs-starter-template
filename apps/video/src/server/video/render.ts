@@ -252,6 +252,7 @@ export type RenderResult = {
 export async function renderTimeline({
   userId,
   timeline: rawTimeline,
+  aspect,
   quality,
   brandKit,
   normalizeLoudness,
@@ -259,6 +260,8 @@ export async function renderTimeline({
 }: {
   userId: string
   timeline: unknown
+  /** The export's own shape, which need not be the project's. */
+  aspect: AspectRatio
   quality: RenderQuality
   brandKit: VideoBrandKit
   normalizeLoudness: boolean
@@ -268,7 +271,7 @@ export async function renderTimeline({
   const dir = await mkdtemp(path.join(tmpdir(), "video-render-"))
   try {
     const timeline = requireCanonicalTimeline(rawTimeline)
-    const size = renderSize(timeline.aspect, quality)
+    const size = renderSize(aspect, quality)
     const durationMs = timelineEndMs(timeline.tracks)
     if (durationMs <= 0) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
     if (durationMs > MAX_TIMELINE_MS) throw new Error(TIMELINE_TOO_LONG_MESSAGE)

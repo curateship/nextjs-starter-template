@@ -56,6 +56,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [stopping-an-export.md](stopping-an-export.md) — what pressing Stop does to
   an export that is waiting or already being made, how fast the next one
   starts, and why nothing is left in storage.
+- [export-shapes.md](export-shapes.md) — exporting one project in several
+  shapes from one press, the one-per-shape rule, and why words need checking
+  by eye in each shape.
+- [retrying-an-export.md](retrying-an-export.md) — the Try again button on a
+  failed export: when it is allowed, and what it resets.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 

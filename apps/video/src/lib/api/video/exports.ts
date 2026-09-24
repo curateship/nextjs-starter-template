@@ -7,12 +7,19 @@ import {
   EXPORT_DESCRIPTION_MAX,
   EXPORT_TITLE_MAX,
   NO_ACTIVE_EXPORT_MESSAGE,
+  NO_SHAPE_MESSAGE,
   NOTHING_TO_EXPORT_MESSAGE,
+  ONLY_FAILED_RETRY_MESSAGE,
   QUEUE_FULL_MESSAGE,
   RENDER_NOT_FOUND_MESSAGE,
+  shapeBusyMessage,
   TIMELINE_TOO_LONG_MESSAGE,
 } from "@/lib/video/render"
-import { SAVED_TIMELINE_INVALID_MESSAGE } from "@/lib/video/timeline-schema"
+import {
+  ASPECT_RATIOS,
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  type AspectRatio,
+} from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
 import {
   deleteOwnedExports,
@@ -22,9 +29,10 @@ import {
   type ExportListResponse,
 } from "@/server/video/exports"
 import {
-  cancelRenderJob,
-  enqueueRenderJob,
-  getLatestRenderJob,
+  cancelRenderJobs,
+  enqueueRenderJobs,
+  getLatestRenderJobs,
+  retryRenderJob,
   type RenderJobSummary,
 } from "@/server/video/render-queue"
 
@@ -44,6 +52,9 @@ const KNOWN_MESSAGES = new Set([
   NO_ACTIVE_EXPORT_MESSAGE,
   QUEUE_FULL_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
+  NO_SHAPE_MESSAGE,
+  ONLY_FAILED_RETRY_MESSAGE,
+  ...ASPECT_RATIOS.map(shapeBusyMessage),
 ])
 
 export function getExportErrorMessage(error: unknown) {
@@ -61,6 +72,9 @@ const exportIdSchema = z.object({
 })
 
 const startSchema = projectIdSchema.extend({
+  // No lower limit here, so an empty list reaches the queue and is refused
+  // with its own plain message rather than a validation error.
+  aspects: z.array(z.enum(ASPECT_RATIOS)).max(ASPECT_RATIOS.length),
   quality: z.enum(["high", "medium", "low"]),
   // Absent means "whatever the brand kit says"; the modal can override it for
   // one export without changing the setting.
@@ -73,9 +87,10 @@ const startExportFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(startSchema)
   .handler(async ({ data, context }) => {
-    return enqueueRenderJob({
+    return enqueueRenderJobs({
       userId: context.user.id,
       projectId: data.projectId,
+      aspects: data.aspects,
       quality: data.quality,
       normalizeLoudness: data.normalizeLoudness,
       title: data.title,
@@ -86,14 +101,21 @@ const projectExportFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(projectIdSchema)
   .handler(async ({ data, context }) => {
-    return getLatestRenderJob(context.user.id, data.projectId)
+    return getLatestRenderJobs(context.user.id, data.projectId)
   })
 
 const cancelExportFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(projectIdSchema)
   .handler(async ({ data, context }) => {
-    return cancelRenderJob(context.user.id, data.projectId)
+    return cancelRenderJobs(context.user.id, data.projectId)
+  })
+
+const retryExportFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(exportIdSchema)
+  .handler(async ({ data, context }) => {
+    return retryRenderJob(context.user.id, data.exportId)
   })
 
 const listExportsFn = createServerFn({ method: "GET" })
@@ -157,21 +179,26 @@ const deleteExportsFn = createServerFn({ method: "POST" })
 
 export function startExport(
   projectId: string,
+  aspects: AspectRatio[],
   quality: "high" | "medium" | "low",
   normalizeLoudness?: boolean,
   title?: string
 ) {
   return startExportFn({
-    data: { projectId, quality, normalizeLoudness, title },
+    data: { projectId, aspects, quality, normalizeLoudness, title },
   })
 }
 
-export function loadProjectExport(projectId: string) {
+export function loadProjectExports(projectId: string) {
   return projectExportFn({ data: { projectId } })
 }
 
-export function cancelExport(projectId: string) {
+export function cancelExports(projectId: string) {
   return cancelExportFn({ data: { projectId } })
+}
+
+export function retryExport(exportId: string) {
+  return retryExportFn({ data: { exportId } })
 }
 
 export function listExports({

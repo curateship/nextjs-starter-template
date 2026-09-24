@@ -55,7 +55,7 @@ import {
 } from "@/components/video-editor/studio-panels"
 import { AiBudgetIndicator } from "@/components/video-editor/ai-budget-indicator"
 import { ExportDialog } from "@/components/video-editor/export-dialog"
-import { useProjectExport } from "@/components/video-editor/use-project-export"
+import { useProjectExports } from "@/components/video-editor/use-project-exports"
 import { StudioInspector } from "@/components/video-editor/studio-inspector"
 import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
@@ -373,8 +373,12 @@ function StageHeader() {
   const [draft, setDraft] = React.useState(projectName)
   const [shared, setShared] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
-  const { job, setJob } = useProjectExport(projectId)
-  const rendering = job?.status === "queued" || job?.status === "running"
+  const projectAspect = useEditorSelector((state) => state.aspect)
+  const {
+    jobs,
+    setJobs,
+    running: rendering,
+  } = useProjectExports(projectId)
 
   async function commitRename() {
     setEditing(false)
@@ -473,8 +477,9 @@ function StageHeader() {
         onOpenChange={setExportOpen}
         projectId={projectId}
         projectName={projectName}
-        job={job}
-        onJobChange={setJob}
+        projectAspect={projectAspect}
+        jobs={jobs}
+        onJobsChange={setJobs}
       />
     </DashboardCardHeader>
   )
