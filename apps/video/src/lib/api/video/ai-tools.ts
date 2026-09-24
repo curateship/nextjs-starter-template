@@ -24,6 +24,14 @@ import {
   type AiDefaults,
 } from "@/lib/video/ai-choices"
 import { SAFE_HOOK_ERRORS } from "@/lib/video/hooks"
+import {
+  SAFE_TRANSLATE_ERRORS,
+  TRANSLATE_LANGUAGES,
+  TRANSLATE_LINE_MAX,
+  TRANSLATE_LINES_MAX,
+  TRANSLATE_VOICE_MODEL,
+  type TranslateLanguage,
+} from "@/lib/video/translate"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import {
   SAFE_VOICE_ERRORS,
@@ -46,6 +54,7 @@ import {
   saveVoiceDefaults,
 } from "@/server/video/settings"
 import { rewriteHook, type HookVariants } from "@/server/video/hooks"
+import { translateLines } from "@/server/video/translate"
 import { listVoices, speak } from "@/server/video/voice"
 import {
   analyseJumpCuts,
@@ -78,6 +87,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_JUMP_CUT_ERRORS.has(message)) return message
   if (SAFE_VOICE_ERRORS.has(message)) return message
   if (SAFE_HOOK_ERRORS.has(message)) return message
+  if (SAFE_TRANSLATE_ERRORS.has(message)) return message
   if (message === GEMINI_KEY_MISSING_MESSAGE) return message
   if (message === ELEVENLABS_KEY_MISSING_MESSAGE) return message
   if (message === OPENAI_KEY_MISSING_MESSAGE) return message
@@ -263,6 +273,66 @@ const speakHookFn = createServerFn({ method: "POST" })
 /** Say a rewritten opening line out loud, so the sound can replace the old one. */
 export function speakHook(text: string, voiceId: string) {
   return speakHookFn({ data: { text, voiceId } })
+}
+
+const translateFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      language: z.enum(TRANSLATE_LANGUAGES),
+      lines: z
+        .array(z.string().max(TRANSLATE_LINE_MAX))
+        .min(1)
+        .max(TRANSLATE_LINES_MAX),
+    })
+  )
+  .handler(async ({ data, context }): Promise<string[]> => {
+    return translateLines({
+      userId: context.user.id,
+      language: data.language,
+      lines: data.lines,
+    })
+  })
+
+/**
+ * Caption lines in another language, one back for each one sent, in order.
+ * Nothing on the timeline changes; the editor shows them first.
+ */
+export function translateCaptionLines(
+  language: TranslateLanguage,
+  lines: string[]
+) {
+  return translateFn({ data: { language, lines } })
+}
+
+const speakTranslationFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      text: z.string().min(1).max(VOICE_TEXT_MAX),
+      voiceId: z.string().min(1).max(64),
+    })
+  )
+  .handler(async ({ data, context }): Promise<VoiceoverResult> => {
+    const remembered = await getVoiceDefaults()
+    return speak({
+      userId: context.user.id,
+      voiceId: data.voiceId,
+      // Always ElevenLabs, always the multilingual model: it is the one that
+      // speaks every language on the list.
+      speaker: "elevenlabs",
+      modelId: TRANSLATE_VOICE_MODEL,
+      text: data.text,
+      settings: remembered
+        ? { ...createDefaultVoiceSettings(), speed: remembered.speed }
+        : undefined,
+      feature: "translation_voice",
+    })
+  })
+
+/** Read a translation aloud, so it can be laid over the original. */
+export function speakTranslation(text: string, voiceId: string) {
+  return speakTranslationFn({ data: { text, voiceId } })
 }
 
 const voicesFn = createServerFn({ method: "GET" })
