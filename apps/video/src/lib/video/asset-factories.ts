@@ -28,6 +28,25 @@ export type VideoDurationSeconds = (typeof VIDEO_DURATIONS)[number]
 
 export const VEO_MODEL = "veo-3.1-generate-preview"
 
+/**
+ * The lengths a person can ask for. Google stops one clip at 8 seconds, so a
+ * longer shot is made of 8 second pieces, each starting from the last frame of
+ * the one before. `workspace/docs/longer-ai-clips.md` has the finding.
+ */
+export const SHOT_LENGTHS = [4, 6, 8, 16, 24, 32] as const
+export type ShotLengthSeconds = (typeof SHOT_LENGTHS)[number]
+const PIECE_SECONDS = 8
+
+export function shotPieces(length: ShotLengthSeconds): {
+  count: number
+  seconds: VideoDurationSeconds
+} {
+  if (length <= PIECE_SECONDS) {
+    return { count: 1, seconds: length as VideoDurationSeconds }
+  }
+  return { count: length / PIECE_SECONDS, seconds: PIECE_SECONDS }
+}
+
 export function imageProvider(model: ImageModelId): "gemini" | "openai" {
   return model === "gpt-image-2" ? "openai" : "gemini"
 }
