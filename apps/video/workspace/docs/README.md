@@ -76,6 +76,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
   the editor as a picture: where the two buttons are, what size the picture
   is, where it lands, and when the editor picture and the preview differ.
+- [media-collections.md](media-collections.md) — named groups of your own
+  files in the editor's Media panel: whose they are, how to fill them many at
+  a time, why deleting one never deletes a file, and when another tab sees a
+  new one.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 
