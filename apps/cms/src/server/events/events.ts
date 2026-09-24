@@ -660,6 +660,36 @@ export async function updateEvent(
   return toEvent(row)
 }
 
+/**
+ * Each event's address and status by id, for My listings to link an owner's
+ * approved events. Only the ids asked for, which come from the owner's own
+ * suggestions.
+ */
+export async function eventLinksByIds(
+  ids: string[],
+  database: CustomShellDb = db
+): Promise<Map<string, { slug: string; status: EventStatus }>> {
+  const unique = [...new Set(ids)].filter(Boolean)
+  if (unique.length === 0) return new Map()
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      slug: siteEvents.slug,
+      status: siteEvents.status,
+    })
+    .from(siteEvents)
+    .where(inArray(siteEvents.id, unique))
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      {
+        slug: row.slug,
+        status: row.status === "published" ? "published" : "draft",
+      },
+    ])
+  )
+}
+
 const COPY_SUFFIX = " (copy)"
 
 /**

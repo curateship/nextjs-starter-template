@@ -1,7 +1,8 @@
 import { z } from "zod"
-import type { Address, Hash } from "viem"
+import { BaseError, type Address, type Hash } from "viem"
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
 import { evmTransfers } from "@/server/protocols/evm-chain/receipts"
+import { evmRefused } from "@/server/protocols/evm-chain/refusals"
 import { evmUnits } from "@/server/protocols/evm-chain/kyber"
 import {
   finishRobinhoodSend,
@@ -30,6 +31,8 @@ const LOOK_BACK_MS = 7 * 86_400_000
  * their receipts again. Bounded; forgetting one only costs a re-read.
  */
 const settled = new Map<string, Set<string>>()
+const BOTH_SILENT =
+  "Neither Robinhood Chain's explorer nor its node answered a trade history request. The Journal catches up on the next read."
 
 const transfersSchema = z.object({
   items: z.array(
@@ -120,14 +123,36 @@ async function readFills(
   const done = settled.get(wallet) ?? new Set<string>()
   settled.set(wallet, done)
   if (settled.size > 500) settled.delete(settled.keys().next().value!)
+  let explorerAnswered = true
   try {
     for (const hash of await robinhoodSwapHashes(wallet, from))
       if (!done.has(hash)) hashes.add(hash)
   } catch {
     // The explorer would not answer. This app's own sends are still settled
-    // below; swaps made elsewhere are found on the next pass.
+    // below from the node; swaps made elsewhere are found on the next pass.
+    explorerAnswered = false
   }
   if (!hashes.size) return []
+  try {
+    return await settle(client, wallet, [...hashes], pending, from, done, owner)
+  } catch (error) {
+    // Said only when the node, the explorer's fallback, fails too. A viem
+    // error is the node's; a database error is not, and keeps its own words.
+    if (!explorerAnswered && error instanceof BaseError)
+      throw evmRefused(BOTH_SILENT, true)
+    throw error
+  }
+}
+
+async function settle(
+  client: ReturnType<typeof robinhoodReadClient>,
+  wallet: Address,
+  hashes: Hash[],
+  pending: Awaited<ReturnType<typeof pendingRobinhoodSends>>,
+  from: number,
+  done: Set<string>,
+  owner: RobinhoodOwner
+): Promise<WalletOrderFill[]> {
   const price = await robinhoodEthPrice()
   const fills: WalletOrderFill[] = []
   for (const hash of hashes) {

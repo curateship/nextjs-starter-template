@@ -42,6 +42,13 @@ published event has its own page at `/events/<address>`.
   when the suggestion is approved. Chosen on 24 Sep 2026.
 - **The Events page has a "Suggest an event" button** while the Suggest an
   event page is on. Chosen on 24 Sep 2026. The page starts on for every site.
+- **Approving a listing owner's event publishes it.** Chosen on 24 Sep 2026,
+  because the owner wrote it for their own place. A public suggestion still
+  becomes a draft.
+- **Every owner's event is reviewed,** however many were approved before.
+  Chosen on 24 Sep 2026. No owner is trusted to skip the queue.
+- **An owner sends one date at a time.** Chosen on 24 Sep 2026. An admin can
+  make an owner's event repeat in the event window after approving it.
 
 ## What an event is
 
@@ -778,21 +785,27 @@ about each new suggestion.
 
 - **Three tabs:** Pending, which it opens on and which shows how many are
   waiting, Approved and Rejected, with a search over the event's name, the
-  email and the person's name. The tab, the search and an open suggestion all
+  email, the person's name and the place, so an owner's events are found by
+  their listing's name. The tab, the search and an open suggestion all
   live in the address.
 - **No selection column,** the same as Listing submissions: approving in bulk
   would make events nobody read.
 - **The window** shows everything that was sent, the photo included, and a
-  note back. Pending ones end with Cancel, Reject and "Approve as a draft".
-  Decided ones open read-only with Done, the note that was sent, and "Open the
-  draft event" for an approved one. The row's "The event" does the same.
+  note back. Pending ones end with Cancel, Reject and "Approve as a draft", or
+  "Approve and publish" for a listing owner's. Decided ones open read-only
+  with Done, the note that was sent, and "Open the event" for an approved one.
+  The row's "The event" does the same.
+- **A listing owner's event** is marked "From the owner" on its row, with the
+  listing under its name, and the window says who sent it and that approving
+  publishes it. "Events from a listing's owner" below covers them.
 
 ### Approving and rejecting
 
-- **Approving makes a draft event with every field filled:** the title, the
-  day and times, the place, the street address, the description as the body,
-  its first paragraph as the summary, and the photo as the cover. Nothing is
-  public until an admin publishes it.
+- **Approving a public suggestion makes a draft event with every field
+  filled:** the title, the day and times, the place, the street address, the
+  description as the body, its first paragraph as the summary, and the photo
+  as the cover. Nothing is public until an admin publishes it. A listing
+  owner's is published instead, as "Events from a listing's owner" says.
 - **The photo joins the Media library** on approval, under the admin who
   approved it. Until then it waits in the site's storage under
   `event-submissions/`, which the Media screen's orphan scan leaves alone
@@ -821,6 +834,49 @@ saved first, and a failed email never undoes it.
   draft and the sender has been emailed." in green, or "…but the email to the
   sender could not be sent." in amber. A local site with no Resend key always
   shows the amber one.
+
+### Events from a listing's owner
+
+The owner of a claimed listing adds events at their own place from My
+listings, like a café adding its Friday open mic, without emailing anyone.
+They go into the same queue, and every one is read by an admin.
+
+- **Where:** each listing on My listings has an "Events at Café Luna" card
+  under it, with "Add event". The card lists the events that account sent for
+  that listing, newest first, 20 at most.
+- **The window:** the name of the event, a description, a photo, the day, and
+  a start and an end time, with the same check and the same past-midnight rule
+  as the Suggest an event page. The place is not a box: it says "Café Luna.
+  Your events are always at your listing." The name and email are the
+  account's.
+- **The photo** is the shared image box, because an owner has an account. It
+  goes into their own Media library, and the server refuses a picture that is
+  not one of theirs.
+- **Only their own listing.** The listing comes from the owner's approved
+  claim, found by the claim and the account together, so another owner's
+  claim, or a claim still waiting, is refused with "You do not look after that
+  listing."
+- **The Events page's switch counts.** While the site has its Events page off,
+  the card says so and has no "Add event", and the server refuses a send.
+- **Twenty an hour** from one owner, more than the public's five, because
+  filling in a month of nights is ordinary and each one still waits for an
+  admin.
+- **Admins are emailed** with "New event from the owner of Café Luna" and a
+  link to the queue.
+- **Approving publishes it,** with the listing as the place, so the event page
+  links to the listing and uses its pin, and it is on the Events page at once.
+  The owner is emailed "<title> is on the Events page". Rejecting emails the
+  note, the same as a public suggestion.
+- **What the owner sees:** each event with "Waiting for approval", "Approved"
+  with "See its page", or "Not approved" with the admin's note.
+- **Only their own.** An owner sees the events their own account sent, never
+  another owner's. A listing that changes hands shows its new owner none of
+  the old owner's events.
+- **Where it lives:** `drizzle/0090_cms_owner_event_submissions.sql` adds
+  `from_owner`, `owner_user_id`, `listing_id` and `cover_image` to
+  `event_submissions`. `sendOwnerEvent` and `ownerEventsFor` are in
+  `src/server/events/owner-submissions.ts`, and the card and window are
+  `src/components/events/owner-events.tsx`.
 
 ### Where it lives
 

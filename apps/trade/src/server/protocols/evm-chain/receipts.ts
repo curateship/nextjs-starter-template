@@ -7,7 +7,7 @@ import {
   type TransactionReceipt,
 } from "viem"
 import type { WalletOrderFill } from "@/lib/protocols/contracts"
-import { nodeRefusalCode, type EvmRefusals } from "./refusals"
+import type { EvmRefusals } from "./refusals"
 
 /** Net wallet transfers include refunds and token taxes. Pool-to-pool hops do not count. */
 export function evmTransfers(
@@ -106,19 +106,24 @@ export function evmReceipts(chain: ReceiptChain) {
       reason?: unknown
       unsellable?: boolean
       approvalFeeWei?: bigint
+      /** The symbol of the coin whose own contract refused, when one did. */
+      coin?: string
     } = {}
   ): string {
-    const reason = nodeRefusalCode(detail.reason)
+    const reason = chain.refusals.classify(detail.reason)
     const sentence = chain.refusals.sentence(
       kind === "swap" && detail.unsellable
         ? "unsellable"
-        : reason === "slippage"
-          ? "slippage"
+        : reason === "slippage" ||
+            reason === "coin-blocked" ||
+            reason === "coin-paused"
+          ? reason
           : "unknown",
       {
         hash,
         feeWei: receipt.gasUsed * receipt.effectiveGasPrice,
         approvalFeeWei: detail.approvalFeeWei,
+        coin: detail.coin,
       }
     )
     return reason === "slippage" && !detail.unsellable

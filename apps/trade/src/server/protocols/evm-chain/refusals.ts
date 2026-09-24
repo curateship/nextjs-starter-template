@@ -14,6 +14,8 @@ export type EvmRefusal =
   | "pending"
   | "replaced"
   | "history"
+  | "coin-blocked"
+  | "coin-paused"
   | "unknown"
 export type EvmRefusalDetail = {
   hash?: string
@@ -25,6 +27,8 @@ export type EvmRefusalDetail = {
   approval?: boolean
   /** The router a no-route or bad-request refusal came from. KyberSwap unless named. */
   router?: string
+  /** The coin whose own contract refused, by its symbol. */
+  coin?: string
   /**
    * This was a history read, not a transaction.
    *
@@ -49,6 +53,20 @@ type EvmChainWords = {
   historyHelp: string
   /** The chain's own code for a practice network it does not serve. */
   unsupportedNetwork: string
+  /**
+   * A coin contract's own refusals this chain knows, found by the 4-byte
+   * error code in the revert data. Absent where the chain's coins have none.
+   */
+  coinRefusals?: {
+    /** Error codes for an address the coin's compliance check blocked. */
+    blocked: readonly string[]
+    /** Error codes for a coin that is paused. */
+    paused: readonly string[]
+    /** What to do about a block. */
+    blockedHelp: string
+    /** What to do about a pause. */
+    pausedHelp: string
+  }
 }
 
 // Only errors created here may carry prose through an outer catch. A provider
@@ -154,9 +172,65 @@ export function nodeRefusalCode(error: unknown): EvmRefusal {
   return "unknown"
 }
 
+/**
+ * The words and the revert data along an error's causes, bounded. They are
+ * kept apart: a node's words quote the request, whose addresses and call
+ * data could contain an error code by chance.
+ */
+function errorParts(error: unknown): { words: string; data: string[] } {
+  const seen = new Set<unknown>()
+  const words: string[] = []
+  const data: string[] = []
+  let current = error
+  for (
+    let i = 0;
+    i < 8 && current && typeof current === "object" && !seen.has(current);
+    i++
+  ) {
+    seen.add(current)
+    const e = current as {
+      message?: unknown
+      shortMessage?: unknown
+      details?: unknown
+      data?: unknown
+      cause?: unknown
+    }
+    const reverted =
+      e.data && typeof e.data === "object" && "data" in e.data
+        ? (e.data as { data: unknown }).data
+        : e.data
+    for (const part of [e.message, e.shortMessage, e.details])
+      if (typeof part === "string") words.push(part.slice(0, 16_000))
+    if (typeof reverted === "string") data.push(reverted.toLowerCase())
+    current = e.cause
+  }
+  return { words: words.join(" "), data }
+}
+
 /** One chain's refusals, in sentences that name its coin and explorer. */
 export function evmRefusals(words: EvmChainWords) {
   const { chain, feeCoin, feeReserve, explorer } = words
+
+  /**
+   * What a failure means, reading the chain's own coin refusals first: a
+   * compliance block or a pause is found by its error code in the revert
+   * data, which a node relays but never words. Everything else is the
+   * shared reading of the node's words.
+   */
+  function classify(error: unknown): EvmRefusal {
+    // Already a sentence; its own words must not be read again.
+    if (error instanceof EvmRefusalError) return error.code ?? "unknown"
+    const known = words.coinRefusals
+    if (known) {
+      const { words, data } = errorParts(error)
+      const raised = (codes: readonly string[]) =>
+        data.some((hex) => codes.some((code) => hex.startsWith(code)))
+      if (raised(known.blocked) || /compliance/i.test(words))
+        return "coin-blocked"
+      if (raised(known.paused)) return "coin-paused"
+    }
+    return nodeRefusalCode(error)
+  }
 
   function lookup(hash?: string): string {
     return hash && /^0x[\da-f]{64}$/i.test(hash)
@@ -231,6 +305,12 @@ export function evmRefusals(words: EvmChainWords) {
       case "history":
         said = `This ${chain} node will not answer a trade history request, so new swaps cannot reach the Journal. ${words.historyHelp}`
         break
+      case "coin-blocked":
+        said = `${detail.coin ?? "The coin"}'s own contract refused the transfer: its compliance check blocked an address in it. ${words.coinRefusals?.blockedHelp ?? ""}`.trim()
+        break
+      case "coin-paused":
+        said = `${detail.coin ?? "The coin"}'s own contract is paused, so it cannot move right now. ${words.coinRefusals?.pausedHelp ?? ""}`.trim()
+        break
       case "unknown":
         said = reading
           ? `${chain}'s node did not answer a trade history request. The Journal catches up on the next read.`
@@ -273,6 +353,12 @@ export function evmRefusals(words: EvmChainWords) {
   function historyError(cause: unknown): Error {
     if (cause instanceof EvmRefusalError && cause.code === "history")
       return cause
+    // A busy sentence names a service, never one transaction, so it stands.
+    if (
+      cause instanceof EvmRefusalError &&
+      cause.message.startsWith("EXCHANGE_BUSY:")
+    )
+      return cause
     if (logsBeyondNode(cause)) return error("history")
     // A refusal raised before a swap was signed says "no coins moved", which
     // is a sentence about one transaction. A history read is about every swap
@@ -300,10 +386,10 @@ export function evmRefusals(words: EvmChainWords) {
     }
     if (cause instanceof Error && appCodes.test(cause.message))
       return new Error(cause.message)
-    return error(nodeRefusalCode(cause), detail)
+    return error(classify(cause), detail)
   }
 
-  return { sentence, error, historyError, explain }
+  return { sentence, error, historyError, explain, classify }
 }
 
 export type EvmRefusals = ReturnType<typeof evmRefusals>

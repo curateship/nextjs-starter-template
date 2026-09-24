@@ -8,6 +8,7 @@ import {
   SocialLinksFields,
 } from "@/components/directory/contact-links-fields"
 import { ListingViewsPanel } from "@/components/directory/listing-views-panel"
+import { OwnerEventsCard } from "@/components/events/owner-events"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,7 @@ import {
   proposeListingChange,
   type OwnedListing,
 } from "@/lib/api/directory/claims"
+import type { OwnerEvents } from "@/lib/api/events/submissions"
 import type { ContactLinks } from "@/lib/directory/contact-links"
 import {
   buildListingBadgeSnippet,
@@ -73,9 +75,12 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  */
 export function MyListings({
   listings,
+  ownerEvents,
   checkout,
 }: {
   listings: OwnedListing[]
+  /** The events this account sent for its listings, and each site's rules. */
+  ownerEvents: OwnerEvents
   checkout?: { featured_session?: string; featured_checkout?: "cancelled" }
 }) {
   const navigate = useNavigate()
@@ -123,6 +128,7 @@ export function MyListings({
       {listings.map((listing) => (
         <div key={listing.claimId} className="grid gap-2 md:gap-3">
           <OwnedListingCard listing={listing} />
+          <OwnerEventsCard listing={listing} owner={ownerEvents} />
           <ListingViewsPanel listingId={listing.listingId} />
         </div>
       ))}

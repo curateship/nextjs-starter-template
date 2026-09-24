@@ -15,6 +15,12 @@ import { readPageVisibility } from "@/server/content/pages"
 import { tellAdminsAboutEventSubmission } from "@/server/directory/notify"
 import { visitorSite } from "@/server/directory/public"
 import { siteTimeZone } from "@/server/directory/settings"
+import {
+  ownerEventsFor,
+  sendOwnerEvent,
+  type OwnerEvent,
+  type OwnerEvents,
+} from "@/server/events/owner-submissions"
 import { eventsAccessFor } from "@/server/events/public"
 import {
   createEventSubmission,
@@ -25,7 +31,7 @@ import {
   type EventSubmission,
   type EventSubmissionStatus,
 } from "@/server/events/submissions"
-import { adminGet, adminPost } from "@/server/guards"
+import { adminGet, adminPost, userGet, userPost } from "@/server/guards"
 import { getStorageSettingsStatus } from "@/server/media/storage-settings"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -34,7 +40,8 @@ import { createErrorMessage } from "../error-message"
 export type { EventSubmission, EventSubmissionStatus }
 
 /**
- * The Suggest an event page's two doors, and the admin queue's two.
+ * The Suggest an event page's two doors, My listings' two for an owner's own
+ * events, and the admin queue's two.
  *
  * The public two are open to anybody, which is the feature, and are written
  * down in `src/app/open-endpoints.ts`. Each checks for itself rather than
@@ -195,6 +202,69 @@ export function submitEvent(
   data.set(EVENT_SUBMISSION_TRAP, trap)
   return submitEventFn({ data })
 }
+
+const sendOwnerEventFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      claimId: z.string().min(1).max(36),
+      title: z.string().max(EVENT_SUBMISSION_MAX_LENGTH.title + 1),
+      startDate: z.string().max(10),
+      startTime: z.string().max(5),
+      endTime: z.string().max(5),
+      description: z.string().max(EVENT_SUBMISSION_MAX_LENGTH.description + 1),
+      coverImage: z.string().max(600),
+    })
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ sent: true } | { sent: false; problem: string }> => {
+      const { claimId, ...input } = data
+      const result = await sendOwnerEvent(context.user.id, claimId, input)
+      if (result.outcome === "refused") {
+        return { sent: false, problem: result.problem }
+      }
+      if (result.outcome === "sent" && result.workspaceId) {
+        await tellAdminsAboutEventSubmission(
+          result.workspaceId,
+          result.submission.title,
+          result.listingTitle
+        )
+      }
+      return { sent: true }
+    }
+  )
+
+/**
+ * An owner's event for their own listing, from My listings. It waits for an
+ * admin, and approving it publishes it with the listing as the place.
+ */
+export function sendEventForMyListing(input: {
+  claimId: string
+  title: string
+  startDate: string
+  startTime: string
+  endTime: string
+  description: string
+  coverImage: string
+}) {
+  return sendOwnerEventFn({ data: input })
+}
+
+const loadMyListingEventsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<OwnerEvents> =>
+    ownerEventsFor(context.user.id)
+  )
+
+/** The events this account sent, by listing, and what each site allows. */
+export function loadMyListingEvents() {
+  return loadMyListingEventsFn()
+}
+
+export type { OwnerEvent, OwnerEvents }
 
 export type EventSubmissionsPage = {
   submissions: EventSubmission[]
