@@ -6,6 +6,10 @@ import {
 } from "@/lib/protocols/contracts"
 import { dukascopyInstrumentFor } from "@/lib/protocols/dukascopy/instruments"
 import { bnbBorrowedCoin } from "@/lib/protocols/bnb/history"
+import {
+  robinhoodBorrowedCoin,
+  robinhoodBorrowedStock,
+} from "@/lib/protocols/robinhood/history"
 import { solanaBorrowedCoin } from "@/lib/protocols/solana/history"
 
 /**
@@ -77,10 +81,18 @@ export function historySourceFor(key: MarketKey): MarketKey | null {
         const coin = solanaBorrowedCoin(ref.marketId)
         return coin === null ? null : coinSource(coin)
       }
-    case "robinhood":
-      // Borrowing a stock's history for its token is the chart task's to
-      // decide. Until then its charts are what the app records.
-      return null
+    case "robinhood": {
+      // **By contract address, never by name**, as on Solana: 18 tokens on
+      // this chain call themselves NVDA. `robinhood/history.ts` holds the
+      // stock tokens Robinhood's factory made that Dukascopy also carries,
+      // and the one coin, wrapped ETH, that borrows Binance. The rest keep
+      // the pool's own bars.
+      if (ref.network !== "mainnet") return null
+      const stock = robinhoodBorrowedStock(ref.marketId)
+      if (stock !== null) return dukascopySource(stock, true)
+      const coin = robinhoodBorrowedCoin(ref.marketId)
+      return coin === null ? null : coinSource(coin)
+    }
   }
 }
 

@@ -240,6 +240,10 @@ migration or deployment was performed for this task.
 BNB charts use the existing chart panel, timeframe picker and candle store.
 There is no separate BNB chart interface.
 
+- **Shared with Robinhood Chain:** the pool candle reader lives in
+  `server/protocols/evm-chain/candles.ts`, and BNB's `candles.ts` hands it
+  BNB's names. It accepts a v4-style pool's 64-character id as well as a
+  40-character pool address.
 - **Pool candles:** GeckoTerminal supplies dollar prices for the requested
   contract in its most liquid DexScreener base-token pool. The reader uses
   the pool address saved on the market row. A search result not yet in the

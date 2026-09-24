@@ -103,7 +103,11 @@ describe("the protocol registry", () => {
     expect(entry.account).toBeUndefined()
     expect(entry.orders).toBeUndefined()
     expect(entry.markets.search).toBeTypeOf("function")
+    // Pool candles are stored, recorded prices fill a coin no pool answers
+    // for, and backtests stay off the chain.
+    expect(entry.markets.storesVenueCandles).toBe(true)
     expect(entry.markets.recordsOwnBars).toBe(true)
+    expect(entry.markets.historyFloor).toBeTypeOf("function")
     expect(entry.markets.pricesWereRationed).toBeTypeOf("function")
     expect(entry.credentials?.form.keyHelp).toContain(
       "Robinhood's terms bar Stock Tokens in the US"

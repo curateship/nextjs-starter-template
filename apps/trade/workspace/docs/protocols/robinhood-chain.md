@@ -14,9 +14,9 @@ coin from Paxos.
   Robinhood Chain appears in the protocol list. The sidebar link is a
   Settings row, not code.
 - **What works today:** the market list, with prices, the day's move and
-  volume, and adding or making a wallet. Nothing can be bought yet, and a
-  chart shows only the prices recorded while the page is open. The wallet row
-  reads "Holdings not read yet" until the holdings task.
+  volume, charts with years of borrowed history, and adding or making a
+  wallet. Nothing can be bought yet. The wallet row reads "Holdings not read
+  yet" until the holdings task.
 - **Spot only:** a coin is bought and owned outright. There is no leverage,
   short side, funding or liquidation, and there never will be here.
 - **Money:** purchases will be paid in USDG. Network fees are paid in ETH, so a
@@ -135,6 +135,43 @@ live feed, and the trading engine never reads it.
   across several pools, not one pool's numbers, and turning blocks into that
   price is its own piece of work.
 
+## Charts
+
+A Robinhood Chain chart works like BNB Chain's: the pool's own bars for the
+last 30 days, and older bars borrowed where the app can vouch for them.
+
+- **The pool's bars:** GeckoTerminal's candles for each market's most liquid
+  pool, priced in dollars for the token, not for the pool's other coin. They
+  are kept in the candle store. The chain opened on 1 July 2026, so a pool
+  holds about two months: NVDA's goes back to 21 July, 66 daily bars.
+- **Stock tokens borrow Dukascopy.** The header reads "History from
+  Dukascopy". NVDA's 4-hour chart drew 179 bars from the pool and 5,640 from
+  Dukascopy, back to 2017. A stock token trades at its stock's price: NVDA's
+  token was $225.21 when the stock was $225.03, TSLA $379.20 against $378.47,
+  META $737.43 against $735.94, on 24 Sep 2026.
+- **Which stock tokens borrow:** 72 of the 204.
+  `src/lib/protocols/robinhood/history.ts` pins each one by contract address,
+  never by ticker, because 18 tokens call themselves NVDA. Each passed three
+  checks: Robinhood's factory made it, Dukascopy lists the ticker, and both
+  name the same company. The other 132, GME, HIMS and DJT among them, have no
+  Dukascopy instrument and draw the pool's bars alone. Meta is borrowed under
+  Dukascopy's old name for it, FB.
+- **ETH borrows Binance.** Only the chain's own wrapped ETH does. Its chart
+  reads "History from Binance" and drew 14,958 older 4-hour bars.
+- **Other coins:** the pool's bars alone, with no label. PONS drew 434 4-hour
+  bars. A coin no pool answers for draws the one-minute prices the screen
+  recorded, and says "No candles here yet" when there are none.
+- **The seam:** the pool's bars cover the last 30 days, and borrowed bars
+  cover everything before, as on every exchange (`charts/candle-store.md`).
+  The task asked for the seam at the pool's first day instead; the candle
+  store's 30-day rule came later and holds for every venue. Dukascopy's bars
+  are stock hours only, and the pool trades around the clock, so nights and
+  weekends appear only in the last 30 days, which are the pool's.
+- **Backtests stay off:** Robinhood Chain has no orders and records its own
+  bars, and the backtest picker leaves out any exchange that does either.
+- **Pool ids:** a Uniswap v4 pool is named by a 64-character hash, and
+  GeckoTerminal answers for it. META's pool is one.
+
 ## The node and the network
 
 - **Node setting:** `TRADE_ROBINHOOD_RPC` in `.env` defaults to
@@ -159,8 +196,8 @@ BNB Chain and Robinhood Chain share the code in
 `src/server/protocols/evm-chain/`, so a fix there is a fix on both. The folder
 holds the wallet, the request counters, the refusal sentences, the KyberSwap
 quote and build checks, the receipt reader, the Multicall3 balance read, the
-swap itself and the market list (DexScreener prices, GoPlus checks, pool
-pages and search).
+swap itself, the market list (DexScreener prices, GoPlus checks, pool
+pages and search) and the pool candles.
 
 - **Each chain folder keeps its own facts:** its addresses, chain id, dollar
   coin, fee coin, explorer and services. It hands them to the shared code as
@@ -177,7 +214,8 @@ pages and search).
 
 1. Run the focused tests: `npx vitest run --config vitest.app.config.ts
    src/server/protocols/evm-chain src/server/protocols/robinhood
-   src/server/protocols/bnb src/server/protocols/fence.test.ts
+   src/lib/protocols/robinhood src/server/protocols/bnb
+   src/server/protocols/fence.test.ts
    src/server/protocols/registry.test.ts`. The fence has two failures that
    were there before this chain: a protocol comparison in
    `server/trade/live-orders.ts` and BNB's folder reading the app's tables.
@@ -191,10 +229,13 @@ pages and search).
    the day's move and volume, and a footer counting coins and stocks.
 4. Choose TradFi in the "All markets" menu. Expect only stock tokens, with no
    Unverified badge. Sort by 24h change and search "GME".
-5. Search a coin that is not listed, such as GOYBEAM. Press "Find ... on
+5. Open NVDA at 4 hours. Expect "History from Dukascopy" and bars back to
+   2017. Open ETH and expect "History from Binance". Open PONS and expect
+   about two months of pool bars with no label.
+6. Search a coin that is not listed, such as GOYBEAM. Press "Find ... on
    Robinhood Chain" and expect it to appear as Unverified.
-6. Open Wallets, then Add wallet, then choose Real Robinhood Chain. Expect the
+7. Open Wallets, then Add wallet, then choose Real Robinhood Chain. Expect the
    USDG, ETH and Stock Tokens sentences under the private key.
-7. Press Make a new wallet. Expect an address and Copy button and no key.
+8. Press Make a new wallet. Expect an address and Copy button and no key.
    Reload and expect the wallet with "Holdings not read yet". Delete test
    wallets from Edit wallet. No funding is needed for any step.

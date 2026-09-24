@@ -238,3 +238,9 @@ the minute currently forming and supplies no volume.
 
 `exchanges/bnb-chain.md` describes pool selection, borrowing checks, timeframe
 costs and the testing road map. The BNB backtest exclusion remains in place.
+
+Robinhood Chain uses the same two settings and the same pool reader. Its
+stock tokens borrow Dukascopy, the first chain venue to do so: a token Robinhood
+made for a stock Dukascopy carries reads that stock's history, pinned by
+contract address in `lib/protocols/robinhood/history.ts`. Its wrapped ETH
+borrows Binance. `protocols/robinhood-chain.md` has the checks and the numbers.

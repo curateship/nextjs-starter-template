@@ -18,8 +18,12 @@ import { bnbExecutionNotes } from "./bnb/ledger"
 import {
   fetchBnbCandles,
   fetchBnbCandleHistory,
-  bnbHistoryFloor,
 } from "@/server/protocols/bnb/candles"
+import { poolHistoryFloor } from "@/server/protocols/evm-chain/candles"
+import {
+  fetchRobinhoodCandles,
+  fetchRobinhoodCandleHistory,
+} from "@/server/protocols/robinhood/candles"
 import type {
   CandleBar,
   CandleInterval,
@@ -280,7 +284,6 @@ import { makeEvmWallet } from "@/server/protocols/evm-chain/wallet"
 import {
   fetchRobinhoodMarkets,
   fetchRobinhoodPrices,
-  robinhoodHasNoCandles,
   robinhoodPricesWereRationed,
   searchRobinhoodMarkets,
 } from "@/server/protocols/robinhood/markets"
@@ -1223,7 +1226,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fetch: fetchBnbMarkets,
       candles: fetchBnbCandles,
       history: fetchBnbCandleHistory,
-      historyFloor: bnbHistoryFloor,
+      historyFloor: poolHistoryFloor,
       storesVenueCandles: true,
       intervalMs: candleIntervalMs,
       prices: fetchBnbPrices,
@@ -1262,18 +1265,21 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * Robinhood Chain is BNB Chain's twin: an Ethereum-shaped chain where the
    * app holds its own wallet, and both share `evm-chain/`. The market list is
    * every stock token Robinhood's factory deployed plus the coins in the
-   * chain's busiest pools, priced by DexScreener. No candle source is
-   * connected yet, so its charts are recorded from the screen
-   * (`recordsOwnBars`) until the chart task.
-   * There is no account or orders block, so nothing here can be bought or
-   * read.
+   * chain's busiest pools, priced by DexScreener. Charts work as on BNB Chain:
+   * GeckoTerminal's pool candles, stored (`storesVenueCandles`), with
+   * recorded screen prices for a coin no pool answers for (`recordsOwnBars`).
+   * A stock token's older years come from Dukascopy and ETH's from Binance,
+   * through `lib/protocols/robinhood/history.ts`. There is no account or
+   * orders block, so nothing here can be bought or read.
    */
   robinhood: {
     ...protocolCore("robinhood"),
     markets: {
       fetch: fetchRobinhoodMarkets,
-      candles: robinhoodHasNoCandles,
-      history: robinhoodHasNoCandles,
+      candles: fetchRobinhoodCandles,
+      history: fetchRobinhoodCandleHistory,
+      historyFloor: poolHistoryFloor,
+      storesVenueCandles: true,
       recordsOwnBars: true,
       intervalMs: standardCandleIntervalMs,
       prices: fetchRobinhoodPrices,

@@ -1,6 +1,5 @@
 import { z } from "zod"
 import { decodeEventLog, parseAbi, type Hex } from "viem"
-import type { CandleBar } from "@/lib/protocols/contracts"
 import {
   evmMarkets,
   type VettedToken,
@@ -135,15 +134,8 @@ const markets = evmMarkets({
   },
 })
 
+export const bestRobinhoodPairs = markets.bestPairs
 export const fetchRobinhoodMarkets = markets.catalog
 export const searchRobinhoodMarkets = markets.search
 export const fetchRobinhoodPrices = markets.prices
 export const robinhoodPricesWereRationed = markets.pricesWereRationed
-
-/**
- * No candles are read from a venue yet. The chart shows the prices this app
- * records from the screen until Robinhood Chain gets its own chart source.
- */
-export async function robinhoodHasNoCandles(): Promise<CandleBar[]> {
-  return []
-}
