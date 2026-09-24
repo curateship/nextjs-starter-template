@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CategoryChecklist } from "@/components/directory/category-checklist"
+import { ListingPicker } from "@/components/directory/listing-picker"
 import {
   EventDatesCard,
   EventRepeatCard,
@@ -73,6 +74,8 @@ type EventFields = {
   /** Empty for an event that ends on its start day, or has no end. */
   endDate: string
   endTime: string
+  /** One of the site's listings as the place, or empty for a typed one. */
+  listingId: string
   placeName: string
   placeAddress: string
   body: PostBody
@@ -93,6 +96,7 @@ function blankFields(): EventFields {
     startTime: "",
     endDate: "",
     endTime: "",
+    listingId: "",
     placeName: "",
     placeAddress: "",
     body: emptyPostBody(),
@@ -117,8 +121,10 @@ function fieldsFrom(data: EventForEdit): EventFields {
     endDate:
       event.endDate && event.endDate !== event.startDate ? event.endDate : "",
     endTime: event.endTime ?? "",
-    placeName: event.placeName,
-    placeAddress: event.placeAddress,
+    // A linked place shows the listing as it is now, not as it was last saved.
+    listingId: event.listingId ?? "",
+    placeName: data.placeListing?.title ?? event.placeName,
+    placeAddress: data.placeListing?.address ?? event.placeAddress,
     body: event.body,
     // Sorted so ticking a box off and on again is not read as an edit.
     categoryIds: [...data.categoryIds].sort(),
@@ -189,6 +195,8 @@ export function EventDialog({
   const [saving, setSaving] = React.useState(false)
   /** Another event asked for while this one has unsaved edits. */
   const [leaveFor, setLeaveFor] = React.useState<string | null>(null)
+  /** The listing picked as the place since the window opened. */
+  const [picked, setPicked] = React.useState<ListingChoice | null>(null)
   const [basicsOpen, setBasicsOpen, basicsNoFlash] = useRememberedCollapse(
     collapseStorageKey.settingsCard("event-basics")
   )
@@ -251,8 +259,10 @@ export function EventDialog({
     if (seedKey === "new") {
       setFields(blankFields())
       setListings(new Map())
+      setPicked(null)
     } else if (loaded && seedKey === loaded.forId) {
       setFields(fieldsFrom(loaded.data))
+      setPicked(loaded.data.placeListing)
       setListings(new Map(loaded.data.listings.map((row) => [row.id, row])))
     }
   }
@@ -305,10 +315,12 @@ export function EventDialog({
         endDate,
         endTime,
         repeat,
+        listingId,
         ...rest
       } = fields
       // One date of a repeat never carries a rule of its own.
       const repeatChange = series?.main ? {} : { repeat }
+      const place = { listingId: listingId || null }
       const when = {
         startDate,
         startTime,
@@ -329,9 +341,17 @@ export function EventDialog({
           title: created.title,
           slug: created.slug,
         }))
-        saved = await saveEvent({ id, ...rest, ...repeatChange })
+        saved = await saveEvent({ id, ...rest, ...place, ...repeatChange })
       } else {
-        saved = await saveEvent({ id, title, slug, when, ...rest, ...repeatChange })
+        saved = await saveEvent({
+          id,
+          title,
+          slug,
+          when,
+          ...rest,
+          ...place,
+          ...repeatChange,
+        })
       }
       onSaved()
       toast.success(eventId ? "Event saved." : "Event created.")
@@ -641,7 +661,7 @@ export function EventDialog({
                         value={fields.placeName}
                         maxLength={200}
                         placeholder="Trinity Bellwoods Park"
-                        disabled={saving}
+                        disabled={saving || Boolean(fields.listingId)}
                         onChange={(event) =>
                           update("placeName", event.target.value)
                         }
@@ -656,13 +676,51 @@ export function EventDialog({
                         value={fields.placeAddress}
                         maxLength={300}
                         placeholder="790 Queen St W, Toronto"
-                        disabled={saving}
+                        disabled={saving || Boolean(fields.listingId)}
                         onChange={(event) =>
                           update("placeAddress", event.target.value)
                         }
                       />
                     </div>
                   </div>
+                  {fields.listingId ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        {picked?.status === "draft"
+                          ? "The place is a draft listing. The event page names it without a link until the listing is published."
+                          : "The place is one of this site's listings. The event page links to it and follows its name and address."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="shrink-0"
+                        disabled={saving}
+                        onClick={() => {
+                          update("listingId", "")
+                          setPicked(null)
+                        }}
+                      >
+                        Type a place instead
+                      </Button>
+                    </div>
+                  ) : (
+                    <div>
+                      <ListingPicker
+                        label="Pick a listing"
+                        inputId="event-place-listing-search"
+                        disabled={saving}
+                        onPick={(listing) => {
+                          setPicked(listing)
+                          setFields((current) => ({
+                            ...current,
+                            listingId: listing.id,
+                            placeName: listing.title,
+                            placeAddress: listing.address,
+                          }))
+                        }}
+                      />
+                    </div>
+                  )}
                 </CollapsibleSettingsCard>
 
                 {series?.main ? (

@@ -41,7 +41,8 @@ published event has its own page at `/events/<address>`.
   `drizzle/0084_cms_events_visibility.sql` adds `visibility`, which is
   `public` or `private`. Every event made before it is public.
   `drizzle/0085_cms_event_repeats.sql` adds the repeat columns that
-  "Repeating events" below describes.
+  "Repeating events" below describes. `drizzle/0086_cms_event_listing.sql`
+  adds `listing_id`, for "The place is a listing" below.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -93,7 +94,7 @@ published event has its own page at `/events/<address>`.
 - **The window:** the event (title, address, summary, status, who can find it,
   cover image),
   when and where (start day, start time, end day, end time, place, street
-  address), categories and the body. A new event needs a title, a start day and
+  address, or a listing picked as the place), categories and the body. A new event needs a title, a start day and
   a start time before it saves.
 
 ## Duplicating an event
@@ -201,6 +202,41 @@ and each has its own page, calendar file and Google markup.
   list of jobs it had when the server started, so a server running before this
   change never tops up until it restarts. Saving the main event still makes
   its dates.
+
+## The place is a listing
+
+When the event is at a place that is already a listing on the site, like a bar
+hosting a jazz night, the admin picks the listing instead of typing a name and
+address. Typing a place by hand still works for places that are not listed.
+
+- **Picking:** "Pick a listing" under the place boxes, in When and where. It
+  searches the site's listings by name as you type, the same picker the post
+  editor's "Listing card" uses, and marks a draft listing "Draft". Picking one
+  fills the Place and Street address boxes with the listing's and greys them
+  out.
+- **Unpicking:** "Type a place instead" takes the listing off and leaves its
+  name and address in the boxes, to change by hand.
+- **Always the listing as it is now.** The event page, the Events page's list
+  and month, the calendar subscription, a calendar file, Google's event markup,
+  search and Admin → Events all read the listing's current name and address.
+  Renaming the listing changes all of them at once.
+- **The link:** the place's name on the event page links to the listing's
+  page. There is no link when the listing is a draft, or while the directory is
+  switched off or kept for members, the same rule as a listing card in the
+  body. The name and address still show.
+- **The listing is deleted:** its last name and address are written onto the
+  event just before it goes, so the event page keeps saying where it is, as
+  plain text with no link.
+- **A copy and a repeating event's dates** keep the same listing.
+- **Only this site's listings:** saving a listing from another site is
+  refused with "That listing is not on this site any more."
+- **Where it lives:** `listing_id` on `events`; `livePlaceName` and
+  `livePlaceAddress` in `src/server/events/events.ts` are the one rule every
+  read uses; `keepListingPlaceOnEvents` runs inside the listings delete. The
+  picker is `src/components/directory/listing-picker.tsx`.
+- **Not built:** listings have no "permanently closed" state, so there is
+  nothing yet to warn an admin about. That question from task 10 waits until
+  listings can be marked closed.
 
 ## Private events
 

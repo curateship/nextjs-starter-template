@@ -13,12 +13,14 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import { directoryListings } from "@/server/directory/schema"
 import { customShellWorkspaces } from "@/server/schema"
 
 /**
  * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`,
- * `drizzle/0084_cms_events_visibility.sql` for `visibility`, and
- * `drizzle/0085_cms_event_repeats.sql` for the repeat columns.
+ * `drizzle/0084_cms_events_visibility.sql` for `visibility`,
+ * `drizzle/0085_cms_event_repeats.sql` for the repeat columns, and
+ * `drizzle/0086_cms_event_listing.sql` for `listing_id`.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -59,6 +61,15 @@ export const siteEvents = pgTable(
     endDate: date("end_date", { mode: "string" }),
     /** Null for no end time; never set without an end date. */
     endTime: time("end_time"),
+    /**
+     * The place, when it is one of the site's listings. Public pages show the
+     * listing's current name and address; the two columns below keep the
+     * last of them, for when the listing is deleted.
+     */
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "set null" }
+    ),
     placeName: varchar("place_name", { length: 200 }).notNull().default(""),
     placeAddress: varchar("place_address", { length: 300 })
       .notNull()
@@ -90,6 +101,7 @@ export const siteEvents = pgTable(
       table.startDate
     ),
     uniqueIndex("ux_events_series_date").on(table.seriesId, table.seriesDate),
+    index("ix_events_listing").on(table.listingId),
     check(
       "events_series_date_check",
       sql`(${table.seriesId} IS NULL) = (${table.seriesDate} IS NULL)`

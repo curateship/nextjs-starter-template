@@ -141,6 +141,7 @@ function sharedWithDates(main: EventRow, at: Date) {
     publishedAt: main.status === "published" ? at : null,
     startTime: main.startTime,
     endTime: main.endTime,
+    listingId: main.listingId,
     placeName: main.placeName,
     placeAddress: main.placeAddress,
   }
@@ -205,8 +206,8 @@ export async function topUpSeries(
 
 /**
  * Copies the main event onto its future dates that were not saved by
- * themselves: the content, status, who can find it, times, place and
- * categories. Each keeps its own day, and an event over several days keeps
+ * themselves: the content, status, who can find it, times, place (a listing
+ * or a typed one) and categories. Each keeps its own day, and an event over several days keeps
  * its length.
  */
 async function copyMainToDates(

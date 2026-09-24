@@ -35,7 +35,10 @@ import {
   deleteCategoryRowsFor,
 } from "@/server/directory/content-categories"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
-import { categoryRelationships } from "@/server/directory/schema"
+import {
+  categoryRelationships,
+  directoryListings,
+} from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import {
   firstFreeSlug as firstFreeSlugRule,
@@ -46,6 +49,7 @@ import {
   EVENT_CONTENT_TYPE,
   type EventRow,
 } from "@/server/events/schema"
+import { listingChoice } from "@/server/posts/posts"
 
 /**
  * The admin's side of events. Every read and write takes the site first and
@@ -79,6 +83,8 @@ export type SiteEvent = EventWhen & {
   status: EventStatus
   visibility: EventVisibility
   publishedAt: Date | null
+  /** The place, when it is one of the site's listings. */
+  listingId: string | null
   placeName: string
   placeAddress: string
   /** The repeat, on a main event only. */
@@ -123,6 +129,7 @@ export function toEvent(row: EventRow): SiteEvent {
     startTime: toClock(row.startTime),
     endDate: row.endDate,
     endTime: row.endTime ? toClock(row.endTime) : null,
+    listingId: row.listingId,
     placeName: row.placeName,
     placeAddress: row.placeAddress,
     repeat: parseRepeatRule(row.repeatRule),
@@ -134,6 +141,51 @@ export function toEvent(row: EventRow): SiteEvent {
 }
 
 const EVENT_NOUN = { one: "event", many: "events" }
+
+/**
+ * How an event finds its listing: by id, and only on the event's own site, so
+ * a stray link could never show another site's listing.
+ */
+export const listingOfEvent = and(
+  eq(directoryListings.id, siteEvents.listingId),
+  eq(directoryListings.workspaceId, siteEvents.workspaceId)
+)
+
+/**
+ * The place's name and address as a visitor sees them: the linked listing's
+ * current ones, or the typed ones. The query has to left-join
+ * `directoryListings` on `listingOfEvent`.
+ */
+export const livePlaceName = sql<string>`coalesce(${directoryListings.title}, ${siteEvents.placeName})`
+export const livePlaceAddress = sql<string>`coalesce(${directoryListings.contactLinks}->>'address', ${siteEvents.placeAddress})`
+
+/**
+ * Before listings are deleted, their current name and address are written
+ * onto the events that use them, so each event still says where it is after
+ * the database drops the link.
+ */
+export async function keepListingPlaceOnEvents(
+  workspaceId: string,
+  listingIds: string[],
+  database: CustomShellDb
+): Promise<void> {
+  if (listingIds.length === 0) return
+  await database
+    .update(siteEvents)
+    .set({
+      placeName: sql`${directoryListings.title}`,
+      placeAddress: sql`coalesce(${directoryListings.contactLinks}->>'address', '')`,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(siteEvents.workspaceId, workspaceId),
+        eq(directoryListings.workspaceId, workspaceId),
+        eq(siteEvents.listingId, directoryListings.id),
+        inArray(directoryListings.id, listingIds)
+      )
+    )
+}
 
 const CLOCK_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
@@ -265,10 +317,11 @@ export async function listEvents(
           ),
         ]
 
-  const [rows, [countRow]] = await Promise.all([
+  const [found, [countRow]] = await Promise.all([
     database
-      .select()
+      .select({ row: siteEvents, placeName: livePlaceName })
       .from(siteEvents)
+      .leftJoin(directoryListings, listingOfEvent)
       .where(where)
       // The id breaks ties, so a page boundary never shows an event twice.
       .orderBy(...ordering, asc(siteEvents.id))
@@ -280,6 +333,8 @@ export async function listEvents(
       .where(where),
   ])
 
+  // The row carries the listing's current name, as the event page does.
+  const rows = found.map(({ row, placeName }) => ({ ...row, placeName }))
   const ids = rows.map((row) => row.id)
   const [names, dateCounts] = await Promise.all([
     categoryNamesFor(workspaceId, EVENT_CONTENT_TYPE, ids, database),
@@ -467,6 +522,8 @@ export async function updateEvent(
     when?: EventWhenInput
     placeName?: string
     placeAddress?: string
+    /** One of this site's listings as the place, or null for a typed one. */
+    listingId?: string | null
   },
   database: CustomShellDb = db
 ): Promise<SiteEvent> {
@@ -497,6 +554,21 @@ export async function updateEvent(
   }
   if (input.placeAddress !== undefined) {
     values.placeAddress = input.placeAddress.trim().slice(0, MAX_PLACE_ADDRESS)
+  }
+  if (input.listingId !== undefined) {
+    values.listingId = input.listingId
+    if (input.listingId) {
+      // The listing's own name and address win over anything typed, and stay
+      // as the event's if the listing is ever deleted.
+      const listing = await listingChoice(
+        workspaceId,
+        input.listingId,
+        database
+      )
+      if (!listing) throw new Error("That listing is not on this site any more.")
+      values.placeName = listing.title.slice(0, MAX_PLACE_NAME)
+      values.placeAddress = listing.address.slice(0, MAX_PLACE_ADDRESS)
+    }
   }
   if (input.visibility !== undefined) values.visibility = input.visibility
   // A date of a repeating event saved by itself stops following the main one.
@@ -574,6 +646,7 @@ export async function duplicateEvent(
         startTime: source.startTime,
         endDate: source.endDate,
         endTime: source.endTime,
+        listingId: source.listingId,
         placeName: source.placeName,
         placeAddress: source.placeAddress,
         createdAt: at,

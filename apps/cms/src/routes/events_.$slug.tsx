@@ -159,7 +159,15 @@ function EventRoute() {
                   aria-hidden="true"
                 />
                 <span className="grid min-w-0">
-                  {event.placeName ? (
+                  {event.placeName && event.placeListingSlug ? (
+                    <Link
+                      to="/directory/$slug"
+                      params={{ slug: event.placeListingSlug }}
+                      className={`w-fit rounded-sm font-medium hover:underline ${focusRing}`}
+                    >
+                      {event.placeName}
+                    </Link>
+                  ) : event.placeName ? (
                     <span className="font-medium">{event.placeName}</span>
                   ) : null}
                   {event.placeAddress ? (
