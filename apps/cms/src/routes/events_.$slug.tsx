@@ -9,6 +9,7 @@ import { JsonLd } from "@/components/directory/public/json-ld"
 import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import { AddToCalendarMenu } from "@/components/events/public/calendar-menus"
 import { EventPlaceMap } from "@/components/events/public/event-place-map"
+import { SignUpBox } from "@/components/events/public/sign-up-box"
 import { PostBody } from "@/components/posts/public/post-body"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -77,6 +78,7 @@ function EventRoute() {
     timeZone,
     shareImageVersion,
     mapKey,
+    signUps,
   } = Route.useLoaderData()
   const directions = ended ? null : eventDirectionsUrl(event)
   const shareImage = eventPageShareImage({
@@ -210,6 +212,8 @@ function EventRoute() {
               ) : null}
             </div>
           )}
+
+          {signUps ? <SignUpBox eventId={event.id} box={signUps} /> : null}
 
           {event.body.content?.length ? (
             <PostBody body={event.body} listingCards={listingCards} />

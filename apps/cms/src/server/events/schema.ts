@@ -24,8 +24,9 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * `drizzle/0085_cms_event_repeats.sql` for the repeat columns,
  * `drizzle/0086_cms_event_listing.sql` for `listing_id`,
  * `drizzle/0087_cms_event_position.sql` for the map position,
- * `drizzle/0091_cms_event_source_link.sql` for `source_url`, and
- * `drizzle/0093_cms_featured_events.sql` for `featured`.
+ * `drizzle/0091_cms_event_source_link.sql` for `source_url`,
+ * `drizzle/0093_cms_featured_events.sql` for `featured`, and
+ * `drizzle/0094_cms_event_sign_ups.sql` for `takes_sign_ups` and `seats`.
  *
  * The start and end are a date plus the site's own clock time, never one
  * moment, so a daylight-saving change or a new site time zone never moves an
@@ -118,6 +119,10 @@ export const siteEvents = pgTable(
      * made. Never shown to a visitor.
      */
     sourceUrl: varchar("source_url", { length: 600 }).notNull().default(""),
+    /** Whether the event page has a sign-up box. See `server/events/sign-ups.ts`. */
+    takesSignUps: boolean("takes_sign_ups").notNull().default(false),
+    /** How many can sign up, or null for no limit. */
+    seats: integer("seats"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -141,6 +146,10 @@ export const siteEvents = pgTable(
     check(
       "events_position_pair_check",
       sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`
+    ),
+    check(
+      "events_seats_check",
+      sql`${table.seats} IS NULL OR ${table.seats} BETWEEN 1 AND 100000`
     ),
     check(
       "events_status_check",
@@ -256,3 +265,46 @@ export const eventSubmissions = pgTable(
 )
 
 export type EventSubmissionRow = typeof eventSubmissions.$inferSelect
+
+/**
+ * People who signed up for an event, from `drizzle/0094_cms_event_sign_ups.sql`.
+ * Removing someone marks the row cancelled, which frees the seat and lets the
+ * same email sign up again.
+ */
+export const eventSignUps = pgTable(
+  "event_sign_ups",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    eventId: varchar("event_id", { length: 36 })
+      .notNull()
+      .references(() => siteEvents.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    /** Stored in lower case, so one person is one email. */
+    email: varchar("email", { length: 255 }).notNull(),
+    /** 'confirmed' or 'cancelled'. Only a confirmed one holds a seat. */
+    status: varchar("status", { length: 20 }).notNull().default("confirmed"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("ux_event_sign_ups_live_email")
+      .on(table.eventId, table.email)
+      .where(sql`${table.status} = 'confirmed'`),
+    index("ix_event_sign_ups_event").on(
+      table.eventId,
+      table.status,
+      table.createdAt
+    ),
+    check(
+      "event_sign_ups_status_check",
+      sql`${table.status} IN ('confirmed', 'cancelled')`
+    ),
+    check(
+      "event_sign_ups_cancelled_check",
+      sql`(${table.status} = 'cancelled') = (${table.cancelledAt} IS NOT NULL)`
+    ),
+  ]
+)

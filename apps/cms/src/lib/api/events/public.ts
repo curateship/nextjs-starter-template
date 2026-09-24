@@ -46,6 +46,7 @@ import {
   type PublicEventCard,
   type PublicEventPage,
 } from "@/server/events/public"
+import { signUpBoxFor, type SignUpBox } from "@/server/events/sign-ups"
 
 /**
  * The public events pages' two doors. Neither carries a guard, because a
@@ -288,6 +289,8 @@ type PublicEventView = PublicEventPage & {
    * no key, and then the page draws no map.
    */
   mapKey: string | null
+  /** The sign-up box, or null when the event takes no sign-ups. */
+  signUps: SignUpBox | null
 }
 
 const readEventFn = createServerFn({ method: "GET" })
@@ -299,13 +302,17 @@ const readEventFn = createServerFn({ method: "GET" })
     const page = await readPublicEvent(open.site, data.slug)
     if (!page) return null
     // Worked out on every request, after the cache, by the site's clock.
+    const at = new Date()
+    const [mapKey, signUps] = await Promise.all([
+      page.event.position ? directoryMapDisplayKey(open.site.id) : null,
+      signUpBoxFor(open.site.id, page.event.id, page.timeZone, at),
+    ])
     return {
       ...page,
-      ended: eventHasEnded(page.event, page.timeZone, new Date()),
+      ended: eventHasEnded(page.event, page.timeZone, at),
       when: eventWhenLines(page.event, page.timeZone),
-      mapKey: page.event.position
-        ? await directoryMapDisplayKey(open.site.id)
-        : null,
+      mapKey,
+      signUps,
     }
   })
 
@@ -315,3 +322,4 @@ export function loadEvent(slug: string) {
 }
 
 export type { EventCategory, PublicEventCard } from "@/server/events/public"
+export type { SignUpBox } from "@/server/events/sign-ups"
