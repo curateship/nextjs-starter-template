@@ -92,17 +92,23 @@ describe("the protocol registry", () => {
     expect(entry.markets.recordsOwnBars).toBe(true)
   })
 
-  it("holds a Robinhood Chain wallet and offers nothing to trade yet", async () => {
+  it("lists Robinhood Chain's markets and holds a wallet, with nothing to trade yet", async () => {
     const entry = getProtocol("robinhood")
     expect(entry.networks).toEqual(["mainnet"])
     expect(entry.capabilities).toMatchObject({
-      markets: false,
+      markets: true,
       accounts: false,
       orders: false,
     })
     expect(entry.account).toBeUndefined()
     expect(entry.orders).toBeUndefined()
-    expect((await entry.markets.fetch("mainnet")).rows).toEqual([])
+    expect(entry.markets.search).toBeTypeOf("function")
+    // Pool candles are stored, recorded prices fill a coin no pool answers
+    // for, and backtests stay off the chain.
+    expect(entry.markets.storesVenueCandles).toBe(true)
+    expect(entry.markets.recordsOwnBars).toBe(true)
+    expect(entry.markets.historyFloor).toBeTypeOf("function")
+    expect(entry.markets.pricesWereRationed).toBeTypeOf("function")
     expect(entry.credentials?.form.keyHelp).toContain(
       "Robinhood's terms bar Stock Tokens in the US"
     )

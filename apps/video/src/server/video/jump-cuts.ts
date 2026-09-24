@@ -28,10 +28,10 @@ import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { MIN_CLIP_MS } from "@/lib/video/timeline-utils"
 import type { EditorClip } from "@/components/video-editor/editor-store"
 import { pickTranscriber } from "@/lib/video/ai-choices"
-import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
 import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
+import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import {
   generateJson,
@@ -378,10 +378,10 @@ async function transcribeWords(
   audio: Uint8Array,
   durationMs: number
 ): Promise<FillerWord[]> {
-  const chosen = pickTranscriber(await getAiDefaults(), {
-    words: !!(await getAiKey("gemini")),
-    openai: !!(await getAiKey("openai")),
-  })
+  const chosen = pickTranscriber(
+    await getAiDefaults(),
+    await getAiKeysSaved()
+  )
   if (chosen?.id === "openai") {
     const apiKey = await requireOpenAiKey()
     return runAiCall(

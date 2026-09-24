@@ -7,10 +7,8 @@ import {
   type CaptionsResult,
 } from "@/lib/video/captions"
 import {
-  ELEVENLABS_KEY_MISSING_MESSAGE,
-  GEMINI_KEY_MISSING_MESSAGE,
+  AI_KEY_MISSING_MESSAGES,
   isShowableProviderProblem,
-  OPENAI_KEY_MISSING_MESSAGE,
 } from "@/lib/video/ai-providers"
 import {
   SAFE_JUMP_CUT_ERRORS,
@@ -46,6 +44,7 @@ import {
 } from "@/lib/video/voice"
 import { getAiKey } from "@/server/ai/keys"
 import { adminPost, userGet, userPost } from "@/server/guards"
+import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { writeProjectCaptions } from "@/server/video/captions"
 import {
   getAiDefaults,
@@ -88,9 +87,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_VOICE_ERRORS.has(message)) return message
   if (SAFE_HOOK_ERRORS.has(message)) return message
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
-  if (message === GEMINI_KEY_MISSING_MESSAGE) return message
-  if (message === ELEVENLABS_KEY_MISSING_MESSAGE) return message
-  if (message === OPENAI_KEY_MISSING_MESSAGE) return message
+  if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message === PROJECT_NOT_FOUND_MESSAGE) return message
   if (isShowableProviderProblem(message)) return message
   const authProblem = describeAuthError(message)
@@ -124,6 +121,8 @@ export type AiToolsAvailability = {
   voice: boolean
   /** Whisper and a second opinion on words: needs OpenAI. */
   openai: boolean
+  /** Claude as the writer: needs Anthropic. */
+  anthropic: boolean
   /** Which AI does what, as chosen. */
   defaults: AiDefaults
   /** What is actually being used, once keys and choice are both accounted for. */
@@ -134,17 +133,16 @@ export type AiToolsAvailability = {
 const aiToolsAvailabilityFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async (): Promise<AiToolsAvailability> => {
-    const [words, voice, openai, defaults] = await Promise.all([
-      getAiKey("gemini"),
+    const [keys, voice, defaults] = await Promise.all([
+      getAiKeysSaved(),
       getAiKey("elevenlabs"),
-      getAiKey("openai"),
       getAiDefaults(),
     ])
-    const keys = { words: !!words, openai: !!openai }
     return {
-      words: !!words,
+      words: keys.gemini,
       voice: !!voice,
-      openai: !!openai,
+      openai: keys.openai,
+      anthropic: keys.anthropic,
       defaults,
       transcriber: pickTranscriber(defaults, keys)?.id ?? null,
       writer: pickWriter(defaults, keys)?.id ?? null,
@@ -253,6 +251,7 @@ const speakHookFn = createServerFn({ method: "POST" })
     z.object({
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
@@ -260,6 +259,7 @@ const speakHookFn = createServerFn({ method: "POST" })
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
+      voiceName: data.voiceName,
       // Only meaningful for a voice that has models to choose between; the
       // other provider works it out from the voice itself.
       modelId: remembered?.modelId ?? "eleven_multilingual_v2",
@@ -271,8 +271,8 @@ const speakHookFn = createServerFn({ method: "POST" })
   })
 
 /** Say a rewritten opening line out loud, so the sound can replace the old one. */
-export function speakHook(text: string, voiceId: string) {
-  return speakHookFn({ data: { text, voiceId } })
+export function speakHook(text: string, voice: Voice) {
+  return speakHookFn({ data: { text, voiceId: voice.id, voiceName: voice.name } })
 }
 
 const translateFn = createServerFn({ method: "POST" })
@@ -311,6 +311,7 @@ const speakTranslationFn = createServerFn({ method: "POST" })
     z.object({
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
@@ -318,6 +319,7 @@ const speakTranslationFn = createServerFn({ method: "POST" })
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
+      voiceName: data.voiceName,
       // Always ElevenLabs, always the multilingual model: it is the one that
       // speaks every language on the list.
       speaker: "elevenlabs",
@@ -331,8 +333,10 @@ const speakTranslationFn = createServerFn({ method: "POST" })
   })
 
 /** Read a translation aloud, so it can be laid over the original. */
-export function speakTranslation(text: string, voiceId: string) {
-  return speakTranslationFn({ data: { text, voiceId } })
+export function speakTranslation(text: string, voice: Voice) {
+  return speakTranslationFn({
+    data: { text, voiceId: voice.id, voiceName: voice.name },
+  })
 }
 
 const voicesFn = createServerFn({ method: "GET" })
@@ -368,6 +372,7 @@ const speakFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
       modelId: z.enum(VOICE_MODEL_IDS),
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       settings: voiceSettingsSchema.optional(),
@@ -377,6 +382,7 @@ const speakFn = createServerFn({ method: "POST" })
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
+      voiceName: data.voiceName,
       modelId: data.modelId,
       text: data.text,
       settings: data.settings,
@@ -385,6 +391,7 @@ const speakFn = createServerFn({ method: "POST" })
 
 export function readAloud(options: {
   voiceId: string
+  voiceName: string
   modelId: (typeof VOICE_MODEL_IDS)[number]
   text: string
   settings?: z.infer<typeof voiceSettingsSchema>

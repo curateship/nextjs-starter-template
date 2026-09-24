@@ -38,10 +38,10 @@ import {
   DEFAULT_CAPTION_ANIMATION,
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
-import { captionClipStyle } from "@/lib/video/caption-look"
-import { captionClipWordTimes } from "@/lib/video/caption-words"
-import { captionClipName } from "@/lib/video/captions"
-import { editorId } from "@/lib/video/timeline-utils"
+import {
+  voiceoverClips,
+  voiceoverRefusal,
+} from "@/lib/video/saved-voiceovers"
 import {
   createDefaultVoiceSettings,
   VOICE_MODELS,
@@ -67,7 +67,7 @@ export function VoiceDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { dispatch } = useEditorRuntime()
+  const { store, dispatch } = useEditorRuntime()
   const [script, setScript] = React.useState("")
   const [voices, setVoices] = React.useState<Voice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
@@ -118,40 +118,27 @@ export function VoiceDialog({
   }, [open, voices])
 
   async function speak() {
-    if (!look) return
+    const voice = voices?.find((one) => one.id === voiceId)
+    if (!look || !voice) return
     setSpeaking(true)
     try {
       const result = await readAloud({
         voiceId,
+        voiceName: voice.name,
         modelId,
         text: script,
         settings: { ...createDefaultVoiceSettings(), speed },
       })
-      dispatch({
-        type: "INSERT_VOICEOVER",
-        audio: {
-          id: editorId(),
-          kind: "audio",
-          name: result.name,
-          mediaId: result.mediaId,
-          url: result.url,
-          startMs: 0,
-          durationMs: result.durationMs,
-          trimStartMs: 0,
-          sourceDurationMs: result.durationMs,
-        },
-        captions: result.captions.map((line) => ({
-          id: editorId(),
-          kind: "text" as const,
-          name: captionClipName(line.text),
-          text: line.text,
-          startMs: line.startMs,
-          durationMs: line.endMs - line.startMs,
-          trimStartMs: 0,
-          wordTimes: captionClipWordTimes(line),
-          ...captionClipStyle(look),
-        })),
-      })
+      const refusal = voiceoverRefusal(
+        store.getSnapshot().state.tracks,
+        result.captions
+      )
+      if (refusal) {
+        // It was read and paid for, so say where it went.
+        showErrorToast(`${refusal} The voiceover is saved in the Voices panel.`)
+        return
+      }
+      dispatch({ type: "INSERT_VOICEOVER", ...voiceoverClips(result, 0, look) })
       dismissErrorToast()
       toast.success(
         `Read aloud, with ${result.captions.length} ${plural(result.captions.length, "caption", "captions")}. Undo removes it.`

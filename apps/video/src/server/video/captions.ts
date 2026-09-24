@@ -21,10 +21,10 @@ import type { EditorClip } from "@/components/video-editor/editor-store"
 import { pickTranscriber } from "@/lib/video/ai-choices"
 import { alignWordTimes } from "@/lib/video/caption-words"
 import { wordsToCaptions } from "@/lib/video/voice"
-import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
 import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
+import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import {
   generateJson,
@@ -198,10 +198,10 @@ export async function writeProjectCaptions(
   // Whichever AI has been chosen writes it down. Whisper hands back words with
   // measured times, which are chunked into lines here; Gemini is asked for the
   // lines directly, because that is what it is good at.
-  const transcriber = pickTranscriber(await getAiDefaults(), {
-    words: !!(await getAiKey("gemini")),
-    openai: !!(await getAiKey("openai")),
-  })
+  const transcriber = pickTranscriber(
+    await getAiDefaults(),
+    await getAiKeysSaved()
+  )
   if (transcriber?.id === "openai") {
     const apiKey = await requireOpenAiKey()
     const lines = await runAiCall(

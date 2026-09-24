@@ -13,8 +13,9 @@
 
 BNB Chain and Robinhood Chain are both Ethereum-shaped chains, so they share
 `src/server/protocols/evm-chain/`: the wallet, the request counters, the
-refusal sentences, KyberSwap, the receipt reader, the balance read and the
-swap. Each chain folder hands the shared code its own addresses, coins and
+refusal sentences, KyberSwap, the receipt reader, the balance read, the swap
+and the market list. The request counters keep one allowance per outside
+service host, shared by every chain. Each chain folder hands the shared code its own addresses, coins and
 explorer as settings. The shared folder names no chain and no address, and
 `fence.test.ts` fails if it does. `robinhood-chain.md` has the details.
 

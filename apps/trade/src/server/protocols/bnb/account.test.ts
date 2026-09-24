@@ -21,7 +21,6 @@ vi.mock("viem", async (original) => ({
 vi.mock("./markets", () => ({
   bnbAccountMarkets: listed,
   fetchBnbPrices: prices,
-  BNB_PRICE_PAGE_SIZE: 30,
 }))
 vi.mock("@/server/trade/db", () => ({
   db: { selectDistinct: () => ({ from: () => ({ where }) }) },

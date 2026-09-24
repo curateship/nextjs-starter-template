@@ -105,6 +105,15 @@ only a display name, so two coins called BTR remain separate markets.
   catalogue lasts one minute. A failed refresh keeps the last good list.
   A cold failure names the failed service through `MARKETS_UNAVAILABLE`.
   Current-price reads ask DexScreener separately and never fall back to the list.
+- **Shared with Robinhood Chain:** the list building, DexScreener pairs,
+  GoPlus checks, pool pages, search and price pages live in
+  `server/protocols/evm-chain/markets.ts`. BNB's `markets.ts` hands it
+  PancakeSwap's list and BNB's addresses. Both chains count against one
+  allowance per outside service, so GeckoTerminal's two pages a minute are
+  shared between them.
+- **Pool ids:** a Uniswap v4 or PancakeSwap Infinity pool is named by a
+  64-character hash instead of a 40-character address. The pair check accepts
+  both. Until 23 Sep 2026 one such pair made DexScreener's whole page fail.
 - **Search:** the existing Find button asks DexScreener by name or address,
   keeps only BNB results, and requests GoPlus checks immediately. An exact
   address query cannot return a different same-name coin. Found tokens join
@@ -179,9 +188,11 @@ catalogue's values. There is no stale-price label.
 
 - **Allowance:** thirty addresses per DexScreener request means at most ten
   calls per turn, sixty per minute. Adding the measured 33-call catalogue
-  build gives 93 of 300 requests. Retries, searches, other tabs and engine
-  reads share each process's rolling allowance. Separate processes have
-  separate counters, so this is not a deployment-wide quota guarantee.
+  build gives 93 requests a minute. Robinhood Chain spends from the same 300
+  a minute, so each chain keeps under half, 150, and a test pins it.
+  Retries, searches, other tabs and engine reads share each process's rolling
+  allowance. Separate processes have separate counters, so this is not a
+  deployment-wide quota guarantee.
 - **Browser requests:** each turn sends one authenticated server-function
   request. The server makes up to ten provider calls. A filtered catalogue
   with fewer than 300 markets uses fewer pages.
@@ -229,6 +240,10 @@ migration or deployment was performed for this task.
 BNB charts use the existing chart panel, timeframe picker and candle store.
 There is no separate BNB chart interface.
 
+- **Shared with Robinhood Chain:** the pool candle reader lives in
+  `server/protocols/evm-chain/candles.ts`, and BNB's `candles.ts` hands it
+  BNB's names. It accepts a v4-style pool's 64-character id as well as a
+  40-character pool address.
 - **Pool candles:** GeckoTerminal supplies dollar prices for the requested
   contract in its most liquid DexScreener base-token pool. The reader uses
   the pool address saved on the market row. A search result not yet in the

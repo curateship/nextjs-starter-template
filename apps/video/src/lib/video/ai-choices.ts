@@ -54,6 +54,13 @@ export const WRITERS = [
     provider: "openai",
     model: "gpt-5-mini",
   },
+  {
+    id: "anthropic",
+    label: "Claude Opus 5",
+    note: "Reads most like a person wrote it. The dearest of the three.",
+    provider: "anthropic",
+    model: "claude-opus-5",
+  },
 ] as const
 
 export type WriterId = (typeof WRITERS)[number]["id"]
@@ -61,7 +68,7 @@ export type WriterId = (typeof WRITERS)[number]["id"]
 export const aiDefaultsSchema = z
   .object({
     transcriber: z.enum(["openai", "gemini"]).optional(),
-    writer: z.enum(["gemini", "openai"]).optional(),
+    writer: z.enum(["gemini", "openai", "anthropic"]).optional(),
   })
   .strict()
 
@@ -73,6 +80,29 @@ export function readAiDefaults(value: unknown): AiDefaults {
   return parsed.success ? parsed.data : {}
 }
 
+/** Which providers have a key saved. Never anything about the keys themselves. */
+export type AiKeysSaved = {
+  gemini: boolean
+  openai: boolean
+  anthropic: boolean
+}
+
+/** One entry on either list, as the dropdown needs it. */
+export type AiChoice = {
+  id: string
+  label: string
+  note: string
+  provider: keyof AiKeysSaved
+}
+
+/** Whether this choice can run with the keys that are saved. */
+export function canUseChoice(
+  choice: Pick<AiChoice, "provider">,
+  keys: AiKeysSaved
+) {
+  return keys[choice.provider]
+}
+
 /**
  * Who writes speech down, given what has been chosen and which keys exist.
  *
@@ -82,26 +112,19 @@ export function readAiDefaults(value: unknown): AiDefaults {
  */
 export function pickTranscriber(
   saved: AiDefaults,
-  keys: { words: boolean; openai: boolean }
+  keys: AiKeysSaved
 ): (typeof TRANSCRIBERS)[number] | null {
-  const available = TRANSCRIBERS.filter((one) =>
-    one.id === "openai" ? keys.openai : keys.words
-  )
+  const available = TRANSCRIBERS.filter((one) => canUseChoice(one, keys))
   if (!available.length) return null
-  return (
-    available.find((one) => one.id === saved.transcriber) ??
-    available[0]
-  )
+  return available.find((one) => one.id === saved.transcriber) ?? available[0]
 }
 
 /** The same, for rewriting words. */
 export function pickWriter(
   saved: AiDefaults,
-  keys: { words: boolean; openai: boolean }
+  keys: AiKeysSaved
 ): (typeof WRITERS)[number] | null {
-  const available = WRITERS.filter((one) =>
-    one.id === "openai" ? keys.openai : keys.words
-  )
+  const available = WRITERS.filter((one) => canUseChoice(one, keys))
   if (!available.length) return null
   return available.find((one) => one.id === saved.writer) ?? available[0]
 }

@@ -51,6 +51,7 @@ import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
 import { captionClipStyle, type CaptionLook } from "@/lib/video/caption-look"
 import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName } from "@/lib/video/captions"
+import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import {
   DEFAULT_TRANSLATE_LANGUAGE,
@@ -94,7 +95,7 @@ export function TranslateDialog({
   onOpenChange: (open: boolean) => void
   available: AiToolsAvailability | null
 }) {
-  const { projectId, dispatch, saveNow } = useEditorRuntime()
+  const { projectId, store, dispatch, saveNow } = useEditorRuntime()
   const [look] = useSavedCaptionLook(open)
   const [language, setLanguage] = React.useState<TranslateLanguage>(
     DEFAULT_TRANSLATE_LANGUAGE
@@ -244,14 +245,24 @@ export function TranslateDialog({
       showErrorToast(TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE)
       return
     }
-    if (!voiceId) {
+    const voice = voices?.find((one) => one.id === voiceId)
+    if (!voice) {
       showErrorToast(TRANSLATE_NO_VOICE_MESSAGE)
       return
     }
 
     setBusy("speaking")
     try {
-      const said = await speakTranslation(script, voiceId)
+      const said = await speakTranslation(script, voice)
+      const refusal = voiceoverRefusal(
+        store.getSnapshot().state.tracks,
+        said.captions
+      )
+      if (refusal) {
+        // It was read and paid for, so say where it went.
+        showErrorToast(`${refusal} The voiceover is saved in the Voices panel.`)
+        return
+      }
       // The new voice starts where the original talking starts, and its
       // captions follow it rather than the original's times.
       const startsAtMs = lines[0].startMs

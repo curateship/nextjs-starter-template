@@ -10,6 +10,7 @@ import {
   storedPlaybackValue,
 } from "@/lib/video/clip-playback"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
+import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import {
   MAX_TIMELINE_TRACKS,
@@ -602,6 +603,9 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     }
 
     case "INSERT_VOICEOVER": {
+      // Past the most lanes a save allows, every later save would fail. The
+      // callers ask voiceoverRefusal first, so this only guards the store.
+      if (voiceoverRefusal(state.tracks, action.captions)) return state
       const captions: EditorTrack = {
         ...newTrack(),
         clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),

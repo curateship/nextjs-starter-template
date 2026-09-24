@@ -12,10 +12,9 @@ import {
   type CarouselSlide,
 } from "@/lib/video/carousel-schema"
 import { now, uuid } from "@/server/auth/security"
-import { runAiCall } from "@/server/ai/usage"
 import { db, type CustomShellDb } from "@/server/db"
-import { generateJson, requireGeminiKey } from "@/server/video/gemini"
 import { videoCarousels, type VideoCarouselRow } from "@/server/video/schema"
+import { askWriter } from "@/server/video/writer"
 
 export type CarouselItem = {
   id: string
@@ -308,36 +307,15 @@ export async function polishOwnedCarouselText(
     throw new Error("Select a text layer first.")
   }
 
-  const apiKey = await requireGeminiKey()
-  return runAiCall(
-    {
-      userId,
-      provider: "gemini",
-      model: "gemini-2.5-flash",
-      feature: "carousel_text_help",
-      metadata: { carouselId },
-    },
-    async () => {
-      const answer = await generateJson({
-        apiKey,
-        model: "gemini-2.5-flash",
-        label: "Carousel text help",
-        schema: polishedTextSchema,
-        parts: [
-          {
-            text: `Polish this Instagram carousel text without changing its facts or meaning. Keep it concise, keep its language, and return JSON only as {"text":"..."}.\n\nText: ${JSON.stringify(item.text)}`,
-          },
-        ],
-      })
-      return {
-        result: answer.value.text.trim(),
-        usage: {
-          inputTokens: answer.inputTokens,
-          outputTokens: answer.outputTokens,
-        },
-      }
-    }
-  )
+  const answer = await askWriter({
+    userId,
+    feature: "carousel_text_help",
+    metadata: { carouselId },
+    prompt: `Polish this Instagram carousel text without changing its facts or meaning. Keep it concise, keep its language, and return JSON only as {"text":"..."}.\n\nText: ${JSON.stringify(item.text)}`,
+    schema: polishedTextSchema,
+    label: "Carousel text help",
+  })
+  return answer.text.trim()
 }
 
 export async function deleteOwnedCarousels(

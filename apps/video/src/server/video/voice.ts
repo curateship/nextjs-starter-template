@@ -19,14 +19,14 @@ import {
   type VoiceSettings,
   type VoiceoverResult,
 } from "@/lib/video/voice"
+import { voiceoverName } from "@/lib/video/saved-voiceovers"
 import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
 import { now, uuid } from "@/server/auth/security"
-import { db } from "@/server/db"
 import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
-import { customShellMedia } from "@/server/schema"
 import { runFfmpeg } from "@/server/video/ffmpeg"
+import { storeVoiceover } from "@/server/video/voiceovers"
 import { requireOpenAiKey } from "@/server/video/whisper"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -39,7 +39,9 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
  * out the timing.
  *
  * The sound is kept in the media library like anything else, so it can be
- * moved, trimmed and reused rather than living only inside one project.
+ * moved, trimmed and reused rather than living only inside one project. The
+ * words, the voice and the captions are kept beside it on the voiceover
+ * shelf, so it can be laid into another project without being read again.
  */
 
 const BASE_URL = "https://api.elevenlabs.io"
@@ -126,6 +128,7 @@ async function listElevenLabsVoices(): Promise<Voice[]> {
 export async function speak({
   userId,
   voiceId,
+  voiceName,
   modelId,
   text,
   settings,
@@ -134,6 +137,8 @@ export async function speak({
 }: {
   userId: string
   voiceId: string
+  /** Kept on the shelf so the voiceover can be found by who read it. */
+  voiceName: string
   modelId: string
   text: string
   settings?: VoiceSettings
@@ -152,7 +157,14 @@ export async function speak({
       ? "openai"
       : "elevenlabs")
   if (who === "openai") {
-    return speakWithOpenAi({ userId, voiceId, text: script, settings, feature })
+    return speakWithOpenAi({
+      userId,
+      voiceId,
+      voiceName,
+      text: script,
+      settings,
+      feature,
+    })
   }
 
   const apiKey = await requireElevenLabsKey()
@@ -204,17 +216,28 @@ export async function speak({
   // How long it runs is where the last thing said finishes — which covers the
   // breath of silence at the end.
   const durationMs = words.at(-1)?.endMs ?? 0
+  const captions = wordsToCaptions(words)
 
-  const stored = await keepInLibrary(userId, bytes, voiceoverName(script))
-  return { ...stored, durationMs, captions: wordsToCaptions(words) }
+  const stored = await keepInLibrary(userId, bytes, {
+    script,
+    voiceId,
+    voiceName,
+    durationMs,
+    captions,
+  })
+  return { ...stored, durationMs, captions }
 }
 
-/** Sound goes into the library like anything else, so it can be reused. */
+/**
+ * Sound goes into the library like anything else, and onto the voiceover
+ * shelf with what it said, so it can be reused.
+ */
 async function keepInLibrary(
   userId: string,
   bytes: Uint8Array,
-  name: string
+  voiceover: Parameters<typeof storeVoiceover>[1]
 ): Promise<{ mediaId: string; url: string; name: string }> {
+  const name = voiceoverName(voiceover.script)
   const filename = `${uuid()}-voiceover.mp3`
   const storagePath = `${userId}/${filename}`
   await uploadToR2(storagePath, bytes, "audio/mpeg")
@@ -236,7 +259,7 @@ async function keepInLibrary(
     updatedAt: at,
   }
   try {
-    await db.insert(customShellMedia).values(row)
+    await storeVoiceover(row, voiceover)
   } catch (error) {
     // A file nothing points at is rubbish; take it back out.
     await deleteFromR2(storagePath).catch(() => undefined)
@@ -255,12 +278,14 @@ async function keepInLibrary(
 async function speakWithOpenAi({
   userId,
   voiceId,
+  voiceName,
   text,
   settings,
   feature,
 }: {
   userId: string
   voiceId: string
+  voiceName: string
   text: string
   settings?: VoiceSettings
   feature: string
@@ -303,12 +328,15 @@ async function speakWithOpenAi({
   if (!bytes.byteLength) throw new Error(VOICE_FAILED_MESSAGE)
 
   const durationMs = await mp3DurationMs(bytes)
-  const stored = await keepInLibrary(userId, bytes, voiceoverName(text))
-  return {
-    ...stored,
+  const captions = spreadCaptionsEvenly(text, durationMs)
+  const stored = await keepInLibrary(userId, bytes, {
+    script: text,
+    voiceId,
+    voiceName,
     durationMs,
-    captions: spreadCaptionsEvenly(text, durationMs),
-  }
+    captions,
+  })
+  return { ...stored, durationMs, captions }
 }
 
 /** How long a piece of sound runs, asked of ffmpeg rather than guessed. */
@@ -331,10 +359,4 @@ async function mp3DurationMs(bytes: Uint8Array): Promise<number> {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
-}
-
-/** A short name for the library, taken from what was said. */
-function voiceoverName(script: string) {
-  const words = script.replace(/\s+/g, " ").trim()
-  return words.length > 40 ? `${words.slice(0, 39)}…` : words || "Voiceover"
 }

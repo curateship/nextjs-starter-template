@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import fixture from "./candles.fixture.json"
 const { get, catalog } = vi.hoisted(() => ({ get: vi.fn(), catalog: vi.fn() }))
-vi.mock("./client", () => ({ bnbServiceGet: get }))
+vi.mock("./client", async (original) => ({
+  ...(await original<object>()),
+  bnbServiceGet: get,
+}))
 vi.mock("./markets", async (original) => ({
   ...(await original<object>()),
   fetchBnbMarkets: catalog,

@@ -1,16 +1,10 @@
 import { z } from "zod"
 
-import { pickWriter } from "@/lib/video/ai-choices"
 import {
   TRANSLATE_LINE_MAX,
   type TranslateLanguage,
 } from "@/lib/video/translate"
-import { getAiKey } from "@/server/ai/keys"
-import { runAiCall } from "@/server/ai/usage"
-import { generateJson, requireGeminiKey } from "@/server/video/gemini"
-import { askOpenAiJson } from "@/server/video/openai-json"
-import { getAiDefaults } from "@/server/video/settings"
-import { requireOpenAiKey } from "@/server/video/whisper"
+import { askWriter } from "@/server/video/writer"
 
 /**
  * Translating caption lines.
@@ -60,73 +54,16 @@ export async function translateLines({
   language: TranslateLanguage
   lines: string[]
 }): Promise<string[]> {
-  const writer = pickWriter(await getAiDefaults(), {
-    words: !!(await getAiKey("gemini")),
-    openai: !!(await getAiKey("openai")),
+  const answer = await askWriter({
+    userId,
+    feature: TRANSLATE_FEATURE,
+    metadata: { language, lines: lines.length },
+    prompt: translatePrompt(language, lines),
+    schema: translationSchema(lines.length),
+    label: TRANSLATE_LABEL,
+    timeoutMs: 120_000,
   })
-  const schema = translationSchema(lines.length)
-  const prompt = translatePrompt(language, lines)
-  const metadata = { language, lines: lines.length }
-
-  if (writer?.id === "openai") {
-    const apiKey = await requireOpenAiKey()
-    return runAiCall(
-      {
-        userId,
-        provider: "openai",
-        model: writer.model,
-        feature: TRANSLATE_FEATURE,
-        metadata,
-      },
-      async () => {
-        const answer = await askOpenAiJson({
-          apiKey,
-          model: writer.model,
-          prompt,
-          schema,
-          label: TRANSLATE_LABEL,
-          timeoutMs: 120_000,
-        })
-        return {
-          result: tidy(answer.value.lines),
-          usage: {
-            inputTokens: answer.inputTokens,
-            outputTokens: answer.outputTokens,
-          },
-        }
-      }
-    )
-  }
-
-  // No writer at all means no key for either, and Gemini is the one to ask
-  // for: it is the one every words tool can use.
-  const apiKey = await requireGeminiKey()
-  const model = "gemini-2.5-flash"
-  return runAiCall(
-    {
-      userId,
-      provider: "gemini",
-      model,
-      feature: TRANSLATE_FEATURE,
-      metadata,
-    },
-    async () => {
-      const answer = await generateJson({
-        apiKey,
-        model,
-        parts: [{ text: prompt }],
-        schema,
-        label: TRANSLATE_LABEL,
-      })
-      return {
-        result: tidy(answer.value.lines),
-        usage: {
-          inputTokens: answer.inputTokens,
-          outputTokens: answer.outputTokens,
-        },
-      }
-    }
-  )
+  return tidy(answer.lines)
 }
 
 /** Stray quotation marks off, and space tidied, line by line. */

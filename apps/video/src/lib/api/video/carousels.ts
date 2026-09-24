@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { describeAuthError } from "@/lib/api/error-message"
+import { AI_KEY_MISSING_MESSAGES } from "@/lib/video/ai-providers"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
   CAROUSEL_FORMATS,
@@ -68,7 +69,7 @@ export function getCarouselErrorMessage(error: unknown) {
   if (message.includes("AI_LIMIT_REACHED")) {
     return "Your monthly AI allowance is used up."
   }
-  if (message.includes("No Google Gemini key is saved")) return message
+  if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message.startsWith("Carousel text help")) return message
   return describeAuthError(message) ?? "Carousel request failed."
 }

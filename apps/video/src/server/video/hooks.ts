@@ -10,16 +10,10 @@ import {
 } from "@/lib/video/hooks"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
-import { pickWriter } from "@/lib/video/ai-choices"
-import { getAiKey } from "@/server/ai/keys"
-import { runAiCall } from "@/server/ai/usage"
 import { db } from "@/server/db"
-import { generateJson, requireGeminiKey } from "@/server/video/gemini"
 import { transcribeOpening } from "@/server/video/jump-cuts"
-import { askOpenAiJson } from "@/server/video/openai-json"
 import { videoProjects } from "@/server/video/schema"
-import { getAiDefaults } from "@/server/video/settings"
-import { requireOpenAiKey } from "@/server/video/whisper"
+import { askWriter } from "@/server/video/writer"
 
 /**
  * Three other ways to open.
@@ -95,51 +89,15 @@ export async function rewriteHook({
   if (!hook?.text) throw new Error(HOOK_NO_TEXT_MESSAGE)
 
   // Whichever AI has been chosen for rewriting does it.
-  const writer = pickWriter(await getAiDefaults(), {
-    words: !!(await getAiKey("gemini")),
-    openai: !!(await getAiKey("openai")),
+  const answer = await askWriter({
+    userId,
+    feature: "hook_variants",
+    metadata: { projectId },
+    prompt: hookPrompt(hook.text),
+    schema: variantsSchema,
+    label: HOOK_LABEL,
   })
-  if (writer?.id === "openai") {
-    return {
-      hook,
-      variants: await rewriteWithOpenAi({
-        userId,
-        projectId,
-        model: writer.model,
-        text: hook.text,
-      }),
-    }
-  }
-
-  const apiKey = await requireGeminiKey()
-  const answer = await runAiCall(
-    {
-      userId,
-      provider: "gemini",
-      model: "gemini-2.5-flash",
-      feature: "hook_variants",
-      metadata: { projectId },
-    },
-    async () => {
-      const result = await generateJson({
-        apiKey,
-        model: "gemini-2.5-flash",
-        parts: [{ text: hookPrompt(hook.text) }],
-        schema: variantsSchema,
-        label: HOOK_LABEL,
-      })
-      return {
-        result: result.value.variants,
-        usage: {
-          inputTokens: result.inputTokens,
-          outputTokens: result.outputTokens,
-        },
-      }
-    }
-  )
-
-  const variants = tidy(answer, hook.text)
-  return { hook, variants }
+  return { hook, variants: tidy(answer.variants, hook.text) }
 }
 
 /** Whatever came back, as three usable lines. */
@@ -148,45 +106,4 @@ function tidy(lines: string[], original: string) {
     .map((line) => line.trim().replace(/^["“]|["”]$/g, ""))
     .filter((line) => line && line !== original)
     .slice(0, 3)
-}
-
-/** The same question, asked of OpenAI. */
-async function rewriteWithOpenAi({
-  userId,
-  projectId,
-  model,
-  text,
-}: {
-  userId: string
-  projectId: string
-  model: string
-  text: string
-}) {
-  const apiKey = await requireOpenAiKey()
-  const lines = await runAiCall(
-    {
-      userId,
-      provider: "openai",
-      model,
-      feature: "hook_variants",
-      metadata: { projectId },
-    },
-    async () => {
-      const answer = await askOpenAiJson({
-        apiKey,
-        model,
-        prompt: hookPrompt(text),
-        schema: variantsSchema,
-        label: HOOK_LABEL,
-      })
-      return {
-        result: answer.value.variants,
-        usage: {
-          inputTokens: answer.inputTokens,
-          outputTokens: answer.outputTokens,
-        },
-      }
-    }
-  )
-  return tidy(lines, text)
 }
