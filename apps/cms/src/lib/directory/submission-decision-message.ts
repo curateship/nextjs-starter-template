@@ -17,12 +17,20 @@ export function submissionDecisionMessage(
   return decisionMessage("The listing is live", decision, emailed)
 }
 
-/** The same wording for a suggested event, which approving makes a draft. */
+/**
+ * The same wording for a suggested event. Approving the public's makes a
+ * draft, and approving a listing owner's publishes it.
+ */
 export function eventSubmissionDecisionMessage(
   decision: "approve" | "reject",
-  emailed: boolean
+  emailed: boolean,
+  fromOwner = false
 ): string {
-  return decisionMessage("The event is saved as a draft", decision, emailed)
+  return decisionMessage(
+    fromOwner ? "The event is live" : "The event is saved as a draft",
+    decision,
+    emailed
+  )
 }
 
 function decisionMessage(

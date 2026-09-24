@@ -102,7 +102,9 @@ export function EventSubmissionDialog({
                       ? ` on ${formatDate(submission.reviewedAt)}`
                       : ""
                   }.`
-                : "Approving saves it as a draft event with everything below. Nothing is public until you publish it."}
+                : submission?.fromOwner
+                  ? `Sent by the owner of ${submission.placeName}, for their own listing. Approving publishes it on the Events page straight away.`
+                  : "Approving saves it as a draft event with everything below. Nothing is public until you publish it."}
             </DialogDescription>
           </DialogHeader>
 
@@ -155,6 +157,11 @@ export function EventSubmissionDialog({
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Who sent it</CardTitle>
+                {submission?.fromOwner ? (
+                  <CardDescription>
+                    The owner of {submission.placeName}, from My listings.
+                  </CardDescription>
+                ) : null}
               </CardHeader>
               <CardContent className="grid gap-4">
                 <Detail label="Name" value={submission?.submitterName} />
@@ -184,7 +191,7 @@ export function EventSubmissionDialog({
                         search={{ open: submission.eventId }}
                         className="w-fit text-sm underline-offset-4 hover:underline"
                       >
-                        Open the draft event
+                        Open the event
                       </Link>
                     ) : null}
                   </CardContent>
@@ -249,7 +256,9 @@ export function EventSubmissionDialog({
                   disabled={busy}
                   onClick={() => void decide("approve")}
                 >
-                  Approve as a draft
+                  {submission?.fromOwner
+                    ? "Approve and publish"
+                    : "Approve as a draft"}
                 </Button>
               </>
             )}

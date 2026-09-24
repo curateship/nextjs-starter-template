@@ -10,6 +10,7 @@ import {
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { createEvent, updateEvent } from "@/server/events/events"
 import {
   eventSubmissions,
@@ -64,6 +65,10 @@ export type EventSubmission = {
   description: string
   /** Where an admin can look at the photo, or null with none. */
   photoUrl: string | null
+  /** Sent by the listing's owner from My listings, not the public form. */
+  fromOwner: boolean
+  /** The owner's listing, which is the place. Null for the public's. */
+  listingId: string | null
   submitterName: string
   submitterEmail: string
   reviewedAt: Date | null
@@ -77,7 +82,9 @@ function clock(value: string | null): string | null {
   return value ? value.slice(0, 5) : null
 }
 
-async function toSubmission(row: EventSubmissionRow): Promise<EventSubmission> {
+export async function toSubmission(
+  row: EventSubmissionRow
+): Promise<EventSubmission> {
   return {
     id: row.id,
     // The table's own check allows these three and nothing else.
@@ -89,9 +96,14 @@ async function toSubmission(row: EventSubmissionRow): Promise<EventSubmission> {
     placeName: row.placeName,
     placeAddress: row.placeAddress,
     description: row.description,
-    photoUrl: row.photoPath
-      ? await getPublicMediaUrl(row.photoPath).catch(() => null)
-      : null,
+    // An owner's photo is already a Media library address.
+    photoUrl:
+      row.coverImage ||
+      (row.photoPath
+        ? await getPublicMediaUrl(row.photoPath).catch(() => null)
+        : null),
+    fromOwner: row.fromOwner,
+    listingId: row.listingId,
     submitterName: row.submitterName,
     submitterEmail: row.submitterEmail,
     reviewedAt: row.reviewedAt,
@@ -173,23 +185,9 @@ export async function createEventSubmission(
   const submitterEmail = input.submitterEmail.trim().toLowerCase()
   const at = now()
 
-  const [duplicate] = await database
-    .select({ id: eventSubmissions.id })
-    .from(eventSubmissions)
-    .where(
-      and(
-        eq(eventSubmissions.workspaceId, workspaceId),
-        eq(eventSubmissions.status, "pending"),
-        eq(eventSubmissions.submitterEmail, submitterEmail),
-        sql`lower(${eventSubmissions.title}) = ${title.toLowerCase()}`,
-        gte(
-          eventSubmissions.createdAt,
-          new Date(at.getTime() - DUPLICATE_WINDOW_MS)
-        )
-      )
-    )
-    .limit(1)
-  if (duplicate) return { outcome: "merged" }
+  if (await hasPendingTwin(workspaceId, submitterEmail, title, at, database)) {
+    return { outcome: "merged" }
+  }
 
   // Cleaned the way the Media library cleans a name, so a name sent with
   // folders in it, like "../x.png", keeps only its last part.
@@ -242,6 +240,36 @@ export async function createEventSubmission(
   }
 }
 
+/**
+ * Whether the same person already sent the same title inside a day and it is
+ * still waiting, which is taken as a double click.
+ */
+export async function hasPendingTwin(
+  workspaceId: string,
+  submitterEmail: string,
+  title: string,
+  at: Date,
+  database: CustomShellDb
+): Promise<boolean> {
+  const [duplicate] = await database
+    .select({ id: eventSubmissions.id })
+    .from(eventSubmissions)
+    .where(
+      and(
+        eq(eventSubmissions.workspaceId, workspaceId),
+        eq(eventSubmissions.status, "pending"),
+        eq(eventSubmissions.submitterEmail, submitterEmail),
+        sql`lower(${eventSubmissions.title}) = ${title.toLowerCase()}`,
+        gte(
+          eventSubmissions.createdAt,
+          new Date(at.getTime() - DUPLICATE_WINDOW_MS)
+        )
+      )
+    )
+    .limit(1)
+  return Boolean(duplicate)
+}
+
 /** The shell's own check that the bytes are the picture they claim to be. */
 function contentProblem(photo: EventSubmissionPhoto): string | null {
   try {
@@ -252,7 +280,10 @@ function contentProblem(photo: EventSubmissionPhoto): string | null {
   }
 }
 
-/** One tab of the queue, newest first, searched by title, email or name. */
+/**
+ * One tab of the queue, newest first, searched by title, email, name or
+ * place, so an owner's events are found by their listing's name.
+ */
 export async function listEventSubmissions(
   workspaceId: string,
   options: {
@@ -275,7 +306,8 @@ export async function listEventSubmissions(
       ? or(
           ilike(eventSubmissions.title, pattern),
           ilike(eventSubmissions.submitterEmail, pattern),
-          ilike(eventSubmissions.submitterName, pattern)
+          ilike(eventSubmissions.submitterName, pattern),
+          ilike(eventSubmissions.placeName, pattern)
         )
       : undefined
   )
@@ -345,13 +377,19 @@ function summaryFromDescription(description: string) {
 /**
  * An admin's answer.
  *
- * Approving makes a draft event in one transaction, with every field the
- * person filled in: the title, the day and times, the place, the description
- * as both the summary and the body, and the photo as its cover, filed in the
- * Media library under the admin who approved it. It stays a draft, so nothing
- * is public until the admin publishes it. **Approving twice cannot make two
- * events**: the status is part of the final match, and the second finds
- * nothing to change.
+ * Approving makes an event in one transaction, with every field the person
+ * filled in: the title, the day and times, the place, the description as both
+ * the summary and the body, and the photo as its cover. A public suggestion's
+ * photo is filed in the Media library under the admin who approved it, and the
+ * event stays a draft, so nothing is public until the admin publishes it.
+ *
+ * **An owner's event is published**, with their listing as the place. The
+ * owner wrote it for their own place, and Tyler chose on 24 Sep 2026 that
+ * approving it puts it straight on the Events page. Their photo is already in
+ * the Media library under their own account.
+ *
+ * **Approving twice cannot make two events**: the status is part of the final
+ * match, and the second finds nothing to change.
  *
  * Rejecting keeps the row, as a record, and deletes the photo, because a
  * picture nobody will use should not stay in the site's storage.
@@ -407,11 +445,13 @@ export async function reviewEventSubmission(
     return { submission: await toSubmission(updated), eventId: null }
   }
 
-  const coverImage = row.photoPath
-    ? await getPublicMediaUrl(row.photoPath).catch(() => "")
-    : ""
+  const coverImage =
+    row.coverImage ||
+    (row.photoPath
+      ? await getPublicMediaUrl(row.photoPath).catch(() => "")
+      : "")
 
-  return database.transaction(async (tx) => {
+  const result = await database.transaction(async (tx) => {
     const event = await createEvent(
       workspaceId,
       {
@@ -432,7 +472,11 @@ export async function reviewEventSubmission(
         body: bodyFromDescription(row.description),
         placeName: row.placeName,
         placeAddress: row.placeAddress,
+        // The listing's current name and address win over the ones copied
+        // when it was sent. A listing deleted since leaves those copies.
+        ...(row.listingId ? { listingId: row.listingId } : {}),
         coverImage,
+        ...(row.fromOwner ? { status: "published" as const } : {}),
       },
       tx
     )
@@ -462,6 +506,11 @@ export async function reviewEventSubmission(
     if (!updated) throw new Error("Somebody has already dealt with this one.")
     return { submission: await toSubmission(updated), eventId: event.id }
   })
+  // Again after the commit: `updateEvent` cleared the public cache inside the
+  // transaction, and a visitor reading in between would have put the old list
+  // back for a minute.
+  if (row.fromOwner) clearPublicDirectoryCache(workspaceId)
+  return result
 }
 
 /**
@@ -500,12 +549,16 @@ export async function decideEventSubmission(
         to: submission.submitterEmail,
         subject:
           input.decision === "approve"
-            ? `${submission.title} has been accepted`
+            ? submission.fromOwner
+              ? `${submission.title} is on the Events page`
+              : `${submission.title} has been accepted`
             : `About your event, ${submission.title}`,
         lines:
           input.decision === "approve"
             ? [
-                `Thank you for suggesting ${submission.title}. It has been accepted, and it will be on the site's Events page once it is published.`,
+                submission.fromOwner
+                  ? `${submission.title} has been approved and is on the site's Events page now.`
+                  : `Thank you for suggesting ${submission.title}. It has been accepted, and it will be on the site's Events page once it is published.`,
                 submission.reviewNote,
               ].filter(Boolean)
             : [
