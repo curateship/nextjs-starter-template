@@ -107,6 +107,18 @@ const APEX_HOMES = [
 const APEX_ADDRESSES = /apex\.exchange/
 const APEX_SIGNER_HOME = join("server", "protocols", "apex", "signer")
 
+/**
+ * Binance's hosts, and the only folders that may name them: its server
+ * folder, which signs and trades, and its browser folder, which opens the
+ * public price socket. A Binance address anywhere else is a second door onto
+ * an exchange that holds real money.
+ */
+const BINANCE_HOMES = [
+  join("server", "protocols", "binance"),
+  join("lib", "protocols", "binance"),
+]
+const BINANCE_ADDRESSES = /(?:fapi|fstream|api)\.binance\.com/
+
 /** Where naming a concrete protocol id is legitimate. */
 const PROTOCOL_AWARE = [
   join("server", "protocols") + sep,
@@ -250,6 +262,15 @@ describe("the protocol fence", () => {
       .filter(({ path }) => !APEX_HOMES.some((home) => path.startsWith(home + sep)))
       .filter(({ path }) => path !== relative(SRC, __filename))
       .filter(({ text }) => APEX_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Binance's addresses inside its own folders", () => {
+    const offenders = sources
+      .filter(({ path }) => !BINANCE_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => BINANCE_ADDRESSES.test(text))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })

@@ -269,6 +269,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   aster: "/protocols/aster",
   lighter: "/protocols/lighter",
   apex: "/protocols/apex",
+  binance: "/protocols/binance",
   solana: "/protocols/solana",
   bnb: "/protocols/bnb",
   robinhood: "/protocols/robinhood",

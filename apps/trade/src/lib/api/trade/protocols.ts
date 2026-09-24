@@ -216,30 +216,40 @@ export const PROTOCOL_DESCRIPTIONS = [
         "Open API management on ApeX Omni and copy three values into API values, separated by spaces: the API key, the secret and the omni key. The passphrase goes in its own box. The first field takes the wallet address you sign in to ApeX with. Trade never asks for that wallet's own key, so it can trade but never withdraw.",
     },
   },
+  /**
+   * Binance USDⓈ-M futures. Trading added 24 Sep 2026 (`binance.md`). Mainnet
+   * only: Binance's futures testnet needs a separate testnet account.
+   */
   {
     id: "binance",
     label: "Binance",
-    // Binance has a testnet, but Trade uses this adapter for mainnet candles.
     networks: ["mainnet"],
     defaultNetwork: "mainnet",
     capabilities: {
       markets: true,
-      accounts: false,
-      orders: false,
+      accounts: true,
+      orders: true,
       ordersAreSwaps: false,
+      // Stops rest on Binance's own stop-order service.
       gridStop: "exchange",
-      changeLeverage: {
-        can: false,
-        because:
-          "Binance is here for its candles only — no wallet trades on it.",
-      },
-      adjustMargin: {
-        can: false,
-        because:
-          "Binance is here for its candles only — no wallet trades on it.",
-      },
+      changeLeverage: { can: true },
+      // Binance moves cash behind an isolated position only, and refuses a
+      // cross one in its own words.
+      adjustMargin: { can: true },
     },
-    credentialForm: null,
+    credentialForm: {
+      addressLabel: "API key",
+      addressHint: "The API Key from Binance's API Management page",
+      // Binance's keys are 64 letters and digits today. The shape check is
+      // tolerant; the signed reads are what prove the key.
+      addressPattern: "^[0-9A-Za-z]{16,128}$",
+      secretLabel: "Secret key",
+      needsPassphrase: false,
+      secretIsAgentKey: false,
+      canMakeWallet: false,
+      keyHelp:
+        "Make a key on Binance's API Management page (the system-generated kind) and tick Enable Futures. Leave Enable Withdrawals off. Copy the API Key and the Secret Key while the secret is shown. If you restrict the key to certain internet addresses, this server's address must be on the list.",
+    },
   },
   {
     id: "dukascopy",

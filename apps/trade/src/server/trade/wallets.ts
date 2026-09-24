@@ -308,7 +308,7 @@ export async function createWallet(
     startingBalance = input.startingBalance
   } else {
     // `credentialsOf` also refuses a live wallet on an exchange that cannot
-    // hold accounts at all (Binance), with the exchange's name in the error.
+    // hold accounts at all (Dukascopy), with the exchange's name in the error.
     const creds = credentialsOf(entry)
     let blob: string
     if (input.makeWallet) {

@@ -11,6 +11,7 @@ import * as phemexStream from "@/lib/protocols/phemex/stream"
 import * as asterStream from "@/lib/protocols/aster/stream"
 import * as lighterStream from "@/lib/protocols/lighter/stream"
 import * as apexStream from "@/lib/protocols/apex/stream"
+import * as binanceStream from "@/lib/protocols/binance/stream"
 
 /**
  * The browser-side twin of the server's protocol registry: hand it a
@@ -62,6 +63,7 @@ const LIVE_ADAPTERS: Partial<Record<ProtocolId, LiveAdapter>> = {
   aster: asterStream,
   lighter: lighterStream,
   apex: apexStream,
+  binance: binanceStream,
 }
 
 export function getLiveAdapter(id: ProtocolId): LiveAdapter | undefined {

@@ -805,11 +805,42 @@ import {
   fetchBinanceCandleHistory,
   binanceHistoryFloor,
   binanceIntervalMs,
+  binancePricesWereRationed,
   fetchBinanceCandles,
   fetchBinanceMarkets,
   fetchBinancePrices,
-  roundBinancePx,
 } from "@/server/protocols/binance/markets"
+import {
+  fetchBinanceAccount,
+  fetchBinanceLeverageCeilings,
+  fetchBinancePositions,
+} from "@/server/protocols/binance/account"
+import {
+  readBinanceKeyPermission,
+  verifyBinanceAgentKey,
+} from "@/server/protocols/binance/agent"
+import { packBinanceCredential } from "@/server/protocols/binance/client"
+import {
+  binanceLivePricesFresh,
+  openBinanceLivePrices,
+  readBinanceLivePrices,
+} from "@/server/protocols/binance/live-prices"
+import {
+  adjustBinanceMargin,
+  cancelBinanceOrder,
+  closeBinancePosition,
+  fetchBinanceOrderFills,
+  fetchBinanceOrderInfo,
+  fetchBinanceOrderPortfolio,
+  modifyBinanceOrder,
+  placeBinanceOrder,
+  setBinanceBrackets,
+  setBinanceLeverage,
+} from "@/server/protocols/binance/orders"
+import {
+  binanceFillsNeedRecovery,
+  watchBinanceFills,
+} from "@/server/protocols/binance/user-stream"
 import { dukascopyFirstBar } from "@/lib/protocols/dukascopy/instruments"
 import {
   DUKASCOPY_HISTORY_BATCH_BARS,
@@ -1227,6 +1258,11 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fillsNeedRecovery: apexFillsNeedRecovery,
     },
   },
+  /**
+   * Binance USDⓈ-M futures: its years of candles, which backtests read, and
+   * since 24 Sep 2026 a wallet, orders, stops on Binance's own stop-order
+   * service and fills pushed over the private stream (`binance.md`).
+   */
   binance: {
     ...protocolCore("binance"),
     markets: {
@@ -1236,11 +1272,47 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       historyFloor: binanceHistoryFloor,
       intervalMs: binanceIntervalMs,
       prices: fetchBinancePrices,
-      roundPx: roundBinancePx,
+      roundPx: roundToTick,
+      pricesWereRationed: binancePricesWereRationed,
+    },
+    livePrices: {
+      open: openBinanceLivePrices,
+      read: readBinanceLivePrices,
+      fresh: binanceLivePricesFresh,
     },
     funding: {
       fetch: fetchBinanceFunding,
       intervalMs: binanceFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchBinanceAccount,
+      portfolio: (network, _address, credential, priority) =>
+        fetchBinancePositions(network, credential, priority),
+      // Every Binance fill states its own realised profit.
+      profitPerSale: true,
+      leverageCeilings: fetchBinanceLeverageCeilings,
+    },
+    agent: {
+      permissions: readBinanceKeyPermission,
+      verify: verifyBinanceAgentKey,
+    },
+    credentials: {
+      form: protocolDescription("binance").credentialForm!,
+      pack: packBinanceCredential,
+    },
+    orders: {
+      place: placeBinanceOrder,
+      cancel: cancelBinanceOrder,
+      modify: modifyBinanceOrder,
+      close: closeBinancePosition,
+      setLeverage: setBinanceLeverage,
+      adjustMargin: adjustBinanceMargin,
+      setBrackets: setBinanceBrackets,
+      portfolio: fetchBinanceOrderPortfolio,
+      fills: fetchBinanceOrderFills,
+      orderInfo: fetchBinanceOrderInfo,
+      watchFills: watchBinanceFills,
+      fillsNeedRecovery: binanceFillsNeedRecovery,
     },
   },
   /**
@@ -1445,8 +1517,8 @@ export function listProtocols(): ProtocolEntry[] {
 /**
  * The trading side of an exchange that has one, or a refusal naming it.
  *
- * Not every exchange here can trade — Binance is listed for its markets and
- * its years of candles, and has no orders until somebody builds them. Rather
+ * Not every exchange here can trade — Dukascopy is listed for its years of
+ * candles and has no orders at all. Rather
  * than let every call site guard, or worse leave the blocks as stubs that
  * throw from somewhere deep inside a settle, asking for them goes through
  * here and fails at the door with the exchange's name in the message.
