@@ -12,6 +12,7 @@ import {
   videoMediaCollectionItems,
   videoMediaCollections,
 } from "@/server/video/schema"
+import { isUniqueViolation } from "@/server/video/unique-violation"
 
 /**
  * Collections are per-person groups over the shell's media library. Every
@@ -26,25 +27,6 @@ export type MediaCollectionSummary = {
   item_count: number
   created_at: string
   updated_at: string
-}
-
-/**
- * Drizzle wraps the driver error, so the unique-index violation is found by
- * walking the `cause` chain rather than trusting the top-level error.
- */
-function isUniqueViolation(error: unknown) {
-  let current: unknown = error
-  for (let depth = 0; depth < 5 && current; depth += 1) {
-    if (
-      typeof current === "object" &&
-      "code" in current &&
-      (current as { code?: string }).code === "23505"
-    ) {
-      return true
-    }
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
 }
 
 function serializeCollection(row: {

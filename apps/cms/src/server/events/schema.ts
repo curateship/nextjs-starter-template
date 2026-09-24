@@ -5,6 +5,7 @@ import {
   check,
   date,
   index,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -15,7 +16,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import { directoryListings } from "@/server/directory/schema"
-import { customShellWorkspaces } from "@/server/schema"
+import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 
 /**
  * Each site's events. The matching SQL is `drizzle/0083_cms_events.sql`,
@@ -155,3 +156,70 @@ export type EventRow = typeof siteEvents.$inferSelect
 
 /** An event's rows in `categoryRelationships`. Posts use 'post'. */
 export const EVENT_CONTENT_TYPE = "event"
+
+/**
+ * Events the public suggested on the Suggest an event page, from
+ * `drizzle/0089_cms_event_submissions.sql`. A row is what somebody typed,
+ * never an event, until an admin approves it into a draft.
+ */
+export const eventSubmissions = pgTable(
+  "event_submissions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose page this was sent from. It becomes an event on no other. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** 'pending', 'approved' or 'rejected'. */
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    title: varchar("title", { length: 200 }).notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    startTime: time("start_time").notNull(),
+    /** Earlier than the start time means the next day. */
+    endTime: time("end_time"),
+    placeName: varchar("place_name", { length: 200 }).notNull().default(""),
+    placeAddress: varchar("place_address", { length: 300 })
+      .notNull()
+      .default(""),
+    description: varchar("description", { length: 2000 }).notNull().default(""),
+    /** The photo's key in the site's file storage, held until the decision. */
+    photoPath: varchar("photo_path", { length: 300 }),
+    photoName: varchar("photo_name", { length: 255 }),
+    photoType: varchar("photo_type", { length: 100 }),
+    photoSize: integer("photo_size"),
+    submitterName: varchar("submitter_name", { length: 120 })
+      .notNull()
+      .default(""),
+    submitterEmail: varchar("submitter_email", { length: 255 }).notNull(),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: varchar("review_note", { length: 500 }).notNull().default(""),
+    /** The draft it became. Set once, so approving twice makes no twin. */
+    eventId: varchar("event_id", { length: 36 }).references(
+      () => siteEvents.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_event_submissions_workspace_status").on(
+      table.workspaceId,
+      table.status,
+      table.createdAt
+    ),
+    check(
+      "event_submissions_status_check",
+      sql`${table.status} IN ('pending', 'approved', 'rejected')`
+    ),
+    check(
+      "event_submissions_photo_check",
+      sql`(${table.photoPath} IS NULL) = (${table.photoName} IS NULL) AND (${table.photoPath} IS NULL) = (${table.photoType} IS NULL) AND (${table.photoPath} IS NULL) = (${table.photoSize} IS NULL)`
+    ),
+  ]
+)
+
+export type EventSubmissionRow = typeof eventSubmissions.$inferSelect

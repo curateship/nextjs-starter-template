@@ -16,11 +16,13 @@ import {
 import { extractCoverFrameFromStorage } from "@/server/video/render"
 
 /**
- * The gallery: every export that finished, whatever project it came from.
+ * The gallery: every export, whatever project it came from, except the ones
+ * somebody stopped.
  *
  * It reads the same rows the queue writes, so there is one story about what was
- * made and when. Only finished ones appear — a waiting or failed export belongs
- * to the editor that asked for it, not to a shelf of results.
+ * made and when. A failed export is listed with its reason so it can be tried
+ * again from here, and one that is waiting or rendering is listed so a retry,
+ * or a press of Export in several shapes, can be watched arriving.
  */
 
 export type ExportListResponse = {
@@ -49,7 +51,7 @@ export async function listOwnedExports({
 
   const filters: SQL[] = [
     eq(videoRenderJobs.userId, userId),
-    eq(videoRenderJobs.status, "ready"),
+    inArray(videoRenderJobs.status, ["ready", "error", "queued", "running"]),
   ]
   const cleanedSearch = search.trim()
   if (cleanedSearch) {

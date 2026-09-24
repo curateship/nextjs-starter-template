@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { submissionDecisionMessage } from "@/lib/directory/submission-decision-message"
+import {
+  eventSubmissionDecisionMessage,
+  submissionDecisionMessage,
+} from "@/lib/directory/submission-decision-message"
 
 /**
  * The failure this guards against is the screen telling an admin the sender was
@@ -31,6 +34,20 @@ describe("what the admin is told after deciding a submission", () => {
     expect(submissionDecisionMessage("reject", false)).toMatch(/^Rejected[.,]/)
     expect(submissionDecisionMessage("approve", false)).toContain(
       "The listing is live"
+    )
+  })
+})
+
+describe("what the admin is told after deciding a suggested event", () => {
+  it("says the event is a draft, and whether the sender heard", () => {
+    expect(eventSubmissionDecisionMessage("approve", true)).toBe(
+      "Approved. The event is saved as a draft and the sender has been emailed."
+    )
+    expect(eventSubmissionDecisionMessage("approve", false)).toBe(
+      "Approved. The event is saved as a draft, but the email to the sender could not be sent."
+    )
+    expect(eventSubmissionDecisionMessage("reject", false)).toBe(
+      "Rejected, but the email to the sender could not be sent."
     )
   })
 })

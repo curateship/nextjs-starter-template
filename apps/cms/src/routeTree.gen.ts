@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AddEventRouteImport } from './routes/add-event'
 import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as DirectoryRouteImport } from './routes/directory'
@@ -57,6 +58,7 @@ import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
+import { Route as AuthenticatedAdminEventSubmissionsRouteImport } from './routes/_authenticated/admin/event-submissions'
 import { Route as AuthenticatedAdminEventsRouteImport } from './routes/_authenticated/admin/events'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
@@ -114,6 +116,11 @@ const SplatRoute = SplatRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddEventRoute = AddEventRouteImport.update({
+  id: '/add-event',
+  path: '/add-event',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AddListingRoute = AddListingRouteImport.update({
@@ -348,6 +355,12 @@ const AuthenticatedAdminDevOutboxRoute =
   AuthenticatedAdminDevOutboxRouteImport.update({
     id: '/dev-outbox',
     path: '/dev-outbox',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEventSubmissionsRoute =
+  AuthenticatedAdminEventSubmissionsRouteImport.update({
+    id: '/event-submissions',
+    path: '/event-submissions',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminEventsRoute =
@@ -603,6 +616,7 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/add-event': typeof AddEventRoute
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
@@ -647,6 +661,7 @@ export interface FileRoutesByFullPath {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
   '/admin/events': typeof AuthenticatedAdminEventsRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
@@ -696,6 +711,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/add-event': typeof AddEventRoute
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
@@ -738,6 +754,7 @@ export interface FileRoutesByTo {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
   '/admin/events': typeof AuthenticatedAdminEventsRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
@@ -789,6 +806,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/add-event': typeof AddEventRoute
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
@@ -833,6 +851,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/_authenticated/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
   '/_authenticated/admin/events': typeof AuthenticatedAdminEventsRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
@@ -884,6 +903,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/add-event'
     | '/add-listing'
     | '/change-email'
     | '/directory'
@@ -928,6 +948,7 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
+    | '/admin/event-submissions'
     | '/admin/events'
     | '/admin/feedback'
     | '/admin/listing-claims'
@@ -977,6 +998,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/add-event'
     | '/add-listing'
     | '/change-email'
     | '/directory'
@@ -1019,6 +1041,7 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
+    | '/admin/event-submissions'
     | '/admin/events'
     | '/admin/feedback'
     | '/admin/listing-claims'
@@ -1069,6 +1092,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/_authenticated'
+    | '/add-event'
     | '/add-listing'
     | '/change-email'
     | '/directory'
@@ -1113,6 +1137,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
+    | '/_authenticated/admin/event-submissions'
     | '/_authenticated/admin/events'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/listing-claims'
@@ -1164,6 +1189,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AddEventRoute: typeof AddEventRoute
   AddListingRoute: typeof AddListingRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
   DirectoryRoute: typeof DirectoryRoute
@@ -1227,6 +1253,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add-event': {
+      id: '/add-event'
+      path: '/add-event'
+      fullPath: '/add-event'
+      preLoaderRoute: typeof AddEventRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/add-listing': {
@@ -1542,6 +1575,13 @@ declare module '@tanstack/react-router' {
       path: '/dev-outbox'
       fullPath: '/admin/dev-outbox'
       preLoaderRoute: typeof AuthenticatedAdminDevOutboxRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/event-submissions': {
+      id: '/_authenticated/admin/event-submissions'
+      path: '/event-submissions'
+      fullPath: '/admin/event-submissions'
+      preLoaderRoute: typeof AuthenticatedAdminEventSubmissionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/events': {
@@ -1890,6 +1930,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
+  AuthenticatedAdminEventSubmissionsRoute: typeof AuthenticatedAdminEventSubmissionsRoute
   AuthenticatedAdminEventsRoute: typeof AuthenticatedAdminEventsRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
@@ -1930,6 +1971,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
+  AuthenticatedAdminEventSubmissionsRoute:
+    AuthenticatedAdminEventSubmissionsRoute,
   AuthenticatedAdminEventsRoute: AuthenticatedAdminEventsRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminListingClaimsRoute: AuthenticatedAdminListingClaimsRoute,
@@ -2028,6 +2071,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AddEventRoute: AddEventRoute,
   AddListingRoute: AddListingRoute,
   ChangeEmailRoute: ChangeEmailRoute,
   DirectoryRoute: DirectoryRoute,

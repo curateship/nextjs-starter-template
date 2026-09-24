@@ -90,6 +90,11 @@ type EventsPageCommon = {
    * everyone, because a calendar app asking for it is never signed in.
    */
   calendarFeedUrl: string | null
+  /**
+   * Whether the "Suggest an event" button shows: only while the Suggest an
+   * event page is open to this visitor, so it never leads to a closed page.
+   */
+  canSuggest: boolean
   /** Every category the filter offers, in the admin's order. */
   categories: EventCategory[]
   /**
@@ -153,9 +158,10 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     if (!open) return null
     const { site } = open
 
-    const [timeZone, categories] = await Promise.all([
+    const [timeZone, categories, suggestVisibility] = await Promise.all([
       siteTimeZone(site.id),
       readEventCategories(site.id),
+      readPageVisibility(site.id, "/add-event"),
     ])
     const at = new Date()
     const now = wallClockAt(timeZone, at)
@@ -169,6 +175,10 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       today: now.slice(0, 10),
       calendarFeedUrl:
         open.access === "everyone" ? `${site.url}/events.ics` : null,
+      canSuggest:
+        suggestVisibility === "everyone" ||
+        (suggestVisibility === "members" &&
+          Boolean(await findCurrentUser().catch(() => null))),
       categories,
       category,
     }

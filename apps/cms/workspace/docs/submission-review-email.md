@@ -1,5 +1,8 @@
 # The email to the sender after a submission is reviewed
 
+Suggested events follow every rule here too, with "The event is saved as a
+draft" where a listing says "The listing is live". `events.md` covers them.
+
 When an admin approves or rejects a listing submission, two things happen. The
 decision is written down, and the sender is emailed about it. They are separate,
 because the email can fail on its own.

@@ -2,12 +2,15 @@
 
 The export window has a **Stop it** button for as long as an export is waiting
 or being made. Pressing it ends the export within about a second, and nothing
-is kept.
+is kept. When several shapes of the project are on their way, the button reads
+**Stop all 3** (or however many there are) and stops every one of them. See
+[export-shapes.md](export-shapes.md).
 
 ## What happens when you press it
 
-- **The row changes first.** The export's row in `video_render_jobs` moves to
-  `cancelled` and lets go of its lease in the same write. The window says "You
+- **The row changes first.** Every waiting or rendering row of the project in
+  `video_render_jobs` moves to `cancelled` and lets go of its lease in the same
+  write. The window says "You
   stopped this export, so no file was made." in grey, never red, and the editor
   shows no error.
 - **A waiting export never starts.** No worker will pick up a row that says

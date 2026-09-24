@@ -59,6 +59,10 @@ export const appOpenEndpoints: Record<string, string> = {
     "Anybody may suggest a listing, which is the whole feature — it still checks the request came from this app's own pages, is rate limited per site and per address, and produces nothing an admin sees until the address is confirmed by email.",
   "directory/submissions.ts:resendSubmissionEmailFn":
     "Somebody whose confirmation link expired has no account to sign in to, so asking for a fresh one cannot require one — it is rate limited and answers the same way whether or not a submission is waiting.",
+  "events/submissions.ts:readEventSubmissionFormFn":
+    "The Suggest an event page is for people with no account, so the site's name, its today and whether photos are taken have to be readable without one. It answers nothing while the page or the Events page is switched off.",
+  "events/submissions.ts:submitEventFn":
+    "Anybody may suggest an event, which is the whole feature. It still checks the request came from this app's own pages and that the page is switched on, runs the same required-field check as the form, takes five an hour from one address per site, and writes a row only an admin can read.",
   "directory/reports.ts:reportListingProblemFn":
     "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
 }
