@@ -27,6 +27,8 @@ import { userGet, userPost } from "@/server/guards"
 import { loadDrawingAlerts } from "@/server/trade/drawing-alerts"
 import {
   clearChartDrawings,
+  clearDrawingKinds,
+  countClearableDrawings,
   deleteChartDrawing,
   loadChartDrawings,
   saveChartDrawing,
@@ -184,6 +186,24 @@ const clearChartDrawingsFn = createServerFn({ method: "POST" })
     }
   })
 
+const countClearableDrawingsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => countClearableDrawings(context.user.id))
+
+// Which kinds to clear, each one ticked or not. At least one has to be.
+const clearKindsSchema = z
+  .object({ trendlines: z.boolean(), fibs: z.boolean(), alerts: z.boolean() })
+  .refine((kinds) => kinds.trendlines || kinds.fibs || kinds.alerts, {
+    message: "Choose something to clear.",
+  })
+
+const clearDrawingKindsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(clearKindsSchema)
+  .handler(async ({ data, context }) =>
+    clearDrawingKinds(context.user.id, data).catch(rethrowGridLineStopError)
+  )
+
 export function loadDrawings(marketKey: string) {
   return loadChartDrawingsFn({ data: { marketKey } })
 }
@@ -257,6 +277,34 @@ export async function clearDrawings(marketKey: string) {
   invalidateDashboardBootstrap()
   return answer
 }
+
+/** What the Drawings settings tab can clear, on every market. */
+export function loadClearableDrawings() {
+  return countClearableDrawingsFn()
+}
+
+/** Delete the ticked kinds on every market, except grid-held trendlines. */
+export async function clearChosenDrawings(kinds: {
+  trendlines: boolean
+  fibs: boolean
+  alerts: boolean
+}) {
+  const answer = await clearDrawingKindsFn({ data: kinds })
+  invalidateDashboardBootstrap()
+  return answer
+}
+
+export const getClearableDrawingsLoadErrorMessage = createErrorMessage(
+  {},
+  "Your drawings could not be counted. Try again."
+)
+
+export const getClearDrawingsErrorMessage = withLinkedGridStopMessage(
+  createErrorMessage(
+    GRID_LINE_STOP_ERRORS,
+    "Nothing was cleared. Try it again."
+  )
+)
 
 export const getDrawingsErrorMessage = withLinkedGridStopMessage(createErrorMessage(
   {

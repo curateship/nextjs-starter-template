@@ -96,6 +96,13 @@ export const appOptions: AppOptions = {
         panel: () => import("@/components/trade/trade-sound-settings"),
       },
       {
+        // Clearing trendlines, fibs or price alerts from every market at once.
+        // The chart's own bin only clears the market it is showing.
+        id: "drawings",
+        label: "Drawings",
+        panel: () => import("@/components/trade/drawing-settings"),
+      },
+      {
         // The three rules checked before a real-money entry. Each one warns
         // and asks; none of them blocks.
         id: "trading-rules",
