@@ -15,15 +15,19 @@ const VIEWS: { view: EventView; label: string; Icon: typeof ListIcon }[] = [
  * and map switch is: a month is a page that can be sent to somebody and come
  * back to with Back.
  *
- * Switching from one day's list to the month opens that day's month.
+ * Switching from one day's list to the month opens that day's month. A
+ * category filter comes along; a date filter and a place stay with the list.
  */
 export function EventViewSwitch({
   current,
   month,
+  category,
 }: {
   current: EventView
   /** "2026-10", the month the month view should open on, if not this one. */
   month?: string
+  /** The category the page is narrowed to, kept on both views. */
+  category?: string
 }) {
   return (
     <div
@@ -35,7 +39,9 @@ export function EventViewSwitch({
         <Link
           key={view}
           to="/events"
-          search={view === "month" ? { view, month } : {}}
+          search={view === "month" ? { view, month, category } : { category }}
+          // Only an exact match is current: "List" is part of every address.
+          activeOptions={{ exact: true }}
           aria-current={view === current ? "page" : undefined}
           className={cn(
             "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",

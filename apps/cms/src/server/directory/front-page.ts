@@ -280,6 +280,7 @@ async function readFrontPageRows(
           intro: row.sectionIntro,
           count: row.listingCount,
           categoryId: row.categoryId,
+          categorySlug: row.categorySlug,
           events: [],
           zone: "",
         }

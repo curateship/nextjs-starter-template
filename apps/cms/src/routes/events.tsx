@@ -4,6 +4,7 @@ import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-br
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
+import { EventFilters } from "@/components/events/public/event-filters"
 import { EventList } from "@/components/events/public/event-list"
 import { SubscribeMenu } from "@/components/events/public/calendar-menus"
 import { EventMonth } from "@/components/events/public/event-month"
@@ -16,18 +17,27 @@ import {
   directoryTitle,
 } from "@/lib/directory/public-seo"
 import { parseYearMonth, toMonthString } from "@/lib/events/calendar-grid"
-import { readEventsSearch } from "@/lib/events/events-page"
+import {
+  eventDateFilterText,
+  eventsListHref,
+  readEventsSearch,
+  type EventDateSearch,
+  type EventsPageSearch,
+} from "@/lib/events/events-page"
 import { formatEventDay } from "@/lib/events/event-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
  * The Events page: what is coming up, as a list or a month. It opens on the
- * list. The view, the month and a chosen day all live in the address, so a
- * shared link opens the same view.
+ * list. The view, the month, a chosen day and the filters all live in the
+ * address, so a shared link opens the same view.
  */
 export const Route = createFileRoute("/events")({
   validateSearch: readEventsSearch,
-  loaderDeps: ({ search }) => search,
+  // Read again, because the router keeps address words the reader dropped,
+  // like `?when=someday`, beside the ones it returned. Passed on as they are,
+  // the endpoint refuses them and the visitor gets an error page.
+  loaderDeps: ({ search }) => readEventsSearch(search),
   loader: async ({ deps }) => {
     const [, data] = await Promise.all([
       requirePageVisible("/events"),
@@ -50,6 +60,24 @@ export const Route = createFileRoute("/events")({
 
 function EventsRoute() {
   const data = Route.useLoaderData()
+  const search = Route.useLoaderDeps()
+  // What the server found, not what was typed: a category or a place that is
+  // not here is left out of every link, the same as it is left out of the list.
+  // Every key is named in one order, because a link's address is written in
+  // its keys' order, and an order taken from the address can differ between
+  // the server and the browser, which then disagree about every chip's link.
+  const current: EventsPageSearch = {
+    view: search.view,
+    month: search.month,
+    day: search.day,
+    page: search.page,
+    place: data.view === "list" ? data.place?.slug : undefined,
+    category: data.category?.slug,
+    when: search.when,
+    from: search.from,
+    to: search.to,
+  }
+  const categoryName = data.category?.name
 
   return (
     <DirectoryFrame>
@@ -74,15 +102,23 @@ function EventsRoute() {
                 ? toMonthString(parseYearMonth(data.day)!)
                 : undefined
             }
+            category={current.category}
           />
         </div>
       </header>
+
+      <EventFilters
+        current={current}
+        categories={data.categories}
+        showDates={data.view === "list" && !data.day}
+      />
 
       {data.view === "month" ? (
         <EventMonth
           month={data.month}
           events={data.events}
           today={data.today}
+          category={data.category}
         />
       ) : data.day ? (
         <>
@@ -100,7 +136,11 @@ function EventsRoute() {
           </div>
           <EventList
             events={data.events}
-            emptyMessage="Nothing is on that day."
+            emptyMessage={
+              categoryName
+                ? `Nothing in ${categoryName} is on that day.`
+                : "Nothing is on that day."
+            }
           />
         </>
       ) : (
@@ -137,16 +177,21 @@ function EventsRoute() {
               // Past the last page is not the same as nothing coming up.
               data.total
                 ? "There are no events on this page."
-                : data.place
-                  ? `Nothing is coming up at ${data.place.title}.`
-                  : "Nothing is coming up yet."
+                : nothingComingUp(data.dates, categoryName, data.place?.title)
             }
           />
           <DirectoryPagination
             page={data.page}
             pageSize={data.pageSize}
             total={data.total}
-            hrefForPage={(next) => eventsListHref(next, data.place?.slug)}
+            hrefForPage={(next) =>
+              eventsListHref({
+                place: current.place,
+                category: current.category,
+                ...data.dates,
+                page: next,
+              })
+            }
             label="Event pages"
           />
         </>
@@ -155,11 +200,22 @@ function EventsRoute() {
   )
 }
 
-/** The list's address for one page, keeping a place filter when there is one. */
-function eventsListHref(page: number, place: string | undefined): string {
-  const params = new URLSearchParams()
-  if (place) params.set("place", place)
-  if (page > 1) params.set("page", String(page))
-  const query = params.toString()
-  return query ? `/events?${query}` : "/events"
+/**
+ * The upcoming list's empty card, naming what it was narrowed by:
+ * "Nothing is on this weekend in Live music at The Rex.", or
+ * "Nothing is coming up yet." with no filter at all.
+ */
+function nothingComingUp(
+  dates: EventDateSearch,
+  categoryName: string | undefined,
+  placeTitle: string | undefined
+): string {
+  const when = eventDateFilterText(dates)
+  const filtered = when || categoryName || placeTitle
+  return [
+    when ? `Nothing is on ${when}` : "Nothing is coming up",
+    categoryName ? ` in ${categoryName}` : "",
+    placeTitle ? ` at ${placeTitle}` : "",
+    filtered ? "." : " yet.",
+  ].join("")
 }

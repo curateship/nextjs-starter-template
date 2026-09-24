@@ -91,7 +91,13 @@ function FrontPageRow({
           />
           <div>
             <Button asChild variant="outline">
-              <Link to="/events" search={{}} preload="intent">
+              <Link
+                to="/events"
+                search={
+                  row.categorySlug ? { category: row.categorySlug } : {}
+                }
+                preload="intent"
+              >
                 See all events
               </Link>
             </Button>

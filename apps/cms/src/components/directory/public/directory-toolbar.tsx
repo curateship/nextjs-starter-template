@@ -17,6 +17,7 @@ import {
   DirectorySuggestionList,
   useDirectorySuggestions,
 } from "@/components/directory/public/directory-suggestions"
+import { filterChipClass } from "@/components/directory/public/filter-chip"
 import {
   DIRECTORY_NEAR_RADII_KM,
   DIRECTORY_SORTS,
@@ -321,6 +322,9 @@ function ViewSwitch({ current }: { current: DirectoryBrowseSearch }) {
               ...current,
               view: option === "grid" ? undefined : option,
             }}
+            // Only an exact match is current, or "Grid" would be current on
+            // the map too.
+            activeOptions={{ exact: true }}
             aria-current={option === active ? "page" : undefined}
             className={cn(
               "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
@@ -402,18 +406,11 @@ function Chip({
         radius: current.radius,
         view: current.view,
       }}
+      // Only an exact match is current, or "All" would be current beside the
+      // category that is picked.
+      activeOptions={{ exact: true }}
       aria-current={active ? "page" : undefined}
-      className={cn(
-        // A plain `border` with no colour named, so the Divider lines setting
-        // reaches these the way it reaches every other line in the app.
-        "inline-flex h-8 items-center rounded-md border px-3 text-sm",
-        focusRing,
-        active
-          ? // Filled *and* bolder: the state has to survive somebody who
-            // cannot tell the two backgrounds apart.
-            "bg-primary font-medium text-primary-foreground"
-          : "bg-card text-foreground hover:bg-accent"
-      )}
+      className={filterChipClass(active)}
     >
       {children}
     </Link>

@@ -4,10 +4,13 @@ import path from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { createCategory } from "@/server/directory/categories"
+import { setContentCategories } from "@/server/directory/content-categories"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { createEvent, updateEvent } from "@/server/events/events"
 import * as publicReads from "@/server/events/public"
+import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
 import {
   createTestDatabase,
   insertWorkspace,
@@ -111,6 +114,9 @@ const everyPublicRead: Record<
   },
   eventsArePublic: { notAList: "Reads the Events page's switch." },
   findEventPlace: { notAList: "Finds a listing by its address, not events." },
+  readEventCategories: {
+    notAList: "Lists categories, not events. Proven on its own below.",
+  },
   eventsAccessFor: { notAList: "Reads the Events page's switch." },
 }
 
@@ -142,6 +148,26 @@ describe("private events", () => {
     expect(page?.event.isPrivate).toBe(true)
     const open = await publicReads.readPublicEvent(site, listed, database)
     expect(open?.event.isPrivate).toBe(false)
+  })
+
+  it("never make a category a filter on the Events page", async () => {
+    const members = await createCategory(site.id, { name: "Members" }, database)
+    await setContentCategories(
+      site.id,
+      EVENT_CONTENT_TYPE,
+      unlisted.id,
+      [members.id],
+      database
+    )
+    expect(await publicReads.readEventCategories(site.id, database)).toEqual([])
+
+    await updateEvent(site.id, unlisted.id, { visibility: "public" }, database)
+    resetPublicDirectoryCacheForTests()
+    expect(
+      (await publicReads.readEventCategories(site.id, database)).map(
+        (row) => row.slug
+      )
+    ).toEqual([members.slug])
   })
 
   it("come back to every list when switched to public", async () => {
