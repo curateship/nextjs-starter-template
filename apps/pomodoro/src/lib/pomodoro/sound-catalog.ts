@@ -19,7 +19,9 @@ export const curatedSounds: readonly CuratedSound[] = [
 
 export type SoundReference =
   | { type: "curated"; key: string }
-  | { type: "media"; mediaId: string }
+  // `mediaUrl` is the address the server resolved, carried alongside rather
+  // than built here; it is not part of the serialized form.
+  | { type: "media"; mediaId: string; mediaUrl?: string }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -45,8 +47,19 @@ export function sameSoundReference(a: SoundReference | null, b: SoundReference |
   return serializeSoundReference(a) === serializeSoundReference(b)
 }
 
+/**
+ * Where the browser fetches this loop from.
+ *
+ * A curated loop ships with the app. An upload is served straight from the
+ * bucket at the address the server resolved, which is how the shell serves
+ * every other file it stores — an owner-checked route would be a second way of
+ * doing the same thing, and Vite's dev server refuses to forward one to an
+ * `<img>` anyway. An upload with no address yet has none to give.
+ */
 export function soundSourceUrl(reference: SoundReference) {
-  return reference.type === "curated" ? `/sounds/audio-${reference.key}.mp3` : `/api/media/${reference.mediaId}/file`
+  return reference.type === "curated"
+    ? `/sounds/audio-${reference.key}.mp3`
+    : (reference.mediaUrl ?? "")
 }
 
 export const DEFAULT_SOUND_VOLUME = 70

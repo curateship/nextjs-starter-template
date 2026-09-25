@@ -13,6 +13,7 @@ import {
   sameBackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
+import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 
 const descriptorLabels = {
   video: "Video",
@@ -112,6 +113,49 @@ export function BackgroundsPage() {
             )
           })}
         </div>
+
+        <MediaUploadsSection
+          purpose="background"
+          title="Your own"
+          description="A picture or a clip of your own, behind everything."
+          isSelected={(upload) =>
+            sameBackgroundReference(background, {
+              type: "media",
+              mediaId: upload.mediaId,
+            })
+          }
+          onPick={(upload) =>
+            chooseBackground({
+              type: "media",
+              mediaId: upload.mediaId,
+              // Both carried so the backdrop can draw straight away: the kind
+              // decides between a looping <video> and an <img>, and the
+              // address is the one the server resolved for this file.
+              mediaKind: upload.kind === "video" ? "video" : "image",
+              mediaUrl: upload.url,
+            })
+          }
+          renderThumbnail={(upload) =>
+            upload.kind === "video" ? (
+              <video
+                // `#t=0.1` asks the browser for a tenth of a second in, which
+                // is what makes it paint a real frame. Without it the card is
+                // a grey box until somebody presses play.
+                src={`${upload.url}#t=0.1`}
+                className="size-full object-cover"
+                muted
+                playsInline
+                preload="metadata"
+              />
+            ) : (
+              <img
+                src={upload.url}
+                alt=""
+                className="size-full object-cover"
+              />
+            )
+          }
+        />
       </div>
     </>
   )

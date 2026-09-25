@@ -40,3 +40,5 @@ cover this one.
 - [Admin sections](admin-sections.md) — the six operator pages under
   `/admin`: focus data, tasks, sessions, rooms, media, and the report queue
   with its resolve, dismiss and reopen.
+- [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
+  may upload, the FFmpeg re-encode, and where the files live.

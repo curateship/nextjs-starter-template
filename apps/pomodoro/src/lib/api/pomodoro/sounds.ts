@@ -6,6 +6,10 @@ import { db } from "@/server/db"
 import { userGet, userPost } from "@/server/guards"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import { loadOrCreatePreferences } from "@/server/pomodoro/productivity"
+import {
+  assertUploadUsable,
+  resolveUploadUrl,
+} from "@/server/pomodoro/media-uploads"
 import { userPreferences } from "@/server/pomodoro/schema"
 import {
   curatedSounds,
@@ -32,12 +36,21 @@ const loadSoundPreferencesFn = createServerFn({ method: "GET" })
       loadOrCreatePreferences(context.user.id),
       loadPomodoroEntitlements(context.user.id),
     ])
+    // The same as the background loader: an upload's address comes from the
+    // server, and a selection that is gone comes back without one.
+    const reference = parseSoundReference(preferences.selectedSound)
+    const upload =
+      reference?.type === "media"
+        ? await resolveUploadUrl(context.user.id, reference.mediaId)
+        : null
+
     return {
       selectedSound: preferences.selectedSound,
       soundVolume: preferences.soundVolume,
       soundMuted: preferences.soundMuted,
       completionAlerts: preferences.completionAlerts,
       canUsePremiumMedia: entitlements.canUsePremiumMedia,
+      selectedUploadUrl: upload?.url ?? null,
     }
   })
 
@@ -58,6 +71,11 @@ const saveSoundPreferencesFn = createServerFn({ method: "POST" })
         if (!entitlements.canUsePremiumMedia)
           throw new Error("UPGRADE_REQUIRED:premiumMedia")
       }
+    }
+    // An upload has to be this person's own and finished being prepared, the
+    // same check the background preference makes.
+    if (reference?.type === "media") {
+      await assertUploadUsable(context.user.id, reference.mediaId, "sound")
     }
     await loadOrCreatePreferences(context.user.id)
     const [updated] = await db

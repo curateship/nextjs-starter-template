@@ -202,7 +202,16 @@ export function ensureSoundEngine() {
   hydrating = true
   void loadSoundPreferences()
     .then((saved) => {
-      const selected = parseSoundReference(saved.selectedSound)
+      const parsed = parseSoundReference(saved.selectedSound)
+      // An upload the server would not resolve — deleted, still being
+      // prepared, or not theirs — is dropped rather than left selected with
+      // nothing to play.
+      const selected =
+        parsed?.type === "media"
+          ? saved.selectedUploadUrl
+            ? { ...parsed, mediaUrl: saved.selectedUploadUrl }
+            : null
+          : parsed
       const volume = clampSoundVolume(saved.soundVolume)
       state = {
         ...state,

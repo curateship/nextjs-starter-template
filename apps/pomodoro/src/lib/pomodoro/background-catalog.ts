@@ -27,7 +27,16 @@ export type BackgroundReference =
   | { type: "scene"; key: string }
   // mediaKind is carried on the client so the hero knows whether to render a
   // looping <video> or an <img>; it is not part of the serialized form.
-  | { type: "media"; mediaId: string; mediaKind?: "image" | "video" }
+  // `mediaKind` and `mediaUrl` ride along so the backdrop knows whether to
+  // draw a looping <video> or an <img>, and where the file is. Neither is part
+  // of the serialized form: the preference stores `media:<uuid>` and the
+  // server resolves the address, the way it does for every other file here.
+  | {
+      type: "media"
+      mediaId: string
+      mediaKind?: "image" | "video"
+      mediaUrl?: string
+    }
 
 // The default scene when nothing is selected, or when a selected upload is
 // missing, still processing, or deleted.

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm"
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -14,7 +15,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
-import { customShellUsers } from "@/server/schema"
+import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
  * The pomodoro app's own tables, apart from the shell's schema the way trade
@@ -250,7 +251,9 @@ export const rooms = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     slug: varchar("slug", { length: 80 }).notNull().unique(),
     name: varchar("name", { length: 80 }).notNull(),
-    visibility: varchar("visibility", { length: 20 }).notNull().default("public"),
+    visibility: varchar("visibility", { length: 20 })
+      .notNull()
+      .default("public"),
     phase: varchar("phase", { length: 20 }).notNull().default("waiting"),
     /** Bumped by every phase change; stale timed transitions no-op on it. */
     sequence: integer("sequence").notNull().default(0),
@@ -282,7 +285,11 @@ export const rooms = pgTable(
       "rooms_phase_check",
       sql`${table.phase} in ('waiting', 'focus', 'short', 'long', 'closed')`
     ),
-    index("rooms_public_idx").on(table.visibility, table.phase, table.createdAt),
+    index("rooms_public_idx").on(
+      table.visibility,
+      table.phase,
+      table.createdAt
+    ),
   ]
 )
 
@@ -455,4 +462,74 @@ export const pomodoroAuditLogs = pgTable(
   ]
 )
 
+/**
+ * A Pro member's own background or sound loop.
+ *
+ * The file and its record live in the shell's media library and its R2 bucket,
+ * so this table holds only what the shell knows nothing about: which library
+ * files belong to the pomodoro app, what the member meant each one for, and how
+ * the re-encode is getting on. `mediaId` is the key, so one library file is at
+ * most one pomodoro upload and deleting the library row takes this row with it.
+ */
+export const pomodoroMediaUploads = pgTable(
+  "pomodoro_media_uploads",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    purpose: varchar("purpose", { length: 20 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    /**
+     * What the member actually sent. Kept after the re-encode replaces the
+     * file, so the size the upload was accepted at is still on record.
+     */
+    originalBytes: bigint("original_bytes", { mode: "number" }).notNull(),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    attempts: integer("attempts").notNull().default(0),
+    /**
+     * Set while a worker pass holds the job. A pass that dies leaves this
+     * behind, so a stale claim is retried after a timeout rather than stuck.
+     */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_media_uploads_purpose_check",
+      sql`${table.purpose} in ('background', 'sound')`
+    ),
+    check(
+      "pomodoro_media_uploads_kind_check",
+      sql`${table.kind} in ('image', 'audio', 'video')`
+    ),
+    check(
+      "pomodoro_media_uploads_status_check",
+      sql`${table.status} in ('queued', 'processing', 'ready', 'failed')`
+    ),
+    check(
+      "pomodoro_media_uploads_original_bytes_check",
+      sql`${table.originalBytes} > 0`
+    ),
+    index("pomodoro_media_uploads_user_purpose_idx").on(
+      table.userId,
+      table.purpose,
+      table.createdAt
+    ),
+    index("pomodoro_media_uploads_status_created_idx").on(
+      table.status,
+      table.createdAt
+    ),
+  ]
+)
+
 export type Room = typeof rooms.$inferSelect
+export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect

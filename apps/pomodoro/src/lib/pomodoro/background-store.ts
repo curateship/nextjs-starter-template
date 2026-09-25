@@ -92,8 +92,26 @@ export function ensureBackgroundStore() {
   void loadBackgroundPreference()
     .then((saved) => {
       const reference = parseBackgroundReference(saved.selectedBackground)
+      // An upload whose address the server would not resolve — deleted, still
+      // being prepared, or not theirs — falls back to the default scene rather
+      // than leaving a blank screen behind the timer.
+      const resolved: BackgroundReference | null =
+        reference?.type === "media"
+          ? saved.selectedUploadUrl
+            ? {
+                ...reference,
+                mediaUrl: saved.selectedUploadUrl,
+                // A background is only ever a picture or a clip; the sound
+                // kind cannot reach here, and anything unexpected draws as a
+                // picture rather than throwing.
+                mediaKind: (saved.selectedUploadKind === "video"
+                  ? "video"
+                  : "image") as "image" | "video",
+              }
+            : null
+          : reference
       state = {
-        background: reference ?? DEFAULT_BACKGROUND,
+        background: resolved ?? DEFAULT_BACKGROUND,
         canUsePremiumMedia: saved.canUsePremiumMedia === true,
       }
       lastSaved = serializeBackgroundReference(state.background) ?? ""
