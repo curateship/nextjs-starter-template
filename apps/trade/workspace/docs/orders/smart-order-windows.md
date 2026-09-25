@@ -391,8 +391,10 @@ Value 20% and PnL 24%. Tyler set those on 13 Sep 2026. There was a Banked column
 until that day, and the width it freed was shared out rather than all handed to
 the ticker. Value stays the narrowest because its figures are the shortest,
 which keeps PnL beside it. Measured in the running app that is 100, 65, 59 and
-71 pixels, and a long ticker such as VIRTUAL now clears the Long or Short
-badge. Every column reads from the left, headings and
+71 pixels. A ticker longer than its cell is cut short with "…" before the
+Type column (Tyler, 24 Sep 2026: "Truncate the text if it bleeds into another
+col"). At those widths the name has 56 pixels, so NVDA and ONDO show whole and
+SOFTBANK shows as "SOFTB…". The full name is in the details card. Every column reads from the left, headings and
 figures alike. PnL and Banked used to hug the right edge, with Banked's sort
 mark before its label, which left a hole between Value and PnL once Value moved
 to the left. Cell content keeps a 16px gutter from
@@ -416,16 +418,21 @@ card still lists every sale, what each one banked, and the total, and that is
 the one place the figure lives now.
 
 The three vertical dots beside a ticker are invisible until the pointer is on
-that row (Tyler, 13 Sep 2026). They keep their space while hidden, so no ticker
-jumps sideways, and they come back for keyboard focus and while their card is
-open.
+that row (Tyler, 13 Sep 2026). They float over the right edge of the ticker
+cell instead of holding space of their own, so no ticker jumps sideways and the
+name can use the whole cell. They come back for keyboard focus and while their
+card is open.
 
 Pointing at the ticker icon or the ticker name opens the smart order's
 details — the hover target is the whole icon-and-name pair. Keyboard focus
 opens the same tooltip. The card is 224px wide on the phone sheet and 256px on
 larger screens. It stays centered beside the icon and keeps an 8px boundary
 from the viewport, so it does not take over the chart or clip. The details card
-uses the light popover surface and dark text, with no pointer arrow. The ticker
+uses the light popover surface and dark text, with no pointer arrow. It is at
+most 448 pixels tall, or the height the window leaves, and scrolls past that,
+so the last sales and the total are always reachable. Until 24 Sep 2026 the cap
+sat on the card's frame instead of on its scrolling box, which cut the bottom
+off a long sale list with no way to scroll to it. The ticker
 name remains the control that opens its market on the chart. The tooltip names
 the wallet and shows progress, money still held, open profit, and the sale
 history. A grid says how many levels are

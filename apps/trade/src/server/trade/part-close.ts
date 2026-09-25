@@ -14,9 +14,17 @@ import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, hasWalletPlanWrite, withWalletPlanWrite } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
-import { liveHeldPosition, setLiveBrackets } from "@/server/trade/live-orders"
+import {
+  liveHeldPosition,
+  placeLiveOrder,
+  setLiveBrackets,
+} from "@/server/trade/live-orders"
 import { marketRules } from "@/server/trade/market-rules"
-import { setPaperBrackets, settleWallet } from "@/server/trade/paper"
+import {
+  placePaperOrder,
+  setPaperBrackets,
+  settleWallet,
+} from "@/server/trade/paper"
 import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
 
 /**
@@ -51,16 +59,24 @@ import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
  * of a position is worse than any price the rest would have got. The way to
  * call one off is the × on its resting order, which stops the close rather
  * than taking one order back — see `cancel` in `use-trading.ts`.
+ *
+ * ## Unless the person asked for market
+ *
+ * The close window lets the person pick market or limit for any amount (Tyler,
+ * 24 Sep 2026). Limit is the chase above. Market sells the piece now with one
+ * reduce-only market order and writes no row.
  */
+
+/** How a close sells: now at the market, or chased as a maker limit. */
+export type CloseHow = "market" | "limit"
 
 /**
  * What a close was asked for in: coins, dollars at today's price, or all of it.
  *
- * `all` is not the same as passing the held size in coins. The held size falls
- * through the "what is left would be too small to be an order" rule and comes
- * back as `whole`, which sends the caller to the market-order close. `all`
- * says "the whole position, and chase it" — which is what emptying a wallet
- * wants, because there the point of the press is not to be out this second.
+ * `all` skips the "what is left would be too small to be an order" test and
+ * sizes the order from the held position. Emptying a wallet asks for `all`
+ * with `limit`, because there the point of the press is not to be out this
+ * second.
  */
 export type PartCloseSize =
   | { unit: "coins"; amount: number }
@@ -84,6 +100,11 @@ export type HeldPosition = {
 
 export type PartCloseOutcome =
   | { kind: "chasing"; sz: number; px: number }
+  /**
+   * A market part close the exchange took. `px` is null when the venue
+   * accepted the order without reporting its fill yet.
+   */
+  | { kind: "sold"; sz: number; px: number | null }
   /** The size covers the whole position, so the caller does the whole close. */
   | { kind: "whole" }
 
@@ -102,6 +123,7 @@ export async function openPartClose(
   input: {
     marketKey: string
     size: PartCloseSize
+    how: CloseHow
     /** Already read by the caller — see `HeldPosition`. */
     held?: HeldPosition
   }
@@ -165,7 +187,7 @@ export async function openPartClose(
   // the worst moment for one. Nothing can be over-sold by capping: the
   // remainder test below turns it into the ordinary whole close. The window
   // still says "this position only holds X" for an amount typed by hand.
-  const sz = floorSize(Math.min(asked, heldSz), rules.sizeDecimals)
+  const piece = floorSize(Math.min(asked, heldSz), rules.sizeDecimals)
 
   /**
    * A remainder too small to be an order of its own is not a remainder.
@@ -173,17 +195,20 @@ export async function openPartClose(
    * **This is the whole-position test, and it is a rule rather than a
    * tolerance.** Leaving behind less than the exchange's smallest order leaves
    * a scrap that can never be closed again: from then on the close button
-   * itself would be refused. So "sell all but a crumb" means "sell all of it",
-   * and the caller takes the ordinary whole-position road.
+   * itself would be refused. So "sell all but a crumb" means "sell all of it":
+   * the ordinary whole-position close for market, the whole position chased
+   * for limit.
    *
    * It also covers the near-miss the window makes on its own. The amount box
    * holds cents, and all of a $99.29 position is 35.699133 coins — read back
    * from "99.29" that is 35.699, a hair short, so a press meaning "all of it"
    * would otherwise have offered to leave a fraction of a cent behind.
    */
-  if (input.size.unit !== "all" && notAnOrder(heldSz - sz)) {
-    return { kind: "whole" }
-  }
+  const whole = input.size.unit === "all" || notAnOrder(heldSz - piece)
+  // A market close of all of it is the ordinary close button, so the caller
+  // takes that road. A limit close of all of it is chased like any part.
+  if (whole && input.how === "market") return { kind: "whole" }
+  const sz = whole ? floorSize(heldSz, rules.sizeDecimals) : piece
 
   if (notAnOrder(sz)) {
     const least = floor ?? mark * 10 ** -(rules.sizeDecimals ?? 0)
@@ -221,8 +246,39 @@ export async function openPartClose(
     })
   }
 
-  const now = new Date()
   const side: TradeSide = held.szi > 0 ? "sell" : "buy"
+  // Leverage is the position's, not this order's — it only reduces.
+  const leverage = held.leverage > 0 ? held.leverage : 1
+
+  if (input.how === "market") {
+    const order = {
+      marketKey: input.marketKey,
+      side,
+      px: mark,
+      sz,
+      leverage,
+      reduceOnly: true,
+      tpPx: null,
+      slPx: null,
+      marketOnly: true,
+    }
+    if (wallet.kind === "live") {
+      const placed = await placeLiveOrder(userId, {
+        ...order,
+        walletId: wallet.id,
+        byHand: true,
+      })
+      return {
+        kind: "sold",
+        sz: placed.filledSz || sz,
+        px: placed.status === "filled" ? placed.avgPx : null,
+      }
+    }
+    await placePaperOrder(userId, wallet, order)
+    return { kind: "sold", sz, px: mark }
+  }
+
+  const now = new Date()
   const plan: WatchPlan = {
     // Where it was asked for, which is what the row on screen shows. It is not
     // a level being waited for: `phase` starts at "taking" precisely because a
@@ -230,8 +286,7 @@ export async function openPartClose(
     triggerPx: mark,
     side,
     sz,
-    // Leverage is the position's, not this order's — it only reduces.
-    leverage: held.leverage > 0 ? held.leverage : 1,
+    leverage,
     maxLeverage: rules.maxLeverage ?? 1,
     sizeDecimals: rules.sizeDecimals,
     minOrderSize: rules.minOrderSize ?? null,

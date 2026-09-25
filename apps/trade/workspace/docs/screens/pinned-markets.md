@@ -94,10 +94,13 @@ shared market catalogue. The previous day's reference price comes from the
 catalogue; today's change is recalculated against the current price.
 
 A read that FAILS still blanks the figure to a dash, because that is the case
-where the age of the number is genuinely unknown. Hiding the tab clears the
-figures and stops price requests, for the same reason. Returning to the tab
-starts a fresh read. The next read also picks up pin changes made in another
-browser.
+where the age of the number is genuinely unknown. Hiding the tab stops price
+requests and keeps the figures. Returning to the tab starts a fresh read at
+once, and the old figure stays until the new one replaces it (Tyler, 25 Sep
+2026: "New price should update in place of the old price"). Until that date
+hiding or returning cleared every figure. The chip showed a dash for the two
+seconds a read took, and for up to fifteen when a read already on its way was
+thrown out. The next read also picks up pin changes made in another browser.
 
 Clicking a chip opens the market's exchange chart and preserves its network in
 the market key. Below 1280 pixels, chips show symbols and remove buttons only.
@@ -141,8 +144,9 @@ Check the actual saved workflow in the existing server on port 3014:
    within the next visible refresh. A different account should have its own list.
 4. Check at 1600, 1100 and 390 pixels. Price and change appear only at 1280 pixels
    or wider; the phone header must not widen the page. Use the buttons by keyboard.
-5. Hide the tab and check that refresh calls stop. Return to the tab, then
-   simulate a failed price read. A failed read must show a dash. A failed save
+5. Hide the tab and check that refresh calls stop and the figure stays.
+   Return to the tab: the figure must never become a dash, and the new one
+   replaces it in place. Then simulate a failed price read. A failed read must show a dash. A failed save
    must restore the list and show an error.
 6. Remove every pin and confirm the original sidebar links return. Repeat the
    workflow signed in as a member, whose chart access is no longer blocked.

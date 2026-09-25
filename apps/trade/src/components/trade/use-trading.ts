@@ -50,7 +50,10 @@ import {
   placeDcaLadder,
   cancelWatch,
   closePartOfPosition,
+  type CloseHow,
   type PartCloseOutcome,
+  type PartCloseSize,
+  SMART_ORDER_FALLBACK,
   flattenWalletApi,
   reconcileLiveSmartOrders,
   resumeSmartOrder as resumeSmartOrderApi,
@@ -73,7 +76,7 @@ import {
 import type { DcaLadderSettings, DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import type { OrderStyle } from "@/lib/trade/order-style"
-import { formatUsd } from "@/lib/trade/format"
+import { formatPrice, formatSize, formatUsd } from "@/lib/trade/format"
 import {
   gridHeldSz,
   type GridRangeMove,
@@ -456,20 +459,19 @@ export type Trading = {
   ) => Promise<void>
   close: (position: TradePosition) => Promise<void>
   /**
-   * Sells part of a position and leaves the rest running.
+   * Sells part of a position at market or with a limit, or all of it with a
+   * limit. All of it at market is `close`.
    *
-   * A different mechanism from `close`, not a smaller version of it. `close`
-   * pays the spread to be out now; this rests a reduce-only limit and follows
-   * the price with it, which is what the trading rules ask of a close and what
-   * makes taking some profit worth doing. Nothing is on the exchange the
-   * moment this returns — the engine's next pass places it.
+   * Limit rests a reduce-only order and follows the price with it. Nothing is
+   * on the exchange the moment this returns, because the engine's next pass
+   * places it. Market sells the piece before this returns.
    *
-   * An amount that turns out to be the whole position falls back to `close`,
-   * decided on the server where the held size is known for certain.
+   * A market amount that turns out to be the whole position falls back to
+   * `close`, decided on the server where the held size is known for certain.
    */
   closePart: (
     position: TradePosition,
-    ask: { unit: "coins" | "usd"; amount: number }
+    ask: { size: PartCloseSize; how: CloseHow }
   ) => Promise<void>
   flip: (
     walletId: string,
@@ -2263,32 +2265,47 @@ export function useTrading(
       // rest an order and wait for it to fill. Hiding the row here would say
       // the money had moved when nothing has left the account.
       // **What is said afterwards depends on which road it took**, and the
-      // server decides that, not the window. An amount that covered the
+      // server decides that, not the window. A market amount that covered the
       // position is market-closed, and telling somebody an order was following
       // the price when the coin has already been sold is a false statement
       // about money that has moved. So the toast is raised here, once the
       // answer is in, rather than handed to `runWith` before the call.
-      let sold: PartCloseOutcome["kind"] | null = null
-      const went = await runWith(getSmartOrderErrorMessage, async () => {
-        const answer = await closePartOfPosition({
+      const live = position.live !== undefined
+      // A market close can be refused by the order itself, whose codes are
+      // the live or practice order codes rather than a Smart order's.
+      const describe = (error: unknown) => {
+        const said = getSmartOrderErrorMessage(error)
+        if (said !== SMART_ORDER_FALLBACK) return said
+        return live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
+      }
+      // Set inside the closure, so the type is stated rather than narrowed.
+      let answer = null as PartCloseOutcome | null
+      const went = await runWith(describe, async () => {
+        const outcome = await closePartOfPosition({
           walletId,
           marketKey,
-          unit: ask.unit,
-          amount: ask.amount,
+          size: ask.size,
+          how: ask.how,
         })
-        if (answer.kind === "whole") {
-          await (position.live !== undefined
+        if (outcome.kind === "whole") {
+          await (live
             ? closeLivePosition(walletId, marketKey)
             : closePaperPosition(walletId, marketKey))
         }
-        sold = answer.kind
-        return answer
+        answer = outcome
       })
-      if (!went || sold === null) return
+      if (!went || answer === null) return
+      const where = nameOf(walletId)
       toast.success(
-        sold === "whole"
-          ? `All of ${symbol} sold in ${nameOf(walletId)} — that amount covered the position.`
-          : `Selling part of ${symbol} in ${nameOf(walletId)}. The order follows the price until it fills.`
+        answer.kind === "whole"
+          ? `All of ${symbol} sold in ${where}. That amount covered the position.`
+          : answer.kind === "sold"
+            ? answer.px === null
+              ? `Market sell for ${formatSize(answer.sz)} ${symbol} sent in ${where}. The exchange has not reported the fill yet.`
+              : `Sold ${formatSize(answer.sz)} ${symbol} in ${where} at ${formatPrice(answer.px)}.`
+            : ask.size.unit === "all"
+              ? `Selling all of ${symbol} in ${where}. The order follows the price until it fills.`
+              : `Selling part of ${symbol} in ${where}. The order follows the price until it fills.`
       )
     },
     [runWith, nameOf]

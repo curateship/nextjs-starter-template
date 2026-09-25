@@ -40,17 +40,16 @@ export default function PinnedMarketsHeader({
         running = false
       })
     }
-    const visibility = () => {
-      store.clearPrices()
-      if (document.visibilityState === "visible") refresh()
-    }
+    // Coming back to the tab reads again at once, and the old figure stays
+    // until the new one replaces it. Blanking here made every chip lose its
+    // figure for a second or more each time the tab came back (Tyler, 25 Sep
+    // 2026: "New price should update in place of the old price").
     refresh()
     const timer = window.setInterval(refresh, 15_000)
-    document.addEventListener("visibilitychange", visibility)
+    document.addEventListener("visibilitychange", refresh)
     return () => {
       window.clearInterval(timer)
-      document.removeEventListener("visibilitychange", visibility)
-      store.clearPrices()
+      document.removeEventListener("visibilitychange", refresh)
     }
   }, [store])
 
