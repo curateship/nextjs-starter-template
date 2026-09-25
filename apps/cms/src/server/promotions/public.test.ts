@@ -129,7 +129,7 @@ describe("the Deals page", () => {
   it("keeps a last night past midnight until it closes, then drops it", async () => {
     const hours = blankListingHours()
     // Monday 5 Oct is the last day: 10 PM to 2 AM Tuesday.
-    hours.monday = { open: "22:00", close: "02:00", second: null }
+    hours.monday = { open: "22:00", close: "02:00" }
     await deal(
       "Late night",
       { startDate: "2026-10-01", endDate: today },
@@ -216,7 +216,7 @@ describe("a deal's page", () => {
   it("lists the times in words and says when it is next on", async () => {
     const hours = blankListingHours()
     for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"] as const) {
-      hours[day] = { open: "16:00", close: "18:00", second: null }
+      hours[day] = { open: "16:00", close: "18:00" }
     }
     const made = await deal(
       "Happy hour",

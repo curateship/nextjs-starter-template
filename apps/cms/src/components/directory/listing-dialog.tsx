@@ -6,7 +6,8 @@ import {
   MenuLinksFields,
   SocialLinksFields,
 } from "@/components/directory/contact-links-fields"
-import { CategoryChecklist } from "@/components/directory/category-checklist"
+import { CategoryCombobox } from "@/components/directory/category-combobox"
+import { RecordPreviewLink } from "@/components/shared/record-preview-link"
 import { ListingCustomFields } from "@/components/directory/listing-custom-fields"
 import { ListingDetailsFields } from "@/components/directory/listing-details-fields"
 import {
@@ -212,6 +213,8 @@ export function ListingDialog({
    * person is still looking at.
    */
   const formReady = listingId === null || shown !== null
+  /** The saved record, which is what the preview link may point at. */
+  const saved = shown?.forId === listingId ? shown.data.listing : null
 
   const [title, setTitle] = React.useState("")
   const [slug, setSlug] = React.useState("")
@@ -325,7 +328,7 @@ export function ListingDialog({
     contactLinks: { address, menuLinks, socialLinks },
     body,
     customValues,
-    // Sorted so ticking a box off and on again is not read as an edit.
+    // Sorted so choosing a category and dropping it is not read as an edit.
     categoryIds: [...categoryIds].sort(),
     primaryCategoryId:
       primaryCategoryId && categoryIds.has(primaryCategoryId)
@@ -444,6 +447,11 @@ export function ListingDialog({
               ) : formReady || preview ? (
                 <Badge variant="outline">Draft</Badge>
               ) : null}
+              <RecordPreviewLink
+                word="listing"
+                path={saved ? `/directory/${saved.slug}` : null}
+                published={saved?.status === "published"}
+              />
             </div>
             <DialogDescription>
               {creating
@@ -645,7 +653,7 @@ export function ListingDialog({
                   description="Where visitors find it when browsing. The primary one is the category its breadcrumb names."
                   contentClassName="grid gap-4"
                 >
-                  <CategoryChecklist
+                  <CategoryCombobox
                     idPrefix="listing-category"
                     rows={orderedCategories}
                     checked={categoryIds}
@@ -663,7 +671,7 @@ export function ListingDialog({
                     <div className="grid gap-2">
                       <FieldLabel
                         htmlFor="listing-primary-category"
-                        hint="The one category the listing's breadcrumb names. It has to be one of the ticked ones."
+                        hint="The one category the listing's breadcrumb names. It has to be one of the chosen ones."
                       >
                         Primary category
                       </FieldLabel>

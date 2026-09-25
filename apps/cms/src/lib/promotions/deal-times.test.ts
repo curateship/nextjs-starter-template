@@ -18,11 +18,10 @@ import {
 function on(
   days: ListingWeekday[],
   open: string,
-  close: string,
-  second: { open: string; close: string } | null = null
+  close: string
 ): ListingHours {
   const hours = blankListingHours()
-  for (const day of days) hours[day] = { open, close, second }
+  for (const day of days) hours[day] = { open, close }
   return hours
 }
 
@@ -82,14 +81,14 @@ describe("on now, and next", () => {
     expect(dealNowText(allDay, "2026-10-01T03:00")).toBeNull()
   })
 
-  it("names the second stretch of a day", () => {
-    const twice: TimedDeal = {
+  it("names a stretch that has not started yet, then says it is on", () => {
+    const evening: TimedDeal = {
       startDate: "2026-10-05",
       endDate: null,
-      times: on(["tuesday"], "15:00", "17:00", { open: "22:00", close: "00:00" }),
+      times: on(["tuesday"], "22:00", "00:00"),
     }
-    expect(dealNowText(twice, "2026-10-06T18:00")).toBe("Next: today at 10 PM")
-    expect(dealNowText(twice, "2026-10-06T23:00")).toBe(
+    expect(dealNowText(evening, "2026-10-06T18:00")).toBe("Next: today at 10 PM")
+    expect(dealNowText(evening, "2026-10-06T23:00")).toBe(
       "On now · until midnight"
     )
   })
@@ -163,12 +162,12 @@ describe("the times in words", () => {
 
   it("groups the days that share times, and says the rest in order", () => {
     const hours = on(["monday", "tuesday", "wednesday", "friday"], "11:30", "14:00")
-    hours.saturday = { open: "22:00", close: "02:00", second: null }
-    hours.sunday = { open: "12:00", close: "15:00", second: { open: "22:00", close: "00:00" } }
+    hours.saturday = { open: "22:00", close: "02:00" }
+    hours.sunday = { open: "12:00", close: "15:00" }
     expect(dealTimesLines(hours)).toEqual([
       "Mon to Wed and Fri, 11:30 AM to 2 PM",
       "Sat, 10 PM to 2 AM",
-      "Sun, 12 to 3 PM and 10 PM to midnight",
+      "Sun, 12 to 3 PM",
     ])
   })
 

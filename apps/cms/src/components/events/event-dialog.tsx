@@ -2,7 +2,8 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { CategoryChecklist } from "@/components/directory/category-checklist"
+import { CategoryCombobox } from "@/components/directory/category-combobox"
+import { RecordPreviewLink } from "@/components/shared/record-preview-link"
 import { ListingPicker } from "@/components/directory/listing-picker"
 import {
   EventDatesCard,
@@ -140,7 +141,7 @@ function fieldsFrom(data: EventForEdit): EventFields {
     placeName: data.placeListing?.title ?? event.placeName,
     placeAddress: data.placeListing?.address ?? event.placeAddress,
     body: event.body,
-    // Sorted so ticking a box off and on again is not read as an edit.
+    // Sorted so choosing a category and dropping it is not read as an edit.
     categoryIds: [...data.categoryIds].sort(),
     repeat: event.repeat,
     takesSignUps: event.takesSignUps,
@@ -243,6 +244,8 @@ export function EventDialog({
 
   const creating = eventId === null && createdId === null
   const ready = eventId === null || loaded?.forId === eventId
+  /** The saved record, which is what the preview link may point at. */
+  const saved = loaded?.forId === eventId ? loaded.data.event : null
 
   // A closed window forgets what it held, so the next open reads afresh.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -448,6 +451,11 @@ export function EventDialog({
               ) : status === "draft" ? (
                 <Badge variant="outline">Draft</Badge>
               ) : null}
+              <RecordPreviewLink
+                word="event"
+                path={saved ? `/events/${saved.slug}` : null}
+                published={saved?.status === "published"}
+              />
             </div>
             <DialogDescription>
               {creating
@@ -657,9 +665,9 @@ export function EventDialog({
                       value={fields.coverImage}
                       disabled={saving}
                       onChange={(url) => update("coverImage", url)}
-                      aspect="video"
+                      aspect="square"
                       fit="cover"
-                      className="max-w-60"
+                      className="max-w-24"
                     />
                   </div>
                 </CollapsibleSettingsCard>
@@ -875,7 +883,7 @@ export function EventDialog({
                   description="The same categories listings and posts are filed under."
                   contentClassName="grid gap-4"
                 >
-                  <CategoryChecklist
+                  <CategoryCombobox
                     idPrefix="event-category"
                     rows={orderedCategories}
                     checked={checked}

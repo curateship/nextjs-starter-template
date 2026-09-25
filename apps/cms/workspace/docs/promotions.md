@@ -102,7 +102,7 @@ say when, inside those days, it is on. They came in
 `drizzle/0097_cms_promotion_times.sql`.
 
 - **Shaped like a listing's opening hours.** Each weekday is off, or has a
-  start and an end, and optionally a second stretch. The deal window uses the
+  start and an end. The deal window uses the
   same day-by-day editor as the listing window
   (`src/components/shared/weekday-hours-fields.tsx`), including "Copy Monday
   to weekdays".
@@ -112,7 +112,7 @@ say when, inside those days, it is on. They came in
   and belongs to the night it started. The same start and end means 24 hours.
   A night never starts before the deal's first day.
 - **"Same as the listing's hours"** fills every day from the listing's opening
-  hours, second stretches included. It is off until a listing is picked, and
+  hours. It is off until a listing is picked, and
   says so if the listing has no hours. "All day, every day" empties them again.
 - **A day switched on needs both times.** The save names the day, like "Give
   Thursday a start and an end time."
