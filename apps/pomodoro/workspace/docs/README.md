@@ -42,3 +42,5 @@ cover this one.
   with its resolve, dismiss and reopen.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the FFmpeg re-encode, and where the files live.
+- [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the
+  monthly credits, and the rule that a failed generation is refunded.

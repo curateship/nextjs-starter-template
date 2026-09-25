@@ -103,11 +103,10 @@ export default function AiStepFields({
           <InspectorNote className="mt-1">
             No {AI_PROVIDER_NAMES[provider]} key is saved yet. Add one in{" "}
             <Link
-              to="/admin/settings/$tab"
-              params={{ tab: "ai" }}
+              to="/admin/settings"
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Settings → AI
+              Settings → General settings → AI provider keys
             </Link>{" "}
             before this flow runs.
           </InspectorNote>

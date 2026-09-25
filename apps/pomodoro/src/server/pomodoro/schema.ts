@@ -531,5 +531,110 @@ export const pomodoroMediaUploads = pgTable(
   ]
 )
 
+/**
+ * What each person has spent on AI generation this month.
+ *
+ * `reserved - refunded` is what has actually been spent, so a failed job hands
+ * the credit back without losing the record that the attempt happened. The
+ * credit is taken when the request is accepted rather than when the file
+ * arrives, so nobody can queue twenty videos while the first is still running.
+ */
+export const pomodoroGenerationUsage = pgTable(
+  "pomodoro_generation_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The first of the month, so a month is one comparable value. */
+    month: date("month", { mode: "string" }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    reserved: integer("reserved").notNull().default(0),
+    completed: integer("completed").notNull().default(0),
+    refunded: integer("refunded").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_generation_usage_kind_check",
+      sql`${table.kind} in ('background', 'soundscape')`
+    ),
+    check(
+      "pomodoro_generation_usage_counts_check",
+      sql`${table.reserved} >= 0 and ${table.completed} >= 0 and ${table.refunded} >= 0`
+    ),
+    unique("pomodoro_generation_usage_unique").on(
+      table.userId,
+      table.month,
+      table.kind
+    ),
+  ]
+)
+
+/**
+ * One AI request, from the moment it is asked for until a file exists.
+ *
+ * `mediaId` stays null until then, which is why this cannot live on
+ * `pomodoroMediaUploads`: that table is keyed by a library row, and for most of
+ * a generation's life there is not one yet. Once the file lands it gets an
+ * uploads row too, so the pickers, the serving and the delete all work on it
+ * exactly as they do on something the member uploaded themselves.
+ */
+export const pomodoroGenerations = pgTable(
+  "pomodoro_generations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    prompt: varchar("prompt", { length: 500 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    /**
+     * The month the credit came out of, so a refund goes back to the same
+     * month even when the job finishes after midnight on the first.
+     */
+    month: date("month", { mode: "string" }).notNull(),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_generations_kind_check",
+      sql`${table.kind} in ('background', 'soundscape')`
+    ),
+    check(
+      "pomodoro_generations_status_check",
+      sql`${table.status} in ('queued', 'running', 'ready', 'failed')`
+    ),
+    index("pomodoro_generations_user_kind_idx").on(
+      table.userId,
+      table.kind,
+      table.createdAt
+    ),
+    index("pomodoro_generations_status_created_idx").on(
+      table.status,
+      table.createdAt
+    ),
+  ]
+)
+
 export type Room = typeof rooms.$inferSelect
 export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect
+export type PomodoroGeneration = typeof pomodoroGenerations.$inferSelect

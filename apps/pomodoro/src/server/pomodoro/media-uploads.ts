@@ -40,8 +40,15 @@ import {
  * accepted and one it refused is still refused.
  */
 
-/** A worker pass that dies leaves a claim behind; this is when to retry it. */
-const CLAIM_TIMEOUT_MS = 5 * 60 * 1000
+/**
+ * A worker pass that dies leaves a claim behind; this is when to retry it.
+ *
+ * Longer than the longest a live job can take: FFmpeg gets four minutes, and a
+ * 100 MB video has to come down from the bucket and go back up around it. Five
+ * minutes left almost no slack for the transfer, so a slow-but-alive job could
+ * have its claim stolen and be re-encoded twice.
+ */
+const CLAIM_TIMEOUT_MS = 15 * 60 * 1000
 
 /** How many times a re-encode is tried before the upload is called failed. */
 const MAX_ATTEMPTS = 3
@@ -191,12 +198,20 @@ export async function storePomodoroUpload({
   file,
   bytes,
   detected,
+  alreadyProcessed = false,
 }: {
   userId: string
   purpose: PomodoroUploadPurpose
-  file: { name: string; size: number }
+  file: { name: string }
   bytes: Uint8Array
   detected: { kind: PomodoroUploadKind; mimeType: string }
+  /**
+   * These bytes have already been through FFmpeg, so the file is finished and
+   * must not be queued for a re-encode. AI generation passes this: its worker
+   * re-encodes before storing, and queueing it again would run FFmpeg twice
+   * over the same file and hand the member a second wait.
+   */
+  alreadyProcessed?: boolean
 }): Promise<StoredUpload> {
   const originalName = cleanOriginalName(file.name)
   const filename = storedFilename(originalName, detected.mimeType)
@@ -207,10 +222,12 @@ export async function storePomodoroUpload({
 
   const mediaId = uuid()
   const timestamp = now()
-  // An image is finished the moment it lands. Sound and video wait for the
-  // worker, so the picker can say "Getting it ready" instead of offering a
-  // 100 MB original that would stutter behind the timer.
-  const status = detected.kind === "image" ? "ready" : "queued"
+  // An image is finished the moment it lands, and so is anything already
+  // re-encoded. Sound and video otherwise wait for the worker, so the picker
+  // can say "Getting it ready" instead of offering a 100 MB original that
+  // would stutter behind the timer.
+  const status =
+    alreadyProcessed || detected.kind === "image" ? "ready" : "queued"
 
   try {
     await db.transaction(async (tx) => {
@@ -477,12 +494,11 @@ export async function finishUploadJob({
   fileSize: number
   previousStoragePath: string
 }) {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(customShellMedia)
-      .set({ storagePath, mimeType, fileSize, updatedAt: now() })
-      .where(eq(customShellMedia.id, mediaId))
-    await tx
+  // Only a job still marked processing is finished. If a claim was stolen from
+  // a slow-but-alive pass, the loser's update matches nothing and it must not
+  // go on to point the library row at its own copy or delete the winner's file.
+  const closed = await db.transaction(async (tx) => {
+    const rows = await tx
       .update(pomodoroMediaUploads)
       .set({
         status: "ready",
@@ -490,12 +506,33 @@ export async function finishUploadJob({
         claimedAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(pomodoroMediaUploads.mediaId, mediaId))
+      .where(
+        and(
+          eq(pomodoroMediaUploads.mediaId, mediaId),
+          eq(pomodoroMediaUploads.status, "processing")
+        )
+      )
+      .returning({ mediaId: pomodoroMediaUploads.mediaId })
+
+    if (!rows.length) return false
+
+    await tx
+      .update(customShellMedia)
+      .set({ storagePath, mimeType, fileSize, updatedAt: now() })
+      .where(eq(customShellMedia.id, mediaId))
+    return true
   })
+
+  if (!closed) {
+    // Another pass got there first, so this copy is the spare one to remove.
+    await deleteFromR2(storagePath).catch(() => undefined)
+    return { settled: false }
+  }
 
   if (previousStoragePath !== storagePath) {
     await deleteFromR2(previousStoragePath).catch(() => undefined)
   }
+  return { settled: true }
 }
 
 /**

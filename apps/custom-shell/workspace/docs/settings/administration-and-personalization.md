@@ -1,24 +1,76 @@
 # Administration and personalization
 
-Settings is the control room for the active workspace and platform. The page
-groups its tabs under Platform, Members, and Public. An app may add its own lazy
-tab through app options, so product settings do not need to enter the shell's
-files.
+Settings is the control room for the active workspace and platform. The rail is
+two cards: **Platform settings**, everything the shell owns, and a card named
+after the app, everything the app owns.
 
-The built-in settings groups contain:
+**Platform settings** holds six rows, then a Public heading and five more:
 
-- Platform tabs for general details, admin navigation, dashboard widgets,
-  styling, security, notifications, email, payments, and AI.
-- Members Navigation for the member sidebar and top-right links.
-- Public Navigation for the signed-out header layout and links, Public Styling
-  for the site's colours and frame, Public Pages for system-page wording,
-  Public SEO for site-wide search defaults, and Public Social for X card
-  choices.
+- General settings, Navigation, Widgets, Styling, Email, Payments.
+- Under Public: Navigation for the signed-out header layout and links, Styling
+  for the site's colours and frame, Pages for system-page wording, SEO for
+  site-wide search defaults, and Social for X card choices.
+
+The public rows carry short names because the heading above them says whose
+Navigation and whose Styling they are. The Public heading is drawn at the same
+size and weight as the card's own title, so the card reads as two titled halves
+rather than a list with a caption in it.
+
+**The app's card** is titled from the App name on General settings, so it reads
+"Custom Shell settings" here and "Trade settings" in Trade. The shell puts one
+row in it, Navigation, which is the member sidebar and member top right menu.
+An app adds its own rows through app options, and an app may also take over the
+Navigation row with a screen of its own. See [an app's own settings
+rows](#an-apps-own-settings-rows).
+
+Security, Notifications, Storage and AI were rows in the rail until 25 Sep 2026.
+Each was a single card, so each is now a card on General settings instead, and
+the rail went from 16 rows in three cards to 11 rows in two. An address saved
+before the change, such as `/admin/settings/security`, opens General settings,
+because an unknown tab id falls back to General and General is where that
+content now lives.
 
 Sidebar section cards have 16px between them, matching the containing card's
 16px content inset. Add section and Reset all to defaults sit inside that
 card beneath the sections and collapse with the editor. Each top right menu's
 reset button also sits inside its card, beneath the menu items.
+
+## What is on General settings
+
+Seven cards, in this order. Each collapses on its own and remembers the choice
+per browser.
+
+1. **General settings** — app name, site name, the two home routes, rows per
+   page, toast duration, the logo and the browser tab icon.
+2. **Notifications** — one switch for whether the bell lights up the moment
+   something happens, then the twelve kinds a bell may show. These were two
+   cards on two screens before 25 Sep 2026 and are one question.
+3. **Sessions** — how long a sign-in lasts. Tightening a limit asks first,
+   because it signs people out.
+4. **Old data** — what the app deletes for itself once a day.
+5. **Cloudflare R2** — where uploaded files are kept.
+6. **AI provider keys** — one key per provider.
+7. **Maintenance mode** — last, because it is the one that shuts the app.
+
+Cloudflare R2 and AI provider keys each load from the server when the screen
+opens, which General settings did not do before. Both report their own
+Saving…/Saved state to the sticky header, and both report nothing while idle so
+the page's own save still shows. `use-reported-save-status.ts` holds that rule.
+
+## An app's own settings rows
+
+The card named after the app holds Navigation first, then whatever the app adds
+in its `app-options.ts`. Nothing in that file means the card still appears with
+Navigation in it.
+
+An app whose members never see the shell's sidebar has no use for the shell's
+Navigation screen. Pomodoro is the case: its member pages draw their own sidebar
+from a list in its own code, so the shell's screen there edits settings no page
+reads. Such an app registers a tab with the id `member-navigation`, and its
+screen takes that row's place and keeps its position. Every other shell tab id
+is still refused out loud, and so is an id an app used twice.
+`REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts` is the list of ids an app
+may claim.
 
 ## Saving
 
@@ -41,12 +93,13 @@ change cannot erase another.
 
 ## Navigation and style choices
 
-Platform → Navigation combines Your sidebar and Your top right menu on one
-page. Members → Navigation combines the member sidebar and member top right
-menu separately, so editing one role's links does not change the other role's
-links. The former Sidebar and Top right menu tabs are no longer listed.
+Platform settings → Navigation combines Your sidebar and Your top right menu on
+one page. The app's card → Navigation combines the member sidebar and member top
+right menu separately, so editing one role's links does not change the other
+role's links. The former Sidebar and Top right menu tabs are no longer listed.
 
-Top left max items lives inside Your sidebar on Platform → Navigation. It controls how
+Top left max items lives inside Your sidebar on Platform settings →
+Navigation. It controls how
 many links from the current sidebar section appear in the standard signed-in
 header before the remaining links move into the vertical three-dot menu.
 Choices are Show all, 3, 4, 5, 6, 7, and 8. Existing saved values are preserved;
@@ -141,7 +194,7 @@ icon with it**, because they are the same picture. An install that had a
 favicon set and no logo therefore loses that favicon on its next settings save.
 Pick the picture in the Logo field before saving and it comes back as both.
 
-Public Styling is separate from the Platform Styling tab. Platform Styling
+Public Styling is separate from the Styling row above it. Styling
 changes the signed-in workspace used by admins and members. Public Styling
 changes only the pages a visitor can see before signing in. Font, corners,
 background pattern, and button choices are app-wide. Brand colour belongs to

@@ -2,6 +2,7 @@ import type { AppServerOptions } from "@/server/app-options"
 
 import { advanceDueRooms } from "@/server/pomodoro/rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
+import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -44,6 +45,14 @@ export const appServerOptions: AppServerOptions = {
         // Overlapping passes are harmless: the claim is the update itself.
         name: "pomodoro-media-uploads",
         tick: processNextMediaUpload,
+      },
+      {
+        // AI backgrounds and soundscapes. One per pass, and its own worker
+        // rather than a branch inside the uploads one: a Veo render can take
+        // minutes, and a member waiting on a re-encode should not be stuck
+        // behind somebody else's video being dreamt up.
+        name: "pomodoro-generations",
+        tick: processNextGeneration,
       },
     ],
   },

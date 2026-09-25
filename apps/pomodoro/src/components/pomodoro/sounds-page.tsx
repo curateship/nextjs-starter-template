@@ -1,3 +1,4 @@
+import * as React from "react"
 import { LockIcon, PauseIcon, PlayIcon } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,12 +9,10 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
-import {
-  curatedSounds,
-  sameSoundReference,
-} from "@/lib/pomodoro/sound-catalog"
+import { curatedSounds, sameSoundReference } from "@/lib/pomodoro/sound-catalog"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
+import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 
 /**
  * The sounds page: the eight curated loops as cards. Four are free, four
@@ -24,6 +23,15 @@ import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section
 export function SoundsPage() {
   const player = useSoundPlayer()
   const { state } = player
+  // An AI soundscape arrives as an ordinary upload, so finishing one means the
+  // grid above has a new card and has to read its list again.
+  const [reloadToken, setReloadToken] = React.useState(0)
+  // Stable, so the generator's own fetch is not re-armed by an unrelated
+  // re-render of this page.
+  const reloadUploads = React.useCallback(
+    () => setReloadToken((token) => token + 1),
+    []
+  )
 
   return (
     <>
@@ -31,8 +39,8 @@ export function SoundsPage() {
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Sounds</h2>
           <p className="text-sm text-muted-foreground">
-            A loop for the background. It starts with the timer and pauses
-            with it.
+            A loop for the background. It starts with the timer and pauses with
+            it.
           </p>
         </header>
         {state.notice ? (
@@ -124,6 +132,7 @@ export function SoundsPage() {
         </div>
 
         <MediaUploadsSection
+          reloadToken={reloadToken}
           purpose="sound"
           title="Your own"
           description="A loop of your own. It plays and pauses with the timer like the rest."
@@ -147,6 +156,8 @@ export function SoundsPage() {
           // square the icon sits in rather than inventing artwork.
           renderThumbnail={() => null}
         />
+
+        <MediaGeneratorSection kind="soundscape" onFinished={reloadUploads} />
       </div>
     </>
   )

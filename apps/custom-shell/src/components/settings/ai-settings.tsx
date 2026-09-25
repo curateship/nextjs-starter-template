@@ -3,9 +3,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
-import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -22,7 +20,7 @@ import {
   type AiProvider,
 } from "@/lib/api/ai"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
+import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
 
 const PROVIDERS: {
   id: AiProvider
@@ -65,13 +63,14 @@ const SAVE_DELAY_MS = 1200
 const SAVED_SENTINEL = "••••••••••••"
 
 /**
- * Settings → AI. One key per provider for the whole app, saved encrypted
- * through server/ai/keys.ts. The browser only ever sees a masked tail.
+ * The AI provider keys card on General settings. One key per provider for the
+ * whole app, saved encrypted through server/ai/keys.ts. The browser only ever
+ * sees a masked tail.
+ *
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app — no Save button, no toast.
  */
 export function AiSettings() {
-  const { reportSaveStatus } = useShellRuntime()
   const [statuses, setStatuses] = React.useState<AiKeyStatus[] | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
@@ -97,20 +96,8 @@ export function AiSettings() {
   const [removing, setRemoving] = React.useState<AiProvider | null>(null)
 
   // The auto-save's outcome, shown in the shared sticky header like every
-  // other settings save. Mirrors how the automation editor reports.
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
-  React.useEffect(() => {
-    reportSaveStatus(saveStatus)
-  }, [reportSaveStatus, saveStatus])
-  React.useEffect(() => {
-    return () => reportSaveStatus(null)
-  }, [reportSaveStatus])
-  // The "Saved" badge clears itself the way the shared header's does.
-  React.useEffect(() => {
-    if (saveStatus !== "saved") return
-    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
+  // other settings save.
+  const setSaveStatus = useReportedSaveStatus()
 
   // One pending auto-save timer per provider.
   const timers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>(
@@ -219,7 +206,7 @@ export function AiSettings() {
     PROVIDERS.find((provider) => provider.id === removing)?.name ?? ""
 
   return (
-    <CardGroup>
+    <>
       <CollapsibleSettingsCard
         storageId="ai-keys"
         title="AI provider keys"
@@ -333,7 +320,7 @@ export function AiSettings() {
           if (removing) void remove(removing, removingName)
         }}
       />
-    </CardGroup>
+    </>
   )
 }
 
