@@ -6,7 +6,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { EventFilters } from "@/components/events/public/event-filters"
-import { EventList } from "@/components/events/public/event-list"
+import { EventCardGrid } from "@/components/events/public/event-card"
 import { SubscribeMenu } from "@/components/events/public/calendar-menus"
 import { EventMonth } from "@/components/events/public/event-month"
 import { EventViewSwitch } from "@/components/events/public/event-view-switch"
@@ -148,7 +148,7 @@ function EventsRoute() {
               All upcoming events
             </Link>
           </div>
-          <EventList
+          <EventCardGrid
             events={data.events}
             emptyMessage={
               categoryName
@@ -185,7 +185,7 @@ function EventsRoute() {
               </Link>
             </div>
           ) : null}
-          <EventList
+          <EventCardGrid
             events={data.events}
             emptyMessage={
               // Past the last page is not the same as nothing coming up.

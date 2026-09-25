@@ -659,7 +659,6 @@ export function EventDialog({
                       onChange={(url) => update("coverImage", url)}
                       aspect="video"
                       fit="cover"
-                      inlinePicker
                       className="max-w-60"
                     />
                   </div>

@@ -1,6 +1,10 @@
 import * as React from "react"
 import { ImageUpload } from "@/components/shared/image-upload"
+import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { NotificationSettings } from "@/components/settings/notification-settings"
+import { SecuritySettings } from "@/components/settings/security-settings"
+import { StorageSettings } from "@/components/settings/storage-settings"
 import { CardGroup } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -20,6 +24,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
   type ShellMaintenance,
+  type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -34,12 +39,27 @@ type MaintenanceProps = {
   maintenanceBusy: boolean
 }
 
+type SessionPolicyProps = {
+  onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
+  sessionPolicyBusy: boolean
+}
+
+/**
+ * General settings — the one screen for everything app-wide that is not
+ * navigation, widgets, styling, email or payments.
+ *
+ * Security, Notifications, Storage and AI were four more rows in the settings
+ * rail until 25 Sep 2026. Each was a single card, so each is a card here. They
+ * keep their own files; this screen only decides the order they sit in.
+ */
 export function GeneralSettings({
   config,
   onConfigChange,
   onMaintenanceChange,
   maintenanceBusy,
-}: GeneralSettingsProps & MaintenanceProps) {
+  onSessionPolicyChange,
+  sessionPolicyBusy,
+}: GeneralSettingsProps & MaintenanceProps & SessionPolicyProps) {
   // The auto-save refuses a blank workspace name (saveConfigNow in
   // shell-layout.tsx), so say so on blur rather than letting the edit sit on
   // screen looking saved.
@@ -218,25 +238,17 @@ export function GeneralSettings({
         </div>
       </CollapsibleSettingsCard>
 
-      <CollapsibleSettingsCard
-        storageId="live-notifications"
-        title="Live notifications"
-        description="Light the bell up the moment something happens. Turn it off and the bell still updates — just on its own check, up to a minute later."
-        contentClassName="space-y-6"
-      >
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="live-notifications"
-            checked={config.liveNotifications}
-            onCheckedChange={(value) =>
-              onConfigChange({ ...config, liveNotifications: value === true })
-            }
-          />
-          <Label htmlFor="live-notifications" className="font-normal">
-            Update the bell as things happen
-          </Label>
-        </div>
-      </CollapsibleSettingsCard>
+      <NotificationSettings config={config} onConfigChange={onConfigChange} />
+
+      <SecuritySettings
+        config={config}
+        onSessionPolicyChange={onSessionPolicyChange}
+        sessionPolicyBusy={sessionPolicyBusy}
+      />
+
+      <StorageSettings />
+
+      <AiSettings />
 
       <MaintenanceSettingsCard
         config={config}

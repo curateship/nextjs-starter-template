@@ -92,7 +92,7 @@ tables, and dashboard panels then start at level two. A dialog title is level
 two, so cards inside account dialogs use level three.
 
 The standard top left navigation follows the active sidebar section. Settings →
-Platform → Navigation holds Top left max items and the sidebar and top right
+Platform settings → Navigation holds Top left max items and the sidebar and top right
 menu editors. Links beyond the saved limit appear in the vertical three-dot
 menu without changing the sidebar order. Show all removes that overflow limit.
 The vertical three-dot menu uses the same outlined light-gray button as the

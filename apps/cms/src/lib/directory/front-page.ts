@@ -48,7 +48,7 @@ export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
   categories:
     "A card per category, with its photo and how many listings are under it.",
   events:
-    "The soonest events that are not over yet, one under the other. Left off the page while nothing is coming up.",
+    "The soonest events that are not over yet, as cards with their date, times and place. Left off the page while nothing is coming up.",
   deals:
     "The newest deals that are not over yet, as cards with their headlines. Left off the page while there are none.",
 }
@@ -250,6 +250,9 @@ export type DirectoryFrontPageEvent = EventWhen & {
   summary: string
   coverImage: string
   placeName: string
+  takesSignUps: boolean
+  going: number
+  category: { name: string; slug: string } | null
 }
 
 /**

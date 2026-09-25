@@ -11,7 +11,7 @@ import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
-import { EventList } from "@/components/events/public/event-list"
+import { EventCardGrid } from "@/components/events/public/event-card"
 import { PostGrid } from "@/components/posts/public/post-grid"
 import { loadDirectoryCategory } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -196,7 +196,7 @@ function CategoryRoute() {
               All times are {upcomingEvents.zone}.
             </p>
           </div>
-          <EventList
+          <EventCardGrid
             // Only events still to come are read here, so none is over.
             events={events.map((event) => ({ ...event, ended: false }))}
             emptyMessage=""

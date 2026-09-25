@@ -215,6 +215,34 @@ export function eventTimesText(when: EventWhen): string {
   return when.endTime ? `${start} to ${formatEventClock(when.endTime)}` : start
 }
 
+const MONTH = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+})
+
+/**
+ * The date block on an event card: "OCT" over "04". The day is padded to two
+ * figures so the block is the same width on the 4th as on the 14th, and a row
+ * of cards lines up.
+ */
+export function eventDateChip(date: string): { month: string; day: string } {
+  const printable = asPrintable(date)
+  return {
+    month: MONTH.format(printable).toUpperCase(),
+    day: String(printable.getUTCDate()).padStart(2, "0"),
+  }
+}
+
+/**
+ * The times on an event card. One day shows the clock alone, because the day
+ * is already in the card's date block. Several days show the whole thing, days
+ * included, or the card would say a festival runs 12:00 PM to 8:00 PM and not
+ * say it runs for three of them.
+ */
+export function eventCardTimesText(when: EventWhen): string {
+  return spansSeveralDays(when) ? eventRowText(when) : eventTimesText(when)
+}
+
 /** "Sep 27, 2026, 6:00 PM", for a row in Admin → Events. */
 export function formatEventStart(when: EventWhen): string {
   return `${SHORT_DAY.format(asPrintable(when.startDate))}, ${formatEventClock(when.startTime)}`

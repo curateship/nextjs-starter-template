@@ -1,7 +1,8 @@
 # Where uploaded files are kept
 
 Every picture, video and file an admin or member uploads goes into one
-Cloudflare R2 bucket. The bucket is filled in on **Settings → Storage**, so a
+Cloudflare R2 bucket. The bucket is filled in on the **Cloudflare R2** card of Settings → General
+settings, so a
 server needs no `CUSTOM_SHELL_R2_` environment variables at all.
 
 ## The five values
