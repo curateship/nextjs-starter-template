@@ -433,6 +433,15 @@ export const customShellNotifications = pgTable(
       length: 20,
     }).$type<"pending" | "timed_out">(),
     readAt: timestamp("read_at", { withTimezone: true }),
+    /**
+     * When the bell was opened with this notice already waiting behind it.
+     *
+     * Seen and read are two different things. Opening the bell clears its red
+     * number, because you have been told something arrived, and that is what
+     * this records. The notice itself stays unread until it is clicked or
+     * "Mark all as read" is pressed, which is `readAt`.
+     */
+    seenAt: timestamp("seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
@@ -449,6 +458,13 @@ export const customShellNotifications = pgTable(
     index("ix_notifications_comment_id").on(table.feedbackCommentId),
     index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
     index("ix_notifications_automation_run_id").on(table.automationRunId),
+    // The bell's own question, asked once a minute per open tab: how many
+    // notices are waiting that this person has not been shown yet. Partial,
+    // because the answer is nearly always a handful of rows out of a table
+    // that only grows.
+    index("ix_notifications_recipient_unseen")
+      .on(table.recipientUserId)
+      .where(sql`${table.readAt} is null and ${table.seenAt} is null`),
     // One notice per person per announcement, so a second tab loading at the
     // same moment cannot write a duplicate. Partial: every other kind of notice
     // leaves this column null and there can be many of those.
@@ -1351,6 +1367,20 @@ export const customShellWrittenPages = pgTable(
     path: varchar("path", { length: 160 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
     body: jsonb("body").notNull(),
+    /**
+     * True puts `noindex` in the page's head and drops it from the sitemap.
+     * It does not hide the page from people: the link still works. Who may
+     * open the page is the visibility setting, which is a different switch.
+     */
+    hiddenFromSearch: boolean("hidden_from_search").notNull().default(false),
+    /**
+     * The address that counts when the same words answer on two addresses.
+     * Empty is the normal case and emits no tag. A value starting with "/" is
+     * an address on this same site; anything else is a full web address.
+     */
+    canonicalUrl: varchar("canonical_url", { length: 2048 })
+      .notNull()
+      .default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

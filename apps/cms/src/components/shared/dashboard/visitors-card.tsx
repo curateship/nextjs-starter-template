@@ -2,6 +2,7 @@ import * as React from "react"
 import { LineChartIcon } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 
+import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
 import { CardHeaderRow, FeedCard } from "@/components/shared/feed-card"
 import { CardContent } from "@/components/ui/card"
 import {
@@ -10,8 +11,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Tabs } from "@/components/ui/tabs"
-import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   loadTrafficSummary,
   TRAFFIC_RANGE_LABELS,
@@ -92,21 +92,20 @@ export function VisitorsCard({
         metaClassName="hidden 2xl:flex"
       >
         <Tabs
-          className="h-full"
           value={String(range)}
           onValueChange={(value) => setRange(Number(value) as TrafficRange)}
         >
-          {/* `-mb-px` so the line under the chosen range lands on the card's
-              own hairline rather than a pixel above it. */}
-          <UnderlineTabsList className="-mb-px">
+          <TabsList>
             {RANGES.map((key) => (
-              <UnderlineTab
+              <TabsTrigger
                 key={key}
                 value={String(key)}
-                label={TRAFFIC_RANGE_LABELS[key]}
-              />
+                className={dashboardCardTabClassName}
+              >
+                {TRAFFIC_RANGE_LABELS[key]}
+              </TabsTrigger>
             ))}
-          </UnderlineTabsList>
+          </TabsList>
         </Tabs>
       </CardHeaderRow>
       <CardContent className="flex min-h-0 flex-1 flex-col py-4 sm:px-5 sm:py-5">

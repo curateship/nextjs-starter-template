@@ -28,6 +28,14 @@ export type MembershipPlanRow = {
   people: number
 }
 
+/** One of the last 30 days, oldest first, for the lines on the headline figures. */
+export type MembershipDay = {
+  /** How many joined that day. */
+  joined: number
+  /** How many accounts there were when the day ended. */
+  people: number
+}
+
 /** People who joined on one day of the month, beside the same day last month. */
 export type MembershipSignupDay = {
   /** The day of the month, as a plain number. */
@@ -55,6 +63,12 @@ export type MembershipSummary = {
   /** How many joined this calendar month, and last. */
   newThisMonth: number
   newLastMonth: number
+  /**
+   * The last 30 days one by one, ending today. Counted back from joining
+   * dates like everything else here, so a deleted account is missing from
+   * every day, not just the day it went.
+   */
+  last30Days: MembershipDay[]
   /** Accounts that existed at the end of last month, for the change figure. */
   accountsLastMonth: number
   /** Revenue a month divided by the people paying it. Zero when nobody is. */
@@ -113,7 +127,9 @@ export async function loadMembershipSummary(
   // they have a subscription row at all.
   const unsubscribed = Math.max(0, revenue.totalUsers - revenue.paidSubscribers)
 
-  const joined = buildSignupHistory(signupRows, today)
+  const byDay = joinedByDay(signupRows)
+  const joined = buildSignupHistory(signupRows, byDay, today)
+  const last30Days = buildLast30Days(byDay, revenue.totalUsers, today)
 
   return {
     revenue,
@@ -134,6 +150,7 @@ export async function loadMembershipSummary(
       }
     }),
     ...joined,
+    last30Days,
     // Everybody who had joined by the end of last month is everybody, minus
     // the people who joined this month. Taken from the total the Revenue
     // summary already counted, so the chart's own query can stay bounded to
@@ -145,21 +162,74 @@ export async function loadMembershipSummary(
   }
 }
 
+/** How many days the lines on the headline figures cover. */
+const LINE_DAYS = 30
+
 /**
- * The oldest date the chart can draw: the first of last month. The chart shows
- * this month against last, and the only other figures read off these rows are
- * how many joined in each of those two months. Reading further back would be
- * rows nothing counts.
+ * The oldest date anything here draws: the first of last month, or 30 days
+ * back if that is earlier. The chart shows this month against last, and the
+ * lines on the headline figures show the last 30 days. Early in a month the
+ * 30 days reach into the month before last. Reading further back than either
+ * would be rows nothing counts.
  *
  * It used to reach back two years, for a twelve-month view that put each month
  * beside the same month a year earlier. That view lived on the Membership page,
  * which is gone.
  */
 function chartWindowStart(today: Date) {
-  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1))
+  const lastMonth = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1)
+  return new Date(Math.min(lastMonth, dayStart(today, LINE_DAYS - 1).getTime()))
+}
+
+/** Midnight UTC, a number of days before `today`. */
+function dayStart(today: Date, daysBack: number) {
+  return new Date(
+    Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() - daysBack
+    )
+  )
+}
+
+/**
+ * The last 30 days, oldest first. The joined count is read straight off the
+ * rows. The running total is worked backwards from today's: each day ends
+ * with today's total, minus everyone who joined after that day.
+ */
+function buildLast30Days(
+  byDay: Map<string, number>,
+  totalUsers: number,
+  today: Date
+): MembershipDay[] {
+  const days: MembershipDay[] = []
+  let people = totalUsers
+  for (let back = 0; back < LINE_DAYS; back += 1) {
+    const date = dayStart(today, back)
+    const joined =
+      byDay.get(
+        `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`
+      ) ?? 0
+    days.unshift({
+      joined,
+      people: Math.max(0, people),
+    })
+    people -= joined
+  }
+  return days
 }
 
 type SignupRow = { year: number; month: number; day: number; people: number }
+
+/** How many joined on each day, keyed `year-month-day` with no zero padding. */
+export function joinedByDay(rows: SignupRow[]) {
+  return new Map(
+    rows.map((row) => [
+      `${Number(row.year)}-${Number(row.month)}-${Number(row.day)}`,
+      Number(row.people),
+    ])
+  )
+}
 
 /**
  * Turns "how many joined on each day" into what the chart draws: this month day
@@ -169,15 +239,17 @@ type SignupRow = { year: number; month: number; day: number; people: number }
  * Deleting an account removes the row, so a month that has since lost people
  * reads lower than it did at the time — there is nothing left to count them by.
  */
-function buildSignupHistory(rows: SignupRow[], today: Date) {
-  const byDay = new Map<string, number>()
+export function buildSignupHistory(
+  rows: SignupRow[],
+  byDay: Map<string, number>,
+  today: Date
+) {
   const byMonth = new Map<string, number>()
 
   for (const row of rows) {
     const year = Number(row.year)
     const month = Number(row.month)
     const people = Number(row.people)
-    byDay.set(`${year}-${month}-${Number(row.day)}`, people)
     byMonth.set(
       `${year}-${month}`,
       (byMonth.get(`${year}-${month}`) ?? 0) + people

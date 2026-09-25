@@ -22,11 +22,10 @@ try {
   await client.connect()
   const result = await client.query(
     `select workspaces.settings->'styling' as styling
-       from workspaces
-       join users on users.id = workspaces.user_id
+       from users
+       join workspaces on workspaces.id = users.current_workspace_id
       where users.role = 'admin'
         and users.status = 'active'
-        and workspaces.is_default = true
         and jsonb_typeof(workspaces.settings->'styling') = 'object'
       order by (
         select max(sessions.last_seen_at)

@@ -7,6 +7,10 @@ import {
   type PublicFaviconSet,
   type PublicFaviconVariant,
 } from "@/lib/favicon"
+import {
+  MEDIA_IMAGE_WIDTHS,
+  resizedMediaStoragePath,
+} from "@/lib/media/image-sizes"
 import { uuid } from "@/server/auth/security"
 import {
   deleteFromR2,
@@ -174,7 +178,17 @@ export async function deleteReplacedFaviconFiles(
     Boolean(path && isGeneratedFaviconStoragePath(path))
   )
 
-  await Promise.all(oldPaths.map((path) => remove(path)))
+  // The dark twin is the one file here a page draws as a picture, so it is the
+  // only one that can have smaller copies cut from it. Those copies belong to
+  // it and go with it, the way an upload's copies go when the upload is
+  // deleted. The browser-tab sizes are never drawn and never have copies.
+  const copies = oldPaths
+    .filter((path) => path.includes("/dark-source."))
+    .flatMap((path) =>
+      MEDIA_IMAGE_WIDTHS.map((width) => resizedMediaStoragePath(path, width))
+    )
+
+  await Promise.all([...oldPaths, ...copies].map((path) => remove(path)))
 }
 
 async function resizeFavicon(data: Uint8Array, size: number) {

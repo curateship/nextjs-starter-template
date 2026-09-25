@@ -6,10 +6,8 @@ import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
-import {
-  PublicLink,
-  PublicPageFrame,
-} from "@/components/shell/public-page-frame"
+import { PublicMenuLink } from "@/components/shell/public-navigation"
+import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { loadPublicNotFoundDiscovery } from "@/lib/api/content/pages"
 import { useAppName, usePublicSystemCopy } from "@/lib/branding"
 import type { PublicNotFoundDiscovery as PublicNotFoundDiscoveryData } from "@/lib/pages/not-found-discovery"
@@ -203,7 +201,7 @@ function PublicNotFoundDiscovery({
             <ul className="flex flex-wrap gap-x-3 gap-y-2">
               {navigation.map((link, index) => (
                 <li key={`${link.label}-${link.href}-${index}`}>
-                  <PublicLink link={link} />
+                  <PublicMenuLink link={link} />
                 </li>
               ))}
             </ul>

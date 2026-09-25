@@ -1250,6 +1250,7 @@ function MediaTableRow({
             fileType={item.file_type}
             alt={item.alt_text ?? item.original_name}
             className="size-12 shrink-0 rounded-md border bg-muted"
+            sizes="48px"
             compact
           />
           <div className="min-w-0">
@@ -1342,6 +1343,9 @@ function GalleryItem({
           fileType={item.file_type}
           alt={item.alt_text ?? item.original_name}
           className="h-full w-full"
+          // Two tiles to a row on a phone, eight on the widest desktop. The
+          // grid is at `grid-cols-2 ... 2xl:grid-cols-8` above.
+          sizes="(min-width: 1536px) 12vw, (min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
         />
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {item.file_type}

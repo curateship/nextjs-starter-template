@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -132,6 +133,25 @@ export async function listR2Objects(maxKeys: number) {
   } while (continuationToken)
 
   return { objects, truncated: false }
+}
+
+/**
+ * Whether the bucket already holds this key, without reading the bytes.
+ *
+ * The resized-image route asks this before cutting a copy, so the common case —
+ * the copy was cut days ago — costs one small request instead of pulling the
+ * original through the app.
+ */
+export async function r2ObjectExists(storagePath: string) {
+  const { client, bucket } = await openBucket()
+  try {
+    await client.send(
+      new HeadObjectCommand({ Bucket: bucket, Key: storagePath })
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function getFromR2(storagePath: string, range?: string | null) {

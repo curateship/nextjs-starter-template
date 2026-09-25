@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PublicUserPanelSettings } from "@/components/settings/public-user-panel-settings"
 import {
   DRAG_HANDLE_CLASS,
   createShellId,
@@ -49,8 +50,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
+import {
+  normalizePublicDevice,
+  PUBLIC_DEVICE_HINTS,
+  PUBLIC_DEVICE_LABELS,
+  PUBLIC_DEVICES,
+  type PublicDevice,
+} from "@/lib/pages/public-device"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -60,9 +69,20 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
+  PUBLIC_BREADCRUMB_HINTS,
+  PUBLIC_BREADCRUMB_KINDS,
+  PUBLIC_BREADCRUMB_LABELS,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
+  MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_WIDTH,
+  PUBLIC_HEADER_BLUR_LABELS,
+  PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
   type PublicHeader,
+  type PublicHeaderBlur,
   type PublicHeaderLogoSize,
   type PublicHeaderMenuAlignment,
 } from "@/lib/pages/public-header"
@@ -78,6 +98,7 @@ import {
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -87,10 +108,16 @@ type PublicSiteSettingsProps = {
   footer: PublicNavigationLink[]
   footerCopyright: string
   publicHeader: PublicHeader
+  /** Styling's page width, which the header follows until it has its own. */
+  pageWidth: number
+  publicUserPanel: PublicUserPanel
+  publicBreadcrumbs: PublicBreadcrumbs
   onNavigationChange: (items: PublicNavigationItem[]) => void
   onFooterChange: (links: PublicNavigationLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
   onPublicHeaderChange: (header: PublicHeader) => void
+  onPublicUserPanelChange: (panel: PublicUserPanel) => void
+  onPublicBreadcrumbsChange: (breadcrumbs: PublicBreadcrumbs) => void
   onSaveConfig: () => Promise<boolean>
 }
 
@@ -102,10 +129,15 @@ export function PublicSiteSettings({
   footer,
   footerCopyright,
   publicHeader,
+  pageWidth,
+  publicUserPanel,
+  publicBreadcrumbs,
   onNavigationChange,
   onFooterChange,
   onFooterCopyrightChange,
   onPublicHeaderChange,
+  onPublicUserPanelChange,
+  onPublicBreadcrumbsChange,
   onSaveConfig,
 }: PublicSiteSettingsProps) {
   return (
@@ -121,7 +153,16 @@ export function PublicSiteSettings({
       />
       <PublicHeaderSettings
         header={publicHeader}
+        pageWidth={pageWidth}
         onChange={onPublicHeaderChange}
+      />
+      <PublicUserPanelSettings
+        panel={publicUserPanel}
+        onChange={onPublicUserPanelChange}
+      />
+      <PublicBreadcrumbSettings
+        breadcrumbs={publicBreadcrumbs}
+        onChange={onPublicBreadcrumbsChange}
       />
       <PublicLinkEditor
         id="public-footer"
@@ -153,11 +194,54 @@ export function PublicSiteSettings({
   )
 }
 
+/**
+ * The per-kind switches for the "Home / Page" trail.
+ *
+ * One switch per kind rather than per page: the shell's public pages are flat,
+ * so a page list would be dozens of rows all saying the same thing.
+ */
+function PublicBreadcrumbSettings({
+  breadcrumbs,
+  onChange,
+}: {
+  breadcrumbs: PublicBreadcrumbs
+  onChange: (breadcrumbs: PublicBreadcrumbs) => void
+}) {
+  return (
+    <CollapsibleSettingsCard
+      storageId="public-breadcrumbs"
+      title="Breadcrumbs"
+      description="Show a short trail under the header, so a visitor arriving from a search result can see where they are. The front page never shows one."
+      contentClassName="grid gap-4"
+    >
+      {PUBLIC_BREADCRUMB_KINDS.map((kind) => (
+        <div key={kind} className="flex items-center justify-between gap-4">
+          <FieldLabel
+            htmlFor={`public-breadcrumbs-${kind}`}
+            hint={PUBLIC_BREADCRUMB_HINTS[kind]}
+          >
+            {PUBLIC_BREADCRUMB_LABELS[kind]}
+          </FieldLabel>
+          <Switch
+            id={`public-breadcrumbs-${kind}`}
+            checked={breadcrumbs[kind]}
+            onCheckedChange={(checked) =>
+              onChange({ ...breadcrumbs, [kind]: checked })
+            }
+          />
+        </div>
+      ))}
+    </CollapsibleSettingsCard>
+  )
+}
+
 function PublicHeaderSettings({
   header,
+  pageWidth,
   onChange,
 }: {
   header: PublicHeader
+  pageWidth: number
   onChange: (header: PublicHeader) => void
 }) {
   const update = (patch: Partial<PublicHeader>) =>
@@ -242,6 +326,57 @@ function PublicHeaderSettings({
                   : size === "large"
                     ? "Large"
                     : "Standard"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <FieldLabel
+          htmlFor="public-header-full-width"
+          hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
+        >
+          Full width
+        </FieldLabel>
+        <Switch
+          id="public-header-full-width"
+          checked={header.fullWidth}
+          onCheckedChange={(fullWidth) => update({ fullWidth })}
+        />
+      </div>
+
+      {header.fullWidth ? null : (
+        <NumberField
+          id="public-header-width"
+          label="Navigation width"
+          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
+          value={header.width ?? pageWidth}
+          min={MIN_PUBLIC_HEADER_WIDTH}
+          max={MAX_PUBLIC_HEADER_WIDTH}
+          inputClassName="w-full sm:w-32"
+          onChange={(width) => update({ width })}
+        />
+      )}
+
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="public-header-blur"
+          hint="How much the page behind the header is blurred as it scrolls under a sticky header. A solid header colour from Styling covers it."
+        >
+          Glass blur effect
+        </FieldLabel>
+        <Select
+          value={header.blur}
+          onValueChange={(blur) => update({ blur: blur as PublicHeaderBlur })}
+        >
+          <SelectTrigger id="public-header-blur" className="w-full sm:w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLIC_HEADER_BLURS.map((blur) => (
+              <SelectItem key={blur} value={blur}>
+                {PUBLIC_HEADER_BLUR_LABELS[blur]}
               </SelectItem>
             ))}
           </SelectContent>
@@ -382,6 +517,10 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
                     id={itemIds[index]}
                     link={item}
                     linkNoun={linkNoun}
+                    // The header menu is the one editor that allows groups
+                    // and the one that chooses screens. Two facts, one flag,
+                    // because only the header has either.
+                    perDevice={allowGroups}
                     dialogOpen={openIndex === index}
                     onDialogOpenChange={(open) =>
                       setOpenIndex(open ? index : null)
@@ -478,6 +617,7 @@ type PublicGroupDraftLink = PublicNavigationLink & { id: string }
 type PublicGroupDraft = {
   label: string
   links: PublicGroupDraftLink[]
+  device: PublicDevice
 }
 
 function PublicGroupChip({
@@ -627,6 +767,7 @@ function PublicGroupDialog({
         label: label.trim(),
         href: href.trim(),
       })),
+      device: draft.device,
     })
   }
 
@@ -677,6 +818,13 @@ function PublicGroupDialog({
                     Name is required.
                   </InlineError>
                 ) : null}
+                <PublicDeviceField
+                  id="public-menu-group-device"
+                  device={draft.device}
+                  onChange={(device) =>
+                    setDraft((current) => ({ ...current, device }))
+                  }
+                />
               </CardContent>
             </Card>
 
@@ -872,6 +1020,7 @@ function createPublicGroupDraft(
     links: group
       ? group.links.map((link) => createPublicGroupDraftLink(link))
       : [createPublicGroupDraftLink()],
+    device: normalizePublicDevice(group?.device),
   }
 }
 
@@ -893,6 +1042,7 @@ function publicGroupDraftIsDirty(
 
   return (
     draft.label !== group.label ||
+    draft.device !== normalizePublicDevice(group.device) ||
     draft.links.length !== group.links.length ||
     draft.links.some(
       (link, index) =>
@@ -953,6 +1103,7 @@ function PublicLinkChip({
   id,
   link,
   linkNoun,
+  perDevice,
   dialogOpen,
   onDialogOpenChange,
   onChange,
@@ -962,6 +1113,8 @@ function PublicLinkChip({
   id: string
   link: PublicNavigationLink
   linkNoun: string
+  /** Only the header menu chooses screens; see PublicDeviceField. */
+  perDevice: boolean
   dialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
   onChange: (patch: Partial<PublicNavigationLink>) => void
@@ -1071,6 +1224,13 @@ function PublicLinkChip({
                     }}
                   />
                 </div>
+                {perDevice ? (
+                  <PublicDeviceField
+                    id={`${id}-device`}
+                    device={link.device}
+                    onChange={(device) => onChange({ device })}
+                  />
+                ) : null}
               </CardContent>
             </Card>
           </DialogBody>
@@ -1098,6 +1258,46 @@ function PublicLinkChip({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/**
+ * Which screens a header menu item is drawn on. The footer never offers it:
+ * the footer is one list at every width, so there is nothing to choose
+ * between.
+ */
+function PublicDeviceField({
+  id,
+  device,
+  onChange,
+}: {
+  id: string
+  device: PublicDevice | undefined
+  onChange: (device: PublicDevice) => void
+}) {
+  const value = normalizePublicDevice(device)
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel htmlFor={id} hint={PUBLIC_DEVICE_HINTS[value]}>
+        Shown on
+      </FieldLabel>
+      <Select
+        value={value}
+        onValueChange={(next) => onChange(next as PublicDevice)}
+      >
+        <SelectTrigger id={id} className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PUBLIC_DEVICES.map((option) => (
+            <SelectItem key={option} value={option}>
+              {PUBLIC_DEVICE_LABELS[option]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

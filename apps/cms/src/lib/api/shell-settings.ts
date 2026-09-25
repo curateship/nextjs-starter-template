@@ -58,9 +58,15 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
 } from "@/lib/pages/public-navigation"
 import {
+  MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_WIDTH,
+  PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
 } from "@/lib/pages/public-header"
+import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { normalizePublicUserPanel } from "@/lib/pages/public-user-panel"
+import { PUBLIC_DEVICES } from "@/lib/pages/public-device"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
@@ -81,7 +87,19 @@ import {
   publicThemeForAppWideSave,
   publicThemeOverrides,
 } from "@/lib/public-theme"
+import {
+  MAX_PUBLIC_THEME_PRESETS,
+  MAX_PUBLIC_THEME_PRESET_ID_LENGTH,
+  MAX_PUBLIC_THEME_PRESET_NAME_LENGTH,
+} from "@/lib/public-theme-presets"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import {
+  MAX_CARD_BORDER_WIDTH,
+  MAX_CONTENT_GUTTER,
+  MAX_MODAL_PADDING,
+  MIN_CONTENT_GUTTER,
+  SHELL_BACKGROUND_MODES,
+} from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
 import {
@@ -215,15 +233,23 @@ const publicNavigationLinkSchema = z.object({
   href: z.string().max(MAX_PUBLIC_NAVIGATION_HREF_LENGTH),
 })
 
+/**
+ * A header menu item also says which screens it is drawn on. Optional, because
+ * a menu saved before the choice existed has no value and reads as everywhere,
+ * and because the footer sends the same link shape without one.
+ */
 const publicNavigationSchema = z
   .array(
     z.union([
-      publicNavigationLinkSchema,
+      publicNavigationLinkSchema.extend({
+        device: z.enum(PUBLIC_DEVICES).optional(),
+      }),
       z.object({ type: z.literal("search"), visible: z.boolean().optional() }),
       z.object({
         type: z.literal("group"),
         label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
         links: z.array(publicNavigationLinkSchema),
+        device: z.enum(PUBLIC_DEVICES).optional(),
       }),
     ])
   )
@@ -246,16 +272,40 @@ const publicBrandOverridesSchema = z.object(
   >
 )
 
+/**
+ * One public colour. Only a custom colour carries a hex, and it is checked
+ * against the same pattern as the brand colour so a half-typed value cannot be
+ * saved. The strength behind the other two modes is still carried, because the
+ * picker remembers it when an admin switches back.
+ */
+const publicBackgroundSchema = z.object({
+  mode: z.enum(SHELL_BACKGROUND_MODES),
+  strength: z.number().int().min(0).max(100),
+  color: z.union([z.literal(""), z.string().regex(PUBLIC_BRAND_COLOR_PATTERN)]),
+})
+
 const publicThemeSchema = z.object({
   brandColor: z.union([
     z.literal(""),
     z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
   ]),
   brandOverrides: publicBrandOverridesSchema,
-  canvasColor: z.union([
-    z.literal(""),
-    z.string().regex(PUBLIC_BRAND_COLOR_PATTERN),
-  ]),
+  canvasColor: publicBackgroundSchema,
+  chrome: publicBackgroundSchema,
+  gutter: z.number().int().min(MIN_CONTENT_GUTTER).max(MAX_CONTENT_GUTTER),
+  cardBorderWidth: z.number().int().min(0).max(MAX_CARD_BORDER_WIDTH),
+  cardBorderColor: publicBackgroundSchema,
+  dividerColor: publicBackgroundSchema,
+  modal: z.object({
+    background: publicBackgroundSchema,
+    borderWidth: z.number().int().min(0).max(MAX_CARD_BORDER_WIDTH),
+    borderColor: publicBackgroundSchema,
+    padding: z.number().int().min(0).max(MAX_MODAL_PADDING),
+    overlayOpacity: z.number().int().min(0).max(100),
+    cardBackground: publicBackgroundSchema,
+    cardBorderWidth: z.number().int().min(0).max(MAX_CARD_BORDER_WIDTH),
+    cardBorderColor: publicBackgroundSchema,
+  }),
   pageWidth: z
     .number()
     .int()
@@ -280,11 +330,27 @@ const publicThemeSchema = z.object({
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
+/**
+ * An admin's saved public looks. Each one carries a whole theme, so the same
+ * checks the live theme gets apply to every preset before it can be saved.
+ */
+const publicThemePresetsSchema = z
+  .array(
+    z.object({
+      id: z.string().min(1).max(MAX_PUBLIC_THEME_PRESET_ID_LENGTH),
+      name: z.string().min(1).max(MAX_PUBLIC_THEME_PRESET_NAME_LENGTH),
+      theme: publicThemeSchema,
+    })
+  )
+  .max(MAX_PUBLIC_THEME_PRESETS)
+
 const frontPageRowBaseShape = {
   id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
   heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
   intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
   layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+  hidden: z.boolean(),
+  device: z.enum(PUBLIC_DEVICES),
 }
 
 const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)
@@ -447,9 +513,27 @@ const shellConfigSchema = z.object({
     sticky: z.boolean(),
     menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
     logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+    // Defaulted so a settings tab opened before these three existed still
+    // saves, and saves the header as it already looked.
+    fullWidth: z.boolean().default(false),
+    width: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_WIDTH)
+      .max(MAX_PUBLIC_HEADER_WIDTH)
+      .nullable()
+      .default(null),
+    blur: z.enum(PUBLIC_HEADER_BLURS).default("medium"),
   }),
+  // Checked by the same function the reader uses, so an unknown or missing
+  // value saves as "every kind off" rather than refusing the whole settings
+  // save — which is what a tab left open across this change would send.
+  publicBreadcrumbs: z.unknown().transform(normalizePublicBreadcrumbs),
+  // Same reason. The reader drops unsafe addresses, so the save can use it too.
+  publicUserPanel: z.unknown().transform(normalizePublicUserPanel),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
+  publicThemePresets: publicThemePresetsSchema,
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),

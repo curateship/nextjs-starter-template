@@ -106,6 +106,8 @@ describe("front page row loading", () => {
         intro: "Start here.",
         kind: "text" as const,
         layout: "narrow" as const,
+        hidden: false,
+        device: "all" as const,
       },
     ]
 

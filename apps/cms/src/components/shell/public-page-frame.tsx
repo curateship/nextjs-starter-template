@@ -1,21 +1,12 @@
 import * as React from "react"
-import { Link, useLocation } from "@tanstack/react-router"
-import { ChevronDownIcon, MenuIcon, SearchIcon } from "lucide-react"
+import { useLocation } from "@tanstack/react-router"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
-import { BrandLogo } from "@/components/shell/brand-logo"
 import { publicContentAlignmentClassNames } from "@/components/shell/public-content-alignment"
-import { ThemeToggle } from "@/components/shell/theme-toggle"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { SiteSearchForm } from "@/components/shared/site-search-form"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { PublicBreadcrumbs } from "@/components/shell/public-breadcrumbs"
+import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
+import { PublicFooter } from "@/components/shell/public-footer"
+import { PublicNavigation } from "@/components/shell/public-navigation"
 import {
   useAppName,
   useBrandLogo,
@@ -23,6 +14,7 @@ import {
   usePublicFooter,
   usePublicFooterCopyright,
   usePublicHeader,
+  usePublicUserPanel,
   usePublicNavigation,
   usePublicSearchEnabled,
   usePublicTheme,
@@ -30,8 +22,6 @@ import {
 import {
   isPublicNavigationGroup,
   isPublicNavigationSearchItem,
-  type PublicNavigationGroup,
-  type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
 import {
   isVisitorAnnouncementDismissed,
@@ -39,13 +29,21 @@ import {
   type VisitorAnnouncement,
 } from "@/lib/announcement"
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { pageForPath } from "@/lib/pages/page-registry"
 import {
+  DEFAULT_PUBLIC_GUTTER,
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
+  publicShellStyling,
+  type PublicTheme,
 } from "@/lib/public-theme"
+import {
+  BORDER_STYLE_VAR_NAMES,
+  getBorderStyleVars,
+  getModalStyleVars,
+  MODAL_STYLE_VAR_NAMES,
+  resolveBackground,
+} from "@/lib/layout/styling-values"
 import { cn } from "@/lib/utils"
 
 /**
@@ -53,9 +51,10 @@ import { cn } from "@/lib/utils"
  * full page width from the top; card pages keep their narrower presentation.
  * The public theme aligns the main content independently of that layout.
  *
- * It also carries the branding above the content — the admin-set logo, when
- * there is one, and the app name — which is the one place a signed-out visitor
- * sees which app they are signing in to.
+ * The header and footer are the directory app's, in
+ * `public-navigation.tsx` and `public-footer.tsx`. This file owns what sits
+ * between them: the visitor announcements, the main column, and the page
+ * width, spacing, canvas and alignment the public theme sets.
  */
 export function PublicPageFrame({
   className,
@@ -74,10 +73,13 @@ export function PublicPageFrame({
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
   const publicHeader = usePublicHeader()
+  const userPanel = usePublicUserPanel()
   const brandedPublicSearchEnabled = usePublicSearchEnabled()
   const publicSearchEnabled =
     publicSearchEnabledOverride ?? brandedPublicSearchEnabled
   const theme = usePublicTheme()
+  usePublicStyleVars(theme)
+  const breadcrumbTrail = usePublicBreadcrumbTrail()
   const pathname = useLocation({ select: (location) => location.pathname })
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
     VisitorAnnouncement[]
@@ -85,7 +87,6 @@ export function PublicPageFrame({
   const [dismissedVisitorIds, setDismissedVisitorIds] = React.useState<
     Set<string>
   >(() => new Set())
-  const [siteSearch, setSiteSearch] = React.useState("")
 
   React.useEffect(() => {
     let active = true
@@ -111,139 +112,74 @@ export function PublicPageFrame({
     theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
       ? undefined
       : { maxWidth: theme.pageWidth }
+  // The header follows the page width unless Header layout gives it its own,
+  // or spreads it across the window.
+  const headerWidthStyle = publicHeader.fullWidth
+    ? { maxWidth: "none" as const }
+    : publicHeader.width !== null
+      ? { maxWidth: publicHeader.width }
+      : pageWidthStyle
   const mainSpacingStyle =
     theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
       ? undefined
       : { paddingBlock: theme.mainSpacing }
-  const canvasStyle = theme.canvasColor
-    ? { backgroundColor: theme.canvasColor }
-    : undefined
+  const styling = publicShellStyling(theme)
+  const isFlat = theme.gutter === 0
+  // A gutter still on its starting number keeps the responsive classes, so a
+  // phone keeps its 8px gap. Moving the slider replaces both with one number.
+  const gutterChanged = theme.gutter !== DEFAULT_PUBLIC_GUTTER
+  const canvasBackground = resolveBackground(styling.content)
+  const chromeBackground = resolveBackground(styling.chrome, { opaque: true })
+  const cardBorderColor = resolveBackground(styling.cardBorderColor, {
+    base: "--muted-foreground",
+  })
+  const dividerColor = resolveBackground(styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  const canvasStyle = {
+    backgroundColor: canvasBackground,
+    "--shell-card-border-width": String(theme.cardBorderWidth),
+    ...(cardBorderColor
+      ? { "--shell-card-border-color": cardBorderColor }
+      : {}),
+    ...(dividerColor ? { "--border": dividerColor } : {}),
+    // Always set, so a container that reads the gutter gets the public number
+    // rather than the 24px fallback meant for content inside a modal.
+    "--shell-gutter": `${theme.gutter}px`,
+  } as React.CSSProperties
+  const mainStyle = {
+    ...mainSpacingStyle,
+    ...(gutterChanged ? { paddingInline: theme.gutter } : {}),
+  }
+  const contentStyle = {
+    ...pageWidthStyle,
+    ...(gutterChanged ? { gap: theme.gutter } : {}),
+  }
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
   const visitorCanChooseTheme = theme.colorScheme === "system"
-  const visibleNavigation = navigation.filter(
-    (item) => {
-      if (isPublicNavigationSearchItem(item)) {
-        return item.visible && publicSearchEnabled && pathname !== "/search"
-      }
-      return !isPublicNavigationGroup(item) || item.links.length > 0
+  const visibleNavigation = navigation.filter((item) => {
+    if (isPublicNavigationSearchItem(item)) {
+      return item.visible && publicSearchEnabled && pathname !== "/search"
     }
-  )
-  const centeredMenu =
-    publicHeader.menuAlignment === "center" && visibleNavigation.length > 0
+    return !isPublicNavigationGroup(item) || item.links.length > 0
+  })
 
   function dismissVisitorAnnouncement(announcement: VisitorAnnouncement) {
     rememberVisitorAnnouncementDismissal(localStorage, announcement)
     setDismissedVisitorIds((current) => new Set(current).add(announcement.id))
   }
 
-  const headerHome = (
-    <Link
-      to="/"
-      className={cn(
-        "flex min-w-0 items-center gap-2 rounded-md",
-        centeredMenu && "md:justify-self-start",
-        focusRing
-      )}
-    >
-      <BrandLogo
-        src={logo}
-        darkSrc={logoDark}
-        appName={appName}
-        size={publicHeader.logoSize}
-      />
-      <span className="truncate text-sm font-medium text-foreground">
-        {appName}
-      </span>
-    </Link>
-  )
-  const desktopNavigation = visibleNavigation.length ? (
-    <nav aria-label="Main navigation" className="hidden md:block">
-      <ul className="flex items-center gap-1">
-        {visibleNavigation.map((item, index) =>
-          isPublicNavigationSearchItem(item) ? (
-            <li key="search" className="w-40 lg:w-56">
-              <SiteSearchForm className="min-w-0">
-                <DashboardToolbarSearch
-                  className="min-w-0"
-                  inputClassName="w-full sm:w-full lg:w-full"
-                  name="q"
-                  type="search"
-                  aria-label="Search this site"
-                  placeholder="Search this site"
-                  maxLength={120}
-                  value={siteSearch}
-                  onChange={(event) => setSiteSearch(event.target.value)}
-                />
-              </SiteSearchForm>
-            </li>
-          ) : isPublicNavigationGroup(item) ? (
-            <li key={`${item.label}-group-${index}`}>
-              <PublicMenuGroup group={item} />
-            </li>
-          ) : (
-            <li key={`${item.label}-${item.href}-${index}`}>
-              <PublicLink link={item} className="px-2.5 py-1.5" />
-            </li>
-          )
-        )}
-      </ul>
-    </nav>
-  ) : null
-  const phoneNavigation = visibleNavigation.length ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="md:hidden"
-          aria-label="Open navigation menu"
-        >
-          <MenuIcon />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
-        {visibleNavigation.map((item, index) =>
-          isPublicNavigationSearchItem(item) ? (
-            <DropdownMenuItem key="search" asChild>
-              <Link to="/search" search={{ q: "" }}>
-                <SearchIcon />
-                Search
-              </Link>
-            </DropdownMenuItem>
-          ) : isPublicNavigationGroup(item) ? (
-            <React.Fragment key={`${item.label}-group-${index}`}>
-              <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
-              {item.links.map((link, linkIndex) => (
-                <DropdownMenuItem
-                  key={`${link.label}-${link.href}-${linkIndex}`}
-                  asChild
-                  inset
-                >
-                  <PublicLink link={link} />
-                </DropdownMenuItem>
-              ))}
-            </React.Fragment>
-          ) : (
-            <DropdownMenuItem
-              key={`${item.label}-${item.href}-${index}`}
-              asChild
-            >
-              <PublicLink link={item} />
-            </DropdownMenuItem>
-          )
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  ) : null
-  const headerThemeToggle = visitorCanChooseTheme ? <ThemeToggle /> : null
-
   return (
     <div
       data-public-canvas=""
-      className="flex min-h-screen flex-col bg-muted/60"
+      data-content-styling=""
+      data-flat={isFlat ? "true" : undefined}
+      className={cn(
+        "flex min-h-screen flex-col",
+        canvasBackground ? undefined : "bg-muted/60"
+      )}
       style={canvasStyle}
     >
       {visibleVisitorAnnouncements.length ? (
@@ -257,153 +193,94 @@ export function PublicPageFrame({
           ))}
         </div>
       ) : null}
-      <header
-        data-menu-alignment={publicHeader.menuAlignment}
-        className={cn(
-          theme.headerBorder ? "border-b bg-background" : "bg-background",
-          publicHeader.sticky && "sticky top-0 z-40"
-        )}
-      >
-        <div
-          className={cn(
-            "mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4",
-            centeredMenu &&
-              "md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
-          )}
-          style={pageWidthStyle}
-        >
-          {headerHome}
-          {centeredMenu ? (
-            <>
-              {desktopNavigation}
-              <div
-                data-public-header-actions=""
-                className="contents md:flex md:min-w-0 md:w-full md:items-center md:justify-end md:gap-3"
-              >
-                {phoneNavigation}
-                {headerThemeToggle}
-              </div>
-            </>
-          ) : (
-            <>
-              {desktopNavigation}
-              {phoneNavigation}
-              {headerThemeToggle}
-            </>
-          )}
-        </div>
-      </header>
+      <PublicNavigation
+        appName={appName}
+        logo={logo}
+        logoDark={logoDark}
+        logoSize={publicHeader.logoSize}
+        navigation={visibleNavigation}
+        sticky={publicHeader.sticky}
+        menuAlignment={publicHeader.menuAlignment}
+        headerBorder={theme.headerBorder}
+        widthStyle={headerWidthStyle}
+        blur={publicHeader.blur}
+        userPanel={userPanel}
+        chromeBackground={chromeBackground}
+        showThemeToggle={visitorCanChooseTheme}
+      />
       <main
         className={cn(
-          "grid flex-1 px-4 py-10",
+          "grid flex-1 py-10",
+          gutterChanged ? undefined : "px-4",
           mainLayoutClass,
           className
         )}
-        style={mainSpacingStyle}
+        style={mainStyle}
       >
         <div
           className={cn(
-            "group/public-content flex w-full max-w-6xl flex-col gap-2 md:gap-3",
+            "group/public-content flex w-full max-w-6xl flex-col",
+            gutterChanged ? undefined : "gap-2 md:gap-3",
             publicContentAlignmentClassNames[theme.contentAlignment]
           )}
           data-content-alignment={theme.contentAlignment}
-          style={pageWidthStyle}
+          style={contentStyle}
         >
+          <PublicBreadcrumbs trail={breadcrumbTrail} />
           {children}
         </div>
       </main>
-      {footer.length || footerCopyright ? (
-        <footer
-          className={
-            theme.footerBorder ? "border-t bg-background" : "bg-background"
-          }
-        >
-          <div
-            className="mx-auto grid w-full max-w-6xl gap-2 px-3 py-4 md:px-4"
-            style={pageWidthStyle}
-          >
-            {footer.length ? (
-              <nav aria-label="Footer navigation">
-                <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {footer.map((link, index) => (
-                    <li key={`${link.label}-${link.href}-${index}`}>
-                      <PublicLink link={link} />
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            ) : null}
-            {footerCopyright ? (
-              <p className="text-center text-xs text-muted-foreground">
-                {footerCopyright}
-              </p>
-            ) : null}
-          </div>
-        </footer>
-      ) : null}
+      <PublicFooter
+        appName={appName}
+        logo={logo}
+        logoDark={logoDark}
+        logoSize={publicHeader.logoSize}
+        links={footer}
+        socialLinks={[]}
+        copyright={footerCopyright}
+        footerBorder={theme.footerBorder}
+        pageWidthStyle={pageWidthStyle}
+        chromeBackground={chromeBackground}
+      />
     </div>
   )
 }
 
-function PublicMenuGroup({ group }: { group: PublicNavigationGroup }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className="gap-1 px-2.5 text-sm font-normal text-muted-foreground"
-        >
-          {group.label}
-          <ChevronDownIcon />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-48">
-        {group.links.map((link, index) => (
-          <DropdownMenuItem
-            key={`${link.label}-${link.href}-${index}`}
-            asChild
-          >
-            <PublicLink link={link} />
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
+const PUBLIC_STYLE_VAR_NAMES = [
+  ...BORDER_STYLE_VAR_NAMES,
+  ...MODAL_STYLE_VAR_NAMES,
+]
 
-export function PublicLink({
-  link,
-  className,
-  ...props
-}: {
-  link: PublicNavigationLink
-} & Omit<React.ComponentProps<"a">, "href">) {
-  const linkClassName = cn(
-    "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground",
-    focusRing,
-    className
-  )
-
-  if (isInternalHref(link.href)) {
-    return (
-      <Link
-        {...props}
-        {...toLinkProps(link.href)}
-        className={linkClassName}
-      >
-        {link.label}
-      </Link>
-    )
-  }
-
-  return (
-    <a
-      {...props}
-      href={link.href}
-      className={linkClassName}
-    >
-      {link.label}
-    </a>
-  )
+/**
+ * Dialogs, dropdown menus, popovers and toasts portal to `document.body`,
+ * outside this frame, so the values they read have to sit on the document root
+ * where they can reach. ShellLayout does the same for the signed-in app.
+ *
+ * Both sets are cleared when the frame unmounts. An admin who opens a public
+ * page and then goes back into the app would otherwise carry the public
+ * dialog and border settings into every admin dialog for the rest of the
+ * visit, because nothing else on the page writes those values back.
+ */
+function usePublicStyleVars(theme: PublicTheme) {
+  React.useEffect(() => {
+    const styling = publicShellStyling(theme)
+    const vars = {
+      ...getBorderStyleVars(styling),
+      ...getModalStyleVars(styling.modal),
+    }
+    const root = document.documentElement
+    for (const name of PUBLIC_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of PUBLIC_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [theme])
 }
