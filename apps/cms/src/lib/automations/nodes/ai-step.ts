@@ -8,8 +8,8 @@ import { defineNode } from "../node-descriptor"
 /**
  * An AI step: the flow hands the AI some instructions and the step produces
  * what it wrote or decided. Provider and model come from the fixed lists in
- * `src/lib/ai/ai-models.ts`, and the key it runs with is whatever Settings → AI
- * holds for that provider.
+ * `src/lib/ai/ai-models.ts`, and the key it runs with is whatever the AI
+ * provider keys card on General settings holds for that provider.
  *
  * Drawing and compiling only for now. When the run engine lands
  * (workspace/tasks/features/automations/automation-engine-scheduler.md), its

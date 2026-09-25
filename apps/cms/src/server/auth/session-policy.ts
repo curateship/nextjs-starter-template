@@ -10,7 +10,8 @@ import { now } from "@/server/auth/security"
 import { shellGlobalsForWrite } from "@/server/shell-settings"
 
 /**
- * How long a sign-in may last, app-wide (Settings → Security).
+ * How long a sign-in may last, app-wide (the Sessions card on
+ * Settings → General settings).
  *
  * It lives in the same global settings row as the app name, but it is written
  * only from here — never from the settings page's auto-save. Two writers would

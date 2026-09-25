@@ -12,7 +12,8 @@ import {
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 /**
- * Settings → Security. The app tidies itself once a day off an admin's first
+ * The Old data card on General settings. The app tidies itself once a day off
+ * an admin's first
  * page, and this is the button for doing it on the spot.
  *
  * The outcome is four numbers, so it is reported as a line under the button

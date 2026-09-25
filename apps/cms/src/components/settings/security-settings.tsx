@@ -2,7 +2,6 @@ import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { DataCleanupCard } from "@/components/settings/data-cleanup-card"
-import { CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
@@ -21,10 +20,12 @@ import {
 import { plural } from "@/lib/format/plural"
 
 /**
- * Settings → Security. The session policy saves through its own confirmed
- * write (see server/auth/session-policy.ts), not the page's auto-save: making a
- * limit stricter signs people out, so it asks first. Loosening a limit signs
- * nobody out and saves straight away.
+ * The Sessions and Old data cards on General settings.
+ *
+ * The session policy saves through its own confirmed write (see
+ * server/auth/session-policy.ts), not the page's auto-save: making a limit
+ * stricter signs people out, so it asks first. Loosening a limit signs nobody
+ * out and saves straight away.
  */
 export function SecuritySettings({
   config,
@@ -51,7 +52,7 @@ export function SecuritySettings({
   }
 
   return (
-    <CardGroup>
+    <>
       <CollapsibleSettingsCard
         storageId="session-policy"
         title="Sessions"
@@ -131,7 +132,7 @@ export function SecuritySettings({
           })
         }}
       />
-    </CardGroup>
+    </>
   )
 }
 
