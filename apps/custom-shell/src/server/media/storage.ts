@@ -19,20 +19,21 @@ export class R2StorageNotConfiguredError extends Error {}
 /**
  * One setting, or a refusal naming what is missing and where to put it.
  *
- * The message says Settings first and the environment variable second, because
- * Settings → Storage is now where this is filled in and the variables are only
- * still read so an older deployment keeps working.
+ * The message says Settings first and the environment variable second,
+ * because the Cloudflare R2 card on General settings is now where this is
+ * filled in and the variables are only still read so an older deployment keeps
+ * working.
  */
 function requireSetting(config: StorageConfig, field: StorageField) {
   const entry = config[field]
   if (entry.value) return entry.value
   if (entry.unreadable) {
     throw new R2StorageNotConfiguredError(
-      `The storage ${STORAGE_FIELD_LABEL[field]} can't be read back. Paste it again in Settings → Storage.`
+      `The storage ${STORAGE_FIELD_LABEL[field]} can't be read back. Paste it again on Settings → General settings, under Cloudflare R2.`
     )
   }
   throw new R2StorageNotConfiguredError(
-    `The storage ${STORAGE_FIELD_LABEL[field]} is not set. Add it in Settings → Storage.`
+    `The storage ${STORAGE_FIELD_LABEL[field]} is not set. Add it on Settings → General settings, under Cloudflare R2.`
   )
 }
 

@@ -26,6 +26,7 @@ export const DIRECTORY_FRONT_PAGE_KINDS = [
   "categories",
   "events",
   "deals",
+  "posts",
 ] as const
 
 export type DirectoryFrontPageKind = (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
@@ -38,6 +39,7 @@ export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
   categories: "Category cards",
   events: "Upcoming events",
   deals: "Current deals",
+  posts: "Latest posts",
 }
 
 export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
@@ -51,6 +53,8 @@ export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
     "The soonest events that are not over yet, as cards with their date, times and place. Left off the page while nothing is coming up.",
   deals:
     "The newest deals that are not over yet, as cards with their headlines. Left off the page while there are none.",
+  posts:
+    "The newest published posts, as cards with their cover photo and how long each takes to read. Left off the page while there are none.",
 }
 
 export function isDirectoryFrontPageKind(
@@ -237,6 +241,38 @@ export type DirectoryFrontPageRow =
       /** Filled after the page's cache, by the site's clock, newest first. */
       deals: DealCardView[]
     }
+  | {
+      kind: "posts"
+      id: string
+      heading: string
+      intro: string
+      /** How many to show, the row's own count. */
+      count: number
+      /** Only posts filed under this category, or null for every post. */
+      categoryId: string | null
+      /** That category's address, for "See all posts" to carry. */
+      categorySlug: string | null
+      /** Filled after the page's cache, newest first. */
+      posts: DirectoryFrontPagePost[]
+      /** The site's own name, printed under each card where a byline would be. */
+      siteName: string
+    }
+
+/**
+ * One post in a home page row, in the shape the Posts page's cards draw.
+ * Spelled out here for the same reason as the event and the listing below:
+ * the server's own type may not be imported by a browser-side file.
+ */
+export type DirectoryFrontPagePost = {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  publishedAt: Date
+  readMinutes: number
+  category: { name: string; slug: string } | null
+}
 
 /**
  * One event in a home page row, in the shape the Events page's list draws.

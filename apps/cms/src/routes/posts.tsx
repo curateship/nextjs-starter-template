@@ -56,6 +56,7 @@ function PostsRoute() {
       </header>
       <PostGrid
         posts={posts}
+        siteName={site.name}
         emptyMessage={
           // Past the last page is not the same as no posts at all.
           total

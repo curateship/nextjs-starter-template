@@ -5,6 +5,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
 import { EventCardGrid } from "@/components/events/public/event-card"
+import { PostGrid } from "@/components/posts/public/post-grid"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { Button } from "@/components/ui/button"
 import type {
@@ -94,12 +95,26 @@ function FrontPageRow({
             <Button asChild variant="outline">
               <Link
                 to="/events"
-                search={
-                  row.categorySlug ? { category: row.categorySlug } : {}
-                }
+                search={row.categorySlug ? { category: row.categorySlug } : {}}
                 preload="intent"
               >
                 See all events
+              </Link>
+            </Button>
+          </div>
+        </>
+      ) : row.kind === "posts" ? (
+        <>
+          {/* Never empty: a row with no post is dropped on the server. */}
+          <PostGrid
+            posts={row.posts}
+            siteName={row.siteName}
+            emptyMessage="Nothing has been posted yet."
+          />
+          <div>
+            <Button asChild variant="outline">
+              <Link to="/posts" preload="intent">
+                See all posts
               </Link>
             </Button>
           </div>

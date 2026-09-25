@@ -655,7 +655,8 @@ export function normalizeAutomationPause(value: unknown): ShellAutomationPause {
 
 
 // ---------------------------------------------------------------------------
-// Session policy (Settings → Security). App-wide like maintenance mode, and
+// Session policy (the Sessions card on General settings). App-wide like
+// maintenance mode, and
 // written only by its own confirmed save (server/auth/session-policy.ts) — never by
 // the settings page's auto-save, so a stale page cannot quietly loosen it.
 

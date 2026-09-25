@@ -25,6 +25,7 @@ import {
   siteTimeZone,
 } from "@/server/directory/settings"
 import { readUpcomingEvents } from "@/server/events/public"
+import { newestPosts } from "@/server/posts/cards"
 import { listedDealsAt } from "@/server/promotions/deal-view"
 import { readNewestDeals } from "@/server/promotions/public"
 
@@ -299,6 +300,20 @@ async function readFrontPageRows(
           categorySlug: row.categorySlug,
           deals: [],
         }
+      } else if (kind === "posts") {
+        // Filled after the cache by `fillFrontPagePosts`, beside the events
+        // and the deals, so one read of the page's shape serves every visitor.
+        section = {
+          kind: "posts",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          count: row.listingCount,
+          categoryId: row.categoryId,
+          categorySlug: row.categorySlug,
+          posts: [],
+          siteName: site.name,
+        }
       } else if (kind === "categories") {
         section = {
           kind: "categories",
@@ -364,7 +379,7 @@ async function readFrontPageRows(
     // not drawn at all — whichever kind of row it is. A row of events is kept
     // here and judged once it is filled.
     rows: [...byId.values()].filter((row) =>
-      row.kind === "events" || row.kind === "deals"
+      row.kind === "events" || row.kind === "deals" || row.kind === "posts"
         ? true
         : row.kind === "categories"
           ? row.cards.length > 0
@@ -485,6 +500,38 @@ export async function fillFrontPageDeals(
         now
       )
       return deals.length ? { ...row, deals } : null
+    })
+  )
+  const kept = rows.filter((row) => row !== null)
+  return kept.length ? { ...page, rows: kept } : null
+}
+
+/**
+ * The home page with its rows of posts filled in: the newest published posts,
+ * in the row's category when it has one. Read after the page's cache, like the
+ * events and deals rows, so one read of the page's shape serves everybody and
+ * a post published a minute ago is on the page. `visible` is whether this
+ * visitor may see the Posts page; when not, the rows of posts are left off,
+ * because every card on them leads there. A row with no post is dropped, never
+ * drawn empty, and a page left with no rows at all is null.
+ */
+export async function fillFrontPagePosts(
+  site: VisitorSite,
+  page: DirectoryFrontPageData,
+  visible: boolean,
+  database: CustomShellDb = db
+): Promise<DirectoryFrontPageData | null> {
+  const rows = await Promise.all(
+    page.rows.map(async (row) => {
+      if (row.kind !== "posts") return row
+      if (!visible) return null
+      const posts = await newestPosts(
+        site.id,
+        row.count,
+        row.categoryId,
+        database
+      )
+      return posts.length ? { ...row, posts } : null
     })
   )
   const kept = rows.filter((row) => row !== null)

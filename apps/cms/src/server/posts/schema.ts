@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   timestamp,
@@ -32,6 +33,12 @@ export const sitePosts = pgTable(
     summary: varchar("summary", { length: 300 }).notNull().default(""),
     /** The editor's document tree, cleaned by `lib/posts/post-body.ts`. */
     body: jsonb("body").notNull(),
+    /**
+     * How long the body takes to read, in whole minutes, worked out on every
+     * save by `lib/posts/read-time.ts`. Kept here so a page of cards does not
+     * fetch twelve article bodies to print twelve small numbers.
+     */
+    readMinutes: integer("read_minutes").notNull().default(1),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
     /** Set on first publish and kept, so republishing does not re-date a post. */

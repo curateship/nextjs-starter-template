@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm"
 
 import {
   searchSnippet,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/pages/site-search"
 import {
   cleanPostBody,
+  emptyPostBody,
   postBodyText,
   postListingIds,
   type PostBody,
@@ -30,6 +31,7 @@ import {
   postCardColumns,
   publishedPostsOnSite,
   toPostCard,
+  withCategories,
   type PublicPostCard,
 } from "@/server/posts/cards"
 import { sitePosts, POST_CONTENT_TYPE } from "@/server/posts/schema"
@@ -55,6 +57,11 @@ export type PublicPostsPage = {
 export type PublicPost = PublicPostCard & {
   body: PostBody
   updatedAt: Date
+  /**
+   * Every category the post is in, for the links under its title. The card's
+   * own `category` is null here: a card names one category and a post's page
+   * lists them all, so the page reads this and never that.
+   */
   categories: PublicCategoryLink[]
 }
 
@@ -89,7 +96,7 @@ async function readPublicPostsUncached(
   ])
   return {
     site: { name: site.name, url: site.url },
-    posts: rows.map(toPostCard),
+    posts: await withCategories(site.id, rows.map(toPostCard), database),
     total: countRow?.total ?? 0,
     page,
     pageSize: POSTS_PAGE_SIZE,
@@ -245,10 +252,7 @@ export async function postSitemapEntries(
   }))
 }
 
-export type PostFeedRow = PublicPostCard & {
-  body: PostBody
-  category: string | null
-}
+export type PostFeedRow = PublicPostCard & { body: PostBody }
 
 /** The newest published posts with their first category, for the feed. */
 export async function newestPostsForFeed(
@@ -265,29 +269,16 @@ export async function newestPostsForFeed(
     .limit(limit)
   if (rows.length === 0) return []
 
-  const categoryRows = await database
-    .select({ postId: categoryRelationships.contentId, name: categories.name })
-    .from(categoryRelationships)
-    .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
-    .where(
-      and(
-        eq(categoryRelationships.workspaceId, siteId),
-        eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
-        inArray(
-          categoryRelationships.contentId,
-          rows.map((row) => row.id)
-        )
-      )
-    )
-    .orderBy(asc(categories.name))
-  const categoryFor = new Map<string, string>()
-  for (const row of categoryRows) {
-    if (!categoryFor.has(row.postId)) categoryFor.set(row.postId, row.name)
-  }
-
-  return rows.map(({ body, ...row }) => ({
-    ...toPostCard(row),
-    body: cleanPostBody(body),
-    category: categoryFor.get(row.id) ?? null,
+  // The bodies stay beside the cards, because a feed entry falls back to the
+  // post's first sentence when it has no summary.
+  const bodyFor = new Map(rows.map((row) => [row.id, cleanPostBody(row.body)]))
+  const cards = await withCategories(
+    siteId,
+    rows.map(({ body: _body, ...row }) => toPostCard(row)),
+    database
+  )
+  return cards.map((card): PostFeedRow => ({
+    ...card,
+    body: bodyFor.get(card.id) ?? emptyPostBody(),
   }))
 }

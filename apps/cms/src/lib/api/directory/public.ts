@@ -25,6 +25,7 @@ import {
 import {
   fillFrontPageDeals,
   fillFrontPageEvents,
+  fillFrontPagePosts,
   readDirectoryFrontPage,
 } from "@/server/directory/front-page"
 import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
@@ -47,6 +48,7 @@ import {
   readUpcomingEvents,
   type PublicEventCard,
 } from "@/server/events/public"
+import { postsAccessFor } from "@/server/posts/cards"
 
 import { createErrorMessage } from "../error-message"
 
@@ -426,10 +428,12 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
     if (!page) return null
     const hasEvents = page.rows.some((row) => row.kind === "events")
     const hasDeals = page.rows.some((row) => row.kind === "deals")
-    if (!hasEvents && !hasDeals) return page
+    const hasPosts = page.rows.some((row) => row.kind === "posts")
+    if (!hasEvents && !hasDeals && !hasPosts) return page
 
-    // Rows of events follow the Events page's own switch, and rows of deals
-    // the Deals page's, for this visitor.
+    // A row of events follows the Events page's own switch, a row of deals the
+    // Deals page's, and a row of posts the Posts page's, for this visitor.
+    // Every card on each of them leads to that page.
     const site = await visitorSite()
     if (!site) return null
     const isSignedIn = async () =>
@@ -441,11 +445,19 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
           (await eventsAccessFor(site.id, isSignedIn)) !== null
         )
       : page
-    if (!withEvents || !hasDeals) return withEvents
-    return fillFrontPageDeals(
+    if (!withEvents) return null
+    const withDeals = hasDeals
+      ? await fillFrontPageDeals(
+          site,
+          withEvents,
+          (await dealsAccessFor(site.id, isSignedIn)) !== null
+        )
+      : withEvents
+    if (!withDeals || !hasPosts) return withDeals
+    return fillFrontPagePosts(
       site,
-      withEvents,
-      (await dealsAccessFor(site.id, isSignedIn)) !== null
+      withDeals,
+      (await postsAccessFor(site.id, isSignedIn)) !== null
     )
   }
 )

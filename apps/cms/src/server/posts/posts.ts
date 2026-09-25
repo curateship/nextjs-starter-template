@@ -9,6 +9,7 @@ import {
   type PostBody,
 } from "@/lib/posts/post-body"
 import type { PostSortColumn } from "@/lib/posts/post-sort"
+import { readMinutes } from "@/lib/posts/read-time"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -225,6 +226,8 @@ export async function createPost(
       title,
       slug,
       body: emptyPostBody(),
+      // No `readMinutes` here: a new post has an empty body, and the column's
+      // own default of one minute is what counting it would return.
       createdAt: at,
       updatedAt: at,
     })
@@ -266,7 +269,12 @@ export async function updatePost(
   if (input.summary !== undefined) {
     values.summary = input.summary.trim().slice(0, MAX_POST_SUMMARY)
   }
-  if (input.body !== undefined) values.body = cleanPostBody(input.body)
+  if (input.body !== undefined) {
+    const body = cleanPostBody(input.body)
+    values.body = body
+    // Counted on the way in, so the card query never selects a whole article.
+    values.readMinutes = readMinutes(body)
+  }
   if (input.status !== undefined) {
     values.status = input.status
     // The first publish dates the post; later ones keep that date.
