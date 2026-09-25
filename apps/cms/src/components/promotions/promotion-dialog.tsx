@@ -12,6 +12,7 @@ import {
 } from "@/components/promotions/deal-fields"
 import { WhoClaimedList } from "@/components/promotions/who-claimed"
 import { ImageUpload } from "@/components/shared/image-upload"
+import { RecordPreviewLink } from "@/components/shared/record-preview-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -123,6 +124,8 @@ export function PromotionDialog({
 
   const creating = promotionId === null
   const ready = creating || loaded?.forId === promotionId
+  /** The saved record, which is what the preview link may point at. */
+  const saved = loaded?.forId === promotionId ? loaded.data.promotion : null
 
   // A closed window forgets what it held, so the next open reads afresh.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -307,6 +310,11 @@ export function PromotionDialog({
               ) : status === "draft" ? (
                 <Badge variant="outline">Draft</Badge>
               ) : null}
+              <RecordPreviewLink
+                word="deal"
+                path={saved ? `/deals/${saved.slug}` : null}
+                published={saved?.status === "published"}
+              />
             </div>
             <DialogDescription>
               {creating
@@ -447,9 +455,9 @@ export function PromotionDialog({
                         value={fields.coverImage}
                         disabled={saving}
                         onChange={(url) => update("coverImage", url)}
-                        aspect="video"
+                        aspect="square"
                         fit="cover"
-                        className="max-w-60"
+                        className="max-w-24"
                       />
                     </div>
                   </CardContent>

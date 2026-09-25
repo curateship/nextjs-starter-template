@@ -261,7 +261,7 @@ describe("the times", () => {
   it("saves Mon to Fri, 4 to 6 PM and reads the same back", async () => {
     const times = blankListingHours()
     for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"] as const) {
-      times[day] = { open: "16:00", close: "18:00", second: null }
+      times[day] = { open: "16:00", close: "18:00" }
     }
     const made = await createPromotion(siteId, userId, input({ times }), database)
     expect((await findPromotion(siteId, made.id, database))?.promotion.times).toEqual(times)
@@ -274,33 +274,27 @@ describe("the times", () => {
 
   it("refuses a day switched on with no times, naming the day", async () => {
     expect(() =>
-      cleanDealTimes({ tuesday: { open: "16:00", close: "", second: null } })
+      cleanDealTimes({ tuesday: { open: "16:00", close: "" } })
     ).toThrow("Give Tuesday a start and an end time.")
     expect(() =>
-      cleanDealTimes({
-        friday: { open: "16:00", close: "18:00", second: { open: "25:00", close: "02:00" } },
-      })
-    ).toThrow("Give Friday's second time a start and an end time.")
+      cleanDealTimes({ friday: { open: "25:00", close: "02:00" } })
+    ).toThrow("Give Friday a start and an end time.")
   })
 
-  it("copies a listing's hours, second stretch included, from this site only", async () => {
+  it("copies a listing's hours from this site only", async () => {
     await updateListing(
       siteId,
       listingId,
       {
         hours: {
           ...blankListingHours(),
-          friday: { open: "12:00", close: "14:30", second: { open: "17:00", close: "22:00" } },
+          friday: { open: "12:00", close: "14:30" },
         },
       },
       database
     )
     const hours = await listingHoursForDeal(siteId, listingId, database)
-    expect(hours?.friday).toEqual({
-      open: "12:00",
-      close: "14:30",
-      second: { open: "17:00", close: "22:00" },
-    })
+    expect(hours?.friday).toEqual({ open: "12:00", close: "14:30" })
     expect(await listingHoursForDeal(otherSiteId, listingId, database)).toBeNull()
   })
 })

@@ -217,8 +217,8 @@ export function listingJsonLd(input: {
 
 function openingHoursSpecifications(hours: unknown) {
   const cleaned = cleanListingHours(hours)
-  // One entry per stretch, so a day with a lunch and a dinner service is two
-  // of them. Schema.org has no way to say "open twice" in a single entry.
+  // One entry per open day. A closed day contributes nothing rather than an
+  // entry saying it opens and closes at the same minute.
   return LISTING_WEEKDAYS.flatMap((day) =>
     listingDayShifts(cleaned[day]).map((shift) => ({
       "@type": "OpeningHoursSpecification",

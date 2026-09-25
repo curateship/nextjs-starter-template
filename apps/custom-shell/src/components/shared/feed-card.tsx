@@ -24,7 +24,6 @@ export function CardTop({
   icon: Icon,
   title,
   meta,
-  metaClassName,
   iconClassName,
   action,
   sample = false,
@@ -32,8 +31,6 @@ export function CardTop({
   icon: React.ComponentType<{ className?: string }>
   title: string
   meta?: string
-  /** For hiding the count on widths where it would squeeze the title. */
-  metaClassName?: string
   iconClassName?: string
   action?: React.ReactNode
   /** This card's figures are stand-ins, not yet read from anything real. */
@@ -49,11 +46,7 @@ export function CardTop({
         </span>
       }
       meta={
-        meta ? (
-          <span className={cn("shrink-0 font-normal", metaClassName)}>
-            {meta}
-          </span>
-        ) : null
+        meta ? <span className="shrink-0 font-normal">{meta}</span> : null
       }
       action={action}
     />
@@ -88,7 +81,6 @@ export function CardHeaderRow({
   icon: Icon,
   title,
   meta,
-  metaClassName,
   iconClassName,
   children,
   className,
@@ -96,8 +88,6 @@ export function CardHeaderRow({
   icon: React.ComponentType<{ className?: string }>
   title: string
   meta?: string
-  /** For hiding the count on widths where it would squeeze the tabs. */
-  metaClassName?: string
   iconClassName?: string
   /** The right-hand side — the tab strip. */
   children: React.ReactNode
@@ -127,12 +117,7 @@ export function CardHeaderRow({
         {title}
       </h2>
       {meta ? (
-        <div
-          className={cn(
-            "flex min-w-0 items-center truncate text-xs text-muted-foreground",
-            metaClassName
-          )}
-        >
+        <div className="flex min-w-0 items-center truncate text-xs text-muted-foreground">
           {meta}
         </div>
       ) : null}

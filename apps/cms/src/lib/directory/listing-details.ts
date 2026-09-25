@@ -14,15 +14,14 @@ export type ListingWeekday = (typeof LISTING_WEEKDAYS)[number]
 /** One stretch of a day a place is open, as 24-hour `HH:MM` times. */
 export type ListingShift = { open: string; close: string }
 /**
- * A day's opening, and a second stretch when the place shuts in between.
+ * A day's opening: one stretch, or nothing at all when the day is closed.
  *
- * Restaurants that serve lunch and then dinner are the reason `second` exists.
- * One pair of times cannot say "open at noon, shut at 2:30, open again at 5"
- * without claiming the place is open all afternoon, which is a false statement
- * on the page rather than a rounding of one. `second` is null on every day that
- * does not do it, which is nearly all of them.
+ * A day used to be able to carry a second stretch, for a restaurant that serves
+ * lunch and then dinner. Tyler removed it on 25 Sep 2026, so a day is one pair
+ * of times and a second stretch saved before then is ignored everywhere it used
+ * to be read.
  */
-export type ListingDayHours = ListingShift & { second: ListingShift | null }
+export type ListingDayHours = ListingShift
 export type ListingHours = Record<ListingWeekday, ListingDayHours | null>
 export type ListingCoordinates = { latitude: number; longitude: number }
 
@@ -64,10 +63,7 @@ export function cleanListingHours(value: unknown): ListingHours {
   for (const day of LISTING_WEEKDAYS) {
     const shift = cleanShift(source[day])
     if (!shift) continue
-    const second = cleanShift(
-      (source[day] as Record<string, unknown>).second ?? null
-    )
-    hours[day] = { ...shift, second }
+    hours[day] = shift
   }
   return hours
 }
@@ -81,14 +77,16 @@ function cleanShift(value: unknown): ListingShift | null {
   return open && close ? { open, close } : null
 }
 
-/** Both of a day's stretches, in the order they happen. */
+/**
+ * A day's stretches: the one it has, or none when it is closed.
+ *
+ * Still a list rather than one value, because every caller walks a day's
+ * stretches and a closed day has to come back as nothing to walk.
+ */
 export function listingDayShifts(
   value: ListingDayHours | null
 ): ListingShift[] {
-  if (!value) return []
-  return value.second
-    ? [{ open: value.open, close: value.close }, value.second]
-    : [{ open: value.open, close: value.close }]
+  return value ? [{ open: value.open, close: value.close }] : []
 }
 
 /**
@@ -216,8 +214,8 @@ export function listingHoursStatus(hours: ListingHours, now = new Date()) {
       : `Open now · closes ${formatListingTime(openNow.close)}`
   }
 
-  // Between lunch and dinner, the useful sentence is when they open again, not
-  // when they opened this morning.
+  // Before opening time the useful sentence is when they open. After closing
+  // time there is nothing left today, so the day's own times are what is shown.
   const next = shifts.find((shift) => minutesFor(shift.open) > minutes)
   const shown = next ?? shifts[0]!
   return `Closed now · open ${formatListingTime(shown.open)}–${formatListingTime(shown.close)}`

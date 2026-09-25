@@ -30,6 +30,14 @@ Settings decides which registered widgets appear and whether they sit in the
 top, left, or right area. Removing every widget is allowed. The empty dashboard
 links back to widget settings instead of looking broken.
 
+**A widget header is its icon, its title, and its tabs or button. Nothing
+else.** Activity, Visitors over time, People joining and Automations each used
+to carry a grey caption beside the title — "daily totals, 7 days", "2 last
+month", "2 in all" — and those came off on 25 Sep 2026 at Tyler's ask. The
+caption only ever showed above 1536px, so on most screens it was a line that
+appeared and disappeared with the window width. `CardHeaderRow` still takes a
+`meta`, and other screens still pass one; no widget does.
+
 Wide layouts give dashboard panels their saved share of the available space.
 Narrow layouts stack the cards. Long card content scrolls inside its panel so a
 single feed does not make the whole signed-in shell grow without limit.
@@ -59,9 +67,11 @@ Each figure reads top to bottom:
 - **Small line.** The last 30 days, one point a day, in the top right corner.
   The line is green, red or grey to match the change. It only appears once the
   figure is at least 240px wide, so it never cuts the name short.
-- **Facts.** Under a dashed line, a few small facts sit side by side, such as
-  "25 members  3 admins  2 suspended". Unanswered feedback turns orange while
-  there is any, because it is the one thing on the row waiting on the admin.
+On Overview each figure stops there. The small facts that used to sit under a
+dashed line — the member and admin split, the share of accounts paying, the
+average each, the count with no reply — came off on 25 Sep 2026 at Tyler's ask.
+`StatStrip` still draws them, and the Traffic, Referrals and AI usage dashboards
+still use them; the Overview's figures simply no longer carry any.
 
 Only three figures have a history the app can count back to. People and Joined
 are counted from each account's joining date. Feedback is counted from when it

@@ -162,16 +162,14 @@ export async function dealsAccessFor(
 
 /**
  * Whether a deal whose last day was yesterday is still running its last
- * night: yesterday's first or second stretch runs past midnight and has not
- * closed by `clock`. The same rule as `dealEndsAt`, written for the database.
+ * night: yesterday's stretch runs past midnight and has not closed by `clock`.
+ * The same rule as `dealEndsAt`, written for the database.
  */
 function lastNightStillOn(yesterday: string, clock: string) {
   const day = sql`${sitePromotions.times} -> ${weekdayOf(yesterday)}::text`
-  const overnight = (shift: typeof day) =>
-    sql`((${shift} ->> 'close') <= (${shift} ->> 'open') and (${shift} ->> 'close') > ${clock})`
   return and(
     eq(sitePromotions.endDate, yesterday),
-    sql`(${overnight(day)} or ${overnight(sql`(${day} -> 'second')`)})`
+    sql`((${day} ->> 'close') <= (${day} ->> 'open') and (${day} ->> 'close') > ${clock})`
   )
 }
 
@@ -196,10 +194,10 @@ function dealIsLiveAt(now: string) {
  * Running at `now`, the site's "2026-10-06T16:30", by the deal's times: the
  * same rule as `dealNowText`'s "On now", written for the database so a list
  * narrowed to it pages and counts right. Inside its days with no times at
- * all; or one of today's stretches has started and not closed; or one of last
- * night's runs past midnight and has not closed yet. A stretch that ends at or
- * before its start runs past midnight, and one whose start and end match runs
- * for 24 hours.
+ * all; or today's stretch has started and not closed; or last night's runs
+ * past midnight and has not closed yet. A stretch that ends at or before its
+ * start runs past midnight, and one whose start and end match runs for 24
+ * hours.
  */
 function runningAt(now: string) {
   const today = now.slice(0, 10)
@@ -208,10 +206,7 @@ function runningAt(now: string) {
   const times = sitePromotions.times
   const onDay = (day: string) =>
     sql`(${sitePromotions.startDate} <= ${day}::date and (${sitePromotions.endDate} is null or ${sitePromotions.endDate} >= ${day}::date))`
-  const shiftsOf = (day: string) => {
-    const first = sql`(${times} -> ${weekdayOf(day)}::text)`
-    return [first, sql`(${first} -> 'second')`]
-  }
+  const shiftOf = (day: string) => sql`(${times} -> ${weekdayOf(day)}::text)`
   // Started today by now, and not yet closed today or running past midnight.
   const startedToday = (shift: SQL) =>
     sql`((${shift} ->> 'open') <= ${clock} and ((${shift} ->> 'close') <= (${shift} ->> 'open') or ${clock} < (${shift} ->> 'close')))`
@@ -219,12 +214,10 @@ function runningAt(now: string) {
   const fromLastNight = (shift: SQL) =>
     sql`((${shift} ->> 'close') <= (${shift} ->> 'open') and ${clock} < (${shift} ->> 'close'))`
   const noTimes = sql`not exists (select 1 from jsonb_each(${times}) as day(key, value) where day.value <> 'null'::jsonb)`
-  const [todayFirst, todaySecond] = shiftsOf(today)
-  const [lastFirst, lastSecond] = shiftsOf(yesterday)
   return sql`(
     (${noTimes} and ${onDay(today)})
-    or (not ${noTimes} and ${onDay(today)} and (${startedToday(todayFirst!)} or ${startedToday(todaySecond!)}))
-    or (not ${noTimes} and ${onDay(yesterday)} and (${fromLastNight(lastFirst!)} or ${fromLastNight(lastSecond!)}))
+    or (not ${noTimes} and ${onDay(today)} and ${startedToday(shiftOf(today))})
+    or (not ${noTimes} and ${onDay(yesterday)} and ${fromLastNight(shiftOf(yesterday))})
   )`
 }
 

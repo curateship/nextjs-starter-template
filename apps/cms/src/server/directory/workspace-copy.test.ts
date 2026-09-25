@@ -171,11 +171,7 @@ describe("copying CMS site content", () => {
       [sections[0]!.slug]: { grape: "Nebbiolo" },
     })
     expect(listing?.gallery).toEqual(["https://images.example.test/one.jpg"])
-    expect(listing?.hours.monday).toEqual({
-      open: "09:00",
-      close: "17:00",
-      second: null,
-    })
+    expect(listing?.hours.monday).toEqual({ open: "09:00", close: "17:00" })
     expect(listing?.latitude).toBe(40.7)
     expect(listing?.longitude).toBe(-74)
   })

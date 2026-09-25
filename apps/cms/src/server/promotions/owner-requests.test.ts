@@ -231,7 +231,7 @@ describe("sending a deal", () => {
 
   it("copies the listing's hours only for its owner", async () => {
     const hours = blankListingHours()
-    hours.monday = { open: "08:00", close: "16:00", second: null }
+    hours.monday = { open: "08:00", close: "16:00" }
     await updateListing(site.id, listingId, { hours }, database)
     expect((await ownerListingHours(ownerId, claimId, database))?.monday).toEqual(
       hours.monday

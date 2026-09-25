@@ -12,8 +12,8 @@ import type { DealDays, DealStage } from "@/lib/promotions/deal-days"
  * the server and the public pages alike.
  *
  * A deal's times are shaped exactly like a listing's opening hours: each
- * weekday is off, or has a start and an end, and optionally a second stretch.
- * Every day off means the deal runs all day, every day of its days.
+ * weekday is off, or has a start and an end. Every day off means the deal runs
+ * all day, every day of its days.
  *
  * A stretch that ends at or before its start runs past midnight, and belongs
  * to the night it started: 10 PM to 2 AM on Friday is still Friday's at 1 AM
@@ -222,15 +222,15 @@ function daysText(days: ListingWeekday[]): string {
 
 /**
  * The times in words, one line per set of days that share them:
- * ["Mon to Fri, 4 to 6 PM", "Sat and Sun, 12 to 3 PM and 10 PM to 2 AM"].
+ * ["Mon to Fri, 4 to 6 PM", "Sat and Sun, 10 PM to 2 AM"].
  * Empty when the deal runs all day, every day.
  */
 export function dealTimesLines(times: DealTimes): string[] {
   const groups = new Map<string, ListingWeekday[]>()
   for (const day of LISTING_WEEKDAYS) {
-    const shifts = listingDayShifts(times[day])
-    if (!shifts.length) continue
-    const key = shifts.map(shiftText).join(" and ")
+    const shift = times[day]
+    if (!shift) continue
+    const key = shiftText(shift)
     groups.set(key, [...(groups.get(key) ?? []), day])
   }
   return [...groups].map(([when, days]) => `${daysText(days)}, ${when}`)

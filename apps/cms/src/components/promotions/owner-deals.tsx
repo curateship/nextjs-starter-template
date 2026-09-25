@@ -428,9 +428,9 @@ function OwnerDealDialog({
                     value={fields.coverImage}
                     disabled={busy}
                     onChange={(url) => update("coverImage", url)}
-                    aspect="video"
+                    aspect="square"
                     fit="cover"
-                    className="max-w-60"
+                    className="max-w-24"
                   />
                 </div>
               </CardContent>

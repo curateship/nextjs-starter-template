@@ -2,7 +2,8 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { CategoryChecklist } from "@/components/directory/category-checklist"
+import { CategoryCombobox } from "@/components/directory/category-combobox"
+import { RecordPreviewLink } from "@/components/shared/record-preview-link"
 import { PostEditor } from "@/components/posts/post-editor"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CharacterCount } from "@/components/shared/character-count"
@@ -80,7 +81,7 @@ function fieldsFrom(data: PostForEdit): PostFields {
     coverImage: post.coverImage,
     status: post.status,
     body: post.body,
-    // Sorted so ticking a box off and on again is not read as an edit.
+    // Sorted so choosing a category and dropping it is not read as an edit.
     categoryIds: [...data.categoryIds].sort(),
   }
 }
@@ -128,6 +129,8 @@ export function PostDialog({
 
   const creating = postId === null && createdId === null
   const ready = postId === null || loaded?.forId === postId
+  /** The saved record, which is what the preview link may point at. */
+  const saved = loaded?.forId === postId ? loaded.data.post : null
 
   // A closed window forgets what it held, so the next open reads afresh.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -266,6 +269,11 @@ export function PostDialog({
               ) : status === "draft" ? (
                 <Badge variant="outline">Draft</Badge>
               ) : null}
+              <RecordPreviewLink
+                word="post"
+                path={saved ? `/posts/${saved.slug}` : null}
+                published={saved?.status === "published"}
+              />
             </div>
             <DialogDescription>
               {creating
@@ -397,9 +405,9 @@ export function PostDialog({
                       value={fields.coverImage}
                       disabled={saving}
                       onChange={(url) => update("coverImage", url)}
-                      aspect="video"
+                      aspect="square"
                       fit="cover"
-                      className="max-w-60"
+                      className="max-w-24"
                     />
                   </div>
                 </CollapsibleSettingsCard>
@@ -411,7 +419,7 @@ export function PostDialog({
                   description="Each category's page lists its newest posts under its listings."
                   contentClassName="grid gap-4"
                 >
-                  <CategoryChecklist
+                  <CategoryCombobox
                     idPrefix="post-category"
                     rows={orderedCategories}
                     checked={checked}

@@ -141,11 +141,7 @@ describe("what a save may contain", () => {
       "https://images.example/one.jpg",
       "https://images.example/two.jpg",
     ])
-    expect(saved.hours.monday).toEqual({
-      open: "09:00",
-      close: "17:00",
-      second: null,
-    })
+    expect(saved.hours.monday).toEqual({ open: "09:00", close: "17:00" })
     expect(saved.hours.tuesday).toBeNull()
     expect(saved.latitude).toBe(43.6532)
     expect(saved.longitude).toBe(-79.3832)
@@ -400,11 +396,7 @@ describe("copying and deleting", () => {
     expect(copy.status).toBe("draft")
     expect(copy.slug).not.toBe(listing.slug)
     expect(copy.gallery).toEqual(["https://images.example/one.jpg"])
-    expect(copy.hours.monday).toEqual({
-      open: "09:00",
-      close: "17:00",
-      second: null,
-    })
+    expect(copy.hours.monday).toEqual({ open: "09:00", close: "17:00" })
     expect(copy.latitude).toBe(43.6532)
     const links = await categoriesForListing(site, copy.id, database)
     expect(links.map((link) => link.categoryId)).toEqual([food.id])
