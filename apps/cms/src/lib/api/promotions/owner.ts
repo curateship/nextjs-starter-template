@@ -9,7 +9,7 @@ import {
   MAX_PROMOTION_DESCRIPTION,
   MAX_PROMOTION_SMALL_PRINT,
   MAX_PROMOTION_TITLE,
-} from "@/server/promotions/promotions"
+} from "@/lib/promotions/deal-limits"
 import {
   endOwnerDeal,
   ownerDealsFor,

@@ -1,8 +1,8 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
+import { FreeToolSignUpCard } from "@/components/free-tools/sign-up-card"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -79,19 +79,7 @@ export function ToolsPage({
         ))
       )}
 
-      {signedIn ? null : (
-        <Card size="sm">
-          <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              Want to trade on these numbers? Connect your exchanges in one
-              account.
-            </p>
-            <Button asChild className="w-fit">
-              <Link to="/register">Create account</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {signedIn ? null : <FreeToolSignUpCard />}
     </div>
   )
 }
