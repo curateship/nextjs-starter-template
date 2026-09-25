@@ -9,6 +9,10 @@ import {
   createDefaultPublicTheme,
   type PublicTheme,
 } from "@/lib/public-theme"
+import {
+  createDefaultPublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
 
 const router = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -33,7 +37,13 @@ const publicHeader = vi.hoisted(() => ({
     sticky: false,
     menuAlignment: "left" as "left" | "center",
     logoSize: "standard" as "small" | "standard" | "large",
+    fullWidth: false,
+    width: null as number | null,
+    blur: "medium" as "none" | "light" | "medium" | "heavy",
   },
+}))
+const publicUserPanel = vi.hoisted(() => ({
+  current: null as unknown as PublicUserPanel,
 }))
 const publicTheme = vi.hoisted(() => ({
   current: null as unknown as PublicTheme,
@@ -95,6 +105,7 @@ vi.mock("@/lib/branding", () => ({
   usePublicFooterCopyright: () => publicSite.copyright,
   usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicHeader: () => publicHeader.current,
+  usePublicUserPanel: () => publicUserPanel.current,
   usePublicTheme: () => publicTheme.current,
   usePublicBreadcrumbs: () => publicBreadcrumbs.current,
 }))
@@ -141,8 +152,12 @@ describe("PublicPageFrame navigation", () => {
       sticky: false,
       menuAlignment: "left",
       logoSize: "standard",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     }
     publicTheme.current = createDefaultPublicTheme()
+    publicUserPanel.current = createDefaultPublicUserPanel()
     router.matches = []
     publicBreadcrumbs.current = {
       written: false,
@@ -286,6 +301,9 @@ describe("PublicPageFrame navigation", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "large",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     }
     const host = document.createElement("div")
     document.body.appendChild(host)
@@ -322,6 +340,9 @@ describe("PublicPageFrame navigation", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "large",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     }
     const host = document.createElement("div")
     document.body.appendChild(host)
@@ -699,6 +720,89 @@ describe("PublicPageFrame navigation", () => {
         item.textContent?.trim()
       )
     ).toEqual(["Pricing", "Elsewhere"])
+
+    await act(async () => root.unmount())
+  })
+
+  it("follows the page width until the header has its own, and blurs as chosen", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const render = () =>
+      act(async () => {
+        root.render(<PublicPageFrame>Page</PublicPageFrame>)
+      })
+    const header = () => host.querySelector("header")
+    const inner = () => host.querySelector<HTMLElement>("header > nav > div")
+
+    await render()
+    expect(inner()?.style.maxWidth).toBe("")
+    expect(header()?.className).toContain("backdrop-blur-xl")
+
+    publicHeader.current = { ...publicHeader.current, width: 900, blur: "none" }
+    await render()
+    expect(inner()?.style.maxWidth).toBe("900px")
+    expect(header()?.className).not.toContain("backdrop-blur")
+
+    publicHeader.current = {
+      ...publicHeader.current,
+      fullWidth: true,
+      blur: "heavy",
+    }
+    await render()
+    expect(inner()?.style.maxWidth).toBe("none")
+    expect(header()?.className).toContain("backdrop-blur-3xl")
+
+    await act(async () => root.unmount())
+  })
+
+  it("draws the saved sign-in buttons and hides one with no address", async () => {
+    const defaults = createDefaultPublicUserPanel()
+    publicUserPanel.current = {
+      ...defaults,
+      login: { ...defaults.login, label: "Log in", href: "/auth?tab=login" },
+      register: { ...defaults.register, href: "" },
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const actions = host.querySelector("[data-public-header-actions]")
+    expect(
+      actions?.querySelector('a[href="/auth?tab=login"]')?.textContent
+    ).toBe("Log in")
+    expect(actions?.textContent).not.toContain("Create an account")
+    expect(
+      actions?.querySelector('button[aria-label="Open account menu"]')
+    ).not.toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
+  it("drops the phone account button when no sign-in button shows on phones", async () => {
+    const defaults = createDefaultPublicUserPanel()
+    publicUserPanel.current = {
+      ...defaults,
+      login: { ...defaults.login, showOnPhone: false },
+      register: { ...defaults.register, showOnPhone: false },
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const actions = host.querySelector("[data-public-header-actions]")
+    expect(actions?.textContent).toContain("Sign in")
+    expect(
+      actions?.querySelector('button[aria-label="Open account menu"]')
+    ).toBeNull()
 
     await act(async () => root.unmount())
   })

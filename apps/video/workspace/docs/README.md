@@ -43,6 +43,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [text-fonts.md](text-fonts.md) — the four faces video text and carousel
   slides can be drawn in, their licences, how the preview and the export stay
   in step, and what the extra files cost to download.
+- [carousel-brand-kit.md](carousel-brand-kit.md) — what the carousel studio
+  takes from the brand kit: the Brand panel, the kit's colours in every colour
+  picker, placing the logo, and what a slide still sets for itself.
 - [caption-look.md](caption-look.md) — the caption look saved in the brand
   kit, which captions start from it, and why captions already on a project
   never change.

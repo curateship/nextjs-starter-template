@@ -205,6 +205,12 @@ export type PublicListingCard = {
   featured: boolean
   /** Present only while the visitor has asked for nearby listings. */
   distanceKm?: number | null
+  /**
+   * The newest live deal's headline, like "20% off", for the card's Deal tag.
+   * Filled after the page cache by `withDealTags`, and only while the visitor
+   * may see the Deals page.
+   */
+  dealHeadline?: string
 }
 
 /** A category as a link: the two fields anything pointing at one needs. */

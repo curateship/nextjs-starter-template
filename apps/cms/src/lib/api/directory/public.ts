@@ -19,9 +19,11 @@ import {
   type PublicBrowse,
   type PublicCategoryPage,
   type PublicDirectoryMap,
+  type PublicListingCard,
   type PublicListingPage,
 } from "@/server/directory/public"
 import {
+  fillFrontPageDeals,
   fillFrontPageEvents,
   readDirectoryFrontPage,
 } from "@/server/directory/front-page"
@@ -32,6 +34,13 @@ import { requireAppOrigin, requestIp } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
 import { siteTimeZone } from "@/server/directory/settings"
+import { listedDealsAt, type ListedDeal } from "@/server/promotions/deal-view"
+import {
+  dealHeadlinesFor,
+  dealsAccessFor,
+  readListingDeals,
+  readNewestDeals,
+} from "@/server/promotions/public"
 import {
   eventsAccessFor,
   readEventSuggestions,
@@ -96,7 +105,7 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
     const site = await visitorSite()
     if (!site) return null
 
-    return readPublicBrowse(site, {
+    const browse = await readPublicBrowse(site, {
       search: data.search,
       category: data.category,
       sort: data.sort,
@@ -104,6 +113,8 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       near: parseDirectoryNearPoint(data.near) ?? undefined,
       radius: readDirectoryNearRadius(data.radius),
     })
+    if (!browse) return null
+    return { ...browse, listings: await withDealTags(site.id, browse.listings) }
   })
 
 /** One page of a site's published listings, with the filters above them. */
@@ -215,6 +226,45 @@ export function findDirectoryPlace(query: string) {
   return geocodeDirectoryPlaceFn({ data: { query } })
 }
 
+/**
+ * The site's wall clock when this visitor may see the Deals page, or null when
+ * they may not, so nothing about deals is read for somebody the page is
+ * closed to.
+ */
+async function dealsClockFor(
+  siteId: string,
+  isSignedIn: () => Promise<boolean>
+): Promise<string | null> {
+  const access = await dealsAccessFor(siteId, isSignedIn)
+  if (!access) return null
+  return wallClockAt(await siteTimeZone(siteId), new Date())
+}
+
+/**
+ * The cards with their Deal tags, read after the page's cache in one query
+ * for the whole page, never one per card. Unchanged while the Deals page is
+ * closed to this visitor.
+ */
+async function withDealTags(
+  siteId: string,
+  listings: PublicListingCard[]
+): Promise<PublicListingCard[]> {
+  if (listings.length === 0) return listings
+  const now = await dealsClockFor(siteId, async () =>
+    Boolean(await findCurrentUser().catch(() => null))
+  )
+  if (!now) return listings
+  const headlines = await dealHeadlinesFor(
+    siteId,
+    listings.map((listing) => listing.id),
+    now
+  )
+  return listings.map((listing) => {
+    const dealHeadline = headlines.get(listing.id)
+    return dealHeadline ? { ...listing, dealHeadline } : listing
+  })
+}
+
 /** How many upcoming events a listing's "What's on here" shows. */
 const EVENTS_ON_A_LISTING = 3
 
@@ -234,7 +284,14 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ slug: slugInput }))
   .handler(async ({
     data,
-  }): Promise<(PublicListingPage & { whatsOn: ListingEvents | null }) | null> => {
+  }): Promise<
+    | (PublicListingPage & {
+        whatsOn: ListingEvents | null
+        /** "Deals here": its live deals, or null while Deals is closed to this visitor. */
+        dealsHere: ListedDeal[] | null
+      })
+    | null
+  > => {
     const site = await visitorSite()
     if (!site) return null
 
@@ -250,10 +307,18 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
     if (!page) return null
 
     // Read after the listing's two-minute cache, by the site's clock, and only
-    // when this visitor may see the Events page, the same switch every event
-    // page follows.
+    // when this visitor may see the Deals page, the switch every deal follows.
+    const dealsNow = await dealsClockFor(site.id, async () => Boolean(viewer))
+    const dealsHere = dealsNow
+      ? listedDealsAt(
+          await readListingDeals(site, page.listing.id, dealsNow),
+          dealsNow
+        )
+      : null
+
+    // The same for events, with the Events page's own switch.
     const access = await eventsAccessFor(site.id, async () => Boolean(viewer))
-    if (!access) return { ...page, whatsOn: null }
+    if (!access) return { ...page, whatsOn: null, dealsHere }
     const timeZone = await siteTimeZone(site.id)
     const upcoming = await readUpcomingEvents(
       site,
@@ -264,6 +329,7 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
     )
     return {
       ...page,
+      dealsHere,
       whatsOn: {
         events: upcoming.events.slice(0, EVENTS_ON_A_LISTING),
         total: upcoming.total,
@@ -277,6 +343,9 @@ export function loadDirectoryListing(slug: string) {
   return readDirectoryListingFn({ data: { slug } })
 }
 
+/** How many live deals a category page shows above its listings. */
+const DEALS_ON_A_CATEGORY = 6
+
 /** How many upcoming events a category page shows under its listings. */
 const EVENTS_ON_A_CATEGORY = 6
 
@@ -285,22 +354,42 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
   .handler(async ({
     data,
   }): Promise<
-    (PublicCategoryPage & { upcomingEvents: ListingEvents | null }) | null
+    | (PublicCategoryPage & {
+        upcomingEvents: ListingEvents | null
+        /** The newest live deals at its listings, on its first page only. */
+        categoryDeals: ListedDeal[]
+      })
+    | null
   > => {
     const site = await visitorSite()
     if (!site) return null
 
-    const page = await readPublicCategory(site, data.slug, {
+    const cached = await readPublicCategory(site, data.slug, {
       page: data.page ?? 1,
     })
-    if (!page) return null
+    if (!cached) return null
+    const isSignedIn = async () =>
+      Boolean(await findCurrentUser().catch(() => null))
+    const dealsNow =
+      (data.page ?? 1) === 1 ? await dealsClockFor(site.id, isSignedIn) : null
+    const page = {
+      ...cached,
+      listings: await withDealTags(site.id, cached.listings),
+      categoryDeals: dealsNow
+        ? listedDealsAt(
+            await readNewestDeals(site, dealsNow, {
+              categoryId: cached.category.id,
+              limit: DEALS_ON_A_CATEGORY,
+            }),
+            dealsNow
+          )
+        : [],
+    }
 
     // Read after the category's cache, by the site's clock, and only when this
     // visitor may see the Events page, the same as a listing's "What's on
     // here".
-    const access = await eventsAccessFor(site.id, async () =>
-      Boolean(await findCurrentUser().catch(() => null))
-    )
+    const access = await eventsAccessFor(site.id, isSignedIn)
     if (!access) return { ...page, upcomingEvents: null }
     const timeZone = await siteTimeZone(site.id)
     const upcoming = await readUpcomingEvents(
@@ -335,15 +424,29 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
       name: answer.workspace.name,
     })
     if (!page) return null
-    if (!page.rows.some((row) => row.kind === "events")) return page
+    const hasEvents = page.rows.some((row) => row.kind === "events")
+    const hasDeals = page.rows.some((row) => row.kind === "deals")
+    if (!hasEvents && !hasDeals) return page
 
-    // Rows of events follow the Events page's own switch, for this visitor.
+    // Rows of events follow the Events page's own switch, and rows of deals
+    // the Deals page's, for this visitor.
     const site = await visitorSite()
     if (!site) return null
-    const access = await eventsAccessFor(site.id, async () =>
+    const isSignedIn = async () =>
       Boolean(await findCurrentUser().catch(() => null))
+    const withEvents = hasEvents
+      ? await fillFrontPageEvents(
+          site,
+          page,
+          (await eventsAccessFor(site.id, isSignedIn)) !== null
+        )
+      : page
+    if (!withEvents || !hasDeals) return withEvents
+    return fillFrontPageDeals(
+      site,
+      withEvents,
+      (await dealsAccessFor(site.id, isSignedIn)) !== null
     )
-    return fillFrontPageEvents(site, page, access !== null)
   }
 )
 

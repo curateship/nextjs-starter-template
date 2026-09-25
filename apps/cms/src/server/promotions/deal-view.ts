@@ -30,7 +30,10 @@ export type ListedDeal = PublicDealCard & {
 
 export type DealView = {
   site: PublicSite
-  /** The code is empty once the deal has ended, so it never reaches the page. */
+  /**
+   * The code is empty once the deal has ended, or while it takes claims, so it
+   * never reaches the page.
+   */
   deal: PublicDeal
   ended: boolean
   /** Not started yet by the site's calendar. */
@@ -68,7 +71,9 @@ export function dealViewAt(page: PublicDealPage, at: Date): DealView {
   const ended = stage === "ended"
   return {
     site: page.site,
-    deal: ended ? { ...page.deal, code: "" } : page.deal,
+    // No shared code once it is over, or while each visitor claims their own.
+    deal:
+      ended || page.deal.takesClaims ? { ...page.deal, code: "" } : page.deal,
     ended,
     upcoming: stage === "soon",
     days: dealDaysText(page.deal),

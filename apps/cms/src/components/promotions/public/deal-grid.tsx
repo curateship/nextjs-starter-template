@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router"
 
 import { Card, CardContent } from "@/components/ui/card"
-import type { ListedDeal } from "@/lib/api/promotions/public"
+import type { DealCardView } from "@/lib/promotions/deal-content"
+import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { focusRing } from "@/lib/layout/focus-ring"
 
@@ -16,7 +17,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
  * server and the browser print the same words and the page never redraws
  * itself after loading.
  */
-export function DealGrid({ deals }: { deals: ListedDeal[] }) {
+export function DealGrid({ deals }: { deals: DealCardView[] }) {
   return (
     <ul className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
       {deals.map((deal) => {
@@ -54,6 +55,11 @@ export function DealGrid({ deals }: { deals: ListedDeal[] }) {
                 </p>
                 {deal.nowText ? (
                   <p className="text-sm font-medium">{deal.nowText}</p>
+                ) : null}
+                {deal.distanceKm !== undefined ? (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDirectoryDistance(deal.distanceKm)}
+                  </p>
                 ) : null}
               </CardContent>
             </Card>

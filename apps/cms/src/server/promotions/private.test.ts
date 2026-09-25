@@ -4,7 +4,11 @@ import path from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { slugFromTitle } from "@/lib/directory/slugs"
+import { createCategory } from "@/server/directory/categories"
+import { setContentCategories } from "@/server/directory/content-categories"
 import { createListing, updateListing } from "@/server/directory/listings"
+import { LISTING_CONTENT_TYPE } from "@/server/directory/schema"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
@@ -31,6 +35,10 @@ let database: TestDatabase
 let site: VisitorSite
 let listed: string
 let hidden: string[]
+/** Both listings: the published one and the draft one. */
+let listingIds: string[]
+/** Every deal made, by id, so a read by id can be checked by address. */
+let madeDeals: { id: string; slug: string }[]
 
 const today = "2026-10-05"
 // 3 PM that day, the site's wall clock.
@@ -49,13 +57,13 @@ beforeEach(async () => {
   await updateListing(site.id, open.id, { status: "published" }, database)
   const closed = await createListing(site.id, { title: "Not open yet" }, database)
 
+  madeDeals = []
   const make = async (
     title: string,
     listingId: string,
     status: PromotionInput["status"]
-  ) =>
-    (
-      await createPromotion(
+  ) => {
+    const made = await createPromotion(
         site.id,
         userId,
         {
@@ -67,15 +75,20 @@ beforeEach(async () => {
           smallPrint: "",
           dealType: "other",
           amount: "",
-          headline: "Happy hour",
+          // Its own address, so a read that returns headlines can be checked
+          // the same way as one that returns addresses.
+          headline: slugFromTitle(title),
           status,
           startDate: today,
           endDate: null,
         },
         database
       )
-    ).slug
+    madeDeals.push({ id: made.id, slug: made.slug })
+    return made.slug
+  }
 
+  listingIds = [open.id, closed.id]
   listed = await make("Open deal", open.id, "published")
   hidden = [
     await make("Draft deal", open.id, "draft"),
@@ -111,7 +124,38 @@ const everyPublicRead: Record<
     }
     return found
   },
+  readListingDeals: async () =>
+    (
+      await Promise.all(
+        listingIds.map((id) =>
+          publicReads.readListingDeals(site, id, now, database)
+        )
+      )
+    )
+      .flat()
+      .map((deal) => deal.slug),
+  dealHeadlinesFor: async () => [
+    ...(
+      await publicReads.dealHeadlinesFor(site.id, listingIds, now, database)
+    ).values(),
+  ],
+  readNewestDeals: async () =>
+    (await publicReads.readNewestDeals(site, now, { limit: 12 }, database)).map(
+      (deal) => deal.slug
+    ),
+  findReportableDeal: async () => {
+    const found: string[] = []
+    for (const deal of madeDeals) {
+      if (await publicReads.findReportableDeal(site.id, deal.id, database)) {
+        found.push(deal.slug)
+      }
+    }
+    return found
+  },
   dealsAccessFor: { notADealRead: "Reads the Deals page's switch." },
+  readDealCategories: {
+    notADealRead: "Lists categories, not deals. Proven on its own below.",
+  },
 }
 
 describe("hidden deals", () => {
@@ -134,18 +178,36 @@ describe("hidden deals", () => {
   }
 })
 
+describe("the Deals page's category chips", () => {
+  it("never offer a category whose only deals are hidden", async () => {
+    const [open, closed] = listingIds as [string, string]
+    const food = await createCategory(site.id, { name: "Food" }, database)
+    const secret = await createCategory(site.id, { name: "Secret" }, database)
+    await setContentCategories(site.id, LISTING_CONTENT_TYPE, open, [food.id], database)
+    await setContentCategories(site.id, LISTING_CONTENT_TYPE, closed, [secret.id], database)
+    expect(
+      (await publicReads.readDealCategories(site.id, now, database)).map(
+        (row) => row.slug
+      )
+    ).toEqual([food.slug])
+  })
+})
+
 describe("the promotions table", () => {
   /**
    * Only these files may read the table. A read written anywhere else would
    * skip the one filter in `public.ts`, so it has to live there instead.
    */
   const allowed = [
+    "server/directory/reports.ts", // Admin: the reports queue names each deal.
+    "server/promotions/claims.ts", // One deal's claim box, under a lock, found by its id.
+    "server/promotions/owner-requests.ts", // An owner's own deals, and the queue's live wording.
     "server/promotions/promotions.ts", // Admin → Promotions, which shows everything.
     "server/promotions/public.ts", // Every public read, through the one filter.
     "server/promotions/schema.ts",
   ]
 
-  it("is read only by the admin and the public reads", () => {
+  it("is read only by the admin, the owners' requests and the public reads", () => {
     const root = path.resolve(__dirname, "../..")
     const readers = readdirSync(root, { recursive: true, encoding: "utf8" })
       .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))

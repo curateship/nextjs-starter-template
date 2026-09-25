@@ -18,8 +18,14 @@ at its widest.
   the page. Somebody who has just read the hours and knows they are wrong is
   looking at that card, and it is still the quietest line on it.
 - **The wide column, on the left**, holds the photo gallery, the write-up, the
-  fields this site invented, "What's on here" with the next events held at the
-  listing, and the other places nearby. `events.md` covers the events box.
+  fields this site invented, "Deals here" with up to three of the listing's
+  live deals, "What's on here" with the next events held at the listing, and
+  the other places nearby. `promotions.md` covers the deals box and
+  `events.md` the events box. A listing with no live deal has no deals box and
+  no heading.
+- **A listing's card in the directory** carries a small Deal tag with the
+  headline, like "20% off", while one of its deals is on. `promotions.md`
+  says how it is read.
 - **Business hours** is a card of its own under the narrow column.
 - **On a phone the narrow column comes first.** Somebody opening a listing
   wants the photo, the name and the phone number, not the write-up. The wide

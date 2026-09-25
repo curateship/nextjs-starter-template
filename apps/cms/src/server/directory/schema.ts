@@ -654,7 +654,7 @@ export const directoryFrontPageSections = pgTable(
     ),
     check(
       "directory_front_page_sections_kind_check",
-      sql`${table.kind} IN ('listings', 'categories', 'events')`
+      sql`${table.kind} IN ('listings', 'categories', 'events', 'deals')`
     ),
     check(
       "directory_front_page_sections_category_source_check",
@@ -1005,6 +1005,11 @@ export const directoryListingReports = pgTable(
      * file and a reference back would make the two import each other.
      */
     eventId: varchar("event_id", { length: 36 }),
+    /**
+     * The deal, for a report about one, from migration 0100. Its foreign key
+     * to `promotions` lives in the SQL for the same reason as the event's.
+     */
+    promotionId: varchar("promotion_id", { length: 36 }),
     /** One of the fixed reasons in `lib/directory/report-reasons.ts`. */
     reason: varchar("reason", { length: 30 }).notNull(),
     note: varchar("note", { length: 1000 }).notNull().default(""),
@@ -1033,13 +1038,14 @@ export const directoryListingReports = pgTable(
     ),
     index("ix_directory_listing_reports_listing").on(table.listingId),
     index("ix_directory_listing_reports_event").on(table.eventId),
+    index("ix_directory_listing_reports_promotion").on(table.promotionId),
     check(
       "directory_listing_reports_subject_check",
-      sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+      sql`(${table.listingId} IS NOT NULL)::int + (${table.eventId} IS NOT NULL)::int + (${table.promotionId} IS NOT NULL)::int = 1`
     ),
     check(
       "directory_listing_reports_reason_check",
-      sql`(${table.listingId} IS NOT NULL AND ${table.reason} IN ('wrong_hours', 'wrong_contact', 'closed', 'other')) OR (${table.eventId} IS NOT NULL AND ${table.reason} IN ('wrong_time', 'cancelled', 'wrong_place', 'other'))`
+      sql`(${table.listingId} IS NOT NULL AND ${table.reason} IN ('wrong_hours', 'wrong_contact', 'closed', 'other')) OR (${table.eventId} IS NOT NULL AND ${table.reason} IN ('wrong_time', 'cancelled', 'wrong_place', 'other')) OR (${table.promotionId} IS NOT NULL AND ${table.reason} IN ('not_honoured', 'ended', 'wrong_details', 'other'))`
     ),
     check(
       "directory_listing_reports_status_check",

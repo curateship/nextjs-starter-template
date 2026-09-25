@@ -40,6 +40,10 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  normalizePublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
   normalizeFaviconMode,
   normalizePublicFaviconSet,
   type FaviconMode,
@@ -147,6 +151,7 @@ export async function readBranding(
   frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
   publicBreadcrumbs: PublicBreadcrumbs
+  publicUserPanel: PublicUserPanel
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -195,6 +200,7 @@ export async function readBranding(
       frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
       publicBreadcrumbs: globals.publicBreadcrumbs,
+      publicUserPanel: globals.publicUserPanel,
       publicNavigation: workspaceDomainsEnabled
         ? []
         : globals.publicNavigation,
@@ -241,6 +247,7 @@ export async function readBranding(
     frontPageRows: visibleFrontPageRows(globals.frontPageRows),
     publicHeader: globals.publicHeader,
     publicBreadcrumbs: globals.publicBreadcrumbs,
+    publicUserPanel: globals.publicUserPanel,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -415,6 +422,7 @@ export function parseShellGlobals(value: unknown) {
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
@@ -508,6 +516,7 @@ export function pickShellGlobals(
     | "publicFooterCopyright"
     | "publicHeader"
     | "publicBreadcrumbs"
+    | "publicUserPanel"
     | "publicFont"
     | "publicTheme"
     | "publicThemePresets"
@@ -548,6 +557,7 @@ export function pickShellGlobals(
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     publicThemePresets: normalizePublicThemePresets(

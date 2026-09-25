@@ -14,6 +14,7 @@ import {
   findPromotion,
   listingHoursForDeal,
   listPromotions,
+  reopenPromotion,
   MAX_PROMOTION_CODE,
   MAX_PROMOTION_DESCRIPTION,
   MAX_PROMOTION_SMALL_PRINT,
@@ -25,6 +26,8 @@ import {
   type PromotionSummary,
   type SitePromotion,
 } from "@/server/promotions/promotions"
+import { pendingPromotionRequestCount } from "@/server/promotions/owner-requests"
+import { listClaims, type DealClaim } from "@/server/promotions/claims"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
@@ -46,6 +49,8 @@ export type PromotionsPage = {
   pageSize: number
   /** The site's wall clock, "2026-09-24T16:30", so a row can say it has ended. */
   now: string
+  /** Deals and changes from owners waiting in the queue. */
+  waiting: number
 }
 
 const idInput = z.string().min(1).max(36)
@@ -67,6 +72,9 @@ const promotionInput = z.object({
   headline: z.string().max(100),
   // A listing's hours shape, which `cleanDealTimes` checks and names in words.
   times: z.unknown().optional(),
+  takesClaims: z.boolean().optional(),
+  // Read by the server in words, so a little longer than any real number.
+  claimLimit: z.string().max(20).optional(),
   status: z.enum(["draft", "published"]),
 })
 
@@ -86,15 +94,18 @@ const loadPromotionsPageFn = createServerFn({ method: "GET" })
     const pageSize = data.limit ?? 50
     const page = data.page ?? 1
     const site = await workspaceIdForRequest(context.user.id)
-    const { promotions, total, now } = await listPromotions(site, {
-      search: data.search,
-      status: data.status,
-      sort: data.sort,
-      direction: data.direction,
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    })
-    return { promotions, total, page, pageSize, now }
+    const [{ promotions, total, now }, waiting] = await Promise.all([
+      listPromotions(site, {
+        search: data.search,
+        status: data.status,
+        sort: data.sort,
+        direction: data.direction,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+      pendingPromotionRequestCount(site),
+    ])
+    return { promotions, total, page, pageSize, now, waiting }
   })
 
 export function loadPromotionsPage(input: {
@@ -108,12 +119,25 @@ export function loadPromotionsPage(input: {
   return loadPromotionsPageFn({ data: input })
 }
 
+/** The deal window's whole load: the deal, its listing, its writer, who claimed it. */
+export type PromotionWindowData = PromotionForEdit & { claims: DealClaim[] }
+
 const loadPromotionForEditFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ id: idInput }))
-  .handler(async ({ data, context }): Promise<PromotionForEdit | null> => {
-    return findPromotion(await workspaceIdForRequest(context.user.id), data.id)
-  })
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<PromotionWindowData | null> => {
+      const site = await workspaceIdForRequest(context.user.id)
+      const [found, claims] = await Promise.all([
+        findPromotion(site, data.id),
+        listClaims(site, data.id),
+      ])
+      return found ? { ...found, claims } : null
+    }
+  )
 
 export function loadPromotionForEdit(id: string) {
   return loadPromotionForEditFn({ data: { id } })
@@ -177,4 +201,16 @@ const loadListingHoursFn = createServerFn({ method: "GET" })
 /** A listing's opening hours, for "Same as the listing's hours". */
 export function loadListingHoursForDeal(listingId: string) {
   return loadListingHoursFn({ data: { listingId } })
+}
+
+const reopenFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: idInput }))
+  .handler(async ({ data, context }): Promise<void> => {
+    await reopenPromotion(await workspaceIdForRequest(context.user.id), data.id)
+  })
+
+/** Undoes "End now", at once. */
+export function reopenEndedPromotion(id: string) {
+  return reopenFn({ data: { id } })
 }

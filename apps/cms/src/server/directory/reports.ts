@@ -5,6 +5,7 @@ import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import {
   EVENT_REPORT_REASONS,
   LISTING_REPORT_REASONS,
+  PROMOTION_REPORT_REASONS,
   type ReportKind,
   type ReportReason,
   type ListingReportStatus,
@@ -19,9 +20,11 @@ import {
 } from "@/server/directory/schema"
 import { findReportableEvent } from "@/server/events/public"
 import { siteEvents } from "@/server/events/schema"
+import { findReportableDeal } from "@/server/promotions/public"
+import { sitePromotions } from "@/server/promotions/schema"
 
 /**
- * Problems visitors reported on a listing or an event.
+ * Problems visitors reported on a listing, an event or a deal.
  *
  * One rule shapes this file: **a report changes nothing.** It does not edit the
  * listing or event, it never appears on a public page, and closing one only
@@ -56,13 +59,17 @@ export type ProblemReportSummary = ProblemReport & {
 }
 
 function toReport(row: DirectoryListingReportRow): ProblemReport {
-  // The database holds exactly one of the two ids, so the one that is set
+  // The database holds exactly one of the three ids, so the one that is set
   // says which kind this is.
-  const kind: ReportKind = row.eventId ? "event" : "listing"
+  const kind: ReportKind = row.promotionId
+    ? "promotion"
+    : row.eventId
+      ? "event"
+      : "listing"
   return {
     id: row.id,
     kind,
-    subjectId: row.eventId ?? row.listingId ?? "",
+    subjectId: row.promotionId ?? row.eventId ?? row.listingId ?? "",
     reason: row.reason as ReportReason,
     note: row.note,
     reporterEmail: row.reporterEmail,
@@ -84,6 +91,14 @@ export type ReportInput = {
 const REASONS_FOR: Record<ReportKind, readonly string[]> = {
   listing: LISTING_REPORT_REASONS,
   event: EVENT_REPORT_REASONS,
+  promotion: PROMOTION_REPORT_REASONS,
+}
+
+/** "listing", "event" or "deal", for a sentence a visitor reads. */
+const NOUN_FOR: Record<ReportKind, string> = {
+  listing: "listing",
+  event: "event",
+  promotion: "deal",
 }
 
 /**
@@ -105,7 +120,7 @@ export function cleanReportInput(input: ReportInput): {
   // An event reason on a listing is refused like a made-up one, so each kind
   // only ever stores reasons from its own list.
   const reason = REASONS_FOR[input.kind].find((known) => known === input.reason)
-  if (!reason) throw new Error(`Pick what is wrong with this ${input.kind}.`)
+  if (!reason) throw new Error(`Pick what is wrong with this ${NOUN_FOR[input.kind]}.`)
 
   // The same number the counter beside the box shows, read from the one file
   // that holds it. A literal here is how the two quietly start disagreeing.
@@ -173,11 +188,11 @@ export async function countReportAttempt(
   const perPage =
     about.kind === "listing"
       ? `directory-report:${siteId}:${from}:${about.subjectId}`
-      : `directory-report:${siteId}:${from}:event:${about.subjectId}`
+      : `directory-report:${siteId}:${from}:${about.kind}:${about.subjectId}`
   await countAttempt(
     perPage,
     1,
-    `You have already sent a report about this ${about.kind}. Give it a while before sending another.`,
+    `You have already sent a report about this ${NOUN_FOR[about.kind]}. Give it a while before sending another.`,
     database
   )
   await countAttempt(
@@ -210,6 +225,7 @@ async function findSubject(
   database: CustomShellDb
 ): Promise<{ id: string; title: string } | null> {
   if (kind === "event") return findReportableEvent(workspaceId, id, database)
+  if (kind === "promotion") return findReportableDeal(workspaceId, id, database)
 
   const [listing] = await database
     .select({ id: directoryListings.id, title: directoryListings.title })
@@ -239,7 +255,9 @@ export async function createReport(
     input.subjectId,
     database
   )
-  if (!subject) throw new Error(`That ${input.kind} is no longer on this site.`)
+  if (!subject) {
+    throw new Error(`That ${NOUN_FOR[input.kind]} is no longer on this site.`)
+  }
 
   const at = now()
   const [row] = await database
@@ -249,6 +267,7 @@ export async function createReport(
       workspaceId,
       listingId: input.kind === "listing" ? subject.id : null,
       eventId: input.kind === "event" ? subject.id : null,
+      promotionId: input.kind === "promotion" ? subject.id : null,
       reason,
       note,
       reporterEmail: email,
@@ -266,7 +285,7 @@ export async function listReports(
   workspaceId: string,
   options: {
     status?: ListingReportStatus
-    /** Only reports about listings, or only about events. */
+    /** Only reports about listings, or events, or deals. */
     kind?: ReportKind
     /** Matches the listing's or event's title and the text of the note. */
     search?: string
@@ -278,10 +297,10 @@ export async function listReports(
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
 
-  // Each report joins exactly one of the two, so the other side is null and
+  // Each report joins exactly one of the three, so the others are null and
   // coalesce picks whichever is there.
-  const subjectTitle = sql<string>`coalesce(${directoryListings.title}, ${siteEvents.title}, '')`
-  const subjectSlug = sql<string>`coalesce(${directoryListings.slug}, ${siteEvents.slug}, '')`
+  const subjectTitle = sql<string>`coalesce(${directoryListings.title}, ${siteEvents.title}, ${sitePromotions.title}, '')`
+  const subjectSlug = sql<string>`coalesce(${directoryListings.slug}, ${siteEvents.slug}, ${sitePromotions.slug}, '')`
 
   // The site's own reports, always. The filters narrow what is already inside
   // that boundary — they never replace it.
@@ -292,9 +311,11 @@ export async function listReports(
   if (options.kind) {
     filters.push(
       isNotNull(
-        options.kind === "event"
-          ? directoryListingReports.eventId
-          : directoryListingReports.listingId
+        {
+          listing: directoryListingReports.listingId,
+          event: directoryListingReports.eventId,
+          promotion: directoryListingReports.promotionId,
+        }[options.kind]
       )
     )
   }
@@ -304,6 +325,7 @@ export async function listReports(
     const searchFilter = or(
       ilike(directoryListings.title, pattern),
       ilike(siteEvents.title, pattern),
+      ilike(sitePromotions.title, pattern),
       ilike(directoryListingReports.note, pattern)
     )
     if (searchFilter) filters.push(searchFilter)
@@ -323,6 +345,10 @@ export async function listReports(
         eq(directoryListings.id, directoryListingReports.listingId)
       )
       .leftJoin(siteEvents, eq(siteEvents.id, directoryListingReports.eventId))
+      .leftJoin(
+        sitePromotions,
+        eq(sitePromotions.id, directoryListingReports.promotionId)
+      )
       .where(where)
       .orderBy(
         desc(directoryListingReports.createdAt),
@@ -341,6 +367,10 @@ export async function listReports(
         eq(directoryListings.id, directoryListingReports.listingId)
       )
       .leftJoin(siteEvents, eq(siteEvents.id, directoryListingReports.eventId))
+      .leftJoin(
+        sitePromotions,
+        eq(sitePromotions.id, directoryListingReports.promotionId)
+      )
       .where(where),
   ])
 

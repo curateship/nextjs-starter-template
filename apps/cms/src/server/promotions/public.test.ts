@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createListing, updateListing } from "@/server/directory/listings"
 import type { VisitorSite } from "@/server/directory/public"
@@ -12,8 +12,10 @@ import {
   type PromotionInput,
 } from "@/server/promotions/promotions"
 import {
+  dealHeadlinesFor,
   dealsAccessFor,
   readDeals,
+  readListingDeals,
   readPublicDeal,
 } from "@/server/promotions/public"
 import { customShellWorkspaces } from "@/server/schema"
@@ -280,5 +282,61 @@ describe("the on/off switch", () => {
 
     await setPage("/deals", "off")
     expect(await dealsAccessFor(site.id, signedIn, database)).toBeNull()
+  })
+})
+
+describe("deals at a listing", () => {
+  it("shows up to three live deals there, on now first", async () => {
+    await deal("Later", { startDate: "2026-10-20", endDate: null })
+    await deal("Now A", { startDate: "2026-10-01", endDate: "2026-10-09" })
+    await deal("Now B", { startDate: "2026-10-01", endDate: "2026-10-07" })
+    await deal("Now C", { startDate: "2026-10-01", endDate: null })
+    await deal("Gone", { startDate: "2026-09-01", endDate: "2026-10-04" })
+    const other = await createListing(site.id, { title: "Elsewhere" }, database)
+    await updateListing(site.id, other.id, { status: "published" }, database)
+    await deal("Not here", { startDate: today, endDate: null }, { listingId: other.id })
+
+    const shown = await readListingDeals(site, listingId, now, database)
+    expect(shown.map((row) => row.title)).toEqual(["Now B", "Now A", "Now C"])
+  })
+
+  it("is empty for a listing with none", async () => {
+    expect(await readListingDeals(site, listingId, now, database)).toEqual([])
+  })
+})
+
+describe("the Deal tag on listing cards", () => {
+  it("names each listing's newest live deal, and nothing for the rest", async () => {
+    await deal("Older", { startDate: today, endDate: null }, { dealType: "percent_off", amount: "10" })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await deal("Newer", { startDate: today, endDate: null }, { dealType: "free_item", headline: "Free dessert" })
+    const quiet = await createListing(site.id, { title: "Quiet" }, database)
+    const tags = await dealHeadlinesFor(site.id, [listingId, quiet.id], now, database)
+    expect(tags).toEqual(new Map([[listingId, "Free dessert"]]))
+  })
+
+  it("waits for a deal to start", async () => {
+    await deal("Next week", { startDate: "2026-10-12", endDate: null })
+    expect((await dealHeadlinesFor(site.id, [listingId], now, database)).size).toBe(0)
+  })
+
+  it("is gone the day after the deal ends", async () => {
+    await deal("Ends today", { startDate: "2026-10-01", endDate: today })
+    expect((await dealHeadlinesFor(site.id, [listingId], now, database)).size).toBe(1)
+    expect(
+      (await dealHeadlinesFor(site.id, [listingId], "2026-10-06T09:00", database)).size
+    ).toBe(0)
+  })
+
+  it("asks the database once for a whole page of 24 cards", async () => {
+    const ids = [listingId]
+    for (let count = 1; count < 24; count += 1) {
+      ids.push((await createListing(site.id, { title: `Place ${count}` }, database)).id)
+    }
+    await deal("Here", { startDate: today, endDate: null })
+    const select = vi.spyOn(database, "select")
+    const distinct = vi.spyOn(database, "selectDistinctOn")
+    await dealHeadlinesFor(site.id, ids, now, database)
+    expect(distinct.mock.calls.length + select.mock.calls.length).toBe(1)
   })
 })

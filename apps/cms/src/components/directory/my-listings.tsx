@@ -10,6 +10,7 @@ import {
 import { FeaturedPlansPopover } from "@/components/directory/featured-plans-popover"
 import { ListingViewsPanel } from "@/components/directory/listing-views-panel"
 import { OwnerEventsCard } from "@/components/events/owner-events"
+import { OwnerDealsCard } from "@/components/promotions/owner-deals"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,7 @@ import {
   type OwnedListing,
 } from "@/lib/api/directory/claims"
 import type { OwnerEvents } from "@/lib/api/events/submissions"
+import type { OwnerDeals } from "@/lib/api/promotions/owner"
 import type { ContactLinks } from "@/lib/directory/contact-links"
 import {
   buildListingBadgeSnippet,
@@ -68,11 +70,14 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 export function MyListings({
   listings,
   ownerEvents,
+  ownerDeals,
   checkout,
 }: {
   listings: OwnedListing[]
   /** The events this account sent for its listings, and each site's rules. */
   ownerEvents: OwnerEvents
+  /** The deals this account sent for its listings, and each site's switch. */
+  ownerDeals: OwnerDeals
   checkout?: { featured_session?: string; featured_checkout?: "cancelled" }
 }) {
   const navigate = useNavigate()
@@ -125,6 +130,7 @@ export function MyListings({
         <div key={listing.claimId} className="grid gap-2 md:gap-3">
           <OwnedListingCard listing={listing} />
           <OwnerEventsCard listing={listing} owner={ownerEvents} />
+          <OwnerDealsCard listing={listing} owner={ownerDeals} />
           <ListingViewsPanel listingId={listing.listingId} />
         </div>
       ))}

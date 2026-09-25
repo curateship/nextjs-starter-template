@@ -129,7 +129,7 @@ export function ReportsDashboard({
               value={search.kind ?? "both"}
               onValueChange={(value) =>
                 setListSearch({
-                  // Both kinds is the default, so it stays out of the address.
+                  // Every kind is the default, so it stays out of the address.
                   kind: value === "both" ? undefined : value,
                   page: undefined,
                 })
@@ -139,9 +139,10 @@ export function ReportsDashboard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="both">Listings and events</SelectItem>
+                <SelectItem value="both">Every kind</SelectItem>
                 <SelectItem value="listing">Listings</SelectItem>
                 <SelectItem value="event">Events</SelectItem>
+                <SelectItem value="promotion">Deals</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -259,7 +260,7 @@ export function ReportsDashboard({
           toast.success(
             decision === "fixed"
               ? "Marked fixed. The count drops by one."
-              : `Dismissed. Nothing on the ${kind} changed.`
+              : `Dismissed. Nothing on the ${REPORT_KIND_LABELS[kind].toLowerCase()} changed.`
           )
         }}
       />

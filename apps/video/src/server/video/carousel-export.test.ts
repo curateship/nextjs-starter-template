@@ -1,14 +1,26 @@
-import { describe, expect, it } from "vitest"
+import { PGlite } from "@electric-sql/pglite"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { createDefaultBrandKit } from "@/lib/video/brand-kit"
 import type {
   CarouselSlide,
   CarouselTextItem,
 } from "@/lib/video/carousel-schema"
 import { TEXT_FONTS } from "@/lib/video/text-fonts"
+import { now, uuid } from "@/server/auth/security"
+import { type CustomShellDb } from "@/server/db"
+import { customShellMedia } from "@/server/schema"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
 import {
   carouselSlideSvg,
+  findSlidePicture,
   renderCarouselSlidePng,
 } from "@/server/video/carousel-export"
+import { saveVideoBrandKit } from "@/server/video/settings"
 
 const textItem: CarouselTextItem = {
   id: "text-1",
@@ -79,5 +91,115 @@ describe("carousel slide export", () => {
       return renderCarouselSlidePng(oneFace, "1:1").join(",")
     })
     expect(new Set(renders).size).toBe(TEXT_FONTS.length)
+  })
+})
+
+describe("pictures a slide may show", () => {
+  const base = "https://video-media.example.test"
+  const hadR2PublicUrl = Object.prototype.hasOwnProperty.call(
+    process.env,
+    "CUSTOM_SHELL_R2_PUBLIC_URL"
+  )
+  const originalR2PublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+  let client: PGlite
+  let database: CustomShellDb
+  let ownerId: string
+  let strangerId: string
+  let workspaceId: string
+
+  beforeEach(async () => {
+    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = base
+    const testDb = await createTestDatabase()
+    client = testDb.client
+    database = testDb.db
+    ownerId = (await insertUser(database)).id
+    strangerId = (await insertUser(database)).id
+    workspaceId = (await insertWorkspace(database, { userId: ownerId })).id
+  })
+
+  afterEach(async () => {
+    await client.close()
+    if (hadR2PublicUrl) {
+      process.env.CUSTOM_SHELL_R2_PUBLIC_URL = originalR2PublicUrl
+    } else {
+      delete process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+    }
+  })
+
+  async function insertPicture(
+    userId: string,
+    overrides: Partial<typeof customShellMedia.$inferInsert> = {}
+  ) {
+    const timestamp = now()
+    const [row] = await database
+      .insert(customShellMedia)
+      .values({
+        id: uuid(),
+        workspaceId,
+        userId,
+        filename: "logo.png",
+        originalName: "logo.png",
+        fileSize: 100,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${userId}/${uuid()}.png`,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...overrides,
+      })
+      .returning()
+    return row
+  }
+
+  async function useAsLogo(storagePath: string) {
+    await saveVideoBrandKit(
+      { ...createDefaultBrandKit(), logoUrl: `${base}/${storagePath}` },
+      database
+    )
+  }
+
+  it("shows a person's own picture", async () => {
+    const own = await insertPicture(ownerId)
+    expect((await findSlidePicture(ownerId, own.id, database))?.id).toBe(
+      own.id
+    )
+  })
+
+  it("refuses somebody else's picture", async () => {
+    const theirs = await insertPicture(strangerId)
+    expect(await findSlidePicture(ownerId, theirs.id, database)).toBeNull()
+  })
+
+  it("shows the brand logo whoever uploaded it, until the kit's logo changes", async () => {
+    const logo = await insertPicture(strangerId)
+    await useAsLogo(logo.storagePath)
+    expect((await findSlidePicture(ownerId, logo.id, database))?.id).toBe(
+      logo.id
+    )
+
+    const newLogo = await insertPicture(strangerId)
+    await useAsLogo(newLogo.storagePath)
+    expect(await findSlidePicture(ownerId, logo.id, database)).toBeNull()
+  })
+
+  it("refuses a video, even one that is the brand logo", async () => {
+    const clip = await insertPicture(ownerId, {
+      mimeType: "video/mp4",
+      fileType: "video",
+    })
+    await useAsLogo(clip.storagePath)
+    expect(await findSlidePicture(ownerId, clip.id, database)).toBeNull()
+  })
+
+  it("finds no logo picture behind an address outside the library", async () => {
+    const logo = await insertPicture(strangerId)
+    await saveVideoBrandKit(
+      {
+        ...createDefaultBrandKit(),
+        logoUrl: `https://elsewhere.example.test/${logo.storagePath}`,
+      },
+      database
+    )
+    expect(await findSlidePicture(ownerId, logo.id, database)).toBeNull()
   })
 })

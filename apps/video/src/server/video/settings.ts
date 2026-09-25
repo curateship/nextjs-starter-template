@@ -10,6 +10,8 @@ import {
 import { now } from "@/server/auth/security"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { db, type CustomShellDb } from "@/server/db"
+import { IMAGE_TYPES, storagePathForUrl } from "@/server/media/library"
+import { customShellMedia } from "@/server/schema"
 import { videoSettings } from "@/server/video/schema"
 
 /**
@@ -29,6 +31,24 @@ export async function getVideoBrandKit(
     .where(eq(videoSettings.id, SETTINGS_ROW_ID))
     .limit(1)
   return row ? normalizeBrandKit(row.brandKit) : createDefaultBrandKit()
+}
+
+/**
+ * The media library picture behind the brand kit's logo, whoever uploaded it,
+ * or null when the kit has no logo or its address is not a picture in this
+ * app's library. A carousel slide can only show a library picture, so this is
+ * what lets the logo go on one.
+ */
+export async function findBrandLogoMedia(database: CustomShellDb = db) {
+  const { logoUrl } = await getVideoBrandKit(database)
+  const storagePath = logoUrl ? await storagePathForUrl(logoUrl) : null
+  if (!storagePath) return null
+  const [row] = await database
+    .select()
+    .from(customShellMedia)
+    .where(eq(customShellMedia.storagePath, storagePath))
+    .limit(1)
+  return row && IMAGE_TYPES.has(row.mimeType) ? row : null
 }
 
 /** The voice this app reads in, or nothing when none has been saved. */

@@ -46,11 +46,15 @@ inside the page, pushing the content down. It is not a floating list, so it
 never covers what the visitor was reading, and it closes when a link inside it
 is chosen or the page changes.
 
-The header carries the account actions. A signed-out visitor sees Sign in and
-Create an account on desktop, and one round account button holding both on a
-phone, so the two words never squeeze the logo. A signed-in visitor sees their
-photo, and its menu holds their name and email, Dashboard, Admin for an admin,
-and Log out. Logging out from here reloads the site as a signed-out visitor,
+The header carries the account actions, set in Public > Navigation > User
+panel. A signed-out visitor sees the Sign in and Register buttons on desktop,
+each with its saved name, address, icon and style. On a phone, the ones set to
+Show on phones sit behind one round account button, so they never squeeze the
+logo. When neither is set to show on phones, the round button is not drawn. A
+button whose address is empty is hidden everywhere. A signed-in visitor sees
+their photo, and its menu holds their name and email, then the saved
+signed-in links in their saved order, then Dashboard, Admin for an admin, and
+Log out. Logging out from here reloads the site as a signed-out visitor,
 because the session cookie the whole client was built around has just gone. The
 session is read in the browser, so the account slot stays empty until that
 answer arrives. Drawing the signed-out buttons first would flash them on every
@@ -122,8 +126,11 @@ still does not scroll sideways.
 Public > Navigation also controls the full header's layout across the app. The
 header can scroll with the page or stay at the top, and its desktop menu can sit
 in the normal header flow or in the exact centre of the page. Logo sizes are
-fixed at 32px, 48px, or 64px high. Phone navigation remains behind the menu
-button for both positions. The header still shows the logo, site name, search,
+fixed at 32px, 48px, or 64px high. The header's contents follow the page width
+until Navigation width gives them their own, or Full width spreads them across
+the window. Glass blur effect picks how strongly the header blurs the page
+scrolling under it. Phone navigation remains behind the menu button for both
+positions. The header still shows the logo, site name, search,
 and colour-mode choice when no menu or footer has been added. Empty navigation
 adds no empty menu control.
 

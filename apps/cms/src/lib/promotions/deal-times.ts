@@ -25,8 +25,14 @@ import type { DealDays, DealStage } from "@/lib/promotions/deal-days"
 
 export type DealTimes = ListingHours
 
-/** A deal as these rules need it: its days and its times. */
-export type TimedDeal = DealDays & { times: DealTimes }
+/**
+ * A deal as these rules need it: its days, its times, and whether it was
+ * ended early with "End now", which ends it whatever its days say.
+ */
+export type TimedDeal = DealDays & {
+  times: DealTimes
+  endedAt?: Date | string | null
+}
 
 /** One stretch the deal runs, as site wall-clock moments, end not included. */
 type Stretch = { from: string; until: string }
@@ -92,6 +98,7 @@ export function dealEndsAt(deal: TimedDeal): string | null {
 
 /** Where the deal stands at `now`, the site's "2026-10-06T16:30". */
 export function dealStage(deal: TimedDeal, now: string): DealStage {
+  if (deal.endedAt) return "ended"
   const endsAt = dealEndsAt(deal)
   if (endsAt && now >= endsAt) return "ended"
   return now.slice(0, 10) < deal.startDate ? "soon" : "on"

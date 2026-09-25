@@ -78,6 +78,7 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
 import { Route as AuthenticatedAdminPostsRouteImport } from './routes/_authenticated/admin/posts'
+import { Route as AuthenticatedAdminPromotionRequestsRouteImport } from './routes/_authenticated/admin/promotion-requests'
 import { Route as AuthenticatedAdminPromotionsRouteImport } from './routes/_authenticated/admin/promotions'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
@@ -474,6 +475,12 @@ const AuthenticatedAdminPostsRoute = AuthenticatedAdminPostsRouteImport.update({
   path: '/posts',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminPromotionRequestsRoute =
+  AuthenticatedAdminPromotionRequestsRouteImport.update({
+    id: '/promotion-requests',
+    path: '/promotion-requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPromotionsRoute =
   AuthenticatedAdminPromotionsRouteImport.update({
     id: '/promotions',
@@ -700,6 +707,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
   '/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -796,6 +804,7 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
   '/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -896,6 +905,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/_authenticated/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
   '/_authenticated/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -996,6 +1006,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/plans'
     | '/admin/posts'
+    | '/admin/promotion-requests'
     | '/admin/promotions'
     | '/admin/referrals'
     | '/admin/segments'
@@ -1092,6 +1103,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/plans'
     | '/admin/posts'
+    | '/admin/promotion-requests'
     | '/admin/promotions'
     | '/admin/referrals'
     | '/admin/segments'
@@ -1191,6 +1203,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/posts'
+    | '/_authenticated/admin/promotion-requests'
     | '/_authenticated/admin/promotions'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
@@ -1756,6 +1769,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPostsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/promotion-requests': {
+      id: '/_authenticated/admin/promotion-requests'
+      path: '/promotion-requests'
+      fullPath: '/admin/promotion-requests'
+      preLoaderRoute: typeof AuthenticatedAdminPromotionRequestsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/promotions': {
       id: '/_authenticated/admin/promotions'
       path: '/promotions'
@@ -2008,6 +2028,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminPostsRoute: typeof AuthenticatedAdminPostsRoute
+  AuthenticatedAdminPromotionRequestsRoute: typeof AuthenticatedAdminPromotionRequestsRoute
   AuthenticatedAdminPromotionsRoute: typeof AuthenticatedAdminPromotionsRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
@@ -2054,6 +2075,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminPostsRoute: AuthenticatedAdminPostsRoute,
+  AuthenticatedAdminPromotionRequestsRoute:
+    AuthenticatedAdminPromotionRequestsRoute,
   AuthenticatedAdminPromotionsRoute: AuthenticatedAdminPromotionsRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,

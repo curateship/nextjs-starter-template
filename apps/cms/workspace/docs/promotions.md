@@ -35,6 +35,9 @@ admin writes them in Admin → Promotions. Visitors see them on the Deals page a
   on 24 Sep 2026.
 - **The Deals page's first group is "Current deals".** "On now" is only ever
   a card saying the deal is running this minute. Chosen on 24 Sep 2026.
+- **Every owner deal and every owner change is reviewed.** Approving a new
+  deal publishes it, and "End now" is the only thing that doesn't wait.
+  Chosen on 25 Sep 2026.
 - **No automatic sidebar link**, the same rule as Posts and Events. Add
   Promotions to the sidebar in Settings the way the Events link was added.
 
@@ -140,6 +143,32 @@ say when, inside those days, it is on. They came in
   until Wed, Oct 7", then "On now · until 6 PM" or "Next: today at 4 PM".
 - **24 cards a page**, with Previous and Next under them.
 
+## Filters on the Deals page
+
+Chips and a distance above the cards, all kept in the address so a filtered
+page can be reloaded or sent: `?category=pizza`, `?on=now` or `?on=ending`,
+and `?near=…&radius=…&area=…`. Each chip keeps the other filters and goes back
+to page 1. A mistyped address is ignored rather than refused.
+
+- **Category chips** are the categories with a live deal at a listing filed
+  directly under them, in the admin's order (`readDealCategories`). A category
+  whose only deals are drafts, at draft listings or over never gets a chip.
+- **On now** keeps the deals running at this minute by their times and the
+  site's clock, past midnight and 24-hour stretches included. The rule is
+  written for the database (`runningAt` in `src/server/promotions/public.ts`)
+  so paging and counts are right, and a test checks it against the cards' own
+  "On now" at nine clock times.
+- **Ending soon** keeps deals whose last day is within three days: today and
+  the next two, which Tyler chose on 25 Sep 2026. A deal with no end day never
+  counts.
+- **Near me** uses the same Near and Within picker as the directory and the
+  Events page. It keeps deals whose listing's pin is within the distance, adds
+  "1.9 km away" to each card, and keeps the list in its usual order. A listing
+  with no pin is left out, and the page says so.
+- **Nothing matching** says what it was narrowed by, like "Nothing ending soon
+  in Italian."
+- The home page's deals row carries its category into "See all deals".
+
 ## A deal's page
 
 - The headline in big type at the top, then the title, the listing with a
@@ -178,6 +207,137 @@ directly.
   no letters or numbers, like "🍝🍝", gives no address, so the save asks for
   one to be typed.
 
+## Deals on a listing's page and its card
+
+- **"Deals here"** sits in a listing page's wide column, above "What's on
+  here", which Tyler chose on 25 Sep 2026. It shows up to three of the
+  listing's live deals in the Deals page's order, each with its headline, its
+  title as a link, and "On now · until 6 PM" or when it is next on. No live
+  deal means no box and no heading.
+- **The Deal tag** on a listing's card on the directory's browse page and its
+  category pages shows the headline of the listing's newest deal that is on
+  now, by published date. A deal that hasn't started doesn't tag the card, and
+  the tag is gone once the deal is over.
+- **Both are read after the page cache**, by the site's clock, and only while
+  the visitor may see the Deals page. The tags for a whole page of cards are
+  one query (`dealHeadlinesFor` in `src/server/promotions/public.ts`), never one
+  per card; a test counts it.
+
+## Deals on category pages and the home page
+
+- **A category page** shows up to 6 of the newest live deals at listings filed
+  directly under that category, above its listings and on its first page only,
+  headed "Deals in <category>". A deal's category is always its listing's.
+- **Only the category itself, never its children.** A category page's listings
+  and events work the same way (`listingIdsInCategory` in
+  `src/server/directory/public.ts` says so), and the task said to match events.
+  The task file had assumed a parent page shows its children's; it does not.
+- **A home page row of deals** is a fourth row kind, "Current deals", added in
+  Settings → Directory → Front page with a count and an optional category,
+  like the events row. It shows the newest live deals as cards and "See all
+  deals". `drizzle/0099_cms_front_page_deals_row.sql` widened the kind check.
+- **Filled after the cache** by `fillFrontPageDeals` in
+  `src/server/directory/front-page.ts`, by the site's clock, and only while the
+  visitor may see the Deals page. A row with no live deal is dropped, never
+  drawn empty.
+- The read is `readNewestDeals` in `src/server/promotions/public.ts`, newest
+  published first.
+
+## Report a problem on a deal
+
+A deal's page ends with the same small "Report a problem" link as a listing
+and an event, and it stays after the deal is over. The report lands in
+Admin → Reported problems with Kind "Deal".
+
+- **A deal's own reasons**: "The deal wasn't honoured", "It has ended", "Wrong
+  details" and "Something else", which needs a line saying what.
+- **No account.** Nothing on the deal changes; an admin reads the report and
+  edits the deal by hand, from the report's "Edit the deal" button.
+- **The limits are shared** with listing and event reports: one per deal per
+  hour from a visitor, ten an hour from a visitor, fifty an hour for the site.
+  The owner isn't told in this version, the same as listings.
+- **Only a deal a visitor could read** can be reported: a draft or a deal at a
+  draft listing is "no longer on this site", never "that is a draft". A closed
+  Deals page takes no reports.
+- Stored in `directory_listing_reports.promotion_id`
+  (`drizzle/0100_cms_promotion_reports.sql`), with the database holding each
+  kind to its own reasons. Deleting a deal deletes its reports.
+  `workspace/docs/listing-problem-reports.md` covers the queue.
+
+## Claiming a deal
+
+An admin or an owner can switch on "Visitors claim it" in the deal's window
+and give how many can claim it, like the first 50 people, or leave it empty
+for no limit. An owner's switch is part of the deal they send, so it is
+reviewed like the rest.
+
+- **A name and an email, no account.** Checked by the same rules as an event
+  sign-up. The deal page's box shows "30 of 50 left", "All claimed" once they
+  are gone, and "Claims have closed" once the deal is over. A deal that hasn't
+  started can already be claimed.
+- **Everyone gets their own code**, like "K7QX-P2MD", eight letters and
+  digits with none that are easy to misread. It is shown once on the page and
+  sent by email with the deal and the listing's address. Each is unique within
+  the deal, so a later task can mark it used at the counter.
+- **No shared code while claims are on.** The code in the deal's window is
+  never shown, because a shared code can be screenshotted and passed round.
+- **One live claim per email per deal.** Claiming again with the same email
+  shows no code and sends it to that email again, so typing somebody else's
+  email gets nobody their code. The page says so plainly.
+- **The last place goes to exactly one person.** A claim locks the deal's row
+  before counting, the same lock as event sign-ups. Proven on the local
+  Postgres on 25 Sep 2026: 40 people claiming 1 place at once, 5 rounds, gave
+  1 claim every round; the same code without the lock gave 1, 18, 40, 40 and
+  23. The test database runs one transaction at a time, so it can't show this.
+- **A failed email never undoes a claim.** The page says the code couldn't be
+  emailed and asks the visitor to keep it from the screen.
+- **Who claimed.** The admin's window lists each person's name, email, code
+  and day, and can take a claim away, which frees the place so the same email
+  can claim again. The owner's "Who claimed" on My listings is the same list,
+  read-only, for their own deals only.
+- **Limits:** eight claims an hour from one internet address per site.
+- The rules are `src/server/promotions/claims.ts`, the claims live in
+  `promotion_claims` (`drizzle/0101_cms_promotion_claims.sql`), and the door
+  is `src/lib/api/promotions/claims.ts`, listed in `open-endpoints.ts`.
+
+## Owners post, change and end deals
+
+A listing's owner has a "Deals at <listing>" card on My listings, under their
+events. They write a deal in the same boxes the admin's window has, less the
+listing, the address part and the status.
+
+- **The listing comes from the owner's approved claim**, never from the form.
+  An id from somebody else's claim is simply not found.
+- **Everything waits in one queue**, Admin → Deals from owners
+  (`/admin/promotion-requests`), reached from the "From owners" button on
+  Admin → Promotions, which shows how many are waiting. Each row says "New
+  deal" or "Change". There is no selection column, the same as the event
+  suggestions queue, so nothing is approved in bulk unread.
+- **Approving a new deal publishes it** at the owner's listing and remembers
+  the owner (`promotions.owner_user_id`). Approving a change swaps the new
+  wording into the live deal and leaves its address, status and listing alone.
+  The live deal stays exactly as it was while a change waits.
+- **The queue shows a change side by side**: only the lines that differ, the
+  live wording beside the new, and one sentence naming what stays.
+- **One change waits at a time.** A second one is refused until the first has
+  been read, and the Change button says why it is off.
+- **"End now"** asks first, then the deal is off every public list at once and
+  its page says "This deal has ended". A waiting change is closed with a note.
+  The admin's window says the deal was ended early and has "Start it again".
+- **The owner sees only their own.** Each row says "Waiting for approval",
+  "Approved" with a link, "Not approved" with the admin's note, or "Ended". A
+  new owner of the listing sees none of the old owner's deals.
+- **Refusals are sentences**: another person's listing, the Deals page
+  switched off, an end day that has been, a photo that is not the owner's own
+  upload, or more than 20 deals and changes in an hour.
+- **Emails.** The admins are told something is waiting. The owner is told the
+  decision, with the admin's note. A failed email never undoes the decision,
+  and the admin's message says whether the owner was reached.
+- The rules are `src/server/promotions/owner-requests.ts`, the requests live
+  in `promotion_requests` (`drizzle/0098_cms_owner_promotions.sql`), and the
+  owner's and admin's windows share their cards through
+  `src/components/promotions/deal-fields.tsx`.
+
 ## Where the code is
 
 - `src/server/promotions/schema.ts` is the table. `promotions.ts` is the admin's
@@ -194,5 +354,4 @@ directly.
 
 ## Not built yet
 
-Owners posting deals (task 04), search, sitemap and feed (08), and claiming a
-deal (13). The task files are in `workspace/tasks/promotions/`.
+Search, sitemap and feed (08). The task files are in `workspace/tasks/promotions/`.

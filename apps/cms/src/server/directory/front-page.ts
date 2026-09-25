@@ -25,6 +25,8 @@ import {
   siteTimeZone,
 } from "@/server/directory/settings"
 import { readUpcomingEvents } from "@/server/events/public"
+import { listedDealsAt } from "@/server/promotions/deal-view"
+import { readNewestDeals } from "@/server/promotions/public"
 
 type FrontPageRow = {
   pageHeading: string
@@ -284,6 +286,19 @@ async function readFrontPageRows(
           events: [],
           zone: "",
         }
+      } else if (kind === "deals") {
+        // Filled after the cache by `fillFrontPageDeals`, because which deals
+        // are still on changes by the minute.
+        section = {
+          kind: "deals",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          count: row.listingCount,
+          categoryId: row.categoryId,
+          categorySlug: row.categorySlug,
+          deals: [],
+        }
       } else if (kind === "categories") {
         section = {
           kind: "categories",
@@ -349,7 +364,7 @@ async function readFrontPageRows(
     // not drawn at all — whichever kind of row it is. A row of events is kept
     // here and judged once it is filled.
     rows: [...byId.values()].filter((row) =>
-      row.kind === "events"
+      row.kind === "events" || row.kind === "deals"
         ? true
         : row.kind === "categories"
           ? row.cards.length > 0
@@ -430,6 +445,46 @@ export async function fillFrontPageEvents(
       return events.length && timeZone
         ? { ...row, events, zone: timeZoneLabel(timeZone) }
         : null
+    })
+  )
+  const kept = rows.filter((row) => row !== null)
+  return kept.length ? { ...page, rows: kept } : null
+}
+
+/**
+ * The home page with its rows of deals filled in: the newest deals still on
+ * by the site's clock, at listings in the row's category when it has one.
+ * Read after the page's cache, like the events rows. `visible` is whether
+ * this visitor may see the Deals page; when not, the rows of deals are left
+ * off. A row with no live deal is dropped, never drawn empty, and a page left
+ * with no rows at all is null.
+ */
+export async function fillFrontPageDeals(
+  site: VisitorSite,
+  page: DirectoryFrontPageData,
+  visible: boolean,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<DirectoryFrontPageData | null> {
+  const hasDeals = page.rows.some((row) => row.kind === "deals")
+  const now =
+    visible && hasDeals
+      ? wallClockAt(await siteTimeZone(site.id, database), at)
+      : null
+  const rows = await Promise.all(
+    page.rows.map(async (row) => {
+      if (row.kind !== "deals") return row
+      if (!now) return null
+      const deals = listedDealsAt(
+        await readNewestDeals(
+          site,
+          now,
+          { categoryId: row.categoryId, limit: row.count },
+          database
+        ),
+        now
+      )
+      return deals.length ? { ...row, deals } : null
     })
   )
   const kept = rows.filter((row) => row !== null)

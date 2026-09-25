@@ -9,6 +9,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
+import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { EventList } from "@/components/events/public/event-list"
 import { PostGrid } from "@/components/posts/public/post-grid"
@@ -82,6 +83,7 @@ function CategoryRoute() {
     browseTitle,
     posts,
     upcomingEvents,
+    categoryDeals,
   } = Route.useLoaderData()
   const events = upcomingEvents?.events ?? []
 
@@ -150,6 +152,15 @@ function CategoryRoute() {
             Explore {category.name}
           </h2>
           <CategoryGrid categories={children} />
+        </section>
+      ) : null}
+
+      {categoryDeals.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="deals">
+          <h2 id="deals" className="text-lg font-semibold">
+            Deals in {category.name}
+          </h2>
+          <DealGrid deals={categoryDeals} />
         </section>
       ) : null}
 

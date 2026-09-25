@@ -4,6 +4,8 @@ import { CalendarIcon, ClockIcon, MapPinIcon } from "lucide-react"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { ClaimBox } from "@/components/promotions/public/claim-box"
+import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadDeal } from "@/lib/api/promotions/public"
@@ -50,7 +52,7 @@ export const Route = createFileRoute("/deals_/$slug")({
 })
 
 function DealRoute() {
-  const { site, deal, ended, upcoming, days, times, nowText } =
+  const { site, deal, ended, upcoming, days, times, nowText, claimBox } =
     Route.useLoaderData()
   const photo = deal.coverImage || deal.listingImage
 
@@ -153,7 +155,8 @@ function DealRoute() {
             <p className="text-sm whitespace-pre-line">{deal.description}</p>
           ) : null}
 
-          {/* The server sends no code once the deal has ended. */}
+          {/* The server sends no shared code once the deal has ended, or while
+              each visitor claims their own. */}
           {deal.code ? (
             <div className="grid w-fit max-w-full gap-1 rounded-md border px-4 py-3">
               <span className="text-xs text-muted-foreground">Code</span>
@@ -162,6 +165,8 @@ function DealRoute() {
               </span>
             </div>
           ) : null}
+
+          {claimBox ? <ClaimBox promotionId={deal.id} box={claimBox} /> : null}
 
           {deal.smallPrint ? (
             <section aria-labelledby="deal-small-print" className="grid gap-1">
@@ -176,6 +181,17 @@ function DealRoute() {
               </p>
             </section>
           ) : null}
+
+          {/* Last, and shown after the deal is over too: "it has ended" when
+              it hasn't is exactly what a visitor needs to be able to say. A
+              div, so the link stays its own width in the card's grid. */}
+          <div>
+            <ReportProblemButton
+              kind="promotion"
+              subjectId={deal.id}
+              title={deal.title}
+            />
+          </div>
         </CardContent>
       </Card>
     </DirectoryFrame>
