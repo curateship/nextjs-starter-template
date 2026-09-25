@@ -64,10 +64,15 @@ import {
   saveSmartDca,
   saveSmartGrid,
 } from "@/server/trade/prefs"
-import { openPartClose, type PartCloseOutcome } from "@/server/trade/part-close"
+import {
+  openPartClose,
+  type CloseHow,
+  type PartCloseOutcome,
+  type PartCloseSize,
+} from "@/server/trade/part-close"
 import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
 
-export type { PartCloseOutcome }
+export type { CloseHow, PartCloseOutcome, PartCloseSize }
 import {
   flattenWallet,
   type FlattenOutcome,
@@ -430,8 +435,8 @@ const flattenWalletFn = createServerFn({ method: "POST" })
  * see `part-close.ts` for why a part close is not the close button with a
  * number on it.
  *
- * The answer says which road it took. `whole` means the size covered the
- * position, so the browser sends the ordinary whole close instead: two
+ * The answer says which road it took. `whole` means a market close covered
+ * the position, so the browser sends the ordinary whole close instead: two
  * mechanisms with one obvious meaning between them, decided on the server
  * where the held size is known for certain.
  */
@@ -441,9 +446,19 @@ const closePartOfPositionFn = createServerFn({ method: "POST" })
     z.object({
       walletId: z.string().max(36),
       marketKey: marketKeySchema,
-      /** Coins, or dollars at the price the exchange is quoting on arrival. */
-      unit: z.enum(["coins", "usd"]),
-      amount: z.number().positive().finite(),
+      /** Coins, dollars at the price the exchange is quoting on arrival, or all of it. */
+      size: z.discriminatedUnion("unit", [
+        z.object({
+          unit: z.literal("coins"),
+          amount: z.number().positive().finite(),
+        }),
+        z.object({
+          unit: z.literal("usd"),
+          amount: z.number().positive().finite(),
+        }),
+        z.object({ unit: z.literal("all") }),
+      ]),
+      how: z.enum(["market", "limit"]),
     })
   )
   .handler(async ({ data, context }): Promise<PartCloseOutcome> => {
@@ -455,7 +470,8 @@ const closePartOfPositionFn = createServerFn({ method: "POST" })
       async () =>
         await openPartClose(context.user.id, wallet, {
           marketKey: data.marketKey,
-          size: { unit: data.unit, amount: data.amount },
+          size: data.size,
+          how: data.how,
         })
     )
   })
@@ -599,8 +615,8 @@ export function flattenWalletApi(input: { walletId: string }) {
 export function closePartOfPosition(input: {
   walletId: string
   marketKey: string
-  unit: "coins" | "usd"
-  amount: number
+  size: PartCloseSize
+  how: CloseHow
 }) {
   return closePartOfPositionFn({ data: input })
 }
@@ -977,6 +993,9 @@ export function loadSmartGridParams() {
   return loadSmartGridFn()
 }
 
+/** What a Smart order refusal says when no code above names it. */
+export const SMART_ORDER_FALLBACK = "That did not go through. Try it again."
+
 const baseSmartOrderErrorMessage = withLinkedGridStopMessage(createErrorMessage(
   {
     ...GRID_LINE_STOP_ERRORS,
@@ -1113,7 +1132,7 @@ const baseSmartOrderErrorMessage = withLinkedGridStopMessage(createErrorMessage(
     SMART_GRID_WHOLE_FIXED:
       "The whole grid can move once it is holding no coin. An entry that already opened has to stay at the price it actually paid.",
   },
-  "That did not go through. Try it again."
+  SMART_ORDER_FALLBACK
 ))
 
 export function reverseGridOrder(input: z.infer<typeof gridSchema>) {

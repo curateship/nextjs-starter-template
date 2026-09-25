@@ -798,7 +798,10 @@ function SmartOrdersView({
                                   focusRing
                                 )}
                               >
-                                <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">
+                                {/* Block, because an inline span ignores
+                                    the clipping and a long name ran into
+                                    the Type column (Tyler, 24 Sep 2026). */}
+                                <span className="block min-w-0 truncate text-xs font-semibold sm:text-sm">
                                   {symbol}
                                 </span>
                               </button>
@@ -932,7 +935,7 @@ function SmartOrderDetailsPopover({
     order.plan.pauseReason ?? "The exchange refused this smart order."
   return (
     <Popover>
-      <div className="flex w-full min-w-0 items-center gap-1">
+      <div className="relative flex w-full min-w-0 items-center gap-1">
         {children}
         <PopoverTrigger asChild>
           <button
@@ -940,10 +943,12 @@ function SmartOrderDetailsPopover({
             aria-label={`${symbol} smart order details`}
             title={`Show ${symbol} smart order details`}
             className={cn(
-              "ml-auto shrink-0 rounded-sm p-1 text-muted-foreground/40 hover:bg-muted hover:text-foreground",
+              "absolute top-1/2 right-0 -translate-y-1/2 rounded-sm p-1 text-muted-foreground/40 hover:bg-muted hover:text-foreground",
               // Out of sight until the row is pointed at (Tyler, 13 Sep 2026).
-              // It keeps its space, so no ticker jumps sideways on hover, and
-              // it comes back for the keyboard and while its card is open.
+              // It floats over the right edge of the cell, so no ticker jumps
+              // sideways on hover and the name can use the whole cell before
+              // it is cut short. It comes back for the keyboard and while its
+              // card is open.
               "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
               focusRing
             )}
@@ -958,7 +963,10 @@ function SmartOrderDetailsPopover({
         collisionPadding={8}
         className="w-64 max-w-[calc(100vw-1rem)] overflow-hidden p-0"
       >
-        <ScrollArea className="max-h-[min(28rem,calc(100vh-2rem))]" viewportClassName="[&>div]:block!">
+        {/* The cap sits on the viewport, which is the box that scrolls. On
+            the outer frame it only clipped the list, and the last sales and
+            the total could not be reached. */}
+        <ScrollArea viewportClassName="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
         <div className="border-b p-2.5">
           <p className="font-medium">
             {symbol} smart order

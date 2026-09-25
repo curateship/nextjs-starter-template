@@ -1,24 +1,30 @@
-# Selling part of a position
+# Closing a position: how much, and market or limit
 
-The bin on a position row opens a window asking how much comes off. It starts
-on all of it, which is what the button did before, so nothing has to be filled
-in to get the old behaviour.
+The X on a position row opens a window asking how much comes off and how it
+sells. It starts on all of it at market, which is what the button did before,
+so nothing has to be filled in to get the old behaviour.
 
-## All of it and part of it are sold differently
+## Market or limit, for any amount
 
-This is the part worth understanding, because it is not a detail.
+Tyler asked for the choice on 24 Sep 2026: "When closing trade. GIve me an
+option to choose market close or limit close". The window's **Order type**
+picks one.
 
-- **All of it is a market order.** It pays the spread and the taker fee to be
-  out right now, which is what somebody pressing "close everything" is asking
-  for.
-- **A part is a limit order that follows the price.** It rests just off the
-  market, never crosses it, and moves as the price moves until it fills. That
-  is what `../rules/trading-rules.md` asks of a close, and taking some profit off a
-  winner is exactly the case where it matters: the trade is going your way,
-  there is no hurry, and the spread is money.
+- **Market** sells now. It pays the spread and the taker fee to be out right
+  away. All of it at market is the ordinary close. Part of it at market is one
+  reduce-only market order for that piece.
+- **Limit** is an order that follows the price. It rests just off the market,
+  never crosses it, and moves as the price moves until it fills. Nothing is
+  typed in: Tyler chose this over a fixed price on 24 Sep 2026. Taking some
+  profit off a winner is where it matters most, because there is no hurry and
+  the spread is money.
+- **Until the person picks one, the choice follows the amount.** All of it
+  starts on Market and a part starts on Limit, which is how the window worked
+  before it offered the choice. Once picked, it stays picked when the amount
+  changes.
 
-The window says which of the two a press will do, in dollars, before it is
-pressed.
+The window says in dollars what the press will do before it is pressed, and
+which of the two it is.
 
 ## What the window asks
 
@@ -52,13 +58,16 @@ for one. Capping cannot over-sell, because of the next rule.
 
 **A remainder too small to be an order is not a remainder.** If what would be
 left is under the exchange's smallest order, the whole position is sold
-instead. Leaving a scrap behind would leave something that can never be closed
+instead: with the ordinary close for market, and chased for limit. Leaving a scrap behind would leave something that can never be closed
 again: from then on the close button itself would be refused. This also covers
 a near-miss the window makes on its own — the amount box holds cents, and all
 of a $99.29 position is 35.699133 coins, which read back from "99.29" is a hair
 short.
 
 ## How the chase works
+
+This section is the Limit choice. Market sends its order straight away and
+writes no row.
 
 Nothing is sent to an exchange when the press lands. One row is written, and
 the engine's next pass rests a reduce-only post-only limit just off the price
