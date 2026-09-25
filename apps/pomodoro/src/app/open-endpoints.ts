@@ -28,7 +28,10 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "pomodoro/rooms.ts:lookupRoomFn":
+    "An invite link must say what it points at before sign-in: the lookup answers a status, the room's name and a member count, never member names, emails or ids.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The

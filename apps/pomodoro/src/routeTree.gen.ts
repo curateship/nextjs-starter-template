@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as PomodoroRouteImport } from './routes/_pomodoro'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
@@ -32,6 +33,14 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as PomodoroBackgroundsRouteImport } from './routes/_pomodoro/backgrounds'
+import { Route as PomodoroHistoryRouteImport } from './routes/_pomodoro/history'
+import { Route as PomodoroLeaderboardRouteImport } from './routes/_pomodoro/leaderboard'
+import { Route as PomodoroRoomsRouteImport } from './routes/_pomodoro/rooms'
+import { Route as PomodoroSettingsRouteImport } from './routes/_pomodoro/settings'
+import { Route as PomodoroSoundsRouteImport } from './routes/_pomodoro/sounds'
+import { Route as PomodoroTasksRouteImport } from './routes/_pomodoro/tasks'
+import { Route as PomodoroTimerRouteImport } from './routes/_pomodoro/timer'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -56,6 +65,7 @@ import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
+import { Route as PomodoroRoomsSlugRouteImport } from './routes/_pomodoro/rooms_.$slug'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -70,6 +80,7 @@ import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/res
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
+import { Route as ApiPomodoroRoomsSlugEventsRouteImport } from './routes/api/pomodoro/rooms.$slug.events'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -84,6 +95,10 @@ const SplatRoute = SplatRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PomodoroRoute = PomodoroRouteImport.update({
+  id: '/_pomodoro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangeEmailRoute = ChangeEmailRouteImport.update({
@@ -185,6 +200,46 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const PomodoroBackgroundsRoute = PomodoroBackgroundsRouteImport.update({
+  id: '/backgrounds',
+  path: '/backgrounds',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroHistoryRoute = PomodoroHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroLeaderboardRoute = PomodoroLeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroRoomsRoute = PomodoroRoomsRouteImport.update({
+  id: '/rooms',
+  path: '/rooms',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroSettingsRoute = PomodoroSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroSoundsRoute = PomodoroSoundsRouteImport.update({
+  id: '/sounds',
+  path: '/sounds',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroTasksRoute = PomodoroTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroTimerRoute = PomodoroTimerRouteImport.update({
+  id: '/timer',
+  path: '/timer',
+  getParentRoute: () => PomodoroRoute,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -323,6 +378,11 @@ const AuthenticatedChangelogWhatsNewRoute =
     path: '/whats-new',
     getParentRoute: () => AuthenticatedChangelogRoute,
   } as any)
+const PomodoroRoomsSlugRoute = PomodoroRoomsSlugRouteImport.update({
+  id: '/rooms_/$slug',
+  path: '/rooms/$slug',
+  getParentRoute: () => PomodoroRoute,
+} as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -401,6 +461,12 @@ const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
     path: '/automations/templates/$templateKey',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const ApiPomodoroRoomsSlugEventsRoute =
+  ApiPomodoroRoomsSlugEventsRouteImport.update({
+    id: '/api/pomodoro/rooms/$slug/events',
+    path: '/api/pomodoro/rooms/$slug/events',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -430,6 +496,14 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/backgrounds': typeof PomodoroBackgroundsRoute
+  '/history': typeof PomodoroHistoryRoute
+  '/leaderboard': typeof PomodoroLeaderboardRoute
+  '/rooms': typeof PomodoroRoomsRoute
+  '/settings': typeof PomodoroSettingsRoute
+  '/sounds': typeof PomodoroSoundsRoute
+  '/tasks': typeof PomodoroTasksRoute
+  '/timer': typeof PomodoroTimerRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -452,6 +526,7 @@ export interface FileRoutesByFullPath {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/rooms/$slug': typeof PomodoroRoomsSlugRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -468,6 +543,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
@@ -491,6 +567,14 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/backgrounds': typeof PomodoroBackgroundsRoute
+  '/history': typeof PomodoroHistoryRoute
+  '/leaderboard': typeof PomodoroLeaderboardRoute
+  '/rooms': typeof PomodoroRoomsRoute
+  '/settings': typeof PomodoroSettingsRoute
+  '/sounds': typeof PomodoroSoundsRoute
+  '/tasks': typeof PomodoroTasksRoute
+  '/timer': typeof PomodoroTimerRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -513,6 +597,7 @@ export interface FileRoutesByTo {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/rooms/$slug': typeof PomodoroRoomsSlugRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -529,6 +614,7 @@ export interface FileRoutesByTo {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
@@ -536,6 +622,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/_pomodoro': typeof PomodoroRouteWithChildren
   '/change-email': typeof ChangeEmailRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -556,6 +643,14 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/_pomodoro/backgrounds': typeof PomodoroBackgroundsRoute
+  '/_pomodoro/history': typeof PomodoroHistoryRoute
+  '/_pomodoro/leaderboard': typeof PomodoroLeaderboardRoute
+  '/_pomodoro/rooms': typeof PomodoroRoomsRoute
+  '/_pomodoro/settings': typeof PomodoroSettingsRoute
+  '/_pomodoro/sounds': typeof PomodoroSoundsRoute
+  '/_pomodoro/tasks': typeof PomodoroTasksRoute
+  '/_pomodoro/timer': typeof PomodoroTimerRoute
   '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -578,6 +673,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/_pomodoro/rooms_/$slug': typeof PomodoroRoomsSlugRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -594,6 +690,7 @@ export interface FileRoutesById {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -621,6 +718,14 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/home'
     | '/workspaces'
+    | '/backgrounds'
+    | '/history'
+    | '/leaderboard'
+    | '/rooms'
+    | '/settings'
+    | '/sounds'
+    | '/tasks'
+    | '/timer'
     | '/api/health'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -643,6 +748,7 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/changelog/whats-new'
+    | '/rooms/$slug'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -659,6 +765,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/api/pomodoro/rooms/$slug/events'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -682,6 +789,14 @@ export interface FileRouteTypes {
     | '/account'
     | '/home'
     | '/workspaces'
+    | '/backgrounds'
+    | '/history'
+    | '/leaderboard'
+    | '/rooms'
+    | '/settings'
+    | '/sounds'
+    | '/tasks'
+    | '/timer'
     | '/api/health'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -704,6 +819,7 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/changelog/whats-new'
+    | '/rooms/$slug'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -720,12 +836,14 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/api/pomodoro/rooms/$slug/events'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
     | '/'
     | '/$'
     | '/_authenticated'
+    | '/_pomodoro'
     | '/change-email'
     | '/forgot-password'
     | '/login'
@@ -746,6 +864,14 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
+    | '/_pomodoro/backgrounds'
+    | '/_pomodoro/history'
+    | '/_pomodoro/leaderboard'
+    | '/_pomodoro/rooms'
+    | '/_pomodoro/settings'
+    | '/_pomodoro/sounds'
+    | '/_pomodoro/tasks'
+    | '/_pomodoro/timer'
     | '/api/health'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
@@ -768,6 +894,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
     | '/_authenticated/changelog/whats-new'
+    | '/_pomodoro/rooms_/$slug'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -784,6 +911,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
+    | '/api/pomodoro/rooms/$slug/events'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
@@ -791,6 +919,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  PomodoroRoute: typeof PomodoroRouteWithChildren
   ChangeEmailRoute: typeof ChangeEmailRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
@@ -814,6 +943,7 @@ export interface RootRouteChildren {
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
+  ApiPomodoroRoomsSlugEventsRoute: typeof ApiPomodoroRoomsSlugEventsRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
@@ -838,6 +968,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_pomodoro': {
+      id: '/_pomodoro'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PomodoroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/change-email': {
@@ -979,6 +1116,62 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_pomodoro/backgrounds': {
+      id: '/_pomodoro/backgrounds'
+      path: '/backgrounds'
+      fullPath: '/backgrounds'
+      preLoaderRoute: typeof PomodoroBackgroundsRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/history': {
+      id: '/_pomodoro/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof PomodoroHistoryRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/leaderboard': {
+      id: '/_pomodoro/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof PomodoroLeaderboardRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/rooms': {
+      id: '/_pomodoro/rooms'
+      path: '/rooms'
+      fullPath: '/rooms'
+      preLoaderRoute: typeof PomodoroRoomsRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/settings': {
+      id: '/_pomodoro/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof PomodoroSettingsRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/sounds': {
+      id: '/_pomodoro/sounds'
+      path: '/sounds'
+      fullPath: '/sounds'
+      preLoaderRoute: typeof PomodoroSoundsRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/tasks': {
+      id: '/_pomodoro/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof PomodoroTasksRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/timer': {
+      id: '/_pomodoro/timer'
+      path: '/timer'
+      fullPath: '/timer'
+      preLoaderRoute: typeof PomodoroTimerRouteImport
+      parentRoute: typeof PomodoroRoute
     }
     '/api/health': {
       id: '/api/health'
@@ -1148,6 +1341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
       parentRoute: typeof AuthenticatedChangelogRoute
     }
+    '/_pomodoro/rooms_/$slug': {
+      id: '/_pomodoro/rooms_/$slug'
+      path: '/rooms/$slug'
+      fullPath: '/rooms/$slug'
+      preLoaderRoute: typeof PomodoroRoomsSlugRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -1245,6 +1445,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/automations/templates/$templateKey'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/pomodoro/rooms/$slug/events': {
+      id: '/api/pomodoro/rooms/$slug/events'
+      path: '/api/pomodoro/rooms/$slug/events'
+      fullPath: '/api/pomodoro/rooms/$slug/events'
+      preLoaderRoute: typeof ApiPomodoroRoomsSlugEventsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -1384,10 +1591,39 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface PomodoroRouteChildren {
+  PomodoroBackgroundsRoute: typeof PomodoroBackgroundsRoute
+  PomodoroHistoryRoute: typeof PomodoroHistoryRoute
+  PomodoroLeaderboardRoute: typeof PomodoroLeaderboardRoute
+  PomodoroRoomsRoute: typeof PomodoroRoomsRoute
+  PomodoroSettingsRoute: typeof PomodoroSettingsRoute
+  PomodoroSoundsRoute: typeof PomodoroSoundsRoute
+  PomodoroTasksRoute: typeof PomodoroTasksRoute
+  PomodoroTimerRoute: typeof PomodoroTimerRoute
+  PomodoroRoomsSlugRoute: typeof PomodoroRoomsSlugRoute
+}
+
+const PomodoroRouteChildren: PomodoroRouteChildren = {
+  PomodoroBackgroundsRoute: PomodoroBackgroundsRoute,
+  PomodoroHistoryRoute: PomodoroHistoryRoute,
+  PomodoroLeaderboardRoute: PomodoroLeaderboardRoute,
+  PomodoroRoomsRoute: PomodoroRoomsRoute,
+  PomodoroSettingsRoute: PomodoroSettingsRoute,
+  PomodoroSoundsRoute: PomodoroSoundsRoute,
+  PomodoroTasksRoute: PomodoroTasksRoute,
+  PomodoroTimerRoute: PomodoroTimerRoute,
+  PomodoroRoomsSlugRoute: PomodoroRoomsSlugRoute,
+}
+
+const PomodoroRouteWithChildren = PomodoroRoute._addFileChildren(
+  PomodoroRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  PomodoroRoute: PomodoroRouteWithChildren,
   ChangeEmailRoute: ChangeEmailRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
@@ -1411,6 +1647,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
+  ApiPomodoroRoomsSlugEventsRoute: ApiPomodoroRoomsSlugEventsRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport
