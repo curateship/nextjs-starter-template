@@ -1,20 +1,26 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { CheckIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import {
+  CheckIcon,
+  MaximizeIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react"
 
 import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
+import { ZenMode } from "@/components/pomodoro/zen-mode"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { taskProgressLabel } from "@/lib/pomodoro/tasks"
-import type { TimerMode } from "@/lib/pomodoro/timer"
+import { MODE_LABELS, type TimerMode } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
-
-const modeLabels: Record<TimerMode, string> = {
-  focus: "Focus",
-  short: "Short break",
-  long: "Long break",
-}
 
 // The old app's own words, kept letter for letter.
 const modeHints: Record<TimerMode, string> = {
@@ -35,6 +41,14 @@ const circumference = 2 * Math.PI * 132
 export function TimerDashboard() {
   const pomodoro = usePomodoro()
   const [taskTitle, setTaskTitle] = React.useState("")
+  const [zen, setZen] = React.useState(false)
+  const zenButton = React.useRef<HTMLButtonElement>(null)
+  // Leaving unmounts zen mode and mounts this screen again, so the focus move
+  // back to the control that opened it waits for that button to exist.
+  const leaveZen = React.useCallback(() => {
+    setZen(false)
+    requestAnimationFrame(() => zenButton.current?.focus())
+  }, [])
   const minutes = Math.floor(pomodoro.remainingSeconds / 60)
   const seconds = pomodoro.remainingSeconds % 60
   const totalSeconds = pomodoro.timer.durationMinutes * 60
@@ -43,6 +57,8 @@ export function TimerDashboard() {
   const goalReached =
     pomodoro.todayFocusSessions >= pomodoro.dailyGoalSessions
   const completedTasks = pomodoro.tasks.filter((task) => task.completed).length
+
+  if (zen) return <ZenMode pomodoro={pomodoro} onLeave={leaveZen} />
 
   return (
     <div className="flex flex-col gap-8">
@@ -91,13 +107,32 @@ export function TimerDashboard() {
             >
               {pomodoro.timer.running ? "Pause" : "Start"}
             </button>
-            <button
-              className="grid size-11 place-items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:text-foreground"
-              onClick={pomodoro.reset}
-              aria-label="Reset timer"
-            >
-              <RotateCcwIcon className="size-[17px]" aria-hidden="true" />
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button
+                className="grid size-11 place-items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:text-foreground"
+                onClick={pomodoro.reset}
+                aria-label="Reset timer"
+              >
+                <RotateCcwIcon className="size-[17px]" aria-hidden="true" />
+              </button>
+              {/* The one icon on this screen whose picture does not say what
+                  it does, so it keeps a tooltip while Reset does not. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    ref={zenButton}
+                    className="grid size-11 place-items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:text-foreground"
+                    onClick={() => setZen(true)}
+                    aria-label="Enter zen mode"
+                  >
+                    <MaximizeIcon className="size-[17px]" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Zen mode: fullscreen, just the ring and the task
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
 
@@ -106,7 +141,7 @@ export function TimerDashboard() {
           role="tablist"
           aria-label="Timer mode"
         >
-          {(Object.keys(modeLabels) as TimerMode[]).map((mode) => (
+          {(Object.keys(MODE_LABELS) as TimerMode[]).map((mode) => (
             <button
               key={mode}
               role="tab"
@@ -118,7 +153,7 @@ export function TimerDashboard() {
               )}
               onClick={() => pomodoro.selectMode(mode)}
             >
-              {modeLabels[mode]}
+              {MODE_LABELS[mode]}
             </button>
           ))}
         </div>

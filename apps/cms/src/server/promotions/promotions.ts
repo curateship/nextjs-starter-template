@@ -231,15 +231,7 @@ export function cleanDealTimes(value: unknown): DealTimes {
   }
   const times = {} as DealTimes
   for (const day of LISTING_WEEKDAYS) {
-    const raw = source[day]
-    const first = shiftOf(raw, LISTING_WEEKDAY_LABELS[day])
-    const second = first
-      ? shiftOf(
-          (raw as Record<string, unknown>).second,
-          `${LISTING_WEEKDAY_LABELS[day]}'s second time`
-        )
-      : null
-    times[day] = first ? { ...first, second } : null
+    times[day] = shiftOf(source[day], LISTING_WEEKDAY_LABELS[day])
   }
   return times
 }
