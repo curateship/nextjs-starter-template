@@ -37,3 +37,6 @@ cover this one.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
   room, the five reactions, reporting a message, and the host's delete,
   remove and ban.
+- [Admin sections](admin-sections.md) — the six operator pages under
+  `/admin`: focus data, tasks, sessions, rooms, media, and the report queue
+  with its resolve, dismiss and reopen.
