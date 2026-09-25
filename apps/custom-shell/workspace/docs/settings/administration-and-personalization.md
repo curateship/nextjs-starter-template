@@ -1,34 +1,39 @@
 # Administration and personalization
 
 Settings is the control room for the active workspace and platform. The rail is
-two cards: **Platform settings**, everything the shell owns, and a card named
-after the app, everything the app owns.
+two cards, and the line between them is what the app is allowed to decide.
 
-**Platform settings** holds six rows, then a Public heading and five more:
+**Platform settings** is the shell's half, and no app may take any of it over:
+General settings, Navigation, Widgets, Styling, Email, Payments. All six are
+about the signed-in workspace an admin works in.
 
-- General settings, Navigation, Widgets, Styling, Email, Payments.
-- Under Public: Navigation for the signed-out header layout and links, Styling
+**App settings** is everything an app may take over, in three blocks:
+
+- The app's own rows first, with no heading, because the card already names
+  them and they are the reason an admin opens it.
+- **Members**: Navigation, the member sidebar and member top right menu.
+- **Public**: Navigation for the signed-out header layout and links, Styling
   for the site's colours and frame, Pages for system-page wording, SEO for
   site-wide search defaults, and Social for X card choices.
 
-The public rows carry short names because the heading above them says whose
-Navigation and whose Styling they are. The Public heading is drawn at the same
-size and weight as the card's own title, so the card reads as two titled halves
-rather than a list with a caption in it.
+Members and Public are the two audiences that are not the admin, and that is
+the only cut that survives an app adding things. The rows under each heading
+carry short names because the heading is what says whose Navigation and whose
+Styling they are, and a heading is drawn at the same size and weight as the
+card's own title.
 
-**The app's card** is titled from the App name on General settings, so it reads
-"Custom Shell settings" here and "Trade settings" in Trade. The shell puts one
-row in it, Navigation, which is the member sidebar and member top right menu.
-An app adds its own rows through app options, and an app may also take over the
-Navigation row with a screen of its own. See [an app's own settings
-rows](#an-apps-own-settings-rows).
+The card is called **App settings** in every app rather than after the app. The
+app's name is an editable field, so the card would rename itself the moment
+somebody changed it, and an admin already knows which app they are in.
 
-Security, Notifications, Storage and AI were rows in the rail until 25 Sep 2026.
-Each was a single card, so each is now a card on General settings instead, and
-the rail went from 16 rows in three cards to 11 rows in two. An address saved
-before the change, such as `/admin/settings/security`, opens General settings,
-because an unknown tab id falls back to General and General is where that
-content now lives.
+Two things moved to get here, both on 25 Sep 2026. Security, Notifications,
+Storage and AI stopped being rows and became cards on General settings; each was
+a single card already. Then the public rows moved out of the shell's card into
+the app's, because the shell can scaffold a public site and cannot be right
+about one for every app. The rail went from 16 rows in three cards to 6 and 6 in
+two. An address saved before the first change, such as `/admin/settings/security`,
+opens General settings, because an unknown tab id falls back to General and
+General is where that content now lives.
 
 Sidebar section cards have 16px between them, matching the containing card's
 16px content inset. Add section and Reset all to defaults sit inside that
@@ -59,18 +64,29 @@ the page's own save still shows. `use-reported-save-status.ts` holds that rule.
 
 ## An app's own settings rows
 
-The card named after the app holds Navigation first, then whatever the app adds
-in its `app-options.ts`. Nothing in that file means the card still appears with
-Navigation in it.
+An app adds rows to the App settings card through `settings.tabs` in its
+`src/app/options.ts`. They appear above Members. An app that adds nothing still
+gets the card, opening on the Members heading.
 
-An app whose members never see the shell's sidebar has no use for the shell's
-Navigation screen. Pomodoro is the case: its member pages draw their own sidebar
-from a list in its own code, so the shell's screen there edits settings no page
-reads. Such an app registers a tab with the id `member-navigation`, and its
-screen takes that row's place and keeps its position. Every other shell tab id
-is still refused out loud, and so is an id an app used twice.
-`REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts` is the list of ids an app
-may claim.
+**An app may also take over any row the shell put there.** It registers a tab
+with that row's id, and its own screen takes that place and keeps the position,
+so Public → Styling stays between Navigation and Pages whoever draws it. The six
+claimable ids are `member-navigation`, `public-navigation`, `public-styling`,
+`public-pages`, `public-seo` and `public-social`, listed as
+`REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts`. Every id on Platform
+settings is still refused out loud, and so is an id an app used twice.
+
+Two reasons a real app needs this. Pomodoro's member pages draw their own
+sidebar from a list in its own code and never read `memberSections`, so the
+shell's member Navigation screen there edits settings no page of its reads. CMS
+gives each site its own domain, which is a different question about public
+navigation than a one-site app has.
+
+**Claiming a row does not move the data.** `ShellConfig` still holds
+`publicTheme`, `publicNavigation`, `memberSections` and the rest, and the
+shell's `PublicPageFrame` and sidebar are still what draw from them. A
+replacement screen has to write those same fields. One that writes somewhere of
+its own is a settings screen that changes nothing.
 
 ## Saving
 
@@ -94,9 +110,9 @@ change cannot erase another.
 ## Navigation and style choices
 
 Platform settings → Navigation combines Your sidebar and Your top right menu on
-one page. The app's card → Navigation combines the member sidebar and member top
-right menu separately, so editing one role's links does not change the other
-role's links. The former Sidebar and Top right menu tabs are no longer listed.
+one page. App settings → Members → Navigation combines the member sidebar and
+member top right menu separately, so editing one role's links does not change
+the other role's links. The former Sidebar and Top right menu tabs are no longer listed.
 
 Top left max items lives inside Your sidebar on Platform settings →
 Navigation. It controls how
@@ -194,9 +210,10 @@ icon with it**, because they are the same picture. An install that had a
 favicon set and no logo therefore loses that favicon on its next settings save.
 Pick the picture in the Logo field before saving and it comes back as both.
 
-Public Styling is separate from the Styling row above it. Styling
-changes the signed-in workspace used by admins and members. Public Styling
-changes only the pages a visitor can see before signing in. Font, corners,
+App settings → Public → Styling is separate from Platform settings → Styling,
+which is why they sit in different cards. Platform Styling changes the signed-in
+workspace used by admins and members. Public Styling changes only the pages a
+visitor can see before signing in. Font, corners,
 background pattern, and button choices are app-wide. Brand colour belongs to
 the current site when the app gives
 workspaces their own public domains. An app without public workspace domains
