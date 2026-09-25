@@ -4,6 +4,7 @@ import { MapPinIcon, StarIcon, TagIcon } from "lucide-react"
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { SaveDropdown } from "@/components/directory/public/save-dropdown"
+import { CategoryPill } from "@/components/shared/card-chips"
 import { ListingRating } from "@/components/directory/listing-rating"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -66,26 +67,6 @@ export function ListingGrid({
         </li>
       ))}
     </ul>
-  )
-}
-
-/** The pill over the top-left of the photo, and the card's only category. */
-function CategoryPill({
-  name,
-  className,
-}: {
-  name: string
-  className?: string
-}) {
-  return (
-    <span
-      className={cn(
-        "truncate rounded-full bg-background px-2.5 py-1 text-xs font-medium tracking-wide text-foreground uppercase",
-        className
-      )}
-    >
-      {name}
-    </span>
   )
 }
 
@@ -206,7 +187,7 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
               </Badge>
             ) : null}
             {categoryInBadges ? (
-              <CategoryPill name={categoryInBadges.name} />
+              <CategoryPill name={categoryInBadges.name} tone="plain" />
             ) : null}
             {/* Above the stretched link layer, so the badge's own tooltip is
                 reachable rather than being covered by the card-wide click

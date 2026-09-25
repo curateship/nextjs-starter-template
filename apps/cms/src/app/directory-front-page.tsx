@@ -4,7 +4,7 @@ import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
-import { EventList } from "@/components/events/public/event-list"
+import { EventCardGrid } from "@/components/events/public/event-card"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { Button } from "@/components/ui/button"
 import type {
@@ -83,7 +83,7 @@ function FrontPageRow({
         <CategoryGrid categories={row.cards} />
       ) : row.kind === "events" ? (
         <>
-          <EventList
+          <EventCardGrid
             // Only events still to come reach a row, so none is marked over.
             events={row.events.map((event) => ({ ...event, ended: false }))}
             // Never seen: a row with nothing coming up is dropped on the
