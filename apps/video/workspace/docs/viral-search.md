@@ -50,6 +50,30 @@ view count. Keyword, window, minimum and sort all live in the address, so a
 reload repeats the same search and the address can be handed to somebody else.
 A channel that hides a count shows "—" rather than a zero.
 
+## What is kept
+
+Every search is saved with its results the moment YouTube answers
+(`video_viral_searches` and `video_viral_results`, migration 0092), so
+looking at a past keyword costs nothing.
+
+- The past-keywords panel on the left lists every saved search, the one that
+  ran last first, with how many Shorts it found and when it ran. Clicking one
+  shows its saved results without asking YouTube.
+- After a fresh search, the address swaps the keyword for the saved search's
+  id, so a reload or a shared address opens the saved copy free.
+- The same keyword searched again updates its old row and replaces its
+  results — matched ignoring case, the way YouTube matches — so the list
+  never piles up copies. That was the task's open question, answered the way
+  the task assumed.
+- A failed YouTube call saves nothing: the search runs first, and the row and
+  its results land in one database transaction.
+- Saved results go stale the moment they are saved: the numbers are a
+  snapshot of the moment the search ran, and the "ran ..." line on the open
+  search says how old they are. Run again fetches fresh numbers for the same
+  keyword and filters, replaces the results, and moves the date.
+- Deleting saved searches (tick them in the panel) removes only the keyword
+  rows and their result rows, in one request.
+
 ## What is not here yet
 
 Saving searches is task 02, the score is task 03, and TikTok and Instagram

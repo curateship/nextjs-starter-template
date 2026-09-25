@@ -18,8 +18,14 @@ export const SHORT_MAX_SECONDS = 180
 /** A keyword longer than this is refused before anything is spent. */
 export const VIRAL_KEYWORD_MAX = 100
 
+/** Where a saved search ran. Tasks 09+ add more platforms to this list. */
+export const VIRAL_PLATFORMS = ["youtube"] as const
+export type ViralPlatform = (typeof VIRAL_PLATFORMS)[number]
+
 export type ViralShort = {
   id: string
+  /** The video's own page, opened in a new tab from the table. */
+  url: string
   title: string
   channelId: string
   channelTitle: string
@@ -31,4 +37,15 @@ export type ViralShort = {
   likes: number | null
   comments: number | null
   subscribers: number | null
+}
+
+/** One saved search, as the past-keywords panel lists it. */
+export type ViralSearchSummary = {
+  id: string
+  keyword: string
+  platform: ViralPlatform
+  days: ViralDays
+  min_views: number
+  ran_at: string
+  result_count: number
 }

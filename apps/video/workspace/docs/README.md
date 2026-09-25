@@ -100,7 +100,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   clip comes from, and why every call that asks for one waits for the answer.
 - [viral-search.md](viral-search.md) — the Viral page's YouTube keyword search:
   where the API key goes, what one search costs out of the free 10,000 daily
-  units, and why Shorts means 3 minutes or less.
+  units, why Shorts means 3 minutes or less, and how every search is kept so
+  reopening it is free.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

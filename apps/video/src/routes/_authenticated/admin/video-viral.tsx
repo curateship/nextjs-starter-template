@@ -20,8 +20,17 @@ type ViralSearch = {
   q?: string
   days?: ViralDays
   views?: number
+  /** A saved search open from the past-keywords list. */
+  open?: string
   sort?: (typeof VIRAL_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
+}
+
+/** A saved search's id: a uuid, or nothing. */
+function readOpenId(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 && value.length <= 36
+    ? value
+    : undefined
 }
 
 /** One of the offered windows, or nothing. 7 days is the default. */
@@ -51,6 +60,7 @@ function readViralSearch(search: Record<string, unknown>): ViralSearch {
     q: readSearchText(search.q),
     days: readDays(search.days),
     views: readMinViews(search.views),
+    open: readOpenId(search.open),
     sort: readOneOf(search.sort, VIRAL_SORT_COLUMNS),
     direction: readDirection(search.direction),
   }
@@ -65,12 +75,14 @@ export const Route = createFileRoute("/_authenticated/admin/video-viral")({
     q: search.q,
     days: search.days,
     views: search.views,
+    open: search.open,
   }),
   loader: ({ deps }) =>
     loadViralSearch({
       keyword: deps.q,
       days: deps.days ?? VIRAL_DAY_CHOICES[0],
       minViews: deps.views ?? 0,
+      open: deps.open,
     }),
   component: AdminVideoViralRoute,
   errorComponent: routeErrorComponent(getViralErrorMessage),
