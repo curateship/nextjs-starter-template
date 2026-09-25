@@ -177,7 +177,7 @@ type NotificationOptions = {
 
 type SettingsOptions = {
   /**
-   * Extra tabs on the Settings screen, after the shell's own.
+   * The rows in the app's own Settings card, after the shell's scaffold.
    *
    * For the app's own machinery — the things an admin switches on and off
    * while the app runs, which have nowhere else sensible to live. Trade's
@@ -185,8 +185,10 @@ type SettingsOptions = {
    * running, and pause it" is a settings question even though the answer comes
    * off a server rather than out of the config.
    *
-   * A tab id the shell already uses is refused out loud, and so is an id an
-   * app used twice — the second would simply be unreachable, which looks
+   * A tab id the shell already uses is refused out loud, unless it is one of
+   * `REPLACEABLE_SETTINGS_TAB_IDS`, where the app's screen takes the shell's
+   * place and keeps its position in the card. An id an app used twice is
+   * always refused — the second would simply be unreachable, which looks
    * exactly like one that was never written. Each tab points at its panel's
    * file rather than carrying the component; the reason is on the type.
    */
@@ -698,6 +700,22 @@ export function appOffersMemberTest(
 }
 
 /**
+ * The shell ids an app is allowed to claim for itself.
+ *
+ * A tab with one of these ids replaces the shell's screen in that same place
+ * rather than being refused. `member-navigation` is on the list because the
+ * shell's member sidebar editor is only right for an app whose members see the
+ * shell's own sidebar. Pomodoro draws its own, from its own list, and has no
+ * use for a screen that edits settings none of its pages read.
+ *
+ * Nothing else is claimable. An app with a different idea of what General
+ * settings or Payments should be is not an app on this shell.
+ */
+export const REPLACEABLE_SETTINGS_TAB_IDS: readonly string[] = [
+  "member-navigation",
+]
+
+/**
  * The app's own Settings tabs, or none.
  *
  * The refusals live here rather than on the screen because they are about the
@@ -717,7 +735,10 @@ export function appSettingsTabs(
 
   const seen = new Set<string>()
   for (const tab of tabs) {
-    if (shellIds.includes(tab.id)) {
+    if (
+      shellIds.includes(tab.id) &&
+      !REPLACEABLE_SETTINGS_TAB_IDS.includes(tab.id)
+    ) {
       throw new Error(
         `"${tab.id}" is one of the shell's own Settings tabs. An app's own tab needs an id the shell isn't already using.`
       )

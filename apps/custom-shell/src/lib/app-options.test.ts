@@ -386,6 +386,29 @@ describe("the app's own Settings tabs", () => {
     ).toThrow(/both call themselves/)
   })
 
+  it("lets an app take over the member navigation row", () => {
+    const tabs = [{ id: "member-navigation", label: "Screens", panel }]
+    expect(
+      appSettingsTabs({ settings: { tabs } }, ["general", "member-navigation"])
+    ).toBe(tabs)
+  })
+
+  it("still refuses two member navigation tabs", () => {
+    expect(() =>
+      appSettingsTabs(
+        {
+          settings: {
+            tabs: [
+              { id: "member-navigation", label: "Screens", panel },
+              { id: "member-navigation", label: "Again", panel },
+            ],
+          },
+        },
+        ["member-navigation"]
+      )
+    ).toThrow(/both call themselves/)
+  })
+
   it("hands back what the app asked for", () => {
     const tabs = [{ id: "engine", label: "Engine", panel }]
     expect(appSettingsTabs({ settings: { tabs } })).toBe(tabs)
