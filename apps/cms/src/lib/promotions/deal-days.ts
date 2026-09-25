@@ -1,13 +1,11 @@
-import { wallClockAt } from "@/lib/events/event-time"
-
 /**
  * The one set of rules for a deal's days, used by Admin → Promotions, the
  * Deals page, the deal page and the server alike.
  *
  * A deal stores a first day and an optional last day, like 2026-10-03 and
- * 2026-10-12, and the site stores a time zone. A deal is on through the whole
- * of its last day by the site's clock, so "today" is the only thing that ever
- * needs the time, and it is always the site's today, never the reader's.
+ * 2026-10-12, and the site stores a time zone. Whether a deal is on, and when
+ * it is over, also depends on the times it runs, so that rule is `dealStage`
+ * in `deal-times.ts`. Every "today" here is the site's, never the reader's.
  */
 
 /** A deal's days, as stored. */
@@ -17,22 +15,8 @@ export type DealDays = {
   endDate: string | null
 }
 
-/** On now, starting on a later day, or over. */
+/** Inside its days, starting on a later day, or over. See `dealStage`. */
 export type DealStage = "on" | "soon" | "ended"
-
-/** "2026-09-24", the site's today, read from its wall clock. */
-export function siteToday(timeZone: string, at: Date): string {
-  return wallClockAt(timeZone, at).slice(0, 10)
-}
-
-/**
- * Where the deal stands on `today`, a "2026-09-24" day. Plain text compares
- * the days, because the stored form sorts the same way the calendar does.
- */
-export function dealStage(days: DealDays, today: string): DealStage {
-  if (days.endDate && days.endDate < today) return "ended"
-  return days.startDate > today ? "soon" : "on"
-}
 
 /**
  * The stored day, printed as it is. Reading it in UTC only stops the reader's
@@ -84,10 +68,13 @@ export function dealDaysText(days: DealDays): string {
 /**
  * A card's line on the Deals page: "Until Sun, Oct 12", "Today only",
  * "No end date", "Starts Sat, Oct 3 · until Mon, Oct 12", or
- * "Ended Sun, Oct 12".
+ * "Ended Sun, Oct 12". `stage` comes from `dealStage`, which knows the times.
  */
-export function dealCardDaysText(days: DealDays, today: string): string {
-  const stage = dealStage(days, today)
+export function dealCardDaysText(
+  days: DealDays,
+  stage: DealStage,
+  today: string
+): string {
   if (stage === "ended") return `Ended ${shortDay(days.endDate ?? days.startDate)}`
   if (stage === "soon") {
     if (!days.endDate) return `Starts ${shortDay(days.startDate)}`

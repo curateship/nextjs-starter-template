@@ -86,6 +86,11 @@ import {
   captionWordsMatchTimes,
   DEFAULT_CAPTION_WORD_COLOR,
 } from "@/lib/video/caption-words"
+import {
+  requireTextFont,
+  TEXT_FONTS,
+  type TextFontId,
+} from "@/lib/video/text-fonts"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -230,6 +235,30 @@ function TextInspector({ clip }: { clip: EditorClip }) {
             value={clip.text ?? ""}
             onChange={(event) => patch({ text: event.target.value })}
           />
+        </div>
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="clip-font">Font</FieldLabel>
+          <Select
+            value={requireTextFont(clip.fontId).id}
+            onValueChange={(fontId) =>
+              patch({ fontId: requireTextFont(fontId as TextFontId).id })
+            }
+          >
+            <SelectTrigger id="clip-font" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEXT_FONTS.map((font) => (
+                <SelectItem
+                  key={font.id}
+                  value={font.id}
+                  style={{ fontFamily: font.family }}
+                >
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <SliderField
           id="clip-font-size"

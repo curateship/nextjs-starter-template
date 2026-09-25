@@ -1,6 +1,4 @@
 import { createRequire } from "node:module"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
 
 import {
   CAROUSEL_NOT_FOUND_MESSAGE,
@@ -15,6 +13,7 @@ import { requireTextFont } from "@/lib/video/text-fonts"
 import { getOwnedMedia, IMAGE_TYPES } from "@/server/media/library"
 import { getFromR2 } from "@/server/media/storage"
 import { getOwnedCarouselDetail } from "@/server/video/carousels"
+import { requireTextFontFiles } from "@/server/video/text-font-files"
 
 export const CAROUSEL_SLIDE_NOT_FOUND_MESSAGE = "Carousel slide not found."
 export const CAROUSEL_MEDIA_MISSING_MESSAGE =
@@ -35,8 +34,6 @@ const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> =
     "9:16": { width: 1080, height: 1920 },
   }
 
-const ASSET_DIR = fileURLToPath(new URL("../assets", import.meta.url))
-const FONT_FILE = path.join(ASSET_DIR, "Inter-SemiBold.ttf")
 const requireNative = createRequire(import.meta.url)
 
 function loadResvg() {
@@ -98,7 +95,7 @@ export function renderCarouselSlidePng(
   const svg = carouselSlideSvg(slide, format, media)
   return new Uint8Array(
     new Resvg(svg, {
-      font: { fontFiles: [FONT_FILE], loadSystemFonts: false },
+      font: { fontFiles: requireTextFontFiles(), loadSystemFonts: false },
     })
       .render()
       .asPng()
@@ -152,7 +149,8 @@ function textLayer(
   definitions.push(
     `<clipPath id="${clipId}"><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"/></clipPath>`
   )
-  const lines = wrapText(item.text, box.width, item.fontSize)
+  const font = requireTextFont(item.fontId)
+  const lines = wrapText(item.text, box.width, item.fontSize, font.widthRatio)
   const anchor =
     item.align === "left" ? "start" : item.align === "right" ? "end" : "middle"
   const x =
@@ -168,11 +166,15 @@ function textLayer(
         `<tspan x="${x}" y="${box.y + item.fontSize + lineIndex * lineHeight}">${escapeXml(line)}</tspan>`
     )
     .join("")
-  return `<text clip-path="url(#${clipId})" fill="${item.color}" font-family="Inter" font-size="${item.fontSize}" font-weight="600" text-anchor="${anchor}">${spans}</text>`
+  return `<text clip-path="url(#${clipId})" fill="${item.color}" font-family="${font.svgFamily}" font-size="${item.fontSize}" font-weight="${font.weight}" text-anchor="${anchor}">${spans}</text>`
 }
 
-function wrapText(text: string, width: number, fontSize: number) {
-  const widthRatio = requireTextFont("inter").widthRatio
+function wrapText(
+  text: string,
+  width: number,
+  fontSize: number,
+  widthRatio: number
+) {
   const maxCharacters = Math.max(1, Math.floor(width / (fontSize * widthRatio)))
   const lines: string[] = []
   for (const paragraph of text.split("\n")) {

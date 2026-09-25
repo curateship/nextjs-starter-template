@@ -3,6 +3,7 @@ import {
   check,
   date,
   index,
+  jsonb,
   numeric,
   pgTable,
   timestamp,
@@ -16,7 +17,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 /**
  * Each site's deals, one deal at one listing. The matching SQL is
  * `drizzle/0095_cms_promotions.sql`, and
- * `drizzle/0096_cms_promotion_headline.sql` for the type and headline.
+ * `drizzle/0096_cms_promotion_headline.sql` for the type and headline, and
+ * `drizzle/0097_cms_promotion_times.sql` for the times.
  *
  * The start and end are days on the site's calendar, never moments, the same
  * way events store theirs, so a new site time zone never moves a deal. A deal
@@ -57,6 +59,12 @@ export const sitePromotions = pgTable(
     amount: numeric("amount", { precision: 7, scale: 2, mode: "number" }),
     /** "20% off", "Free dessert". Empty only while `dealType` is null. */
     headline: varchar("headline", { length: 24 }).notNull().default(""),
+    /**
+     * The weekdays and hours it runs, shaped like a listing's opening hours
+     * and read by `cleanListingHours`. Every day missing means all day, every
+     * day. See `lib/promotions/deal-times.ts`.
+     */
+    times: jsonb("times").notNull().default({}),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
     /** Set on first publish and kept. */

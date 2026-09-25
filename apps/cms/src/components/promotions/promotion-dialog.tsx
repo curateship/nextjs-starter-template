@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { ListingPicker } from "@/components/directory/listing-picker"
 import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
+import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   DialogBody,
   DialogContent,
@@ -37,11 +39,16 @@ import { Textarea } from "@/components/ui/textarea"
 import type { ListingChoice } from "@/lib/api/posts/posts"
 import {
   getPromotionErrorMessage,
+  loadListingHoursForDeal,
   loadPromotionForEdit,
   savePromotion,
   saveNewPromotion,
   type PromotionForEdit,
 } from "@/lib/api/promotions/promotions"
+import {
+  blankListingHours,
+  type ListingHours,
+} from "@/lib/directory/listing-details"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
 import {
@@ -55,6 +62,7 @@ import {
   shownHeadline,
   type DealType,
 } from "@/lib/promotions/deal-headline"
+import { dealTimesLines, hasDealTimes } from "@/lib/promotions/deal-times"
 import { formatDate } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -82,6 +90,8 @@ type PromotionFields = {
   amount: string
   /** As typed, for the types whose headline is typed. */
   headline: string
+  /** Every day off means all day, every day. */
+  times: ListingHours
   status: "draft" | "published"
 }
 
@@ -99,6 +109,7 @@ function blankFields(): PromotionFields {
     dealType: "",
     amount: "",
     headline: "",
+    times: blankListingHours(),
     status: "draft",
   }
 }
@@ -122,6 +133,7 @@ function fieldsFrom(data: PromotionForEdit): PromotionFields {
       promotion.dealType && headlineIsBuilt(promotion.dealType)
         ? ""
         : promotion.headline,
+    times: promotion.times,
     status: promotion.status,
   }
 }
@@ -225,6 +237,7 @@ export function PromotionDialog({
   /** The listing as the picker or the load gave it, for its name and status. */
   const [picked, setPicked] = React.useState<ListingChoice | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const [copyingHours, setCopyingHours] = React.useState(false)
 
   const creating = promotionId === null
   const ready = creating || loaded?.forId === promotionId
@@ -304,6 +317,26 @@ export function PromotionDialog({
     key: Key,
     value: PromotionFields[Key]
   ) => setFields((current) => ({ ...current, [key]: value }))
+
+  /** Fills every day from the listing's opening hours. */
+  async function copyListingHours() {
+    dismissErrorToast()
+    setCopyingHours(true)
+    try {
+      const hours = await loadListingHoursForDeal(fields.listingId)
+      if (!hours) throw new Error("That listing is not on this site any more.")
+      if (!hasDealTimes(hours)) {
+        throw new Error(
+          `${picked?.title ?? "That listing"} has no opening hours to copy.`
+        )
+      }
+      update("times", hours)
+    } catch (error) {
+      showErrorToast(getPromotionErrorMessage(error))
+    } finally {
+      setCopyingHours(false)
+    }
+  }
 
   async function save() {
     dismissErrorToast()
@@ -636,6 +669,8 @@ export function PromotionDialog({
                           id="promotion-end"
                           value={dayForPicker(fields.endDate)}
                           placeholder="No end date"
+                          // Shares the row with Clear, so it gives way on a phone.
+                          className="min-w-0 flex-1"
                           disabled={saving}
                           onChange={(date) =>
                             update("endDate", dayFromPicker(date))
@@ -645,6 +680,7 @@ export function PromotionDialog({
                           <Button
                             type="button"
                             variant="ghost"
+                            className="shrink-0"
                             disabled={saving}
                             onClick={() => update("endDate", "")}
                           >
@@ -653,6 +689,61 @@ export function PromotionDialog({
                         ) : null}
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Times</CardTitle>
+                    <CardDescription>
+                      The weekdays and hours it runs, on the site's clock.
+                      Leave every day off for a deal that runs all day, every
+                      day. An end earlier than the start runs past midnight
+                      and counts as the night it started.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <WeekdayHoursFields
+                      idPrefix="promotion-times"
+                      words={{ start: "Starts", end: "Ends" }}
+                      newDay={{ open: "16:00", close: "18:00" }}
+                      hours={fields.times}
+                      disabled={saving}
+                      onChange={(times) => update("times", times)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <DisabledReason
+                        disabled={!fields.listingId}
+                        reason="Pick the listing first, then its hours can be copied."
+                      >
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={saving || copyingHours || !fields.listingId}
+                          onClick={() => void copyListingHours()}
+                        >
+                          {copyingHours ? (
+                            <Loader2Icon className="size-4 animate-spin" />
+                          ) : null}
+                          Same as the listing's hours
+                        </Button>
+                      </DisabledReason>
+                      {hasDealTimes(fields.times) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={saving}
+                          onClick={() => update("times", blankListingHours())}
+                        >
+                          All day, every day
+                        </Button>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-muted-foreground" role="status">
+                      {hasDealTimes(fields.times)
+                        ? `The page says: ${dealTimesLines(fields.times).join(" · ")}`
+                        : "Runs all day, every day of its days."}
+                    </p>
                   </CardContent>
                 </Card>
 

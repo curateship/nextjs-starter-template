@@ -1,30 +1,36 @@
 import { describe, expect, it } from "vitest"
 
-import type { CarouselSlide } from "@/lib/video/carousel-schema"
+import type {
+  CarouselSlide,
+  CarouselTextItem,
+} from "@/lib/video/carousel-schema"
+import { TEXT_FONTS } from "@/lib/video/text-fonts"
 import {
   carouselSlideSvg,
   renderCarouselSlidePng,
 } from "@/server/video/carousel-export"
+
+const textItem: CarouselTextItem = {
+  id: "text-1",
+  type: "text",
+  text: "Safe <words> & symbols",
+  x: 0.1,
+  y: 0.1,
+  width: 0.8,
+  height: 0.3,
+  zIndex: 2,
+  fontId: "inter",
+  fontSize: 64,
+  color: "#ffffff",
+  align: "center",
+}
 
 const slide: CarouselSlide = {
   id: "slide-1",
   title: "Test",
   backgroundColor: "#112233",
   items: [
-    {
-      id: "text-1",
-      type: "text",
-      text: "Safe <words> & symbols",
-      x: 0.1,
-      y: 0.1,
-      width: 0.8,
-      height: 0.3,
-      zIndex: 2,
-      fontId: "inter",
-      fontSize: 64,
-      color: "#ffffff",
-      align: "center",
-    },
+    textItem,
     {
       id: "shadow-1",
       type: "gradient-shadow",
@@ -56,5 +62,22 @@ describe("carousel slide export", () => {
     ])
     expect(new DataView(png.buffer).getUint32(16)).toBe(1080)
     expect(new DataView(png.buffer).getUint32(20)).toBe(1350)
+  })
+
+  it("draws each face with its own font file", () => {
+    // The same words in every face. If a family name in an SVG did not match
+    // its ttf, that render would silently fall back to Inter and come out
+    // pixel-identical to Inter's — so every render must be different.
+    const renders = TEXT_FONTS.map((font) => {
+      const oneFace = {
+        ...slide,
+        items: [{ ...textItem, fontId: font.id }],
+      }
+      expect(carouselSlideSvg(oneFace, "1:1")).toContain(
+        `font-family="${font.svgFamily}"`
+      )
+      return renderCarouselSlidePng(oneFace, "1:1").join(",")
+    })
+    expect(new Set(renders).size).toBe(TEXT_FONTS.length)
   })
 })

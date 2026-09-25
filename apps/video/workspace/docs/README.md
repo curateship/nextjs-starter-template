@@ -40,6 +40,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [stickers.md](stickers.md) — the Text panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
+- [text-fonts.md](text-fonts.md) — the four faces video text and carousel
+  slides can be drawn in, their licences, how the preview and the export stay
+  in step, and what the extra files cost to download.
 - [caption-look.md](caption-look.md) — the caption look saved in the brand
   kit, which captions start from it, and why captions already on a project
   never change.
@@ -100,7 +103,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   clip comes from, and why every call that asks for one waits for the answer.
 - [viral-search.md](viral-search.md) — the Viral page's YouTube keyword search:
   where the API key goes, what one search costs out of the free 10,000 daily
-  units, and why Shorts means 3 minutes or less.
+  units, why Shorts means 3 minutes or less, and how every search is kept so
+  reopening it is free.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

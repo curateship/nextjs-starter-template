@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router"
-import { CalendarIcon, MapPinIcon } from "lucide-react"
+import { CalendarIcon, ClockIcon, MapPinIcon } from "lucide-react"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
@@ -50,7 +50,8 @@ export const Route = createFileRoute("/deals_/$slug")({
 })
 
 function DealRoute() {
-  const { site, deal, ended, upcoming, days } = Route.useLoaderData()
+  const { site, deal, ended, upcoming, days, times, nowText } =
+    Route.useLoaderData()
   const photo = deal.coverImage || deal.listingImage
 
   return (
@@ -104,6 +105,24 @@ function DealRoute() {
                 ) : null}
               </span>
             </p>
+            {times.length || nowText ? (
+              <p className="flex items-start gap-2">
+                <ClockIcon
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span className="grid min-w-0">
+                  {times.map((line) => (
+                    <span key={line} className="font-medium">
+                      {line}
+                    </span>
+                  ))}
+                  {nowText ? (
+                    <span className="text-muted-foreground">{nowText}</span>
+                  ) : null}
+                </span>
+              </p>
+            ) : null}
             <p className="flex items-start gap-2">
               <MapPinIcon
                 className="mt-0.5 size-4 shrink-0 text-muted-foreground"

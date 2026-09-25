@@ -2,7 +2,16 @@ import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
 
 import { isValidDateString } from "@/lib/events/calendar-grid"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
-import { siteToday, type DealDays } from "@/lib/promotions/deal-days"
+import {
+  cleanListingHours,
+  LISTING_WEEKDAY_LABELS,
+  LISTING_WEEKDAYS,
+  type ListingHours,
+  type ListingShift,
+} from "@/lib/directory/listing-details"
+import { wallClockAt } from "@/lib/events/event-time"
+import type { DealDays } from "@/lib/promotions/deal-days"
+import type { DealTimes } from "@/lib/promotions/deal-times"
 import {
   builtHeadline,
   isDealType,
@@ -62,6 +71,8 @@ export type SitePromotion = DealDays & {
   amount: number | null
   /** "20% off". Empty only on a deal made before types existed. */
   headline: string
+  /** The weekdays and hours it runs. Every day off means all day, every day. */
+  times: DealTimes
   status: PromotionStatus
   publishedAt: Date | null
   createdByUserId: string | null
@@ -97,6 +108,8 @@ export type PromotionInput = DealDays & {
   amount: string
   /** As typed. Read only for the types whose headline is typed. */
   headline: string
+  /** Checked by `cleanDealTimes`, which says what is wrong in words. Left out means all day. */
+  times?: unknown
   status: PromotionStatus
 }
 
@@ -117,6 +130,7 @@ function toPromotion(row: PromotionRow): SitePromotion {
     dealType: isDealType(row.dealType) ? row.dealType : null,
     amount: row.amount,
     headline: row.headline,
+    times: cleanListingHours(row.times),
     status: row.status === "published" ? "published" : "draft",
     publishedAt: row.publishedAt,
     createdByUserId: row.createdByUserId,
@@ -173,6 +187,46 @@ export function cleanDealHeadline(input: {
   return { dealType, amount: null, headline }
 }
 
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/**
+ * The times as stored, or a refusal naming the day. A day that is switched on
+ * needs a start and an end; the shape is a listing's opening hours, so a
+ * listing's hours copy across as they are.
+ */
+export function cleanDealTimes(value: unknown): DealTimes {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {}
+  const shiftOf = (raw: unknown, what: string): ListingShift | null => {
+    if (raw === null || raw === undefined) return null
+    const entry =
+      typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : {}
+    const open = typeof entry.open === "string" ? entry.open.trim() : ""
+    const close = typeof entry.close === "string" ? entry.close.trim() : ""
+    if (!CLOCK.test(open) || !CLOCK.test(close)) {
+      throw new Error(`Give ${what} a start and an end time.`)
+    }
+    return { open, close }
+  }
+  const times = {} as DealTimes
+  for (const day of LISTING_WEEKDAYS) {
+    const raw = source[day]
+    const first = shiftOf(raw, LISTING_WEEKDAY_LABELS[day])
+    const second = first
+      ? shiftOf(
+          (raw as Record<string, unknown>).second,
+          `${LISTING_WEEKDAY_LABELS[day]}'s second time`
+        )
+      : null
+    times[day] = first ? { ...first, second } : null
+  }
+  return times
+}
+
 function cleanTitle(raw: string): string {
   const title = raw.trim().slice(0, MAX_PROMOTION_TITLE)
   if (!title) throw new Error("A deal needs a title.")
@@ -224,7 +278,9 @@ async function cleanValues(
     smallPrint: input.smallPrint.trim().slice(0, MAX_PROMOTION_SMALL_PRINT),
     ...cleanDealHeadline(input),
     status: input.status,
+    // Refused in the order the window shows them: days, then times.
     ...cleanDealDays(input),
+    times: cleanDealTimes(input.times),
   }
 }
 
@@ -239,7 +295,7 @@ export async function listPromotions(
     offset?: number
   } = {},
   database: CustomShellDb = db
-): Promise<{ promotions: PromotionSummary[]; total: number; today: string }> {
+): Promise<{ promotions: PromotionSummary[]; total: number; now: string }> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
   const search = options.search?.trim()
@@ -306,7 +362,7 @@ export async function listPromotions(
       }
     }),
     total: countRow?.total ?? 0,
-    today: siteToday(timeZone, new Date()),
+    now: wallClockAt(timeZone, new Date()),
   }
 }
 
@@ -478,4 +534,26 @@ export async function dealImpactForListings(
       )
     )
   return { deals: row?.count ?? 0 }
+}
+
+/**
+ * One of this site's listings' opening hours, for the deal window's "Same as
+ * the listing's hours" button, or null when there is no such listing here.
+ */
+export async function listingHoursForDeal(
+  workspaceId: string,
+  listingId: string,
+  database: CustomShellDb = db
+): Promise<ListingHours | null> {
+  const [row] = await database
+    .select({ hours: directoryListings.hours })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, workspaceId),
+        eq(directoryListings.id, listingId)
+      )
+    )
+    .limit(1)
+  return row ? cleanListingHours(row.hours) : null
 }

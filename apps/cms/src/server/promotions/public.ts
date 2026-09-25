@@ -1,7 +1,13 @@
 import { and, asc, eq, gte, isNull, or, sql } from "drizzle-orm"
 
 import { DEALS_PAGE_SIZE } from "@/lib/promotions/deals-page"
+import { cleanListingHours } from "@/lib/directory/listing-details"
 import type { DealDays } from "@/lib/promotions/deal-days"
+import {
+  addDays,
+  weekdayOf,
+  type DealTimes,
+} from "@/lib/promotions/deal-times"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
 import type { PublicSite, VisitorSite } from "@/server/directory/public"
@@ -35,6 +41,8 @@ export type PublicDealCard = DealDays & {
   listingTitle: string
   /** The listing's own photo, or empty. */
   listingImage: string
+  /** The weekdays and hours it runs. Every day off means all day, every day. */
+  times: DealTimes
 }
 
 export type PublicDeal = PublicDealCard & {
@@ -88,6 +96,14 @@ const dealCardColumns = {
   endDate: sitePromotions.endDate,
   listingTitle: directoryListings.title,
   listingImage: directoryListings.featuredImage,
+  times: sitePromotions.times,
+}
+
+/** A row's stored times, read the one way every read reads them. */
+function withTimes<Row extends { times: unknown }>(
+  row: Row
+): Omit<Row, "times"> & { times: DealTimes } {
+  return { ...row, times: cleanListingHours(row.times) }
 }
 
 /**
@@ -108,26 +124,47 @@ export async function dealsAccessFor(
 }
 
 /**
- * One page of the deals not over on `today`, the site's "2026-09-24": the
- * ones on now first, ending soonest first with no end day last, then the ones
- * starting on a later day, soonest first. `today` is part of the cache's key,
- * so a deal whose last day was yesterday is gone the first time the page is
- * read on the new day, with no job to hide it.
+ * Whether a deal whose last day was yesterday is still running its last
+ * night: yesterday's first or second stretch runs past midnight and has not
+ * closed by `clock`. The same rule as `dealEndsAt`, written for the database.
+ */
+function lastNightStillOn(yesterday: string, clock: string) {
+  const day = sql`${sitePromotions.times} -> ${weekdayOf(yesterday)}::text`
+  const overnight = (shift: typeof day) =>
+    sql`((${shift} ->> 'close') <= (${shift} ->> 'open') and (${shift} ->> 'close') > ${clock})`
+  return and(
+    eq(sitePromotions.endDate, yesterday),
+    sql`(${overnight(day)} or ${overnight(sql`(${day} -> 'second')`)})`
+  )
+}
+
+/**
+ * One page of the deals not over at `now`, the site's "2026-09-24T16:30": the
+ * ones inside their days first, ending soonest first with no end day last,
+ * then the ones starting on a later day, soonest first. A deal is over at
+ * midnight after its last day, or when that night's stretch closes if it runs
+ * past midnight. `now` is part of the cache's key, so a deal that has just
+ * ended is gone the next time the page is read, with no job to hide it.
  */
 export function readDeals(
   site: VisitorSite,
   page: number,
-  today: string,
+  now: string,
   database: CustomShellDb = db
 ): Promise<DealsList> {
+  const today = now.slice(0, 10)
   return cachedPublicDirectoryRead(
     site.id,
     "deals",
-    { site: { name: site.name, url: site.url }, page, today },
+    { site: { name: site.name, url: site.url }, page, now },
     async () => {
       const where = and(
         listedDealsOnSite(site.id),
-        or(isNull(sitePromotions.endDate), gte(sitePromotions.endDate, today))
+        or(
+          isNull(sitePromotions.endDate),
+          gte(sitePromotions.endDate, today),
+          lastNightStillOn(addDays(today, -1), now.slice(11))
+        )
       )
       const onNow = sql`${sitePromotions.startDate} <= ${today}::date`
       const [rows, [countRow]] = await Promise.all([
@@ -154,7 +191,7 @@ export function readDeals(
       ])
       return {
         site: { name: site.name, url: site.url },
-        deals: rows,
+        deals: rows.map(withTimes),
         total: countRow?.total ?? 0,
         page,
         pageSize: DEALS_PAGE_SIZE,
@@ -198,7 +235,7 @@ export function readPublicDeal(
       return {
         site: { name: site.name, url: site.url },
         deal: {
-          ...found,
+          ...withTimes(found),
           // A directory kept from visitors is never linked into.
           listingSlug:
             directoryVisibility === "everyone" ? found.listingSlug : null,
