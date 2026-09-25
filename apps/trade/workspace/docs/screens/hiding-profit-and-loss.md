@@ -7,8 +7,9 @@ is remembered per account.
 
 ## Where the switch is
 
-The cog at the right of the header opens a small panel with two rows: colour
-mode, and **Hide profit and loss**. The cog and the panel belong to the shell,
+The cog at the right of the header opens a small panel: colour mode, then
+**Hide profit and loss**, then Public profile (see
+`../social/public-profiles.md`). The cog and the panel belong to the shell,
 and the second row is this app's — `docs/shell/shell-and-apps.md` explains the
 `header.quickSettings` option that puts it there. The old eye button inside the
 Active trades dropdown is gone; there is one switch now, not two.
@@ -33,6 +34,11 @@ Active trades dropdown is gone; there is one switch now, not two.
   open profit, so it is hidden with the rest of them.
 - **Untouched: backtests and flow runs.** A backtest's result is research
   about months that have already happened, not money in a wallet.
+- **Never blurred: a public trader profile and the leaderboard.** Those
+  figures were published on purpose, so `/t/<handle>` and `/traders` show
+  them even to a signed-in visitor with the switch on. They wrap their
+  figures in `ShowPublicFigures` from `pnl-amount.tsx`. See
+  `../social/public-profiles.md`.
 
 ## Frosted glass, not a dash
 

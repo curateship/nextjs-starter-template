@@ -33,6 +33,8 @@ let listed: string
 let hidden: string[]
 
 const today = "2026-10-05"
+// 3 PM that day, the site's wall clock.
+const now = `${today}T15:00`
 
 beforeEach(async () => {
   resetPublicDirectoryCacheForTests()
@@ -98,7 +100,7 @@ const everyPublicRead: Record<
   (() => Promise<string[]>) | { notADealRead: string }
 > = {
   readDeals: async () =>
-    (await publicReads.readDeals(site, 1, today, database)).deals.map(
+    (await publicReads.readDeals(site, 1, now, database)).deals.map(
       (deal) => deal.slug
     ),
   readPublicDeal: async () => {

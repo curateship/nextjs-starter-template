@@ -1,8 +1,7 @@
 import { Link } from "@tanstack/react-router"
 
 import { Card, CardContent } from "@/components/ui/card"
-import type { PublicDealCard } from "@/lib/api/promotions/public"
-import { dealCardDaysText } from "@/lib/promotions/deal-days"
+import type { ListedDeal } from "@/lib/api/promotions/public"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { focusRing } from "@/lib/layout/focus-ring"
 
@@ -10,19 +9,14 @@ import { focusRing } from "@/lib/layout/focus-ring"
  * One group of cards on the Deals page. Each card shows the deal's cover, or
  * the listing's own photo when the deal has none, then the headline in big
  * type, the deal's title, the listing's name and where it stands today, like
- * "Until Sun, Oct 12". A long headline wraps inside the card rather than
- * pushing it wider.
+ * "Until Sun, Oct 12", and "On now · until 6 PM" or "Next: today at 4 PM".
+ * A long headline wraps inside the card rather than pushing it wider.
  *
- * `today` is the site's, from the server, so the server and the browser print
- * the same words and the page never redraws itself after loading.
+ * Every line comes worked out from the server, by the site's clock, so the
+ * server and the browser print the same words and the page never redraws
+ * itself after loading.
  */
-export function DealGrid({
-  deals,
-  today,
-}: {
-  deals: PublicDealCard[]
-  today: string
-}) {
+export function DealGrid({ deals }: { deals: ListedDeal[] }) {
   return (
     <ul className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
       {deals.map((deal) => {
@@ -56,8 +50,11 @@ export function DealGrid({
                   {deal.listingTitle}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {dealCardDaysText(deal, today)}
+                  {deal.daysText}
                 </p>
+                {deal.nowText ? (
+                  <p className="text-sm font-medium">{deal.nowText}</p>
+                ) : null}
               </CardContent>
             </Card>
           </li>

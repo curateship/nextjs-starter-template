@@ -1765,3 +1765,142 @@ export const tradeRobinhoodTransactions = pgTable(
     ),
   ]
 )
+
+/**
+ * A member's public trader profile. One per account, off until they switch it
+ * on. The figures it shows are never stored here: they are worked out from
+ * `trade_record_fills` each time. See `workspace/docs/social/public-profiles.md`.
+ */
+export const tradePublicProfiles = pgTable(
+  "trade_public_profiles",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    handle: varchar("handle", { length: 20 }).notNull(),
+    displayName: varchar("display_name", { length: 60 }).notNull(),
+    picture: text("picture"),
+    bio: varchar("bio", { length: 280 }).notNull().default(""),
+    links: jsonb("links").$type<string[]>().notNull().default([]),
+    enabled: boolean("enabled").notNull().default(false),
+    /** "Let search engines list me": the page is in the sitemap. */
+    searchable: boolean("searchable").notNull().default(false),
+    /** An admin hid the profile from the public. The record is untouched. */
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    hiddenReason: text("hidden_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("trade_public_profiles_handle_idx").on(table.handle),
+    check(
+      "trade_public_profiles_handle_check",
+      sql`${table.handle} ~ '^[a-z][a-z0-9_]{2,19}$'`
+    ),
+  ]
+)
+
+/** A handle somebody gave up, held from everybody else for 90 days. */
+export const tradePublicHandleHolds = pgTable("trade_public_handle_holds", {
+  handle: varchar("handle", { length: 20 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  releasedAt: timestamp("released_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/** What a visitor said is wrong with a profile. Only admins read these. */
+export const tradePublicReports = pgTable(
+  "trade_public_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("trade_public_reports_user_idx").on(table.userId, table.createdAt),
+  ]
+)
+
+/**
+ * Every real-money wallet on a real network a member has ever saved, kept
+ * after the wallet is deleted. Written by the database's own triggers on
+ * `trade_wallets` (migration 0186), never by app code, so no path that saves
+ * or deletes a wallet can skip it.
+ */
+export const tradeRecordWallets = pgTable(
+  "trade_record_wallets",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    address: varchar("address", { length: 64 }),
+    label: varchar("label", { length: 40 }).notNull(),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    /** The last ownership check. Null until one has run. */
+    proof: varchar("proof", { length: 8 }).$type<"proved" | "failed">(),
+    proofNote: text("proof_note"),
+    proofCheckedAt: timestamp("proof_checked_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId] }),
+    check(
+      "trade_record_wallets_proof_check",
+      sql`${table.proof} IS NULL OR ${table.proof} IN ('proved', 'failed')`
+    ),
+  ]
+)
+
+/**
+ * A copy of every `trade_live_fills` row of a recorded wallet, binned rows
+ * included, written by the database on every insert and correction there.
+ * No member action deletes one; only deleting the whole account does.
+ */
+export const tradeRecordFills = pgTable(
+  "trade_record_fills",
+  {
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    fillId: varchar("fill_id", { length: 128 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
+    at: bigint("at", { mode: "number" }).notNull(),
+    closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    fee: doublePrecision("fee").notNull().default(0),
+    dir: varchar("dir", { length: 24 }).notNull().default(""),
+    liquidation: boolean("liquidation").notNull().default(false),
+    /**
+     * The wallet was removed and `money` was worked out at that moment, while
+     * its grids still existed to price a grid's sale. Never changes again.
+     */
+    frozen: boolean("frozen").notNull().default(false),
+    /** Frozen rows only: what the P&L page said the fill made. Null is unpriced. */
+    money: doublePrecision("money"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.fillId] }),
+    index("trade_record_fills_time_idx").on(table.userId, table.at),
+    index("trade_record_fills_fill_idx").on(table.userId, table.fillId),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeRecordWallets.userId, tradeRecordWallets.walletId],
+    }).onDelete("cascade"),
+  ]
+)

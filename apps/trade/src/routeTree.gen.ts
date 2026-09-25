@@ -25,6 +25,7 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TradersRouteImport } from './routes/traders'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -37,6 +38,7 @@ import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pn
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as THandleRouteImport } from './routes/t.$handle'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -59,6 +61,7 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPhemexRouteImport } from './routes/_authenticated/admin/phemex'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
+import { Route as AuthenticatedAdminProfilesRouteImport } from './routes/_authenticated/admin/profiles'
 import { Route as AuthenticatedAdminRecipesRouteImport } from './routes/_authenticated/admin/recipes'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
@@ -86,6 +89,7 @@ import { Route as AuthenticatedProtocolsSolanaRouteImport } from './routes/_auth
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as TShareImageHandleRouteImport } from './routes/t.share-image.$handle'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -183,6 +187,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TradersRoute = TradersRouteImport.update({
+  id: '/traders',
+  path: '/traders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
@@ -241,6 +250,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const THandleRoute = THandleRouteImport.update({
+  id: '/t/$handle',
+  path: '/t/$handle',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -368,6 +382,12 @@ const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminProfilesRoute =
+  AuthenticatedAdminProfilesRouteImport.update({
+    id: '/profiles',
+    path: '/profiles',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminRecipesRoute =
   AuthenticatedAdminRecipesRouteImport.update({
     id: '/recipes',
@@ -526,6 +546,11 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TShareImageHandleRoute = TShareImageHandleRouteImport.update({
+  id: '/t/share-image/$handle',
+  path: '/t/share-image/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -642,6 +667,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/traders': typeof TradersRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
@@ -654,6 +680,7 @@ export interface FileRoutesByFullPath {
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/t/$handle': typeof THandleRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -675,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/phemex': typeof AuthenticatedAdminPhemexRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -701,6 +729,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/t/share-image/$handle': typeof TShareImageHandleRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -737,6 +766,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/traders': typeof TradersRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
@@ -747,6 +777,7 @@ export interface FileRoutesByTo {
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/t/$handle': typeof THandleRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -768,6 +799,7 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/phemex': typeof AuthenticatedAdminPhemexRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -794,6 +826,7 @@ export interface FileRoutesByTo {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/t/share-image/$handle': typeof TShareImageHandleRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -832,6 +865,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/traders': typeof TradersRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
@@ -844,6 +878,7 @@ export interface FileRoutesById {
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/t/$handle': typeof THandleRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -865,6 +900,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/phemex': typeof AuthenticatedAdminPhemexRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/_authenticated/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/_authenticated/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -891,6 +927,7 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/t/share-image/$handle': typeof TShareImageHandleRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -929,6 +966,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sign-in-link'
     | '/sitemap.xml'
+    | '/traders'
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
@@ -941,6 +979,7 @@ export interface FileRouteTypes {
     | '/trade'
     | '/workspaces'
     | '/api/health'
+    | '/t/$handle'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -962,6 +1001,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/phemex'
     | '/admin/plans'
+    | '/admin/profiles'
     | '/admin/recipes'
     | '/admin/referrals'
     | '/admin/segments'
@@ -988,6 +1028,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/t/share-image/$handle'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -1024,6 +1065,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sign-in-link'
     | '/sitemap.xml'
+    | '/traders'
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
@@ -1034,6 +1076,7 @@ export interface FileRouteTypes {
     | '/trade'
     | '/workspaces'
     | '/api/health'
+    | '/t/$handle'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1055,6 +1098,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/phemex'
     | '/admin/plans'
+    | '/admin/profiles'
     | '/admin/recipes'
     | '/admin/referrals'
     | '/admin/segments'
@@ -1081,6 +1125,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/t/share-image/$handle'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1118,6 +1163,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sign-in-link'
     | '/sitemap.xml'
+    | '/traders'
     | '/unsubscribe'
     | '/verify-email'
     | '/_authenticated/account'
@@ -1130,6 +1176,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/t/$handle'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1151,6 +1198,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/phemex'
     | '/_authenticated/admin/plans'
+    | '/_authenticated/admin/profiles'
     | '/_authenticated/admin/recipes'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
@@ -1177,6 +1225,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/t/share-image/$handle'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1215,12 +1264,15 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SignInLinkRoute: typeof SignInLinkRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TradersRoute: typeof TradersRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  THandleRoute: typeof THandleRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  TShareImageHandleRoute: typeof TShareImageHandleRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
@@ -1341,6 +1393,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/traders': {
+      id: '/traders'
+      path: '/traders'
+      fullPath: '/traders'
+      preLoaderRoute: typeof TradersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/unsubscribe': {
       id: '/unsubscribe'
       path: '/unsubscribe'
@@ -1423,6 +1482,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$handle': {
+      id: '/t/$handle'
+      path: '/t/$handle'
+      fullPath: '/t/$handle'
+      preLoaderRoute: typeof THandleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1577,6 +1643,13 @@ declare module '@tanstack/react-router' {
       path: '/plans'
       fullPath: '/admin/plans'
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/profiles': {
+      id: '/_authenticated/admin/profiles'
+      path: '/profiles'
+      fullPath: '/admin/profiles'
+      preLoaderRoute: typeof AuthenticatedAdminProfilesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/recipes': {
@@ -1768,6 +1841,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/t/share-image/$handle': {
+      id: '/t/share-image/$handle'
+      path: '/t/share-image/$handle'
+      fullPath: '/t/share-image/$handle'
+      preLoaderRoute: typeof TShareImageHandleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -1938,6 +2018,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPhemexRoute: typeof AuthenticatedAdminPhemexRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
+  AuthenticatedAdminProfilesRoute: typeof AuthenticatedAdminProfilesRoute
   AuthenticatedAdminRecipesRoute: typeof AuthenticatedAdminRecipesRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
@@ -1983,6 +2064,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPhemexRoute: AuthenticatedAdminPhemexRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
+  AuthenticatedAdminProfilesRoute: AuthenticatedAdminProfilesRoute,
   AuthenticatedAdminRecipesRoute: AuthenticatedAdminRecipesRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
@@ -2108,12 +2190,15 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SignInLinkRoute: SignInLinkRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TradersRoute: TradersRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  THandleRoute: THandleRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  TShareImageHandleRoute: TShareImageHandleRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,

@@ -1,21 +1,16 @@
 import * as React from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { ImageUpload } from "@/components/shared/image-upload"
+import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   coordinatesFromGoogleMapsUrl,
-  LISTING_WEEKDAYS,
-  LISTING_WEEKDAY_LABELS,
   MAX_LISTING_GALLERY_IMAGES,
   requireListingCoordinates,
   type ListingHours,
-  type ListingWeekday,
 } from "@/lib/directory/listing-details"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -172,9 +167,6 @@ function HoursFields({
   disabled: boolean
   onChange: (hours: ListingHours) => void
 }) {
-  const updateDay = (day: ListingWeekday, next: ListingHours[ListingWeekday]) =>
-    onChange({ ...hours, [day]: next })
-
   return (
     <CollapsibleSettingsCard
       size="sm"
@@ -183,190 +175,15 @@ function HoursFields({
       description="Turn on each open day. Closed days stay off and show as closed publicly."
       contentClassName="grid gap-4"
     >
-      <div className="hidden grid-cols-[minmax(8rem,1fr)_1fr_1fr] gap-4 text-sm font-medium sm:grid">
-        <span>Day</span>
-        <span>Opens</span>
-        <span>Closes</span>
-      </div>
-      <div className="grid gap-4">
-        {LISTING_WEEKDAYS.map((day) => (
-          <HoursDayFields
-            key={day}
-            day={day}
-            value={hours[day]}
-            disabled={disabled}
-            onChange={(next) => updateDay(day, next)}
-          />
-        ))}
-      </div>
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || !hours.monday}
-          onClick={() => {
-            const monday = hours.monday
-            if (!monday) return
-            // A copy per day, second stretch included, so editing Tuesday
-            // afterwards does not also edit Wednesday.
-            const copy = () => ({
-              ...monday,
-              second: monday.second ? { ...monday.second } : null,
-            })
-            onChange({
-              ...hours,
-              tuesday: copy(),
-              wednesday: copy(),
-              thursday: copy(),
-              friday: copy(),
-            })
-          }}
-        >
-          Copy Monday to weekdays
-        </Button>
-      </div>
+      <WeekdayHoursFields
+        idPrefix="listing-hours"
+        words={{ start: "Opens", end: "Closes" }}
+        newDay={{ open: "09:00", close: "17:00" }}
+        hours={hours}
+        disabled={disabled}
+        onChange={onChange}
+      />
     </CollapsibleSettingsCard>
-  )
-}
-
-/**
- * One weekday: the open switch, its times, and a second stretch when the place
- * shuts in the middle of the day and opens again.
- *
- * The second stretch is added by hand and is off until somebody asks for it,
- * so a day that is simply open from nine to five still looks like one row.
- */
-function HoursDayFields({
-  day,
-  value,
-  disabled,
-  onChange,
-}: {
-  day: ListingWeekday
-  value: ListingHours[ListingWeekday]
-  disabled: boolean
-  onChange: (value: ListingHours[ListingWeekday]) => void
-}) {
-  const openId = `listing-hours-${day}-open`
-  const closeId = `listing-hours-${day}-close`
-  const secondOpenId = `listing-hours-${day}-second-open`
-  const secondCloseId = `listing-hours-${day}-second-close`
-
-  return (
-    <div className="grid gap-2">
-      <div className="grid gap-2 sm:grid-cols-[minmax(8rem,1fr)_1fr_1fr] sm:items-end sm:gap-4">
-        <div className="flex h-8 items-center gap-2">
-          <Checkbox
-            id={`listing-hours-${day}`}
-            checked={Boolean(value)}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              onChange(
-                checked ? { open: "09:00", close: "17:00", second: null } : null
-              )
-            }
-          />
-          <Label htmlFor={`listing-hours-${day}`}>
-            {LISTING_WEEKDAY_LABELS[day]}
-          </Label>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor={openId} className="sm:sr-only">
-            {LISTING_WEEKDAY_LABELS[day]} opens
-          </Label>
-          <Input
-            id={openId}
-            type="time"
-            value={value?.open ?? ""}
-            disabled={disabled || !value}
-            onChange={(event) =>
-              value && onChange({ ...value, open: event.target.value })
-            }
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor={closeId} className="sm:sr-only">
-            {LISTING_WEEKDAY_LABELS[day]} closes
-          </Label>
-          <Input
-            id={closeId}
-            type="time"
-            value={value?.close ?? ""}
-            disabled={disabled || !value}
-            onChange={(event) =>
-              value && onChange({ ...value, close: event.target.value })
-            }
-          />
-        </div>
-      </div>
-
-      {value?.second ? (
-        <div className="grid gap-2 sm:grid-cols-[minmax(8rem,1fr)_1fr_1fr] sm:items-end sm:gap-4">
-          <div className="flex h-8 items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={disabled}
-              onClick={() => onChange({ ...value, second: null })}
-            >
-              <Trash2Icon aria-hidden="true" />
-              Remove second time
-            </Button>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor={secondOpenId} className="sm:sr-only">
-              {LISTING_WEEKDAY_LABELS[day]} opens again
-            </Label>
-            <Input
-              id={secondOpenId}
-              type="time"
-              value={value.second.open}
-              disabled={disabled}
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  second: { ...value.second!, open: event.target.value },
-                })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor={secondCloseId} className="sm:sr-only">
-              {LISTING_WEEKDAY_LABELS[day]} closes again
-            </Label>
-            <Input
-              id={secondCloseId}
-              type="time"
-              value={value.second.close}
-              disabled={disabled}
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  second: { ...value.second!, close: event.target.value },
-                })
-              }
-            />
-          </div>
-        </div>
-      ) : value ? (
-        <div>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() =>
-              onChange({
-                ...value,
-                second: { open: "17:00", close: "22:00" },
-              })
-            }
-          >
-            <PlusIcon aria-hidden="true" />
-            Add a second time on {LISTING_WEEKDAY_LABELS[day]}
-          </Button>
-        </div>
-      ) : null}
-    </div>
   )
 }
 

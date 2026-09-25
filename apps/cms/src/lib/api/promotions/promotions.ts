@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import type { ListingHours } from "@/lib/directory/listing-details"
 import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
 import {
   PROMOTION_SORT_COLUMNS,
@@ -11,6 +12,7 @@ import {
   createPromotion,
   deletePromotions,
   findPromotion,
+  listingHoursForDeal,
   listPromotions,
   MAX_PROMOTION_CODE,
   MAX_PROMOTION_DESCRIPTION,
@@ -42,8 +44,8 @@ export type PromotionsPage = {
   total: number
   page: number
   pageSize: number
-  /** The site's today, "2026-09-24", so a row can say it has ended. */
-  today: string
+  /** The site's wall clock, "2026-09-24T16:30", so a row can say it has ended. */
+  now: string
 }
 
 const idInput = z.string().min(1).max(36)
@@ -63,6 +65,8 @@ const promotionInput = z.object({
   dealType: z.string().max(20),
   amount: z.string().max(20),
   headline: z.string().max(100),
+  // A listing's hours shape, which `cleanDealTimes` checks and names in words.
+  times: z.unknown().optional(),
   status: z.enum(["draft", "published"]),
 })
 
@@ -82,7 +86,7 @@ const loadPromotionsPageFn = createServerFn({ method: "GET" })
     const pageSize = data.limit ?? 50
     const page = data.page ?? 1
     const site = await workspaceIdForRequest(context.user.id)
-    const { promotions, total, today } = await listPromotions(site, {
+    const { promotions, total, now } = await listPromotions(site, {
       search: data.search,
       status: data.status,
       sort: data.sort,
@@ -90,7 +94,7 @@ const loadPromotionsPageFn = createServerFn({ method: "GET" })
       limit: pageSize,
       offset: (page - 1) * pageSize,
     })
-    return { promotions, total, page, pageSize, today }
+    return { promotions, total, page, pageSize, now }
   })
 
 export function loadPromotionsPage(input: {
@@ -158,4 +162,19 @@ const deletePromotionsFn = createServerFn({ method: "POST" })
 /** One request for the whole selection; the result counts honestly. */
 export function removePromotions(ids: string[]) {
   return deletePromotionsFn({ data: { ids } })
+}
+
+const loadListingHoursFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ listingId: idInput }))
+  .handler(async ({ data, context }): Promise<ListingHours | null> => {
+    return listingHoursForDeal(
+      await workspaceIdForRequest(context.user.id),
+      data.listingId
+    )
+  })
+
+/** A listing's opening hours, for "Same as the listing's hours". */
+export function loadListingHoursForDeal(listingId: string) {
+  return loadListingHoursFn({ data: { listingId } })
 }

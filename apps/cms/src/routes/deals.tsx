@@ -13,13 +13,14 @@ import {
   directoryHead,
   directoryTitle,
 } from "@/lib/directory/public-seo"
-import { dealStage } from "@/lib/promotions/deal-days"
 import { dealsListHref, readDealsSearch } from "@/lib/promotions/deals-page"
 
 /**
- * The Deals page: every deal on now, then every deal starting on a later day.
- * A deal leaves by itself the morning after its last day, by the site's
- * calendar. It follows its own on/off switch on the Pages screen.
+ * The Deals page: every deal inside its days, then every deal starting on a
+ * later day. Each card says "On now" or when it is next on, worked out by the
+ * server from the site's clock. A deal leaves by itself once its last day, or
+ * its last night past midnight, is over. It follows its own on/off switch on
+ * the Pages screen.
  */
 export const Route = createFileRoute("/deals")({
   validateSearch: readDealsSearch,
@@ -47,12 +48,8 @@ export const Route = createFileRoute("/deals")({
 function DealsRoute() {
   const data = Route.useLoaderData()
   // A page can hold the end of one group and the start of the next.
-  const onNow = data.deals.filter(
-    (deal) => dealStage(deal, data.today) === "on"
-  )
-  const comingUp = data.deals.filter(
-    (deal) => dealStage(deal, data.today) === "soon"
-  )
+  const current = data.deals.filter((deal) => deal.stage === "on")
+  const comingUp = data.deals.filter((deal) => deal.stage === "soon")
 
   return (
     <DirectoryFrame>
@@ -74,12 +71,15 @@ function DealsRoute() {
         </Card>
       ) : null}
 
-      {onNow.length ? (
-        <section aria-labelledby="deals-on-now" className="grid gap-2 md:gap-3">
-          <h2 id="deals-on-now" className="text-base font-semibold">
-            On now
+      {current.length ? (
+        <section
+          aria-labelledby="deals-current"
+          className="grid gap-2 md:gap-3"
+        >
+          <h2 id="deals-current" className="text-base font-semibold">
+            Current deals
           </h2>
-          <DealGrid deals={onNow} today={data.today} />
+          <DealGrid deals={current} />
         </section>
       ) : null}
 
@@ -91,7 +91,7 @@ function DealsRoute() {
           <h2 id="deals-coming-up" className="text-base font-semibold">
             Starting soon
           </h2>
-          <DealGrid deals={comingUp} today={data.today} />
+          <DealGrid deals={comingUp} />
         </section>
       ) : null}
 

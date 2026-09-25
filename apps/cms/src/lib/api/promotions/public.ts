@@ -1,16 +1,20 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { siteToday } from "@/lib/promotions/deal-days"
+import { wallClockAt } from "@/lib/events/event-time"
 import { findCurrentUser } from "@/server/auth/security"
 import { visitorSite, type PublicSite, type VisitorSite } from "@/server/directory/public"
 import { siteTimeZone } from "@/server/directory/settings"
-import { dealViewAt, type DealView } from "@/server/promotions/deal-view"
+import {
+  dealViewAt,
+  listedDealsAt,
+  type DealView,
+  type ListedDeal,
+} from "@/server/promotions/deal-view"
 import {
   dealsAccessFor,
   readDeals,
   readPublicDeal,
-  type PublicDealCard,
 } from "@/server/promotions/public"
 
 /**
@@ -39,9 +43,8 @@ async function siteWithOpenDeals(): Promise<VisitorSite | null> {
 
 export type DealsPageData = {
   site: PublicSite
-  /** "2026-09-24", the site's today, which every card's words are read against. */
-  today: string
-  deals: PublicDealCard[]
+  /** Each card with its words for this moment, by the site's clock. */
+  deals: ListedDeal[]
   total: number
   page: number
   pageSize: number
@@ -54,8 +57,9 @@ const readDealsPageFn = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<DealsPageData | null> => {
     const site = await siteWithOpenDeals()
     if (!site) return null
-    const today = siteToday(await siteTimeZone(site.id), new Date())
-    return { ...(await readDeals(site, data.page ?? 1, today)), today }
+    const now = wallClockAt(await siteTimeZone(site.id), new Date())
+    const list = await readDeals(site, data.page ?? 1, now)
+    return { ...list, deals: listedDealsAt(list.deals, now) }
   })
 
 /** One page of the visited site's Deals page, or null if it is closed. */
@@ -77,4 +81,4 @@ export function loadDeal(slug: string) {
   return readDealFn({ data: { slug } })
 }
 
-export type { PublicDealCard } from "@/server/promotions/public"
+export type { ListedDeal } from "@/server/promotions/deal-view"

@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { formatMonthAndYear } from "@/lib/format/format-time"
+import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { monthTotal, type DayResult } from "@/lib/trade/pnl/day-buckets"
 import {
   currentMonth,
@@ -64,19 +64,31 @@ export function PnlMonthGrid({
   onMonthChange,
   now,
   countsTrades = true,
+  recordsSince,
 }: {
   days: ReadonlyMap<DayKey, DayResult>
   month: Month
   onMonthChange: (month: Month) => void
   now: number
   countsTrades?: boolean
+  /**
+   * Where this grid's records begin. A public profile's record can start
+   * before 20 August 2026, because it keeps what each exchange handed back
+   * when the wallet was added. Unset is the P&L page's own start.
+   */
+  recordsSince?: number
 }) {
   const latest = currentMonth(now)
-  const earliest = earliestMonth()
+  const earliest =
+    recordsSince === undefined ? earliestMonth() : currentMonth(recordsSince)
   const total = monthTotal(days, monthPrefix(month))
   const listed = daysOfMonth(month.year, month.month)
   const leading = weekdayColumn(listed[0])
-  const since = walletProfitWindowStart()
+  const since = recordsSince ?? walletProfitWindowStart()
+  const sinceLabel =
+    recordsSince === undefined
+      ? "20 August 2026"
+      : formatDate(new Date(recordsSince))
 
   return (
     <>
@@ -144,6 +156,7 @@ export function PnlMonthGrid({
                 day={day}
                 result={days.get(day) ?? null}
                 beforeRecords={dayStart(day) < since}
+                sinceLabel={sinceLabel}
                 future={dayStart(day) > now}
                 countsTrades={countsTrades}
               />
@@ -161,12 +174,14 @@ function DayTile({
   beforeRecords,
   future,
   countsTrades,
+  sinceLabel,
 }: {
   day: DayKey
   result: DayResult | null
   beforeRecords: boolean
   future: boolean
   countsTrades: boolean
+  sinceLabel: string
 }) {
   const number = Number(day.slice(-2))
   const quiet = beforeRecords || future
@@ -174,7 +189,7 @@ function DayTile({
     result !== null &&
     (result.trades > 0 || result.unpriced > 0 || result.money !== 0)
   const words = beforeRecords
-    ? "Before records begin on 20 August 2026."
+    ? `Before records begin on ${sinceLabel}.`
     : future
       ? "Not yet."
       : !traded
