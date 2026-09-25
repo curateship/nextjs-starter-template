@@ -257,6 +257,33 @@ describe("header market pins", () => {
     expect(host.textContent).toContain("-3.40%")
     expect(host.textContent).not.toContain("+1.20%")
   })
+  it("keeps the figure when the tab comes back and swaps in the new one", async () => {
+    pins = [key("BTC")]
+    await mount()
+    const hide = (state: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: state,
+      })
+      document.dispatchEvent(new Event("visibilitychange"))
+    }
+    let finish!: (value: ReturnType<typeof snapshot>) => void
+    api.load.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    await act(async () => hide("hidden"))
+    expect(host.textContent).toContain("+1.20%")
+    await act(async () => hide("visible"))
+    expect(api.load).toHaveBeenCalledTimes(2)
+    // The read has left and not landed. The old figure stays in its place.
+    expect(host.textContent).toContain("+1.20%")
+    expect(host.textContent).not.toContain("—")
+
+    const next = snapshot()
+    next.quotes[0].change24h = -0.034
+    await act(async () => finish(next))
+    expect(host.textContent).toContain("-3.40%")
+  })
   it("picks up pins changed by another browser on the next refresh", async () => {
     pins = [key("BTC")]
     await mount()
