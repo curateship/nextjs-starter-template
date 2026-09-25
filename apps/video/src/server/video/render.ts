@@ -1,10 +1,8 @@
 import { spawn } from "node:child_process"
-import { existsSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
 import { and, eq, inArray } from "drizzle-orm"
 
 import {
@@ -78,6 +76,10 @@ import {
   runFfmpeg as runFfmpegCommand,
 } from "@/server/video/ffmpeg"
 import { downloadToFile } from "@/server/video/storage-files"
+import {
+  FONT_MISSING_MESSAGE,
+  requireTextFontFiles,
+} from "@/server/video/text-font-files"
 
 /**
  * Turning a timeline into a finished MP4.
@@ -112,7 +114,6 @@ const AUDIO_BITRATE = "192k"
 const DESIGN_HEIGHT = 1080
 
 export const RENDER_FAILED_MESSAGE = "The export could not be made"
-const FONT_MISSING_MESSAGE = "The font this server renders words with is missing"
 
 /**
  * Only these reach the screen as they are. Anything else — storage internals,
@@ -127,11 +128,6 @@ export const SAFE_RENDER_ERRORS = new Set([
   FONT_MISSING_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
 ])
-
-// The face words are drawn in: the app's own Inter, as a file the rasterizer
-// can read. The browser loads the same family as a web font.
-const ASSET_DIR = fileURLToPath(new URL("../assets", import.meta.url))
-const RENDER_FONT_FILE = path.join(ASSET_DIR, "Inter-SemiBold.ttf")
 
 // The rasterizer is a native add-on: no bundler can inline its binary, so it is
 // loaded when it is needed rather than imported. A server running this must
@@ -1113,13 +1109,6 @@ function wrapTextLines(text: string, charWidth: number, maxWidth: number) {
   return lines
 }
 
-function requireRenderFont() {
-  if (!existsSync(RENDER_FONT_FILE)) {
-    throw new Error(FONT_MISSING_MESSAGE)
-  }
-  return RENDER_FONT_FILE
-}
-
 /**
  * One text clip's part of a picture, matching the preview: centred on its own
  * position, 1.15 line height, a soft shadow unless it sits on a block of
@@ -1208,7 +1197,7 @@ function textSvgPart(
   const closeGroup = entering ? "</g>" : ""
 
   return `${openGroup}${highlightRect}
-  <text${textFilter} text-anchor="middle" font-family="Inter" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>${closeGroup}`
+  <text${textFilter} text-anchor="middle" font-family="${font.svgFamily}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>${closeGroup}`
 }
 
 /**
@@ -1219,7 +1208,7 @@ function renderTextLayerPng(
   parts: string[],
   size: { width: number; height: number }
 ) {
-  const fontFile = requireRenderFont()
+  const fontFiles = requireTextFontFiles()
   const scale = size.height / DESIGN_HEIGHT
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
   <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
@@ -1231,7 +1220,7 @@ function renderTextLayerPng(
   const { Resvg } = loadResvg()
   return new Resvg(svg, {
     font: {
-      fontFiles: [fontFile],
+      fontFiles,
       loadSystemFonts: false,
       defaultFontFamily: "Inter",
     },
@@ -1245,7 +1234,7 @@ async function renderEndCardTextPng(
   size: { width: number; height: number }
 ) {
   const font = requireTextFont("inter")
-  const fontFile = requireRenderFont()
+  const fontFiles = requireTextFontFiles()
 
   let fontSize = size.height * 0.06
   const wrap = () =>
@@ -1279,7 +1268,7 @@ async function renderEndCardTextPng(
   const { Resvg } = loadResvg()
   return new Resvg(svg, {
     font: {
-      fontFiles: [fontFile],
+      fontFiles,
       loadSystemFonts: false,
       defaultFontFamily: "Inter",
     },
